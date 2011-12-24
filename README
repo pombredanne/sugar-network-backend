@@ -1,0 +1,7 @@
+Introduction
+============
+
+http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
+
+This is a Python library that supports Active Record pattern to use Xapian
+as a "NoSQL replacement" with keeping documents directly in the files system.
