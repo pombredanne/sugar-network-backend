@@ -14,11 +14,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import urlparse
 from os.path import join, exists, dirname
 from gettext import gettext as _
 
 from active_document import util
+from active_document.util import enforce
 
 
 root = util.Option(
@@ -37,7 +37,7 @@ def path(*args):
         absolute path
 
     """
-    assert(root.value,
+    enforce(root.value,
             _('The active_document.env.root.value is not set'))
 
     result = join(root.value, *args)

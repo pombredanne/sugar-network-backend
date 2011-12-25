@@ -18,7 +18,7 @@ import uuid
 import time
 import shutil
 import logging
-from os.path import exists, join, dirname
+from os.path import exists
 from gettext import gettext as _
 
 import xapian
