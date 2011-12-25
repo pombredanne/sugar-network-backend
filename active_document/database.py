@@ -51,8 +51,8 @@ class Database(gobject.GObject):
             'changed': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
             }
 
-    #: `Term` objects collected for a class inherited from the `Database`
-    terms = {}
+    #: `Property` objects collected for a class inherited from the `Database`
+    properties = {}
 
     def __init__(self,
             flush_timeout=_FLUSH_TIMEOUT, flush_threshold=_FLUSH_THRESHOLD):
@@ -74,8 +74,8 @@ class Database(gobject.GObject):
         self._flush_timeout_hid = None
         self._pending_writes = 0
 
-        if 'guid' not in self.terms:
-            self.terms['guid'] = Term('guid', 0, _GUID_PREFIX)
+        if 'guid' not in self.properties:
+            self.properties['guid'] = Property('guid', 0, _GUID_PREFIX)
 
         self._open(False)
 
@@ -114,32 +114,31 @@ class Database(gobject.GObject):
 
         """
         props['guid'] = guid
-        for name, value in props.items():
+        for name, prop in self.properties.items():
+            value = props.get(name, prop.default)
+            enforce(value is not None,
+                    _('Property "%s" should be passed while creating new %s ' \
+                            'document'),
+                    name, self.name)
             props[name] = _value(value)
-        for term in self.terms.values():
-            if term.default is not None and term.name not in props:
-                props[term.name] = _value(term.default)
 
-        logging.debug('Store %s object: guid=%s props=%r',
-                self.name, guid, props)
+        logging.debug('Store %s object: %r', self.name, props)
 
         document = xapian.Document()
-
-        for term in self.terms.values():
-            enforce(term.name in props,
-                    _('Property "%s" should be passed while creating new ' \
-                            '%s document'), term.name, self.name)
-            document.add_value(term.slot, props[term.name])
-
         term_generator = xapian.TermGenerator()
         term_generator.set_document(document)
-        for term in self.terms.values():
-            if not term.prefix:
-                continue
-            for i in term.list_value(props[term.name]):
-                document.add_term(_key(term.prefix, i))
-                term_generator.index_text(i, 1, term.prefix)
-                term_generator.increase_termpos()
+
+        for name, prop in self.properties.items():
+            if prop.slot is not None:
+                document.add_value(prop.slot, props[name])
+            if prop.prefix:
+                for value in prop.list_value(props[name]):
+                    if prop.boolean:
+                        document.add_boolean_term(_key(prop.prefix, value))
+                    else:
+                        document.add_term(_key(prop.prefix, value))
+                    term_generator.index_text(value, 1, prop.prefix)
+                    term_generator.increase_termpos()
 
         self._db.replace_document(_key(_GUID_PREFIX, guid), document)
         self._commit(False)
@@ -156,7 +155,7 @@ class Database(gobject.GObject):
         self._commit(False)
 
     def find(self, offset=0, limit=None, request=None, query='',
-            properties=None, order_by=None, group_by=None):
+            reply=None, order_by=None, group_by=None):
         """Search documents.
 
         The result will be an array of dictionaries with found documents'
@@ -172,7 +171,7 @@ class Database(gobject.GObject):
             a dictionary with property values to restrict the search
         :param query:
             a string in Xapian serach format, empty to avoid text search
-        :param properties:
+        :param reply:
             an array of property names to use only in the resulting list;
             only GUID property will be used by default
         :param order_by:
@@ -195,8 +194,8 @@ class Database(gobject.GObject):
             limit = self._db.get_doccount()
         if request is None:
             request = {}
-        if not properties:
-            properties = ['guid']
+        if not reply:
+            reply = ['guid']
         if order_by is None:
             order_by = ['+ctime']
 
@@ -216,12 +215,17 @@ class Database(gobject.GObject):
 
         entries = []
         for hit in result:
-            doc = {}
-            for term in [self.terms[i] for i in properties]:
-                doc[term.name] = hit.document.get_value(term.slot)
+            entry = {}
+            guid = hit.document.get_value(0)
+            for name in reply:
+                prop = self.properties.get(name)
+                if prop is not None and prop.slot is not None:
+                    entry[name] = hit.document.get_value(prop.slot)
+                else:
+                    entry[name] = self.get_property(guid, name)
             if group_by:
-                doc['grouped'] = hit.collapse_count + 1
-            entries.append(doc)
+                entry['grouped'] = hit.collapse_count + 1
+            entries.append(entry)
 
         logging.debug('Find in %s: offset=%s limit=%s request=%r query=%r ' \
                 'order_by=%r group_by=%r time=%s entries=%s total_count=%s ' \
@@ -231,6 +235,9 @@ class Database(gobject.GObject):
                 enquire.get_query())
 
         return (entries, total_count)
+
+    def get_property(self, guid, name):
+        pass
 
     def scan_cb(self):
         """Scan for a document.
@@ -307,7 +314,8 @@ class Database(gobject.GObject):
 
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
-        subqueries = []
+        queries = []
+        boolean_queries = []
 
         if query:
             query = _extract_exact_search_terms(query, request)
@@ -315,10 +323,13 @@ class Database(gobject.GObject):
         if query:
             parser = xapian.QueryParser()
             parser.set_database(self._db)
-            for term in self.terms.values():
-                if term.prefix:
-                    parser.add_prefix(term.name, term.prefix)
-                    parser.add_prefix('', term.prefix)
+            for name, prop in self.properties.items():
+                if prop.prefix:
+                    if prop.boolean:
+                        parser.add_boolean_prefix(name, prop.prefix)
+                    else:
+                        parser.add_prefix(name, prop.prefix)
+                    parser.add_prefix('', prop.prefix)
             query = parser.parse_query(query,
                     xapian.QueryParser.FLAG_PHRASE |
                     xapian.QueryParser.FLAG_BOOLEAN |
@@ -326,21 +337,34 @@ class Database(gobject.GObject):
                     xapian.QueryParser.FLAG_PARTIAL |
                     xapian.QueryParser.FLAG_WILDCARD,
                     '')
-            subqueries.append(query)
+            queries.append(query)
 
-        for term, value in request.items():
+        for name, value in request.items():
             value = str(value).strip()
-            if term in self.terms:
-                query = xapian.Query(_key(self.terms[term].prefix, value))
-                subqueries.append(query)
+            prop = self.properties.get(name)
+            if prop is not None and prop.prefix:
+                query = xapian.Query(_key(prop.prefix, value))
+                if prop.boolean:
+                    boolean_queries.append(query)
+                else:
+                    queries.append(query)
             else:
                 logging.warning(
-                        _('Unknow search term "%s" for %s'), term, self.name)
+                        _('Unknow search term "%s" for %s'), name, self.name)
 
-        if subqueries:
-            enquire.set_query(xapian.Query(xapian.Query.OP_AND, subqueries))
-        else:
-            enquire.set_query(xapian.Query(''))
+        final_query = None
+        if queries:
+            final_query = xapian.Query(xapian.Query.OP_AND, queries)
+        if boolean_queries:
+            query = xapian.Query(xapian.Query.OP_AND, boolean_queries)
+            if final_query is None:
+                final_query = query
+            else:
+                final_query = xapian.Query(xapian.Query.OP_FILTER,
+                        [final_query, query])
+        if final_query is None:
+            final_query = xapian.Query('')
+        enquire.set_query(final_query)
 
         if hasattr(xapian, 'MultiValueKeyMaker'):
             sorter = xapian.MultiValueKeyMaker()
@@ -353,19 +377,21 @@ class Database(gobject.GObject):
                     order = order[1:]
                 else:
                     reverse = False
-                if order not in self.terms:
+                prop = self.properties.get(order)
+                if prop is not None and prop.slot is not None:
+                    sorter.add_value(prop.slot, reverse)
+                else:
                     logging.warning(_('Cannot sort using "%s" property in %s'),
                             order, self.name)
-                    continue
-                sorter.add_value(self.terms[order].slot, reverse)
             enquire.set_sort_by_key(sorter, reverse=False)
         else:
             logging.warning(_('In order to support sorting, ' \
                     'Xapian should be at least 1.2.0'))
 
         if group_by:
-            if group_by in self.terms:
-                enquire.set_collapse_key(self.terms[group_by].slot)
+            prop = self.properties.get(group_by)
+            if prop is not None and prop.slot is not None:
+                enquire.set_collapse_key(prop.slot)
             else:
                 logging.warning(_('Cannot group by "%s" property in %s'),
                         group_by, self.name)
@@ -385,11 +411,32 @@ class Database(gobject.GObject):
         version.close()
 
 
-class Term(object):
-    """Collect inforamtion for Xapian term."""
+class Property(object):
+    """Collect inforamtion about document property."""
 
-    def __init__(self, name, slot, prefix=None, default=None, is_list=False,
-            list_separator=None):
+    def __init__(self, name, slot, prefix=None, default=None, boolean=False,
+            multiple=False, separator=None):
+        """
+        :param name:
+            property name
+        :param slot:
+            document's slot number to add property value to;
+            if `None`, property is not a Xapian value
+        :param prefix:
+            serach term prefix;
+            if `None`, property is not a search term
+        :param default:
+            default property value to use while creating new documents
+        :param boolean:
+            if `prefix` is not `None`, this argument specifies will
+            Xapian use boolean search for that property or not
+        :param multiple:
+            should property value be treated as a list of words
+        :param separator:
+            if `multiple` set, this will be a separator;
+            otherwise any space symbols will be used to separate words
+
+        """
         enforce(name == 'guid' or slot != 0,
                 _('The slot "0" is reserved for internal needs'))
         enforce(name == 'guid' or prefix != _GUID_PREFIX,
@@ -398,32 +445,39 @@ class Term(object):
         self._slot = slot
         self._prefix = prefix
         self._default = default
-        self._is_list = is_list
-        self._list_separator = list_separator
+        self._boolean = boolean
+        self._multiple = multiple
+        self._separator = separator
 
     @property
     def name(self):
-        """Term name."""
+        """Property name."""
         return self._name
 
     @property
     def slot(self):
-        """Xapian document slot to place this property value."""
+        """Xapian document's slot number to add property value to."""
         return self._slot
 
     @property
     def prefix(self):
-        """Xapian term prefix or None for not using term the the property."""
+        """Xapian serach term prefix, if `None`, property is not a term."""
         return self._prefix
+
+    @property
+    def boolean(self):
+        """Xapian will use boolean search for this property."""
+        return self._boolean
 
     @property
     def default(self):
         """Default property value or None."""
-        pass
+        return self._default
 
     def list_value(self, value):
-        if self._is_list:
-            return [i.strip() for i in value.split(self._list_separator) \
+        """If property value contains several values, list them all."""
+        if self._multiple:
+            return [i.strip() for i in value.split(self._separator) \
                     if i.strip()]
         else:
             return [value]

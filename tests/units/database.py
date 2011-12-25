@@ -32,23 +32,23 @@ class DatabaseTest(tests.Test):
         tests.Test.setUp(self)
         database._LAYOUT_VERSION = LAYOUT_VERSION
         Database.docs = []
-        Database.terms = {}
+        Database.properties = {}
         self.mainloop = gobject.MainLoop()
 
     def test_Term_AvoidCollisionsWithGuid(self):
-        self.assertRaises(RuntimeError, database.Term, 'key', 0, 'I')
-        self.assertRaises(RuntimeError, database.Term, 'key', 0, 'K')
-        self.assertRaises(RuntimeError, database.Term, 'key', 1, 'I')
-        database.Term('key', 1, 'K')
-        database.Term('guid', 0, 'I')
+        self.assertRaises(RuntimeError, database.Property, 'key', 0, 'I')
+        self.assertRaises(RuntimeError, database.Property, 'key', 0, 'K')
+        self.assertRaises(RuntimeError, database.Property, 'key', 1, 'I')
+        database.Property('key', 1, 'K')
+        database.Property('guid', 0, 'I')
 
     def test_create(self):
-        Database.terms = {'key': database.Term('key', 1, 'K')}
+        Database.properties = {'key': database.Property('key', 1, 'K')}
         db = Database(flush_timeout=0, flush_threshold=0)
 
         guid_1 = db.create({'key': 'value_1'})
         assert guid_1
-        entries, total = db.find(properties=['guid', 'key'])
+        entries, total = db.find(reply=['guid', 'key'])
         self.assertEqual(1, total)
         self.assertEqual(
                 sorted([
@@ -59,7 +59,7 @@ class DatabaseTest(tests.Test):
         guid_2 = db.create({'key': 'value_2'})
         assert guid_2
         assert guid_1 != guid_2
-        entries, total = db.find(properties=['guid', 'key'])
+        entries, total = db.find(reply=['guid', 'key'])
         self.assertEqual(2, total)
         self.assertEqual(
                 sorted([
@@ -69,48 +69,48 @@ class DatabaseTest(tests.Test):
                 sorted(entries))
 
     def test_update(self):
-        Database.terms = {'key': database.Term('key', 1, 'K')}
+        Database.properties = {'key': database.Property('key', 1, 'K')}
         db = Database(flush_timeout=0, flush_threshold=0)
 
         guid = db.create({'key': 'value_1'})
         self.assertEqual(
                 ([{'guid': guid, 'key': 'value_1'}], 1),
-                db.find(properties=['guid', 'key']))
+                db.find(reply=['guid', 'key']))
 
         db.update(guid, {'key': 'value_2'})
         self.assertEqual(
                 ([{'guid': guid, 'key': 'value_2'}], 1),
-                db.find(properties=['guid', 'key']))
+                db.find(reply=['guid', 'key']))
 
     def test_update_AvoidGuidOverwrite(self):
-        Database.terms = {'key': database.Term('key', 1, 'K')}
+        Database.properties = {'key': database.Property('key', 1, 'K')}
         db = Database(flush_timeout=0, flush_threshold=0)
 
         guid = db.create({'key': 'value_1'})
         db.update(guid, {'guid': 'fake', 'key': 'value_2'})
         self.assertEqual(
                 ([{'guid': guid, 'key': 'value_2'}], 1),
-                db.find(properties=['guid', 'key']))
+                db.find(reply=['guid', 'key']))
 
     def test_delete(self):
-        Database.terms = {'key': database.Term('key', 1, 'K')}
+        Database.properties = {'key': database.Property('key', 1, 'K')}
         db = Database(flush_timeout=0, flush_threshold=0)
 
         guid = db.create({'key': 'value'})
         self.assertEqual(
                 ([{'guid': guid, 'key': 'value'}], 1),
-                db.find(properties=['guid', 'key']))
+                db.find(reply=['guid', 'key']))
 
         db.delete(guid)
         self.assertEqual(
                 ([], 0),
-                db.find(properties=['guid', 'key']))
+                db.find(reply=['guid', 'key']))
 
     def test_find(self):
-        Database.terms = {
-                'var_1': database.Term('var_1', 1, 'A'),
-                'var_2': database.Term('var_2', 2, 'B'),
-                'var_3': database.Term('var_3', 3, 'C'),
+        Database.properties = {
+                'var_1': database.Property('var_1', 1, 'A'),
+                'var_2': database.Property('var_2', 2, 'B'),
+                'var_3': database.Property('var_3', 3, 'C'),
                 }
         db = Database(flush_timeout=0, flush_threshold=0)
 
@@ -120,25 +120,25 @@ class DatabaseTest(tests.Test):
 
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}], 2),
-                db.find(query='у', properties=['var_1']))
+                db.find(query='у', reply=['var_1']))
 
         self.assertEqual(
                 ([{'var_1': '2'}], 1),
-                db.find(query='у AND ю', properties=['var_1']))
+                db.find(query='у AND ю', reply=['var_1']))
 
         self.assertEqual(
                 ([{'var_1': '2'}, {'var_1': '3'}], 2),
-                db.find(query='var_3:ю', properties=['var_1']))
+                db.find(query='var_3:ю', reply=['var_1']))
 
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
-                db.find(query='var_3:ю OR var_2:у', properties=['var_1']))
+                db.find(query='var_3:ю OR var_2:у', reply=['var_1']))
 
     def test_find_WithProps(self):
-        Database.terms = {
-                'var_1': database.Term('var_1', 1, 'A'),
-                'var_2': database.Term('var_2', 2, 'B'),
-                'var_3': database.Term('var_3', 3, 'C'),
+        Database.properties = {
+                'var_1': database.Property('var_1', 1, 'A'),
+                'var_2': database.Property('var_2', 2, 'B'),
+                'var_3': database.Property('var_3', 3, 'C'),
                 }
         db = Database(flush_timeout=0, flush_threshold=0)
 
@@ -148,22 +148,70 @@ class DatabaseTest(tests.Test):
 
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}], 2),
-                db.find(request={'var_2': 'у'}, properties=['var_1']))
+                db.find(request={'var_2': 'у'}, reply=['var_1']))
 
         self.assertEqual(
                 ([{'var_1': '1'}], 1),
-                db.find(request={'var_2': 'у', 'var_3': 'г'}, properties=['var_1']))
+                db.find(request={'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
                 ([], 0),
-                db.find(query='var_1:0', request={'var_2': 'у', 'var_3': 'г'}, properties=['var_1']))
+                db.find(query='var_1:0', request={'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
                 ([{'var_1': '3'}], 1),
-                db.find(query='var_3:ю', request={'var_2': 'б'}, properties=['var_1']))
+                db.find(query='var_3:ю', request={'var_2': 'б'}, reply=['var_1']))
+
+    def test_find_WithAllBooleanProps(self):
+        Database.properties = {
+                'var_1': database.Property('var_1', 1, 'A', boolean=True),
+                'var_2': database.Property('var_2', 2, 'B', boolean=True),
+                'var_3': database.Property('var_3', 3, 'C', boolean=True),
+                }
+        db = Database(flush_timeout=0, flush_threshold=0)
+
+        db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+
+        self.assertEqual(
+                ([{'var_1': '1'}], 1),
+                db.find(request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
+
+        self.assertEqual(
+                ([{'var_1': '1'}], 1),
+                db.find(query='г', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
+
+        self.assertEqual(
+                ([], 0),
+                db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
+
+    def test_find_WithBooleanProps(self):
+        Database.properties = {
+                'var_1': database.Property('var_1', 1, 'A', boolean=True),
+                'var_2': database.Property('var_2', 2, 'B', boolean=False),
+                'var_3': database.Property('var_3', 3, 'C', boolean=True),
+                }
+        db = Database(flush_timeout=0, flush_threshold=0)
+
+        db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+
+        self.assertEqual(
+                ([{'var_1': '1'}], 1),
+                db.find(request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
+
+        self.assertEqual(
+                ([{'var_1': '1'}], 1),
+                db.find(query='г', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
+
+        self.assertEqual(
+                ([], 0),
+                db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_ExactQuery(self):
-        Database.terms = {'key': database.Term('key', 1, 'K')}
+        Database.properties = {'key': database.Property('key', 1, 'K')}
         db = Database(flush_timeout=0, flush_threshold=0)
 
         db.create({'key': 'фу'})
@@ -172,23 +220,23 @@ class DatabaseTest(tests.Test):
 
         self.assertEqual(
                 ([{'key': 'фу'}, {'key': 'фу бар'}, {'key': 'фу бар тест'}], 3),
-                db.find(query='key:фу', properties=['key']))
+                db.find(query='key:фу', reply=['key']))
         self.assertEqual(
                 ([{'key': 'фу бар'}, {'key': 'фу бар тест'}], 2),
-                db.find(query='key:"фу бар"', properties=['key']))
+                db.find(query='key:"фу бар"', reply=['key']))
 
         self.assertEqual(
                 ([{'key': 'фу'}], 1),
-                db.find(query='key:=фу', properties=['key']))
+                db.find(query='key:=фу', reply=['key']))
         self.assertEqual(
                 ([{'key': 'фу бар'}], 1),
-                db.find(query='key:="фу бар"', properties=['key']))
+                db.find(query='key:="фу бар"', reply=['key']))
         self.assertEqual(
                 ([{'key': 'фу бар тест'}], 1),
-                db.find(query='key:="фу бар тест"', properties=['key']))
+                db.find(query='key:="фу бар тест"', reply=['key']))
 
     def test_find_ReturnPortions(self):
-        Database.terms = {'key': database.Term('key', 1, 'K')}
+        Database.properties = {'key': database.Property('key', 1, 'K')}
         db = Database(flush_timeout=0, flush_threshold=0)
 
         db.create({'key': '1'})
@@ -197,22 +245,22 @@ class DatabaseTest(tests.Test):
 
         self.assertEqual(
                 ([{'key': '1'}], 3),
-                db.find(offset=0, limit=1, properties=['key']))
+                db.find(offset=0, limit=1, reply=['key']))
         self.assertEqual(
                 ([{'key': '2'}], 3),
-                db.find(offset=1, limit=1, properties=['key']))
+                db.find(offset=1, limit=1, reply=['key']))
         self.assertEqual(
                 ([{'key': '3'}], 3),
-                db.find(offset=2, limit=1, properties=['key']))
+                db.find(offset=2, limit=1, reply=['key']))
         self.assertEqual(
                 ([], 3),
-                db.find(offset=3, limit=1, properties=['key']))
+                db.find(offset=3, limit=1, reply=['key']))
 
     def test_find_OrderBy(self):
-        Database.terms = {
-                'var_1': database.Term('var_1', 1, 'A'),
-                'var_2': database.Term('var_2', 2, 'B'),
-                'var_3': database.Term('var_3', 3, 'C'),
+        Database.properties = {
+                'var_1': database.Property('var_1', 1, 'A'),
+                'var_2': database.Property('var_2', 2, 'B'),
+                'var_3': database.Property('var_3', 3, 'C'),
                 }
         db = Database(flush_timeout=0, flush_threshold=0)
 
@@ -222,29 +270,29 @@ class DatabaseTest(tests.Test):
 
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
-                db.find(properties=['var_1'], order_by=['var_2']))
+                db.find(reply=['var_1'], order_by=['var_2']))
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
-                db.find(properties=['var_1'], order_by=['+var_2']))
+                db.find(reply=['var_1'], order_by=['+var_2']))
         self.assertEqual(
                 ([{'var_1': '3'}, {'var_1': '2'}, {'var_1': '1'}], 3),
-                db.find(properties=['var_1'], order_by=['-var_2']))
+                db.find(reply=['var_1'], order_by=['-var_2']))
 
         self.assertEqual(
                 ([{'var_1': '3'}, {'var_1': '1'}, {'var_1': '2'}], 3),
-                db.find(properties=['var_1'], order_by=['+var_3', '+var_2']))
+                db.find(reply=['var_1'], order_by=['+var_3', '+var_2']))
         self.assertEqual(
                 ([{'var_1': '3'}, {'var_1': '2'}, {'var_1': '1'}], 3),
-                db.find(properties=['var_1'], order_by=['+var_3', '-var_2']))
+                db.find(reply=['var_1'], order_by=['+var_3', '-var_2']))
         self.assertEqual(
                 ([{'var_1': '2'}, {'var_1': '1'}, {'var_1': '3'}], 3),
-                db.find(properties=['var_1'], order_by=['-var_3', '-var_2']))
+                db.find(reply=['var_1'], order_by=['-var_3', '-var_2']))
 
     def test_find_GroupBy(self):
-        Database.terms = {
-                'var_1': database.Term('var_1', 1, 'A'),
-                'var_2': database.Term('var_2', 2, 'B'),
-                'var_3': database.Term('var_3', 3, 'C'),
+        Database.properties = {
+                'var_1': database.Property('var_1', 1, 'A'),
+                'var_2': database.Property('var_2', 2, 'B'),
+                'var_3': database.Property('var_3', 3, 'C'),
                 }
         db = Database(flush_timeout=0, flush_threshold=0)
 
@@ -254,16 +302,16 @@ class DatabaseTest(tests.Test):
 
         self.assertEqual(
                 ([{'var_1': '1', 'grouped': 2}, {'var_1': '3', 'grouped': 1}], 2),
-                db.find(properties=['var_1'], group_by='var_2'))
+                db.find(reply=['var_1'], group_by='var_2'))
         self.assertEqual(
                 ([{'var_1': '1', 'grouped': 1}, {'var_1': '2', 'grouped': 2}], 2),
-                db.find(properties=['var_1'], group_by='var_3'))
+                db.find(reply=['var_1'], group_by='var_3'))
 
     def test_TermsAreLists(self):
-        Database.terms = {
-                'var_1': database.Term('var_1', 1, 'A'),
-                'var_2': database.Term('var_2', 2, 'B', is_list=True),
-                'var_3': database.Term('var_3', 3, 'C', is_list=True, list_separator=';'),
+        Database.properties = {
+                'var_1': database.Property('var_1', 1, 'A'),
+                'var_2': database.Property('var_2', 2, 'B', multiple=True),
+                'var_3': database.Property('var_3', 3, 'C', multiple=True, separator=';'),
                 }
         db = Database(flush_timeout=0, flush_threshold=0)
 
@@ -272,20 +320,20 @@ class DatabaseTest(tests.Test):
 
         self.assertEqual(
                 ([{'var_1': '1'}], 1),
-                db.find(request={'var_2': '1'}, properties=['var_1']))
+                db.find(request={'var_2': '1'}, reply=['var_1']))
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}], 2),
-                db.find(request={'var_2': '2'}, properties=['var_1']))
+                db.find(request={'var_2': '2'}, reply=['var_1']))
 
         self.assertEqual(
                 ([{'var_1': '2'}], 1),
-                db.find(request={'var_3': '6'}, properties=['var_1']))
+                db.find(request={'var_3': '6'}, reply=['var_1']))
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}], 2),
-                db.find(request={'var_3': '5'}, properties=['var_1']))
+                db.find(request={'var_3': '5'}, reply=['var_1']))
 
     def test_FlushThreshold(self):
-        Database.terms = {'key': database.Term('key', 1, 'K')}
+        Database.properties = {'key': database.Property('key', 1, 'K')}
 
         db = Database(flush_timeout=0, flush_threshold=2)
 
@@ -341,7 +389,7 @@ class DatabaseTest(tests.Test):
                 {'guid': '2', 'key': 'b'},
                 {'guid': '3', 'key': 'c'},
                 ]
-        Database.terms = {'key': database.Term('key', 1, 'K')}
+        Database.properties = {'key': database.Property('key', 1, 'K')}
 
         db = Database(flush_timeout=0, flush_threshold=3)
         db.connect('changed', lambda *args: self.mainloop.quit())
@@ -352,7 +400,7 @@ class DatabaseTest(tests.Test):
                   {'guid': '2', 'key': 'b'},
                   {'guid': '3', 'key': 'c'},
                   ], 3),
-                db.find(properties=['guid', 'key']))
+                db.find(reply=['guid', 'key']))
 
     def test_LayoutVersion(self):
         db = Database(flush_timeout=0, flush_threshold=0)
