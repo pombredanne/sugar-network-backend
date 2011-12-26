@@ -50,6 +50,9 @@ class Test(unittest.TestCase):
         logging.basicConfig(level=logging.DEBUG, filename=logfile)
 
         _env.root.value = tmpdir
+        _env.flush_timeout.value = 0
+        _env.flush_threshold.value = 0
+        _env.LAYOUT_VERSION = 1
 
     def tearDown(self):
         while self._overriden:

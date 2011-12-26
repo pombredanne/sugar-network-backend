@@ -21,8 +21,26 @@ from active_document import util
 from active_document.util import enforce
 
 
+#: To invalidate existed Xapian db on stcuture changes in stored documents
+LAYOUT_VERSION = 1
+
+#: Xapian term prefix for GUID value
+GUID_PREFIX = 'I'
+
+#: Additional Xapian term prefix for exact search terms
+EXACT_PREFIX = 'X'
+
 root = util.Option(
         _('path to the root directory to place documents\' data and indexes'))
+
+flush_timeout = util.Option(
+        _('force a flush after specified seconds since the last ' \
+                'database change'),
+        default=5, type_cast=int)
+
+flush_threshold = util.Option(
+        _('force a flush every specified changes to the database'),
+        default=32, type_cast=int)
 
 
 def path(*args):
@@ -50,3 +68,37 @@ def path(*args):
         os.makedirs(result_dir)
 
     return result
+
+
+def term(prefix, term_value):
+    """Compose full Xapian term value applying all needed prefixes.
+
+    :param prefix:
+        term prefix
+    :param term_value:
+        term value; for long strings, only short partion will be used
+        to avoid storing big terms
+    :returns:
+        final term value
+
+    """
+    return EXACT_PREFIX + prefix + str(term_value).split('\n')[0][:243]
+
+
+def value(raw_value):
+    """Convert value to a string before passing it to Xapian.
+
+    :param raw_value:
+        arbitrary type value
+    :returns:
+        value in string representation
+
+    """
+    if isinstance(raw_value, unicode):
+        return raw_value.encode('utf-8')
+    elif isinstance(raw_value, bool):
+        return '1' if raw_value else '0'
+    elif not isinstance(raw_value, basestring):
+        return str(raw_value)
+    else:
+        return raw_value

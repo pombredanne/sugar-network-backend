@@ -14,82 +14,55 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
-import uuid
 import time
-import shutil
 import logging
-from os.path import exists
 from gettext import gettext as _
 
 import xapian
-import gobject
 
-from active_document import util, env
-from active_document.util import enforce
+from active_document import env, database_writer
+from active_document.properties import GuidProperty
 
-
-# To invalidate existed Xapian db on stcuture changes in stored documents
-_LAYOUT_VERSION = 1
-
-# Additional prefix for exact search terms
-_EXACT_PREFIX = 'X'
-# Term prefix for GUID value
-_GUID_PREFIX = 'I'
-
-# Default Database flush values
-_FLUSH_TIMEOUT = 5
-_FLUSH_THRESHOLD = 512
 
 # The regexp to extract exact search terms from a query string
 _EXACT_QUERY_RE = re.compile('([a-zA-Z]+):=(")?((?(2)[^"]+|\S+))(?(2)")')
 
+# How many times to call Xapian database reopen() before fail
+_REOPEN_LIMIT = 10
 
-class Database(gobject.GObject):
-    """Manage Xapian databases."""
 
-    __gsignals__ = {
-            'changed': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
-            }
+class Database(object):
+    """Read-only access to Xapian databases."""
 
-    #: `Property` objects collected for a class inherited from the `Database`
-    properties = {}
+    _writer = None
 
-    def __init__(self,
-            flush_timeout=_FLUSH_TIMEOUT, flush_threshold=_FLUSH_THRESHOLD):
+    def __init__(self, properties, crawler):
         """
-        Xapian database will be openned.
-
-        :param flush_timeout:
-            force a flush after `flush_timeout` seconds since
-            the last change to the database
-        :param flush_threshold:
-            force a flush every `flush_threshold` changes to the database
+        :param properties:
+            `Property` objects associated with the `Database`
+        :param crawler:
+            iterator function that should return (guid, props)
+            for every existing document
 
         """
-        gobject.GObject.__init__(self)
+        if 'guid' not in properties:
+            properties['guid'] = GuidProperty()
+        self._properties = properties
+        self.__db = None
 
-        self._flush_timeout = flush_timeout
-        self._flush_threshold = flush_threshold
-        self._db = None
-        self._flush_timeout_hid = None
-        self._pending_writes = 0
-
-        if 'guid' not in self.properties:
-            self.properties['guid'] = Property('guid', 0, _GUID_PREFIX)
-
-        self._open(False)
+        if self._writer is None:
+            self.__class__._writer = database_writer.get_writer(
+                    self.name, properties, crawler)
 
     @property
     def name(self):
         """Xapian database name."""
         return self.__class__.__name__
 
-    def close(self):
-        """Close the database."""
-        if self._db is None:
-            return
-        self._commit(True)
-        self._db = None
+    @property
+    def properties(self):
+        """`Property` objects associated with the `Database`."""
+        return self._properties
 
     def create(self, props):
         """Create new document.
@@ -100,9 +73,7 @@ class Database(gobject.GObject):
             GUID of newly created document
 
         """
-        guid = str(uuid.uuid1())
-        self.update(guid, props)
-        return guid
+        return self._writer.create(props)
 
     def update(self, guid, props):
         """Update properties of existing document.
@@ -113,35 +84,7 @@ class Database(gobject.GObject):
             properties to update, not necessary all document properties
 
         """
-        props['guid'] = guid
-        for name, prop in self.properties.items():
-            value = props.get(name, prop.default)
-            enforce(value is not None,
-                    _('Property "%s" should be passed while creating new %s ' \
-                            'document'),
-                    name, self.name)
-            props[name] = _value(value)
-
-        logging.debug('Store %s object: %r', self.name, props)
-
-        document = xapian.Document()
-        term_generator = xapian.TermGenerator()
-        term_generator.set_document(document)
-
-        for name, prop in self.properties.items():
-            if prop.slot is not None:
-                document.add_value(prop.slot, props[name])
-            if prop.prefix:
-                for value in prop.list_value(props[name]):
-                    if prop.boolean:
-                        document.add_boolean_term(_key(prop.prefix, value))
-                    else:
-                        document.add_term(_key(prop.prefix, value))
-                    term_generator.index_text(value, 1, prop.prefix)
-                    term_generator.increase_termpos()
-
-        self._db.replace_document(_key(_GUID_PREFIX, guid), document)
-        self._commit(False)
+        return self._writer.update(guid, props)
 
     def delete(self, guid):
         """Delete document.
@@ -150,9 +93,7 @@ class Database(gobject.GObject):
             document GUID to delete
 
         """
-        logging.debug('Delete "%s" document from %s', guid, self.name)
-        self._db.delete_document(_key(_GUID_PREFIX, guid))
-        self._commit(False)
+        return self._writer.delete(guid)
 
     def find(self, offset=0, limit=None, request=None, query='',
             reply=None, order_by=None, group_by=None):
@@ -175,10 +116,9 @@ class Database(gobject.GObject):
             an array of property names to use only in the resulting list;
             only GUID property will be used by default
         :param order_by:
-            array of properties to sort resulting list;
-            property names might be prefixed with:
-                - `+`, field prefix or without any prefixes, ascending order;
-                - `-` descending order.
+            array of properties to sort resulting list; property names might be
+            prefixed with ``+`` (or without any prefixes) for ascending order,
+            and ``-`` for descending order
         :param group_by:
             a property name to group resulting list by; if was specified,
             every resulting list item will contain `grouped` with
@@ -190,6 +130,9 @@ class Database(gobject.GObject):
             i.e., not only documents that are included to the resulting list
 
         """
+        if self._db is None:
+            return [], 0
+
         if limit is None:
             limit = self._db.get_doccount()
         if request is None:
@@ -203,15 +146,9 @@ class Database(gobject.GObject):
         # This will assure that the results count is exact.
         check_at_least = offset + limit + 1
 
-        try:
-            enquire = self._enquire(request, query, order_by, group_by)
-            result = enquire.get_mset(offset, limit, check_at_least)
-            total_count = result.get_matches_estimated()
-        except xapian.DatabaseError:
-            util.exception(_('Xapian index search failed for %s, ' \
-                    'will rebuild index'), self.name)
-            self._open(True)
-            return [], 0
+        enquire = self._enquire(request, query, order_by, group_by)
+        result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
+        total_count = result.get_matches_estimated()
 
         entries = []
         for hit in result:
@@ -236,81 +173,33 @@ class Database(gobject.GObject):
 
         return (entries, total_count)
 
+    def connect(self, *args, **kwargs):
+        """Connect to signals sent by database writer."""
+        self._writer.connect(*args, **kwargs)
+
     def get_property(self, guid, name):
         pass
 
-    def scan_cb(self):
-        """Scan for a document.
+    @property
+    def _db(self):
+        if self.__db is None:
+            self.__db = self._writer.get_reader()
+        return self.__db
 
-        This function will be called from internals when database
-        needs to be populated. If function returns a found document,
-        it will be called once more until it fails.
-
-        :returns:
-            `None` if there no documents;
-            a tuple of (guid, properties) for found document
-
-        """
-        pass
-
-    def _open(self, reset):
-        self.close()
-        index_path = env.path(self.name, 'index', '')
-
-        if not reset and self._is_layout_stale():
-            reset = True
-        if reset:
-            shutil.rmtree(index_path, ignore_errors=True)
-
-        try:
-            self._db = xapian.WritableDatabase(
-                    index_path, xapian.DB_CREATE_OR_OPEN)
-        except xapian.DatabaseError:
-            if reset:
-                util.exception(_('Unrecoverable error while opening %s ' \
-                        'Xapian index'), index_path)
-                raise
-            else:
-                util.exception(_('Cannot open Xapian index in %s, ' \
-                        'will rebuild it'), index_path)
-                self._open(True)
-                return
-
-        self._save_layout()
-
-        gobject.idle_add(self._populate)
-
-    def _populate(self):
-        if self._db is None:
-            return
-        doc = self.scan_cb()
-        if doc is None:
-            return
-        self.update(*doc)
-        gobject.idle_add(self._populate)
-
-    def _commit(self, flush):
-        if self._flush_timeout_hid is not None:
-            gobject.source_remove(self._flush_timeout_hid)
-            self._flush_timeout_hid = None
-
-        self._pending_writes += 1
-
-        if flush or self._flush_threshold and \
-                self._pending_writes >= self._flush_threshold:
-            logging.debug('Commit %s: flush=%r _pending_writes=%r',
-                    self.name, flush, self._pending_writes)
-            if hasattr(self._db, 'commit'):
-                self._db.commit()
-            else:
-                self._db.flush()
-            self._pending_writes = 0
-            self.emit('changed')
-        elif self._flush_timeout:
-            self._flush_timeout_hid = gobject.timeout_add_seconds(
-                    self._flush_timeout, lambda: self._commit(True))
-
-        return False
+    def _call_db(self, op, *args):
+        tries = 0
+        while True:
+            try:
+                return op(*args)
+            except xapian.DatabaseError, error:
+                if tries >= _REOPEN_LIMIT:
+                    logging.warning(_('Cannot open %s database'), self.name)
+                    raise
+                logging.debug('Fail to %r %s database, will reopen it %sth ' \
+                        'time: %s', op, self.name, tries, error)
+                time.sleep(tries * .1)
+                self._db.reopen()
+                tries += 1
 
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
@@ -343,7 +232,7 @@ class Database(gobject.GObject):
             value = str(value).strip()
             prop = self.properties.get(name)
             if prop is not None and prop.prefix:
-                query = xapian.Query(_key(prop.prefix, value))
+                query = xapian.Query(env.term(prop.prefix, value))
                 if prop.boolean:
                     boolean_queries.append(query)
                 else:
@@ -397,105 +286,6 @@ class Database(gobject.GObject):
                         group_by, self.name)
 
         return enquire
-
-    def _is_layout_stale(self):
-        path = env.path(self.name, 'version')
-        if not exists(path):
-            return True
-        version = file(path).read()
-        return not version.isdigit() or int(version) != _LAYOUT_VERSION
-
-    def _save_layout(self):
-        version = file(env.path(self.name, 'version'), 'w')
-        version.write(str(_LAYOUT_VERSION))
-        version.close()
-
-
-class Property(object):
-    """Collect inforamtion about document property."""
-
-    def __init__(self, name, slot, prefix=None, default=None, boolean=False,
-            multiple=False, separator=None):
-        """
-        :param name:
-            property name
-        :param slot:
-            document's slot number to add property value to;
-            if `None`, property is not a Xapian value
-        :param prefix:
-            serach term prefix;
-            if `None`, property is not a search term
-        :param default:
-            default property value to use while creating new documents
-        :param boolean:
-            if `prefix` is not `None`, this argument specifies will
-            Xapian use boolean search for that property or not
-        :param multiple:
-            should property value be treated as a list of words
-        :param separator:
-            if `multiple` set, this will be a separator;
-            otherwise any space symbols will be used to separate words
-
-        """
-        enforce(name == 'guid' or slot != 0,
-                _('The slot "0" is reserved for internal needs'))
-        enforce(name == 'guid' or prefix != _GUID_PREFIX,
-                _('The prefix "I" is reserved for internal needs'))
-        self._name = name
-        self._slot = slot
-        self._prefix = prefix
-        self._default = default
-        self._boolean = boolean
-        self._multiple = multiple
-        self._separator = separator
-
-    @property
-    def name(self):
-        """Property name."""
-        return self._name
-
-    @property
-    def slot(self):
-        """Xapian document's slot number to add property value to."""
-        return self._slot
-
-    @property
-    def prefix(self):
-        """Xapian serach term prefix, if `None`, property is not a term."""
-        return self._prefix
-
-    @property
-    def boolean(self):
-        """Xapian will use boolean search for this property."""
-        return self._boolean
-
-    @property
-    def default(self):
-        """Default property value or None."""
-        return self._default
-
-    def list_value(self, value):
-        """If property value contains several values, list them all."""
-        if self._multiple:
-            return [i.strip() for i in value.split(self._separator) \
-                    if i.strip()]
-        else:
-            return [value]
-
-
-def _key(prefix, value):
-    return _EXACT_PREFIX + prefix + str(value).split('\n')[0][:243]
-
-
-def _value(value):
-    if isinstance(value, unicode):
-        return value.encode('utf-8')
-    elif isinstance(value, bool):
-        return '1' if value else '0'
-    elif not isinstance(value, basestring):
-        return str(value)
-    else:
-        return value
 
 
 def _extract_exact_search_terms(query, props):
