@@ -51,7 +51,8 @@ class Test(unittest.TestCase):
 
         _env.root.value = tmpdir
         _env.flush_timeout.value = 0
-        _env.flush_threshold.value = 0
+        _env.flush_threshold.value = 1
+        _env.threading.value = False
         _env.LAYOUT_VERSION = 1
 
     def tearDown(self):

@@ -30,6 +30,7 @@ GUID_PREFIX = 'I'
 #: Additional Xapian term prefix for exact search terms
 EXACT_PREFIX = 'X'
 
+
 root = util.Option(
         _('path to the root directory to place documents\' data and indexes'))
 
@@ -41,6 +42,15 @@ flush_timeout = util.Option(
 flush_threshold = util.Option(
         _('force a flush every specified changes to the database'),
         default=32, type_cast=int)
+
+threading = util.Option(
+        _('use index from different threads in optimal manner'),
+        default=False, type_cast=bool)
+
+write_queue = util.Option(
+        _('if threading is enabled, define the queue size of ' \
+                'singular writer; 0 is infinite size'),
+        default=256, type_cast=int)
 
 
 def path(*args):

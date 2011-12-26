@@ -3,13 +3,14 @@
 # sugar-lint: disable
 
 import os
+import time
 from os.path import exists
 
 import gobject
 
 from __init__ import tests
 
-from active_document import database, env
+from active_document import database, env, database_writer
 from active_document.properties import Property
 
 
@@ -30,6 +31,7 @@ class DatabaseTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+        env.threading.value = True
         Database.docs = []
         self.mainloop = gobject.MainLoop()
 
@@ -42,8 +44,11 @@ class DatabaseTest(tests.Test):
 
     def test_create(self):
         db = Database({'key': Property('key', 1, 'K')})
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         guid_1 = db.create({'key': 'value_1'})
+        self.mainloop.run()
+
         assert guid_1
         entries, total = db.find(reply=['guid', 'key'])
         self.assertEqual(1, total)
@@ -54,6 +59,8 @@ class DatabaseTest(tests.Test):
                 sorted(entries))
 
         guid_2 = db.create({'key': 'value_2'})
+        self.mainloop.run()
+
         assert guid_2
         assert guid_1 != guid_2
         entries, total = db.find(reply=['guid', 'key'])
@@ -67,35 +74,50 @@ class DatabaseTest(tests.Test):
 
     def test_update(self):
         db = Database({'key': Property('key', 1, 'K')})
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         guid = db.create({'key': 'value_1'})
+        self.mainloop.run()
+
         self.assertEqual(
                 ([{'guid': guid, 'key': 'value_1'}], 1),
                 db.find(reply=['guid', 'key']))
 
         db.update(guid, {'key': 'value_2'})
+        self.mainloop.run()
+
         self.assertEqual(
                 ([{'guid': guid, 'key': 'value_2'}], 1),
                 db.find(reply=['guid', 'key']))
 
     def test_update_AvoidGuidOverwrite(self):
         db = Database({'key': Property('key', 1, 'K')})
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         guid = db.create({'key': 'value_1'})
+        self.mainloop.run()
+
         db.update(guid, {'guid': 'fake', 'key': 'value_2'})
+        self.mainloop.run()
+
         self.assertEqual(
                 ([{'guid': guid, 'key': 'value_2'}], 1),
                 db.find(reply=['guid', 'key']))
 
     def test_delete(self):
         db = Database({'key': Property('key', 1, 'K')})
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         guid = db.create({'key': 'value'})
+        self.mainloop.run()
+
         self.assertEqual(
                 ([{'guid': guid, 'key': 'value'}], 1),
                 db.find(reply=['guid', 'key']))
 
         db.delete(guid)
+        self.mainloop.run()
+
         self.assertEqual(
                 ([], 0),
                 db.find(reply=['guid', 'key']))
@@ -106,10 +128,14 @@ class DatabaseTest(tests.Test):
             'var_2': Property('var_2', 2, 'B'),
             'var_3': Property('var_3', 3, 'C'),
             })
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        self.mainloop.run()
         db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        self.mainloop.run()
         db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}], 2),
@@ -133,10 +159,14 @@ class DatabaseTest(tests.Test):
             'var_2': Property('var_2', 2, 'B'),
             'var_3': Property('var_3', 3, 'C'),
             })
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        self.mainloop.run()
         db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        self.mainloop.run()
         db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}], 2),
@@ -160,10 +190,14 @@ class DatabaseTest(tests.Test):
             'var_2': Property('var_2', 2, 'B', boolean=True),
             'var_3': Property('var_3', 3, 'C', boolean=True),
             })
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        self.mainloop.run()
         db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        self.mainloop.run()
         db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'var_1': '1'}], 1),
@@ -183,10 +217,14 @@ class DatabaseTest(tests.Test):
             'var_2': Property('var_2', 2, 'B', boolean=False),
             'var_3': Property('var_3', 3, 'C', boolean=True),
             })
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        self.mainloop.run()
         db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        self.mainloop.run()
         db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'var_1': '1'}], 1),
@@ -202,10 +240,14 @@ class DatabaseTest(tests.Test):
 
     def test_find_ExactQuery(self):
         db = Database({'key': Property('key', 1, 'K')})
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'key': 'фу'})
+        self.mainloop.run()
         db.create({'key': 'фу бар'})
+        self.mainloop.run()
         db.create({'key': 'фу бар тест'})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'key': 'фу'}, {'key': 'фу бар'}, {'key': 'фу бар тест'}], 3),
@@ -226,10 +268,14 @@ class DatabaseTest(tests.Test):
 
     def test_find_ReturnPortions(self):
         db = Database({'key': Property('key', 1, 'K')})
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'key': '1'})
+        self.mainloop.run()
         db.create({'key': '2'})
+        self.mainloop.run()
         db.create({'key': '3'})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'key': '1'}], 3),
@@ -250,10 +296,14 @@ class DatabaseTest(tests.Test):
             'var_2': Property('var_2', 2, 'B'),
             'var_3': Property('var_3', 3, 'C'),
             })
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'var_1': '1', 'var_2': '1', 'var_3': '5'})
+        self.mainloop.run()
         db.create({'var_1': '2', 'var_2': '2', 'var_3': '5'})
+        self.mainloop.run()
         db.create({'var_1': '3', 'var_2': '3', 'var_3': '4'})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
@@ -281,10 +331,14 @@ class DatabaseTest(tests.Test):
             'var_2': Property('var_2', 2, 'B'),
             'var_3': Property('var_3', 3, 'C'),
             })
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'var_1': '1', 'var_2': '1', 'var_3': '3'})
+        self.mainloop.run()
         db.create({'var_1': '2', 'var_2': '1', 'var_3': '4'})
+        self.mainloop.run()
         db.create({'var_1': '3', 'var_2': '2', 'var_3': '4'})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'var_1': '1', 'grouped': 2}, {'var_1': '3', 'grouped': 1}], 2),
@@ -299,9 +353,12 @@ class DatabaseTest(tests.Test):
             'var_2': Property('var_2', 2, 'B', multiple=True),
             'var_3': Property('var_3', 3, 'C', multiple=True, separator=';'),
             })
+        db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'var_1': '1', 'var_2': '1 2', 'var_3': '4;5'})
+        self.mainloop.run()
         db.create({'var_1': '2', 'var_2': ' 2  3 ', 'var_3': ' 5 ; 6 '})
+        self.mainloop.run()
 
         self.assertEqual(
                 ([{'var_1': '1'}], 1),
@@ -319,6 +376,7 @@ class DatabaseTest(tests.Test):
 
     def test_FlushThreshold(self):
         env.flush_threshold.value = 2
+        env.flush_timeout.value = 0
         db = Database({'key': Property('key', 1, 'K')})
 
         changed = []
@@ -336,9 +394,10 @@ class DatabaseTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(2, len(changed))
-        self.assertEqual(5, db.find()[-1])
+        self.assertEqual(4, db.find()[-1])
 
     def test_FlushTimeout(self):
+        env.flush_threshold.value = 0
         env.flush_timeout.value = 2
         db = Database({})
 
@@ -376,6 +435,7 @@ class DatabaseTest(tests.Test):
                 ]
 
         env.flush_threshold.value = 3
+        env.flush_timeout.value = 0
         db = Database({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
         self.mainloop.run()
@@ -389,18 +449,24 @@ class DatabaseTest(tests.Test):
 
     def test_LayoutVersion(self):
         db = Database({})
+        db.connect('openned', lambda *args: self.mainloop.quit())
+        self.mainloop.run()
         assert exists('Database/version')
         os.utime('Database/index', (0, 0))
-        db._writer.close()
+        database_writer.shutdown()
 
         db = Database({})
+        db.connect('openned', lambda *args: self.mainloop.quit())
+        self.mainloop.run()
         self.assertEqual(0, os.stat('Database/index').st_mtime)
-        db._writer.close()
+        database_writer.shutdown()
 
         env.LAYOUT_VERSION += 1
         db = Database({})
+        db.connect('openned', lambda *args: self.mainloop.quit())
+        self.mainloop.run()
         self.assertNotEqual(0, os.stat('Database/index').st_mtime)
-        db._writer.close()
+        database_writer.shutdown()
 
 
 if __name__ == '__main__':

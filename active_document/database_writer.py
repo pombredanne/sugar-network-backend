@@ -13,9 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import uuid
 import shutil
+import thread
 import logging
+import threading
+from Queue import Queue
 from os.path import exists
 from gettext import gettext as _
 
@@ -26,20 +28,53 @@ from active_document import util, env
 from active_document.util import enforce
 
 
-def get_writer(name, properties, crawler):
-    """Open a database for writing.
+_queues = []
+_writers = []
 
-    Function might be called several times for the same database,
-    the real opening will happen only once.
+
+def get_writer(name, properties, crawler):
+    """Get a `Writer` object to write to the database.
+
+    :param name:
+        database name
+    :param properties:
+        `Property` objects associated with the `Database`
+    :param crawler:
+        iterator function that should return (guid, props)
+        for every existing document
 
     """
-    return _Writer(name, properties, crawler)
+    if env.threading.value:
+        logging.debug('Create database writer for %s', name)
+        queue = Queue(env.write_queue.value)
+        _queues.append(queue)
+        writer = Writer(name, properties, crawler)
+        _writers.append(writer)
+        _WriteThread(writer, queue).start()
+        return _ThreadWriterProxy(name, writer, queue)
+    else:
+        writer = Writer(name, properties, crawler)
+        writer.open()
+        _writers.append(writer)
+        return writer
 
 
-class _BaseWriter(gobject.GObject):
+def shutdown():
+    """Flush all write pending queues and close all databases."""
+    for i in _queues:
+        i.join()
+    for i in _writers:
+        i.close()
+
+
+class Writer(gobject.GObject):
+    """Write access to Xapian databases."""
 
     __gsignals__ = {
+            #: Content of the database was changed
             'changed': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
+            #: Database was openned
+            'openned': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
             }
 
     def __init__(self, name, properties, crawler):
@@ -51,28 +86,22 @@ class _BaseWriter(gobject.GObject):
         self._db = None
         self._flush_timeout_hid = None
         self._pending_writes = 0
-        self._index_path = env.path(self._name, 'index', '')
 
+    @property
+    def name(self):
+        """Xapian database name."""
+        return self._name
+
+    def open(self):
+        """Open the database."""
         self._open(False)
 
     def close(self):
+        """Close the database and flush all pending changes."""
         if self._db is None:
             return
         self._commit(True)
         self._db = None
-
-    def create(self, props):
-        """Create new document.
-
-        :param props:
-            document properties
-        :returns:
-            GUID of newly created document
-
-        """
-        guid = str(uuid.uuid1())
-        self.update(guid, props)
-        return guid
 
     def update(self, guid, props):
         """Update properties of existing document.
@@ -125,31 +154,37 @@ class _BaseWriter(gobject.GObject):
         self._commit(False)
 
     def get_reader(self):
-        raise NotImplementedError()
+        """Open the same database for reading only."""
+        return self._db
 
     def _open(self, reset):
+        index_path = _index_path(self.name)
+
         if not reset and self._is_layout_stale():
             reset = True
         if reset:
-            shutil.rmtree(self._index_path, ignore_errors=True)
+            shutil.rmtree(index_path, ignore_errors=True)
 
         try:
             self._db = xapian.WritableDatabase(
-                    self._index_path, xapian.DB_CREATE_OR_OPEN)
+                    index_path, xapian.DB_CREATE_OR_OPEN)
         except xapian.DatabaseError:
             if reset:
                 util.exception(_('Unrecoverable error while opening %s ' \
-                        'Xapian index'), self._index_path)
+                        'Xapian index'), index_path)
                 raise
             else:
                 util.exception(_('Cannot open Xapian index in %s, ' \
-                        'will rebuild it'), self._index_path)
+                        'will rebuild it'), index_path)
                 self._open(True)
                 return
 
         if reset:
             self._save_layout()
             gobject.idle_add(self._populate, self._crawler())
+
+        # Emit from idle_add to send signal in the main loop thread
+        gobject.idle_add(self.emit, 'openned')
 
     def _populate(self, i):
         try:
@@ -176,7 +211,10 @@ class _BaseWriter(gobject.GObject):
             else:
                 self._db.flush()
             self._pending_writes = 0
-            self.emit('changed')
+
+            # Emit from idle_add to send signal in the main loop thread
+            gobject.idle_add(self.emit, 'changed')
+
         elif env.flush_timeout.value:
             self._flush_timeout_hid = gobject.timeout_add_seconds(
                     env.flush_timeout.value, lambda: self._commit(True))
@@ -196,13 +234,67 @@ class _BaseWriter(gobject.GObject):
         version.close()
 
 
-class _Writer(_BaseWriter):
+class _ThreadWriterProxy(object):
+
+    def __init__(self, name, writer, queue):
+        self._name = name
+        self._writer = writer
+        self._queue = queue
+
+    def update(self, guid, props):
+        logging.debug('Push update request to %s\' queue for %s',
+                self._name, guid)
+        self._queue.put([self._writer.__class__.update, guid, props], True)
+
+    def delete(self, guid):
+        logging.debug('Push delete request to %s\' queue for %s',
+                self._name, guid)
+        self._queue.put([self._writer.__class__.delete, guid], True)
 
     def get_reader(self):
-        return self._db
+        try:
+            return xapian.Database(_index_path(self._name))
+        except xapian.DatabaseOpeningError:
+            logging.debug('Cannot open read-only database for %s', self._name)
+            return None
+        else:
+            logging.debug('Open read-only database for %s', self._name)
+
+    def connect(self, *args, **kwargs):
+        self._writer.connect(*args, **kwargs)
 
 
-class _ThreadWriter(_BaseWriter):
+class _WriteThread(threading.Thread):
 
-    def get_reader(self):
-        return xapian.Database(self._index_path)
+    def __init__(self, writer, queue):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self._writer = writer
+        self._queue = queue
+
+    def run(self):
+        try:
+            self._writer.open()
+
+            logging.debug('Database %s openned for writing', self._writer.name)
+
+            while True:
+                args = self._queue.get(True)
+                op = args.pop(0)
+                try:
+                    op(self._writer, *args)
+                except Exception:
+                    util.exception(_('Cannot process "%s" operation ' \
+                            'for %s database'),
+                            op.__func__.__name__, self._writer.name)
+                finally:
+                    self._queue.task_done()
+
+        except Exception:
+            util.exception(_('Database %s write thread died, ' \
+                    'will abort the whole application'), self._writer.name)
+            thread.interrupt_main()
+
+
+def _index_path(name):
+    return env.path(name, 'index', '')

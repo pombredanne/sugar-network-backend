@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
+import uuid
 import time
 import logging
 from gettext import gettext as _
@@ -49,10 +50,13 @@ class Database(object):
             properties['guid'] = GuidProperty()
         self._properties = properties
         self.__db = None
+        self._need_to_reopen = False
 
         if self._writer is None:
             self.__class__._writer = database_writer.get_writer(
                     self.name, properties, crawler)
+
+        self._writer.connect('changed', self.__changed_cb)
 
     @property
     def name(self):
@@ -73,7 +77,9 @@ class Database(object):
             GUID of newly created document
 
         """
-        return self._writer.create(props)
+        guid = str(uuid.uuid1())
+        self._writer.update(guid, props)
+        return guid
 
     def update(self, guid, props):
         """Update properties of existing document.
@@ -84,7 +90,7 @@ class Database(object):
             properties to update, not necessary all document properties
 
         """
-        return self._writer.update(guid, props)
+        self._writer.update(guid, props)
 
     def delete(self, guid):
         """Delete document.
@@ -93,7 +99,7 @@ class Database(object):
             document GUID to delete
 
         """
-        return self._writer.delete(guid)
+        self._writer.delete(guid)
 
     def find(self, offset=0, limit=None, request=None, query='',
             reply=None, order_by=None, group_by=None):
@@ -132,6 +138,10 @@ class Database(object):
         """
         if self._db is None:
             return [], 0
+
+        if self._need_to_reopen:
+            self._db.reopen()
+            self._need_to_reopen = False
 
         if limit is None:
             limit = self._db.get_doccount()
@@ -184,6 +194,7 @@ class Database(object):
     def _db(self):
         if self.__db is None:
             self.__db = self._writer.get_reader()
+            self._need_to_reopen = False
         return self.__db
 
     def _call_db(self, op, *args):
@@ -286,6 +297,9 @@ class Database(object):
                         group_by, self.name)
 
         return enquire
+
+    def __changed_cb(self, sender):
+        self._need_to_reopen = True
 
 
 def _extract_exact_search_terms(query, props):
