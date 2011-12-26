@@ -1,7 +1,36 @@
 Introduction
 ============
 
-http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
-
 This is a Python library that supports Active Record pattern to use Xapian
 as a "NoSQL replacement" with keeping documents directly in the files system.
+
+See `home page`_ for more details.
+
+Documentation
+=============
+
+.. toctree::
+    :maxdepth: 2
+    :numbered:
+
+    pages/active_document
+    pages/HACKING
+    pages/AUTHORS
+    pages/COPYING
+
+Sources
+=======
+
+Clone source repository from `Gitorious`_ project:
+
+    ``git clone git://git.sugarlabs.org/network/active-document.git``
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+
+.. _home page: http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
+.. _Gitorious: http://git.sugarlabs.org/server
