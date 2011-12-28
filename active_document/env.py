@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-from os.path import join, exists, dirname
+from os.path import join, exists, dirname, abspath
 from gettext import gettext as _
 
 from active_document import util
@@ -52,6 +52,10 @@ write_queue = util.Option(
                 'singular writer; 0 is infinite size'),
         default=256, type_cast=int)
 
+find_limit = util.Option(
+        _('limit the resulting list for search requests'),
+        default=64, type_cast=int)
+
 
 def path(*args):
     """Calculate a path from the root one.
@@ -77,7 +81,19 @@ def path(*args):
     if not exists(result_dir):
         os.makedirs(result_dir)
 
-    return result
+    return abspath(result)
+
+
+def index_path(name):
+    """Path to a directory with Xapian database.
+
+    :param name:
+        Xapian database name
+    :returns:
+        absolute path
+
+    """
+    return path(name, 'index', '')
 
 
 def term(prefix, term_value):

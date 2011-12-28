@@ -153,6 +153,27 @@ class DatabaseTest(tests.Test):
                 ([{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
                 db.find(query='var_3:ю OR var_2:у', reply=['var_1']))
 
+    def test_find_MaxLimit(self):
+        db = Database({'key': Property('key', 1, 'K')})
+        db.connect('changed', lambda *args: self.mainloop.quit())
+
+        db.create({'key': '1'})
+        self.mainloop.run()
+        db.create({'key': '2'})
+        self.mainloop.run()
+        db.create({'key': '3'})
+        self.mainloop.run()
+
+        env.find_limit.value = 1
+
+        self.assertEqual(
+                ([{'key': '1'}], 3),
+                db.find(reply=['key'], limit=None))
+
+        self.assertEqual(
+                ([{'key': '2'}], 3),
+                db.find(reply=['key'], offset=1, limit=1024))
+
     def test_find_WithProps(self):
         db = Database({
             'var_1': Property('var_1', 1, 'A'),

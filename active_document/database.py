@@ -78,7 +78,7 @@ class Database(object):
 
         """
         guid = str(uuid.uuid1())
-        self._writer.update(guid, props)
+        self._writer.create(guid, props)
         return guid
 
     def update(self, guid, props):
@@ -113,7 +113,7 @@ class Database(object):
             0 by default
         :param limit:
             the resulting list will be at least `limit` size;
-            all entries by default
+            the `--find-limit` will be used by default
         :param request:
             a dictionary with property values to restrict the search
         :param query:
@@ -144,7 +144,11 @@ class Database(object):
             self._need_to_reopen = False
 
         if limit is None:
-            limit = self._db.get_doccount()
+            limit = env.find_limit.value
+        elif limit > env.find_limit.value:
+            logging.warning(_('The find limit for %s is restricted to %s'),
+                    self.name, env.find_limit.value)
+            limit = env.find_limit.value
         if request is None:
             request = {}
         if not reply:

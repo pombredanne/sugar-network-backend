@@ -53,6 +53,7 @@ class Test(unittest.TestCase):
         _env.flush_timeout.value = 0
         _env.flush_threshold.value = 1
         _env.threading.value = False
+        _env.find_limit.value = 1024
         _env.LAYOUT_VERSION = 1
 
     def tearDown(self):

@@ -14,10 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import shutil
-import thread
 import logging
 import threading
-from Queue import Queue
 from os.path import exists
 from gettext import gettext as _
 
@@ -25,10 +23,10 @@ import xapian
 import gobject
 
 from active_document import util, env
+from active_document.database_proxy import DatabaseProxy
 from active_document.util import enforce
 
 
-_queues = []
 _writers = []
 
 
@@ -46,12 +44,12 @@ def get_writer(name, properties, crawler):
     """
     if env.threading.value:
         logging.debug('Create database writer for %s', name)
-        queue = Queue(env.write_queue.value)
-        _queues.append(queue)
-        writer = Writer(name, properties, crawler)
-        _writers.append(writer)
-        _WriteThread(writer, queue).start()
-        return _ThreadWriterProxy(name, writer, queue)
+        proxy = DatabaseProxy(Writer(name, properties, crawler))
+        write_thread = threading.Thread(target=proxy.serve_forever)
+        write_thread.daemon = True
+        write_thread.start()
+        _writers.append(proxy)
+        return proxy
     else:
         writer = Writer(name, properties, crawler)
         writer.open()
@@ -61,10 +59,8 @@ def get_writer(name, properties, crawler):
 
 def shutdown():
     """Flush all write pending queues and close all databases."""
-    for i in _queues:
-        i.join()
-    for i in _writers:
-        i.close()
+    while _writers:
+        _writers.pop().shutdown()
 
 
 class Writer(gobject.GObject):
@@ -96,12 +92,23 @@ class Writer(gobject.GObject):
         """Open the database."""
         self._open(False)
 
-    def close(self):
+    def shutdown(self):
         """Close the database and flush all pending changes."""
         if self._db is None:
             return
         self._commit(True)
         self._db = None
+
+    def create(self, guid, props):
+        """Create new document.
+
+        :param guid:
+            document GUID to create
+        :param props:
+            document properties
+
+        """
+        self.update(guid, props)
 
     def update(self, guid, props):
         """Update properties of existing document.
@@ -158,7 +165,7 @@ class Writer(gobject.GObject):
         return self._db
 
     def _open(self, reset):
-        index_path = _index_path(self.name)
+        index_path = env.index_path(self.name)
 
         if not reset and self._is_layout_stale():
             reset = True
@@ -232,69 +239,3 @@ class Writer(gobject.GObject):
         version = file(env.path(self._name, 'version'), 'w')
         version.write(str(env.LAYOUT_VERSION))
         version.close()
-
-
-class _ThreadWriterProxy(object):
-
-    def __init__(self, name, writer, queue):
-        self._name = name
-        self._writer = writer
-        self._queue = queue
-
-    def update(self, guid, props):
-        logging.debug('Push update request to %s\' queue for %s',
-                self._name, guid)
-        self._queue.put([self._writer.__class__.update, guid, props], True)
-
-    def delete(self, guid):
-        logging.debug('Push delete request to %s\' queue for %s',
-                self._name, guid)
-        self._queue.put([self._writer.__class__.delete, guid], True)
-
-    def get_reader(self):
-        try:
-            return xapian.Database(_index_path(self._name))
-        except xapian.DatabaseOpeningError:
-            logging.debug('Cannot open read-only database for %s', self._name)
-            return None
-        else:
-            logging.debug('Open read-only database for %s', self._name)
-
-    def connect(self, *args, **kwargs):
-        self._writer.connect(*args, **kwargs)
-
-
-class _WriteThread(threading.Thread):
-
-    def __init__(self, writer, queue):
-        threading.Thread.__init__(self)
-        self.daemon = True
-        self._writer = writer
-        self._queue = queue
-
-    def run(self):
-        try:
-            self._writer.open()
-
-            logging.debug('Database %s openned for writing', self._writer.name)
-
-            while True:
-                args = self._queue.get(True)
-                op = args.pop(0)
-                try:
-                    op(self._writer, *args)
-                except Exception:
-                    util.exception(_('Cannot process "%s" operation ' \
-                            'for %s database'),
-                            op.__func__.__name__, self._writer.name)
-                finally:
-                    self._queue.task_done()
-
-        except Exception:
-            util.exception(_('Database %s write thread died, ' \
-                    'will abort the whole application'), self._writer.name)
-            thread.interrupt_main()
-
-
-def _index_path(name):
-    return env.path(name, 'index', '')
