@@ -10,7 +10,7 @@ import gobject
 
 from __init__ import tests
 
-from active_document import database, env, database_writer
+from active_document import database, env, database_raw
 from active_document.properties import Property
 
 
@@ -34,6 +34,10 @@ class DatabaseTest(tests.Test):
         env.threading.value = True
         Database.docs = []
         self.mainloop = gobject.MainLoop()
+
+    def tearDown(self):
+        database_raw.shutdown()
+        tests.Test.tearDown(self)
 
     def test_Term_AvoidCollisionsWithGuid(self):
         self.assertRaises(RuntimeError, Property, 'key', 0, 'I')
@@ -73,22 +77,25 @@ class DatabaseTest(tests.Test):
                 sorted(entries))
 
     def test_update(self):
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Database({
+            'var_1': Property('var_1', 1, 'A'),
+            'var_2': Property('var_2', 2, 'B'),
+            })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        guid = db.create({'key': 'value_1'})
+        guid = db.create({'var_1': 'value_1', 'var_2': 'value_2'})
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'guid': guid, 'key': 'value_1'}], 1),
-                db.find(reply=['guid', 'key']))
+                ([{'guid': guid, 'var_1': 'value_1', 'var_2': 'value_2'}], 1),
+                db.find(reply=['guid', 'var_1', 'var_2']))
 
-        db.update(guid, {'key': 'value_2'})
+        db.update(guid, {'var_1': 'value_3'})
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'guid': guid, 'key': 'value_2'}], 1),
-                db.find(reply=['guid', 'key']))
+                ([{'guid': guid, 'var_1': 'value_3', 'var_2': 'value_2'}], 1),
+                db.find(reply=['guid', 'var_1', 'var_2']))
 
     def test_update_AvoidGuidOverwrite(self):
         db = Database({'key': Property('key', 1, 'K')})
@@ -97,12 +104,7 @@ class DatabaseTest(tests.Test):
         guid = db.create({'key': 'value_1'})
         self.mainloop.run()
 
-        db.update(guid, {'guid': 'fake', 'key': 'value_2'})
-        self.mainloop.run()
-
-        self.assertEqual(
-                ([{'guid': guid, 'key': 'value_2'}], 1),
-                db.find(reply=['guid', 'key']))
+        self.assertRaises(RuntimeError, db.update, guid, {'guid': 'fake', 'key': 'value_2'})
 
     def test_delete(self):
         db = Database({'key': Property('key', 1, 'K')})
@@ -415,7 +417,7 @@ class DatabaseTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(2, len(changed))
-        self.assertEqual(4, db.find()[-1])
+        self.assertEqual(5, db.find()[-1])
 
     def test_FlushTimeout(self):
         env.flush_threshold.value = 0
@@ -433,7 +435,7 @@ class DatabaseTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(0, len(changed))
-        gobject.timeout_add(2000, self.mainloop.quit)
+        gobject.timeout_add(3000, self.mainloop.quit)
         self.mainloop.run()
 
         self.assertEqual(1, len(changed))
@@ -442,7 +444,7 @@ class DatabaseTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(1, len(changed))
-        gobject.timeout_add(2000, self.mainloop.quit)
+        gobject.timeout_add(3000, self.mainloop.quit)
         self.mainloop.run()
 
         self.assertEqual(2, len(changed))
@@ -472,22 +474,47 @@ class DatabaseTest(tests.Test):
         db = Database({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
-        assert exists('Database/version')
-        os.utime('Database/index', (0, 0))
-        database_writer.shutdown()
+        assert exists('database/version')
+        os.utime('database/index', (0, 0))
+        database_raw.shutdown()
 
         db = Database({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
-        self.assertEqual(0, os.stat('Database/index').st_mtime)
-        database_writer.shutdown()
+        self.assertEqual(0, os.stat('database/index').st_mtime)
+        database_raw.shutdown()
 
         env.LAYOUT_VERSION += 1
         db = Database({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
-        self.assertNotEqual(0, os.stat('Database/index').st_mtime)
-        database_writer.shutdown()
+        self.assertNotEqual(0, os.stat('database/index').st_mtime)
+        database_raw.shutdown()
+
+    def test_ReadFromWritingDB(self):
+        env.flush_threshold.value = 10
+        env.flush_timeout.value = 0
+        db = Database({'key': Property('key', 1, 'K')})
+
+        changed = []
+        db.connect('changed', lambda *args: changed.append(True))
+
+        def cb():
+            db.create({'key': '1'})
+            db.create({'key': '2'})
+            db.create({'key': '3'})
+        gobject.idle_add(cb)
+
+        gobject.timeout_add_seconds(2, self.mainloop.quit)
+        self.mainloop.run()
+
+        self.assertEqual(
+                ([{'key': '1'},
+                  {'key': '2'},
+                  {'key': '3'},
+                  ], 3),
+                db.find(reply=['key']))
+        self.assertEqual(0, len(changed))
 
 
 if __name__ == '__main__':
