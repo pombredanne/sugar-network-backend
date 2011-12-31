@@ -84,7 +84,11 @@ class IndexQueue(object):
                 self._put(seqno, op, *args)
                 while seqno != self._got_seqno:
                     self._op_cond.wait()
-                return self._got, None, None
+                if isinstance(self._got, Exception):
+                    # pylint: disable-msg=E0702
+                    raise self._got
+                else:
+                    return self._got, None, None
             elif self._last_flush > last_flush:
                 reopen = True
             last_flush = self._last_flush
@@ -115,10 +119,9 @@ class IndexQueue(object):
 
         try:
             got = op(obj, *args)
-        except Exception:
-            util.exception(_('Cannot process "%s" operation for %s'),
-                    op.__func__.__name__, obj.name)
-            got = None
+        except Exception, error:
+            util.exception(_('Cannot process %r operation for %r'), op, obj)
+            got = error
 
         self._lock.acquire()
         try:

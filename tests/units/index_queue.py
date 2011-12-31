@@ -128,6 +128,21 @@ class IndexQueueTest(tests.Test):
         self.assertEqual(last_flush, new_last_flush)
         self.assertEqual(False, reopen)
 
+    def test_put_wait_Exception(self):
+        queue = IndexQueue()
+
+        # Create pending flush
+        queue.put(lambda x: x)
+        queue.iteration(None)
+
+        def iteration():
+            queue.iteration(None)
+        threading.Thread(target=iteration).start()
+
+        def cb(*args):
+            raise NotImplementedError()
+        self.assertRaises(NotImplementedError, queue.put_wait, None, cb)
+
     def test_shutdown(self):
         queue = IndexQueue()
 
