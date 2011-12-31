@@ -26,7 +26,7 @@ import xapian
 import gobject
 
 from active_document import util, env
-from active_document.database_queue import DatabaseQueue
+from active_document.index_queue import IndexQueue
 from active_document.util import enforce
 
 
@@ -40,12 +40,12 @@ _writers = {}
 
 
 def get(name, properties, crawler):
-    """Get a `Writer` object to write to the database.
+    """Get a `Writer` object to write to the index.
 
     :param name:
-        database name
+        index name
     :param properties:
-        `Property` objects associated with the `Database`
+        `Property` objects associated with the `Index`
     :param crawler:
         iterator function that should return (guid, props)
         for every existing document
@@ -54,7 +54,7 @@ def get(name, properties, crawler):
     if env.threading.value:
         writer = _writers.get(name)
         if writer is None:
-            logging.debug('Create database writer for %s', name)
+            logging.debug('Create index writer for %s', name)
             writer = _writers[name] = _ThreadWriter(name, properties, crawler)
             write_thread = threading.Thread(target=writer.serve_forever)
             write_thread.daemon = True
@@ -218,9 +218,9 @@ class _Reader(object):
                 return op(*args)
             except xapian.DatabaseError, error:
                 if tries >= _REOPEN_LIMIT:
-                    logging.warning(_('Cannot open %s database'), self.name)
+                    logging.warning(_('Cannot open %s index'), self.name)
                     raise
-                logging.debug('Fail to %r %s database, will reopen it %sth ' \
+                logging.debug('Fail to %r %s index, will reopen it %sth ' \
                         'time: %s', op, self.name, tries, error)
                 time.sleep(tries * .1)
                 self._db.reopen()
@@ -241,9 +241,9 @@ class _Writer(gobject.GObject, _Reader):
     """Write access to Xapian databases."""
 
     __gsignals__ = {
-            #: Content of the database was changed
+            #: Content of the index was changed
             'changed': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
-            #: Database was openned
+            #: Index was openned
             'openned': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
             }
 
@@ -383,7 +383,7 @@ class _ThreadWriter(_Writer):
 
     def __init__(self, name, properties, crawler):
         _Writer.__init__(self, name, properties, crawler)
-        self.queue = DatabaseQueue()
+        self.queue = IndexQueue()
 
     def serve_forever(self):
         try:
@@ -392,7 +392,7 @@ class _ThreadWriter(_Writer):
             while True:
                 self.queue.iteration(self)
         except Exception:
-            util.exception(_('Database %s write thread died, ' \
+            util.exception(_('Index %s write thread died, ' \
                     'will abort the whole application'), self.name)
             thread.interrupt_main()
 
@@ -431,10 +431,10 @@ class _ThreadReader(_Reader):
                 self._db = xapian.Database(env.index_path(self.name))
                 self._last_flush = time.time()
             except xapian.DatabaseOpeningError:
-                logging.debug('Cannot open RO database for %s', self.name)
+                logging.debug('Cannot open RO index for %s', self.name)
                 return [], 0
             else:
-                logging.debug('Open read-only database for %s', self.name)
+                logging.debug('Open read-only index for %s', self.name)
 
         result, last_flush, reopen = self._queue.put_wait(self._last_flush,
                 _Reader.find, offset, limit, request, query, reply, order_by,

@@ -2,7 +2,7 @@
 
 from __init__ import tests
 
-from database import *
-from database_queue import *
+from index import *
+from index_queue import *
 
 tests.main()

@@ -17,18 +17,18 @@ import uuid
 import logging
 from gettext import gettext as _
 
-from active_document import env, database_raw
+from active_document import env, index_db
 from active_document.properties import GuidProperty
 from active_document.util import enforce
 
 
-class Database(object):
+class Index(object):
     """High level class to get access to Xapian databases."""
 
     def __init__(self, properties, crawler):
         """
         :param properties:
-            `Property` objects associated with the `Database`
+            `Property` objects associated with the `Index`
         :param crawler:
             iterator function that should return (guid, props)
             for every existing document
@@ -37,7 +37,7 @@ class Database(object):
         if 'guid' not in properties:
             properties['guid'] = GuidProperty()
         self._properties = properties
-        self._db = database_raw.get(self.name, properties, crawler)
+        self._db = index_db.get(self.name, properties, crawler)
 
     @property
     def name(self):
@@ -46,7 +46,7 @@ class Database(object):
 
     @property
     def properties(self):
-        """`Property` objects associated with the `Database`."""
+        """`Property` objects associated with the `Index`."""
         return self._properties
 
     def create(self, props):

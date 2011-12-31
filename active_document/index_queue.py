@@ -22,8 +22,8 @@ from active_document import env, util
 from active_document.util import enforce
 
 
-class DatabaseQueue(object):
-    """Database requests queue to keep writer only in one thread."""
+class IndexQueue(object):
+    """Index requests queue to keep writer only in one thread."""
 
     def __init__(self):
         self._maxlen = env.write_queue.value
@@ -158,7 +158,7 @@ class DatabaseQueue(object):
             self._lock.release()
 
     def _put(self, seqno, op, *args):
-        enforce(not self._shutting_down, _('Database is being closed'))
+        enforce(not self._shutting_down, _('Index is being closed'))
         while self._maxlen and len(self._queue) >= self._maxlen:
             self._iteration_cond.wait()
         self._queue.append((seqno, op, args))

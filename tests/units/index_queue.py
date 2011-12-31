@@ -7,13 +7,13 @@ import threading
 from __init__ import tests
 
 from active_document import env
-from active_document.database_queue import DatabaseQueue
+from active_document.index_queue import IndexQueue
 
 
-class DatabaseQueueTest(tests.Test):
+class IndexQueueTest(tests.Test):
 
     def test_put(self):
-        queue = DatabaseQueue()
+        queue = IndexQueue()
 
         queue.put(1, '1')
         self.assertEqual(
@@ -34,7 +34,7 @@ class DatabaseQueueTest(tests.Test):
         self.assertEqual(0, queue._seqno)
 
     def test_iteration(self):
-        queue = DatabaseQueue()
+        queue = IndexQueue()
 
         queue.put(lambda x: x)
         queue.put(lambda x: x - 1)
@@ -54,7 +54,7 @@ class DatabaseQueueTest(tests.Test):
 
     def test_put_MaxLen(self):
         env.write_queue.value = 1
-        queue = DatabaseQueue()
+        queue = IndexQueue()
 
         queue.put(lambda x: x)
 
@@ -69,7 +69,7 @@ class DatabaseQueueTest(tests.Test):
         self.assertEqual(1, len(queue._queue))
 
     def test_put_wait(self):
-        queue = DatabaseQueue()
+        queue = IndexQueue()
 
         # No pending flush, return w/o putting
         result, last_flush, reopen = queue.put_wait(0, lambda x: x)
@@ -129,7 +129,7 @@ class DatabaseQueueTest(tests.Test):
         self.assertEqual(False, reopen)
 
     def test_shutdown(self):
-        queue = DatabaseQueue()
+        queue = IndexQueue()
 
         def iteration():
             queue.iteration(0)

@@ -10,20 +10,20 @@ import gobject
 
 from __init__ import tests
 
-from active_document import database, env, database_raw
+from active_document import index, env, index_db
 from active_document.properties import Property
 
 
-class Database(database.Database):
+class Index(index.Index):
 
     docs = []
 
     def __init__(self, properties):
-        Database._writer = None
-        database.Database.__init__(self, properties, self.crawler)
+        Index._writer = None
+        index.Index.__init__(self, properties, self.crawler)
 
     def crawler(self):
-        for i in Database.docs:
+        for i in Index.docs:
             yield i['guid'], i
 
 
@@ -32,11 +32,11 @@ class DatabaseTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         env.threading.value = True
-        Database.docs = []
+        Index.docs = []
         self.mainloop = gobject.MainLoop()
 
     def tearDown(self):
-        database_raw.shutdown()
+        index_db.shutdown()
         tests.Test.tearDown(self)
 
     def test_Term_AvoidCollisionsWithGuid(self):
@@ -47,7 +47,7 @@ class DatabaseTest(tests.Test):
         Property('guid', 0, 'I')
 
     def test_create(self):
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         guid_1 = db.create({'key': 'value_1'})
@@ -77,7 +77,7 @@ class DatabaseTest(tests.Test):
                 sorted(entries))
 
     def test_update(self):
-        db = Database({
+        db = Index({
             'var_1': Property('var_1', 1, 'A'),
             'var_2': Property('var_2', 2, 'B'),
             })
@@ -98,7 +98,7 @@ class DatabaseTest(tests.Test):
                 db.find(reply=['guid', 'var_1', 'var_2']))
 
     def test_update_AvoidGuidOverwrite(self):
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         guid = db.create({'key': 'value_1'})
@@ -107,7 +107,7 @@ class DatabaseTest(tests.Test):
         self.assertRaises(RuntimeError, db.update, guid, {'guid': 'fake', 'key': 'value_2'})
 
     def test_delete(self):
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         guid = db.create({'key': 'value'})
@@ -125,7 +125,7 @@ class DatabaseTest(tests.Test):
                 db.find(reply=['guid', 'key']))
 
     def test_find(self):
-        db = Database({
+        db = Index({
             'var_1': Property('var_1', 1, 'A'),
             'var_2': Property('var_2', 2, 'B'),
             'var_3': Property('var_3', 3, 'C'),
@@ -156,7 +156,7 @@ class DatabaseTest(tests.Test):
                 db.find(query='var_3:ю OR var_2:у', reply=['var_1']))
 
     def test_find_MaxLimit(self):
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'key': '1'})
@@ -177,7 +177,7 @@ class DatabaseTest(tests.Test):
                 db.find(reply=['key'], offset=1, limit=1024))
 
     def test_find_WithProps(self):
-        db = Database({
+        db = Index({
             'var_1': Property('var_1', 1, 'A'),
             'var_2': Property('var_2', 2, 'B'),
             'var_3': Property('var_3', 3, 'C'),
@@ -208,7 +208,7 @@ class DatabaseTest(tests.Test):
                 db.find(query='var_3:ю', request={'var_2': 'б'}, reply=['var_1']))
 
     def test_find_WithAllBooleanProps(self):
-        db = Database({
+        db = Index({
             'var_1': Property('var_1', 1, 'A', boolean=True),
             'var_2': Property('var_2', 2, 'B', boolean=True),
             'var_3': Property('var_3', 3, 'C', boolean=True),
@@ -235,7 +235,7 @@ class DatabaseTest(tests.Test):
                 db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_WithBooleanProps(self):
-        db = Database({
+        db = Index({
             'var_1': Property('var_1', 1, 'A', boolean=True),
             'var_2': Property('var_2', 2, 'B', boolean=False),
             'var_3': Property('var_3', 3, 'C', boolean=True),
@@ -262,7 +262,7 @@ class DatabaseTest(tests.Test):
                 db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_ExactQuery(self):
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'key': 'фу'})
@@ -290,7 +290,7 @@ class DatabaseTest(tests.Test):
                 db.find(query='key:="фу бар тест"', reply=['key']))
 
     def test_find_ReturnPortions(self):
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.create({'key': '1'})
@@ -314,7 +314,7 @@ class DatabaseTest(tests.Test):
                 db.find(offset=3, limit=1, reply=['key']))
 
     def test_find_OrderBy(self):
-        db = Database({
+        db = Index({
             'var_1': Property('var_1', 1, 'A'),
             'var_2': Property('var_2', 2, 'B'),
             'var_3': Property('var_3', 3, 'C'),
@@ -349,7 +349,7 @@ class DatabaseTest(tests.Test):
                 db.find(reply=['var_1'], order_by=['-var_3', '-var_2']))
 
     def test_find_GroupBy(self):
-        db = Database({
+        db = Index({
             'var_1': Property('var_1', 1, 'A'),
             'var_2': Property('var_2', 2, 'B'),
             'var_3': Property('var_3', 3, 'C'),
@@ -371,7 +371,7 @@ class DatabaseTest(tests.Test):
                 db.find(reply=['var_1'], group_by='var_3'))
 
     def test_TermsAreLists(self):
-        db = Database({
+        db = Index({
             'var_1': Property('var_1', 1, 'A'),
             'var_2': Property('var_2', 2, 'B', multiple=True),
             'var_3': Property('var_3', 3, 'C', multiple=True, separator=';'),
@@ -400,7 +400,7 @@ class DatabaseTest(tests.Test):
     def test_FlushThreshold(self):
         env.flush_threshold.value = 2
         env.flush_timeout.value = 0
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
 
         changed = []
         db.connect('changed', lambda *args: changed.append(True))
@@ -422,7 +422,7 @@ class DatabaseTest(tests.Test):
     def test_FlushTimeout(self):
         env.flush_threshold.value = 0
         env.flush_timeout.value = 2
-        db = Database({})
+        db = Index({})
 
         changed = []
         db.connect('changed', lambda *args: changed.append(True))
@@ -451,7 +451,7 @@ class DatabaseTest(tests.Test):
         self.assertEqual(2, db.find()[-1])
 
     def test_Populate(self):
-        Database.docs = [
+        Index.docs = [
                 {'guid': '1', 'key': 'a'},
                 {'guid': '2', 'key': 'b'},
                 {'guid': '3', 'key': 'c'},
@@ -459,7 +459,7 @@ class DatabaseTest(tests.Test):
 
         env.flush_threshold.value = 3
         env.flush_timeout.value = 0
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
         self.mainloop.run()
 
@@ -471,30 +471,30 @@ class DatabaseTest(tests.Test):
                 db.find(reply=['guid', 'key']))
 
     def test_LayoutVersion(self):
-        db = Database({})
+        db = Index({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
-        assert exists('database/version')
-        os.utime('database/index', (0, 0))
-        database_raw.shutdown()
+        assert exists('index/version')
+        os.utime('index/index', (0, 0))
+        index_db.shutdown()
 
-        db = Database({})
+        db = Index({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
-        self.assertEqual(0, os.stat('database/index').st_mtime)
-        database_raw.shutdown()
+        self.assertEqual(0, os.stat('index/index').st_mtime)
+        index_db.shutdown()
 
         env.LAYOUT_VERSION += 1
-        db = Database({})
+        db = Index({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
-        self.assertNotEqual(0, os.stat('database/index').st_mtime)
-        database_raw.shutdown()
+        self.assertNotEqual(0, os.stat('index/index').st_mtime)
+        index_db.shutdown()
 
     def test_ReadFromWritingDB(self):
         env.flush_threshold.value = 10
         env.flush_timeout.value = 0
-        db = Database({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K')})
 
         changed = []
         db.connect('changed', lambda *args: changed.append(True))

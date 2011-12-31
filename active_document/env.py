@@ -36,11 +36,11 @@ root = util.Option(
 
 flush_timeout = util.Option(
         _('force a flush after specified seconds since the last ' \
-                'database change'),
+                'index change'),
         default=5, type_cast=int)
 
 flush_threshold = util.Option(
-        _('force a flush every specified changes to the database'),
+        _('force a flush every specified changes to the index'),
         default=32, type_cast=int)
 
 threading = util.Option(
@@ -85,7 +85,7 @@ def path(*args):
 
 
 def index_path(name):
-    """Path to a directory with Xapian database.
+    """Path to a directory with Xapian index.
 
     :param name:
         Xapian database name

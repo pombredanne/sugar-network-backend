@@ -22,8 +22,8 @@ from active_document.util import enforce
 class Property(object):
     """Collect inforamtion about document property."""
 
-    def __init__(self, name, slot, prefix=None, default=None, boolean=False,
-            multiple=False, separator=None):
+    def __init__(self, name, slot=None, prefix=None, default=None,
+            boolean=False, multiple=False, separator=None):
         """
         :param name:
             property name

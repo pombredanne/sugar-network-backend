@@ -1,1 +1,1 @@
-- DatabaseQueue should smarter to avoid using writing db for all reads
+- IndexQueue should be smarter to avoid using writing db for all reads
