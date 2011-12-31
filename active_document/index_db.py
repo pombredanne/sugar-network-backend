@@ -40,7 +40,7 @@ _writers = {}
 
 
 def get(name, properties, crawler):
-    """Get a `Writer` object to write to the index.
+    """Get an access to the index database.
 
     :param name:
         index name
@@ -51,7 +51,7 @@ def get(name, properties, crawler):
         for every existing document
 
     """
-    if env.threading.value:
+    if env.index_pool.value > 1:
         writer = _writers.get(name)
         if writer is None:
             logging.debug('Create index writer for %s', name)
@@ -347,8 +347,8 @@ class _Writer(gobject.GObject, _Reader):
             gobject.source_remove(self._flush_timeout_hid)
             self._flush_timeout_hid = None
 
-        if flush or env.flush_threshold.value and \
-                self._pending_writes >= env.flush_threshold.value:
+        if flush or env.index_flush_threshold.value and \
+                self._pending_writes >= env.index_flush_threshold.value:
             logging.debug('Flush %s: flush=%r _pending_writes=%r',
                     self.name, flush, self._pending_writes)
             if hasattr(self._db, 'commit'):
@@ -360,9 +360,9 @@ class _Writer(gobject.GObject, _Reader):
             # Emit from idle_add to send signal in the main loop thread
             gobject.idle_add(self.emit, 'changed')
 
-        elif env.flush_timeout.value:
+        elif env.index_flush_timeout.value:
             self._flush_timeout_hid = gobject.timeout_add_seconds(
-                    env.flush_timeout.value, lambda: self._flush(True))
+                    env.index_flush_timeout.value, lambda: self._flush(True))
 
         return False
 

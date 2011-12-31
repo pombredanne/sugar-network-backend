@@ -49,12 +49,12 @@ class Test(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=logfile)
 
-        _env.root.value = tmpdir
-        _env.flush_timeout.value = 0
-        _env.flush_threshold.value = 1
-        _env.threading.value = False
+        _env.data_root.value = tmpdir
+        _env.index_flush_timeout.value = 0
+        _env.index_flush_threshold.value = 1
         _env.find_limit.value = 1024
-        _env.write_queue.value = 0
+        _env.index_pool.value = 0
+        _env.index_write_queue.value = 0
         _env.LAYOUT_VERSION = 1
 
     def tearDown(self):

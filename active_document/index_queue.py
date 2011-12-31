@@ -26,7 +26,7 @@ class IndexQueue(object):
     """Index requests queue to keep writer only in one thread."""
 
     def __init__(self):
-        self._maxlen = env.write_queue.value
+        self._maxlen = env.index_write_queue.value
         self._queue = collections.deque([], self._maxlen or None)
 
         self._lock = threading.Lock()

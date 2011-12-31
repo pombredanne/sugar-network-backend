@@ -31,25 +31,25 @@ GUID_PREFIX = 'I'
 EXACT_PREFIX = 'X'
 
 
-root = util.Option(
+data_root = util.Option(
         _('path to the root directory to place documents\' data and indexes'))
 
-flush_timeout = util.Option(
-        _('force a flush after specified seconds since the last ' \
-                'index change'),
+index_flush_timeout = util.Option(
+        _('flush index index after specified seconds since the last change'),
         default=5, type_cast=int)
 
-flush_threshold = util.Option(
-        _('force a flush every specified changes to the index'),
+index_flush_threshold = util.Option(
+        _('flush index every specified changes'),
         default=32, type_cast=int)
 
-threading = util.Option(
-        _('use index from different threads in optimal manner'),
-        default=False, type_cast=bool)
+index_pool = util.Option(
+        _('use a pool of indexes, makes sense only with concurent access; ' \
+                'less that 2 means no pooling'), \
+        default=0, type_cast=int)
 
-write_queue = util.Option(
-        _('if threading is enabled, define the queue size of ' \
-                'singular writer; 0 is infinite size'),
+index_write_queue = util.Option(
+        _('if index_pool is enabled, define the writer\'s queue size ' \
+                '(because writer should be singular); 0 is infinite size'),
         default=256, type_cast=int)
 
 find_limit = util.Option(
@@ -69,10 +69,10 @@ def path(*args):
         absolute path
 
     """
-    enforce(root.value,
-            _('The active_document.env.root.value is not set'))
+    enforce(data_root.value,
+            _('The active_document.env.data_root.value is not set'))
 
-    result = join(root.value, *args)
+    result = join(data_root.value, *args)
     if result.endswith(os.sep):
         result_dir = result = result.rstrip(os.sep)
     else:

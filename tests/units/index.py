@@ -31,7 +31,7 @@ class DatabaseTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        env.threading.value = True
+        env.index_pool.value = 10
         Index.docs = []
         self.mainloop = gobject.MainLoop()
 
@@ -398,8 +398,8 @@ class DatabaseTest(tests.Test):
                 db.find(request={'var_3': '5'}, reply=['var_1']))
 
     def test_FlushThreshold(self):
-        env.flush_threshold.value = 2
-        env.flush_timeout.value = 0
+        env.index_flush_threshold.value = 2
+        env.index_flush_timeout.value = 0
         db = Index({'key': Property('key', 1, 'K')})
 
         changed = []
@@ -420,8 +420,8 @@ class DatabaseTest(tests.Test):
         self.assertEqual(5, db.find()[-1])
 
     def test_FlushTimeout(self):
-        env.flush_threshold.value = 0
-        env.flush_timeout.value = 2
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 2
         db = Index({})
 
         changed = []
@@ -457,8 +457,8 @@ class DatabaseTest(tests.Test):
                 {'guid': '3', 'key': 'c'},
                 ]
 
-        env.flush_threshold.value = 3
-        env.flush_timeout.value = 0
+        env.index_flush_threshold.value = 3
+        env.index_flush_timeout.value = 0
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
         self.mainloop.run()
@@ -492,8 +492,8 @@ class DatabaseTest(tests.Test):
         index_db.shutdown()
 
     def test_ReadFromWritingDB(self):
-        env.flush_threshold.value = 10
-        env.flush_timeout.value = 0
+        env.index_flush_threshold.value = 10
+        env.index_flush_timeout.value = 0
         db = Index({'key': Property('key', 1, 'K')})
 
         changed = []

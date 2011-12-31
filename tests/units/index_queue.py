@@ -53,7 +53,7 @@ class IndexQueueTest(tests.Test):
         self.assertEqual(-5, queue._got)
 
     def test_put_MaxLen(self):
-        env.write_queue.value = 1
+        env.index_write_queue.value = 1
         queue = IndexQueue()
 
         queue.put(lambda x: x)
