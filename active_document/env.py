@@ -87,6 +87,8 @@ def path(*args):
 def index_path(name):
     """Path to a directory with Xapian index.
 
+    If resulting directory path doesn't exists, it will be created.
+
     :param name:
         Xapian database name
     :returns:

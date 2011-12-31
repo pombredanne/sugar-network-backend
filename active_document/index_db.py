@@ -27,7 +27,6 @@ import gobject
 
 from active_document import util, env
 from active_document.index_queue import IndexQueue
-from active_document.util import enforce
 
 
 # The regexp to extract exact search terms from a query string
@@ -90,7 +89,7 @@ class _Reader(object):
 
     def find(self, offset, limit, request, query, reply, order_by, group_by):
         if self._db is None:
-            return [], 0
+            return [], [], 0
 
         start_timestamp = time.time()
         # This will assure that the results count is exact.
@@ -100,18 +99,15 @@ class _Reader(object):
         result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
         total_count = result.get_matches_estimated()
 
+        guids = []
         entries = []
         for hit in result:
             entry = {}
-            #guid = hit.document.get_value(0)
+            guids.append(hit.document.get_value(0))
             for name in reply or self.properties.keys():
                 prop = self.properties.get(name)
                 if prop is not None and prop.slot is not None:
                     entry[name] = hit.document.get_value(prop.slot)
-                else:
-                    # TODO
-                    #entry[name] = self.get_property(guid, name)
-                    pass
             if group_by:
                 entry['grouped'] = hit.collapse_count + 1
             entries.append(entry)
@@ -123,7 +119,7 @@ class _Reader(object):
                 time.time() - start_timestamp, len(entries), total_count,
                 enquire.get_query())
 
-        return (entries, total_count)
+        return (guids, entries, total_count)
 
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
@@ -264,16 +260,7 @@ class _Writer(gobject.GObject, _Reader):
         self._flush(True)
         self._db = None
 
-    def replace(self, guid, props):
-        props['guid'] = guid
-        for name, prop in self.properties.items():
-            value = props.get(name, prop.default)
-            enforce(value is not None,
-                    _('Property "%s" should be passed while creating new %s ' \
-                            'document'),
-                    name, self.name)
-            props[name] = env.value(value)
-
+    def store(self, guid, props, new):
         logging.debug('Store %s object: %r', self.name, props)
 
         document = xapian.Document()
@@ -332,7 +319,7 @@ class _Writer(gobject.GObject, _Reader):
     def _populate(self, i):
         try:
             guid, props = i.next()
-            self.replace(guid, props)
+            self.store(guid, props, True)
         except StopIteration:
             pass
         else:
@@ -415,10 +402,10 @@ class _ThreadReader(_Reader):
         self._queue = writer.queue
         self._last_flush = 0
 
-    def replace(self, guid, props):
-        logging.debug('Push replace request to %s\'s queue for %s',
+    def store(self, guid, props, new):
+        logging.debug('Push store request to %s\'s queue for %s',
                 self.name, guid)
-        self._queue.put(_Writer.replace, guid, props)
+        self._queue.put(_Writer.store, guid, props, new)
 
     def delete(self, guid):
         logging.debug('Push delete request to %s\'s queue for %s',
@@ -432,7 +419,7 @@ class _ThreadReader(_Reader):
                 self._last_flush = time.time()
             except xapian.DatabaseOpeningError:
                 logging.debug('Cannot open RO index for %s', self.name)
-                return [], 0
+                return [], [], 0
             else:
                 logging.debug('Open read-only index for %s', self.name)
 

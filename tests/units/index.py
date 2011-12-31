@@ -3,6 +3,7 @@
 # sugar-lint: disable
 
 import os
+import uuid
 import time
 from os.path import exists
 
@@ -20,14 +21,14 @@ class Index(index.Index):
 
     def __init__(self, properties):
         Index._writer = None
-        index.Index.__init__(self, properties, self.crawler)
+        index.Index.__init__(self, 'index', properties, self.crawler)
 
     def crawler(self):
         for i in Index.docs:
             yield i['guid'], i
 
 
-class DatabaseTest(tests.Test):
+class IndexTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
@@ -46,15 +47,15 @@ class DatabaseTest(tests.Test):
         Property('key', 1, 'K')
         Property('guid', 0, 'I')
 
-    def test_create(self):
+    def test_Create(self):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        guid_1 = db.create({'key': 'value_1'})
+        guid_1 = '1'
+        db.store(guid_1, {'key': 'value_1'}, True)
         self.mainloop.run()
 
-        assert guid_1
-        entries, total = db.find(reply=['guid', 'key'])
+        __, entries, total = db.find(reply=['guid', 'key'])
         self.assertEqual(1, total)
         self.assertEqual(
                 sorted([
@@ -62,12 +63,11 @@ class DatabaseTest(tests.Test):
                     ]),
                 sorted(entries))
 
-        guid_2 = db.create({'key': 'value_2'})
+        guid_2 = '2'
+        db.store(guid_2, {'key': 'value_2'}, True)
         self.mainloop.run()
 
-        assert guid_2
-        assert guid_1 != guid_2
-        entries, total = db.find(reply=['guid', 'key'])
+        __, entries, total = db.find(reply=['guid', 'key'])
         self.assertEqual(2, total)
         self.assertEqual(
                 sorted([
@@ -83,46 +83,49 @@ class DatabaseTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        guid = db.create({'var_1': 'value_1', 'var_2': 'value_2'})
+        guid = '1'
+        db.store(guid, {'var_1': 'value_1', 'var_2': 'value_2'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'guid': guid, 'var_1': 'value_1', 'var_2': 'value_2'}], 1),
-                db.find(reply=['guid', 'var_1', 'var_2']))
+                ([guid], [{'var_1': 'value_1', 'var_2': 'value_2'}], 1),
+                db.find(reply=['var_1', 'var_2']))
 
-        db.update(guid, {'var_1': 'value_3'})
+        db.store(guid, {'var_1': 'value_3'}, False)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'guid': guid, 'var_1': 'value_3', 'var_2': 'value_2'}], 1),
-                db.find(reply=['guid', 'var_1', 'var_2']))
+                ([guid], [{'var_1': 'value_3', 'var_2': 'value_2'}], 1),
+                db.find(reply=['var_1', 'var_2']))
 
     def test_update_AvoidGuidOverwrite(self):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        guid = db.create({'key': 'value_1'})
+        guid = '1'
+        db.store(guid, {'key': 'value_1'}, True)
         self.mainloop.run()
 
-        self.assertRaises(RuntimeError, db.update, guid, {'guid': 'fake', 'key': 'value_2'})
+        self.assertRaises(RuntimeError, db.store, guid, {'guid': 'fake', 'key': 'value_2'}, False)
 
     def test_delete(self):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        guid = db.create({'key': 'value'})
+        guid = '1'
+        db.store(guid, {'key': 'value'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'guid': guid, 'key': 'value'}], 1),
-                db.find(reply=['guid', 'key']))
+                ([guid], [{'key': 'value'}], 1),
+                db.find(reply=['key']))
 
         db.delete(guid)
         self.mainloop.run()
 
         self.assertEqual(
-                ([], 0),
-                db.find(reply=['guid', 'key']))
+                ([], [], 0),
+                db.find(reply=['key']))
 
     def test_find(self):
         db = Index({
@@ -132,48 +135,48 @@ class DatabaseTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
         self.mainloop.run()
-        db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'}, True)
         self.mainloop.run()
-        db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'var_1': '1'}, {'var_1': '2'}], 2),
+                (['1', '2'], [{'var_1': '1'}, {'var_1': '2'}], 2),
                 db.find(query='у', reply=['var_1']))
 
         self.assertEqual(
-                ([{'var_1': '2'}], 1),
+                (['2'], [{'var_1': '2'}], 1),
                 db.find(query='у AND ю', reply=['var_1']))
 
         self.assertEqual(
-                ([{'var_1': '2'}, {'var_1': '3'}], 2),
+                (['2', '3'], [{'var_1': '2'}, {'var_1': '3'}], 2),
                 db.find(query='var_3:ю', reply=['var_1']))
 
         self.assertEqual(
-                ([{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
+                (['1', '2', '3'], [{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
                 db.find(query='var_3:ю OR var_2:у', reply=['var_1']))
 
     def test_find_MaxLimit(self):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'key': '1'})
+        db.store('1', {'key': '1'}, True)
         self.mainloop.run()
-        db.create({'key': '2'})
+        db.store('2', {'key': '2'}, True)
         self.mainloop.run()
-        db.create({'key': '3'})
+        db.store('3', {'key': '3'}, True)
         self.mainloop.run()
 
         env.find_limit.value = 1
 
         self.assertEqual(
-                ([{'key': '1'}], 3),
+                (['1'], [{'key': '1'}], 3),
                 db.find(reply=['key'], limit=None))
 
         self.assertEqual(
-                ([{'key': '2'}], 3),
+                (['2'], [{'key': '2'}], 3),
                 db.find(reply=['key'], offset=1, limit=1024))
 
     def test_find_WithProps(self):
@@ -184,27 +187,27 @@ class DatabaseTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
         self.mainloop.run()
-        db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'}, True)
         self.mainloop.run()
-        db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'var_1': '1'}, {'var_1': '2'}], 2),
+                (['1', '2'], [{'var_1': '1'}, {'var_1': '2'}], 2),
                 db.find(request={'var_2': 'у'}, reply=['var_1']))
 
         self.assertEqual(
-                ([{'var_1': '1'}], 1),
+                (['1'], [{'var_1': '1'}], 1),
                 db.find(request={'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([], 0),
+                ([], [], 0),
                 db.find(query='var_1:0', request={'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([{'var_1': '3'}], 1),
+                (['3'], [{'var_1': '3'}], 1),
                 db.find(query='var_3:ю', request={'var_2': 'б'}, reply=['var_1']))
 
     def test_find_WithAllBooleanProps(self):
@@ -215,23 +218,23 @@ class DatabaseTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
         self.mainloop.run()
-        db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'}, True)
         self.mainloop.run()
-        db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'var_1': '1'}], 1),
+                (['1'], [{'var_1': '1'}], 1),
                 db.find(request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([{'var_1': '1'}], 1),
+                (['1'], [{'var_1': '1'}], 1),
                 db.find(query='г', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([], 0),
+                ([], [], 0),
                 db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_WithBooleanProps(self):
@@ -242,75 +245,75 @@ class DatabaseTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
         self.mainloop.run()
-        db.create({'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'}, True)
         self.mainloop.run()
-        db.create({'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
+        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'var_1': '1'}], 1),
+                (['1'], [{'var_1': '1'}], 1),
                 db.find(request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([{'var_1': '1'}], 1),
+                (['1'], [{'var_1': '1'}], 1),
                 db.find(query='г', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([], 0),
+                ([], [], 0),
                 db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_ExactQuery(self):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'key': 'фу'})
+        db.store('1', {'key': 'фу'}, True)
         self.mainloop.run()
-        db.create({'key': 'фу бар'})
+        db.store('2', {'key': 'фу бар'}, True)
         self.mainloop.run()
-        db.create({'key': 'фу бар тест'})
+        db.store('3', {'key': 'фу бар тест'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'key': 'фу'}, {'key': 'фу бар'}, {'key': 'фу бар тест'}], 3),
+                (['1', '2', '3'], [{'key': 'фу'}, {'key': 'фу бар'}, {'key': 'фу бар тест'}], 3),
                 db.find(query='key:фу', reply=['key']))
         self.assertEqual(
-                ([{'key': 'фу бар'}, {'key': 'фу бар тест'}], 2),
+                (['2', '3'], [{'key': 'фу бар'}, {'key': 'фу бар тест'}], 2),
                 db.find(query='key:"фу бар"', reply=['key']))
 
         self.assertEqual(
-                ([{'key': 'фу'}], 1),
+                (['1'], [{'key': 'фу'}], 1),
                 db.find(query='key:=фу', reply=['key']))
         self.assertEqual(
-                ([{'key': 'фу бар'}], 1),
+                (['2'], [{'key': 'фу бар'}], 1),
                 db.find(query='key:="фу бар"', reply=['key']))
         self.assertEqual(
-                ([{'key': 'фу бар тест'}], 1),
+                (['3'], [{'key': 'фу бар тест'}], 1),
                 db.find(query='key:="фу бар тест"', reply=['key']))
 
     def test_find_ReturnPortions(self):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'key': '1'})
+        db.store('1', {'key': '1'}, True)
         self.mainloop.run()
-        db.create({'key': '2'})
+        db.store('2', {'key': '2'}, True)
         self.mainloop.run()
-        db.create({'key': '3'})
+        db.store('3', {'key': '3'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'key': '1'}], 3),
+                (['1'], [{'key': '1'}], 3),
                 db.find(offset=0, limit=1, reply=['key']))
         self.assertEqual(
-                ([{'key': '2'}], 3),
+                (['2'], [{'key': '2'}], 3),
                 db.find(offset=1, limit=1, reply=['key']))
         self.assertEqual(
-                ([{'key': '3'}], 3),
+                (['3'], [{'key': '3'}], 3),
                 db.find(offset=2, limit=1, reply=['key']))
         self.assertEqual(
-                ([], 3),
+                ([], [], 3),
                 db.find(offset=3, limit=1, reply=['key']))
 
     def test_find_OrderBy(self):
@@ -321,31 +324,31 @@ class DatabaseTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'var_1': '1', 'var_2': '1', 'var_3': '5'})
+        db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '5'}, True)
         self.mainloop.run()
-        db.create({'var_1': '2', 'var_2': '2', 'var_3': '5'})
+        db.store('2', {'var_1': '2', 'var_2': '2', 'var_3': '5'}, True)
         self.mainloop.run()
-        db.create({'var_1': '3', 'var_2': '3', 'var_3': '4'})
+        db.store('3', {'var_1': '3', 'var_2': '3', 'var_3': '4'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
+                (['1', '2', '3'], [{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
                 db.find(reply=['var_1'], order_by=['var_2']))
         self.assertEqual(
-                ([{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
+                (['1', '2', '3'], [{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
                 db.find(reply=['var_1'], order_by=['+var_2']))
         self.assertEqual(
-                ([{'var_1': '3'}, {'var_1': '2'}, {'var_1': '1'}], 3),
+                (['3', '2', '1'], [{'var_1': '3'}, {'var_1': '2'}, {'var_1': '1'}], 3),
                 db.find(reply=['var_1'], order_by=['-var_2']))
 
         self.assertEqual(
-                ([{'var_1': '3'}, {'var_1': '1'}, {'var_1': '2'}], 3),
+                (['3', '1', '2'], [{'var_1': '3'}, {'var_1': '1'}, {'var_1': '2'}], 3),
                 db.find(reply=['var_1'], order_by=['+var_3', '+var_2']))
         self.assertEqual(
-                ([{'var_1': '3'}, {'var_1': '2'}, {'var_1': '1'}], 3),
+                (['3', '2', '1'], [{'var_1': '3'}, {'var_1': '2'}, {'var_1': '1'}], 3),
                 db.find(reply=['var_1'], order_by=['+var_3', '-var_2']))
         self.assertEqual(
-                ([{'var_1': '2'}, {'var_1': '1'}, {'var_1': '3'}], 3),
+                (['2', '1', '3'], [{'var_1': '2'}, {'var_1': '1'}, {'var_1': '3'}], 3),
                 db.find(reply=['var_1'], order_by=['-var_3', '-var_2']))
 
     def test_find_GroupBy(self):
@@ -356,18 +359,18 @@ class DatabaseTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'var_1': '1', 'var_2': '1', 'var_3': '3'})
+        db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '3'}, True)
         self.mainloop.run()
-        db.create({'var_1': '2', 'var_2': '1', 'var_3': '4'})
+        db.store('2', {'var_1': '2', 'var_2': '1', 'var_3': '4'}, True)
         self.mainloop.run()
-        db.create({'var_1': '3', 'var_2': '2', 'var_3': '4'})
+        db.store('3', {'var_1': '3', 'var_2': '2', 'var_3': '4'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'var_1': '1', 'grouped': 2}, {'var_1': '3', 'grouped': 1}], 2),
+                (['1', '3'], [{'var_1': '1', 'grouped': 2}, {'var_1': '3', 'grouped': 1}], 2),
                 db.find(reply=['var_1'], group_by='var_2'))
         self.assertEqual(
-                ([{'var_1': '1', 'grouped': 1}, {'var_1': '2', 'grouped': 2}], 2),
+                (['1', '2'], [{'var_1': '1', 'grouped': 1}, {'var_1': '2', 'grouped': 2}], 2),
                 db.find(reply=['var_1'], group_by='var_3'))
 
     def test_TermsAreLists(self):
@@ -378,23 +381,23 @@ class DatabaseTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        db.create({'var_1': '1', 'var_2': '1 2', 'var_3': '4;5'})
+        db.store('1', {'var_1': '1', 'var_2': '1 2', 'var_3': '4;5'}, True)
         self.mainloop.run()
-        db.create({'var_1': '2', 'var_2': ' 2  3 ', 'var_3': ' 5 ; 6 '})
+        db.store('2', {'var_1': '2', 'var_2': ' 2  3 ', 'var_3': ' 5 ; 6 '}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'var_1': '1'}], 1),
+                (['1'], [{'var_1': '1'}], 1),
                 db.find(request={'var_2': '1'}, reply=['var_1']))
         self.assertEqual(
-                ([{'var_1': '1'}, {'var_1': '2'}], 2),
+                (['1', '2'], [{'var_1': '1'}, {'var_1': '2'}], 2),
                 db.find(request={'var_2': '2'}, reply=['var_1']))
 
         self.assertEqual(
-                ([{'var_1': '2'}], 1),
+                (['2'], [{'var_1': '2'}], 1),
                 db.find(request={'var_3': '6'}, reply=['var_1']))
         self.assertEqual(
-                ([{'var_1': '1'}, {'var_1': '2'}], 2),
+                (['1', '2'], [{'var_1': '1'}, {'var_1': '2'}], 2),
                 db.find(request={'var_3': '5'}, reply=['var_1']))
 
     def test_FlushThreshold(self):
@@ -406,11 +409,11 @@ class DatabaseTest(tests.Test):
         db.connect('changed', lambda *args: changed.append(True))
 
         def cb():
-            db.create({'key': '1'})
-            db.create({'key': '2'})
-            db.create({'key': '3'})
-            db.create({'key': '4'})
-            db.create({'key': '5'})
+            db.store('1', {'key': '1'}, True)
+            db.store('2', {'key': '2'}, True)
+            db.store('3', {'key': '3'}, True)
+            db.store('4', {'key': '4'}, True)
+            db.store('5', {'key': '5'}, True)
         gobject.idle_add(cb)
 
         gobject.timeout_add_seconds(2, self.mainloop.quit)
@@ -428,7 +431,7 @@ class DatabaseTest(tests.Test):
         db.connect('changed', lambda *args: changed.append(True))
 
         def create():
-            db.create({})
+            db.store(uuid.uuid1(), {}, True)
 
         gobject.idle_add(create)
         gobject.timeout_add(1000, self.mainloop.quit)
@@ -464,10 +467,11 @@ class DatabaseTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'guid': '1', 'key': 'a'},
-                  {'guid': '2', 'key': 'b'},
-                  {'guid': '3', 'key': 'c'},
-                  ], 3),
+                (['1', '2', '3'], [
+                    {'guid': '1', 'key': 'a'},
+                    {'guid': '2', 'key': 'b'},
+                    {'guid': '3', 'key': 'c'},
+                    ], 3),
                 db.find(reply=['guid', 'key']))
 
     def test_LayoutVersion(self):
@@ -500,19 +504,20 @@ class DatabaseTest(tests.Test):
         db.connect('changed', lambda *args: changed.append(True))
 
         def cb():
-            db.create({'key': '1'})
-            db.create({'key': '2'})
-            db.create({'key': '3'})
+            db.store('1', {'key': '1'}, True)
+            db.store('2', {'key': '2'}, True)
+            db.store('3', {'key': '3'}, True)
         gobject.idle_add(cb)
 
         gobject.timeout_add_seconds(2, self.mainloop.quit)
         self.mainloop.run()
 
         self.assertEqual(
-                ([{'key': '1'},
-                  {'key': '2'},
-                  {'key': '3'},
-                  ], 3),
+                (['1', '2', '3'], [
+                    {'key': '1'},
+                    {'key': '2'},
+                    {'key': '3'},
+                    ], 3),
                 db.find(reply=['key']))
         self.assertEqual(0, len(changed))
 

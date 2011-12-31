@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import uuid
 import logging
 from gettext import gettext as _
 
@@ -25,8 +24,10 @@ from active_document.util import enforce
 class Index(object):
     """High level class to get access to Xapian databases."""
 
-    def __init__(self, properties, crawler):
+    def __init__(self, name, properties, crawler):
         """
+        :param name:
+            index name
         :param properties:
             `Property` objects associated with the `Index`
         :param crawler:
@@ -34,6 +35,7 @@ class Index(object):
             for every existing document
 
         """
+        self._name = name
         if 'guid' not in properties:
             properties['guid'] = GuidProperty()
         self._properties = properties
@@ -42,42 +44,45 @@ class Index(object):
     @property
     def name(self):
         """Xapian database name."""
-        return self.__class__.__name__.lower()
+        return self._name
 
     @property
     def properties(self):
         """`Property` objects associated with the `Index`."""
         return self._properties
 
-    def create(self, props):
-        """Create new document.
-
-        :param props:
-            document properties
-        :returns:
-            GUID of newly created document
-
-        """
-        guid = str(uuid.uuid1())
-        self._db.replace(guid, props)
-        return guid
-
-    def update(self, guid, props):
-        """Update properties of existing document.
+    def store(self, guid, props, new):
+        """Store properties for a document.
 
         :param guid:
-            document GUID to update
+            document GUID to store
         :param props:
-            properties to update, not necessary all document's properties
+            properties to store; for non new entities, not necessary
+            all document's properties
+        :param new:
+            if it is a new entity
 
         """
         enforce('guid' not in props or props['guid'] == guid)
-        entries, total = self._db.find(0, 1, {'guid': guid},
-                None, None, None, None)
-        enforce(total == 1 and entries,
-                _('Cannot find "%s" in %s to update'), guid, self.name)
-        entries[0].update(props)
-        self._db.replace(guid, entries[0])
+
+        if new:
+            props['guid'] = guid
+            for name, prop in self.properties.items():
+                value = props.get(name, prop.default)
+                enforce(value is not None,
+                        _('Property "%s" should be passed while creating ' \
+                                'new %s document'),
+                        name, self.name)
+                props[name] = env.value(value)
+        else:
+            __, entries, total = self._db.find(0, 1, {'guid': guid},
+                    None, None, None, None)
+            enforce(total == 1 and entries,
+                    _('Cannot find "%s" in %s to store'), guid, self.name)
+            entries[0].update(props)
+            props = entries[0]
+
+        self._db.store(guid, props, new)
 
     def delete(self, guid):
         """Delete document.
@@ -118,9 +123,10 @@ class Index(object):
             a number of entries that are represented by the current one;
             no groupping by default
         :returns:
-            a tuple of (`entries`, `total_count`); where the `total_count` is
-            the total number of documents conforming the search parameters,
-            i.e., not only documents that are included to the resulting list
+            a tuple of (`guids`, `entries`, `total_count`);
+            where the `total_count` is the total number of documents
+            conforming the search parameters, i.e., not only documents that
+            are included to the resulting list
 
         """
         if limit is None:
