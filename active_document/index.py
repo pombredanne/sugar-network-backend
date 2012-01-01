@@ -35,37 +35,28 @@ class Index(object):
             metadata['guid'] = GuidProperty()
         self._db = index_db.get(metadata)
 
-    def store(self, guid, props, new):
+    def store(self, guid, properties, new):
         """Store properties for a document.
 
         :param guid:
             document GUID to store
-        :param props:
+        :param properties:
             properties to store; for non new entities, not necessary
             all document's properties
         :param new:
             if it is a new entity
 
         """
-        enforce('guid' not in props or props['guid'] == guid)
+        enforce('guid' not in properties or properties['guid'] == guid)
 
-        if new:
-            props['guid'] = guid
-            for name, prop in self.metadata.items():
-                value = props.get(name, prop.default)
-                enforce(value is not None,
-                        _('Property "%s" should be passed while creating ' \
-                                'new %s document'),
-                        name, self.metadata.name)
-                props[name] = env.value(value)
-        else:
-            entries, __ = self._db.find(0, 1, {'guid': guid})
-            enforce(len(entries) == 1, _('Cannot find "%s" in %s to store'),
+        if not new:
+            documents, __ = self._db.find(0, 1, {'guid': guid})
+            enforce(len(documents) == 1, _('Cannot find "%s" in %s to store'),
                     guid, self.metadata.name)
-            entries[0].update(props)
-            props = entries[0]
+            documents[0].update(properties)
+            properties = documents[0]
 
-        self._db.store(guid, props, new)
+        self._db.store(guid, properties, new)
 
     def delete(self, guid):
         """Delete document.
@@ -103,10 +94,10 @@ class Index(object):
         :param group_by:
             a property name to group resulting list by; if was specified,
             every resulting list item will contain `grouped` with
-            a number of entries that are represented by the current one;
+            a number of documents that are represented by the current one;
             no groupping by default
         :returns:
-            a tuple of (`guids`, `entries`, `total_count`);
+            a tuple of (`documents`, `total_count`);
             where the `total_count` is the total number of documents
             conforming the search parameters, i.e., not only documents that
             are included to the resulting list
@@ -122,7 +113,7 @@ class Index(object):
             request = {}
         if not reply:
             reply = ['guid']
-        if order_by is None:
+        if order_by is None and 'ctime' in self.metadata:
             order_by = ['+ctime']
 
         return self._db.find(offset, limit, request, query, reply, order_by,

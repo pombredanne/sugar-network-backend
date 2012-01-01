@@ -27,6 +27,7 @@ import gobject
 
 from active_document import util, env
 from active_document.index_queue import IndexQueue, NoPut
+from active_document.util import enforce
 
 
 # The regexp to extract exact search terms from a query string
@@ -86,25 +87,30 @@ class _Reader(object):
         result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
         total_count = result.get_matches_estimated()
 
-        entries = []
+        documents = []
         for hit in result:
             props = {}
             for name in reply or self.metadata.keys():
                 prop = self.metadata.get(name)
-                if prop is not None and prop.slot is not None:
+                if prop is None:
+                    logging.warning(_('Unknown property name "%s" for %s ' \
+                            'to return from find'), name, self.metadata.name)
+                    continue
+                if prop.slot is not None and prop.slot != 0:
                     props[name] = hit.document.get_value(prop.slot)
             if group_by:
                 props['grouped'] = hit.collapse_count + 1
             guid = hit.document.get_value(0)
-            entries.append(self.metadata.to_document(guid, props))
+            documents.append(self.metadata.to_document(guid, props))
 
         logging.debug('Find in %s: offset=%s limit=%s request=%r query=%r ' \
-                'order_by=%r group_by=%r time=%s entries=%s total_count=%s ' \
-                'parsed=%s', self.metadata.name, offset, limit, request, query,
-                order_by, group_by, time.time() - start_timestamp,
-                len(entries), total_count, enquire.get_query())
+                'order_by=%r group_by=%r time=%s documents=%s ' \
+                'total_count=%s parsed=%s',
+                self.metadata.name, offset, limit, request, query, order_by,
+                group_by, time.time() - start_timestamp, len(documents),
+                total_count, enquire.get_query())
 
-        return entries, total_count
+        return documents, total_count
 
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
@@ -136,15 +142,14 @@ class _Reader(object):
         for name, value in request.items():
             value = str(value).strip()
             prop = self.metadata.get(name)
-            if prop is not None and prop.prefix:
-                query = xapian.Query(env.term(prop.prefix, value))
-                if prop.boolean:
-                    boolean_queries.append(query)
-                else:
-                    queries.append(query)
+            enforce(prop is not None and prop.prefix,
+                    _('Unknow search term "%s" for %s'),
+                    name, self.metadata.name)
+            query = xapian.Query(env.term(prop.prefix, value))
+            if prop.boolean:
+                boolean_queries.append(query)
             else:
-                logging.warning(_('Unknow search term "%s" for %s'),
-                        name, self.metadata.name)
+                queries.append(query)
 
         final_query = None
         if queries:
@@ -172,11 +177,10 @@ class _Reader(object):
                 else:
                     reverse = False
                 prop = self.metadata.get(order)
-                if prop is not None and prop.slot is not None:
-                    sorter.add_value(prop.slot, reverse)
-                else:
-                    logging.warning(_('Cannot sort using "%s" property in %s'),
-                            order, self.metadata.name)
+                enforce(prop is not None and prop.slot is not None,
+                        _('Cannot sort using "%s" property of %s'),
+                        order, self.metadata.name)
+                sorter.add_value(prop.slot, reverse)
             enquire.set_sort_by_key(sorter, reverse=False)
         else:
             logging.warning(_('In order to support sorting, ' \
@@ -184,11 +188,10 @@ class _Reader(object):
 
         if group_by:
             prop = self.metadata.get(group_by)
-            if prop is not None and prop.slot is not None:
-                enquire.set_collapse_key(prop.slot)
-            else:
-                logging.warning(_('Cannot group by "%s" property in %s'),
-                        group_by, self.metadata.name)
+            enforce(prop is not None and prop.slot is not None,
+                    _('Cannot group by "%s" property in %s'),
+                    group_by, self.metadata.name)
+            enquire.set_collapse_key(prop.slot)
 
         return enquire
 
@@ -215,7 +218,8 @@ class _Reader(object):
                 break
             query = query[:exact_term.start()] + query[exact_term.end():]
             term, __, value = exact_term.groups()
-            props[term] = value
+            if term in self.metadata and self.metadata[term].prefix:
+                props[term] = value
         return query
 
 
@@ -245,18 +249,19 @@ class _Writer(gobject.GObject, _Reader):
         self._flush(True)
         self._db = None
 
-    def store(self, guid, props, new):
-        logging.debug('Store %s object: %r', self.metadata.name, props)
+    def store(self, guid, properties, new):
+        logging.debug('Store %s object: %r', self.metadata.name, properties)
 
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
         term_generator.set_document(document)
 
         for name, prop in self.metadata.items():
+            value = guid if prop.slot == 0 else properties[name]
             if prop.slot is not None:
-                document.add_value(prop.slot, props[name])
+                document.add_value(prop.slot, value)
             if prop.prefix:
-                for value in prop.list_value(props[name]):
+                for value in prop.list_value(value):
                     if prop.boolean:
                         document.add_boolean_term(env.term(prop.prefix, value))
                     else:

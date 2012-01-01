@@ -56,6 +56,7 @@ class Property(object):
         self._boolean = boolean
         self._multiple = multiple
         self._separator = separator
+        self.writable = False
 
     @property
     def name(self):
@@ -81,6 +82,16 @@ class Property(object):
     def default(self):
         """Default property value or None."""
         return self._default
+
+    @property
+    def multiple(self):
+        """Should property value be treated as a list of words."""
+        return self._multiple
+
+    @property
+    def separator(self):
+        """Separator for multiplied properties, spaces by default."""
+        return self._separator
 
     def list_value(self, value):
         """If property value contains several values, list them all."""
