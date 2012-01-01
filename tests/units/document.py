@@ -163,6 +163,37 @@ class DocumentTest(tests.Test):
         env.find_limit.value = 1
         self.assertEqual(1, len(Document.find(0, 1024)[0]))
 
+    def test_delete(self):
+
+        class Document(document.Document):
+
+            @document.active_property(prefix='P')
+            def prop(self, value):
+                return value
+
+        Document(prop='1').post()
+        Document(prop='2').post()
+        Document(prop='3').post()
+
+        self.assertEqual(
+                ['1', '2', '3'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        Document.delete(Document.find(0, 1, query='prop:=2')[0][0].guid)
+        self.assertEqual(
+                ['1', '3'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        Document.delete(Document.find(0, 1, query='prop:=3')[0][0].guid)
+        self.assertEqual(
+                ['1'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        Document.delete(Document.find(0, 1, query='prop:=1')[0][0].guid)
+        self.assertEqual(
+                [],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
 
 class Storage(object):
 
