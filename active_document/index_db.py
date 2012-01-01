@@ -30,7 +30,7 @@ from active_document.index_queue import IndexQueue, NoPut
 
 
 # The regexp to extract exact search terms from a query string
-_EXACT_QUERY_RE = re.compile('([a-zA-Z]+):=(")?((?(2)[^"]+|\S+))(?(2)")')
+_EXACT_QUERY_RE = re.compile('([a-zA-Z0-9_]+):=(")?((?(2)[^"]+|\S+))(?(2)")')
 
 # How many times to call Xapian database reopen() before fail
 _REOPEN_LIMIT = 10

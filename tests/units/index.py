@@ -16,31 +16,6 @@ from active_document.metadata import Metadata
 from active_document.properties import Property
 
 
-class Index(index.Index):
-
-    docs = []
-
-    def __init__(self, props):
-        Index._writer = None
-
-        metadata = Metadata()
-        metadata.update(props)
-        metadata.name = 'index'
-
-        def crawler():
-            for i in Index.docs:
-                yield i['guid'], i
-        metadata.crawler = crawler
-
-        def to_document(guid, props):
-            props['guid'] = guid
-            return props
-        metadata.to_document = to_document
-
-        index.Index.__init__(self, metadata)
-
-
-
 class IndexTest(tests.Test):
 
     def setUp(self):
@@ -294,6 +269,21 @@ class IndexTest(tests.Test):
                 ([{'guid': '3', 'key': 'фу бар тест'}], 1),
                 db.find(query='key:="фу бар тест"', reply=['key']))
 
+    def test_find_ExactQueryTerms(self):
+        term = 'azAZ09_'
+
+        db = Index({term: Property(term, 1, 'T')})
+        db.connect('changed', lambda *args: self.mainloop.quit())
+
+        db.store('1', {term: 'test'}, True)
+        self.mainloop.run()
+        db.store('2', {term: 'test fail'}, True)
+        self.mainloop.run()
+
+        self.assertEqual(
+                ([{'guid': '1'}], 1),
+                db.find(query='%s:=test' % term, reply=['guid']))
+
     def test_find_ReturnPortions(self):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
@@ -433,7 +423,7 @@ class IndexTest(tests.Test):
         db.connect('changed', lambda *args: changed.append(True))
 
         def create():
-            db.store(uuid.uuid1(), {}, True)
+            db.store(str(uuid.uuid1()), {}, True)
 
         gobject.idle_add(create)
         gobject.timeout_add(1000, self.mainloop.quit)
@@ -518,6 +508,30 @@ class IndexTest(tests.Test):
                   {'guid': '3', 'key': '3'}], 3),
                 db.find(reply=['key']))
         self.assertEqual(0, len(changed))
+
+
+class Index(index.Index):
+
+    docs = []
+
+    def __init__(self, props):
+        Index._writer = None
+
+        metadata = Metadata()
+        metadata.update(props)
+        metadata.name = 'index'
+
+        def crawler():
+            for i in Index.docs:
+                yield i['guid'], i
+        metadata.crawler = crawler
+
+        def to_document(guid, props):
+            props['guid'] = guid
+            return props
+        metadata.to_document = to_document
+
+        index.Index.__init__(self, metadata)
 
 
 if __name__ == '__main__':
