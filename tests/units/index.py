@@ -11,9 +11,9 @@ import gobject
 
 from __init__ import tests
 
-from active_document import index, env, index_db
+from active_document import index, env
 from active_document.metadata import Metadata
-from active_document.properties import Property
+from active_document.properties import Property, GuidProperty
 
 
 class IndexTest(tests.Test):
@@ -25,7 +25,7 @@ class IndexTest(tests.Test):
         self.mainloop = gobject.MainLoop()
 
     def tearDown(self):
-        index_db.shutdown()
+        index.close_indexes()
         tests.Test.tearDown(self)
 
     def test_Term_AvoidCollisionsWithGuid(self):
@@ -53,6 +53,8 @@ class IndexTest(tests.Test):
                 db.find(reply=['key']))
 
     def test_update(self):
+        print '>', index._writers
+
         db = Index({
             'var_1': Property('var_1', 1, 'A'),
             'var_2': Property('var_2', 2, 'B'),
@@ -72,16 +74,6 @@ class IndexTest(tests.Test):
         self.assertEqual(
                 ([{'guid': '1', 'var_1': 'value_3', 'var_2': 'value_2'}], 1),
                 db.find(reply=['var_1', 'var_2']))
-
-    def test_update_AvoidGuidOverwrite(self):
-        db = Index({'key': Property('key', 1, 'K')})
-        db.connect('changed', lambda *args: self.mainloop.quit())
-
-        guid = '1'
-        db.store(guid, {'key': 'value_1'}, True)
-        self.mainloop.run()
-
-        self.assertRaises(RuntimeError, db.store, guid, {'guid': 'fake', 'key': 'value_2'}, False)
 
     def test_delete(self):
         db = Index({'key': Property('key', 1, 'K')})
@@ -133,27 +125,6 @@ class IndexTest(tests.Test):
                   {'guid': '2', 'var_1': '2'},
                   {'guid': '3', 'var_1': '3'}], 3),
                 db.find(query='var_3:ю OR var_2:у', reply=['var_1']))
-
-    def test_find_MaxLimit(self):
-        db = Index({'key': Property('key', 1, 'K')})
-        db.connect('changed', lambda *args: self.mainloop.quit())
-
-        db.store('1', {'key': '1'}, True)
-        self.mainloop.run()
-        db.store('2', {'key': '2'}, True)
-        self.mainloop.run()
-        db.store('3', {'key': '3'}, True)
-        self.mainloop.run()
-
-        env.find_limit.value = 1
-
-        self.assertEqual(
-                ([{'guid': '1', 'key': '1'}], 3),
-                db.find(reply=['key'], limit=None))
-
-        self.assertEqual(
-                ([{'guid': '2', 'key': '2'}], 3),
-                db.find(reply=['key'], offset=1, limit=1024))
 
     def test_find_WithProps(self):
         db = Index({
@@ -470,20 +441,20 @@ class IndexTest(tests.Test):
         self.mainloop.run()
         assert exists('index/version')
         os.utime('index/index', (0, 0))
-        index_db.shutdown()
+        index.close_indexes()
 
         db = Index({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
         self.assertEqual(0, os.stat('index/index').st_mtime)
-        index_db.shutdown()
+        index.close_indexes()
 
         env.LAYOUT_VERSION += 1
         db = Index({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
         self.assertNotEqual(0, os.stat('index/index').st_mtime)
-        index_db.shutdown()
+        index.close_indexes()
 
     def test_ReadFromWritingDB(self):
         env.index_flush_threshold.value = 10
@@ -515,11 +486,10 @@ class Index(index.Index):
     docs = []
 
     def __init__(self, props):
-        Index._writer = None
-
         metadata = Metadata()
         metadata.update(props)
         metadata.name = 'index'
+        metadata['guid'] = GuidProperty()
 
         def crawler():
             for i in Index.docs:
@@ -531,7 +501,21 @@ class Index(index.Index):
             return props
         metadata.to_document = to_document
 
-        index.Index.__init__(self, metadata)
+        self._index = index.get_index(metadata)
+
+    def store(self, guid, properties, new):
+        self._index.store(guid, properties, new)
+
+    def delete(self, guid):
+        self._index.delete(guid)
+
+    def find(self, offset=0, limit=1024, request=None, query=None, reply=None,
+            order_by=None, group_by=None):
+        return self._index.find(offset, limit, request, query, reply,
+                order_by, group_by)
+
+    def connect(self, *args, **kwargs):
+        self._index.connect(*args, **kwargs)
 
 
 if __name__ == '__main__':

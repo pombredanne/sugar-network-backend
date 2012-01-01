@@ -1,4 +1,4 @@
-# Copyright (C) 2011, Aleksey Lim
+# Copyright (C) 2011-2012, Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,14 +14,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import uuid
+import logging
 import threading
 from Queue import Queue
 from gettext import gettext as _
 
 from active_document import env, storage
-from active_document.index import Index
 from active_document.metadata import Metadata
-from active_document.properties import Property
+from active_document.properties import Property, GuidProperty
+from active_document.index import get_index, connect_to_index
 from active_document.util import enforce
 
 
@@ -83,9 +84,15 @@ class Document(object):
         """Store changed properties."""
         if not self._record.modified:
             return
-        self._call_index(Index.store, self.guid, self._record, self._is_new)
+
+        index = self._pool.get(True)
+        try:
+            index.store(self.guid, self._record, self._is_new)
+            self._is_new = False
+        finally:
+            self._pool.put(index, True)
+
         storage.put(self.metadata.name, self.guid, self._record)
-        self._is_new = False
 
     @classmethod
     def create(cls, properties):
@@ -123,7 +130,12 @@ class Document(object):
 
         """
         storage.delete(cls.metadata.name, guid)
-        cls._call_index(Index.delete, guid)
+
+        index = cls._pool.get(True)
+        try:
+            index.delete(guid)
+        finally:
+            cls._pool.put(index, True)
 
     @classmethod
     def find(cls, offset, limit, request=None, query='',
@@ -161,8 +173,38 @@ class Document(object):
             i.e., not only documents that are included to the resulting list
 
         """
-        return cls._call_index(Index.find, offset, limit, request, query,
-                reply, order_by, group_by)
+        if limit > env.find_limit.value:
+            logging.warning(_('The find limit for %s is restricted to %s'),
+                    cls.metadata.name, env.find_limit.value)
+            limit = env.find_limit.value
+        if request is None:
+            request = {}
+        if not reply:
+            reply = ['guid']
+        if order_by is None and 'ctime' in cls.metadata:
+            order_by = ['+ctime']
+
+        index = cls._pool.get(True)
+        try:
+            return index.find(offset, limit, request, query, reply,
+                    order_by, group_by)
+        finally:
+            cls._pool.put(index, True)
+
+    @classmethod
+    def connect(cls, cb, *args):
+        """Connect to changes in index.
+
+        Callback function will be triggered on GObject signals when something
+        was changed in the index and clients need to retry requests.
+
+        :param cb:
+            callback to call on index changes
+        :param args:
+            optional arguments to pass to `cb`
+
+        """
+        connect_to_index(cls.metadata, cb, *args)
 
     @classmethod
     def _init(cls):
@@ -181,6 +223,7 @@ class Document(object):
             cls.metadata.name = cls.__name__.lower()
             cls.metadata.crawler = lambda: storage.walk(cls.metadata.name)
             cls.metadata.to_document = lambda guid, props: cls(guid, **props)
+            cls.metadata['guid'] = GuidProperty()
 
             for attr in [getattr(cls, i) for i in dir(cls)]:
                 if hasattr(attr, '_is_active_property'):
@@ -194,22 +237,13 @@ class Document(object):
                 pool_size = env.index_pool.value or 1
                 cls._pool = Queue([], pool_size)
                 for i in range(pool_size):
-                    index = Index(cls.metadata)
-                    cls._pool.put(index)
+                    cls._pool.put(get_index(cls.metadata))
             else:
-                cls._pool = _FakeQueue(Index(cls.metadata))
+                cls._pool = _FakeQueue(get_index(cls.metadata))
 
             cls._initated = True
         finally:
             _initating_lock.release()
-
-    @classmethod
-    def _call_index(cls, op, *args):
-        index = cls._pool.get(True)
-        try:
-            return op(index, *args)
-        finally:
-            cls._pool.put(index, True)
 
 
 def active_property(*args, **kwargs):

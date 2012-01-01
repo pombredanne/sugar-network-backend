@@ -155,7 +155,7 @@ class IndexQueue(object):
         finally:
             self._lock.release()
 
-    def shutdown(self):
+    def close(self):
         """Close the queue.
 
         The function will stop accepting new `put` calls and will wait until

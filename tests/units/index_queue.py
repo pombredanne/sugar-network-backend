@@ -128,7 +128,7 @@ class IndexQueueTest(tests.Test):
             [i for i in queue.put_wait(cb)]
         self.assertRaises(NotImplementedError, put_wait)
 
-    def test_shutdown(self):
+    def test_close(self):
         queue = IndexQueue()
 
         def iteration():
@@ -139,7 +139,7 @@ class IndexQueueTest(tests.Test):
         queue.put(lambda x: x)
         self.assertEqual(1, len(queue._queue))
         thread.start()
-        queue.shutdown()
+        queue.close()
         self.assertEqual(0, len(queue._queue))
         thread.join()
 

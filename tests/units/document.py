@@ -4,7 +4,7 @@
 
 from __init__ import tests
 
-from active_document import document, storage
+from active_document import document, storage, env, index
 
 
 class DocumentTest(tests.Test):
@@ -12,6 +12,10 @@ class DocumentTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         self.storage = Storage()
+
+    def tearDown(self):
+        index.close_indexes()
+        tests.Test.tearDown(self)
 
     def test_properties_Slotted(self):
 
@@ -146,6 +150,18 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '4'})[-1])
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '5'})[-1])
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '6'})[-1])
+
+    def test_find_MaxLimit(self):
+
+        class Document(document.Document):
+            pass
+
+        Document().post()
+        Document().post()
+        Document().post()
+
+        env.find_limit.value = 1
+        self.assertEqual(1, len(Document.find(0, 1024)[0]))
 
 
 class Storage(object):
