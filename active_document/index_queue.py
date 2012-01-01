@@ -14,12 +14,24 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
+import logging
 import threading
 import collections
 from gettext import gettext as _
 
 from active_document import env, util
 from active_document.util import enforce
+
+
+class NoPut(Exception):
+    """If `IndexQueue.put_wait` didn't put an operation."""
+
+    #: A seqno of the last `IndexQueue.flush` call
+    last_flush = 0
+
+    def __init__(self, last_flush):
+        Exception.__init__(self)
+        self.last_flush = last_flush
 
 
 class IndexQueue(object):
@@ -35,10 +47,10 @@ class IndexQueue(object):
         self._op_cond = threading.Condition(self._lock)
 
         self._last_flush = 0
+        self._pending_puts = 0
         self._pending_flush = False
         self._shutting_down = False
-        self._seqno = 0
-        self._got_seqno = None
+        self._got_tid = None
         self._got = None
 
     def put(self, op, *args):
@@ -52,11 +64,13 @@ class IndexQueue(object):
         """
         self._lock.acquire()
         try:
-            self._put(0, op, *args)
+            self._pending_puts += 1
+            self._pending_flush = True
+            self._put(None, op, *args)
         finally:
             self._lock.release()
 
-    def put_wait(self, last_flush, op, *args):
+    def put_wait(self, op, *args):
         """Try to put new operation to the queue with waiting for result.
 
         Put operation to the queue only if there were succesful `iteration`
@@ -64,38 +78,33 @@ class IndexQueue(object):
         the function will wait until `iteration` will proces it and return
         the result.
 
-        :param last_flush:
-            seqno of the last `flush` execution caller knows about
         :param op:
             arbitrary function
         :param args:
             optional arguments to pass to `op`
         :returns:
-            (op_result, `None`, `None`) if put happened;
-            (`None`, new_last_flush, reopen) if put didn't happen
+            the result of `op` if put happened;
+            otherwise raise an `NoPut`
 
         """
-        reopen = False
         self._lock.acquire()
         try:
             if self._pending_flush:
-                self._seqno += 1
-                seqno = self._seqno
-                self._put(seqno, op, *args)
-                while seqno != self._got_seqno:
+                logging.debug('Wait for %r from queue', op)
+                tid = threading.current_thread().ident
+                self._put(tid, op, *args)
+                while self._got_tid != tid:
                     self._op_cond.wait()
+                self._got_tid = None
                 if isinstance(self._got, Exception):
                     # pylint: disable-msg=E0702
                     raise self._got
                 else:
-                    return self._got, None, None
-            elif self._last_flush > last_flush:
-                reopen = True
-            last_flush = self._last_flush
+                    return self._got
+            else:
+                raise NoPut(self._last_flush)
         finally:
             self._lock.release()
-
-        return None, last_flush, reopen
 
     def iteration(self, obj):
         """Process the queue.
@@ -110,9 +119,9 @@ class IndexQueue(object):
         try:
             while not len(self._queue):
                 self._put_cond.wait()
-            self._got_seqno, op, args = self._queue.popleft()
-            if not self._got_seqno:
-                self._pending_flush = True
+            self._got_tid, op, args = self._queue.popleft()
+            if self._got_tid is None:
+                self._pending_puts -= 1
             self._iteration_cond.notify()
         finally:
             self._lock.release()
@@ -140,7 +149,8 @@ class IndexQueue(object):
         last_flush = time.time()
         self._lock.acquire()
         try:
-            self._pending_flush = False
+            if self._pending_puts == 0:
+                self._pending_flush = False
             self._last_flush = last_flush
         finally:
             self._lock.release()
@@ -160,9 +170,9 @@ class IndexQueue(object):
         finally:
             self._lock.release()
 
-    def _put(self, seqno, op, *args):
+    def _put(self, tid, op, *args):
         enforce(not self._shutting_down, _('Index is being closed'))
         while self._maxlen and len(self._queue) >= self._maxlen:
             self._iteration_cond.wait()
-        self._queue.append((seqno, op, args))
+        self._queue.append((tid, op, args))
         self._put_cond.notify()

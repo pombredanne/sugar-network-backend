@@ -12,6 +12,7 @@ import gobject
 from __init__ import tests
 
 from active_document import index, env, index_db
+from active_document.metadata import Metadata
 from active_document.properties import Property
 
 
@@ -19,13 +20,25 @@ class Index(index.Index):
 
     docs = []
 
-    def __init__(self, properties):
+    def __init__(self, props):
         Index._writer = None
-        index.Index.__init__(self, 'index', properties, self.crawler)
 
-    def crawler(self):
-        for i in Index.docs:
-            yield i['guid'], i
+        metadata = Metadata()
+        metadata.update(props)
+        metadata.name = 'index'
+
+        def crawler():
+            for i in Index.docs:
+                yield i['guid'], i
+        metadata.crawler = crawler
+
+        def to_document(guid, props):
+            props['guid'] = guid
+            return props
+        metadata.to_document = to_document
+
+        index.Index.__init__(self, metadata)
+
 
 
 class IndexTest(tests.Test):
@@ -51,30 +64,18 @@ class IndexTest(tests.Test):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        guid_1 = '1'
-        db.store(guid_1, {'key': 'value_1'}, True)
+        db.store('1', {'key': 'value_1'}, True)
         self.mainloop.run()
-
-        __, entries, total = db.find(reply=['guid', 'key'])
-        self.assertEqual(1, total)
         self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'key': 'value_1'},
-                    ]),
-                sorted(entries))
+                ([{'guid': '1', 'key': 'value_1'}], 1),
+                db.find(reply=['key']))
 
-        guid_2 = '2'
-        db.store(guid_2, {'key': 'value_2'}, True)
+        db.store('2', {'key': 'value_2'}, True)
         self.mainloop.run()
-
-        __, entries, total = db.find(reply=['guid', 'key'])
-        self.assertEqual(2, total)
         self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'key': 'value_1'},
-                    {'guid': guid_2, 'key': 'value_2'},
-                    ]),
-                sorted(entries))
+                ([{'guid': '1', 'key': 'value_1'},
+                  {'guid': '2', 'key': 'value_2'}], 2),
+                db.find(reply=['key']))
 
     def test_update(self):
         db = Index({
@@ -83,19 +84,18 @@ class IndexTest(tests.Test):
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        guid = '1'
-        db.store(guid, {'var_1': 'value_1', 'var_2': 'value_2'}, True)
+        db.store('1', {'var_1': 'value_1', 'var_2': 'value_2'}, True)
         self.mainloop.run()
 
         self.assertEqual(
-                ([guid], [{'var_1': 'value_1', 'var_2': 'value_2'}], 1),
+                ([{'guid': '1', 'var_1': 'value_1', 'var_2': 'value_2'}], 1),
                 db.find(reply=['var_1', 'var_2']))
 
-        db.store(guid, {'var_1': 'value_3'}, False)
+        db.store('1', {'var_1': 'value_3'}, False)
         self.mainloop.run()
 
         self.assertEqual(
-                ([guid], [{'var_1': 'value_3', 'var_2': 'value_2'}], 1),
+                ([{'guid': '1', 'var_1': 'value_3', 'var_2': 'value_2'}], 1),
                 db.find(reply=['var_1', 'var_2']))
 
     def test_update_AvoidGuidOverwrite(self):
@@ -112,19 +112,16 @@ class IndexTest(tests.Test):
         db = Index({'key': Property('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
-        guid = '1'
-        db.store(guid, {'key': 'value'}, True)
+        db.store('1', {'key': 'value'}, True)
         self.mainloop.run()
-
         self.assertEqual(
-                ([guid], [{'key': 'value'}], 1),
+                ([{'guid': '1', 'key': 'value'}], 1),
                 db.find(reply=['key']))
 
-        db.delete(guid)
+        db.delete('1')
         self.mainloop.run()
-
         self.assertEqual(
-                ([], [], 0),
+                ([], 0),
                 db.find(reply=['key']))
 
     def test_find(self):
@@ -143,19 +140,23 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1', '2'], [{'var_1': '1'}, {'var_1': '2'}], 2),
+                ([{'guid': '1', 'var_1': '1'},
+                  {'guid': '2', 'var_1': '2'}], 2),
                 db.find(query='у', reply=['var_1']))
 
         self.assertEqual(
-                (['2'], [{'var_1': '2'}], 1),
+                ([{'guid': '2', 'var_1': '2'}], 1),
                 db.find(query='у AND ю', reply=['var_1']))
 
         self.assertEqual(
-                (['2', '3'], [{'var_1': '2'}, {'var_1': '3'}], 2),
+                ([{'guid': '2', 'var_1': '2'},
+                  {'guid': '3', 'var_1': '3'}], 2),
                 db.find(query='var_3:ю', reply=['var_1']))
 
         self.assertEqual(
-                (['1', '2', '3'], [{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
+                ([{'guid': '1', 'var_1': '1'},
+                  {'guid': '2', 'var_1': '2'},
+                  {'guid': '3', 'var_1': '3'}], 3),
                 db.find(query='var_3:ю OR var_2:у', reply=['var_1']))
 
     def test_find_MaxLimit(self):
@@ -172,11 +173,11 @@ class IndexTest(tests.Test):
         env.find_limit.value = 1
 
         self.assertEqual(
-                (['1'], [{'key': '1'}], 3),
+                ([{'guid': '1', 'key': '1'}], 3),
                 db.find(reply=['key'], limit=None))
 
         self.assertEqual(
-                (['2'], [{'key': '2'}], 3),
+                ([{'guid': '2', 'key': '2'}], 3),
                 db.find(reply=['key'], offset=1, limit=1024))
 
     def test_find_WithProps(self):
@@ -195,19 +196,20 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1', '2'], [{'var_1': '1'}, {'var_1': '2'}], 2),
+                ([{'guid': '1', 'var_1': '1'},
+                  {'guid': '2', 'var_1': '2'}], 2),
                 db.find(request={'var_2': 'у'}, reply=['var_1']))
 
         self.assertEqual(
-                (['1'], [{'var_1': '1'}], 1),
+                ([{'guid': '1', 'var_1': '1'}], 1),
                 db.find(request={'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([], [], 0),
+                ([], 0),
                 db.find(query='var_1:0', request={'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                (['3'], [{'var_1': '3'}], 1),
+                ([{'guid': '3', 'var_1': '3'}], 1),
                 db.find(query='var_3:ю', request={'var_2': 'б'}, reply=['var_1']))
 
     def test_find_WithAllBooleanProps(self):
@@ -226,15 +228,15 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1'], [{'var_1': '1'}], 1),
+                ([{'guid': '1', 'var_1': '1'}], 1),
                 db.find(request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                (['1'], [{'var_1': '1'}], 1),
+                ([{'guid': '1', 'var_1': '1'}], 1),
                 db.find(query='г', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([], [], 0),
+                ([], 0),
                 db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_WithBooleanProps(self):
@@ -253,15 +255,15 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1'], [{'var_1': '1'}], 1),
+                ([{'guid': '1', 'var_1': '1'}], 1),
                 db.find(request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                (['1'], [{'var_1': '1'}], 1),
+                ([{'guid': '1', 'var_1': '1'}], 1),
                 db.find(query='г', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
         self.assertEqual(
-                ([], [], 0),
+                ([], 0),
                 db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_ExactQuery(self):
@@ -276,20 +278,20 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1', '2', '3'], [{'key': 'фу'}, {'key': 'фу бар'}, {'key': 'фу бар тест'}], 3),
+                ([{'guid': '1', 'key': 'фу'}, {'guid': '2', 'key': 'фу бар'}, {'guid': '3', 'key': 'фу бар тест'}], 3),
                 db.find(query='key:фу', reply=['key']))
         self.assertEqual(
-                (['2', '3'], [{'key': 'фу бар'}, {'key': 'фу бар тест'}], 2),
+                ([{'guid': '2', 'key': 'фу бар'}, {'guid': '3', 'key': 'фу бар тест'}], 2),
                 db.find(query='key:"фу бар"', reply=['key']))
 
         self.assertEqual(
-                (['1'], [{'key': 'фу'}], 1),
+                ([{'guid': '1', 'key': 'фу'}], 1),
                 db.find(query='key:=фу', reply=['key']))
         self.assertEqual(
-                (['2'], [{'key': 'фу бар'}], 1),
+                ([{'guid': '2', 'key': 'фу бар'}], 1),
                 db.find(query='key:="фу бар"', reply=['key']))
         self.assertEqual(
-                (['3'], [{'key': 'фу бар тест'}], 1),
+                ([{'guid': '3', 'key': 'фу бар тест'}], 1),
                 db.find(query='key:="фу бар тест"', reply=['key']))
 
     def test_find_ReturnPortions(self):
@@ -304,16 +306,16 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1'], [{'key': '1'}], 3),
+                ([{'guid': '1', 'key': '1'}], 3),
                 db.find(offset=0, limit=1, reply=['key']))
         self.assertEqual(
-                (['2'], [{'key': '2'}], 3),
+                ([{'guid': '2', 'key': '2'}], 3),
                 db.find(offset=1, limit=1, reply=['key']))
         self.assertEqual(
-                (['3'], [{'key': '3'}], 3),
+                ([{'guid': '3', 'key': '3'}], 3),
                 db.find(offset=2, limit=1, reply=['key']))
         self.assertEqual(
-                ([], [], 3),
+                ([], 3),
                 db.find(offset=3, limit=1, reply=['key']))
 
     def test_find_OrderBy(self):
@@ -332,23 +334,23 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1', '2', '3'], [{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
+                ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}, {'guid': '3', 'var_1': '3'}], 3),
                 db.find(reply=['var_1'], order_by=['var_2']))
         self.assertEqual(
-                (['1', '2', '3'], [{'var_1': '1'}, {'var_1': '2'}, {'var_1': '3'}], 3),
+                ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}, {'guid': '3', 'var_1': '3'}], 3),
                 db.find(reply=['var_1'], order_by=['+var_2']))
         self.assertEqual(
-                (['3', '2', '1'], [{'var_1': '3'}, {'var_1': '2'}, {'var_1': '1'}], 3),
+                ([{'guid': '3', 'var_1': '3'}, {'guid': '2', 'var_1': '2'}, {'guid': '1', 'var_1': '1'}], 3),
                 db.find(reply=['var_1'], order_by=['-var_2']))
 
         self.assertEqual(
-                (['3', '1', '2'], [{'var_1': '3'}, {'var_1': '1'}, {'var_1': '2'}], 3),
+                ([{'guid': '3', 'var_1': '3'}, {'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 3),
                 db.find(reply=['var_1'], order_by=['+var_3', '+var_2']))
         self.assertEqual(
-                (['3', '2', '1'], [{'var_1': '3'}, {'var_1': '2'}, {'var_1': '1'}], 3),
+                ([{'guid': '3', 'var_1': '3'}, {'guid': '2', 'var_1': '2'}, {'guid': '1', 'var_1': '1'}], 3),
                 db.find(reply=['var_1'], order_by=['+var_3', '-var_2']))
         self.assertEqual(
-                (['2', '1', '3'], [{'var_1': '2'}, {'var_1': '1'}, {'var_1': '3'}], 3),
+                ([{'guid': '2', 'var_1': '2'}, {'guid': '1', 'var_1': '1'}, {'guid': '3', 'var_1': '3'}], 3),
                 db.find(reply=['var_1'], order_by=['-var_3', '-var_2']))
 
     def test_find_GroupBy(self):
@@ -367,10 +369,10 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1', '3'], [{'var_1': '1', 'grouped': 2}, {'var_1': '3', 'grouped': 1}], 2),
+                ([{'guid': '1', 'var_1': '1', 'grouped': 2}, {'guid': '3', 'var_1': '3', 'grouped': 1}], 2),
                 db.find(reply=['var_1'], group_by='var_2'))
         self.assertEqual(
-                (['1', '2'], [{'var_1': '1', 'grouped': 1}, {'var_1': '2', 'grouped': 2}], 2),
+                ([{'guid': '1', 'var_1': '1', 'grouped': 1}, {'guid': '2', 'var_1': '2', 'grouped': 2}], 2),
                 db.find(reply=['var_1'], group_by='var_3'))
 
     def test_TermsAreLists(self):
@@ -387,17 +389,17 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1'], [{'var_1': '1'}], 1),
+                ([{'guid': '1', 'var_1': '1'}], 1),
                 db.find(request={'var_2': '1'}, reply=['var_1']))
         self.assertEqual(
-                (['1', '2'], [{'var_1': '1'}, {'var_1': '2'}], 2),
+                ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 2),
                 db.find(request={'var_2': '2'}, reply=['var_1']))
 
         self.assertEqual(
-                (['2'], [{'var_1': '2'}], 1),
+                ([{'guid': '2', 'var_1': '2'}], 1),
                 db.find(request={'var_3': '6'}, reply=['var_1']))
         self.assertEqual(
-                (['1', '2'], [{'var_1': '1'}, {'var_1': '2'}], 2),
+                ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 2),
                 db.find(request={'var_3': '5'}, reply=['var_1']))
 
     def test_FlushThreshold(self):
@@ -467,12 +469,10 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1', '2', '3'], [
-                    {'guid': '1', 'key': 'a'},
-                    {'guid': '2', 'key': 'b'},
-                    {'guid': '3', 'key': 'c'},
-                    ], 3),
-                db.find(reply=['guid', 'key']))
+                ([{'guid': '1', 'key': 'a'},
+                  {'guid': '2', 'key': 'b'},
+                  {'guid': '3', 'key': 'c'}], 3),
+                db.find(reply=['key']))
 
     def test_LayoutVersion(self):
         db = Index({})
@@ -513,11 +513,9 @@ class IndexTest(tests.Test):
         self.mainloop.run()
 
         self.assertEqual(
-                (['1', '2', '3'], [
-                    {'key': '1'},
-                    {'key': '2'},
-                    {'key': '3'},
-                    ], 3),
+                ([{'guid': '1', 'key': '1'},
+                  {'guid': '2', 'key': '2'},
+                  {'guid': '3', 'key': '3'}], 3),
                 db.find(reply=['key']))
         self.assertEqual(0, len(changed))
 

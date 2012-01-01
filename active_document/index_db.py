@@ -26,7 +26,7 @@ import xapian
 import gobject
 
 from active_document import util, env
-from active_document.index_queue import IndexQueue
+from active_document.index_queue import IndexQueue, NoPut
 
 
 # The regexp to extract exact search terms from a query string
@@ -38,29 +38,24 @@ _REOPEN_LIMIT = 10
 _writers = {}
 
 
-def get(name, properties, crawler):
+def get(metadata):
     """Get an access to the index database.
 
-    :param name:
-        index name
-    :param properties:
-        `Property` objects associated with the `Index`
-    :param crawler:
-        iterator function that should return (guid, props)
-        for every existing document
+    :param metadata:
+        `Metadata` object that describes the document
 
     """
-    if env.index_pool.value > 1:
-        writer = _writers.get(name)
+    if env.index_pool.value > 0:
+        writer = _writers.get(metadata.name)
         if writer is None:
-            logging.debug('Create index writer for %s', name)
-            writer = _writers[name] = _ThreadWriter(name, properties, crawler)
+            logging.debug('Create index writer for %s', metadata.name)
+            writer = _writers[metadata.name] = _ThreadWriter(metadata)
             write_thread = threading.Thread(target=writer.serve_forever)
             write_thread.daemon = True
             write_thread.start()
         return _ThreadReader(writer)
     else:
-        writer = _writers[name] = _Writer(name, properties, crawler)
+        writer = _writers[metadata.name] = _Writer(metadata)
         writer.open()
         return writer
 
@@ -74,22 +69,14 @@ def shutdown():
 
 class _Reader(object):
 
-    def __init__(self, name, properties):
-        self._name = name
-        self._properties = properties
+    def __init__(self, metadata):
+        self.metadata = metadata
         self._db = None
 
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def properties(self):
-        return self._properties
-
-    def find(self, offset, limit, request, query, reply, order_by, group_by):
+    def find(self, offset, limit, request, query=None, reply=None,
+            order_by=None, group_by=None):
         if self._db is None:
-            return [], [], 0
+            return [], 0
 
         start_timestamp = time.time()
         # This will assure that the results count is exact.
@@ -99,27 +86,25 @@ class _Reader(object):
         result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
         total_count = result.get_matches_estimated()
 
-        guids = []
         entries = []
         for hit in result:
-            entry = {}
-            guids.append(hit.document.get_value(0))
-            for name in reply or self.properties.keys():
-                prop = self.properties.get(name)
+            props = {}
+            for name in reply or self.metadata.keys():
+                prop = self.metadata.get(name)
                 if prop is not None and prop.slot is not None:
-                    entry[name] = hit.document.get_value(prop.slot)
+                    props[name] = hit.document.get_value(prop.slot)
             if group_by:
-                entry['grouped'] = hit.collapse_count + 1
-            entries.append(entry)
+                props['grouped'] = hit.collapse_count + 1
+            guid = hit.document.get_value(0)
+            entries.append(self.metadata.to_document(guid, props))
 
         logging.debug('Find in %s: offset=%s limit=%s request=%r query=%r ' \
                 'order_by=%r group_by=%r time=%s entries=%s total_count=%s ' \
-                'parsed=%s',
-                self.name, offset, limit, request, query, order_by, group_by,
-                time.time() - start_timestamp, len(entries), total_count,
-                enquire.get_query())
+                'parsed=%s', self.metadata.name, offset, limit, request, query,
+                order_by, group_by, time.time() - start_timestamp,
+                len(entries), total_count, enquire.get_query())
 
-        return (guids, entries, total_count)
+        return entries, total_count
 
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
@@ -132,7 +117,7 @@ class _Reader(object):
         if query:
             parser = xapian.QueryParser()
             parser.set_database(self._db)
-            for name, prop in self.properties.items():
+            for name, prop in self.metadata.items():
                 if prop.prefix:
                     if prop.boolean:
                         parser.add_boolean_prefix(name, prop.prefix)
@@ -150,7 +135,7 @@ class _Reader(object):
 
         for name, value in request.items():
             value = str(value).strip()
-            prop = self.properties.get(name)
+            prop = self.metadata.get(name)
             if prop is not None and prop.prefix:
                 query = xapian.Query(env.term(prop.prefix, value))
                 if prop.boolean:
@@ -158,8 +143,8 @@ class _Reader(object):
                 else:
                     queries.append(query)
             else:
-                logging.warning(
-                        _('Unknow search term "%s" for %s'), name, self.name)
+                logging.warning(_('Unknow search term "%s" for %s'),
+                        name, self.metadata.name)
 
         final_query = None
         if queries:
@@ -186,24 +171,24 @@ class _Reader(object):
                     order = order[1:]
                 else:
                     reverse = False
-                prop = self.properties.get(order)
+                prop = self.metadata.get(order)
                 if prop is not None and prop.slot is not None:
                     sorter.add_value(prop.slot, reverse)
                 else:
                     logging.warning(_('Cannot sort using "%s" property in %s'),
-                            order, self.name)
+                            order, self.metadata.name)
             enquire.set_sort_by_key(sorter, reverse=False)
         else:
             logging.warning(_('In order to support sorting, ' \
                     'Xapian should be at least 1.2.0'))
 
         if group_by:
-            prop = self.properties.get(group_by)
+            prop = self.metadata.get(group_by)
             if prop is not None and prop.slot is not None:
                 enquire.set_collapse_key(prop.slot)
             else:
                 logging.warning(_('Cannot group by "%s" property in %s'),
-                        group_by, self.name)
+                        group_by, self.metadata.name)
 
         return enquire
 
@@ -214,10 +199,11 @@ class _Reader(object):
                 return op(*args)
             except xapian.DatabaseError, error:
                 if tries >= _REOPEN_LIMIT:
-                    logging.warning(_('Cannot open %s index'), self.name)
+                    logging.warning(_('Cannot open %s index'),
+                            self.metadata.name)
                     raise
                 logging.debug('Fail to %r %s index, will reopen it %sth ' \
-                        'time: %s', op, self.name, tries, error)
+                        'time: %s', op, self.metadata.name, tries, error)
                 time.sleep(tries * .1)
                 self._db.reopen()
                 tries += 1
@@ -243,11 +229,10 @@ class _Writer(gobject.GObject, _Reader):
             'openned': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
             }
 
-    def __init__(self, name, properties, crawler):
+    def __init__(self, metadata):
         gobject.GObject.__init__(self)
-        _Reader.__init__(self, name, properties)
+        _Reader.__init__(self, metadata)
 
-        self._crawler = crawler
         self._flush_timeout_hid = None
         self._pending_writes = 0
 
@@ -261,13 +246,13 @@ class _Writer(gobject.GObject, _Reader):
         self._db = None
 
     def store(self, guid, props, new):
-        logging.debug('Store %s object: %r', self.name, props)
+        logging.debug('Store %s object: %r', self.metadata.name, props)
 
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
         term_generator.set_document(document)
 
-        for name, prop in self.properties.items():
+        for name, prop in self.metadata.items():
             if prop.slot is not None:
                 document.add_value(prop.slot, props[name])
             if prop.prefix:
@@ -283,12 +268,12 @@ class _Writer(gobject.GObject, _Reader):
         self._commit(False)
 
     def delete(self, guid):
-        logging.debug('Delete "%s" document from %s', guid, self.name)
+        logging.debug('Delete "%s" document from %s', guid, self.metadata.name)
         self._db.delete_document(env.term(env.GUID_PREFIX, guid))
         self._commit(False)
 
     def _open(self, reset):
-        index_path = env.index_path(self.name)
+        index_path = env.index_path(self.metadata.name)
 
         if not reset and self._is_layout_stale():
             reset = True
@@ -311,7 +296,7 @@ class _Writer(gobject.GObject, _Reader):
 
         if reset:
             self._save_layout()
-            gobject.idle_add(self._populate, self._crawler())
+            gobject.idle_add(self._populate, self.metadata.crawler())
 
         # Emit from idle_add to send signal in the main loop thread
         gobject.idle_add(self.emit, 'openned')
@@ -337,7 +322,7 @@ class _Writer(gobject.GObject, _Reader):
         if flush or env.index_flush_threshold.value and \
                 self._pending_writes >= env.index_flush_threshold.value:
             logging.debug('Flush %s: flush=%r _pending_writes=%r',
-                    self.name, flush, self._pending_writes)
+                    self.metadata.name, flush, self._pending_writes)
             if hasattr(self._db, 'commit'):
                 self._db.commit()
             else:
@@ -354,33 +339,33 @@ class _Writer(gobject.GObject, _Reader):
         return False
 
     def _is_layout_stale(self):
-        path = env.path(self.name, 'version')
+        path = env.path(self.metadata.name, 'version')
         if not exists(path):
             return True
         version = file(path).read()
         return not version.isdigit() or int(version) != env.LAYOUT_VERSION
 
     def _save_layout(self):
-        version = file(env.path(self.name, 'version'), 'w')
+        version = file(env.path(self.metadata.name, 'version'), 'w')
         version.write(str(env.LAYOUT_VERSION))
         version.close()
 
 
 class _ThreadWriter(_Writer):
 
-    def __init__(self, name, properties, crawler):
-        _Writer.__init__(self, name, properties, crawler)
+    def __init__(self, metadata):
+        _Writer.__init__(self, metadata)
         self.queue = IndexQueue()
 
     def serve_forever(self):
         try:
             self.open()
-            logging.debug('Start serving writes to %s', self.name)
+            logging.debug('Start serving writes to %s', self.metadata.name)
             while True:
                 self.queue.iteration(self)
         except Exception:
             util.exception(_('Index %s write thread died, ' \
-                    'will abort the whole application'), self.name)
+                    'will abort the whole application'), self.metadata.name)
             thread.interrupt_main()
 
     def shutdown(self):
@@ -397,44 +382,44 @@ class _ThreadWriter(_Writer):
 class _ThreadReader(_Reader):
 
     def __init__(self, writer):
-        _Reader.__init__(self, writer.name, writer.properties)
+        _Reader.__init__(self, writer.metadata)
         self._writer = writer
         self._queue = writer.queue
         self._last_flush = 0
 
     def store(self, guid, props, new):
         logging.debug('Push store request to %s\'s queue for %s',
-                self.name, guid)
+                self.metadata.name, guid)
         self._queue.put(_Writer.store, guid, props, new)
 
     def delete(self, guid):
         logging.debug('Push delete request to %s\'s queue for %s',
-                self.name, guid)
+                self.metadata.name, guid)
         self._queue.put(_Writer.delete, guid)
 
-    def find(self, offset, limit, request, query, reply, order_by, group_by):
+    def find(self, offset, limit, request, query=None, reply=None,
+            order_by=None, group_by=None):
         if self._db is None:
             try:
-                self._db = xapian.Database(env.index_path(self.name))
+                self._db = xapian.Database(env.index_path(self.metadata.name))
                 self._last_flush = time.time()
             except xapian.DatabaseOpeningError:
-                logging.debug('Cannot open RO index for %s', self.name)
-                return [], [], 0
+                logging.debug('Cannot open RO index for %s',
+                        self.metadata.name)
+                return []
             else:
-                logging.debug('Open read-only index for %s', self.name)
+                logging.debug('Open read-only index for %s',
+                        self.metadata.name)
 
-        result, last_flush, reopen = self._queue.put_wait(self._last_flush,
-                _Reader.find, offset, limit, request, query, reply, order_by,
-                group_by)
-
-        if result is None:
-            self._last_flush = last_flush
-            if reopen:
+        try:
+            return self._queue.put_wait(_Reader.find,
+                    offset, limit, request, query, reply, order_by, group_by)
+        except NoPut, error:
+            if error.last_flush > self._last_flush:
+                self._last_flush = error.last_flush
                 self._db.reopen()
-            result = _Reader.find(self, offset, limit, request, query, reply,
-                    order_by, group_by)
-
-        return result
+            return _Reader.find(self,
+                    offset, limit, request, query, reply, order_by, group_by)
 
     def connect(self, *args, **kwargs):
         self._writer.connect(*args, **kwargs)

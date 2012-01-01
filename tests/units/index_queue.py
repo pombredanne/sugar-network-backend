@@ -7,7 +7,7 @@ import threading
 from __init__ import tests
 
 from active_document import env
-from active_document.index_queue import IndexQueue
+from active_document.index_queue import IndexQueue, NoPut
 
 
 class IndexQueueTest(tests.Test):
@@ -17,21 +17,18 @@ class IndexQueueTest(tests.Test):
 
         queue.put(1, '1')
         self.assertEqual(
-                [(0, 1, ('1',))],
+                [(None, 1, ('1',))],
                 [i for i in queue._queue])
-        self.assertEqual(0, queue._seqno)
 
         queue.put(2, '2')
         self.assertEqual(
-                [(0, 1, ('1',)), (0, 2, ('2',))],
+                [(None, 1, ('1',)), (None, 2, ('2',))],
                 [i for i in queue._queue])
-        self.assertEqual(0, queue._seqno)
 
         queue.put(3, '3')
         self.assertEqual(
-                [(0, 1, ('1',)), (0, 2, ('2',)), (0, 3, ('3',))],
+                [(None, 1, ('1',)), (None, 2, ('2',)), (None, 3, ('3',))],
                 [i for i in queue._queue])
-        self.assertEqual(0, queue._seqno)
 
     def test_iteration(self):
         queue = IndexQueue()
@@ -41,15 +38,12 @@ class IndexQueueTest(tests.Test):
         queue.put(lambda x: x - 2)
 
         queue.iteration(-1)
-        self.assertEqual(0, queue._got_seqno)
         self.assertEqual(-1, queue._got)
 
         queue.iteration(-2)
-        self.assertEqual(0, queue._got_seqno)
         self.assertEqual(-3, queue._got)
 
         queue.iteration(-3)
-        self.assertEqual(0, queue._got_seqno)
         self.assertEqual(-5, queue._got)
 
     def test_put_MaxLen(self):
@@ -72,21 +66,13 @@ class IndexQueueTest(tests.Test):
         queue = IndexQueue()
 
         # No pending flush, return w/o putting
-        result, last_flush, reopen = queue.put_wait(0, lambda x: x)
-        self.assertEqual(0, queue._seqno)
-        self.assertEqual(None, result)
-        self.assertEqual(0, last_flush)
-        self.assertEqual(False, reopen)
+        try:
+            [i for i in queue.put_wait(lambda x: [x])]
+            assert False
+        except NoPut, error:
+            self.assertEqual(0, error.last_flush)
 
         queue.put(lambda x: x)
-
-        # No pending flush (previous out was not processed), return w/o putting
-        result, last_flush, reopen = queue.put_wait(0, lambda x: x)
-        self.assertEqual(0, queue._seqno)
-        self.assertEqual(None, result)
-        self.assertEqual(0, last_flush)
-        self.assertEqual(False, reopen)
-
         queue.iteration(-1)
 
         def iteration():
@@ -94,39 +80,36 @@ class IndexQueueTest(tests.Test):
         threading.Thread(target=iteration).start()
 
         # There is pending flush, process put and wait for result
-        result, last_flush, reopen = queue.put_wait(0, lambda x: x)
-        self.assertEqual(1, queue._seqno)
-        self.assertEqual(-2, result)
-        self.assertEqual(None, last_flush)
-        self.assertEqual(None, reopen)
+        self.assertEqual(
+                [-2],
+                [i for i in queue.put_wait(lambda x: [x])])
 
         def iteration():
             queue.iteration(-3)
         threading.Thread(target=iteration).start()
 
         # There is pending flush, process put and wait for result
-        result, last_flush, reopen = queue.put_wait(0, lambda x: x)
-        self.assertEqual(2, queue._seqno)
-        self.assertEqual(-3, result)
-        self.assertEqual(None, last_flush)
-        self.assertEqual(None, reopen)
+        self.assertEqual(
+                [-3],
+                [i for i in queue.put_wait(lambda x: [x])])
 
         queue.flush()
 
         # Flush happened, return w/o putting but w/ reopen
-        result, last_flush, reopen = queue.put_wait(0, lambda x: x)
-        self.assertEqual(2, queue._seqno)
-        self.assertEqual(None, result)
-        self.assertNotEqual(0, last_flush)
-        self.assertEqual(True, reopen)
+        try:
+            [i for i in queue.put_wait(lambda x: [x])]
+            assert False
+        except NoPut, error:
+            self.assertNotEqual(0, error.last_flush)
+            last_flush = error.last_flush
 
         # Flush happened, return w/o putting but w/o reopen
         # since passed last_flush is the same as in queue
-        result, new_last_flush, reopen = queue.put_wait(last_flush, lambda x: x)
-        self.assertEqual(2, queue._seqno)
-        self.assertEqual(None, result)
-        self.assertEqual(last_flush, new_last_flush)
-        self.assertEqual(False, reopen)
+        try:
+            [i for i in queue.put_wait(lambda x: [x])]
+            assert False
+        except NoPut, error:
+            self.assertEqual(last_flush, error.last_flush)
 
     def test_put_wait_Exception(self):
         queue = IndexQueue()
@@ -141,7 +124,9 @@ class IndexQueueTest(tests.Test):
 
         def cb(*args):
             raise NotImplementedError()
-        self.assertRaises(NotImplementedError, queue.put_wait, None, cb)
+        def put_wait():
+            [i for i in queue.put_wait(cb)]
+        self.assertRaises(NotImplementedError, put_wait)
 
     def test_shutdown(self):
         queue = IndexQueue()

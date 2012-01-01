@@ -43,8 +43,8 @@ index_flush_threshold = util.Option(
         default=32, type_cast=int)
 
 index_pool = util.Option(
-        _('use a pool of indexes, makes sense only with concurent access; ' \
-                'less that 2 means no pooling'), \
+        _('use a pool of indexes, makes sense only with concurent access ' \
+                'from different threads; 0 means no threads support'), \
         default=0, type_cast=int)
 
 index_write_queue = util.Option(

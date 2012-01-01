@@ -24,32 +24,16 @@ from active_document.util import enforce
 class Index(object):
     """High level class to get access to Xapian databases."""
 
-    def __init__(self, name, properties, crawler):
+    def __init__(self, metadata):
         """
-        :param name:
-            index name
-        :param properties:
-            `Property` objects associated with the `Index`
-        :param crawler:
-            iterator function that should return (guid, props)
-            for every existing document
+        :param metadata:
+            `Metadata` object that describes the document
 
         """
-        self._name = name
-        if 'guid' not in properties:
-            properties['guid'] = GuidProperty()
-        self._properties = properties
-        self._db = index_db.get(self.name, properties, crawler)
-
-    @property
-    def name(self):
-        """Xapian database name."""
-        return self._name
-
-    @property
-    def properties(self):
-        """`Property` objects associated with the `Index`."""
-        return self._properties
+        self.metadata = metadata
+        if 'guid' not in metadata:
+            metadata['guid'] = GuidProperty()
+        self._db = index_db.get(metadata)
 
     def store(self, guid, props, new):
         """Store properties for a document.
@@ -67,18 +51,17 @@ class Index(object):
 
         if new:
             props['guid'] = guid
-            for name, prop in self.properties.items():
+            for name, prop in self.metadata.items():
                 value = props.get(name, prop.default)
                 enforce(value is not None,
                         _('Property "%s" should be passed while creating ' \
                                 'new %s document'),
-                        name, self.name)
+                        name, self.metadata.name)
                 props[name] = env.value(value)
         else:
-            __, entries, total = self._db.find(0, 1, {'guid': guid},
-                    None, None, None, None)
-            enforce(total == 1 and entries,
-                    _('Cannot find "%s" in %s to store'), guid, self.name)
+            entries, __ = self._db.find(0, 1, {'guid': guid})
+            enforce(len(entries) == 1, _('Cannot find "%s" in %s to store'),
+                    guid, self.metadata.name)
             entries[0].update(props)
             props = entries[0]
 
@@ -93,8 +76,8 @@ class Index(object):
         """
         self._db.delete(guid)
 
-    def find(self, offset=0, limit=None, request=None, query='',
-            reply=None, order_by=None, group_by=None):
+    def find(self, offset=0, limit=None, request=None, query='', reply=None,
+            order_by=None, group_by=None):
         """Search documents.
 
         The result will be an array of dictionaries with found documents'
@@ -133,7 +116,7 @@ class Index(object):
             limit = env.find_limit.value
         elif limit > env.find_limit.value:
             logging.warning(_('The find limit for %s is restricted to %s'),
-                    self.name, env.find_limit.value)
+                    self.metadata.name, env.find_limit.value)
             limit = env.find_limit.value
         if request is None:
             request = {}
@@ -148,6 +131,3 @@ class Index(object):
     def connect(self, *args, **kwargs):
         """Connect to feedback signals sent by the database."""
         self._db.connect(*args, **kwargs)
-
-    def get_property(self, guid, name):
-        pass
