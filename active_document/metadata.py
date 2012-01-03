@@ -1,4 +1,4 @@
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2011-2012, Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,6 +14,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+from gettext import gettext as _
+
+from active_document import env
+from active_document.util import enforce
+
+
 class Metadata(dict):
     """Structure to describe the document."""
 
@@ -26,3 +32,93 @@ class Metadata(dict):
 
     #: Function to convert a tuple of (guid, props) to document object
     to_document = None
+
+
+class Property(object):
+    """Collect inforamtion about document property."""
+
+    def __init__(self, name, slot=None, prefix=None, default=None,
+            boolean=False, construct=False, writer=None, multiple=False,
+            separator=None):
+        """
+        :param name:
+            property name
+        :param slot:
+            document's slot number to add property value to;
+            if `None`, property is not a Xapian value
+        :param prefix:
+            serach term prefix;
+            if `None`, property is not a search term
+        :param default:
+            default property value to use while creating new documents
+        :param boolean:
+            if `prefix` is not `None`, this argument specifies will
+            Xapian use boolean search for that property or not
+        :param multiple:
+            should property value be treated as a list of words
+        :param separator:
+            if `multiple` set, this will be a separator;
+            otherwise any space symbols will be used to separate words
+
+        """
+        enforce(name == 'guid' or slot != 0,
+                _('The slot "0" is reserved for internal needs'))
+        enforce(name == 'guid' or prefix != env.GUID_PREFIX,
+                _('The prefix "I" is reserved for internal needs'))
+        self._name = name
+        self._slot = slot
+        self._prefix = prefix
+        self._default = default
+        self._boolean = boolean
+        self._multiple = multiple
+        self._separator = separator
+        self.writable = False
+
+    @property
+    def name(self):
+        """Property name."""
+        return self._name
+
+    @property
+    def slot(self):
+        """Xapian document's slot number to add property value to."""
+        return self._slot
+
+    @property
+    def prefix(self):
+        """Xapian serach term prefix, if `None`, property is not a term."""
+        return self._prefix
+
+    @property
+    def boolean(self):
+        """Xapian will use boolean search for this property."""
+        return self._boolean
+
+    @property
+    def default(self):
+        """Default property value or None."""
+        return self._default
+
+    @property
+    def multiple(self):
+        """Should property value be treated as a list of words."""
+        return self._multiple
+
+    @property
+    def separator(self):
+        """Separator for multiplied properties, spaces by default."""
+        return self._separator
+
+    def list_value(self, value):
+        """If property value contains several values, list them all."""
+        if self._multiple:
+            return [i.strip() for i in value.split(self._separator) \
+                    if i.strip()]
+        else:
+            return [value]
+
+
+class GuidProperty(Property):
+
+    def __init__(self):
+        Property.__init__(self, 'guid', 0, env.GUID_PREFIX)
