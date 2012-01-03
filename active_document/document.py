@@ -20,8 +20,7 @@ from Queue import Queue
 from gettext import gettext as _
 
 from active_document import env, storage
-from active_document.metadata import Metadata
-from active_document.properties import Property, GuidProperty
+from active_document.metadata import Metadata, Property, GuidProperty
 from active_document.index import get_index, connect_to_index
 from active_document.util import enforce
 
@@ -54,31 +53,85 @@ class Document(object):
 
         if guid:
             self._guid = guid
+            self._record = storage.get(self.metadata.name, self.guid)
         else:
             self._is_new = True
             self._guid = str(uuid.uuid1())
             kwargs['guid'] = self.guid
 
+            defaults = {}
             for name, prop in self.metadata.items():
-                if name in kwargs:
+                if name in kwargs or prop.blob:
                     continue
                 enforce(prop.default is not None,
                         _('Property "%s" should be passed while creating ' \
                                 'new %s document'),
                         name, self.metadata.name)
-                kwargs[name] = prop.default
+                defaults[name] = prop.default
 
-        self._record = storage.get(self.metadata.name, self.guid, kwargs)
+            self._record = storage.get(self.metadata.name, self.guid, defaults)
+
+            """
+            for name, value in kwargs.items():
+                prop = self.metadata.get(name)
+                if prop is not None and prop.write_access:
+                    authorized_props[name] = value
+                else:
+                    props[name] = value
+
+                    enforce(prop.default is not None,
+                            _('Property "%s" should be passed while ' \
+                                    'creating new %s document'),
+                            name, self.metadata.name)
+                    kwargs[name] = prop.default
+
+            # Initialize record with `kwargs` since further properties setting
+            # might rely on existing some properties from `kwargs`
+            """
+
+        for prop, value in kwargs.items():
+            self[prop] = value
 
     @property
     def guid(self):
+        """Document GUID."""
         return self._guid
 
-    def __getitem__(self, key):
-        return self._record.get(key)
+    def __getitem__(self, prop):
+        """Get document's property value.
 
-    def __setitem__(self, key, value):
-        return self._record.set(key, value)
+        :param prop:
+            property name to get value
+        :returns:
+            `prop` value
+
+        """
+        enforce(prop not in self.metadata or not self.metadata[prop].blob,
+                _('Property "%s" in %s is a BLOB and cannot be get'),
+                prop, self.metadata.name)
+        return self._record.get(prop)
+
+    def __setitem__(self, prop, value):
+        """set document's property value.
+
+        :param prop:
+            property name to set
+        :param value:
+            property value to set
+
+        """
+        if prop in self.metadata:
+            enforce(not self.metadata[prop].blob,
+                    _('Property "%s" in %s is a BLOB and cannot be set'),
+                    prop, self.metadata.name)
+            enforce(self.authorize(prop),
+                    _('You are not permitted to change "%s" property in %s'),
+                    prop, self.metadata.name)
+            enforce(self._is_new or not self.metadata[prop].construct_only,
+                    _('Property "%s" in %s can be set only on document ' \
+                            'creation'),
+                    prop, self.metadata.name)
+        return self._record.set(prop, value)
 
     def post(self):
         """Store changed properties."""
@@ -93,6 +146,42 @@ class Document(object):
             self._pool.put(index, True)
 
         storage.put(self.metadata.name, self.guid, self._record)
+
+    def send(self, prop, stream):
+        """Send BLOB property to a stream.
+
+        This function works in parallel to getting non-BLOB properties values.
+
+        :param prop:
+            property name
+        :param stream:
+            stream to send property value to
+
+        """
+        enforce(prop not in self.metadata or self.metadata[prop].blob,
+                _('Property "%s" in %s is not a BLOB'),
+                prop, self.metadata.name)
+        self._record.send(prop, stream)
+
+    def receive(self, prop, stream):
+        """Receive BLOB property from a stream.
+
+        This function works in parallel to setting non-BLOB properties values
+        and `post()` function.
+
+        :param prop:
+            property name
+        :param stream:
+            stream to receive property value from
+
+        """
+        enforce(self.metadata[prop].blob,
+                _('Property "%s" in %s is not a BLOB'),
+                prop, self.metadata.name)
+        self._record.receive(prop, stream)
+
+    def authorize(self, prop):
+        return True
 
     @classmethod
     def create(cls, properties):
@@ -184,6 +273,11 @@ class Document(object):
         if order_by is None and 'ctime' in cls.metadata:
             order_by = ['+ctime']
 
+        for prop in cls.metadata.values():
+            enforce(not prop.large and not prop.blob,
+                    _('Property "%s" in %s is not suitable for find requests'),
+                    prop.name, cls.metadata.name)
+
         index = cls._pool.get(True)
         try:
             return index.find(offset, limit, request, query, reply,
@@ -263,7 +357,7 @@ def active_property(*args, **kwargs):
 
     def decorate_getter(func):
         attr = lambda self, * args: getter(func, self)
-        attr.setter = lambda: lambda func: decorate_setter(func, attr)
+        attr.setter = lambda func: decorate_setter(func, attr)
         attr._is_active_property = True
         attr.name = func.__name__
         attr.prop = Property(attr.name, *args, **kwargs)

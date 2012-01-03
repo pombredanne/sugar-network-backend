@@ -21,8 +21,11 @@ from active_document.util import enforce
 
 
 class Metadata(dict):
-    """Structure to describe the document."""
+    """Structure to describe the document.
 
+    Dictionary derived class that contains `Property` objects.
+
+    """
     #: Document type name
     name = None
 
@@ -38,29 +41,9 @@ class Property(object):
     """Collect inforamtion about document property."""
 
     def __init__(self, name, slot=None, prefix=None, default=None,
-            boolean=False, construct=False, writer=None, multiple=False,
-            separator=None):
-        """
-        :param name:
-            property name
-        :param slot:
-            document's slot number to add property value to;
-            if `None`, property is not a Xapian value
-        :param prefix:
-            serach term prefix;
-            if `None`, property is not a search term
-        :param default:
-            default property value to use while creating new documents
-        :param boolean:
-            if `prefix` is not `None`, this argument specifies will
-            Xapian use boolean search for that property or not
-        :param multiple:
-            should property value be treated as a list of words
-        :param separator:
-            if `multiple` set, this will be a separator;
-            otherwise any space symbols will be used to separate words
-
-        """
+            full_text=False, large=False, blob=False, boolean=False,
+            multiple=False, separator=None, construct_only=False,
+            write_access=None):
         enforce(name == 'guid' or slot != 0,
                 _('The slot "0" is reserved for internal needs'))
         enforce(name == 'guid' or prefix != env.GUID_PREFIX,
@@ -69,9 +52,14 @@ class Property(object):
         self._slot = slot
         self._prefix = prefix
         self._default = default
+        self._full_text = full_text
+        self._large = large
+        self._blob = blob
         self._boolean = boolean
         self._multiple = multiple
         self._separator = separator
+        self._write_access = write_access
+        self._construct_only = construct_only
         self.writable = False
 
     @property
@@ -90,14 +78,39 @@ class Property(object):
         return self._prefix
 
     @property
-    def boolean(self):
-        """Xapian will use boolean search for this property."""
-        return self._boolean
-
-    @property
     def default(self):
         """Default property value or None."""
         return self._default
+
+    @property
+    def full_text(self):
+        """Property takes part in full-text search."""
+        return self._full_text
+
+    @property
+    def large(self):
+        """Property values are large enough for `Document.find()`.
+
+        Create `Document` object to get access to these properties for
+        particular document.
+
+        """
+        return self._large
+
+    @property
+    def blob(self):
+        """Binary large objects that need to be fetched alone.
+
+        To get access to these properties, use `Document.send()` and
+        `Document.receive()` functions.
+
+        """
+        return self._blob
+
+    @property
+    def boolean(self):
+        """Xapian will use boolean search for this property."""
+        return self._boolean
 
     @property
     def multiple(self):
@@ -108,6 +121,22 @@ class Property(object):
     def separator(self):
         """Separator for multiplied properties, spaces by default."""
         return self._separator
+
+    @property
+    def write_access(self):
+        """Write access mode to handled in dowstreamed `Document.authorize`."""
+        return self._write_access
+
+    @property
+    def construct_only(self):
+        """Property can be set only while document creation."""
+        return self._construct_only
+
+    @property
+    def indexed(self):
+        """Should property be used in index."""
+        return not self.blob and \
+                (self.slot is not None or self.prefix or self.full_text)
 
     def list_value(self, value):
         """If property value contains several values, list them all."""

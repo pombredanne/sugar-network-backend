@@ -12,8 +12,7 @@ import gobject
 from __init__ import tests
 
 from active_document import index, env
-from active_document.metadata import Metadata
-from active_document.properties import Property, GuidProperty
+from active_document.metadata import Metadata, Property, GuidProperty
 
 
 class IndexTest(tests.Test):
@@ -93,9 +92,9 @@ class IndexTest(tests.Test):
 
     def test_find(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A'),
-            'var_2': Property('var_2', 2, 'B'),
-            'var_3': Property('var_3', 3, 'C'),
+            'var_1': Property('var_1', 1, 'A', full_text=True),
+            'var_2': Property('var_2', 2, 'B', full_text=True),
+            'var_3': Property('var_3', 3, 'C', full_text=True),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -128,9 +127,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithProps(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A'),
-            'var_2': Property('var_2', 2, 'B'),
-            'var_3': Property('var_3', 3, 'C'),
+            'var_1': Property('var_1', 1, 'A', full_text=True),
+            'var_2': Property('var_2', 2, 'B', full_text=True),
+            'var_3': Property('var_3', 3, 'C', full_text=True),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -160,9 +159,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithAllBooleanProps(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A', boolean=True),
-            'var_2': Property('var_2', 2, 'B', boolean=True),
-            'var_3': Property('var_3', 3, 'C', boolean=True),
+            'var_1': Property('var_1', 1, 'A', boolean=True, full_text=True),
+            'var_2': Property('var_2', 2, 'B', boolean=True, full_text=True),
+            'var_3': Property('var_3', 3, 'C', boolean=True, full_text=True),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -187,9 +186,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithBooleanProps(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A', boolean=True),
-            'var_2': Property('var_2', 2, 'B', boolean=False),
-            'var_3': Property('var_3', 3, 'C', boolean=True),
+            'var_1': Property('var_1', 1, 'A', boolean=True, full_text=True),
+            'var_2': Property('var_2', 2, 'B', boolean=False, full_text=True),
+            'var_3': Property('var_3', 3, 'C', boolean=True, full_text=True),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -213,7 +212,7 @@ class IndexTest(tests.Test):
                 db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_ExactQuery(self):
-        db = Index({'key': Property('key', 1, 'K')})
+        db = Index({'key': Property('key', 1, 'K', full_text=True)})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.store('1', {'key': 'фу'}, True)
@@ -243,7 +242,7 @@ class IndexTest(tests.Test):
     def test_find_ExactQueryTerms(self):
         term = 'azAZ09_'
 
-        db = Index({term: Property(term, 1, 'T')})
+        db = Index({term: Property(term, 1, 'T', full_text=True)})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.store('1', {term: 'test'}, True)

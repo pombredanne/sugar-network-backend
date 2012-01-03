@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # sugar-lint: disable
 
+from cStringIO import StringIO
+
 from __init__ import tests
 
 from active_document import document, storage, env, index
@@ -151,6 +153,136 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '5'})[-1])
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '6'})[-1])
 
+    def test_properties_FullTextSearch(self):
+
+        class Document(document.Document):
+
+            @document.active_property(full_text=False)
+            def no(self, value):
+                return value
+
+            @document.active_property(full_text=True, slot=1)
+            def yes(self, value):
+                return value
+
+        doc = Document(no='foo', yes='bar')
+
+        self.assertEqual(
+                sorted([
+                    ('guid', False),
+                    ('no', False),
+                    ('yes', True),
+                    ]),
+                sorted([(name, i.full_text) for name, i in doc.metadata.items()]))
+
+        doc.post()
+        self.assertEqual(0, Document.find(0, 100, query='foo')[-1])
+        self.assertEqual(1, Document.find(0, 100, query='bar')[-1])
+
+    def test_properties_Large(self):
+
+        class Document(document.Document):
+
+            @document.active_property(large=True)
+            def large(self, value):
+                return value
+
+            @large.setter
+            def large(self, value):
+                return value
+
+        doc = Document(large='probe')
+
+        self.assertEqual(
+                sorted([
+                    ('guid', False),
+                    ('large', True),
+                    ]),
+                sorted([(name, i.large) for name, i in doc.metadata.items()]))
+
+        doc.post()
+        self.assertRaises(RuntimeError, Document.find, 0, 100, reply='large')
+        self.assertEqual('probe', Document(doc.guid).large)
+
+        doc2 = Document(doc.guid)
+        doc2.large = 'foo'
+        doc2.post()
+        self.assertEqual('foo', Document(doc2.guid).large)
+
+    def test_properties_Blob(self):
+
+        class Document(document.Document):
+
+            @document.active_property(blob=True)
+            def blob(self, value):
+                return value
+
+        self.assertRaises(RuntimeError, Document, blob='probe')
+        doc = Document()
+
+        self.assertEqual(
+                sorted([
+                    ('guid', False),
+                    ('blob', True),
+                    ]),
+                sorted([(name, i.blob) for name, i in doc.metadata.items()]))
+
+        doc.post()
+        self.assertRaises(RuntimeError, Document.find, 0, 100, reply='blob')
+        self.assertRaises(RuntimeError, lambda: Document(doc.guid).blob)
+        self.assertRaises(RuntimeError, lambda: Document(doc.guid).__setitem__('blob', 'foo'))
+
+        doc.receive('blob', StringIO('data'))
+        stream = StringIO()
+        doc.send('blob', stream)
+        self.assertEqual('data', stream.getvalue())
+
+    def test_properties_ConstructOnly(self):
+
+        class Document(document.Document):
+
+            @document.active_property(construct_only=True)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value
+
+        doc = Document(prop='foo')
+
+        self.assertEqual(
+                sorted([
+                    ('guid', False),
+                    ('prop', True),
+                    ]),
+                sorted([(name, i.construct_only) for name, i in doc.metadata.items()]))
+
+        doc.prop = 'bar'
+        doc.post()
+
+        doc_2 = Document(doc.guid)
+        self.assertRaises(RuntimeError, doc_2.__setitem__, 'prop', 'fail')
+
+    def test_authorize_Disabled(self):
+
+        class Document(document.Document):
+
+            @document.active_property(default='nil')
+            def prop_1(self, value):
+                return value
+
+            @document.active_property()
+            def prop_2(self, value):
+                return value
+
+            def authorize(self, prop):
+                return prop != 'prop_1'
+
+        self.assertRaises(RuntimeError, Document, prop_1='foo', prop_2='bar')
+        doc = Document(prop_2='bar')
+        self.assertRaises(RuntimeError, doc.__setitem__, 'prop_1', 'foo')
+
     def test_find_MaxLimit(self):
 
         class Document(document.Document):
@@ -162,6 +294,47 @@ class DocumentTest(tests.Test):
 
         env.find_limit.value = 1
         self.assertEqual(1, len(Document.find(0, 1024)[0]))
+
+    def test_update(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1)
+            def prop_1(self, value):
+                return value
+
+            @prop_1.setter
+            def prop_1(self, value):
+                return value
+
+            @document.active_property()
+            def prop_2(self, value):
+                return value
+
+            @prop_2.setter
+            def prop_2(self, value):
+                return value
+
+        doc_1 = Document(prop_1='1', prop_2='2')
+        doc_1.post()
+        self.assertEqual(
+                [('1', '2')],
+                [(i.prop_1, i.prop_2) for i in Document.find(0, 1024)[0]])
+
+        doc_1.prop_1 = '3'
+        doc_1.prop_2 = '4'
+        doc_1.post()
+        self.assertEqual(
+                [('3', '4')],
+                [(i.prop_1, i.prop_2) for i in Document.find(0, 1024)[0]])
+
+        doc_2 = Document(doc_1.guid)
+        doc_2.prop_1 = '5'
+        doc_2.prop_2 = '6'
+        doc_2.post()
+        self.assertEqual(
+                [('5', '6')],
+                [(i.prop_1, i.prop_2) for i in Document.find(0, 1024)[0]])
 
     def test_delete(self):
 
@@ -233,6 +406,12 @@ class Record(dict):
 
     def set(self, name, value):
         self[name] = value
+
+    def send(self, name, stream):
+        stream.write(self[name])
+
+    def receive(self, name, stream):
+        self[name] = stream.read()
 
 
 if __name__ == '__main__':

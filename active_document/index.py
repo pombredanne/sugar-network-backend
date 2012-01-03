@@ -186,6 +186,7 @@ class _Reader(Index):
                     else:
                         parser.add_prefix(name, prop.prefix)
                     parser.add_prefix('', prop.prefix)
+            parser.add_prefix('', '')
             query = parser.parse_query(query,
                     xapian.QueryParser.FLAG_PHRASE |
                     xapian.QueryParser.FLAG_BOOLEAN |
@@ -313,24 +314,31 @@ class _Writer(gobject.GObject, _Reader):
             enforce(len(documents) == 1,
                     _('Cannot find "%s" in %s to store'),
                     guid, self.metadata.name)
-            documents[0].update(properties)
-            properties = documents[0]
+            existing_doc = documents[0]
+            for name in self.metadata.keys():
+                if name not in properties:
+                    properties[name] = existing_doc[name]
 
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
         term_generator.set_document(document)
 
         for name, prop in self.metadata.items():
+            if not prop.indexed:
+                continue
             value = guid if prop.slot == 0 else properties[name]
             if prop.slot is not None:
                 document.add_value(prop.slot, value)
-            if prop.prefix:
+            if prop.prefix or prop.full_text:
                 for value in prop.list_value(value):
-                    if prop.boolean:
-                        document.add_boolean_term(env.term(prop.prefix, value))
-                    else:
-                        document.add_term(env.term(prop.prefix, value))
-                    term_generator.index_text(value, 1, prop.prefix)
+                    if prop.prefix:
+                        if prop.boolean:
+                            document.add_boolean_term(
+                                    env.term(prop.prefix, value))
+                        else:
+                            document.add_term(env.term(prop.prefix, value))
+                    if prop.full_text:
+                        term_generator.index_text(value, 1, prop.prefix or '')
                     term_generator.increase_termpos()
 
         self._db.replace_document(env.term(env.GUID_PREFIX, guid), document)
