@@ -148,6 +148,15 @@ class AggregatorProperty(Property):
 
     """
 
+    def __init__(self, name, counter):
+        Property.__init__(self, name, default='0')
+        self._counter = counter
+
+    @property
+    def counter(self):
+        """Name of `CounterProperty` to keep aggregated items number."""
+        return self._counter
+
     @property
     def value(self):
         raise NotImplementedError()

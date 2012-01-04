@@ -57,21 +57,23 @@ class Document(object):
         """
         self._init()
         self._is_new = False
-        self._not_storable_props = {}
+        self._cache = {}
+        self._record = None
 
         if indexed_props is None:
             indexed_props = {}
 
         if guid:
             self._guid = guid
+
+            for prop_name, value in indexed_props.items():
+                self._cache[prop_name] = (value, None)
         else:
             self._is_new = True
             self._guid = str(uuid.uuid1())
             kwargs['guid'] = self.guid
 
             for name, prop in self.metadata.items():
-                if name in indexed_props:
-                    continue
                 if isinstance(prop, StoredProperty):
                     if name in kwargs:
                         continue
@@ -79,14 +81,9 @@ class Document(object):
                             _('Property "%s" should be passed while ' \
                                     'creating new %s document'),
                             name, self.metadata.name)
-                indexed_props[name] = prop.default
+                if prop.default is not None:
+                    self._cache[name] = (None, prop.default)
 
-        for prop_name, value in indexed_props.items():
-            if not isinstance(self.metadata[prop_name], StoredProperty):
-                self._not_storable_props[prop_name] = value
-                del indexed_props[prop_name]
-
-        self._record = self._storage.get(self.guid, indexed_props)
         for prop_name, value in kwargs.items():
             self[prop_name] = value
 
@@ -104,20 +101,31 @@ class Document(object):
             `prop_name` value
 
         """
+        orig, new = self._cache.get(prop_name, (None, None))
+
+        if new is not None:
+            return new
+        if orig is not None:
+            return orig
+
         prop = self.metadata[prop_name]
         if isinstance(prop, StoredProperty):
-            return self._record.get(prop_name)
+            if self._record is None:
+                self._record = self._storage.get(self.guid)
+            orig = self._record.get(prop_name)
         else:
-            value = self._not_storable_props.get(prop_name)
-            if value is None and isinstance(prop, IndexedProperty):
+            if isinstance(prop, IndexedProperty):
                 self._get_not_storable_but_indexd_props()
-                value = self._not_storable_props.get(prop_name)
-            if value is None and isinstance(prop, AggregatorProperty):
-                value = self._record.is_aggregated(prop_name, prop.value)
-                value = self._not_storable_props[prop_name] = env.value(value)
-            enforce(value is not None, _('Property "%s" in %s cannot be get'),
+                orig, __ = self._cache.get(prop_name, (None, None))
+            if orig is None and isinstance(prop, AggregatorProperty):
+                value = self._storage.is_aggregated(
+                        self.guid, prop_name, prop.value)
+                orig = env.value(value)
+            enforce(orig is not None, _('Property "%s" in %s cannot be get'),
                     prop_name, self.metadata.name)
-            return value
+
+        self._cache[prop_name] = (orig, new)
+        return orig
 
     def __setitem__(self, prop_name, value):
         """set document's property value.
@@ -129,6 +137,7 @@ class Document(object):
 
         """
         prop = self.metadata[prop_name]
+
         if isinstance(prop, StoredProperty):
             enforce(self._is_new or not prop.construct_only,
                     _('Property "%s" in %s is creation only'),
@@ -136,37 +145,34 @@ class Document(object):
             enforce(self.authorize(prop_name),
                     _('You are not permitted to change "%s" property in %s'),
                     prop_name, self.metadata.name)
-            self._record.set(prop_name, value)
         elif isinstance(prop, AggregatorProperty):
             enforce(value.isdigit(),
                     _('Property "%s" in %s should be either "0" or "1"'),
                     prop_name, self.metadata.name)
-            value = bool(int(value))
-            if value:
-                self._record.aggregate(prop_name, prop.value)
-            else:
-                self._record.disaggregate(prop_name, prop.value)
-            self._not_storable_props[prop_name] = env.value(value)
+            value = env.value(bool(int(value)))
         else:
             raise RuntimeError(_('Property "%s" in %s cannot be set') % \
                     (prop_name, self.metadata.name))
 
+        orig, __ = self._cache.get(prop_name, (None, None))
+        self._cache[prop_name] = (orig, value)
+
     def post(self):
         """Store changed properties."""
-        if not self._record.modified:
+        changes = {}
+        for prop_name, (__, new) in self._cache.items():
+            if new is not None:
+                changes[prop_name] = new
+        if not changes:
             return
-
-        indexed_props = self._not_storable_props.copy()
-        indexed_props.update(self._record)
 
         index = self._pool.get(True)
         try:
-            index.store(self.guid, indexed_props, self._is_new)
+            index.store(self.guid, changes, self._is_new,
+                    self._pre_store, self._post_store)
             self._is_new = False
         finally:
             self._pool.put(index, True)
-
-        self._storage.put(self.guid, self._record)
 
     def send(self, prop_name, stream):
         """Send BLOB property to a stream.
@@ -182,7 +188,7 @@ class Document(object):
         enforce(isinstance(self.metadata[prop_name], BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
                 prop_name, self.metadata.name)
-        self._record.send(prop_name, stream)
+        self._storage.send(self.guid, prop_name, stream)
 
     def receive(self, prop_name, stream):
         """Receive BLOB property from a stream.
@@ -199,7 +205,7 @@ class Document(object):
         enforce(isinstance(self.metadata[prop_name], BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
                 prop_name, self.metadata.name)
-        self._record.receive(prop_name, stream)
+        self._storage.receive(self.guid, prop_name, stream)
 
     def authorize(self, prop_name):
         return True
@@ -239,11 +245,9 @@ class Document(object):
             document GUID to delete
 
         """
-        cls._storage.delete(guid)
-
         index = cls._pool.get(True)
         try:
-            index.delete(guid)
+            index.delete(guid, lambda guid: cls._storage.delete(guid))
         finally:
             cls._pool.put(index, True)
 
@@ -373,8 +377,35 @@ class Document(object):
         docs, __ = self.find(0, 1,
                 request={'guid': self.guid}, reply=prop_names)
         if docs:
-            # pylint: disable-msg=W0212
-            self._not_storable_props.update(docs[0]._not_storable_props)
+            for name in prop_names:
+                __, new = self._cache.get(name, (None, None))
+                self._cache[name] = (docs[0][name], new)
+
+    def _pre_store(self, guid, changes):
+        for prop_name, new in changes.items():
+            prop = self.metadata[prop_name]
+            if not isinstance(prop, AggregatorProperty):
+                continue
+            orig = self._storage.is_aggregated(guid, prop_name, prop.value)
+            if new == orig:
+                del changes[prop_name]
+            elif prop.counter:
+                changes[prop.counter] = '1' if int(new) else '-1'
+
+    def _post_store(self, guid, changes):
+        for prop_name, new in changes.items():
+            prop = self.metadata[prop_name]
+            if not isinstance(prop, AggregatorProperty):
+                continue
+            if int(new):
+                self._storage.aggregate(guid, prop_name, prop.value)
+            else:
+                self._storage.disaggregate(guid, prop_name, prop.value)
+            if prop.counter:
+                del changes[prop.counter]
+            del changes[prop_name]
+
+        self._storage.put(guid, changes)
 
 
 def active_property(property_class=ActiveProperty, *args, **kwargs):

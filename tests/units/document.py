@@ -234,14 +234,22 @@ class DocumentTest(tests.Test):
         assert 'grouped' in doc.metadata
         self.assertRaises(RuntimeError, lambda: Document(grouped='foo'))
 
-        doc = Document(indexed_props={'grouped': 'foo'})
+        doc = Document('1', indexed_props={'grouped': 'foo'})
         self.assertEqual('foo', doc['grouped'])
         self.assertRaises(RuntimeError, doc.__setitem__, 'grouped', 'bar')
         doc.post()
 
         self.assertRaises(RuntimeError, lambda: Document(doc.guid)['grouped'])
 
-    def test_CounterProperty(self):
+    def test_AggregatorProperty(self):
+
+        voter = [-1]
+
+        class Vote(AggregatorProperty):
+
+            @property
+            def value(self):
+                return voter[0]
 
         class Document(document.Document):
 
@@ -249,53 +257,63 @@ class DocumentTest(tests.Test):
             def counter(self, value):
                 return value
 
-        self.assertRaises(RuntimeError, lambda: Document(counter='0'))
-
-        doc = Document(indexed_props={'counter': '1'})
-        self.assertEqual('1', doc['counter'])
-        self.assertRaises(RuntimeError, doc.__setitem__, 'counter', '2')
-        doc.post()
-
-        self.assertEqual('1', Document(doc.guid)['counter'])
-
-    def test_AggregatorProperty(self):
-
-        class Vote(AggregatorProperty):
-
-            @property
-            def value(self):
-                return -1
-
-        class Document(document.Document):
-
-            @document.active_property(Vote)
+            @document.active_property(Vote, counter='counter')
             def vote(self, value):
                 return value
 
         doc = Document()
         self.assertEqual('0', doc['vote'])
+        self.assertEqual('0', doc['counter'])
         self.assertRaises(RuntimeError, doc.__setitem__, 'vote', 'foo')
         self.assertRaises(RuntimeError, doc.__setitem__, 'vote', '-1')
         self.assertRaises(RuntimeError, doc.__setitem__, 'vote', '')
         doc['vote'] = '100'
         self.assertEqual('1', doc['vote'])
         doc.post()
-
         docs, total = Document.find(0, 100)
         self.assertEqual(1, total)
         self.assertEqual(
-                [('1')],
-                [(i.vote) for i in docs])
+                [('1', '1')],
+                [(i.vote, i.counter) for i in docs])
 
-        doc['vote'] = '0'
-        self.assertEqual('0', doc['vote'])
-        doc.post()
+        voter[:] = [-2]
 
+        doc_2 = Document(doc.guid)
+        self.assertEqual('0', doc_2['vote'])
+        self.assertEqual('1', doc_2['counter'])
+        doc_2['vote'] = '1'
+        doc_2.post()
         docs, total = Document.find(0, 100)
         self.assertEqual(1, total)
         self.assertEqual(
-                [('0')],
-                [(i.vote) for i in docs])
+                [('1', '2')],
+                [(i.vote, i.counter) for i in docs])
+
+        voter[:] = [-1]
+
+        doc_3 = Document(doc.guid)
+        self.assertEqual('1', doc_3['vote'])
+        self.assertEqual('2', doc_3['counter'])
+        doc_3['vote'] = '0'
+        doc_3.post()
+        docs, total = Document.find(0, 100)
+        self.assertEqual(1, total)
+        self.assertEqual(
+                [('0', '1')],
+                [(i.vote, i.counter) for i in docs])
+
+        voter[:] = [-2]
+
+        doc_4 = Document(doc.guid)
+        self.assertEqual('1', doc_4['vote'])
+        self.assertEqual('1', doc_4['counter'])
+        doc_4['vote'] = '0'
+        doc_4.post()
+        docs, total = Document.find(0, 100)
+        self.assertEqual(1, total)
+        self.assertEqual(
+                [('0', '0')],
+                [(i.vote, i.counter) for i in docs])
 
     def test_authorize_Disabled(self):
 
@@ -315,21 +333,6 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, Document, prop_1='foo', prop_2='bar')
         doc = Document(prop_2='bar')
         self.assertRaises(RuntimeError, doc.__setitem__, 'prop_1', 'foo')
-
-    def test_post_IncludeNotStored(self):
-
-        class Document(document.Document):
-
-            @document.active_property(IndexedProperty, slot=1)
-            def prop(self, value):
-                return value
-
-        doc = Document(indexed_props={'prop': 'foo'})
-        doc.post()
-
-        self.assertEqual(
-                ['foo'],
-                [(i.prop) for i in Document.find(0, 1)[0]])
 
     def test_find_MaxLimit(self):
 
@@ -420,6 +423,8 @@ class Storage(object):
 
     def __init__(self):
         self.data = {}
+        self.blobs = {}
+        self.aggregates = {}
         storage.get = self.get
         storage.put = self.put
         storage.delete = self.delete
@@ -442,31 +447,30 @@ class Storage(object):
         for guid, props in self.data.items():
             yield guid, props
 
+    def receive(self, quid, name, stream):
+        self.blobs[name] = stream.read()
+
+    def send(self, guid, name, stream):
+        stream.write(self.blobs[name])
+
+    def is_aggregated(self, guid, name, value):
+        return (guid, name) in self.aggregates and \
+                value in self.aggregates[(guid, name)]
+
+    def aggregate(self, guid, name, value):
+        self.aggregates.setdefault((guid, name), [])
+        self.aggregates[(guid, name)].append(value)
+
+    def disaggregate(self, guid, name, value):
+        self.aggregates.setdefault((guid, name), [])
+        if value in self.aggregates[(guid, name)]:
+            self.aggregates[(guid, name)].remove(value)
+
 
 class Record(dict):
 
-    modified = True
-
     def set(self, name, value):
         self[name] = value
-
-    def send(self, name, stream):
-        stream.write(self[name])
-
-    def receive(self, name, stream):
-        self[name] = stream.read()
-
-    def is_aggregated(self, name, value):
-        return name in self and value in self[name]
-
-    def aggregate(self, name, value):
-        self.setdefault(name, [])
-        self[name].append(value)
-
-    def disaggregate(self, name, value):
-        self.setdefault(name, [])
-        if value in self[name]:
-            self[name].remove(value)
 
 
 if __name__ == '__main__':

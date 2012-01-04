@@ -83,7 +83,7 @@ def close_indexes():
 class Index(object):
     """Public interface for indexes."""
 
-    def store(self, guid, properties, new):
+    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         """Store new document in the index.
 
         :param guid:
@@ -93,15 +93,24 @@ class Index(object):
             not necessary all document's properties
         :param new:
             is this initial store for the document
+        :param pre_cb:
+            callback to execute before storing;
+            will be called with passing `guid` and `properties`
+        :param post_cb:
+            callback to execute after storing;
+            will be called with passing `guid` and `properties`
 
         """
         raise NotImplementedError()
 
-    def delete(self, guid):
+    def delete(self, guid, post_cb=None):
         """Delete a document from the index.
 
         :param guid:
             document's GUID to remove
+        :param post_cb:
+            callback to execute after deleting;
+            will be called with passing `guid`
 
         """
         raise NotImplementedError()
@@ -127,10 +136,10 @@ class _Reader(Index):
             if isinstance(prop, IndexedProperty):
                 self._props[name] = prop
 
-    def store(self, guid, properties, new):
+    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         raise NotImplementedError()
 
-    def delete(self, guid):
+    def delete(self, guid, post_cb=None):
         raise NotImplementedError()
 
     def find(self, offset, limit, request=None, query=None, reply=None,
@@ -315,7 +324,10 @@ class _Writer(gobject.GObject, _Reader):
         self._flush(True)
         self._db = None
 
-    def store(self, guid, properties, new):
+    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
+        if pre_cb is not None:
+            pre_cb(guid, properties)
+
         logging.debug('Store %s object: %r', self.metadata.name, properties)
 
         for name, value in properties.items():
@@ -368,10 +380,15 @@ class _Writer(gobject.GObject, _Reader):
         self._db.replace_document(env.term(env.GUID_PREFIX, guid), document)
         self._commit(False)
 
-    def delete(self, guid):
+        if post_cb is not None:
+            post_cb(guid, properties)
+
+    def delete(self, guid, post_cb=None):
         logging.debug('Delete "%s" document from %s', guid, self.metadata.name)
         self._db.delete_document(env.term(env.GUID_PREFIX, guid))
         self._commit(False)
+        if post_cb is not None:
+            post_cb(guid)
 
     def _open(self, reset):
         index_path = env.index_path(self.metadata.name)
@@ -491,15 +508,15 @@ class _ThreadReader(_Reader):
         self._queue = writer.queue
         self._last_flush = 0
 
-    def store(self, guid, props, new):
+    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         logging.debug('Push store request to %s\'s queue for %s',
                 self.metadata.name, guid)
-        self._queue.put(_Writer.store, guid, props, new)
+        self._queue.put(_Writer.store, guid, properties, new, pre_cb, post_cb)
 
-    def delete(self, guid):
+    def delete(self, guid, post_cb=None):
         logging.debug('Push delete request to %s\'s queue for %s',
                 self.metadata.name, guid)
-        self._queue.put(_Writer.delete, guid)
+        self._queue.put(_Writer.delete, guid, post_cb)
 
     def find(self, offset, limit, request=None, query=None, reply=None,
             order_by=None, group_by=None):

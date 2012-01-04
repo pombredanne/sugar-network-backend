@@ -507,6 +507,32 @@ class IndexTest(tests.Test):
                 ([{'guid': '1', 'counter': '2'}], 1),
                 db.find())
 
+    def test_Callbacks(self):
+        db = Index({})
+        db.connect('changed', lambda *args: self.mainloop.quit())
+
+        pre_stored = []
+        post_stored = []
+        deleted = []
+
+        db.store('1', {}, True,
+                lambda *args: pre_stored.append(args),
+                lambda *args: post_stored.append(args))
+        self.mainloop.run()
+        self.assertEqual(1, len(pre_stored))
+        self.assertEqual(1, len(post_stored))
+
+        db.store('1', {}, False,
+                lambda *args: pre_stored.append(args),
+                lambda *args: post_stored.append(args))
+        self.mainloop.run()
+        self.assertEqual(2, len(pre_stored))
+        self.assertEqual(2, len(post_stored))
+
+        db.delete('1', lambda *args: deleted.append(args))
+        self.mainloop.run()
+        self.assertEqual(1, len(deleted))
+
 
 class Index(index.Index):
 
@@ -530,11 +556,11 @@ class Index(index.Index):
 
         self._index = index.get_index(metadata)
 
-    def store(self, guid, properties, new):
-        self._index.store(guid, properties, new)
+    def store(self, guid, properties, new, *args):
+        self._index.store(guid, properties, new, *args)
 
-    def delete(self, guid):
-        self._index.delete(guid)
+    def delete(self, guid, *args):
+        self._index.delete(guid, *args)
 
     def find(self, offset=0, limit=1024, request=None, query=None, reply=None,
             order_by=None, group_by=None):
