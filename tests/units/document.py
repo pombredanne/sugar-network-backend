@@ -7,19 +7,46 @@ from cStringIO import StringIO
 from __init__ import tests
 
 from active_document import document, storage, env, index
+from active_document.metadata import StoredProperty, BlobProperty
+from active_document.metadata import CounterProperty, IndexedProperty
+from active_document.metadata import AggregatorProperty
 
 
 class DocumentTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.storage = Storage()
+        storage.get = lambda *args: Storage()
 
     def tearDown(self):
         index.close_indexes()
         tests.Test.tearDown(self)
 
-    def test_properties_Slotted(self):
+    def test_Property_Large(self):
+
+        class Document(document.Document):
+
+            @document.active_property(StoredProperty, large=True)
+            def large(self, value):
+                return value
+
+            @large.setter
+            def large(self, value):
+                return value
+
+        doc = Document(large='probe')
+        self.assertEqual(True, doc.metadata['large'].large)
+
+        doc.post()
+        self.assertRaises(RuntimeError, Document.find, 0, 100, reply='large')
+        self.assertEqual('probe', Document(doc.guid).large)
+
+        doc2 = Document(doc.guid)
+        doc2.large = 'foo'
+        doc2.post()
+        self.assertEqual('foo', Document(doc2.guid).large)
+
+    def test_IndexedProperty_Slotted(self):
 
         class Document(document.Document):
 
@@ -27,19 +54,12 @@ class DocumentTest(tests.Test):
             def slotted(self, value):
                 return value
 
-            @document.active_property()
+            @document.active_property(StoredProperty)
             def not_slotted(self, value):
                 return value
 
         doc = Document(slotted='slotted', not_slotted='not_slotted')
-
-        self.assertEqual(
-                sorted([
-                    ('guid', 0),
-                    ('slotted', 1),
-                    ('not_slotted', None),
-                    ]),
-                sorted([(name, i.slot) for name, i in doc.metadata.items()]))
+        self.assertEqual(1, doc.metadata['slotted'].slot)
 
         doc.post()
         docs, total = Document.find(0, 100, order_by=['slotted'], group_by='slotted')
@@ -51,7 +71,7 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, Document.find, 0, 100, order_by=['not_slotted'])
         self.assertRaises(RuntimeError, Document.find, 0, 100, group_by='not_slotted')
 
-    def test_properties_Terms(self):
+    def test_IndexedProperty_Terms(self):
 
         class Document(document.Document):
 
@@ -59,19 +79,12 @@ class DocumentTest(tests.Test):
             def term(self, value):
                 return value
 
-            @document.active_property()
+            @document.active_property(StoredProperty)
             def not_term(self, value):
                 return value
 
         doc = Document(term='term', not_term='not_term')
-
-        self.assertEqual(
-                sorted([
-                    ('guid', 'I'),
-                    ('term', 'T'),
-                    ('not_term', None),
-                    ]),
-                sorted([(name, i.prefix) for name, i in doc.metadata.items()]))
+        self.assertEqual('T', doc.metadata['term'].prefix)
 
         doc.post()
         docs, total = Document.find(0, 100, request={'term': 'term'})
@@ -84,38 +97,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(0, Document.find(0, 100, query='not_term:not_term')[-1])
         self.assertEqual(1, Document.find(0, 100, query='not_term:=not_term')[-1])
 
-    def test_properties_Defaults(self):
-
-        class Document(document.Document):
-
-            @document.active_property(default='default')
-            def w_default(self, value):
-                return value
-
-            @document.active_property()
-            def wo_default(self, value):
-                return value
-
-        doc = Document(wo_default='wo_default')
-
-        self.assertEqual(
-                sorted([
-                    ('guid', None),
-                    ('w_default', 'default'),
-                    ('wo_default', None),
-                    ]),
-                sorted([(name, i.default) for name, i in doc.metadata.items()]))
-
-        doc.post()
-        docs, total = Document.find(0, 100)
-        self.assertEqual(1, total)
-        self.assertEqual(
-                [('default', 'wo_default')],
-                [(i.w_default, i.wo_default) for i in docs])
-
-        self.assertRaises(RuntimeError, Document)
-
-    def test_properties_Multiple(self):
+    def test_IndexedProperty_Multiple(self):
 
         class Document(document.Document):
 
@@ -129,15 +111,12 @@ class DocumentTest(tests.Test):
 
         by_space = ' 1  2\t3 \n'
         by_semicolon = '  4; 5 ;\t6\n'
-        doc = Document(by_space=by_space, by_semicolon=by_semicolon)
 
-        self.assertEqual(
-                sorted([
-                    ('guid', False, None),
-                    ('by_space', True, None),
-                    ('by_semicolon', True, ';'),
-                    ]),
-                sorted([(name, i.multiple, i.separator) for name, i in doc.metadata.items()]))
+        doc = Document(by_space=by_space, by_semicolon=by_semicolon)
+        self.assertEqual(True, doc.metadata['by_space'].multiple)
+        self.assertEqual(None, doc.metadata['by_space'].separator)
+        self.assertEqual(True, doc.metadata['by_semicolon'].multiple)
+        self.assertEqual(';', doc.metadata['by_semicolon'].separator)
 
         doc.post()
         docs, total = Document.find(0, 100)
@@ -153,81 +132,90 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '5'})[-1])
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '6'})[-1])
 
-    def test_properties_FullTextSearch(self):
+    def test_IndexedProperty_FullTextSearch(self):
 
         class Document(document.Document):
 
-            @document.active_property(full_text=False)
+            @document.active_property(full_text=False, slot=1)
             def no(self, value):
                 return value
 
-            @document.active_property(full_text=True, slot=1)
+            @document.active_property(full_text=True, slot=2)
             def yes(self, value):
                 return value
 
         doc = Document(no='foo', yes='bar')
-
-        self.assertEqual(
-                sorted([
-                    ('guid', False),
-                    ('no', False),
-                    ('yes', True),
-                    ]),
-                sorted([(name, i.full_text) for name, i in doc.metadata.items()]))
+        self.assertEqual(False, doc.metadata['no'].full_text)
+        self.assertEqual(True, doc.metadata['yes'].full_text)
 
         doc.post()
         self.assertEqual(0, Document.find(0, 100, query='foo')[-1])
         self.assertEqual(1, Document.find(0, 100, query='bar')[-1])
 
-    def test_properties_Large(self):
+    def test_StoredProperty_Defaults(self):
 
         class Document(document.Document):
 
-            @document.active_property(large=True)
-            def large(self, value):
+            @document.active_property(StoredProperty, default='default')
+            def w_default(self, value):
                 return value
 
-            @large.setter
-            def large(self, value):
+            @document.active_property(StoredProperty)
+            def wo_default(self, value):
                 return value
 
-        doc = Document(large='probe')
+            @document.active_property(IndexedProperty, slot=1, default='not_stored_default')
+            def not_stored_default(self, value):
+                return value
 
-        self.assertEqual(
-                sorted([
-                    ('guid', False),
-                    ('large', True),
-                    ]),
-                sorted([(name, i.large) for name, i in doc.metadata.items()]))
+        doc = Document(wo_default='wo_default')
+        self.assertEqual('default', doc.metadata['w_default'].default)
+        self.assertEqual(None, doc.metadata['wo_default'].default)
+        self.assertEqual('not_stored_default', doc.metadata['not_stored_default'].default)
 
         doc.post()
-        self.assertRaises(RuntimeError, Document.find, 0, 100, reply='large')
-        self.assertEqual('probe', Document(doc.guid).large)
+        docs, total = Document.find(0, 100)
+        self.assertEqual(1, total)
+        self.assertEqual(
+                [('default', 'wo_default', 'not_stored_default')],
+                [(i.w_default, i.wo_default, i.not_stored_default) for i in docs])
 
-        doc2 = Document(doc.guid)
-        doc2.large = 'foo'
-        doc2.post()
-        self.assertEqual('foo', Document(doc2.guid).large)
+        self.assertRaises(RuntimeError, Document)
+
+    def test_StoredProperty_ConstructOnly(self):
+
+        class Document(document.Document):
+
+            @document.active_property(StoredProperty, construct_only=True)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value
+
+        doc = Document(prop='foo')
+        self.assertEqual(True, doc.metadata['prop'].construct_only)
+
+        doc.prop = 'bar'
+        doc.post()
+
+        doc_2 = Document(doc.guid)
+        self.assertRaises(RuntimeError, doc_2.__setitem__, 'prop', 'fail')
 
     def test_properties_Blob(self):
 
         class Document(document.Document):
 
-            @document.active_property(blob=True)
+            @document.active_property(BlobProperty)
             def blob(self, value):
                 return value
 
         self.assertRaises(RuntimeError, Document, blob='probe')
+
         doc = Document()
-
-        self.assertEqual(
-                sorted([
-                    ('guid', False),
-                    ('blob', True),
-                    ]),
-                sorted([(name, i.blob) for name, i in doc.metadata.items()]))
-
         doc.post()
+
         self.assertRaises(RuntimeError, Document.find, 0, 100, reply='blob')
         self.assertRaises(RuntimeError, lambda: Document(doc.guid).blob)
         self.assertRaises(RuntimeError, lambda: Document(doc.guid).__setitem__('blob', 'foo'))
@@ -237,42 +225,87 @@ class DocumentTest(tests.Test):
         doc.send('blob', stream)
         self.assertEqual('data', stream.getvalue())
 
-    def test_properties_ConstructOnly(self):
+    def test_GroupedProperty(self):
+
+        class Document(document.Document):
+            pass
+
+        doc = Document()
+        assert 'grouped' in doc.metadata
+        self.assertRaises(RuntimeError, lambda: Document(grouped='foo'))
+
+        doc = Document(indexed_props={'grouped': 'foo'})
+        self.assertEqual('foo', doc['grouped'])
+        self.assertRaises(RuntimeError, doc.__setitem__, 'grouped', 'bar')
+        doc.post()
+
+        self.assertRaises(RuntimeError, lambda: Document(doc.guid)['grouped'])
+
+    def test_CounterProperty(self):
 
         class Document(document.Document):
 
-            @document.active_property(construct_only=True)
-            def prop(self, value):
+            @document.active_property(CounterProperty, slot=1)
+            def counter(self, value):
                 return value
 
-            @prop.setter
-            def prop(self, value):
-                return value
+        self.assertRaises(RuntimeError, lambda: Document(counter='0'))
 
-        doc = Document(prop='foo')
-
-        self.assertEqual(
-                sorted([
-                    ('guid', False),
-                    ('prop', True),
-                    ]),
-                sorted([(name, i.construct_only) for name, i in doc.metadata.items()]))
-
-        doc.prop = 'bar'
+        doc = Document(indexed_props={'counter': '1'})
+        self.assertEqual('1', doc['counter'])
+        self.assertRaises(RuntimeError, doc.__setitem__, 'counter', '2')
         doc.post()
 
-        doc_2 = Document(doc.guid)
-        self.assertRaises(RuntimeError, doc_2.__setitem__, 'prop', 'fail')
+        self.assertEqual('1', Document(doc.guid)['counter'])
+
+    def test_AggregatorProperty(self):
+
+        class Vote(AggregatorProperty):
+
+            @property
+            def value(self):
+                return -1
+
+        class Document(document.Document):
+
+            @document.active_property(Vote)
+            def vote(self, value):
+                return value
+
+        doc = Document()
+        self.assertEqual('0', doc['vote'])
+        self.assertRaises(RuntimeError, doc.__setitem__, 'vote', 'foo')
+        self.assertRaises(RuntimeError, doc.__setitem__, 'vote', '-1')
+        self.assertRaises(RuntimeError, doc.__setitem__, 'vote', '')
+        doc['vote'] = '100'
+        self.assertEqual('1', doc['vote'])
+        doc.post()
+
+        docs, total = Document.find(0, 100)
+        self.assertEqual(1, total)
+        self.assertEqual(
+                [('1')],
+                [(i.vote) for i in docs])
+
+        doc['vote'] = '0'
+        self.assertEqual('0', doc['vote'])
+        doc.post()
+
+        docs, total = Document.find(0, 100)
+        self.assertEqual(1, total)
+        self.assertEqual(
+                [('0')],
+                [(i.vote) for i in docs])
 
     def test_authorize_Disabled(self):
 
         class Document(document.Document):
 
-            @document.active_property(default='nil')
+            @document.active_property(StoredProperty, default='nil')
             def prop_1(self, value):
                 return value
 
-            @document.active_property()
+            @document.active_property(StoredProperty)
             def prop_2(self, value):
                 return value
 
@@ -282,6 +315,21 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, Document, prop_1='foo', prop_2='bar')
         doc = Document(prop_2='bar')
         self.assertRaises(RuntimeError, doc.__setitem__, 'prop_1', 'foo')
+
+    def test_post_IncludeNotStored(self):
+
+        class Document(document.Document):
+
+            @document.active_property(IndexedProperty, slot=1)
+            def prop(self, value):
+                return value
+
+        doc = Document(indexed_props={'prop': 'foo'})
+        doc.post()
+
+        self.assertEqual(
+                ['foo'],
+                [(i.prop) for i in Document.find(0, 1)[0]])
 
     def test_find_MaxLimit(self):
 
@@ -307,7 +355,7 @@ class DocumentTest(tests.Test):
             def prop_1(self, value):
                 return value
 
-            @document.active_property()
+            @document.active_property(StoredProperty)
             def prop_2(self, value):
                 return value
 
@@ -377,26 +425,21 @@ class Storage(object):
         storage.delete = self.delete
         storage.walk = self.walk
 
-    def get(self, name, guid, props=None):
-        self.data.setdefault(name, {})
-        self.data[name].setdefault(name, {})
+    def get(self, guid, props=None):
         record = Record()
         record.guid = guid
-        record.update(self.data[name].get(guid) or {})
+        record.update(self.data.get(guid) or {})
         record.update(props or {})
         return record
 
-    def put(self, name, guid, props):
-        self.data.setdefault(name, {})
-        self.data[name].setdefault(name, {})
-        self.data[name][guid] = props.copy()
+    def put(self, guid, props):
+        self.data[guid] = props.copy()
 
-    def delete(self, name, guid):
-        del self.data[name][guid]
+    def delete(self, guid):
+        del self.data[guid]
 
-    def walk(self, name):
-        self.data.setdefault(name, {})
-        for guid, props in self.data[name].items():
+    def walk(self):
+        for guid, props in self.data.items():
             yield guid, props
 
 
@@ -412,6 +455,18 @@ class Record(dict):
 
     def receive(self, name, stream):
         self[name] = stream.read()
+
+    def is_aggregated(self, name, value):
+        return name in self and value in self[name]
+
+    def aggregate(self, name, value):
+        self.setdefault(name, [])
+        self[name].append(value)
+
+    def disaggregate(self, name, value):
+        self.setdefault(name, [])
+        if value in self[name]:
+            self[name].remove(value)
 
 
 if __name__ == '__main__':

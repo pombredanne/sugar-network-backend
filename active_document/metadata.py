@@ -36,56 +36,25 @@ class Metadata(dict):
     #: Function to convert a tuple of (guid, props) to document object
     to_document = None
 
+    def __getitem__(self, prop_name):
+        enforce(prop_name in self, _('There is no "%s" property in %s'),
+                prop_name, self.name)
+        return dict.__getitem__(self, prop_name)
+
 
 class Property(object):
-    """Collect inforamtion about document property."""
+    """Bacis class to collect information about document property."""
 
-    def __init__(self, name, slot=None, prefix=None, default=None,
-            full_text=False, large=False, blob=False, boolean=False,
-            multiple=False, separator=None, construct_only=False,
-            write_access=None):
-        enforce(name == 'guid' or slot != 0,
-                _('The slot "0" is reserved for internal needs'))
-        enforce(name == 'guid' or prefix != env.GUID_PREFIX,
-                _('The prefix "I" is reserved for internal needs'))
+    def __init__(self, name, large=False, default=None):
         self._name = name
-        self._slot = slot
-        self._prefix = prefix
-        self._default = default
-        self._full_text = full_text
         self._large = large
-        self._blob = blob
-        self._boolean = boolean
-        self._multiple = multiple
-        self._separator = separator
-        self._write_access = write_access
-        self._construct_only = construct_only
+        self._default = default
         self.writable = False
 
     @property
     def name(self):
         """Property name."""
         return self._name
-
-    @property
-    def slot(self):
-        """Xapian document's slot number to add property value to."""
-        return self._slot
-
-    @property
-    def prefix(self):
-        """Xapian serach term prefix, if `None`, property is not a term."""
-        return self._prefix
-
-    @property
-    def default(self):
-        """Default property value or None."""
-        return self._default
-
-    @property
-    def full_text(self):
-        """Property takes part in full-text search."""
-        return self._full_text
 
     @property
     def large(self):
@@ -98,14 +67,52 @@ class Property(object):
         return self._large
 
     @property
-    def blob(self):
-        """Binary large objects that need to be fetched alone.
+    def default(self):
+        """Default property value or None."""
+        return self._default
 
-        To get access to these properties, use `Document.send()` and
-        `Document.receive()` functions.
 
-        """
-        return self._blob
+class IndexedProperty(Property):
+    """Property that need to be indexed."""
+
+    def __init__(self, name,
+            slot=None, prefix=None, full_text=False,
+            boolean=False, multiple=False, separator=None,
+            large=False, default=None):
+        enforce(name == 'guid' or slot != 0,
+                _('For %s property, ' \
+                        'the slot "0" is reserved for internal needs'),
+                name)
+        enforce(name == 'guid' or prefix != env.GUID_PREFIX,
+                _('For %s property, ' \
+                        'the prefix "I" is reserved for internal needs'),
+                name)
+        enforce(slot is not None or prefix or full_text,
+                _('For %s property, ' \
+                        'either slot, prefix or full_text need to be set'),
+                name)
+        Property.__init__(self, name, large=large, default=default)
+        self._slot = slot
+        self._prefix = prefix
+        self._full_text = full_text
+        self._boolean = boolean
+        self._multiple = multiple
+        self._separator = separator
+
+    @property
+    def slot(self):
+        """Xapian document's slot number to add property value to."""
+        return self._slot
+
+    @property
+    def prefix(self):
+        """Xapian serach term prefix, if `None`, property is not a term."""
+        return self._prefix
+
+    @property
+    def full_text(self):
+        """Property takes part in full-text search."""
+        return self._full_text
 
     @property
     def boolean(self):
@@ -122,22 +129,6 @@ class Property(object):
         """Separator for multiplied properties, spaces by default."""
         return self._separator
 
-    @property
-    def write_access(self):
-        """Write access mode to handled in dowstreamed `Document.authorize`."""
-        return self._write_access
-
-    @property
-    def construct_only(self):
-        """Property can be set only while document creation."""
-        return self._construct_only
-
-    @property
-    def indexed(self):
-        """Should property be used in index."""
-        return not self.blob and \
-                (self.slot is not None or self.prefix or self.full_text)
-
     def list_value(self, value):
         """If property value contains several values, list them all."""
         if self._multiple:
@@ -147,7 +138,88 @@ class Property(object):
             return [value]
 
 
-class GuidProperty(Property):
+class AggregatorProperty(Property):
+    """Property that aggregates arbitrary values.
+
+    This properties is repesented by boolean value (int in string notation)
+    that shows that `AggregatorProperty.value` is aggregated or not.
+    After setting this property, `AggregatorProperty.value` will be added or
+    removed from the aggregatation list.
+
+    """
+
+    @property
+    def value(self):
+        raise NotImplementedError()
+
+
+class StoredProperty(Property):
+    """Property that can be saved in persistent storare."""
+
+    def __init__(self, name,
+            construct_only=False, write_access=None,
+            large=False, default=None):
+        Property.__init__(self, name, large=large, default=default)
+        self._construct_only = construct_only
+        self._write_access = write_access
+
+    @property
+    def construct_only(self):
+        """Property can be set only while document creation."""
+        return self._construct_only
+
+    @property
+    def write_access(self):
+        """Write access mode to handled in dowstreamed `Document.authorize`."""
+        return self._write_access
+
+
+class ActiveProperty(IndexedProperty, StoredProperty):
+
+    def __init__(self, name,
+            slot=None, prefix=None, full_text=False,
+            boolean=False, multiple=False, separator=None,
+            construct_only=False, write_access=None,
+            large=False, default=None):
+        IndexedProperty.__init__(self, name, slot=slot, prefix=prefix,
+                full_text=full_text, boolean=boolean, multiple=multiple,
+                separator=separator)
+        StoredProperty.__init__(self, name, construct_only=construct_only,
+                write_access=write_access, large=large, default=default)
+
+
+class GuidProperty(ActiveProperty):
 
     def __init__(self):
-        Property.__init__(self, 'guid', 0, env.GUID_PREFIX)
+        ActiveProperty.__init__(self, 'guid', slot=0, prefix=env.GUID_PREFIX)
+
+
+class CounterProperty(IndexedProperty):
+    """Only index property that can be changed only by incrementing.
+
+    For reading it is an `int` type (in string as usual) property.
+    For setting, new value will be treated as a delta to already indexed
+    value.
+
+    """
+
+    def __init__(self, name, slot):
+        IndexedProperty.__init__(self, name, slot=slot, default='0')
+
+
+class BlobProperty(Property):
+    """Binary large objects that need to be fetched alone.
+
+    To get access to these properties, use `Document.send()` and
+    `Document.receive()` functions.
+
+    """
+
+    def __init__(self, name):
+        Property.__init__(self, name, large=True)
+
+
+class GroupedProperty(Property):
+
+    def __init__(self):
+        Property.__init__(self, 'grouped')

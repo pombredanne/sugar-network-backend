@@ -27,6 +27,7 @@ import gobject
 
 from active_document import util, env
 from active_document.index_queue import IndexQueue, NoPut
+from active_document.metadata import IndexedProperty, CounterProperty
 from active_document.util import enforce
 
 
@@ -120,6 +121,11 @@ class _Reader(Index):
     def __init__(self, metadata):
         self.metadata = metadata
         self._db = None
+        self._props = {}
+
+        for name, prop in self.metadata.items():
+            if isinstance(prop, IndexedProperty):
+                self._props[name] = prop
 
     def store(self, guid, properties, new):
         raise NotImplementedError()
@@ -146,8 +152,8 @@ class _Reader(Index):
         documents = []
         for hit in result:
             props = {}
-            for name in reply or self.metadata.keys():
-                prop = self.metadata.get(name)
+            for name in reply or self._props.keys():
+                prop = self._props.get(name)
                 if prop is None:
                     logging.warning(_('Unknown property name "%s" for %s ' \
                             'to return from find'), name, self.metadata.name)
@@ -179,7 +185,7 @@ class _Reader(Index):
         if query:
             parser = xapian.QueryParser()
             parser.set_database(self._db)
-            for name, prop in self.metadata.items():
+            for name, prop in self._props.items():
                 if prop.prefix:
                     if prop.boolean:
                         parser.add_boolean_prefix(name, prop.prefix)
@@ -198,7 +204,7 @@ class _Reader(Index):
 
         for name, value in request.items():
             value = str(value).strip()
-            prop = self.metadata.get(name)
+            prop = self._props.get(name)
             enforce(prop is not None and prop.prefix,
                     _('Unknow search term "%s" for %s'),
                     name, self.metadata.name)
@@ -233,7 +239,7 @@ class _Reader(Index):
                     order = order[1:]
                 else:
                     reverse = False
-                prop = self.metadata.get(order)
+                prop = self._props.get(order)
                 enforce(prop is not None and prop.slot is not None,
                         _('Cannot sort using "%s" property of %s'),
                         order, self.metadata.name)
@@ -244,7 +250,7 @@ class _Reader(Index):
                     'Xapian should be at least 1.2.0'))
 
         if group_by:
-            prop = self.metadata.get(group_by)
+            prop = self._props.get(group_by)
             enforce(prop is not None and prop.slot is not None,
                     _('Cannot group by "%s" property in %s'),
                     group_by, self.metadata.name)
@@ -275,7 +281,8 @@ class _Reader(Index):
                 break
             query = query[:exact_term.start()] + query[exact_term.end():]
             term, __, value = exact_term.groups()
-            if term in self.metadata and self.metadata[term].prefix:
+            prop = self.metadata.get(term)
+            if isinstance(prop, IndexedProperty) and prop.prefix:
                 props[term] = value
         return query
 
@@ -286,6 +293,8 @@ class _Writer(gobject.GObject, _Reader):
     __gsignals__ = {
             #: Content of the index was changed
             'changed': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
+            #: Index operation failed
+            'failed': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, [object]),
             #: Index was openned
             'openned': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
             }
@@ -309,23 +318,38 @@ class _Writer(gobject.GObject, _Reader):
     def store(self, guid, properties, new):
         logging.debug('Store %s object: %r', self.metadata.name, properties)
 
+        for name, value in properties.items():
+            prop = self.metadata[name]
+            if not isinstance(prop, CounterProperty):
+                continue
+            try:
+                int(value)
+            except ValueError:
+                raise RuntimeError(_('Counter property "%s" in %s ' \
+                        'is not an integer value') % \
+                        (name, self.metadata.name))
+
         if not new:
             documents, __ = self.find(0, 1, {'guid': guid})
             enforce(len(documents) == 1,
                     _('Cannot find "%s" in %s to store'),
                     guid, self.metadata.name)
             existing_doc = documents[0]
-            for name in self.metadata.keys():
+            for name, prop in self._props.items():
+                if prop.slot is None:
+                    continue
                 if name not in properties:
                     properties[name] = existing_doc[name]
+                elif isinstance(prop, CounterProperty):
+                    properties[name] = str(
+                            int(existing_doc[name] or '0') + \
+                            int(properties[name]))
 
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
         term_generator.set_document(document)
 
-        for name, prop in self.metadata.items():
-            if not prop.indexed:
-                continue
+        for name, prop in self._props.items():
             value = guid if prop.slot == 0 else properties[name]
             if prop.slot is not None:
                 document.add_value(prop.slot, value)
@@ -439,7 +463,10 @@ class _ThreadWriter(_Writer):
             self.open()
             logging.debug('Start serving writes to %s', self.metadata.name)
             while True:
-                self.queue.iteration(self)
+                result = self.queue.iteration(self)
+                if isinstance(result, Exception):
+                    # Emit from idle_add to send signal in the main loop thread
+                    gobject.idle_add(self.emit, 'failed', result)
         except Exception:
             util.exception(_('Index %s write thread died, ' \
                     'will abort the whole application'), self.metadata.name)

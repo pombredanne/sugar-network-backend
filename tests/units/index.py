@@ -12,7 +12,8 @@ import gobject
 from __init__ import tests
 
 from active_document import index, env
-from active_document.metadata import Metadata, Property, GuidProperty
+from active_document.metadata import Metadata, IndexedProperty, GuidProperty
+from active_document.metadata import CounterProperty
 
 
 class IndexTest(tests.Test):
@@ -28,14 +29,14 @@ class IndexTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_Term_AvoidCollisionsWithGuid(self):
-        self.assertRaises(RuntimeError, Property, 'key', 0, 'I')
-        self.assertRaises(RuntimeError, Property, 'key', 0, 'K')
-        self.assertRaises(RuntimeError, Property, 'key', 1, 'I')
-        Property('key', 1, 'K')
-        Property('guid', 0, 'I')
+        self.assertRaises(RuntimeError, IndexedProperty, 'key', 0, 'I')
+        self.assertRaises(RuntimeError, IndexedProperty, 'key', 0, 'K')
+        self.assertRaises(RuntimeError, IndexedProperty, 'key', 1, 'I')
+        IndexedProperty('key', 1, 'K')
+        IndexedProperty('guid', 0, 'I')
 
     def test_Create(self):
-        db = Index({'key': Property('key', 1, 'K')})
+        db = Index({'key': IndexedProperty('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.store('1', {'key': 'value_1'}, True)
@@ -52,11 +53,9 @@ class IndexTest(tests.Test):
                 db.find(reply=['key']))
 
     def test_update(self):
-        print '>', index._writers
-
         db = Index({
-            'var_1': Property('var_1', 1, 'A'),
-            'var_2': Property('var_2', 2, 'B'),
+            'var_1': IndexedProperty('var_1', 1, 'A'),
+            'var_2': IndexedProperty('var_2', 2, 'B'),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -75,7 +74,7 @@ class IndexTest(tests.Test):
                 db.find(reply=['var_1', 'var_2']))
 
     def test_delete(self):
-        db = Index({'key': Property('key', 1, 'K')})
+        db = Index({'key': IndexedProperty('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.store('1', {'key': 'value'}, True)
@@ -92,9 +91,9 @@ class IndexTest(tests.Test):
 
     def test_find(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A', full_text=True),
-            'var_2': Property('var_2', 2, 'B', full_text=True),
-            'var_3': Property('var_3', 3, 'C', full_text=True),
+            'var_1': IndexedProperty('var_1', 1, 'A', full_text=True),
+            'var_2': IndexedProperty('var_2', 2, 'B', full_text=True),
+            'var_3': IndexedProperty('var_3', 3, 'C', full_text=True),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -127,9 +126,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithProps(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A', full_text=True),
-            'var_2': Property('var_2', 2, 'B', full_text=True),
-            'var_3': Property('var_3', 3, 'C', full_text=True),
+            'var_1': IndexedProperty('var_1', 1, 'A', full_text=True),
+            'var_2': IndexedProperty('var_2', 2, 'B', full_text=True),
+            'var_3': IndexedProperty('var_3', 3, 'C', full_text=True),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -159,9 +158,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithAllBooleanProps(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A', boolean=True, full_text=True),
-            'var_2': Property('var_2', 2, 'B', boolean=True, full_text=True),
-            'var_3': Property('var_3', 3, 'C', boolean=True, full_text=True),
+            'var_1': IndexedProperty('var_1', 1, 'A', boolean=True, full_text=True),
+            'var_2': IndexedProperty('var_2', 2, 'B', boolean=True, full_text=True),
+            'var_3': IndexedProperty('var_3', 3, 'C', boolean=True, full_text=True),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -186,9 +185,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithBooleanProps(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A', boolean=True, full_text=True),
-            'var_2': Property('var_2', 2, 'B', boolean=False, full_text=True),
-            'var_3': Property('var_3', 3, 'C', boolean=True, full_text=True),
+            'var_1': IndexedProperty('var_1', 1, 'A', boolean=True, full_text=True),
+            'var_2': IndexedProperty('var_2', 2, 'B', boolean=False, full_text=True),
+            'var_3': IndexedProperty('var_3', 3, 'C', boolean=True, full_text=True),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -212,7 +211,7 @@ class IndexTest(tests.Test):
                 db.find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_ExactQuery(self):
-        db = Index({'key': Property('key', 1, 'K', full_text=True)})
+        db = Index({'key': IndexedProperty('key', 1, 'K', full_text=True)})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.store('1', {'key': 'фу'}, True)
@@ -242,7 +241,7 @@ class IndexTest(tests.Test):
     def test_find_ExactQueryTerms(self):
         term = 'azAZ09_'
 
-        db = Index({term: Property(term, 1, 'T', full_text=True)})
+        db = Index({term: IndexedProperty(term, 1, 'T', full_text=True)})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.store('1', {term: 'test'}, True)
@@ -255,7 +254,7 @@ class IndexTest(tests.Test):
                 db.find(query='%s:=test' % term, reply=['guid']))
 
     def test_find_ReturnPortions(self):
-        db = Index({'key': Property('key', 1, 'K')})
+        db = Index({'key': IndexedProperty('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
 
         db.store('1', {'key': '1'}, True)
@@ -280,9 +279,9 @@ class IndexTest(tests.Test):
 
     def test_find_OrderBy(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A'),
-            'var_2': Property('var_2', 2, 'B'),
-            'var_3': Property('var_3', 3, 'C'),
+            'var_1': IndexedProperty('var_1', 1, 'A'),
+            'var_2': IndexedProperty('var_2', 2, 'B'),
+            'var_3': IndexedProperty('var_3', 3, 'C'),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -315,9 +314,9 @@ class IndexTest(tests.Test):
 
     def test_find_GroupBy(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A'),
-            'var_2': Property('var_2', 2, 'B'),
-            'var_3': Property('var_3', 3, 'C'),
+            'var_1': IndexedProperty('var_1', 1, 'A'),
+            'var_2': IndexedProperty('var_2', 2, 'B'),
+            'var_3': IndexedProperty('var_3', 3, 'C'),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -337,9 +336,9 @@ class IndexTest(tests.Test):
 
     def test_TermsAreLists(self):
         db = Index({
-            'var_1': Property('var_1', 1, 'A'),
-            'var_2': Property('var_2', 2, 'B', multiple=True),
-            'var_3': Property('var_3', 3, 'C', multiple=True, separator=';'),
+            'var_1': IndexedProperty('var_1', 1, 'A'),
+            'var_2': IndexedProperty('var_2', 2, 'B', multiple=True),
+            'var_3': IndexedProperty('var_3', 3, 'C', multiple=True, separator=';'),
             })
         db.connect('changed', lambda *args: self.mainloop.quit())
 
@@ -365,7 +364,7 @@ class IndexTest(tests.Test):
     def test_FlushThreshold(self):
         env.index_flush_threshold.value = 2
         env.index_flush_timeout.value = 0
-        db = Index({'key': Property('key', 1, 'K')})
+        db = Index({'key': IndexedProperty('key', 1, 'K')})
 
         changed = []
         db.connect('changed', lambda *args: changed.append(True))
@@ -424,7 +423,7 @@ class IndexTest(tests.Test):
 
         env.index_flush_threshold.value = 3
         env.index_flush_timeout.value = 0
-        db = Index({'key': Property('key', 1, 'K')})
+        db = Index({'key': IndexedProperty('key', 1, 'K')})
         db.connect('changed', lambda *args: self.mainloop.quit())
         self.mainloop.run()
 
@@ -458,7 +457,7 @@ class IndexTest(tests.Test):
     def test_ReadFromWritingDB(self):
         env.index_flush_threshold.value = 10
         env.index_flush_timeout.value = 0
-        db = Index({'key': Property('key', 1, 'K')})
+        db = Index({'key': IndexedProperty('key', 1, 'K')})
 
         changed = []
         db.connect('changed', lambda *args: changed.append(True))
@@ -478,6 +477,35 @@ class IndexTest(tests.Test):
                   {'guid': '3', 'key': '3'}], 3),
                 db.find(reply=['key']))
         self.assertEqual(0, len(changed))
+
+    def test_CounterProperty(self):
+        db = Index({'counter': CounterProperty('counter', 1)})
+        db.connect('changed', lambda *args: self.mainloop.quit())
+        db.connect('failed', lambda *args: self.mainloop.quit())
+
+        db.store('1', {'counter': 'foo'}, True)
+        self.mainloop.run()
+        self.assertEqual(
+                ([], 0),
+                db.find())
+
+        db.store('1', {'counter': '-1'}, True)
+        self.mainloop.run()
+        self.assertEqual(
+                ([{'guid': '1', 'counter': '-1'}], 1),
+                db.find())
+
+        db.store('1', {'counter': '-1'}, False)
+        self.mainloop.run()
+        self.assertEqual(
+                ([{'guid': '1', 'counter': '-2'}], 1),
+                db.find())
+
+        db.store('1', {'counter': '4'}, False)
+        self.mainloop.run()
+        self.assertEqual(
+                ([{'guid': '1', 'counter': '2'}], 1),
+                db.find())
 
 
 class Index(index.Index):

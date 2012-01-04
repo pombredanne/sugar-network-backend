@@ -20,7 +20,11 @@ from Queue import Queue
 from gettext import gettext as _
 
 from active_document import env, storage
-from active_document.metadata import Metadata, Property, GuidProperty
+from active_document.metadata import Metadata
+from active_document.metadata import ActiveProperty, StoredProperty
+from active_document.metadata import GuidProperty, GroupedProperty
+from active_document.metadata import AggregatorProperty, IndexedProperty
+from active_document.metadata import BlobProperty
 from active_document.index import get_index, connect_to_index
 from active_document.util import enforce
 
@@ -34,14 +38,17 @@ class Document(object):
     metadata = None
 
     _initated = False
+    _storage = None
     _pool = None
 
-    def __init__(self, guid=None, **kwargs):
+    def __init__(self, guid=None, indexed_props=None, **kwargs):
         """
         :param guid:
             GUID of existing document; if omitted, newly created object
             will be associated with new document; new document will be saved
             only after calling `post`
+        :param indexed_props:
+            property values got from index to populate the cache
         :param kwargs:
             optional key arguments with new property values; specifing these
             arguments will mean the same as setting properties after `Document`
@@ -50,137 +57,151 @@ class Document(object):
         """
         self._init()
         self._is_new = False
+        self._not_storable_props = {}
+
+        if indexed_props is None:
+            indexed_props = {}
 
         if guid:
             self._guid = guid
-            self._record = storage.get(self.metadata.name, self.guid)
         else:
             self._is_new = True
             self._guid = str(uuid.uuid1())
             kwargs['guid'] = self.guid
 
-            defaults = {}
             for name, prop in self.metadata.items():
-                if name in kwargs or prop.blob:
+                if name in indexed_props:
                     continue
-                enforce(prop.default is not None,
-                        _('Property "%s" should be passed while creating ' \
-                                'new %s document'),
-                        name, self.metadata.name)
-                defaults[name] = prop.default
-
-            self._record = storage.get(self.metadata.name, self.guid, defaults)
-
-            """
-            for name, value in kwargs.items():
-                prop = self.metadata.get(name)
-                if prop is not None and prop.write_access:
-                    authorized_props[name] = value
-                else:
-                    props[name] = value
-
+                if isinstance(prop, StoredProperty):
+                    if name in kwargs:
+                        continue
                     enforce(prop.default is not None,
                             _('Property "%s" should be passed while ' \
                                     'creating new %s document'),
                             name, self.metadata.name)
-                    kwargs[name] = prop.default
+                indexed_props[name] = prop.default
 
-            # Initialize record with `kwargs` since further properties setting
-            # might rely on existing some properties from `kwargs`
-            """
+        for prop_name, value in indexed_props.items():
+            if not isinstance(self.metadata[prop_name], StoredProperty):
+                self._not_storable_props[prop_name] = value
+                del indexed_props[prop_name]
 
-        for prop, value in kwargs.items():
-            self[prop] = value
+        self._record = self._storage.get(self.guid, indexed_props)
+        for prop_name, value in kwargs.items():
+            self[prop_name] = value
 
     @property
     def guid(self):
         """Document GUID."""
         return self._guid
 
-    def __getitem__(self, prop):
+    def __getitem__(self, prop_name):
         """Get document's property value.
 
-        :param prop:
+        :param prop_name:
             property name to get value
         :returns:
-            `prop` value
+            `prop_name` value
 
         """
-        enforce(prop not in self.metadata or not self.metadata[prop].blob,
-                _('Property "%s" in %s is a BLOB and cannot be get'),
-                prop, self.metadata.name)
-        return self._record.get(prop)
+        prop = self.metadata[prop_name]
+        if isinstance(prop, StoredProperty):
+            return self._record.get(prop_name)
+        else:
+            value = self._not_storable_props.get(prop_name)
+            if value is None and isinstance(prop, IndexedProperty):
+                self._get_not_storable_but_indexd_props()
+                value = self._not_storable_props.get(prop_name)
+            if value is None and isinstance(prop, AggregatorProperty):
+                value = self._record.is_aggregated(prop_name, prop.value)
+                value = self._not_storable_props[prop_name] = env.value(value)
+            enforce(value is not None, _('Property "%s" in %s cannot be get'),
+                    prop_name, self.metadata.name)
+            return value
 
-    def __setitem__(self, prop, value):
+    def __setitem__(self, prop_name, value):
         """set document's property value.
 
-        :param prop:
+        :param prop_name:
             property name to set
         :param value:
             property value to set
 
         """
-        if prop in self.metadata:
-            enforce(not self.metadata[prop].blob,
-                    _('Property "%s" in %s is a BLOB and cannot be set'),
-                    prop, self.metadata.name)
-            enforce(self.authorize(prop),
+        prop = self.metadata[prop_name]
+        if isinstance(prop, StoredProperty):
+            enforce(self._is_new or not prop.construct_only,
+                    _('Property "%s" in %s is creation only'),
+                    prop_name, self.metadata.name)
+            enforce(self.authorize(prop_name),
                     _('You are not permitted to change "%s" property in %s'),
-                    prop, self.metadata.name)
-            enforce(self._is_new or not self.metadata[prop].construct_only,
-                    _('Property "%s" in %s can be set only on document ' \
-                            'creation'),
-                    prop, self.metadata.name)
-        return self._record.set(prop, value)
+                    prop_name, self.metadata.name)
+            self._record.set(prop_name, value)
+        elif isinstance(prop, AggregatorProperty):
+            enforce(value.isdigit(),
+                    _('Property "%s" in %s should be either "0" or "1"'),
+                    prop_name, self.metadata.name)
+            value = bool(int(value))
+            if value:
+                self._record.aggregate(prop_name, prop.value)
+            else:
+                self._record.disaggregate(prop_name, prop.value)
+            self._not_storable_props[prop_name] = env.value(value)
+        else:
+            raise RuntimeError(_('Property "%s" in %s cannot be set') % \
+                    (prop_name, self.metadata.name))
 
     def post(self):
         """Store changed properties."""
         if not self._record.modified:
             return
 
+        indexed_props = self._not_storable_props.copy()
+        indexed_props.update(self._record)
+
         index = self._pool.get(True)
         try:
-            index.store(self.guid, self._record, self._is_new)
+            index.store(self.guid, indexed_props, self._is_new)
             self._is_new = False
         finally:
             self._pool.put(index, True)
 
-        storage.put(self.metadata.name, self.guid, self._record)
+        self._storage.put(self.guid, self._record)
 
-    def send(self, prop, stream):
+    def send(self, prop_name, stream):
         """Send BLOB property to a stream.
 
         This function works in parallel to getting non-BLOB properties values.
 
-        :param prop:
+        :param prop_name:
             property name
         :param stream:
             stream to send property value to
 
         """
-        enforce(prop not in self.metadata or self.metadata[prop].blob,
+        enforce(isinstance(self.metadata[prop_name], BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
-                prop, self.metadata.name)
-        self._record.send(prop, stream)
+                prop_name, self.metadata.name)
+        self._record.send(prop_name, stream)
 
-    def receive(self, prop, stream):
+    def receive(self, prop_name, stream):
         """Receive BLOB property from a stream.
 
         This function works in parallel to setting non-BLOB properties values
         and `post()` function.
 
-        :param prop:
+        :param prop_name:
             property name
         :param stream:
             stream to receive property value from
 
         """
-        enforce(self.metadata[prop].blob,
+        enforce(isinstance(self.metadata[prop_name], BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
-                prop, self.metadata.name)
-        self._record.receive(prop, stream)
+                prop_name, self.metadata.name)
+        self._record.receive(prop_name, stream)
 
-    def authorize(self, prop):
+    def authorize(self, prop_name):
         return True
 
     @classmethod
@@ -218,7 +239,7 @@ class Document(object):
             document GUID to delete
 
         """
-        storage.delete(cls.metadata.name, guid)
+        cls._storage.delete(guid)
 
         index = cls._pool.get(True)
         try:
@@ -274,7 +295,7 @@ class Document(object):
             order_by = ['+ctime']
 
         for prop in cls.metadata.values():
-            enforce(not prop.large and not prop.blob,
+            enforce(not prop.large,
                     _('Property "%s" in %s is not suitable for find requests'),
                     prop.name, cls.metadata.name)
 
@@ -315,9 +336,13 @@ class Document(object):
 
             cls.metadata = Metadata()
             cls.metadata.name = cls.__name__.lower()
-            cls.metadata.crawler = lambda: storage.walk(cls.metadata.name)
-            cls.metadata.to_document = lambda guid, props: cls(guid, **props)
+            cls.metadata.crawler = lambda: cls._storage.walk()
+            cls.metadata.to_document = \
+                    lambda guid, props: cls(guid, indexed_props=props)
             cls.metadata['guid'] = GuidProperty()
+            cls.metadata['grouped'] = GroupedProperty()
+
+            cls._storage = storage.get(cls.metadata.name)
 
             for attr in [getattr(cls, i) for i in dir(cls)]:
                 if hasattr(attr, '_is_active_property'):
@@ -339,8 +364,20 @@ class Document(object):
         finally:
             _initating_lock.release()
 
+    def _get_not_storable_but_indexd_props(self):
+        prop_names = []
+        for name, prop in self.metadata.items():
+            if not isinstance(prop, StoredProperty) and \
+                    isinstance(prop, IndexedProperty):
+                prop_names.append(name)
+        docs, __ = self.find(0, 1,
+                request={'guid': self.guid}, reply=prop_names)
+        if docs:
+            # pylint: disable-msg=W0212
+            self._not_storable_props.update(docs[0]._not_storable_props)
 
-def active_property(*args, **kwargs):
+
+def active_property(property_class=ActiveProperty, *args, **kwargs):
 
     def getter(func, self):
         value = self[func.__name__]
@@ -360,7 +397,7 @@ def active_property(*args, **kwargs):
         attr.setter = lambda func: decorate_setter(func, attr)
         attr._is_active_property = True
         attr.name = func.__name__
-        attr.prop = Property(attr.name, *args, **kwargs)
+        attr.prop = property_class(attr.name, *args, **kwargs)
         return attr
 
     return decorate_getter

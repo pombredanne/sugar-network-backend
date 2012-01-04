@@ -113,6 +113,8 @@ class IndexQueue(object):
 
         :param obj:
             an object that will be used to call put operations
+        :returns:
+            the result of processed operation
 
         """
         self._lock.acquire()
@@ -138,6 +140,8 @@ class IndexQueue(object):
             self._op_cond.notify_all()
         finally:
             self._lock.release()
+
+        return got
 
     def flush(self):
         """Flush the processed queue items.
