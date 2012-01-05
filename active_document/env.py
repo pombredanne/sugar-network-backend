@@ -70,7 +70,7 @@ def path(*args):
 
     """
     enforce(data_root.value,
-            _('The active_document.env.data_root.value is not set'))
+            _('The active_document.data_root.value is not set'))
 
     result = join(data_root.value, *args)
     if result.endswith(os.sep):

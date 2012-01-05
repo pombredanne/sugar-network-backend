@@ -1,4 +1,4 @@
-# Copyright (C) 2011, Aleksey Lim
+# Copyright (C) 2011-2012, Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -12,3 +12,13 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+from active_document.document import Document, active_property
+
+from active_document.env import data_root, index_flush_timeout, \
+        index_flush_threshold, index_pool, index_write_queue, find_limit, \
+        NotFound
+
+from active_document.metadata import Metadata, Property, IndexedProperty, \
+        AggregatorProperty, StoredProperty, ActiveProperty, GuidProperty, \
+        CounterProperty, BlobProperty, GroupedProperty

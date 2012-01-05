@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Data: 2011-12-15$
+$Data: 2012-01-05$
 
 """
 
@@ -429,7 +429,9 @@ class Option(object):
 
         for name in sorted(dir(mod)):
             attr = getattr(mod, name)
-            if not isinstance(attr, Option):
+            # Options might be from different `util` modules
+            if not (type(attr).__name__ == 'Option' and \
+                    type(attr).__module__.split('.')[-1] == 'util'):
                 continue
 
             attr.attr_name = name
@@ -620,7 +622,9 @@ class Command(object):
 
         for name in sorted(dir(mod)):
             attr = getattr(mod, name)
-            if not isinstance(attr, Command):
+            # Commands might be from different `util` modules
+            if not (type(attr).__name__ == 'Command' and \
+                    type(attr).__module__.split('.')[-1] == 'util'):
                 continue
 
             attr.name = name.replace('_', '-')
