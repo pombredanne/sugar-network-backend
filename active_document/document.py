@@ -438,6 +438,8 @@ def active_property(property_class=ActiveProperty, *args, **kwargs):
         return attr
 
     def decorate_getter(func):
+        enforce(func.__name__ != 'guid',
+                _('Active property should not have "guid" name'))
         attr = lambda self, * args: getter(func, self)
         attr.setter = lambda func: decorate_setter(func, attr)
         attr._is_active_property = True
