@@ -340,7 +340,7 @@ class Document(object):
 
             cls.metadata = Metadata()
             cls.metadata.name = cls.__name__.lower()
-            cls.metadata.crawler = lambda: cls._storage.walk()
+            cls.metadata.crawler = cls._crawler
             cls.metadata.to_document = \
                     lambda guid, props: cls(guid, indexed_props=props)
             cls.metadata['guid'] = GuidProperty()
@@ -367,6 +367,19 @@ class Document(object):
             cls._initated = True
         finally:
             _initating_lock.release()
+
+    @classmethod
+    def _crawler(cls):
+        aggregated_props = []
+        for prop in cls.metadata.values():
+            if isinstance(prop, AggregatorProperty) and prop.counter:
+                aggregated_props.append(prop)
+
+        for guid, props in cls._storage.walk():
+            for prop in aggregated_props:
+                props[prop.counter] = env.value(
+                        cls._storage.count_aggregated(guid, prop.name))
+            yield guid, props
 
     def _get_not_storable_but_indexd_props(self):
         prop_names = []

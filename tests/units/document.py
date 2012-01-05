@@ -4,6 +4,8 @@
 
 from cStringIO import StringIO
 
+import gobject
+
 from __init__ import tests
 
 from active_document import document, storage, env, index
@@ -16,7 +18,9 @@ class DocumentTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        storage.get = lambda *args: Storage()
+        self.storage = Storage()
+        storage.get = lambda *args: self.storage
+        self.mainloop = gobject.MainLoop()
 
     def tearDown(self):
         index.close_indexes()
@@ -418,6 +422,49 @@ class DocumentTest(tests.Test):
                 [],
                 [i.prop for i in Document.find(0, 1024)[0]])
 
+    def test_crawler(self):
+
+        class Vote(AggregatorProperty):
+
+            @property
+            def value(self):
+                return -1
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+            @document.active_property(CounterProperty, slot=2)
+            def counter(self, value):
+                return value
+
+            @document.active_property(Vote, counter='counter')
+            def vote(self, value):
+                return value
+
+        Document._init()
+        Document.connect(lambda *args: self.mainloop.quit())
+
+        self.storage.data['1'] = {'prop': 'prop-1'}
+        self.storage.aggregates[('1', 'vote')] = [-1]
+        self.storage.data['2'] = {'prop': 'prop-2'}
+        self.storage.aggregates[('2', 'vote')] = [-2, -3]
+
+        doc = Document('1')
+        self.mainloop.run()
+        self.mainloop.run()
+
+        self.assertEqual('1', doc['vote'])
+        self.assertEqual('1', doc['counter'])
+        self.assertEqual('prop-1', doc['prop'])
+
+        doc = Document('2')
+        self.assertEqual('0', doc['vote'])
+        self.assertEqual('2', doc['counter'])
+        self.assertEqual('prop-2', doc['prop'])
+
 
 class Storage(object):
 
@@ -465,6 +512,12 @@ class Storage(object):
         self.aggregates.setdefault((guid, name), [])
         if value in self.aggregates[(guid, name)]:
             self.aggregates[(guid, name)].remove(value)
+
+    def count_aggregated(self, guid, name):
+        if (guid, name) not in self.aggregates:
+            return 0
+        else:
+            return len(self.aggregates[(guid, name)])
 
 
 class Record(dict):
