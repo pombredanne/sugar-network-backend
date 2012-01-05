@@ -73,6 +73,20 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, Document.find, 0, 100, order_by=['not_slotted'])
         self.assertRaises(RuntimeError, Document.find, 0, 100, group_by='not_slotted')
 
+    def test_IndexedProperty_SlottedIUnique(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1)
+            def prop_1(self, value):
+                return value
+
+            @document.active_property(slot=1)
+            def prop_2(self, value):
+                return value
+
+        self.assertRaises(RuntimeError, Document, prop_1='1', prop_2='2')
+
     def test_IndexedProperty_Terms(self):
 
         class Document(document.Document):
@@ -98,6 +112,20 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, Document.find, 0, 100, request={'not_term': 'not_term'})
         self.assertEqual(0, Document.find(0, 100, query='not_term:not_term')[-1])
         self.assertEqual(1, Document.find(0, 100, query='not_term:=not_term')[-1])
+
+    def test_IndexedProperty_TermsUnique(self):
+
+        class Document(document.Document):
+
+            @document.active_property(prefix='P')
+            def prop_1(self, value):
+                return value
+
+            @document.active_property(prefix='P')
+            def prop_2(self, value):
+                return value
+
+        self.assertRaises(RuntimeError, Document, prop_1='1', prop_2='2')
 
     def test_IndexedProperty_Multiple(self):
 

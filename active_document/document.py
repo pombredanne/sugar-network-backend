@@ -349,13 +349,28 @@ class Document(object):
 
             cls._storage = Storage(cls.metadata)
 
+            slots = {}
+            prefixes = {}
             for attr in [getattr(cls, i) for i in dir(cls)]:
-                if hasattr(attr, '_is_active_property'):
-                    if attr.prop.writable:
-                        setattr(cls, attr.name, property(attr, attr.writer))
-                    else:
-                        setattr(cls, attr.name, property(attr))
-                    cls.metadata[attr.prop.name] = attr.prop
+                if not hasattr(attr, '_is_active_property'):
+                    continue
+                if hasattr(attr.prop, 'slot'):
+                    enforce(attr.prop.slot not in slots,
+                            _('Property "%s" has a slot already defined ' \
+                                    'for "%s"'),
+                            attr.prop.name, slots.get(attr.prop.slot))
+                    slots[attr.prop.slot] = attr.prop.name
+                if hasattr(attr.prop, 'prefix'):
+                    enforce(attr.prop.prefix not in prefixes,
+                            _('Property "%s" has a prefix already defined ' \
+                                    'for "%s"'),
+                            attr.prop.name, prefixes.get(attr.prop.prefix))
+                    prefixes[attr.prop.prefix] = attr.prop.name
+                if attr.prop.writable:
+                    setattr(cls, attr.name, property(attr, attr.writer))
+                else:
+                    setattr(cls, attr.name, property(attr))
+                cls.metadata[attr.prop.name] = attr.prop
 
             if env.index_pool.value > 0:
                 pool_size = env.index_pool.value or 1
