@@ -18,8 +18,6 @@ class DocumentTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.storage = Storage()
-        storage.get = lambda *args: self.storage
         self.mainloop = gobject.MainLoop()
 
     def tearDown(self):
@@ -447,10 +445,15 @@ class DocumentTest(tests.Test):
         Document._init()
         Document.connect(lambda *args: self.mainloop.quit())
 
-        self.storage.data['1'] = {'prop': 'prop-1'}
-        self.storage.aggregates[('1', 'vote')] = [-1]
-        self.storage.data['2'] = {'prop': 'prop-2'}
-        self.storage.aggregates[('2', 'vote')] = [-2, -3]
+        self.touch(
+                ('document/1/1/.document', ''),
+                ('document/1/1/prop', 'prop-1'),
+                ('document/1/1/vote/-1', ''),
+                ('document/2/2/.document', ''),
+                ('document/2/2/prop', 'prop-2'),
+                ('document/2/2/vote/-2', ''),
+                ('document/2/2/vote/-3', ''),
+                )
 
         doc = Document('1')
         self.mainloop.run()
@@ -464,66 +467,6 @@ class DocumentTest(tests.Test):
         self.assertEqual('0', doc['vote'])
         self.assertEqual('2', doc['counter'])
         self.assertEqual('prop-2', doc['prop'])
-
-
-class Storage(object):
-
-    def __init__(self):
-        self.data = {}
-        self.blobs = {}
-        self.aggregates = {}
-        storage.get = self.get
-        storage.put = self.put
-        storage.delete = self.delete
-        storage.walk = self.walk
-
-    def get(self, guid, props=None):
-        record = Record()
-        record.guid = guid
-        record.update(self.data.get(guid) or {})
-        record.update(props or {})
-        return record
-
-    def put(self, guid, props):
-        self.data[guid] = props.copy()
-
-    def delete(self, guid):
-        del self.data[guid]
-
-    def walk(self):
-        for guid, props in self.data.items():
-            yield guid, props
-
-    def receive(self, quid, name, stream):
-        self.blobs[name] = stream.read()
-
-    def send(self, guid, name, stream):
-        stream.write(self.blobs[name])
-
-    def is_aggregated(self, guid, name, value):
-        return (guid, name) in self.aggregates and \
-                value in self.aggregates[(guid, name)]
-
-    def aggregate(self, guid, name, value):
-        self.aggregates.setdefault((guid, name), [])
-        self.aggregates[(guid, name)].append(value)
-
-    def disaggregate(self, guid, name, value):
-        self.aggregates.setdefault((guid, name), [])
-        if value in self.aggregates[(guid, name)]:
-            self.aggregates[(guid, name)].remove(value)
-
-    def count_aggregated(self, guid, name):
-        if (guid, name) not in self.aggregates:
-            return 0
-        else:
-            return len(self.aggregates[(guid, name)])
-
-
-class Record(dict):
-
-    def set(self, name, value):
-        self[name] = value
 
 
 if __name__ == '__main__':

@@ -19,7 +19,8 @@ import threading
 from Queue import Queue
 from gettext import gettext as _
 
-from active_document import env, storage
+from active_document import env
+from active_document.storage import Storage
 from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, StoredProperty
 from active_document.metadata import GuidProperty, GroupedProperty
@@ -346,7 +347,7 @@ class Document(object):
             cls.metadata['guid'] = GuidProperty()
             cls.metadata['grouped'] = GroupedProperty()
 
-            cls._storage = storage.get(cls.metadata.name)
+            cls._storage = Storage(cls.metadata)
 
             for attr in [getattr(cls, i) for i in dir(cls)]:
                 if hasattr(attr, '_is_active_property'):

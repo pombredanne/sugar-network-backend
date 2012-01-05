@@ -130,3 +130,7 @@ def value(raw_value):
         return str(raw_value)
     else:
         return raw_value
+
+
+class NotFound(Exception):
+    pass
