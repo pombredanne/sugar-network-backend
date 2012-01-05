@@ -496,6 +496,75 @@ class DocumentTest(tests.Test):
         self.assertEqual('2', doc['counter'])
         self.assertEqual('prop-2', doc['prop'])
 
+    def test_on_create(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value
+
+            def on_create(self, properties):
+                properties['prop'] = 'foo'
+
+        doc = Document()
+        doc.post()
+        self.assertEqual(
+                ['foo'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        doc_2 = Document(doc.guid)
+        doc_2.prop = 'probe'
+        doc_2.post()
+        self.assertEqual(
+                ['probe'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        doc_3 = Document()
+        doc_3.prop = 'bar'
+        doc_3.post()
+        self.assertEqual(
+                ['probe', 'bar'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+    def test_on_modify(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value
+
+            def on_modify(self, properties):
+                properties['prop'] = 'foo'
+
+        doc = Document(prop='probe')
+        doc.post()
+        self.assertEqual(
+                ['probe'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        doc_2 = Document(doc.guid)
+        doc_2.post()
+        self.assertEqual(
+                ['probe'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        doc_3 = Document(doc.guid)
+        doc_3.prop = 'trigger'
+        doc_3.post()
+        self.assertEqual(
+                ['foo'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
 
 if __name__ == '__main__':
     tests.main()

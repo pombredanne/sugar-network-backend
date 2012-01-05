@@ -73,6 +73,7 @@ class Document(object):
             self._is_new = True
             self._guid = str(uuid.uuid1())
             kwargs['guid'] = self.guid
+            self.on_create(kwargs)
 
             for name, prop in self.metadata.items():
                 if isinstance(prop, StoredProperty):
@@ -167,6 +168,9 @@ class Document(object):
         if not changes:
             return
 
+        if not self._is_new:
+            self.on_modify(changes)
+
         index = self._pool.get(True)
         try:
             index.store(self.guid, changes, self._is_new,
@@ -209,7 +213,39 @@ class Document(object):
         self._storage.receive(self.guid, prop_name, stream)
 
     def authorize(self, prop_name):
+        """Does caller have permissions to write to the specified property.
+
+        Function needs to be re-implemented in child classes.
+
+        :param prop_name:
+            property name to check access
+        :returns:
+            `True` if caller can write to `prop_name`
+
+        """
         return True
+
+    def on_create(self, properties):
+        """Call back to call on document creation.
+
+        Function needs to be re-implemented in child classes.
+
+        :param properties:
+            dictionary with new document properties values
+
+        """
+        pass
+
+    def on_modify(self, properties):
+        """Call back to call on document modification.
+
+        Function needs to be re-implemented in child classes.
+
+        :param properties:
+            dictionary with document properties updates
+
+        """
+        pass
 
     @classmethod
     def create(cls, properties):
@@ -355,13 +391,15 @@ class Document(object):
                 if not hasattr(attr, '_is_active_property'):
                     continue
                 if hasattr(attr.prop, 'slot'):
-                    enforce(attr.prop.slot not in slots,
+                    enforce(attr.prop.slot is None or \
+                            attr.prop.slot not in slots,
                             _('Property "%s" has a slot already defined ' \
                                     'for "%s"'),
                             attr.prop.name, slots.get(attr.prop.slot))
                     slots[attr.prop.slot] = attr.prop.name
                 if hasattr(attr.prop, 'prefix'):
-                    enforce(attr.prop.prefix not in prefixes,
+                    enforce(not attr.prop.prefix or \
+                            attr.prop.prefix not in prefixes,
                             _('Property "%s" has a prefix already defined ' \
                                     'for "%s"'),
                             attr.prop.name, prefixes.get(attr.prop.prefix))
