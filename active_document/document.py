@@ -170,6 +170,7 @@ class Document(object):
 
         if not self._is_new:
             self.on_modify(changes)
+        self.on_post(changes)
 
         index = self._pool.get(True)
         try:
@@ -237,7 +238,18 @@ class Document(object):
         pass
 
     def on_modify(self, properties):
-        """Call back to call on document modification.
+        """Call back to call on existing document modification.
+
+        Function needs to be re-implemented in child classes.
+
+        :param properties:
+            dictionary with document properties updates
+
+        """
+        pass
+
+    def on_post(self, properties):
+        """Call back to call on exery `post()` call.
 
         Function needs to be re-implemented in child classes.
 

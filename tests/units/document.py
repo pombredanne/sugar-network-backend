@@ -565,6 +565,40 @@ class DocumentTest(tests.Test):
                 ['foo'],
                 [i.prop for i in Document.find(0, 1024)[0]])
 
+    def test_on_post(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value
+
+            def on_post(self, properties):
+                properties['prop'] += '!'
+
+        doc = Document(prop='probe')
+        doc.post()
+        self.assertEqual(
+                ['probe!'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        doc_2 = Document(doc.guid)
+        doc_2.post()
+        self.assertEqual(
+                ['probe!'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
+        doc_3 = Document(doc.guid)
+        doc_3.prop = 'trigger'
+        doc_3.post()
+        self.assertEqual(
+                ['trigger!'],
+                [i.prop for i in Document.find(0, 1024)[0]])
+
 
 if __name__ == '__main__':
     tests.main()
