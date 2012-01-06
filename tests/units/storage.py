@@ -78,18 +78,20 @@ class StorageTest(tests.Test):
         storage = self.storage([])
 
         stream = StringIO('foo')
-        storage.receive('guid', 'blob', stream)
+        storage.set_blob('guid', 'blob', stream)
 
         stream = StringIO()
-        storage.send('guid', 'blob', stream)
+        for i in storage.get_blob('guid', 'blob'):
+            stream.write(i)
         self.assertEqual('foo', stream.getvalue())
 
         data = '!' * _PAGE_SIZE * 2
         stream = StringIO(data)
-        storage.receive('guid', 'blob', stream)
+        storage.set_blob('guid', 'blob', stream)
 
         stream = StringIO()
-        storage.send('guid', 'blob', stream)
+        for i in storage.get_blob('guid', 'blob'):
+            stream.write(i)
         self.assertEqual(data, stream.getvalue())
 
     def test_Aggregates(self):

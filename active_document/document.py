@@ -205,23 +205,23 @@ class Document(object):
         finally:
             self._pool.put(index, True)
 
-    def send(self, prop_name, stream):
-        """Send BLOB property to a stream.
+    def get_blob(self, prop_name):
+        """Read BLOB property content.
 
         This function works in parallel to getting non-BLOB properties values.
 
         :param prop_name:
             property name
-        :param stream:
-            stream to send property value to
+        :returns:
+            generator that returns data by portions
 
         """
         enforce(isinstance(self.metadata[prop_name], BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
                 prop_name, self.metadata.name)
-        self._storage.send(self.guid, prop_name, stream)
+        return self._storage.get_blob(self.guid, prop_name)
 
-    def receive(self, prop_name, stream):
+    def set_blob(self, prop_name, stream):
         """Receive BLOB property from a stream.
 
         This function works in parallel to setting non-BLOB properties values
@@ -236,7 +236,7 @@ class Document(object):
         enforce(isinstance(self.metadata[prop_name], BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
                 prop_name, self.metadata.name)
-        self._storage.receive(self.guid, prop_name, stream)
+        self._storage.set_blob(self.guid, prop_name, stream)
 
     def authorize(self, prop_name):
         """Does caller have permissions to write to the specified property.

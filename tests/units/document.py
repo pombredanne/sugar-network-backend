@@ -250,9 +250,10 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, lambda: Document(doc.guid).blob)
         self.assertRaises(RuntimeError, lambda: Document(doc.guid).__setitem__('blob', 'foo'))
 
-        doc.receive('blob', StringIO('data'))
+        doc.set_blob('blob', StringIO('data'))
         stream = StringIO()
-        doc.send('blob', stream)
+        for i in doc.get_blob('blob'):
+            stream.write(i)
         self.assertEqual('data', stream.getvalue())
 
     def test_GroupedProperty(self):

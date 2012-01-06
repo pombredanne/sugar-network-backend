@@ -130,43 +130,41 @@ class Storage(object):
 
                 yield guid, properties
 
-    def send(self, guid, name, stream):
+    def get_blob(self, guid, name):
         """Read the content of document's BLOB property.
 
         :param guid:
             document GUID to send
         :param name:
             BLOB property name
-        :param stream:
-            stream to write BLOB property content
         :returns:
-            the length of read BLOB property
+            generator that returns data by portions
 
         """
         path = self._path(guid, name)
         enforce(exists(path), env.NotFound,
                 _('Cannot find "%s" property of "%s" document in %s'),
                 name, guid, self.metadata.name)
-        size = 0
         try:
             f = file(path)
             while True:
                 chunk = f.read(_PAGE_SIZE)
                 if len(chunk) == 0:
                     break
-                stream.write(chunk)
-                size += len(chunk)
+                try:
+                    yield chunk
+                except GeneratorExit:
+                    break
             f.close()
         except Exception, error:
             util.exception()
-            raise RuntimeError(_('Cannot send BLOB "%s" property ' \
+            raise RuntimeError(_('Cannot read BLOB "%s" property ' \
                     'of "%s" in %s: %s') % \
                     (name, guid, self.metadata.name, error))
         logging.debug('Sent "%s" BLOB property from "%s" document in %s',
                 name, guid, self.metadata.name)
-        return size
 
-    def receive(self, guid, name, stream):
+    def set_blob(self, guid, name, stream):
         """Write the content of document's BLOB property.
 
         :param guid:

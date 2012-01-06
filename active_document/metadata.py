@@ -239,8 +239,18 @@ class BlobProperty(Property):
 
     """
 
-    def __init__(self, name):
+    def __init__(self, name, mime_type='application/octet-stream'):
         Property.__init__(self, name, large=True)
+        self._mime_type = mime_type
+
+    @property
+    def mime_type(self):
+        """MIME type for BLOB content.
+
+        By default, MIME type is application/octet-stream.
+
+        """
+        return self._mime_type
 
 
 class GroupedProperty(Property):
