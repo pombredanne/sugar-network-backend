@@ -19,7 +19,7 @@ import threading
 from Queue import Queue
 from gettext import gettext as _
 
-from active_document import env
+from active_document import env, util
 from active_document.storage import Storage
 from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, StoredProperty
@@ -171,6 +171,31 @@ class Document(object):
         if not self._is_new:
             self.on_modify(changes)
         self.on_post(changes)
+
+        for prop_name, value in changes.items():
+            prop = self.metadata[prop_name]
+            if not isinstance(prop, IndexedProperty) or \
+                    prop.typecast is None:
+                continue
+            try:
+                value_parts = []
+                for part in prop.list_value(value):
+                    if prop.typecast is int:
+                        part = str(int(part))
+                    elif prop.typecast is bool:
+                        part = str(int(bool(int(part))))
+                    else:
+                        enforce(part in prop.typecast,
+                                _('Value "%s" is not from "%s" list'),
+                                part, ', '.join(prop.typecast))
+                    value_parts.append(part)
+                    print value_parts
+                changes[prop_name] = (prop.separator or ' ').join(value_parts)
+            except Exception:
+                error = _('Value for "%s" property for %s is invalid') % \
+                        (prop_name, self.metadata.name)
+                util.exception(error)
+                raise RuntimeError(error)
 
         index = self._pool.get(True)
         try:

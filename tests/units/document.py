@@ -599,6 +599,83 @@ class DocumentTest(tests.Test):
                 ['trigger!'],
                 [i.prop for i in Document.find(0, 1024)[0]])
 
+    def test_typecast_int(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1, typecast=int)
+            def prop(self, value):
+                return value
+
+        self.assertRaises(RuntimeError, lambda: Document(prop='foo').post())
+        self.assertRaises(RuntimeError, lambda: Document(prop='0.').post())
+
+        Document(prop='-1').post()
+        self.assertEqual(
+                ['-1'],
+                [i.prop for i in Document.find(0, 1)[0]])
+
+    def test_typecast_bool(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1, typecast=bool)
+            def prop(self, value):
+                return value
+
+        self.assertRaises(RuntimeError, lambda: Document(prop='foo').post())
+        self.assertRaises(RuntimeError, lambda: Document(prop='true').post())
+        self.assertRaises(RuntimeError, lambda: Document(prop='True').post())
+
+        Document(prop='0').post()
+        self.assertEqual(
+                sorted(['0']),
+                sorted([i.prop for i in Document.find(0, 10)[0]]))
+
+        Document(prop='1').post()
+        self.assertEqual(
+                sorted(['0', '1']),
+                sorted([i.prop for i in Document.find(0, 10)[0]]))
+
+        Document(prop='-100').post()
+        self.assertEqual(
+                sorted(['0', '1', '1']),
+                sorted([i.prop for i in Document.find(0, 10)[0]]))
+
+    def test_typecast_enum(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1, typecast=['foo', 'bar'], default='foo')
+            def prop(self, value):
+                return value
+
+            @document.active_property(slot=2, typecast=['foo', 'bar'], multiple=True, default='foo')
+            def multiple_prop(self, value):
+                return value
+
+        self.assertRaises(RuntimeError, lambda: Document(prop='1').post())
+        self.assertRaises(RuntimeError, lambda: Document(prop='true').post())
+
+        Document(prop='foo').post()
+        self.assertEqual(
+                sorted(['foo']),
+                sorted([i.prop for i in Document.find(0, 10)[0]]))
+
+        Document(prop='bar').post()
+        self.assertEqual(
+                sorted(['foo', 'bar']),
+                sorted([i.prop for i in Document.find(0, 10)[0]]))
+
+        self.assertRaises(RuntimeError, lambda: Document(multiple_prop='1').post())
+        self.assertRaises(RuntimeError, lambda: Document(multiple_prop='foo 2').post())
+        self.assertRaises(RuntimeError, lambda: Document(multiple_prop='3 bar').post())
+
+        Document(multiple_prop='bar      foo').post()
+        self.assertEqual(
+                sorted(['foo', 'foo', 'bar foo']),
+                sorted([i.multiple_prop for i in Document.find(0, 10)[0]]))
+
 
 if __name__ == '__main__':
     tests.main()

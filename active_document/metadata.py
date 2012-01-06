@@ -78,7 +78,7 @@ class IndexedProperty(Property):
     def __init__(self, name,
             slot=None, prefix=None, full_text=False,
             boolean=False, multiple=False, separator=None,
-            large=False, default=None):
+            large=False, default=None, typecast=None):
         enforce(name == 'guid' or slot != 0,
                 _('For %s property, ' \
                         'the slot "0" is reserved for internal needs'),
@@ -98,6 +98,7 @@ class IndexedProperty(Property):
         self._boolean = boolean
         self._multiple = multiple
         self._separator = separator
+        self._typecast = typecast
 
     @property
     def slot(self):
@@ -128,6 +129,20 @@ class IndexedProperty(Property):
     def separator(self):
         """Separator for multiplied properties, spaces by default."""
         return self._separator
+
+    @property
+    def typecast(self):
+        """Value type that property's string value should repesent.
+
+        Supported values are:
+        * `None`, string values
+        * `int`, interger values
+        * `bool`, boolean values repesented by symbols `0` and `1`
+        * sequence of strings, property value should confirm one of values
+          from the sequence
+
+        """
+        return self._typecast
 
     def list_value(self, value):
         """If property value contains several values, list them all."""
@@ -189,10 +204,10 @@ class ActiveProperty(IndexedProperty, StoredProperty):
             slot=None, prefix=None, full_text=False,
             boolean=False, multiple=False, separator=None,
             construct_only=False, write_access=None,
-            large=False, default=None):
+            large=False, default=None, typecast=None):
         IndexedProperty.__init__(self, name, slot=slot, prefix=prefix,
                 full_text=full_text, boolean=boolean, multiple=multiple,
-                separator=separator)
+                separator=separator, typecast=typecast)
         StoredProperty.__init__(self, name, construct_only=construct_only,
                 write_access=write_access, large=large, default=default)
 
