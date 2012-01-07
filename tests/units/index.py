@@ -25,7 +25,7 @@ class IndexTest(tests.Test):
         self.mainloop = gobject.MainLoop()
 
     def tearDown(self):
-        index.close_indexes()
+        index.shutdown()
         tests.Test.tearDown(self)
 
     def test_Term_AvoidCollisionsWithGuid(self):
@@ -439,20 +439,20 @@ class IndexTest(tests.Test):
         self.mainloop.run()
         assert exists('index/version')
         os.utime('index/index', (0, 0))
-        index.close_indexes()
+        index.shutdown()
 
         db = Index({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
         self.assertEqual(0, os.stat('index/index').st_mtime)
-        index.close_indexes()
+        index.shutdown()
 
         env.LAYOUT_VERSION += 1
         db = Index({})
         db.connect('openned', lambda *args: self.mainloop.quit())
         self.mainloop.run()
         self.assertNotEqual(0, os.stat('index/index').st_mtime)
-        index.close_indexes()
+        index.shutdown()
 
     def test_ReadFromWritingDB(self):
         env.index_flush_threshold.value = 10

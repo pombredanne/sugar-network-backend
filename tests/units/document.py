@@ -21,7 +21,7 @@ class DocumentTest(tests.Test):
         self.mainloop = gobject.MainLoop()
 
     def tearDown(self):
-        index.close_indexes()
+        index.shutdown()
         tests.Test.tearDown(self)
 
     def test_Property_Large(self):

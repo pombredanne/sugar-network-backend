@@ -295,7 +295,7 @@ class Document(object):
             created `Document` object
 
         """
-        doc = cls(**properties)
+        doc = cls(**(properties or {}))
         doc.post()
         return doc
 
@@ -309,7 +309,7 @@ class Document(object):
             properties to store, not necessary all document's properties
 
         """
-        doc = cls(guid, **properties)
+        doc = cls(guid, **(properties or {}))
         doc.post()
 
     @classmethod

@@ -22,3 +22,5 @@ from active_document.env import data_root, index_flush_timeout, \
 from active_document.metadata import Metadata, Property, IndexedProperty, \
         AggregatorProperty, StoredProperty, ActiveProperty, GuidProperty, \
         CounterProperty, BlobProperty, GroupedProperty
+
+from active_document.index import shutdown

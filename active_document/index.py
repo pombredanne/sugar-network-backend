@@ -73,7 +73,7 @@ def connect_to_index(metadata, cb, *args):
     _get_writer(metadata).connect('changed', cb, *args)
 
 
-def close_indexes():
+def shutdown():
     """Flush all write pending queues and close all closes."""
     while _writers:
         __, db = _writers.popitem()
