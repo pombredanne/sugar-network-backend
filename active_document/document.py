@@ -189,7 +189,6 @@ class Document(object):
                                 _('Value "%s" is not from "%s" list'),
                                 part, ', '.join(prop.typecast))
                     value_parts.append(part)
-                    print value_parts
                 changes[prop_name] = (prop.separator or ' ').join(value_parts)
             except Exception:
                 error = _('Value for "%s" property for %s is invalid') % \
@@ -491,7 +490,7 @@ class Document(object):
             if not isinstance(prop, AggregatorProperty):
                 continue
             orig = self._storage.is_aggregated(guid, prop_name, prop.value)
-            if new == orig:
+            if new == env.value(orig):
                 del changes[prop_name]
             elif prop.counter:
                 changes[prop.counter] = '1' if int(new) else '-1'

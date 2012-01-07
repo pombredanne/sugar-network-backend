@@ -346,6 +346,32 @@ class DocumentTest(tests.Test):
                 [('0', '0')],
                 [(i.vote, i.counter) for i in docs])
 
+    def test_AggregatorProperty_DoNotAggregateOnNoChanches(self):
+
+        class Vote(AggregatorProperty):
+
+            @property
+            def value(self):
+                return -1
+
+        class Document(document.Document):
+
+            @document.active_property(CounterProperty, slot=1)
+            def counter(self, value):
+                return value
+
+            @document.active_property(Vote, counter='counter')
+            def vote(self, value):
+                return value
+
+        doc = Document()
+        doc.post()
+        docs, total = Document.find(0, 100)
+        self.assertEqual(1, total)
+        self.assertEqual(
+                [('0', '0')],
+                [(i.vote, i.counter) for i in docs])
+
     def test_authorize_Disabled(self):
 
         class Document(document.Document):
