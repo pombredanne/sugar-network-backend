@@ -497,7 +497,7 @@ class DocumentTest(tests.Test):
             def vote(self, value):
                 return value
 
-        Document._init()
+        Document.init()
         Document.connect(lambda *args: self.mainloop.quit())
 
         self.touch(

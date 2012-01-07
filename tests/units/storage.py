@@ -94,6 +94,13 @@ class StorageTest(tests.Test):
             stream.write(i)
         self.assertEqual(data, stream.getvalue())
 
+        stream = StringIO('12345')
+        storage.set_blob('guid', 'blob', stream, 1)
+        self.assertEqual('1', file('test/gu/guid/blob').read())
+
+        storage.set_blob('guid', 'blob', stream, 2)
+        self.assertEqual('23', file('test/gu/guid/blob').read())
+
     def test_Aggregates(self):
         storage = self.storage([])
 

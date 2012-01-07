@@ -54,7 +54,7 @@ index_write_queue = util.Option(
 
 find_limit = util.Option(
         _('limit the resulting list for search requests'),
-        default=64, type_cast=int)
+        default=32, type_cast=int)
 
 
 def path(*args):

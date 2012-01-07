@@ -56,7 +56,7 @@ class Document(object):
             object creation
 
         """
-        self._init()
+        self.init()
         self._is_new = False
         self._cache = {}
         self._record = None
@@ -220,7 +220,7 @@ class Document(object):
                 prop_name, self.metadata.name)
         return self._storage.get_blob(self.guid, prop_name)
 
-    def set_blob(self, prop_name, stream):
+    def set_blob(self, prop_name, stream, size=None):
         """Receive BLOB property from a stream.
 
         This function works in parallel to setting non-BLOB properties values
@@ -230,12 +230,14 @@ class Document(object):
             property name
         :param stream:
             stream to receive property value from
+        :param size:
+            read only specified number of bytes; otherwise, read until the EOF
 
         """
         enforce(isinstance(self.metadata[prop_name], BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
                 prop_name, self.metadata.name)
-        self._storage.set_blob(self.guid, prop_name, stream)
+        self._storage.set_blob(self.guid, prop_name, stream, size)
 
     def authorize(self, prop_name):
         """Does caller have permissions to write to the specified property.
@@ -325,7 +327,7 @@ class Document(object):
             cls._pool.put(index, True)
 
     @classmethod
-    def find(cls, offset, limit, request=None, query='',
+    def find(cls, offset=None, limit=None, request=None, query='',
             reply=None, order_by=None, group_by=None):
         """Search documents.
 
@@ -360,7 +362,11 @@ class Document(object):
             i.e., not only documents that are included to the resulting list
 
         """
-        if limit > env.find_limit.value:
+        if offset is None:
+            offset = 0
+        if limit is None:
+            limit = env.find_limit.value
+        elif limit > env.find_limit.value:
             logging.warning(_('The find limit for %s is restricted to %s'),
                     cls.metadata.name, env.find_limit.value)
             limit = env.find_limit.value
@@ -371,10 +377,10 @@ class Document(object):
         if order_by is None and 'ctime' in cls.metadata:
             order_by = ['+ctime']
 
-        for prop in cls.metadata.values():
-            enforce(not prop.large,
+        for prop_name in reply:
+            enforce(not cls.metadata[prop_name].large,
                     _('Property "%s" in %s is not suitable for find requests'),
-                    prop.name, cls.metadata.name)
+                    prop_name, cls.metadata.name)
 
         index = cls._pool.get(True)
         try:
@@ -399,7 +405,7 @@ class Document(object):
         connect_to_index(cls.metadata, cb, *args)
 
     @classmethod
-    def _init(cls):
+    def init(cls):
         # This `if` should be atomic
         # http://effbot.org/zone/thread-synchronization.htm#atomic-operations
         if cls._initated:

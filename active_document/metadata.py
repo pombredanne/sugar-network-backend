@@ -71,6 +71,10 @@ class Property(object):
         """Default property value or None."""
         return self._default
 
+    @property
+    def is_trait(self):
+        return True
+
 
 class IndexedProperty(Property):
     """Property that need to be indexed."""
@@ -252,8 +256,16 @@ class BlobProperty(Property):
         """
         return self._mime_type
 
+    @property
+    def is_trait(self):
+        return False
+
 
 class GroupedProperty(Property):
 
     def __init__(self):
         Property.__init__(self, 'grouped')
+
+    @property
+    def is_trait(self):
+        return False

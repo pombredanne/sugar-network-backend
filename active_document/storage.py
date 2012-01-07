@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
 import shutil
 import logging
 from os.path import exists, join, isdir, dirname
@@ -164,7 +165,7 @@ class Storage(object):
         logging.debug('Sent "%s" BLOB property from "%s" document in %s',
                 name, guid, self.metadata.name)
 
-    def set_blob(self, guid, name, stream):
+    def set_blob(self, guid, name, stream, size=None):
         """Write the content of document's BLOB property.
 
         :param guid:
@@ -173,19 +174,24 @@ class Storage(object):
             BLOB property name
         :param stream:
             stream to read BLOB property content from
+        :param size:
+            read only specified number of bytes; otherwise, read until the EOF
         :returns:
             the length of write to BLOB property
 
         """
-        size = 0
+        if size is None:
+            size = sys.maxint
+        result = 0
         try:
             f = util.new_file(self._ensure_path(guid, name))
-            while True:
-                chunk = stream.read(_PAGE_SIZE)
+            while size > 0:
+                chunk = stream.read(min(size, _PAGE_SIZE))
                 if len(chunk) == 0:
                     break
                 f.write(chunk)
-                size += len(chunk)
+                result += len(chunk)
+                size -= len(chunk)
             f.close()
         except Exception, error:
             util.exception()
@@ -194,7 +200,7 @@ class Storage(object):
                     (name, guid, self.metadata.name, error))
         logging.debug('Received "%s" BLOB property from "%s" document in %s',
                 name, guid, self.metadata.name)
-        return size
+        return result
 
     def is_aggregated(self, guid, name, value):
         """Check if specified `value` is aggregated to the `name` property.
