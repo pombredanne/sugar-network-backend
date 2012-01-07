@@ -58,7 +58,7 @@ class StorageTest(tests.Test):
                     ('1', {'prop_1': 'value_1', 'prop_2': 'value_3'}),
                     ('2', {'prop_1': 'value_4'}),
                     ]),
-                sorted([(guid, props) for guid, props in storage.walk()]))
+                sorted([(guid, props) for guid, props in storage.walk(0)]))
 
         storage.delete('1')
 
@@ -66,13 +66,13 @@ class StorageTest(tests.Test):
                 sorted([
                     ('2', {'prop_1': 'value_4'}),
                     ]),
-                sorted([(guid, props) for guid, props in storage.walk()]))
+                sorted([(guid, props) for guid, props in storage.walk(0)]))
 
         storage.delete('2')
 
         self.assertEqual(
                 sorted([]),
-                sorted([(guid, props) for guid, props in storage.walk()]))
+                sorted([(guid, props) for guid, props in storage.walk(0)]))
 
     def test_BLOBs(self):
         storage = self.storage([])

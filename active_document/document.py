@@ -465,13 +465,13 @@ class Document(object):
             _initating_lock.release()
 
     @classmethod
-    def _crawler(cls):
+    def _crawler(cls, mtime):
         aggregated_props = []
         for prop in cls.metadata.values():
             if isinstance(prop, AggregatorProperty) and prop.counter:
                 aggregated_props.append(prop)
 
-        for guid, props in cls._storage.walk():
+        for guid, props in cls._storage.walk(mtime):
             for prop in aggregated_props:
                 props[prop.counter] = env.value(
                         cls._storage.count_aggregated(guid, prop.name))

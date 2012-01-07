@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import re
 import time
 import shutil
@@ -412,9 +413,11 @@ class _Writer(gobject.GObject, _Reader):
                 self._open(True)
                 return
 
+        stamp_mtime = self._stamp_mtime()
         if reset:
             self._save_layout()
-            gobject.idle_add(self._populate, self.metadata.crawler())
+            stamp_mtime = 0
+        gobject.idle_add(self._populate, self.metadata.crawler(stamp_mtime))
 
         # Emit from idle_add to send signal in the main loop thread
         gobject.idle_add(self.emit, 'openned')
@@ -445,6 +448,7 @@ class _Writer(gobject.GObject, _Reader):
                 self._db.commit()
             else:
                 self._db.flush()
+            self._touch_stamp()
             self._pending_writes = 0
 
             # Emit from idle_add to send signal in the main loop thread
@@ -467,6 +471,20 @@ class _Writer(gobject.GObject, _Reader):
         version = file(env.path(self.metadata.name, 'version'), 'w')
         version.write(str(env.LAYOUT_VERSION))
         version.close()
+
+    def _stamp_mtime(self):
+        path = env.path(self.metadata.name, 'stamp')
+        if exists(path):
+            return os.stat(path).st_mtime
+        else:
+            return 0
+
+    def _touch_stamp(self):
+        stamp = file(env.path(self.metadata.name, 'stamp'), 'w')
+        # Xapian's flush uses fsync
+        # so, it is a good idea to do the same for stamp file
+        os.fsync(stamp.fileno())
+        stamp.close()
 
 
 class _ThreadWriter(_Writer):

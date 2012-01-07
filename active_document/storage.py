@@ -15,6 +15,7 @@
 
 import os
 import sys
+import time
 import shutil
 import logging
 from os.path import exists, join, isdir, dirname
@@ -72,6 +73,12 @@ class Storage(object):
                 f = util.new_file(join(root, name))
                 f.write(value)
                 f.close()
+
+            # Touch directory to let it possible to crawl this directory
+            # on startup when index was not previously closed properly
+            ts = time.time()
+            os.utime(root, (ts, ts))
+
             logging.debug('Put %r to "%s" document in %s',
                     properties, guid, self.metadata.name)
         except Exception, error:
@@ -97,9 +104,11 @@ class Storage(object):
                     (guid, self.metadata.name, error))
         logging.debug('Delete "%s" document from %s', guid, self.metadata.name)
 
-    def walk(self):
+    def walk(self, mtime):
         """Generator function to enumerate all existing documents.
 
+        :param mtime:
+            return entities that were modified after `mtime`
         :returns:
             generator returns (guid, properties) typle for all found
             documents;
@@ -115,15 +124,16 @@ class Storage(object):
                 continue
 
             for guid in os.listdir(guids_dir):
-                if not exists(join(guids_dir, guid, _DOCUMENT_STAMP)):
+                guid_path = join(guids_dir, guid)
+                if not exists(join(guid_path, _DOCUMENT_STAMP)) or \
+                        mtime and os.stat(guid_path).st_mtime < mtime:
                     continue
-
                 properties = {}
                 for name, prop in self.metadata.items():
                     if not isinstance(prop, StoredProperty) or \
                             not isinstance(prop, IndexedProperty):
                         continue
-                    path = join(guids_dir, guid, name)
+                    path = join(guid_path, name)
                     if exists(path):
                         f = file(path)
                         properties[name] = f.read()

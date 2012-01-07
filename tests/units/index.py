@@ -544,7 +544,7 @@ class Index(index.Index):
         metadata.name = 'index'
         metadata['guid'] = GuidProperty()
 
-        def crawler():
+        def crawler(mtime):
             for i in Index.docs:
                 yield i['guid'], i
         metadata.crawler = crawler
