@@ -454,7 +454,7 @@ class Document(object):
 
             if env.index_pool.value > 0:
                 pool_size = env.index_pool.value or 1
-                cls._pool = Queue([], pool_size)
+                cls._pool = Queue(pool_size)
                 for i in range(pool_size):
                     cls._pool.put(get_index(cls.metadata))
             else:

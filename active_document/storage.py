@@ -322,7 +322,11 @@ class Record(object):
         path = join(self._root, name)
         enforce(exists(path), _('Cannot find "%s" property of "%s" in %s'),
                 name, self._guid, self.metadata.name)
-        return file(path).read()
+        value = file(path)
+        try:
+            return value.read()
+        finally:
+            value.close()
 
 
 def _touch(path, *args):

@@ -464,7 +464,9 @@ class _Writer(gobject.GObject, _Reader):
         path = env.path(self.metadata.name, 'version')
         if not exists(path):
             return True
-        version = file(path).read()
+        layout = file(path)
+        version = layout.read()
+        layout.close()
         return not version.isdigit() or int(version) != env.LAYOUT_VERSION
 
     def _save_layout(self):

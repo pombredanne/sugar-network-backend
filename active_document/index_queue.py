@@ -121,8 +121,8 @@ class IndexQueue(object):
         try:
             while not len(self._queue):
                 self._put_cond.wait()
-            self._got_tid, op, args = self._queue.popleft()
-            if self._got_tid is None:
+            got_tid, op, args = self._queue.popleft()
+            if got_tid is None:
                 self._pending_puts -= 1
             self._iteration_cond.notify()
         finally:
@@ -136,6 +136,7 @@ class IndexQueue(object):
 
         self._lock.acquire()
         try:
+            self._got_tid = got_tid
             self._got = got
             self._op_cond.notify_all()
         finally:
