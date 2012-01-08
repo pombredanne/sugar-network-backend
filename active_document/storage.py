@@ -40,7 +40,7 @@ class Storage(object):
 
         """
         self.metadata = metadata
-        self._root = env.path(metadata.name, '')
+        self._root = metadata.path('')
 
     def get(self, guid):
         """Get access to particular document's properties.

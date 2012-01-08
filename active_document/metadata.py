@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
+import os
+from os.path import join, exists, abspath, dirname
 from gettext import gettext as _
 
 from active_document import env
@@ -29,12 +30,44 @@ class Metadata(dict):
     #: Document type name
     name = None
 
-    #: Function that returns an interator that should return (guid, props)
-    #: for every existing document
-    crawler = None
-
     #: Function to convert a tuple of (guid, props) to document object
     to_document = None
+
+    def path(self, *args):
+        """Calculate a path from the root.
+
+        If resulting directory path doesn't exists, it will be created.
+
+        :param args:
+            path parts to add to the root path; if ends with empty string,
+            the resulting path will be treated as a path to a directory
+        :returns:
+            absolute path
+
+        """
+        enforce(env.data_root.value,
+                _('The active_document.data_root.value is not set'))
+        result = join(env.data_root.value, self.name, *args)
+        if result.endswith(os.sep):
+            result_dir = result = result.rstrip(os.sep)
+        else:
+            result_dir = dirname(result)
+        if not exists(result_dir):
+            os.makedirs(result_dir)
+        return abspath(result)
+
+    def index_path(self, *args):
+        """Path to a directory with Xapian index.
+
+        If resulting directory path doesn't exists, it will be created.
+
+        :param name:
+            Xapian database name
+        :returns:
+            absolute path
+
+        """
+        return self.path('index', *args)
 
     def __getitem__(self, prop_name):
         enforce(prop_name in self, _('There is no "%s" property in %s'),

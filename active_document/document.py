@@ -15,8 +15,6 @@
 
 import uuid
 import logging
-import threading
-from Queue import Queue
 from gettext import gettext as _
 
 from active_document import env, util
@@ -26,11 +24,9 @@ from active_document.metadata import ActiveProperty, StoredProperty
 from active_document.metadata import GuidProperty, GroupedProperty
 from active_document.metadata import AggregatorProperty, IndexedProperty
 from active_document.metadata import BlobProperty
-from active_document.index import get_index, connect_to_index
+from active_document.index import IndexWriter
+#from active_document.index_proxy import IndexProxy
 from active_document.util import enforce
-
-
-_initating_lock = threading.Lock()
 
 
 class Document(object):
@@ -40,7 +36,7 @@ class Document(object):
 
     _initated = False
     _storage = None
-    _pool = None
+    _index = None
 
     def __init__(self, guid=None, indexed_props=None, **kwargs):
         """
@@ -196,13 +192,9 @@ class Document(object):
                 util.exception(error)
                 raise RuntimeError(error)
 
-        index = self._pool.get(True)
-        try:
-            index.store(self.guid, changes, self._is_new,
-                    self._pre_store, self._post_store)
-            self._is_new = False
-        finally:
-            self._pool.put(index, True)
+        self._index.store(self.guid, changes, self._is_new,
+                self._pre_store, self._post_store)
+        self._is_new = False
 
     def get_blob(self, prop_name):
         """Read BLOB property content.
@@ -320,11 +312,7 @@ class Document(object):
             document GUID to delete
 
         """
-        index = cls._pool.get(True)
-        try:
-            index.delete(guid, lambda guid: cls._storage.delete(guid))
-        finally:
-            cls._pool.put(index, True)
+        cls._index.delete(guid, lambda guid: cls._storage.delete(guid))
 
     @classmethod
     def find(cls, offset=None, limit=None, request=None, query='',
@@ -382,100 +370,112 @@ class Document(object):
                     _('Property "%s" in %s is not suitable for find requests'),
                     prop_name, cls.metadata.name)
 
-        index = cls._pool.get(True)
-        try:
-            return index.find(offset, limit, request, query, reply,
-                    order_by, group_by)
-        finally:
-            cls._pool.put(index, True)
+        return cls._index.find(offset, limit, request, query, reply,
+                order_by, group_by)
 
     @classmethod
-    def connect(cls, cb, *args):
-        """Connect to changes in index.
+    def close(cls):
+        """Flush index write pending queue and close the index."""
+        cls._index.close()
 
-        Callback function will be triggered on GObject signals when something
-        was changed in the index and clients need to retry requests.
+    @classmethod
+    def populate(cls):
+        """Populate the index.
 
-        :param cb:
-            callback to call on index changes
-        :param args:
-            optional arguments to pass to `cb`
+        This function needs be called right after `init()` to pickup possible
+        pending changes made during the previous session when index was not
+        propertly closed.
+
+        :returns:
+            function is a generator that will be iterated after picking up
+            every object to let the caller execute urgent tasks
 
         """
-        connect_to_index(cls.metadata, cb, *args)
-
-    @classmethod
-    def init(cls):
-        # This `if` should be atomic
-        # http://effbot.org/zone/thread-synchronization.htm#atomic-operations
-        if cls._initated:
-            return
-
-        _initating_lock.acquire()
-        try:
-            # Since the first `if` is not synchronized
-            if cls._initated:
-                return
-
-            cls.metadata = Metadata()
-            cls.metadata.name = cls.__name__.lower()
-            cls.metadata.crawler = cls._crawler
-            cls.metadata.to_document = \
-                    lambda guid, props: cls(guid, indexed_props=props)
-            cls.metadata['guid'] = GuidProperty()
-            cls.metadata['grouped'] = GroupedProperty()
-
-            cls._storage = Storage(cls.metadata)
-
-            slots = {}
-            prefixes = {}
-            for attr in [getattr(cls, i) for i in dir(cls)]:
-                if not hasattr(attr, '_is_active_property'):
-                    continue
-                if hasattr(attr.prop, 'slot'):
-                    enforce(attr.prop.slot is None or \
-                            attr.prop.slot not in slots,
-                            _('Property "%s" has a slot already defined ' \
-                                    'for "%s"'),
-                            attr.prop.name, slots.get(attr.prop.slot))
-                    slots[attr.prop.slot] = attr.prop.name
-                if hasattr(attr.prop, 'prefix'):
-                    enforce(not attr.prop.prefix or \
-                            attr.prop.prefix not in prefixes,
-                            _('Property "%s" has a prefix already defined ' \
-                                    'for "%s"'),
-                            attr.prop.name, prefixes.get(attr.prop.prefix))
-                    prefixes[attr.prop.prefix] = attr.prop.name
-                if attr.prop.writable:
-                    setattr(cls, attr.name, property(attr, attr.writer))
-                else:
-                    setattr(cls, attr.name, property(attr))
-                cls.metadata[attr.prop.name] = attr.prop
-
-            if env.index_pool.value > 0:
-                pool_size = env.index_pool.value or 1
-                cls._pool = Queue(pool_size)
-                for i in range(pool_size):
-                    cls._pool.put(get_index(cls.metadata))
-            else:
-                cls._pool = _FakeQueue(get_index(cls.metadata))
-
-            cls._initated = True
-        finally:
-            _initating_lock.release()
-
-    @classmethod
-    def _crawler(cls, mtime):
         aggregated_props = []
         for prop in cls.metadata.values():
             if isinstance(prop, AggregatorProperty) and prop.counter:
                 aggregated_props.append(prop)
 
-        for guid, props in cls._storage.walk(mtime):
+        for guid, props in cls._storage.walk(cls._index.mtime):
             for prop in aggregated_props:
                 props[prop.counter] = env.value(
                         cls._storage.count_aggregated(guid, prop.name))
-            yield guid, props
+            cls._index.store(guid, props, True)
+            yield
+
+    @classmethod
+    def init(cls):
+        if cls._initated:
+            return
+
+        cls.metadata = Metadata()
+        cls.metadata.name = cls.__name__.lower()
+        cls.metadata.to_document = \
+                lambda guid, props: cls(guid, indexed_props=props)
+        cls.metadata['guid'] = GuidProperty()
+        cls.metadata['grouped'] = GroupedProperty()
+
+        cls._storage = Storage(cls.metadata)
+
+        slots = {}
+        prefixes = {}
+        for attr in [getattr(cls, i) for i in dir(cls)]:
+            if not hasattr(attr, '_is_active_property'):
+                continue
+            if hasattr(attr.prop, 'slot'):
+                enforce(attr.prop.slot is None or \
+                        attr.prop.slot not in slots,
+                        _('Property "%s" has a slot already defined ' \
+                                'for "%s"'),
+                        attr.prop.name, slots.get(attr.prop.slot))
+                slots[attr.prop.slot] = attr.prop.name
+            if hasattr(attr.prop, 'prefix'):
+                enforce(not attr.prop.prefix or \
+                        attr.prop.prefix not in prefixes,
+                        _('Property "%s" has a prefix already defined ' \
+                                'for "%s"'),
+                        attr.prop.name, prefixes.get(attr.prop.prefix))
+                prefixes[attr.prop.prefix] = attr.prop.name
+            if attr.prop.writable:
+                setattr(cls, attr.name, property(attr, attr.writer))
+            else:
+                setattr(cls, attr.name, property(attr))
+            cls.metadata[attr.prop.name] = attr.prop
+
+        if env.index_write_queue.value > 0:
+            cls._index = IndexProxy(cls.metadata)
+        else:
+            cls._index = IndexWriter(cls.metadata)
+
+        cls._initated = True
+
+    @classmethod
+    def _pre_store(cls, guid, changes):
+        for prop_name, new in changes.items():
+            prop = cls.metadata[prop_name]
+            if not isinstance(prop, AggregatorProperty):
+                continue
+            orig = cls._storage.is_aggregated(guid, prop_name, prop.value)
+            if new == env.value(orig):
+                del changes[prop_name]
+            elif prop.counter:
+                changes[prop.counter] = '1' if int(new) else '-1'
+
+    @classmethod
+    def _post_store(cls, guid, changes):
+        for prop_name, new in changes.items():
+            prop = cls.metadata[prop_name]
+            if not isinstance(prop, AggregatorProperty):
+                continue
+            if int(new):
+                cls._storage.aggregate(guid, prop_name, prop.value)
+            else:
+                cls._storage.disaggregate(guid, prop_name, prop.value)
+            if prop.counter:
+                del changes[prop.counter]
+            del changes[prop_name]
+
+        cls._storage.put(guid, changes)
 
     def _get_not_storable_but_indexd_props(self):
         prop_names = []
@@ -489,32 +489,6 @@ class Document(object):
             for name in prop_names:
                 __, new = self._cache.get(name, (None, None))
                 self._cache[name] = (docs[0][name], new)
-
-    def _pre_store(self, guid, changes):
-        for prop_name, new in changes.items():
-            prop = self.metadata[prop_name]
-            if not isinstance(prop, AggregatorProperty):
-                continue
-            orig = self._storage.is_aggregated(guid, prop_name, prop.value)
-            if new == env.value(orig):
-                del changes[prop_name]
-            elif prop.counter:
-                changes[prop.counter] = '1' if int(new) else '-1'
-
-    def _post_store(self, guid, changes):
-        for prop_name, new in changes.items():
-            prop = self.metadata[prop_name]
-            if not isinstance(prop, AggregatorProperty):
-                continue
-            if int(new):
-                self._storage.aggregate(guid, prop_name, prop.value)
-            else:
-                self._storage.disaggregate(guid, prop_name, prop.value)
-            if prop.counter:
-                del changes[prop.counter]
-            del changes[prop_name]
-
-        self._storage.put(guid, changes)
 
 
 def active_property(property_class=ActiveProperty, *args, **kwargs):
@@ -543,15 +517,3 @@ def active_property(property_class=ActiveProperty, *args, **kwargs):
         return attr
 
     return decorate_getter
-
-
-class _FakeQueue(object):
-
-    def __init__(self, index):
-        self._index = index
-
-    def get(self, *args):
-        return self._index
-
-    def put(self, index, *args):
-        pass

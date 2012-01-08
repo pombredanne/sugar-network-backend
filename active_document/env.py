@@ -13,12 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-from os.path import join, exists, dirname, abspath
 from gettext import gettext as _
 
 from active_document import util
-from active_document.util import enforce
 
 
 #: To invalidate existed Xapian db on stcuture changes in stored documents
@@ -42,60 +39,15 @@ index_flush_threshold = util.Option(
         _('flush index every specified changes'),
         default=32, type_cast=int)
 
-index_pool = util.Option(
-        _('use a pool of indexes, makes sense only with concurent access ' \
-                'from different threads; 0 means no threads support'), \
-        default=0, type_cast=int)
-
 index_write_queue = util.Option(
-        _('if index_pool is enabled, define the writer\'s queue size ' \
-                '(because writer should be singular); 0 is infinite size'),
-        default=256, type_cast=int)
+        _('for concurent access, run index writer in separate thread; ' \
+                'this option specifies the writer\'s queue size; ' \
+                '0 means not threading the writer'),
+        default=0, type_cast=int)
 
 find_limit = util.Option(
         _('limit the resulting list for search requests'),
         default=32, type_cast=int)
-
-
-def path(*args):
-    """Calculate a path from the root one.
-
-    If resulting directory path doesn't exists, it will be created.
-
-    :param args:
-        path parts to add to the root path; if ends with empty string,
-        the resulting path will be treated as a path to a directory
-    :returns:
-        absolute path
-
-    """
-    enforce(data_root.value,
-            _('The active_document.data_root.value is not set'))
-
-    result = join(data_root.value, *args)
-    if result.endswith(os.sep):
-        result_dir = result = result.rstrip(os.sep)
-    else:
-        result_dir = dirname(result)
-
-    if not exists(result_dir):
-        os.makedirs(result_dir)
-
-    return abspath(result)
-
-
-def index_path(name):
-    """Path to a directory with Xapian index.
-
-    If resulting directory path doesn't exists, it will be created.
-
-    :param name:
-        Xapian database name
-    :returns:
-        absolute path
-
-    """
-    return path(name, 'index', '')
 
 
 def term(prefix, term_value):

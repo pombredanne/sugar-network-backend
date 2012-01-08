@@ -16,14 +16,6 @@ from active_document.metadata import AggregatorProperty
 
 class DocumentTest(tests.Test):
 
-    def setUp(self):
-        tests.Test.setUp(self)
-        self.mainloop = gobject.MainLoop()
-
-    def tearDown(self):
-        index.shutdown()
-        tests.Test.tearDown(self)
-
     def test_Property_Large(self):
 
         class Document(document.Document):
@@ -497,9 +489,6 @@ class DocumentTest(tests.Test):
             def vote(self, value):
                 return value
 
-        Document.init()
-        Document.connect(lambda *args: self.mainloop.quit())
-
         self.touch(
                 ('document/1/1/.document', ''),
                 ('document/1/1/prop', 'prop-1'),
@@ -510,10 +499,11 @@ class DocumentTest(tests.Test):
                 ('document/2/2/vote/-3', ''),
                 )
 
-        doc = Document('1')
-        self.mainloop.run()
-        self.mainloop.run()
+        Document.init()
+        for i in Document.populate():
+            pass
 
+        doc = Document('1')
         self.assertEqual('1', doc['vote'])
         self.assertEqual('1', doc['counter'])
         self.assertEqual('prop-1', doc['prop'])

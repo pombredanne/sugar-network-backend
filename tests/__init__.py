@@ -7,7 +7,6 @@ import logging
 import unittest
 from os.path import dirname, join, exists, abspath
 
-import gobject
 import dbus.glib
 import dbus.mainloop.glib
 
@@ -18,7 +17,6 @@ root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
 tmpdir = None
 
-gobject.threads_init()
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
 
@@ -53,7 +51,6 @@ class Test(unittest.TestCase):
         _env.index_flush_timeout.value = 0
         _env.index_flush_threshold.value = 1
         _env.find_limit.value = 1024
-        _env.index_pool.value = 0
         _env.index_write_queue.value = 0
         _env.LAYOUT_VERSION = 1
 

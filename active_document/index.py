@@ -17,17 +17,13 @@ import os
 import re
 import time
 import shutil
-import thread
 import logging
-import threading
 from os.path import exists
 from gettext import gettext as _
 
 import xapian
-import gobject
 
 from active_document import util, env
-from active_document.index_queue import IndexQueue, NoPut
 from active_document.metadata import IndexedProperty, CounterProperty
 from active_document.util import enforce
 
@@ -38,51 +34,21 @@ _EXACT_QUERY_RE = re.compile('([a-zA-Z0-9_]+):=(")?((?(2)[^"]+|\S+))(?(2)")')
 # How many times to call Xapian database reopen() before fail
 _REOPEN_LIMIT = 10
 
-_writers = {}
+
+_logger = logging.getLogger('index')
 
 
-def get_index(metadata):
-    """Get access to an index.
+class IndexReader(object):
+    """Read-only access to an index."""
 
-    :param metadata:
-        `Metadata` object, that describes the document, to get index for
-    :returns:
-        `Index` object
+    def __init__(self, metadata):
+        self.metadata = metadata
+        self._db = None
+        self._props = {}
 
-    """
-    writer = _get_writer(metadata)
-    if isinstance(writer, _ThreadWriter):
-        return _ThreadReader(writer)
-    else:
-        return writer
-
-
-def connect_to_index(metadata, cb, *args):
-    """Connect to changes in the index.
-
-    Callback function will be triggered on GObject signals when something
-    was changed in the index and clients need to retry requests.
-
-    :param metadata:
-        `Metadata` object, that describes the document
-    :param cb:
-        callback to call on index changes
-    :param args:
-        optional arguments to pass to `cb`
-
-    """
-    _get_writer(metadata).connect('changed', cb, *args)
-
-
-def shutdown():
-    """Flush all write pending queues and close all closes."""
-    while _writers:
-        __, db = _writers.popitem()
-        db.close()
-
-
-class Index(object):
-    """Public interface for indexes."""
+        for name, prop in self.metadata.items():
+            if isinstance(prop, IndexedProperty):
+                self._props[name] = prop
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         """Store new document in the index.
@@ -123,29 +89,9 @@ class Index(object):
         Function interface is the same as for `active_document.Document.find`.
 
         """
-        raise NotImplementedError()
-
-
-class _Reader(Index):
-
-    def __init__(self, metadata):
-        self.metadata = metadata
-        self._db = None
-        self._props = {}
-
-        for name, prop in self.metadata.items():
-            if isinstance(prop, IndexedProperty):
-                self._props[name] = prop
-
-    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
-        raise NotImplementedError()
-
-    def delete(self, guid, post_cb=None):
-        raise NotImplementedError()
-
-    def find(self, offset, limit, request=None, query=None, reply=None,
-            order_by=None, group_by=None):
         if self._db is None:
+            _logger.warning(_('%s was called with not initialized db'),
+                    self.find)
             return [], 0
 
         start_timestamp = time.time()
@@ -165,7 +111,7 @@ class _Reader(Index):
             for name in reply or self._props.keys():
                 prop = self._props.get(name)
                 if prop is None:
-                    logging.warning(_('Unknown property name "%s" for %s ' \
+                    _logger.warning(_('Unknown property name "%s" for %s ' \
                             'to return from find'), name, self.metadata.name)
                     continue
                 if prop.slot is not None and prop.slot != 0:
@@ -175,7 +121,7 @@ class _Reader(Index):
             guid = hit.document.get_value(0)
             documents.append(self.metadata.to_document(guid, props))
 
-        logging.debug('Find in %s: offset=%s limit=%s request=%r query=%r ' \
+        _logger.debug('Find in %s: offset=%s limit=%s request=%r query=%r ' \
                 'order_by=%r group_by=%r time=%s documents=%s ' \
                 'total_count=%s parsed=%s',
                 self.metadata.name, offset, limit, request, query, order_by,
@@ -256,7 +202,7 @@ class _Reader(Index):
                 sorter.add_value(prop.slot, reverse)
             enquire.set_sort_by_key(sorter, reverse=False)
         else:
-            logging.warning(_('In order to support sorting, ' \
+            _logger.warning(_('In order to support sorting, ' \
                     'Xapian should be at least 1.2.0'))
 
         if group_by:
@@ -275,10 +221,10 @@ class _Reader(Index):
                 return op(*args)
             except xapian.DatabaseError, error:
                 if tries >= _REOPEN_LIMIT:
-                    logging.warning(_('Cannot open %s index'),
+                    _logger.warning(_('Cannot open %s index'),
                             self.metadata.name)
                     raise
-                logging.debug('Fail to %r %s index, will reopen it %sth ' \
+                _logger.debug('Fail to %r %s index, will reopen it %sth ' \
                         'time: %s', op, self.metadata.name, tries, error)
                 time.sleep(tries * .1)
                 self._db.reopen()
@@ -297,39 +243,35 @@ class _Reader(Index):
         return query
 
 
-class _Writer(gobject.GObject, _Reader):
+class IndexWriter(IndexReader):
     """Write access to Xapian databases."""
 
-    __gsignals__ = {
-            #: Content of the index was changed
-            'changed': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
-            #: Index operation failed
-            'failed': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, [object]),
-            #: Index was openned
-            'openned': (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, []),
-            }
-
     def __init__(self, metadata):
-        gobject.GObject.__init__(self)
-        _Reader.__init__(self, metadata)
-
-        self._flush_timeout_hid = None
+        IndexReader.__init__(self, metadata)
         self._pending_writes = 0
-
-    def open(self):
         self._open(False)
 
+    @property
+    def mtime(self):
+        """UNIX seconds of the last `commit()` call."""
+        path = self.metadata.path('stamp')
+        if exists(path):
+            return os.stat(path).st_mtime
+        else:
+            return 0
+
     def close(self):
+        """Flush index write pending queue and close the index."""
         if self._db is None:
             return
-        self._flush(True)
+        self.commit()
         self._db = None
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         if pre_cb is not None:
             pre_cb(guid, properties)
 
-        logging.debug('Store %s object: %r', self.metadata.name, properties)
+        _logger.debug('Store %s object: %r', self.metadata.name, properties)
 
         for name, value in properties.items():
             prop = self.metadata[name]
@@ -379,89 +321,63 @@ class _Writer(gobject.GObject, _Reader):
                     term_generator.increase_termpos()
 
         self._db.replace_document(env.term(env.GUID_PREFIX, guid), document)
-        self._commit(False)
+        self._commit()
 
         if post_cb is not None:
             post_cb(guid, properties)
 
     def delete(self, guid, post_cb=None):
-        logging.debug('Delete "%s" document from %s', guid, self.metadata.name)
+        _logger.debug('Delete "%s" document from %s', guid, self.metadata.name)
         self._db.delete_document(env.term(env.GUID_PREFIX, guid))
-        self._commit(False)
+        self._commit()
         if post_cb is not None:
             post_cb(guid)
 
-    def _open(self, reset):
-        index_path = env.index_path(self.metadata.name)
+    def commit(self):
+        """Flush index changes to the disk."""
+        ts = time.time()
+        _logger.debug('Commiting %s to the disk', self.metadata.name)
 
+        if hasattr(self._db, 'commit'):
+            self._db.commit()
+        else:
+            self._db.flush()
+        self._touch_stamp()
+
+        _logger.debug('Commit %s changes took %s seconds',
+                self.metadata.name, time.time() - ts)
+
+    def _open(self, reset):
         if not reset and self._is_layout_stale():
             reset = True
         if reset:
-            shutil.rmtree(index_path, ignore_errors=True)
+            self._wipe_out()
 
         try:
-            self._db = xapian.WritableDatabase(
-                    index_path, xapian.DB_CREATE_OR_OPEN)
+            self._db = xapian.WritableDatabase(self.metadata.index_path(),
+                    xapian.DB_CREATE_OR_OPEN)
         except xapian.DatabaseError:
             if reset:
                 util.exception(_('Unrecoverable error while opening %s ' \
-                        'Xapian index'), index_path)
+                        'Xapian index'), self.metadata.name)
                 raise
             else:
                 util.exception(_('Cannot open Xapian index in %s, ' \
-                        'will rebuild it'), index_path)
+                        'will rebuild it'), self.metadata.name)
                 self._open(True)
-                return
 
-        stamp_mtime = self._stamp_mtime()
         if reset:
             self._save_layout()
-            stamp_mtime = 0
-        gobject.idle_add(self._populate, self.metadata.crawler(stamp_mtime))
 
-        # Emit from idle_add to send signal in the main loop thread
-        gobject.idle_add(self.emit, 'openned')
-
-    def _populate(self, i):
-        try:
-            guid, props = i.next()
-            self.store(guid, props, True)
-        except StopIteration:
-            pass
-        else:
-            gobject.idle_add(self._populate, i)
-
-    def _commit(self, flush):
+    def _commit(self):
         self._pending_writes += 1
-        self._flush(flush)
-
-    def _flush(self, flush):
-        if self._flush_timeout_hid is not None:
-            gobject.source_remove(self._flush_timeout_hid)
-            self._flush_timeout_hid = None
-
-        if flush or env.index_flush_threshold.value and \
+        if env.index_flush_threshold.value and \
                 self._pending_writes >= env.index_flush_threshold.value:
-            logging.debug('Flush %s: flush=%r _pending_writes=%r',
-                    self.metadata.name, flush, self._pending_writes)
-            if hasattr(self._db, 'commit'):
-                self._db.commit()
-            else:
-                self._db.flush()
-            self._touch_stamp()
+            self.commit()
             self._pending_writes = 0
 
-            # Emit from idle_add to send signal in the main loop thread
-            gobject.idle_add(self.emit, 'changed')
-
-        elif env.index_flush_timeout.value:
-            self._flush_timeout_hid = gobject.timeout_add_seconds(
-                    env.index_flush_timeout.value, lambda: self._flush(True))
-
-        return False
-
     def _is_layout_stale(self):
-        path = env.path(self.metadata.name, 'version')
+        path = self.metadata.path('version')
         if not exists(path):
             return True
         layout = file(path)
@@ -470,115 +386,22 @@ class _Writer(gobject.GObject, _Reader):
         return not version.isdigit() or int(version) != env.LAYOUT_VERSION
 
     def _save_layout(self):
-        version = file(env.path(self.metadata.name, 'version'), 'w')
+        version = file(self.metadata.path('version'), 'w')
         version.write(str(env.LAYOUT_VERSION))
         version.close()
 
-    def _stamp_mtime(self):
-        path = env.path(self.metadata.name, 'stamp')
-        if exists(path):
-            return os.stat(path).st_mtime
-        else:
-            return 0
-
     def _touch_stamp(self):
-        stamp = file(env.path(self.metadata.name, 'stamp'), 'w')
+        stamp = file(self.metadata.path('stamp'), 'w')
         # Xapian's flush uses fsync
         # so, it is a good idea to do the same for stamp file
         os.fsync(stamp.fileno())
         stamp.close()
 
-
-class _ThreadWriter(_Writer):
-
-    def __init__(self, metadata):
-        _Writer.__init__(self, metadata)
-        self.queue = IndexQueue()
-
-    def serve_forever(self):
-        try:
-            self.open()
-            logging.debug('Start serving writes to %s', self.metadata.name)
-            while True:
-                result = self.queue.iteration(self)
-                if isinstance(result, Exception):
-                    # Emit from idle_add to send signal in the main loop thread
-                    gobject.idle_add(self.emit, 'failed', result)
-        except Exception:
-            util.exception(_('Index %s write thread died, ' \
-                    'will abort the whole application'), self.metadata.name)
-            thread.interrupt_main()
-
-    def close(self):
-        self.queue.close()
-        _Writer.close(self)
-
-    def _flush(self, flush):
-        _Writer._flush(self, flush)
-        if self._pending_writes == 0:
-            self.queue.flush()
-        return False
-
-
-class _ThreadReader(_Reader):
-
-    def __init__(self, writer):
-        _Reader.__init__(self, writer.metadata)
-        self._writer = writer
-        self._queue = writer.queue
-        self._last_flush = 0
-
-    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
-        logging.debug('Push store request to %s\'s queue for %s',
-                self.metadata.name, guid)
-        self._queue.put(_Writer.store, guid, properties, new, pre_cb, post_cb)
-
-    def delete(self, guid, post_cb=None):
-        logging.debug('Push delete request to %s\'s queue for %s',
-                self.metadata.name, guid)
-        self._queue.put(_Writer.delete, guid, post_cb)
-
-    def find(self, offset, limit, request=None, query=None, reply=None,
-            order_by=None, group_by=None):
-        if self._db is None:
-            try:
-                self._db = xapian.Database(env.index_path(self.metadata.name))
-                self._last_flush = time.time()
-            except xapian.DatabaseOpeningError:
-                logging.debug('Cannot open RO index for %s',
-                        self.metadata.name)
-                return [], 0
-            else:
-                logging.debug('Open read-only index for %s',
-                        self.metadata.name)
-
-        try:
-            return self._queue.put_wait(_Reader.find,
-                    offset, limit, request, query, reply, order_by, group_by)
-        except NoPut, error:
-            if error.last_flush > self._last_flush:
-                self._last_flush = error.last_flush
-                self._db.reopen()
-            return _Reader.find(self,
-                    offset, limit, request, query, reply, order_by, group_by)
-
-    def connect(self, *args, **kwargs):
-        self._writer.connect(*args, **kwargs)
-
-
-def _get_writer(metadata):
-    writer = _writers.get(metadata.name)
-
-    if writer is None:
-        if env.index_pool.value > 0:
-            logging.debug('Create index writer for %s', metadata.name)
-            writer = _writers[metadata.name] = _ThreadWriter(metadata)
-            write_thread = threading.Thread(target=writer.serve_forever)
-            write_thread.daemon = True
-            write_thread.start()
-        else:
-            writer = _Writer(metadata)
-            writer.open()
-        _writers[metadata.name] = writer
-
-    return writer
+    def _wipe_out(self):
+        shutil.rmtree(self.metadata.index_path(), ignore_errors=True)
+        path = self.metadata.path('version')
+        if exists(path):
+            os.unlink(path)
+        path = self.metadata.path('stamp')
+        if exists(path):
+            os.unlink(path)
