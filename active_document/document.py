@@ -25,8 +25,11 @@ from active_document.metadata import GuidProperty, GroupedProperty
 from active_document.metadata import AggregatorProperty, IndexedProperty
 from active_document.metadata import BlobProperty
 from active_document.index import IndexWriter
-#from active_document.index_proxy import IndexProxy
+from active_document.index_proxy import IndexProxy
 from active_document.util import enforce
+
+
+_logger = logging.getLogger('ad.document')
 
 
 class Document(object):
@@ -355,7 +358,7 @@ class Document(object):
         if limit is None:
             limit = env.find_limit.value
         elif limit > env.find_limit.value:
-            logging.warning(_('The find limit for %s is restricted to %s'),
+            _logger.warning(_('The find limit for %s is restricted to %s'),
                     cls.metadata.name, env.find_limit.value)
             limit = env.find_limit.value
         if request is None:

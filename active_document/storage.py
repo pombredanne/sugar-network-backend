@@ -29,6 +29,8 @@ from active_document.util import enforce
 _PAGE_SIZE = 4096
 _DOCUMENT_STAMP = '.document'
 
+_logger = logging.getLogger('ad.storage')
+
 
 class Storage(object):
     """Get access to documents' data storage."""
@@ -79,7 +81,7 @@ class Storage(object):
             ts = time.time()
             os.utime(root, (ts, ts))
 
-            logging.debug('Put %r to "%s" document in %s',
+            _logger.debug('Put %r to "%s" document in %s',
                     properties, guid, self.metadata.name)
         except Exception, error:
             util.exception()
@@ -102,7 +104,7 @@ class Storage(object):
             util.exception()
             raise RuntimeError(_('Cannot delete "%s" document from %s: %s') % \
                     (guid, self.metadata.name, error))
-        logging.debug('Delete "%s" document from %s', guid, self.metadata.name)
+        _logger.debug('Delete "%s" document from %s', guid, self.metadata.name)
 
     def walk(self, mtime):
         """Generator function to enumerate all existing documents.
@@ -116,7 +118,7 @@ class Storage(object):
             or `StoredProperty` and `IndexedProperty` clasess
 
         """
-        logging.debug('Start walking %s', self.metadata.name)
+        _logger.debug('Start walking %s', self.metadata.name)
 
         for guids_dirname in os.listdir(self._root):
             guids_dir = join(self._root, guids_dirname)
@@ -172,7 +174,7 @@ class Storage(object):
             raise RuntimeError(_('Cannot read BLOB "%s" property ' \
                     'of "%s" in %s: %s') % \
                     (name, guid, self.metadata.name, error))
-        logging.debug('Sent "%s" BLOB property from "%s" document in %s',
+        _logger.debug('Sent "%s" BLOB property from "%s" document in %s',
                 name, guid, self.metadata.name)
 
     def set_blob(self, guid, name, stream, size=None):
@@ -208,7 +210,7 @@ class Storage(object):
             raise RuntimeError(_('Cannot receive BLOB "%s" property ' \
                     'of "%s" in %s: %s') % \
                     (name, guid, self.metadata.name, error))
-        logging.debug('Received "%s" BLOB property from "%s" document in %s',
+        _logger.debug('Received "%s" BLOB property from "%s" document in %s',
                 name, guid, self.metadata.name)
         return result
 
@@ -245,7 +247,7 @@ class Storage(object):
             raise RuntimeError(_('Cannot aggregate "%s" for "%s" ' \
                     'property of "%s" in %s: %s') % \
                     (value, name, guid, self.metadata.name, error))
-        logging.debug('Aggregated %r to "%s" of "%s" document in %s',
+        _logger.debug('Aggregated %r to "%s" of "%s" document in %s',
                 value, name, guid, self.metadata.name)
 
     def disaggregate(self, guid, name, value):
@@ -268,7 +270,7 @@ class Storage(object):
             raise RuntimeError(_('Cannot disaggregate absent "%s" for "%s" ' \
                     'property of "%s" in %s: %s') % \
                     (value, name, guid, self.metadata.name, error))
-        logging.debug('Disagregated %r from "%s" of "%s" document in %s',
+        _logger.debug('Disagregated %r from "%s" of "%s" document in %s',
                 value, name, guid, self.metadata.name)
 
     def count_aggregated(self, guid, name):
@@ -287,7 +289,7 @@ class Storage(object):
             result = len(os.listdir(self._path(guid, name)))
         except Exception:
             pass
-        logging.debug('There are %s entities in "%s" aggregated property ' \
+        _logger.debug('There are %s entities in "%s" aggregated property ' \
                 'of "%s" document in %s',
                 result, name, guid, self.metadata.name)
         return result
