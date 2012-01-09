@@ -50,6 +50,15 @@ class IndexReader(object):
             if isinstance(prop, IndexedProperty):
                 self._props[name] = prop
 
+    @property
+    def mtime(self):
+        """UNIX seconds of the last `commit()` call."""
+        path = self.metadata.path('stamp')
+        if exists(path):
+            return os.stat(path).st_mtime
+        else:
+            return 0
+
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         """Store new document in the index.
 
@@ -250,15 +259,6 @@ class IndexWriter(IndexReader):
         IndexReader.__init__(self, metadata)
         self._pending_writes = 0
         self._open(False)
-
-    @property
-    def mtime(self):
-        """UNIX seconds of the last `commit()` call."""
-        path = self.metadata.path('stamp')
-        if exists(path):
-            return os.stat(path).st_mtime
-        else:
-            return 0
 
     def close(self):
         """Flush index write pending queue and close the index."""

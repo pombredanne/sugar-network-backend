@@ -2,148 +2,111 @@
 # sugar-lint: disable
 
 import time
+import logging
 import threading
+
+import gevent
+from gevent.event import Event
 
 from __init__ import tests
 
 from active_document import env
-from active_document.index_queue import IndexQueue, NoPut
+from active_document import index_queue, document
+from active_document.index import IndexWriter
 
 
 class IndexQueueTest(tests.Test):
 
-    def test_put(self):
-        queue = IndexQueue()
+    def setUp(self):
+        tests.Test.setUp(self)
 
-        queue.put(1, '1')
-        self.assertEqual(
-                [(None, 1, ('1',))],
-                [i for i in queue._queue])
+        class Document(document.Document):
 
-        queue.put(2, '2')
-        self.assertEqual(
-                [(None, 1, ('1',)), (None, 2, ('2',))],
-                [i for i in queue._queue])
+            populate_timeout = 0
 
-        queue.put(3, '3')
-        self.assertEqual(
-                [(None, 1, ('1',)), (None, 2, ('2',)), (None, 3, ('3',))],
-                [i for i in queue._queue])
+            @document.active_property(slot=1, prefix='P', full_text=True)
+            def prop(self, value):
+                return value
 
-    def test_iteration(self):
-        queue = IndexQueue()
+            @classmethod
+            def populate(cls):
+                time.sleep(cls.populate_timeout)
+                return []
 
-        queue.put(lambda x: x)
-        queue.put(lambda x: x - 1)
-        queue.put(lambda x: x - 2)
-
-        queue.iteration(-1)
-        self.assertEqual(-1, queue._got)
-
-        queue.iteration(-2)
-        self.assertEqual(-3, queue._got)
-
-        queue.iteration(-3)
-        self.assertEqual(-5, queue._got)
-
-    def test_put_MaxLen(self):
         env.index_write_queue.value = 1
-        queue = IndexQueue()
+        Document.init()
+        self.Document = Document
 
-        queue.put(lambda x: x)
+    def test_put(self):
+        index_queue.init([self.Document])
 
-        def iteration():
-            time.sleep(1.5)
-            queue.iteration(0)
-        threading.Thread(target=iteration).start()
+        doc_1 = self.Document(prop='value_1')
+        doc_1.post()
 
-        ts = time.time()
-        queue.put(lambda x: x)
-        assert time.time() - ts > 1
-        self.assertEqual(1, len(queue._queue))
+        doc_2 = self.Document(prop='value_2')
+        doc_2.post()
 
-    def test_put_wait(self):
-        queue = IndexQueue()
+        index_queue.close()
 
-        # No pending flush, return w/o putting
-        try:
-            [i for i in queue.put_wait(lambda x: [x])]
-            assert False
-        except NoPut, error:
-            self.assertEqual(0, error.last_flush)
-
-        queue.put(lambda x: x)
-        queue.iteration(-1)
-
-        def iteration():
-            queue.iteration(-2)
-        threading.Thread(target=iteration).start()
-
-        # There is pending flush, process put and wait for result
+        db = IndexWriter(self.Document.metadata)
+        documents, total = db.find(0, 10)
+        self.assertEqual(2, total)
         self.assertEqual(
-                [-2],
-                [i for i in queue.put_wait(lambda x: [x])])
+                sorted([(doc_1.guid, 'value_1'), (doc_2.guid, 'value_2')]),
+                sorted([(i.guid, i.prop) for i in documents]))
 
-        def iteration():
-            queue.iteration(-3)
-        threading.Thread(target=iteration).start()
+    def test_wait(self):
+        event = Event()
 
-        # There is pending flush, process put and wait for result
-        self.assertEqual(
-                [-3],
-                [i for i in queue.put_wait(lambda x: [x])])
+        def waiter():
+            index_queue.wait('document')
+            event.set()
 
-        queue.flush()
+        def put():
+            self.Document(prop='value').post()
+            event.wait()
 
-        # Flush happened, return w/o putting but w/ reopen
-        try:
-            [i for i in queue.put_wait(lambda x: [x])]
-            assert False
-        except NoPut, error:
-            self.assertNotEqual(0, error.last_flush)
-            last_flush = error.last_flush
+        index_queue.init([self.Document])
+        gevent.joinall([gevent.spawn(waiter), gevent.spawn(put)])
+        index_queue.close()
 
-        # Flush happened, return w/o putting but w/o reopen
-        # since passed last_flush is the same as in queue
-        try:
-            [i for i in queue.put_wait(lambda x: [x])]
-            assert False
-        except NoPut, error:
-            self.assertEqual(last_flush, error.last_flush)
+    def test_PutWait(self):
+        self.Document.populate_timeout = 1
 
-    def test_put_wait_Exception(self):
-        queue = IndexQueue()
+        def put(value):
+            self.Document(prop=value).post()
 
-        # Create pending flush
-        queue.put(lambda x: x)
-        queue.iteration(None)
+        index_queue.init([self.Document])
 
-        def iteration():
-            queue.iteration(None)
-        threading.Thread(target=iteration).start()
+        jobs = []
+        for i in range(3):
+            jobs.append(gevent.spawn(put, str(i)))
 
-        def cb(*args):
-            raise NotImplementedError()
-        def put_wait():
-            [i for i in queue.put_wait(cb)]
-        self.assertRaises(NotImplementedError, put_wait)
+        gevent.joinall(jobs)
+        index_queue.close()
 
-    def test_close(self):
-        queue = IndexQueue()
+    def test_FlushTimeout(self):
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 2
 
-        def iteration():
-            queue.iteration(0)
-            time.sleep(1)
-        thread = threading.Thread(target=iteration)
+        index_queue.init([self.Document])
 
-        queue.put(lambda x: x)
-        self.assertEqual(1, len(queue._queue))
-        thread.start()
-        queue.close()
-        self.assertEqual(0, len(queue._queue))
-        thread.join()
+        committed = []
 
-        self.assertRaises(RuntimeError, queue.put, lambda x: x)
+        def waiter():
+            index_queue.wait('document')
+            committed.append(True)
+
+        gevent.spawn(waiter)
+        self.Document(prop='value').post()
+
+        gevent.sleep(1)
+        self.assertEqual(0, len(committed))
+
+        gevent.sleep(2)
+        self.assertEqual(1, len(committed))
+
+        index_queue.close()
 
 
 if __name__ == '__main__':

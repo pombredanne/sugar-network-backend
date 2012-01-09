@@ -1,1 +1,2 @@
 - IndexQueue should be smarter to avoid using writing db for all reads
+- remove large props

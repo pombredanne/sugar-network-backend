@@ -1,4 +1,4 @@
-# Copyright (C) 2011, Aleksey Lim
+# Copyright (C) 2012, Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,170 +14,190 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
+import thread
 import logging
 import threading
-import collections
+import Queue as queue
 from gettext import gettext as _
 
+import gevent
+from gevent.event import Event
+
 from active_document import env, util
+from active_document.index import IndexWriter
 from active_document.util import enforce
 
 
-class NoPut(Exception):
-    """If `IndexQueue.put_wait` didn't put an operation."""
+_queue = None
+_queue_async = None
+_queue_event = None
+_write_thread = None
+_flush_async = {}
 
-    #: A seqno of the last `IndexQueue.flush` call
-    last_flush = 0
-
-    def __init__(self, last_flush):
-        Exception.__init__(self)
-        self.last_flush = last_flush
+_logger = logging.getLogger('ad.index_queue')
 
 
-class IndexQueue(object):
-    """Index requests queue to keep writer only in one thread."""
+def init(document_classes):
+    """Initialize the queue.
 
-    def __init__(self):
-        self._maxlen = env.index_write_queue.value
-        self._queue = collections.deque([], self._maxlen or None)
+    Function will start index writing thread.
 
-        self._lock = threading.Lock()
-        self._iteration_cond = threading.Condition(self._lock)
-        self._put_cond = threading.Condition(self._lock)
-        self._op_cond = threading.Condition(self._lock)
+    :param document_classes:
+        `active_document.Document` classes that queue should serve
+        index writes for
 
-        self._last_flush = 0
-        self._pending_puts = 0
-        self._pending_flush = False
-        self._shutting_down = False
-        self._got_tid = None
-        self._got = None
+    """
+    global _queue, _queue_async, _queue_event, _write_thread
 
-    def put(self, op, *args):
-        """Put new operation to the queue.
+    _queue = queue.Queue(env.index_write_queue.value)
+    _queue_async = gevent.get_hub().loop.async()
+    _queue_event = Event()
+    gevent.spawn(_wakeup_put)
 
-        :param op:
-            arbitrary function
-        :param args:
-            optional arguments to pass to `op`
+    for cls in document_classes:
+        _flush_async[cls.metadata.name] = gevent.get_hub().loop.async()
 
-        """
-        self._lock.acquire()
+    _write_thread = _WriteThread(document_classes)
+    _write_thread.start()
+
+
+def put(document_name, op, *args):
+    """Put new index change operation to the queue.
+
+    Function migh be stuck in green wait if queue is full.
+
+    :param document_name:
+        document index name
+    :param op:
+        arbitrary function
+    :param args:
+        optional arguments to pass to `op`
+
+    """
+    while True:
         try:
-            self._pending_puts += 1
-            self._pending_flush = True
-            self._put(None, op, *args)
-        finally:
-            self._lock.release()
+            _queue.put((document_name, op, args), False)
+        except queue.Full:
+            _logger.debug('Postpone %r operation for %s index',
+                    op, document_name)
+            # This is potential race (we released `_queue`'s mitex),
+            # but we need to avoid locking greenlets in `_queue`'s mutex.
+            # The race might be avoided by using big enough `_queue`'s size
+            _queue_event.wait()
+        else:
+            break
 
-    def put_wait(self, op, *args):
-        """Try to put new operation to the queue with waiting for result.
 
-        Put operation to the queue only if there were succesful `iteration`
-        calls without `flush`. If operation was placed to the queue,
-        the function will wait until `iteration` will proces it and return
-        the result.
+def wait(document_name):
+    """Wait for changes in the specified document index.
 
-        :param op:
-            arbitrary function
-        :param args:
-            optional arguments to pass to `op`
-        :returns:
-            the result of `op` if put happened;
-            otherwise raise an `NoPut`
+    Function will be stuck in green wait until specified document index
+    won't be flushed to the disk.
 
-        """
-        self._lock.acquire()
+    :param document_name:
+        document index name
+
+    """
+    enforce(document_name in _flush_async,
+            _('Document %s is not registered in `init()` call'),
+            document_name)
+    gevent.get_hub().wait(_flush_async[document_name])
+
+
+def close():
+    """Flush all pending changes."""
+    put(None, None)
+    _write_thread.join()
+
+
+def _wakeup_put():
+    while True:
+        gevent.get_hub().wait(_queue_async)
+        _queue_event.set()
+        _queue_event.clear()
+
+
+class _IndexWriter(IndexWriter):
+
+    def commit(self):
+        IndexWriter.commit(self)
+        _flush_async[self.metadata.name].send()
+
+
+class _WriteThread(threading.Thread):
+
+    class _Closing(Exception):
+        pass
+
+    def __init__(self, document_classes):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self._document_classes = document_classes
+        self._writers = {}
+
+    def run(self):
         try:
-            if self._pending_flush:
-                logging.debug('Wait for %r from queue', op)
-                tid = threading.current_thread().ident
-                self._put(tid, op, *args)
-                while self._got_tid != tid:
-                    self._op_cond.wait()
-                self._got_tid = None
-                if isinstance(self._got, Exception):
-                    # pylint: disable-msg=E0702
-                    raise self._got
-                else:
-                    return self._got
-            else:
-                raise NoPut(self._last_flush)
-        finally:
-            self._lock.release()
+            self._run()
+        except _WriteThread._Closing:
+            self._close()
+        except Exception:
+            util.exception(
+                    _('Write queue died, will abort the whole application'))
+            thread.interrupt_main()
 
-    def iteration(self, obj):
-        """Process the queue.
+    def _run(self):
+        for cls in self._document_classes:
+            _logger.info(_('Open %s index'), cls.metadata.name)
+            self._writers[cls.metadata.name] = _IndexWriter(cls.metadata)
 
-        If queue is empty, the function will wait for new `put` calls.
+        for cls in self._document_classes:
+            populating = False
+            for __ in cls.populate():
+                if not populating:
+                    _logger.info(_('Start populating %s index'),
+                            cls.metadata.name)
+                    populating = True
+                try:
+                    # Try to server requests in parallel with populating
+                    self._serve_put(*_queue.get(False))
+                except queue.Empty:
+                    pass
 
-        :param obj:
-            an object that will be used to call put operations
-        :returns:
-            the result of processed operation
+        next_commit = 0
+        if env.index_flush_timeout.value:
+            next_commit = time.time() + env.index_flush_timeout.value
 
-        """
-        self._lock.acquire()
+        while True:
+            try:
+                timeout = None
+                if next_commit:
+                    timeout = max(1, next_commit - time.time())
+                request = _queue.get(timeout=timeout)
+                self._serve_put(*request)
+            except queue.Empty:
+                for writer in self._writers.values():
+                    writer.commit()
+                next_commit = time.time() + env.index_flush_timeout.value
+
+    def _serve_put(self, document_name, op, args):
+        if document_name is None:
+            raise _WriteThread._Closing
+
+        # Wakeup greenlets stuck in `put()`
+        _queue_async.send()
+
         try:
-            while not len(self._queue):
-                self._put_cond.wait()
-            got_tid, op, args = self._queue.popleft()
-            if got_tid is None:
-                self._pending_puts -= 1
-            self._iteration_cond.notify()
-        finally:
-            self._lock.release()
+            op(self._writers[document_name], *args)
+        except Exception:
+            util.exception(_logger,
+                    _('Cannot process %r operation for %s index'),
+                    op, document_name)
 
-        try:
-            got = op(obj, *args)
-        except Exception, error:
-            util.exception(_('Cannot process %r operation for %r'), op, obj)
-            got = error
-
-        self._lock.acquire()
-        try:
-            self._got_tid = got_tid
-            self._got = got
-            self._op_cond.notify_all()
-        finally:
-            self._lock.release()
-
-        return got
-
-    def flush(self):
-        """Flush the processed queue items.
-
-        If there were succesful `iteration` calls, this function will
-        "flush" them. This function makes sense only for `put_wait` calls.
-
-        """
-        last_flush = time.time()
-        self._lock.acquire()
-        try:
-            if self._pending_puts == 0:
-                self._pending_flush = False
-            self._last_flush = last_flush
-        finally:
-            self._lock.release()
-
-    def close(self):
-        """Close the queue.
-
-        The function will stop accepting new `put` calls and will wait until
-        current queue will be processed.
-
-        """
-        self._lock.acquire()
-        try:
-            self._shutting_down = True
-            while len(self._queue):
-                self._iteration_cond.wait()
-        finally:
-            self._lock.release()
-
-    def _put(self, tid, op, *args):
-        enforce(not self._shutting_down, _('Index is being closed'))
-        while self._maxlen and len(self._queue) >= self._maxlen:
-            self._iteration_cond.wait()
-        self._queue.append((tid, op, args))
-        self._put_cond.notify()
+    def _close(self):
+        while self._writers:
+            name, writer = self._writers.popitem()
+            _logger.info(_('Closing %s index'), name)
+            try:
+                writer.close()
+            except Exception:
+                util.exception(_logger, _('Fail to close %s index'), name)

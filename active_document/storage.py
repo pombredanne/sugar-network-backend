@@ -118,8 +118,6 @@ class Storage(object):
             or `StoredProperty` and `IndexedProperty` clasess
 
         """
-        _logger.debug('Start walking %s', self.metadata.name)
-
         for guids_dirname in os.listdir(self._root):
             guids_dir = join(self._root, guids_dirname)
             if not isdir(guids_dir):
