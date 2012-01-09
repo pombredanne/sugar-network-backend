@@ -289,13 +289,3 @@ class BlobProperty(Property):
     @property
     def is_trait(self):
         return False
-
-
-class GroupedProperty(Property):
-
-    def __init__(self):
-        Property.__init__(self, 'grouped')
-
-    @property
-    def is_trait(self):
-        return False

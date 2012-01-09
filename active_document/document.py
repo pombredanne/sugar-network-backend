@@ -21,7 +21,7 @@ from active_document import env, util
 from active_document.storage import Storage
 from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, StoredProperty
-from active_document.metadata import GuidProperty, GroupedProperty
+from active_document.metadata import GuidProperty
 from active_document.metadata import AggregatorProperty, IndexedProperty
 from active_document.metadata import BlobProperty
 from active_document.index import IndexWriter
@@ -415,7 +415,6 @@ class Document(object):
         cls.metadata = Metadata()
         cls.metadata.name = cls.__name__.lower()
         cls.metadata['guid'] = GuidProperty()
-        cls.metadata['grouped'] = GroupedProperty()
 
         cls._storage = Storage(cls.metadata)
 

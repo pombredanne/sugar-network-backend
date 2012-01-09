@@ -376,6 +376,25 @@ class IndexTest(tests.Test):
         self.assertNotEqual(mtime, db.mtime)
         db.close()
 
+    def test_find_OrderByGUIDAllTime(self):
+        db = Index({'prop': IndexedProperty('prop', 1, 'P')})
+
+        db.store('3', {'prop': '1'}, True)
+        db.store('2', {'prop': '1'}, True)
+        db.store('1', {'prop': '3'}, True)
+
+        self.assertEqual(
+                ([{'guid': '1', 'prop': '3'}, {'guid': '2', 'prop': '1'}, {'guid': '3', 'prop': '1'}], 3),
+                db.find2(0, 10, reply=['prop']))
+
+        self.assertEqual(
+                ([{'guid': '2', 'prop': '1'}, {'guid': '3', 'prop': '1'}, {'guid': '1', 'prop': '3'}], 3),
+                db.find2(0, 10, reply=['prop'], order_by='prop'))
+
+        self.assertEqual(
+                ([{'guid': '1', 'prop': '3'}, {'guid': '2', 'prop': '1'}, {'guid': '3', 'prop': '1'}], 3),
+                db.find2(0, 10, reply=['prop'], order_by='-prop'))
+
 
 class Index(index.IndexWriter):
 

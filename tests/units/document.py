@@ -247,22 +247,6 @@ class DocumentTest(tests.Test):
             stream.write(i)
         self.assertEqual('data', stream.getvalue())
 
-    def test_GroupedProperty(self):
-
-        class Document(document.Document):
-            pass
-
-        doc = Document()
-        assert 'grouped' in doc.metadata
-        self.assertRaises(RuntimeError, lambda: Document(grouped='foo'))
-
-        doc = Document('1', indexed_props={'grouped': 'foo'})
-        self.assertEqual('foo', doc['grouped'])
-        self.assertRaises(RuntimeError, doc.__setitem__, 'grouped', 'bar')
-        doc.post()
-
-        self.assertRaises(RuntimeError, lambda: Document(doc.guid)['grouped'])
-
     def test_AggregatorProperty(self):
 
         voter = [-1]

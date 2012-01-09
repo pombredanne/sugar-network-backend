@@ -191,8 +191,9 @@ class IndexReader(object):
             final_query = xapian.Query('')
         enquire.set_query(final_query)
 
-        if order_by:
-            if hasattr(xapian, 'MultiValueKeyMaker'):
+        if hasattr(xapian, 'MultiValueKeyMaker'):
+            sorter = xapian.MultiValueKeyMaker()
+            if order_by:
                 if order_by.startswith('+'):
                     reverse = False
                     order_by = order_by[1:]
@@ -205,12 +206,13 @@ class IndexReader(object):
                 enforce(prop is not None and prop.slot is not None,
                         _('Cannot sort using "%s" property of %s'),
                         order_by, self.metadata.name)
-                sorter = xapian.MultiValueKeyMaker()
                 sorter.add_value(prop.slot, reverse)
-                enquire.set_sort_by_key(sorter, reverse=False)
-            else:
-                _logger.warning(_('In order to support sorting, ' \
-                        'Xapian should be at least 1.2.0'))
+            # Sort by ascending GUID to make order predictable all time
+            sorter.add_value(0, False)
+            enquire.set_sort_by_key(sorter, reverse=False)
+        else:
+            _logger.warning(_('In order to support sorting, ' \
+                    'Xapian should be at least 1.2.0'))
 
         return enquire
 
