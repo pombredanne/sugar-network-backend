@@ -373,8 +373,14 @@ class Document(object):
                     _('Property "%s" in %s is not suitable for find requests'),
                     prop_name, cls.metadata.name)
 
-        return cls._index.find(offset, limit, request, query, reply,
-                order_by, group_by)
+        documents, total_count = cls._index.find(offset, limit, request, query,
+                reply, order_by, group_by)
+
+        def iterate():
+            for guid, props in documents:
+                yield cls(guid, indexed_props=props)
+
+        return iterate(), total_count
 
     @classmethod
     def close(cls):
@@ -413,8 +419,6 @@ class Document(object):
 
         cls.metadata = Metadata()
         cls.metadata.name = cls.__name__.lower()
-        cls.metadata.to_document = \
-                lambda guid, props: cls(guid, indexed_props=props)
         cls.metadata['guid'] = GuidProperty()
         cls.metadata['grouped'] = GroupedProperty()
 
@@ -486,12 +490,12 @@ class Document(object):
             if not isinstance(prop, StoredProperty) and \
                     isinstance(prop, IndexedProperty):
                 prop_names.append(name)
-        docs, __ = self.find(0, 1,
+        documents, __ = self.find(0, 1,
                 request={'guid': self.guid}, reply=prop_names)
-        if docs:
+        for doc in documents:
             for name in prop_names:
                 __, new = self._cache.get(name, (None, None))
-                self._cache[name] = (docs[0][name], new)
+                self._cache[name] = (doc[name], new)
 
 
 def active_property(property_class=ActiveProperty, *args, **kwargs):

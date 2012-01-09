@@ -393,7 +393,8 @@ class DocumentTest(tests.Test):
         Document().post()
 
         env.find_limit.value = 1
-        self.assertEqual(1, len(Document.find(0, 1024)[0]))
+        docs, total = Document.find(0, 1024)
+        self.assertEqual(1, len([i for i in docs]))
 
     def test_update(self):
 
@@ -444,25 +445,30 @@ class DocumentTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document(prop='1').post()
-        Document(prop='2').post()
-        Document(prop='3').post()
+        doc_1 = Document(prop='1')
+        doc_1.post()
+
+        doc_2 = Document(prop='2')
+        doc_2.post()
+
+        doc_3 = Document(prop='3')
+        doc_3.post()
 
         self.assertEqual(
                 ['1', '2', '3'],
                 [i.prop for i in Document.find(0, 1024)[0]])
 
-        Document.delete(Document.find(0, 1, query='prop:=2')[0][0].guid)
+        Document.delete(doc_2.guid)
         self.assertEqual(
                 ['1', '3'],
                 [i.prop for i in Document.find(0, 1024)[0]])
 
-        Document.delete(Document.find(0, 1, query='prop:=3')[0][0].guid)
+        Document.delete(doc_3.guid)
         self.assertEqual(
                 ['1'],
                 [i.prop for i in Document.find(0, 1024)[0]])
 
-        Document.delete(Document.find(0, 1, query='prop:=1')[0][0].guid)
+        Document.delete(doc_1.guid)
         self.assertEqual(
                 [],
                 [i.prop for i in Document.find(0, 1024)[0]])

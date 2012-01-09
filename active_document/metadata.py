@@ -30,9 +30,6 @@ class Metadata(dict):
     #: Document type name
     name = None
 
-    #: Function to convert a tuple of (guid, props) to document object
-    to_document = None
-
     def path(self, *args):
         """Calculate a path from the root.
 

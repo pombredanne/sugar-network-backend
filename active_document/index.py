@@ -114,30 +114,30 @@ class IndexReader(object):
         result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
         total_count = result.get_matches_estimated()
 
-        documents = []
-        for hit in result:
-            props = {}
-            for name in reply or self._props.keys():
-                prop = self._props.get(name)
-                if prop is None:
-                    _logger.warning(_('Unknown property name "%s" for %s ' \
-                            'to return from find'), name, self.metadata.name)
-                    continue
-                if prop.slot is not None and prop.slot != 0:
-                    props[name] = hit.document.get_value(prop.slot)
-            if group_by:
-                props['grouped'] = hit.collapse_count + 1
-            guid = hit.document.get_value(0)
-            documents.append(self.metadata.to_document(guid, props))
-
-        _logger.debug('Find in %s: offset=%s limit=%s request=%r query=%r ' \
-                'order_by=%r group_by=%r time=%s documents=%s ' \
-                'total_count=%s parsed=%s',
+        _logger.debug('Found in %s: offset=%s limit=%s request=%r query=%r ' \
+                'order_by=%r group_by=%r time=%s  total_count=%s parsed=%s',
                 self.metadata.name, offset, limit, request, query, order_by,
-                group_by, time.time() - start_timestamp, len(documents),
-                total_count, enquire.get_query())
+                group_by, time.time() - start_timestamp, total_count,
+                enquire.get_query())
 
-        return documents, total_count
+        def iterate():
+            for hit in result:
+                props = {}
+                for name in reply or self._props.keys():
+                    prop = self._props.get(name)
+                    if prop is None:
+                        _logger.warning(_('Unknown property name "%s" ' \
+                                'for %s to return from find'),
+                                name, self.metadata.name)
+                        continue
+                    if prop.slot is not None and prop.slot != 0:
+                        props[name] = hit.document.get_value(prop.slot)
+                if group_by:
+                    props['grouped'] = hit.collapse_count + 1
+                guid = hit.document.get_value(0)
+                yield guid, props
+
+        return iterate(), total_count
 
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
@@ -286,19 +286,19 @@ class IndexWriter(IndexReader):
 
         if not new:
             documents, __ = self.find(0, 1, {'guid': guid})
-            enforce(len(documents) == 1,
+            existing_doc = None
+            for __, existing_doc in documents:
+                break
+            enforce(existing_doc is not None,
                     _('Cannot find "%s" in %s to store'),
                     guid, self.metadata.name)
-            existing_doc = documents[0]
             for name, prop in self._props.items():
-                if prop.slot is None:
-                    continue
-                if name not in properties:
-                    properties[name] = existing_doc[name]
-                elif isinstance(prop, CounterProperty):
+                if isinstance(prop, CounterProperty):
                     properties[name] = str(
                             int(existing_doc[name] or '0') + \
                             int(properties[name]))
+            existing_doc.update(properties)
+            properties = existing_doc
 
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
