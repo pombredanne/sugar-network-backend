@@ -56,14 +56,13 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, doc.metadata['slotted'].slot)
 
         doc.post()
-        docs, total = Document.find(0, 100, order_by=['slotted'], group_by='slotted')
+        docs, total = Document.find(0, 100, order_by='slotted')
         self.assertEqual(1, total)
         self.assertEqual(
                 [('slotted', 'not_slotted')],
                 [(i.slotted, i.not_slotted) for i in docs])
 
-        self.assertRaises(RuntimeError, Document.find, 0, 100, order_by=['not_slotted'])
-        self.assertRaises(RuntimeError, Document.find, 0, 100, group_by='not_slotted')
+        self.assertRaises(RuntimeError, Document.find, 0, 100, order_by='not_slotted')
 
     def test_IndexedProperty_SlottedIUnique(self):
 

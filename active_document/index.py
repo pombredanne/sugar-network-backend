@@ -92,7 +92,7 @@ class IndexReader(object):
         raise NotImplementedError()
 
     def find(self, offset, limit, request=None, query=None, reply=None,
-            order_by=None, group_by=None):
+            order_by=None):
         """Search documents within the index.
 
         Function interface is the same as for `active_document.Document.find`.
@@ -110,14 +110,14 @@ class IndexReader(object):
         if request is None:
             request = {}
 
-        enquire = self._enquire(request, query, order_by, group_by)
+        enquire = self._enquire(request, query, order_by)
         result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
         total_count = result.get_matches_estimated()
 
         _logger.debug('Found in %s: offset=%s limit=%s request=%r query=%r ' \
-                'order_by=%r group_by=%r time=%s  total_count=%s parsed=%s',
+                'order_by=%s time=%s  total_count=%s parsed=%s',
                 self.metadata.name, offset, limit, request, query, order_by,
-                group_by, time.time() - start_timestamp, total_count,
+                time.time() - start_timestamp, total_count,
                 enquire.get_query())
 
         def iterate():
@@ -132,14 +132,12 @@ class IndexReader(object):
                         continue
                     if prop.slot is not None and prop.slot != 0:
                         props[name] = hit.document.get_value(prop.slot)
-                if group_by:
-                    props['grouped'] = hit.collapse_count + 1
                 guid = hit.document.get_value(0)
                 yield guid, props
 
         return iterate(), total_count
 
-    def _enquire(self, request, query, order_by, group_by):
+    def _enquire(self, request, query, order_by):
         enquire = xapian.Enquire(self._db)
         queries = []
         boolean_queries = []
@@ -193,33 +191,26 @@ class IndexReader(object):
             final_query = xapian.Query('')
         enquire.set_query(final_query)
 
-        if hasattr(xapian, 'MultiValueKeyMaker'):
-            sorter = xapian.MultiValueKeyMaker()
-            for order in order_by or []:
-                if order.startswith('+'):
+        if order_by:
+            if hasattr(xapian, 'MultiValueKeyMaker'):
+                if order_by.startswith('+'):
                     reverse = False
-                    order = order[1:]
-                elif order.startswith('-'):
+                    order_by = order_by[1:]
+                elif order_by.startswith('-'):
                     reverse = True
-                    order = order[1:]
+                    order_by = order_by[1:]
                 else:
                     reverse = False
-                prop = self._props.get(order)
+                prop = self._props.get(order_by)
                 enforce(prop is not None and prop.slot is not None,
                         _('Cannot sort using "%s" property of %s'),
-                        order, self.metadata.name)
+                        order_by, self.metadata.name)
+                sorter = xapian.MultiValueKeyMaker()
                 sorter.add_value(prop.slot, reverse)
-            enquire.set_sort_by_key(sorter, reverse=False)
-        else:
-            _logger.warning(_('In order to support sorting, ' \
-                    'Xapian should be at least 1.2.0'))
-
-        if group_by:
-            prop = self._props.get(group_by)
-            enforce(prop is not None and prop.slot is not None,
-                    _('Cannot group by "%s" property in %s'),
-                    group_by, self.metadata.name)
-            enquire.set_collapse_key(prop.slot)
+                enquire.set_sort_by_key(sorter, reverse=False)
+            else:
+                _logger.warning(_('In order to support sorting, ' \
+                        'Xapian should be at least 1.2.0'))
 
         return enquire
 

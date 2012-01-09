@@ -95,7 +95,7 @@ class IndexTest(tests.Test):
                 ([{'guid': '1', 'var_1': '1'},
                   {'guid': '2', 'var_1': '2'},
                   {'guid': '3', 'var_1': '3'}], 3),
-                db.find2(0, 10, query='var_3:ю OR var_2:у', reply=['var_1']))
+                db.find2(0, 10, query='var_3:ю OR var_2:у', reply=['var_1'], order_by='guid'))
 
     def test_find_WithProps(self):
         db = Index({
@@ -240,41 +240,13 @@ class IndexTest(tests.Test):
 
         self.assertEqual(
                 ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}, {'guid': '3', 'var_1': '3'}], 3),
-                db.find2(0, 10, reply=['var_1'], order_by=['var_2']))
+                db.find2(0, 10, reply=['var_1'], order_by='var_2'))
         self.assertEqual(
                 ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}, {'guid': '3', 'var_1': '3'}], 3),
-                db.find2(0, 10, reply=['var_1'], order_by=['+var_2']))
+                db.find2(0, 10, reply=['var_1'], order_by='+var_2'))
         self.assertEqual(
                 ([{'guid': '3', 'var_1': '3'}, {'guid': '2', 'var_1': '2'}, {'guid': '1', 'var_1': '1'}], 3),
-                db.find2(0, 10, reply=['var_1'], order_by=['-var_2']))
-
-        self.assertEqual(
-                ([{'guid': '3', 'var_1': '3'}, {'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 3),
-                db.find2(0, 10, reply=['var_1'], order_by=['+var_3', '+var_2']))
-        self.assertEqual(
-                ([{'guid': '3', 'var_1': '3'}, {'guid': '2', 'var_1': '2'}, {'guid': '1', 'var_1': '1'}], 3),
-                db.find2(0, 10, reply=['var_1'], order_by=['+var_3', '-var_2']))
-        self.assertEqual(
-                ([{'guid': '2', 'var_1': '2'}, {'guid': '1', 'var_1': '1'}, {'guid': '3', 'var_1': '3'}], 3),
-                db.find2(0, 10, reply=['var_1'], order_by=['-var_3', '-var_2']))
-
-    def test_find_GroupBy(self):
-        db = Index({
-            'var_1': IndexedProperty('var_1', 1, 'A'),
-            'var_2': IndexedProperty('var_2', 2, 'B'),
-            'var_3': IndexedProperty('var_3', 3, 'C'),
-            })
-
-        db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '3'}, True)
-        db.store('2', {'var_1': '2', 'var_2': '1', 'var_3': '4'}, True)
-        db.store('3', {'var_1': '3', 'var_2': '2', 'var_3': '4'}, True)
-
-        self.assertEqual(
-                ([{'guid': '1', 'var_1': '1', 'grouped': 2}, {'guid': '3', 'var_1': '3', 'grouped': 1}], 2),
-                db.find2(0, 10, reply=['var_1'], group_by='var_2'))
-        self.assertEqual(
-                ([{'guid': '1', 'var_1': '1', 'grouped': 1}, {'guid': '2', 'var_1': '2', 'grouped': 2}], 2),
-                db.find2(0, 10, reply=['var_1'], group_by='var_3'))
+                db.find2(0, 10, reply=['var_1'], order_by='-var_2'))
 
     def test_TermsAreLists(self):
         db = Index({
@@ -421,9 +393,9 @@ class Index(index.IndexWriter):
         self.committed += 1
 
     def find2(self, offset, limit, request=None, query=None, reply=None,
-            order_by=None, group_by=None):
+            order_by=None):
         documents, total = index.IndexWriter.find(self,offset, limit, request,
-                query, reply, order_by, group_by)
+                query, reply, order_by)
         result = []
         for guid, props in documents:
             props['guid'] = guid

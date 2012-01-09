@@ -319,7 +319,7 @@ class Document(object):
 
     @classmethod
     def find(cls, offset=None, limit=None, request=None, query='',
-            reply=None, order_by=None, group_by=None):
+            reply=None, order_by=None):
         """Search documents.
 
         The result will be an array of dictionaries with found documents'
@@ -339,14 +339,9 @@ class Document(object):
             an array of property names to use only in the resulting list;
             only GUID property will be used by default
         :param order_by:
-            array of properties to sort resulting list; property names might be
-            prefixed with ``+`` (or without any prefixes) for ascending order,
-            and ``-`` for descending order
-        :param group_by:
-            a property name to group resulting list by; if was specified,
-            every resulting list item will contain `grouped` with
-            a number of documents that are represented by the current one;
-            no groupping by default
+            property name to sort resulting list; might be prefixed with ``+``
+            (or without any prefixes) for ascending order, and ``-`` for
+            descending order
         :returns:
             a tuple of (`documents`, `total_count`); where the `total_count` is
             the total number of documents conforming the search parameters,
@@ -366,7 +361,7 @@ class Document(object):
         if not reply:
             reply = ['guid']
         if order_by is None and 'ctime' in cls.metadata:
-            order_by = ['+ctime']
+            order_by = 'ctime'
 
         for prop_name in reply:
             enforce(not cls.metadata[prop_name].large,
@@ -374,7 +369,7 @@ class Document(object):
                     prop_name, cls.metadata.name)
 
         documents, total_count = cls._index.find(offset, limit, request, query,
-                reply, order_by, group_by)
+                reply, order_by)
 
         def iterate():
             for guid, props in documents:
