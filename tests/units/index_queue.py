@@ -53,7 +53,7 @@ class IndexQueueTest(tests.Test):
         self.assertEqual(2, total)
         self.assertEqual(
                 sorted([(doc_1.guid, 'value_1'), (doc_2.guid, 'value_2')]),
-                sorted([(i.guid, i.prop) for i in documents]))
+                sorted([(guid, props['prop']) for guid, props in documents]))
 
     def test_wait(self):
         event = Event()
@@ -103,7 +103,7 @@ class IndexQueueTest(tests.Test):
         gevent.sleep(1)
         self.assertEqual(0, len(committed))
 
-        gevent.sleep(2)
+        gevent.sleep(3)
         self.assertEqual(1, len(committed))
 
         index_queue.close()

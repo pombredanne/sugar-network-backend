@@ -30,7 +30,6 @@ from active_document.util import enforce
 
 _queue = None
 _queue_async = None
-_queue_event = None
 _write_thread = None
 _flush_async = {}
 
@@ -47,15 +46,13 @@ def init(document_classes):
         index writes for
 
     """
-    global _queue, _queue_async, _queue_event, _write_thread
+    global _queue, _queue_async, _write_thread
 
     _queue = queue.Queue(env.index_write_queue.value)
-    _queue_async = gevent.get_hub().loop.async()
-    _queue_event = Event()
-    gevent.spawn(_wakeup_put)
+    _queue_async = _AsyncEvent()
 
     for cls in document_classes:
-        _flush_async[cls.metadata.name] = gevent.get_hub().loop.async()
+        _flush_async[cls.metadata.name] = _AsyncEvent()
 
     _write_thread = _WriteThread(document_classes)
     _write_thread.start()
@@ -83,7 +80,7 @@ def put(document_name, op, *args):
             # This is potential race (we released `_queue`'s mitex),
             # but we need to avoid locking greenlets in `_queue`'s mutex.
             # The race might be avoided by using big enough `_queue`'s size
-            _queue_event.wait()
+            _queue_async.wait()
         else:
             break
 
@@ -101,20 +98,13 @@ def wait(document_name):
     enforce(document_name in _flush_async,
             _('Document %s is not registered in `init()` call'),
             document_name)
-    gevent.get_hub().wait(_flush_async[document_name])
+    _flush_async[document_name].wait()
 
 
 def close():
     """Flush all pending changes."""
     put(None, None)
     _write_thread.join()
-
-
-def _wakeup_put():
-    while True:
-        gevent.get_hub().wait(_queue_async)
-        _queue_event.set()
-        _queue_event.clear()
 
 
 class _IndexWriter(IndexWriter):
@@ -201,3 +191,23 @@ class _WriteThread(threading.Thread):
                 writer.close()
             except Exception:
                 util.exception(_logger, _('Fail to close %s index'), name)
+
+
+class _AsyncEvent(object):
+
+    def __init__(self):
+        self._async = gevent.get_hub().loop.async()
+        self._event = Event()
+        gevent.spawn(self._wakeup)
+
+    def send(self):
+        self._async.send()
+
+    def wait(self):
+        self._event.wait()
+
+    def _wakeup(self):
+        while True:
+            gevent.get_hub().wait(self._async)
+            self._event.set()
+            self._event.clear()
