@@ -57,7 +57,7 @@ class DocumentTest(tests.Test):
 
         doc.post()
         docs, total = Document.find(0, 100, order_by='slotted')
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [('slotted', 'not_slotted')],
                 [(i.slotted, i.not_slotted) for i in docs])
@@ -95,7 +95,7 @@ class DocumentTest(tests.Test):
 
         doc.post()
         docs, total = Document.find(0, 100, request={'term': 'term'})
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [('term', 'not_term')],
                 [(i.term, i.not_term) for i in docs])
@@ -141,7 +141,7 @@ class DocumentTest(tests.Test):
 
         doc.post()
         docs, total = Document.find(0, 100)
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [(by_space, by_semicolon)],
                 [(i.by_space, i.by_semicolon) for i in docs])
@@ -196,7 +196,7 @@ class DocumentTest(tests.Test):
 
         doc.post()
         docs, total = Document.find(0, 100)
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [('default', 'wo_default', 'not_stored_default')],
                 [(i.w_default, i.wo_default, i.not_stored_default) for i in docs])
@@ -277,7 +277,7 @@ class DocumentTest(tests.Test):
         self.assertEqual('1', doc['vote'])
         doc.post()
         docs, total = Document.find(0, 100)
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [('1', '1')],
                 [(i.vote, i.counter) for i in docs])
@@ -290,7 +290,7 @@ class DocumentTest(tests.Test):
         doc_2['vote'] = '1'
         doc_2.post()
         docs, total = Document.find(0, 100)
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [('1', '2')],
                 [(i.vote, i.counter) for i in docs])
@@ -303,7 +303,7 @@ class DocumentTest(tests.Test):
         doc_3['vote'] = '0'
         doc_3.post()
         docs, total = Document.find(0, 100)
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [('0', '1')],
                 [(i.vote, i.counter) for i in docs])
@@ -316,7 +316,7 @@ class DocumentTest(tests.Test):
         doc_4['vote'] = '0'
         doc_4.post()
         docs, total = Document.find(0, 100)
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [('0', '0')],
                 [(i.vote, i.counter) for i in docs])
@@ -342,7 +342,7 @@ class DocumentTest(tests.Test):
         doc = Document()
         doc.post()
         docs, total = Document.find(0, 100)
-        self.assertEqual(1, total)
+        self.assertEqual(1, total.value)
         self.assertEqual(
                 [('0', '0')],
                 [(i.vote, i.counter) for i in docs])

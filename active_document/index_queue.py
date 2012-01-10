@@ -28,10 +28,14 @@ from active_document.index import IndexWriter
 from active_document.util import enforce
 
 
+_COMMIT = 1
+
 _queue = None
 _queue_async = None
 _write_thread = None
 _flush_async = {}
+_put_seqno = 0
+_commit_seqno = {}
 
 _logger = logging.getLogger('ad.index_queue')
 
@@ -53,6 +57,7 @@ def init(document_classes):
 
     for cls in document_classes:
         _flush_async[cls.metadata.name] = _AsyncEvent()
+        _commit_seqno[cls.metadata.name] = 0
 
     _write_thread = _WriteThread(document_classes)
     _write_thread.start()
@@ -69,11 +74,16 @@ def put(document_name, op, *args):
         arbitrary function
     :param args:
         optional arguments to pass to `op`
+    :returns:
+        put seqno
 
     """
     while True:
+        global _put_seqno
         try:
-            _queue.put((document_name, op, args), False)
+            _queue.put((_put_seqno + 1, document_name, op, args), False)
+            _put_seqno += 1
+            return _put_seqno
         except queue.Full:
             _logger.debug('Postpone %r operation for %s index',
                     op, document_name)
@@ -81,11 +91,9 @@ def put(document_name, op, *args):
             # but we need to avoid locking greenlets in `_queue`'s mutex.
             # The race might be avoided by using big enough `_queue`'s size
             _queue_async.wait()
-        else:
-            break
 
 
-def wait(document_name):
+def wait_commit(document_name):
     """Wait for changes in the specified document index.
 
     Function will be stuck in green wait until specified document index
@@ -93,12 +101,20 @@ def wait(document_name):
 
     :param document_name:
         document index name
+    :returns:
+        seqno for the last put that was flushed
 
     """
     enforce(document_name in _flush_async,
             _('Document %s is not registered in `init()` call'),
             document_name)
     _flush_async[document_name].wait()
+    return _commit_seqno[document_name]
+
+
+def commit(document):
+    """Flush all pending changes."""
+    put(document, _COMMIT)
 
 
 def close():
@@ -109,8 +125,11 @@ def close():
 
 class _IndexWriter(IndexWriter):
 
+    put_seqno = 0
+
     def commit(self):
         IndexWriter.commit(self)
+        _commit_seqno[self.metadata.name] = self.put_seqno
         _flush_async[self.metadata.name].send()
 
 
@@ -169,15 +188,21 @@ class _WriteThread(threading.Thread):
                     writer.commit()
                 next_commit = time.time() + env.index_flush_timeout.value
 
-    def _serve_put(self, document_name, op, args):
+    def _serve_put(self, put_seqno, document_name, op, args):
         if document_name is None:
             raise _WriteThread._Closing
 
         # Wakeup greenlets stuck in `put()`
         _queue_async.send()
 
+        writer = self._writers[document_name]
+        writer.put_seqno = put_seqno
+
         try:
-            op(self._writers[document_name], *args)
+            if op is _COMMIT:
+                writer.commit()
+            else:
+                op(writer, *args)
         except Exception:
             util.exception(_logger,
                     _('Cannot process %r operation for %s index'),

@@ -368,14 +368,14 @@ class Document(object):
                     _('Property "%s" in %s is not suitable for find requests'),
                     prop_name, cls.metadata.name)
 
-        documents, total_count = cls._index.find(offset, limit, request, query,
+        documents, total = cls._index.find(offset, limit, request, query,
                 reply, order_by)
 
         def iterate():
             for guid, props in documents:
                 yield cls(guid, indexed_props=props)
 
-        return iterate(), total_count
+        return iterate(), total
 
     @classmethod
     def close(cls):

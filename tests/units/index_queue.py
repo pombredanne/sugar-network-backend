@@ -49,8 +49,8 @@ class IndexQueueTest(tests.Test):
         index_queue.close()
 
         db = IndexWriter(self.Document.metadata)
-        documents, total = db.find(0, 10)
-        self.assertEqual(2, total)
+        documents, total = db.find(0, 10, {})
+        self.assertEqual(2, total.value)
         self.assertEqual(
                 sorted([(doc_1.guid, 'value_1'), (doc_2.guid, 'value_2')]),
                 sorted([(guid, props['prop']) for guid, props in documents]))
@@ -59,7 +59,7 @@ class IndexQueueTest(tests.Test):
         event = Event()
 
         def waiter():
-            index_queue.wait('document')
+            index_queue.wait_commit('document')
             event.set()
 
         def put():
@@ -94,7 +94,7 @@ class IndexQueueTest(tests.Test):
         committed = []
 
         def waiter():
-            index_queue.wait('document')
+            index_queue.wait_commit('document')
             committed.append(True)
 
         gevent.spawn(waiter)

@@ -21,3 +21,17 @@ from active_document.env import data_root, index_flush_timeout, \
 from active_document.metadata import Metadata, Property, IndexedProperty, \
         AggregatorProperty, StoredProperty, ActiveProperty, GuidProperty, \
         CounterProperty, BlobProperty
+
+
+def init(document_classes):
+    for cls in document_classes:
+        cls.init()
+    if index_write_queue.value > 0:
+        from active_document import index_queue
+        index_queue.init(document_classes)
+
+
+def close():
+    if index_write_queue.value > 0:
+        from active_document import index_queue
+        index_queue.close()

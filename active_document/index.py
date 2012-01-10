@@ -91,7 +91,7 @@ class IndexReader(object):
         """
         raise NotImplementedError()
 
-    def find(self, offset, limit, request=None, query=None, reply=None,
+    def find(self, offset, limit, request, query=None, reply=None,
             order_by=None):
         """Search documents within the index.
 
@@ -107,17 +107,14 @@ class IndexReader(object):
         # This will assure that the results count is exact.
         check_at_least = offset + limit + 1
 
-        if request is None:
-            request = {}
-
         enquire = self._enquire(request, query, order_by)
         result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
-        total_count = result.get_matches_estimated()
+        total = _Total(result.get_matches_estimated())
 
         _logger.debug('Found in %s: offset=%s limit=%s request=%r query=%r ' \
                 'order_by=%s time=%s  total_count=%s parsed=%s',
                 self.metadata.name, offset, limit, request, query, order_by,
-                time.time() - start_timestamp, total_count,
+                time.time() - start_timestamp, total.value,
                 enquire.get_query())
 
         def iterate():
@@ -135,7 +132,7 @@ class IndexReader(object):
                 guid = hit.document.get_value(0)
                 yield guid, props
 
-        return iterate(), total_count
+        return iterate(), total
 
     def _enquire(self, request, query, order_by):
         enquire = xapian.Enquire(self._db)
@@ -286,7 +283,7 @@ class IndexWriter(IndexReader):
                     _('Cannot find "%s" in %s to store'),
                     guid, self.metadata.name)
             for name, prop in self._props.items():
-                if isinstance(prop, CounterProperty):
+                if name in properties and isinstance(prop, CounterProperty):
                     properties[name] = str(
                             int(existing_doc[name] or '0') + \
                             int(properties[name]))
@@ -328,14 +325,19 @@ class IndexWriter(IndexReader):
 
     def commit(self):
         """Flush index changes to the disk."""
+        if not self._pending_writes:
+            return
+
         ts = time.time()
-        _logger.debug('Commiting %s to the disk', self.metadata.name)
+        _logger.debug('Commiting %s changes of %s to the disk',
+                self._pending_writes, self.metadata.name)
 
         if hasattr(self._db, 'commit'):
             self._db.commit()
         else:
             self._db.flush()
         self._touch_stamp()
+        self._pending_writes = 0
 
         _logger.debug('Commit %s changes took %s seconds',
                 self.metadata.name, time.time() - ts)
@@ -367,7 +369,6 @@ class IndexWriter(IndexReader):
         if env.index_flush_threshold.value and \
                 self._pending_writes >= env.index_flush_threshold.value:
             self.commit()
-            self._pending_writes = 0
 
     def _is_layout_stale(self):
         path = self.metadata.path('version')
@@ -398,3 +399,15 @@ class IndexWriter(IndexReader):
         path = self.metadata.path('stamp')
         if exists(path):
             os.unlink(path)
+
+
+class _Total(object):
+
+    def __init__(self, value):
+        self.value = value
+
+    def __cmp__(self, other):
+        if isinstance(other, _Total):
+            return cmp(self.value, other.value)
+        else:
+            return cmp(self.value, int(other))
