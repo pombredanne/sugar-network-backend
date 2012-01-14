@@ -65,9 +65,11 @@ class Document(object):
 
         if guid:
             self._guid = guid
-
             for prop_name, value in indexed_props.items():
+                self.authorize_property(env.ACCESS_READ,
+                        self.metadata[prop_name])
                 self._cache[prop_name] = (value, None)
+            self.authorize_document(env.ACCESS_READ, self)
         else:
             self._is_new = True
             self._guid = str(uuid.uuid1())
@@ -102,14 +104,15 @@ class Document(object):
             `prop_name` value
 
         """
-        orig, new = self._cache.get(prop_name, (None, None))
+        prop = self.metadata[prop_name]
+        self.authorize_property(env.ACCESS_READ, prop)
 
+        orig, new = self._cache.get(prop_name, (None, None))
         if new is not None:
             return new
         if orig is not None:
             return orig
 
-        prop = self.metadata[prop_name]
         if isinstance(prop, StoredProperty):
             if self._record is None:
                 self._record = self._storage.get(self.guid)
@@ -138,14 +141,13 @@ class Document(object):
 
         """
         prop = self.metadata[prop_name]
+        if self._is_new:
+            self.authorize_property(env.ACCESS_CREATE, prop)
+        else:
+            self.authorize_property(env.ACCESS_WRITE, prop)
 
         if isinstance(prop, StoredProperty):
-            enforce(self._is_new or not prop.construct_only,
-                    _('Property "%s" in %s is creation only'),
-                    prop_name, self.metadata.name)
-            enforce(self.authorize(prop_name),
-                    _('You are not permitted to change "%s" property in %s'),
-                    prop_name, self.metadata.name)
+            pass
         elif isinstance(prop, AggregatorProperty):
             enforce(value.isdigit(),
                     _('Property "%s" in %s should be either "0" or "1"'),
@@ -167,7 +169,10 @@ class Document(object):
         if not changes:
             return
 
-        if not self._is_new:
+        if self._is_new:
+            self.authorize_document(env.ACCESS_CREATE, self)
+        else:
+            self.authorize_document(env.ACCESS_WRITE, self)
             self.on_modify(changes)
         self.on_post(changes)
 
@@ -195,6 +200,9 @@ class Document(object):
                 util.exception(error)
                 raise RuntimeError(error)
 
+        if self._is_new:
+            _logger.debug('Create new document %s', self.guid)
+
         self._index.store(self.guid, changes, self._is_new,
                 self._pre_store, self._post_store)
         self._is_new = False
@@ -210,7 +218,9 @@ class Document(object):
             generator that returns data by portions
 
         """
-        enforce(isinstance(self.metadata[prop_name], BlobProperty),
+        prop = self.metadata[prop_name]
+        self.authorize_property(env.ACCESS_READ, prop)
+        enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
                 prop_name, self.metadata.name)
         return self._storage.get_blob(self.guid, prop_name)
@@ -229,23 +239,12 @@ class Document(object):
             read only specified number of bytes; otherwise, read until the EOF
 
         """
-        enforce(isinstance(self.metadata[prop_name], BlobProperty),
+        prop = self.metadata[prop_name]
+        self.authorize_property(env.ACCESS_WRITE, prop)
+        enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in %s is not a BLOB'),
                 prop_name, self.metadata.name)
         self._storage.set_blob(self.guid, prop_name, stream, size)
-
-    def authorize(self, prop_name):
-        """Does caller have permissions to write to the specified property.
-
-        Function needs to be re-implemented in child classes.
-
-        :param prop_name:
-            property name to check access
-        :returns:
-            `True` if caller can write to `prop_name`
-
-        """
-        return True
 
     def on_create(self, properties):
         """Call back to call on document creation.
@@ -276,6 +275,40 @@ class Document(object):
 
         :param properties:
             dictionary with document properties updates
+
+        """
+        pass
+
+    def authorize_property(self, mode, prop):
+        """Does caller have permissions to access to the specified property.
+
+        If caller does not have permissions, function should raise
+        `active_document.Unauthorized` exception.
+
+        :param mode:
+            one of `active_document.ACCESS_*` constants
+            to specify the access mode
+        :param prop:
+            property to check access for
+
+        """
+        enforce(mode & prop.permissions, env.Unauthorized,
+                _('%s access is disabled for "%s" property in %s'),
+                env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
+
+    @classmethod
+    def authorize_document(cls, mode, document=None):
+        """Does caller have permissions to access to the document.
+
+        If caller does not have permissions, function should raise
+        `active_document.Unauthorized` exception.
+
+        :param mode:
+            one of `active_document.ACCESS_*` constants
+            to specify the access mode
+        :param document:
+            option document if `mode` needs it;
+            might be `Document` object or GUID value
 
         """
         pass
@@ -315,6 +348,7 @@ class Document(object):
             document GUID to delete
 
         """
+        cls.authorize_document(env.ACCESS_DELETE, guid)
         cls._index.delete(guid, lambda guid: cls._storage.delete(guid))
 
     @classmethod
@@ -348,6 +382,8 @@ class Document(object):
             i.e., not only documents that are included to the resulting list
 
         """
+        cls.authorize_document(env.ACCESS_READ)
+
         if offset is None:
             offset = 0
         if limit is None:

@@ -20,8 +20,7 @@ import collections
 import xapian
 import gevent
 
-from active_document import util, index_queue
-from active_document.metadata import StoredProperty
+from active_document import util, index_queue, env
 from active_document.storage import Storage
 from active_document.index import IndexReader, IndexWriter
 
@@ -208,4 +207,4 @@ class _CachedDocument(object):
 
 
 def _is_term(prop):
-    return not isinstance(prop, StoredProperty) or not prop.construct_only
+    return prop.permissions & env.ACCESS_WRITE

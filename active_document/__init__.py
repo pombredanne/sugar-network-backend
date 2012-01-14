@@ -15,8 +15,11 @@
 
 from active_document.document import Document, active_property
 
-from active_document.env import data_root, index_flush_timeout, \
-        index_flush_threshold, index_write_queue, find_limit, NotFound
+from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
+        ACCESS_DELETE, ACCESS_FULL, \
+        data_root, index_flush_timeout, index_flush_threshold, \
+        index_write_queue, find_limit, \
+        NotFound, Unauthorized
 
 from active_document.metadata import Metadata, Property, IndexedProperty, \
         AggregatorProperty, StoredProperty, ActiveProperty, GuidProperty, \

@@ -26,7 +26,8 @@ class IndexProxyTest(tests.Test):
             def term(self, value):
                 return value
 
-            @document.active_property(slot=2, prefix='B', construct_only=True)
+            @document.active_property(slot=2, prefix='B',
+                    permissions=env.ACCESS_CREATE | env.ACCESS_READ)
             def not_term(self, value):
                 return value
 

@@ -75,8 +75,10 @@ class Metadata(dict):
 class Property(object):
     """Bacis class to collect information about document property."""
 
-    def __init__(self, name, large=False, default=None):
+    def __init__(self, name, permissions=env.ACCESS_FULL, large=False,
+            default=None):
         self._name = name
+        self._permissions = permissions
         self._large = large
         self._default = default
         self.writable = False
@@ -85,6 +87,16 @@ class Property(object):
     def name(self):
         """Property name."""
         return self._name
+
+    @property
+    def permissions(self):
+        """Specify access to the property.
+
+        Value might be ORed composition of `active_document.ACCESS_*`
+        constants.
+
+        """
+        return self._permissions
 
     @property
     def large(self):
@@ -111,8 +123,8 @@ class IndexedProperty(Property):
 
     def __init__(self, name,
             slot=None, prefix=None, full_text=False,
-            boolean=False, multiple=False, separator=None,
-            large=False, default=None, typecast=None):
+            boolean=False, multiple=False, separator=None, typecast=None,
+            permissions=env.ACCESS_FULL, large=False, default=None):
         enforce(name == 'guid' or slot != 0,
                 _('For %s property, ' \
                         'the slot "0" is reserved for internal needs'),
@@ -125,7 +137,8 @@ class IndexedProperty(Property):
                 _('For %s property, ' \
                         'either slot, prefix or full_text need to be set'),
                 name)
-        Property.__init__(self, name, large=large, default=default)
+        Property.__init__(self, name, permissions=permissions, large=large,
+                default=default)
         self._slot = slot
         self._prefix = prefix
         self._full_text = full_text
@@ -213,43 +226,20 @@ class AggregatorProperty(Property):
 
 class StoredProperty(Property):
     """Property that can be saved in persistent storare."""
-
-    def __init__(self, name,
-            construct_only=False, write_access=None,
-            large=False, default=None):
-        Property.__init__(self, name, large=large, default=default)
-        self._construct_only = construct_only
-        self._write_access = write_access
-
-    @property
-    def construct_only(self):
-        """Property can be set only while document creation."""
-        return self._construct_only
-
-    @property
-    def write_access(self):
-        """Write access mode to handled in dowstreamed `Document.authorize`."""
-        return self._write_access
+    pass
 
 
 class ActiveProperty(IndexedProperty, StoredProperty):
-
-    def __init__(self, name,
-            slot=None, prefix=None, full_text=False,
-            boolean=False, multiple=False, separator=None,
-            construct_only=False, write_access=None,
-            large=False, default=None, typecast=None):
-        IndexedProperty.__init__(self, name, slot=slot, prefix=prefix,
-                full_text=full_text, boolean=boolean, multiple=multiple,
-                separator=separator, typecast=typecast)
-        StoredProperty.__init__(self, name, construct_only=construct_only,
-                write_access=write_access, large=large, default=default)
+    """Default property type."""
+    pass
 
 
 class GuidProperty(ActiveProperty):
 
     def __init__(self):
-        ActiveProperty.__init__(self, 'guid', slot=0, prefix=env.GUID_PREFIX)
+        ActiveProperty.__init__(self, 'guid',
+                permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
+                prefix=env.GUID_PREFIX)
 
 
 class CounterProperty(IndexedProperty):
@@ -262,7 +252,9 @@ class CounterProperty(IndexedProperty):
     """
 
     def __init__(self, name, slot):
-        IndexedProperty.__init__(self, name, slot=slot, default='0')
+        IndexedProperty.__init__(self, name,
+                permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=slot,
+                default='0')
 
 
 class BlobProperty(Property):
@@ -273,8 +265,9 @@ class BlobProperty(Property):
 
     """
 
-    def __init__(self, name, mime_type='application/octet-stream'):
-        Property.__init__(self, name, large=True)
+    def __init__(self, name, permissions=env.ACCESS_FULL,
+            mime_type='application/octet-stream'):
+        Property.__init__(self, name, permissions=permissions, large=True)
         self._mime_type = mime_type
 
     @property

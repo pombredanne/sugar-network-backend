@@ -27,6 +27,19 @@ GUID_PREFIX = 'I'
 #: Additional Xapian term prefix for exact search terms
 EXACT_PREFIX = 'X'
 
+ACCESS_CREATE = 1
+ACCESS_WRITE = 2
+ACCESS_READ = 4
+ACCESS_DELETE = 8
+ACCESS_FULL = 0xFFFF
+
+ACCESS_NAMES = {
+        ACCESS_CREATE: _('Create'),
+        ACCESS_WRITE: _('Write'),
+        ACCESS_READ: _('Read'),
+        ACCESS_DELETE: _('Delete'),
+        }
+
 
 data_root = util.Option(
         _('path to the root directory to place documents\' data and indexes'))
@@ -85,4 +98,10 @@ def value(raw_value):
 
 
 class NotFound(Exception):
+    """Document was not found."""
+    pass
+
+
+class Unauthorized(Exception):
+    """Caller does not have permissions to get access."""
     pass

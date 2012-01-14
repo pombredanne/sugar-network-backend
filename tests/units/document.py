@@ -203,27 +203,6 @@ class DocumentTest(tests.Test):
 
         self.assertRaises(RuntimeError, Document)
 
-    def test_StoredProperty_ConstructOnly(self):
-
-        class Document(document.Document):
-
-            @document.active_property(StoredProperty, construct_only=True)
-            def prop(self, value):
-                return value
-
-            @prop.setter
-            def prop(self, value):
-                return value
-
-        doc = Document(prop='foo')
-        self.assertEqual(True, doc.metadata['prop'].construct_only)
-
-        doc.prop = 'bar'
-        doc.post()
-
-        doc_2 = Document(doc.guid)
-        self.assertRaises(RuntimeError, doc_2.__setitem__, 'prop', 'fail')
-
     def test_properties_Blob(self):
 
         class Document(document.Document):
@@ -346,25 +325,6 @@ class DocumentTest(tests.Test):
         self.assertEqual(
                 [('0', '0')],
                 [(i.vote, i.counter) for i in docs])
-
-    def test_authorize_Disabled(self):
-
-        class Document(document.Document):
-
-            @document.active_property(StoredProperty, default='nil')
-            def prop_1(self, value):
-                return value
-
-            @document.active_property(StoredProperty)
-            def prop_2(self, value):
-                return value
-
-            def authorize(self, prop):
-                return prop != 'prop_1'
-
-        self.assertRaises(RuntimeError, Document, prop_1='foo', prop_2='bar')
-        doc = Document(prop_2='bar')
-        self.assertRaises(RuntimeError, doc.__setitem__, 'prop_1', 'foo')
 
     def test_find_MaxLimit(self):
 
@@ -681,6 +641,121 @@ class DocumentTest(tests.Test):
         self.assertEqual(
                 sorted(['foo', 'foo', 'bar foo']),
                 sorted([i.multiple_prop for i in Document.find(0, 10)[0]]))
+
+    def test_authorize_document(self):
+
+        class Document(document.Document):
+
+            mode = 0
+
+            @classmethod
+            def authorize_document(cls, mode, document=None):
+                if not (mode & cls.mode):
+                    raise env.Unauthorized()
+
+            @document.active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+        doc = Document()
+        self.assertRaises(env.Unauthorized, doc.post)
+        Document.mode = env.ACCESS_WRITE
+        self.assertRaises(env.Unauthorized, doc.post)
+        Document.mode = env.ACCESS_CREATE
+        doc.post()
+
+        Document.mode = 0
+        self.assertRaises(env.Unauthorized, Document.find, 0, 100)
+        Document.mode = env.ACCESS_READ
+        Document.find(0, 100)
+
+        Document.mode = 0
+        self.assertRaises(env.Unauthorized, Document, doc.guid)
+        Document.mode = env.ACCESS_READ
+        Document(doc.guid)
+
+        Document.mode = env.ACCESS_READ
+        doc_2 = Document(doc.guid)
+        self.assertRaises(env.Unauthorized, doc.post)
+        Document.mode = env.ACCESS_READ | env.ACCESS_CREATE
+        self.assertRaises(env.Unauthorized, doc.post)
+        Document.mode = env.ACCESS_READ | env.ACCESS_WRITE
+        doc.post()
+
+        Document.mode = 0
+        self.assertRaises(env.Unauthorized, Document.delete, doc.guid)
+        Document.mode = env.ACCESS_DELETE
+        Document.delete(doc.guid)
+
+    def test_authorize_property(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+        Document.init()
+
+        Document.metadata['prop']._permissions = 0
+        doc = Document()
+        doc.post()
+
+        Document.metadata['prop']._permissions = 0
+        self.assertRaises(env.Unauthorized, lambda: doc['prop'])
+        Document.metadata['prop']._permissions = env.ACCESS_READ
+        doc['prop']
+
+        Document.metadata['prop']._permissions = 0
+        documents, total = Document.find(0, 100, reply=['guid', 'prop'])
+        self.assertRaises(env.Unauthorized, documents.next)
+        Document.metadata['prop']._permissions = env.ACCESS_READ
+        documents, total = Document.find(0, 100, reply=['guid', 'prop'])
+        documents.next
+
+        Document.metadata['prop']._permissions = 0
+        self.assertRaises(env.Unauthorized, Document, prop='1')
+        Document.metadata['prop']._permissions = env.ACCESS_WRITE
+        self.assertRaises(env.Unauthorized, Document, prop='1')
+        Document.metadata['prop']._permissions = env.ACCESS_CREATE
+        Document(prop='1')
+
+        Document.metadata['prop']._permissions = 0
+        doc_2 = Document()
+        self.assertRaises(env.Unauthorized, doc_2.__setitem__, 'prop', '1')
+        Document.metadata['prop']._permissions = env.ACCESS_WRITE
+        self.assertRaises(env.Unauthorized, doc_2.__setitem__, 'prop', '1')
+        Document.metadata['prop']._permissions = env.ACCESS_CREATE
+        doc_2['prop'] = '1'
+
+        Document.metadata['prop']._permissions = 0
+        doc_2 = Document(doc.guid)
+        self.assertRaises(env.Unauthorized, doc_2.__setitem__, 'prop', '1')
+        Document.metadata['prop']._permissions = env.ACCESS_CREATE
+        self.assertRaises(env.Unauthorized, doc_2.__setitem__, 'prop', '1')
+        Document.metadata['prop']._permissions = env.ACCESS_WRITE
+        doc_2['prop'] = '1'
+
+    def test_authorize_property_Blobs(self):
+
+        class Document(document.Document):
+
+            @document.active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+        doc = Document()
+        doc.post()
+
+        Document.metadata['blob']._permissions = 0
+        self.assertRaises(env.Unauthorized, doc.get_blob, 'blob')
+        Document.metadata['blob']._permissions = env.ACCESS_READ
+        doc.get_blob('blob')
+
+        Document.metadata['blob']._permissions = 0
+        self.assertRaises(env.Unauthorized, doc.set_blob, 'blob', StringIO('data'))
+        Document.metadata['blob']._permissions = env.ACCESS_WRITE
+        doc.set_blob('blob', StringIO('data'))
 
 
 if __name__ == '__main__':
