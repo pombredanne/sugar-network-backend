@@ -13,8 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import time
 import uuid
 import logging
+from datetime import datetime
 from gettext import gettext as _
 
 from active_document import env, util
@@ -30,6 +32,34 @@ from active_document.util import enforce
 
 
 _logger = logging.getLogger('ad.document')
+
+
+def active_property(property_class=ActiveProperty, *args, **kwargs):
+
+    def getter(func, self):
+        value = self[func.__name__]
+        return func(self, value)
+
+    def setter(func, self, value):
+        value = func(self, value)
+        self[func.__name__] = value
+
+    def decorate_setter(func, attr):
+        attr.prop.writable = True
+        attr.writer = lambda self, value: setter(func, self, value)
+        return attr
+
+    def decorate_getter(func):
+        enforce(func.__name__ != 'guid',
+                _('Active property should not have "guid" name'))
+        attr = lambda self, * args: getter(func, self)
+        attr.setter = lambda func: decorate_setter(func, attr)
+        attr._is_active_property = True
+        attr.name = func.__name__
+        attr.prop = property_class(attr.name, *args, **kwargs)
+        return attr
+
+    return decorate_getter
 
 
 class Document(object):
@@ -94,6 +124,16 @@ class Document(object):
     def guid(self):
         """Document GUID."""
         return self._guid
+
+    @active_property(slot=1000, prefix='IC', typecast=int,
+            permissions=env.ACCESS_CREATE | env.ACCESS_READ, default=0)
+    def ctime(self, value):
+        return value
+
+    @active_property(slot=1001, prefix='IM', typecast=int,
+            permissions=env.ACCESS_CREATE | env.ACCESS_READ, default=0)
+    def mtime(self, value):
+        return value
 
     def __getitem__(self, prop_name):
         """Get document's property value.
@@ -272,7 +312,9 @@ class Document(object):
             dictionary with new document properties values
 
         """
-        pass
+        ts = str(int(time.mktime(datetime.utcnow().timetuple())))
+        properties['ctime'] = ts
+        properties['mtime'] = ts
 
     def on_modify(self, properties):
         """Call back to call on existing document modification.
@@ -283,7 +325,8 @@ class Document(object):
             dictionary with document properties updates
 
         """
-        pass
+        ts = str(int(time.mktime(datetime.utcnow().timetuple())))
+        properties['mtime'] = ts
 
     def on_post(self, properties):
         """Call back to call on exery `post()` call.
@@ -413,7 +456,7 @@ class Document(object):
             request = {}
         if not reply:
             reply = ['guid']
-        if order_by is None and 'ctime' in cls.metadata:
+        if order_by is None:
             order_by = 'ctime'
 
         for prop_name in reply:
@@ -544,31 +587,3 @@ class Document(object):
             for name in prop_names:
                 __, new = self._cache.get(name, (None, None))
                 self._cache[name] = (doc[name], new)
-
-
-def active_property(property_class=ActiveProperty, *args, **kwargs):
-
-    def getter(func, self):
-        value = self[func.__name__]
-        return func(self, value)
-
-    def setter(func, self, value):
-        value = func(self, value)
-        self[func.__name__] = value
-
-    def decorate_setter(func, attr):
-        attr.prop.writable = True
-        attr.writer = lambda self, value: setter(func, self, value)
-        return attr
-
-    def decorate_getter(func):
-        enforce(func.__name__ != 'guid',
-                _('Active property should not have "guid" name'))
-        attr = lambda self, * args: getter(func, self)
-        attr.setter = lambda func: decorate_setter(func, attr)
-        attr._is_active_property = True
-        attr.name = func.__name__
-        attr.prop = property_class(attr.name, *args, **kwargs)
-        return attr
-
-    return decorate_getter

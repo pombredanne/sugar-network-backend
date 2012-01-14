@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # sugar-lint: disable
 
+import time
 from cStringIO import StringIO
 
 import gobject
@@ -440,9 +441,13 @@ class DocumentTest(tests.Test):
 
         self.touch(
                 ('document/1/1/.document', ''),
+                ('document/1/1/ctime', '1'),
+                ('document/1/1/mtime', '1'),
                 ('document/1/1/prop', 'prop-1'),
                 ('document/1/1/vote/-1', ''),
                 ('document/2/2/.document', ''),
+                ('document/2/2/ctime', '2'),
+                ('document/2/2/mtime', '2'),
                 ('document/2/2/prop', 'prop-2'),
                 ('document/2/2/vote/-2', ''),
                 ('document/2/2/vote/-3', ''),
@@ -453,11 +458,15 @@ class DocumentTest(tests.Test):
             pass
 
         doc = Document('1')
+        self.assertEqual('1', doc['ctime'])
+        self.assertEqual('1', doc['mtime'])
         self.assertEqual('1', doc['vote'])
         self.assertEqual('1', doc['counter'])
         self.assertEqual('prop-1', doc['prop'])
 
         doc = Document('2')
+        self.assertEqual('2', doc['ctime'])
+        self.assertEqual('2', doc['mtime'])
         self.assertEqual('0', doc['vote'])
         self.assertEqual('2', doc['counter'])
         self.assertEqual('prop-2', doc['prop'])
@@ -756,6 +765,35 @@ class DocumentTest(tests.Test):
         self.assertRaises(env.Unauthorized, doc.set_blob, 'blob', StringIO('data'))
         Document.metadata['blob']._permissions = env.ACCESS_WRITE
         doc.set_blob('blob', StringIO('data'))
+
+    def test_times(self):
+
+        class Document(document.Document):
+
+            @document.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value
+
+        doc = Document(prop='1')
+        self.assertNotEqual(0, doc['ctime'])
+        self.assertNotEqual(0, doc['mtime'])
+        assert doc['ctime'] == doc['mtime']
+        time.sleep(1)
+        doc.post()
+        assert doc['ctime'] == doc['mtime']
+
+        doc_2 = Document(doc.guid)
+        doc_2.post()
+        assert doc_2['ctime'] == doc_2['mtime']
+
+        doc_3 = Document(doc.guid)
+        doc_3['prop'] = '2'
+        doc_3.post()
+        assert doc_3['ctime'] < doc_3['mtime']
 
 
 if __name__ == '__main__':
