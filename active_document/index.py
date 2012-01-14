@@ -124,7 +124,7 @@ class IndexReader(object):
                     prop = self._props.get(name)
                     if prop is None:
                         _logger.warning(_('Unknown property name "%s" ' \
-                                'for %s to return from find'),
+                                'for "%s" to return from find'),
                                 name, self.metadata.name)
                         continue
                     if prop.slot is not None and prop.slot != 0:
@@ -166,7 +166,7 @@ class IndexReader(object):
             value = str(value).strip()
             prop = self._props.get(name)
             enforce(prop is not None and prop.prefix,
-                    _('Unknow search term "%s" for %s'),
+                    _('Unknow search term "%s" for "%s"'),
                     name, self.metadata.name)
             query = xapian.Query(env.term(prop.prefix, value))
             if prop.boolean:
@@ -201,7 +201,7 @@ class IndexReader(object):
                     reverse = False
                 prop = self._props.get(order_by)
                 enforce(prop is not None and prop.slot is not None,
-                        _('Cannot sort using "%s" property of %s'),
+                        _('Cannot sort using "%s" property of "%s"'),
                         order_by, self.metadata.name)
                 sorter.add_value(prop.slot, reverse)
             # Sort by ascending GUID to make order predictable all time
@@ -220,10 +220,10 @@ class IndexReader(object):
                 return op(*args)
             except xapian.DatabaseError, error:
                 if tries >= _REOPEN_LIMIT:
-                    _logger.warning(_('Cannot open %s index'),
+                    _logger.warning(_('Cannot open "%s" index'),
                             self.metadata.name)
                     raise
-                _logger.debug('Fail to %r %s index, will reopen it %sth ' \
+                _logger.debug('Fail to %r "%s" index, will reopen it %sth ' \
                         'time: %s', op, self.metadata.name, tries, error)
                 time.sleep(tries * .1)
                 self._db.reopen()
@@ -261,7 +261,7 @@ class IndexWriter(IndexReader):
         if pre_cb is not None:
             pre_cb(guid, properties)
 
-        _logger.debug('Store %s object: %r', self.metadata.name, properties)
+        _logger.debug('Store "%s" object: %r', self.metadata.name, properties)
 
         for name, value in properties.items():
             prop = self.metadata[name]
@@ -270,7 +270,7 @@ class IndexWriter(IndexReader):
             try:
                 int(value)
             except ValueError:
-                raise RuntimeError(_('Counter property "%s" in %s ' \
+                raise RuntimeError(_('Counter property "%s" in "%s" ' \
                         'is not an integer value') % \
                         (name, self.metadata.name))
 
@@ -280,7 +280,7 @@ class IndexWriter(IndexReader):
             for __, existing_doc in documents:
                 break
             enforce(existing_doc is not None,
-                    _('Cannot find "%s" in %s to store'),
+                    _('Cannot find "%s" in "%s" to store'),
                     guid, self.metadata.name)
             for name, prop in self._props.items():
                 if name in properties and isinstance(prop, CounterProperty):
@@ -317,7 +317,8 @@ class IndexWriter(IndexReader):
             post_cb(guid, properties)
 
     def delete(self, guid, post_cb=None):
-        _logger.debug('Delete "%s" document from %s', guid, self.metadata.name)
+        _logger.debug('Delete "%s" document from "%s"',
+                guid, self.metadata.name)
         self._db.delete_document(env.term(env.GUID_PREFIX, guid))
         self._commit()
         if post_cb is not None:
@@ -329,7 +330,7 @@ class IndexWriter(IndexReader):
             return
 
         ts = time.time()
-        _logger.debug('Commiting %s changes of %s to the disk',
+        _logger.debug('Commiting %s changes of "%s" to the disk',
                 self._pending_writes, self.metadata.name)
 
         if hasattr(self._db, 'commit'):
@@ -339,7 +340,7 @@ class IndexWriter(IndexReader):
         self._touch_stamp()
         self._pending_writes = 0
 
-        _logger.debug('Commit %s changes took %s seconds',
+        _logger.debug('Commit "%s" changes took %s seconds',
                 self.metadata.name, time.time() - ts)
 
     def _open(self, reset):
@@ -353,11 +354,11 @@ class IndexWriter(IndexReader):
                     xapian.DB_CREATE_OR_OPEN)
         except xapian.DatabaseError:
             if reset:
-                util.exception(_('Unrecoverable error while opening %s ' \
+                util.exception(_('Unrecoverable error while opening "%s" ' \
                         'Xapian index'), self.metadata.name)
                 raise
             else:
-                util.exception(_('Cannot open Xapian index in %s, ' \
+                util.exception(_('Cannot open Xapian index in "%s", ' \
                         'will rebuild it'), self.metadata.name)
                 self._open(True)
 

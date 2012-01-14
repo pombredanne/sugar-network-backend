@@ -37,7 +37,7 @@ class IndexProxy(IndexReader):
         gevent.spawn(self._wait_for_reopen)
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
-        _logger.debug('Push store request to %s\'s queue for %s',
+        _logger.debug('Push store request to "%s"\'s queue for "%s"',
                 self.metadata.name, guid)
         # Needs to be called before `index_queue.put()`
         # to let it chance to read original properties from the storage
@@ -47,7 +47,7 @@ class IndexProxy(IndexReader):
         self._cache_log.append((seqno, guid, properties, new))
 
     def delete(self, guid, post_cb=None):
-        _logger.debug('Push delete request to %s\'s queue for %s',
+        _logger.debug('Push delete request to "%s"\'s queue for "%s"',
                 self.metadata.name, guid)
         index_queue.put(self.metadata.name, IndexWriter.delete, guid, post_cb)
 
@@ -139,10 +139,10 @@ class IndexProxy(IndexReader):
         try:
             self._db = xapian.Database(self.metadata.index_path())
         except xapian.DatabaseOpeningError:
-            util.exception(_logger, 'Cannot open %s RO index',
+            util.exception(_logger, 'Cannot open "%s" RO index',
                     self.metadata.name)
             return False
-        _logger.debug('Opened %s RO index', self.metadata.name)
+        _logger.debug('Opened "%s" RO index', self.metadata.name)
         return True
 
     def _wait_for_reopen(self):
@@ -159,7 +159,7 @@ class IndexProxy(IndexReader):
                 if self._db is not None:
                     self._db.reopen()
             except Exception:
-                util.exception(_logger, 'Cannot reopen %s RO index',
+                util.exception(_logger, 'Cannot reopen "%s" RO index',
                         self.metadata.name)
                 self._db = None
 

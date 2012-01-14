@@ -55,7 +55,7 @@ class Storage(object):
         """
         path = self._path(guid)
         enforce(exists(path), env.NotFound,
-                _('Cannot find "%s" document in %s'),
+                _('Cannot find "%s" document in "%s"'),
                 guid, self.metadata.name)
         return Record(path, guid, self.metadata)
 
@@ -81,11 +81,11 @@ class Storage(object):
             ts = time.time()
             os.utime(root, (ts, ts))
 
-            _logger.debug('Put %r to "%s" document in %s',
+            _logger.debug('Put %r to "%s" document in "%s"',
                     properties, guid, self.metadata.name)
         except Exception, error:
             util.exception()
-            raise RuntimeError(_('Cannot put "%s" document to %s: %s') % \
+            raise RuntimeError(_('Cannot put "%s" document to "%s": %s') % \
                     (guid, self.metadata.name, error))
 
     def delete(self, guid):
@@ -102,9 +102,11 @@ class Storage(object):
             shutil.rmtree(path)
         except Exception, error:
             util.exception()
-            raise RuntimeError(_('Cannot delete "%s" document from %s: %s') % \
+            raise RuntimeError(
+                    _('Cannot delete "%s" document from "%s": %s') % \
                     (guid, self.metadata.name, error))
-        _logger.debug('Delete "%s" document from %s', guid, self.metadata.name)
+        _logger.debug('Delete "%s" document from "%s"',
+                guid, self.metadata.name)
 
     def walk(self, mtime):
         """Generator function to enumerate all existing documents.
@@ -154,7 +156,7 @@ class Storage(object):
         """
         path = self._path(guid, name)
         enforce(exists(path), env.NotFound,
-                _('Cannot find "%s" property of "%s" document in %s'),
+                _('Cannot find "%s" property of "%s" document in "%s"'),
                 name, guid, self.metadata.name)
         try:
             f = file(path)
@@ -170,9 +172,9 @@ class Storage(object):
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot read BLOB "%s" property ' \
-                    'of "%s" in %s: %s') % \
+                    'of "%s" in "%s": %s') % \
                     (name, guid, self.metadata.name, error))
-        _logger.debug('Sent "%s" BLOB property from "%s" document in %s',
+        _logger.debug('Sent "%s" BLOB property from "%s" document in "%s"',
                 name, guid, self.metadata.name)
 
     def set_blob(self, guid, name, stream, size=None):
@@ -206,9 +208,9 @@ class Storage(object):
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot receive BLOB "%s" property ' \
-                    'of "%s" in %s: %s') % \
+                    'of "%s" in "%s": %s') % \
                     (name, guid, self.metadata.name, error))
-        _logger.debug('Received "%s" BLOB property from "%s" document in %s',
+        _logger.debug('Received "%s" BLOB property from "%s" document in "%s"',
                 name, guid, self.metadata.name)
         return result
 
@@ -243,9 +245,9 @@ class Storage(object):
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot aggregate "%s" for "%s" ' \
-                    'property of "%s" in %s: %s') % \
+                    'property of "%s" in "%s": %s') % \
                     (value, name, guid, self.metadata.name, error))
-        _logger.debug('Aggregated %r to "%s" of "%s" document in %s',
+        _logger.debug('Aggregated %r to "%s" of "%s" document in "%s"',
                 value, name, guid, self.metadata.name)
 
     def disaggregate(self, guid, name, value):
@@ -266,9 +268,9 @@ class Storage(object):
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot disaggregate absent "%s" for "%s" ' \
-                    'property of "%s" in %s: %s') % \
+                    'property of "%s" in "%s": %s') % \
                     (value, name, guid, self.metadata.name, error))
-        _logger.debug('Disagregated %r from "%s" of "%s" document in %s',
+        _logger.debug('Disagregated %r from "%s" of "%s" document in "%s"',
                 value, name, guid, self.metadata.name)
 
     def count_aggregated(self, guid, name):
@@ -288,7 +290,7 @@ class Storage(object):
         except Exception:
             pass
         _logger.debug('There are %s entities in "%s" aggregated property ' \
-                'of "%s" document in %s',
+                'of "%s" document in "%s"',
                 result, name, guid, self.metadata.name)
         return result
 
@@ -320,7 +322,7 @@ class Record(object):
 
     def get(self, name):
         path = join(self._root, name)
-        enforce(exists(path), _('Cannot find "%s" property of "%s" in %s'),
+        enforce(exists(path), _('Cannot find "%s" property of "%s" in "%s"'),
                 name, self._guid, self.metadata.name)
         value = file(path)
         try:

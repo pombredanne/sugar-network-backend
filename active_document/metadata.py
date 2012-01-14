@@ -67,7 +67,7 @@ class Metadata(dict):
         return self.path('index', *args)
 
     def __getitem__(self, prop_name):
-        enforce(prop_name in self, _('There is no "%s" property in %s'),
+        enforce(prop_name in self, _('There is no "%s" property in "%s"'),
                 prop_name, self.name)
         return dict.__getitem__(self, prop_name)
 
@@ -126,15 +126,15 @@ class IndexedProperty(Property):
             boolean=False, multiple=False, separator=None, typecast=None,
             permissions=env.ACCESS_FULL, large=False, default=None):
         enforce(name == 'guid' or slot != 0,
-                _('For %s property, ' \
+                _('For "%s" property, ' \
                         'the slot "0" is reserved for internal needs'),
                 name)
         enforce(name == 'guid' or prefix != env.GUID_PREFIX,
-                _('For %s property, ' \
+                _('For "%s" property, ' \
                         'the prefix "I" is reserved for internal needs'),
                 name)
         enforce(slot is not None or prefix or full_text,
-                _('For %s property, ' \
+                _('For "%s" property, ' \
                         'either slot, prefix or full_text need to be set'),
                 name)
         Property.__init__(self, name, permissions=permissions, large=large,

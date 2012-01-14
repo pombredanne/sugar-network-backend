@@ -81,8 +81,8 @@ class Document(object):
                     if name in kwargs:
                         continue
                     enforce(prop.default is not None,
-                            _('Property "%s" should be passed while ' \
-                                    'creating new %s document'),
+                            _('Property "%s" should be passed for ' \
+                                    'new "%s" document'),
                             name, self.metadata.name)
                 if prop.default is not None:
                     self._cache[name] = (None, prop.default)
@@ -125,7 +125,7 @@ class Document(object):
                 value = self._storage.is_aggregated(
                         self.guid, prop_name, prop.value)
                 orig = env.value(value)
-            enforce(orig is not None, _('Property "%s" in %s cannot be get'),
+            enforce(orig is not None, _('Property "%s" in "%s" cannot be get'),
                     prop_name, self.metadata.name)
 
         self._cache[prop_name] = (orig, new)
@@ -150,11 +150,11 @@ class Document(object):
             pass
         elif isinstance(prop, AggregatorProperty):
             enforce(value.isdigit(),
-                    _('Property "%s" in %s should be either "0" or "1"'),
+                    _('Property "%s" in "%s" should be either "0" or "1"'),
                     prop_name, self.metadata.name)
             value = env.value(bool(int(value)))
         else:
-            raise RuntimeError(_('Property "%s" in %s cannot be set') % \
+            raise RuntimeError(_('Property "%s" in "%s" cannot be set') % \
                     (prop_name, self.metadata.name))
 
         orig, __ = self._cache.get(prop_name, (None, None))
@@ -195,13 +195,13 @@ class Document(object):
                     value_parts.append(part)
                 changes[prop_name] = (prop.separator or ' ').join(value_parts)
             except Exception:
-                error = _('Value for "%s" property for %s is invalid') % \
+                error = _('Value for "%s" property for "%s" is invalid') % \
                         (prop_name, self.metadata.name)
                 util.exception(error)
                 raise RuntimeError(error)
 
         if self._is_new:
-            _logger.debug('Create new document %s', self.guid)
+            _logger.debug('Create new document "%s"', self.guid)
 
         self._index.store(self.guid, changes, self._is_new,
                 self._pre_store, self._post_store)
@@ -221,7 +221,7 @@ class Document(object):
         prop = self.metadata[prop_name]
         self.authorize_property(env.ACCESS_READ, prop)
         enforce(isinstance(prop, BlobProperty),
-                _('Property "%s" in %s is not a BLOB'),
+                _('Property "%s" in "%s" is not a BLOB'),
                 prop_name, self.metadata.name)
         return self._storage.get_blob(self.guid, prop_name)
 
@@ -242,7 +242,7 @@ class Document(object):
         prop = self.metadata[prop_name]
         self.authorize_property(env.ACCESS_WRITE, prop)
         enforce(isinstance(prop, BlobProperty),
-                _('Property "%s" in %s is not a BLOB'),
+                _('Property "%s" in "%s" is not a BLOB'),
                 prop_name, self.metadata.name)
         self._storage.set_blob(self.guid, prop_name, stream, size)
 
@@ -293,7 +293,7 @@ class Document(object):
 
         """
         enforce(mode & prop.permissions, env.Unauthorized,
-                _('%s access is disabled for "%s" property in %s'),
+                _('%s access is disabled for "%s" property in "%s"'),
                 env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
 
     @classmethod
@@ -389,7 +389,7 @@ class Document(object):
         if limit is None:
             limit = env.find_limit.value
         elif limit > env.find_limit.value:
-            _logger.warning(_('The find limit for %s is restricted to %s'),
+            _logger.warning(_('The find limit for "%s" is restricted to "%s"'),
                     cls.metadata.name, env.find_limit.value)
             limit = env.find_limit.value
         if request is None:
@@ -401,7 +401,8 @@ class Document(object):
 
         for prop_name in reply:
             enforce(not cls.metadata[prop_name].large,
-                    _('Property "%s" in %s is not suitable for find requests'),
+                    _('Property "%s" in "%s" is not suitable ' \
+                            'for find requests'),
                     prop_name, cls.metadata.name)
 
         documents, total = cls._index.find(offset, limit, request, query,

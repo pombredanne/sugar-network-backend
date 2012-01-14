@@ -85,7 +85,7 @@ def put(document_name, op, *args):
             _put_seqno += 1
             return _put_seqno
         except queue.Full:
-            _logger.debug('Postpone %r operation for %s index',
+            _logger.debug('Postpone %r operation for "%s" index',
                     op, document_name)
             # This is potential race (we released `_queue`'s mitex),
             # but we need to avoid locking greenlets in `_queue`'s mutex.
@@ -106,7 +106,7 @@ def wait_commit(document_name):
 
     """
     enforce(document_name in _flush_async,
-            _('Document %s is not registered in `init()` call'),
+            _('Document "%s" is not registered in `init()` call'),
             document_name)
     _flush_async[document_name].wait()
     return _commit_seqno[document_name]
@@ -156,14 +156,14 @@ class _WriteThread(threading.Thread):
 
     def _run(self):
         for cls in self._document_classes:
-            _logger.info(_('Open %s index'), cls.metadata.name)
+            _logger.info(_('Open "%s" index'), cls.metadata.name)
             self._writers[cls.metadata.name] = _IndexWriter(cls.metadata)
 
         for cls in self._document_classes:
             populating = False
             for __ in cls.populate():
                 if not populating:
-                    _logger.info(_('Start populating %s index'),
+                    _logger.info(_('Start populating "%s" index'),
                             cls.metadata.name)
                     populating = True
                 try:
@@ -205,17 +205,17 @@ class _WriteThread(threading.Thread):
                 op(writer, *args)
         except Exception:
             util.exception(_logger,
-                    _('Cannot process %r operation for %s index'),
+                    _('Cannot process %r operation for "%s" index'),
                     op, document_name)
 
     def _close(self):
         while self._writers:
             name, writer = self._writers.popitem()
-            _logger.info(_('Closing %s index'), name)
+            _logger.info(_('Closing "%s" index'), name)
             try:
                 writer.close()
             except Exception:
-                util.exception(_logger, _('Fail to close %s index'), name)
+                util.exception(_logger, _('Fail to close "%s" index'), name)
 
 
 class _AsyncEvent(object):
