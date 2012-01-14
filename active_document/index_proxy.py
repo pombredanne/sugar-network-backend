@@ -137,7 +137,7 @@ class IndexProxy(IndexReader):
 
     def _open(self):
         try:
-            self._db = xapian.Database(self.metadata.index_path())
+            self._db = xapian.Database(self.metadata.ensure_path('index', ''))
         except xapian.DatabaseOpeningError:
             util.exception(_logger, 'Cannot open "%s" RO index',
                     self.metadata.name)

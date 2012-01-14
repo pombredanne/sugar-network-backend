@@ -53,7 +53,7 @@ class IndexReader(object):
     @property
     def mtime(self):
         """UNIX seconds of the last `commit()` call."""
-        path = self.metadata.path('stamp')
+        path = self.metadata.ensure_path('stamp')
         if exists(path):
             return os.stat(path).st_mtime
         else:
@@ -350,7 +350,8 @@ class IndexWriter(IndexReader):
             self._wipe_out()
 
         try:
-            self._db = xapian.WritableDatabase(self.metadata.index_path(),
+            self._db = xapian.WritableDatabase(
+                    self.metadata.ensure_path('index', ''),
                     xapian.DB_CREATE_OR_OPEN)
         except xapian.DatabaseError:
             if reset:
@@ -372,7 +373,7 @@ class IndexWriter(IndexReader):
             self.commit()
 
     def _is_layout_stale(self):
-        path = self.metadata.path('version')
+        path = self.metadata.ensure_path('version')
         if not exists(path):
             return True
         layout = file(path)
@@ -381,23 +382,23 @@ class IndexWriter(IndexReader):
         return not version.isdigit() or int(version) != env.LAYOUT_VERSION
 
     def _save_layout(self):
-        version = file(self.metadata.path('version'), 'w')
+        version = file(self.metadata.ensure_path('version'), 'w')
         version.write(str(env.LAYOUT_VERSION))
         version.close()
 
     def _touch_stamp(self):
-        stamp = file(self.metadata.path('stamp'), 'w')
+        stamp = file(self.metadata.ensure_path('stamp'), 'w')
         # Xapian's flush uses fsync
         # so, it is a good idea to do the same for stamp file
         os.fsync(stamp.fileno())
         stamp.close()
 
     def _wipe_out(self):
-        shutil.rmtree(self.metadata.index_path(), ignore_errors=True)
-        path = self.metadata.path('version')
+        shutil.rmtree(self.metadata.path('index'), ignore_errors=True)
+        path = self.metadata.ensure_path('version')
         if exists(path):
             os.unlink(path)
-        path = self.metadata.path('stamp')
+        path = self.metadata.ensure_path('stamp')
         if exists(path):
             os.unlink(path)
 
