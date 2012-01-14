@@ -131,6 +131,23 @@ class Document(object):
         self._cache[prop_name] = (orig, new)
         return orig
 
+    def get_list(self, prop_name):
+        """If property value contains several values, list them all.
+
+        :param prop_name:
+            property name to return value for
+        :returns:
+            list of value's portions; for not multiple properties,
+            return singular value as the only part of the list
+
+        """
+        value = self[prop_name]
+        prop = self.metadata[prop_name]
+        if isinstance(prop, IndexedProperty):
+            return prop.list_value(value)
+        else:
+            return [value]
+
     def __setitem__(self, prop_name, value):
         """set document's property value.
 
