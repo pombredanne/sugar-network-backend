@@ -101,7 +101,7 @@ class IndexReader(object):
         if self._db is None:
             _logger.warning(_('%s was called with not initialized db'),
                     self.find)
-            return [], 0
+            return [], Total(0)
 
         start_timestamp = time.time()
         # This will assure that the results count is exact.
@@ -109,7 +109,7 @@ class IndexReader(object):
 
         enquire = self._enquire(request, query, order_by)
         result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
-        total = _Total(result.get_matches_estimated())
+        total = Total(result.get_matches_estimated())
 
         _logger.debug('Found in %s: offset=%s limit=%s request=%r query=%r ' \
                 'order_by=%s time=%s  total_count=%s parsed=%s',
@@ -403,13 +403,13 @@ class IndexWriter(IndexReader):
             os.unlink(path)
 
 
-class _Total(object):
+class Total(object):
 
     def __init__(self, value):
         self.value = value
 
     def __cmp__(self, other):
-        if isinstance(other, _Total):
+        if isinstance(other, Total):
             return cmp(self.value, other.value)
         else:
             return cmp(self.value, int(other))

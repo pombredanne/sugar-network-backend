@@ -22,7 +22,7 @@ import gevent
 
 from active_document import util, index_queue, env
 from active_document.storage import Storage
-from active_document.index import IndexReader, IndexWriter
+from active_document.index import IndexReader, IndexWriter, Total
 
 
 _logger = logging.getLogger('ad.index_proxy')
@@ -55,7 +55,7 @@ class IndexProxy(IndexReader):
             order_by=None):
         if self._db is None:
             if not self._open():
-                return [], 0
+                return [], Total(0)
 
         def direct_find():
             return IndexReader.find(self, offset, limit, request, query, reply,

@@ -172,6 +172,8 @@ class _WriteThread(threading.Thread):
                 except queue.Empty:
                     pass
 
+        _logger.debug('Start processing "%s" queue', cls.metadata.name)
+
         next_commit = 0
         if env.index_flush_timeout.value:
             next_commit = time.time() + env.index_flush_timeout.value
