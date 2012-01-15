@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from active_document import util
+
 from active_document.document import Document, active_property
 
 from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
