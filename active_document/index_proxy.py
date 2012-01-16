@@ -34,7 +34,10 @@ class IndexProxy(IndexReader):
         IndexReader.__init__(self, metadata)
         self._cache = {}
         self._cache_log = collections.deque()
-        gevent.spawn(self._wait_for_reopen)
+        self._wait_for_reopen_job = gevent.spawn(self._wait_for_reopen)
+
+    def close(self):
+        self._wait_for_reopen_job.kill()
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         _logger.debug('Push store request to "%s"\'s queue for "%s"',

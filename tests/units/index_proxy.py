@@ -39,6 +39,7 @@ class IndexProxyTest(tests.Test):
         env.index_flush_threshold.value = 100
         env.index_flush_timeout.value = 0
 
+        self.Document = Document
         Document.init()
         self.metadata = Document.metadata
         index_queue.init([Document])
@@ -62,14 +63,16 @@ class IndexProxyTest(tests.Test):
 
         def waiter():
             index_queue.wait_commit('document')
-            committed.append(True)
+            self.committed.append(True)
 
-        gevent.spawn(waiter)
+        self.wait_job = gevent.spawn(waiter)
 
     def tearDown(self):
         assert not self.committed
+        self.wait_job.kill()
         tests.Test.tearDown(self)
         index_queue.close()
+        self.Document.close()
 
     def test_Create(self):
         proxy = IndexProxy(self.metadata)
@@ -81,20 +84,20 @@ class IndexProxyTest(tests.Test):
                     ]),
                 proxy._find()[0])
 
-        proxy.store('3', {'term': '3_term', 'not_term': '3_not_term'}, True)
-        proxy.store('4', {'term': '4_term', 'not_term': '4_not_term'}, True)
+        proxy.store('3', {'ctime': '1', 'mtime': '1', 'term': '3_term', 'not_term': '3_not_term', 'common': ''}, True)
+        proxy.store('4', {'ctime': '1', 'mtime': '1', 'term': '4_term', 'not_term': '4_not_term', 'common': ''}, True)
 
         self.assertEqual(
                 sorted([
                     {'guid': self.guid_2, 'term': '2_term', 'not_term': '2_not_term', 'common': 'common'},
-                    {'guid': '3', 'term': '3_term', 'not_term': '3_not_term'},
-                    {'guid': '4', 'term': '4_term', 'not_term': '4_not_term'},
+                    {'guid': '3', 'term': '3_term', 'not_term': '3_not_term', 'common': ''},
+                    {'guid': '4', 'term': '4_term', 'not_term': '4_not_term', 'common': ''},
                     ]),
                 proxy._find(1, 4)[0])
 
         self.assertEqual(
                 sorted([
-                    {'guid': '3', 'term': '3_term', 'not_term': '3_not_term'},
+                    {'guid': '3', 'term': '3_term', 'not_term': '3_not_term', 'common': ''},
                     ]),
                 proxy._find(request={'term': '3_term'})[0])
 
@@ -102,7 +105,7 @@ class IndexProxyTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    {'guid': '3', 'term': '3_term_2', 'not_term': '3_not_term'},
+                    {'guid': '3', 'term': '3_term_2', 'not_term': '3_not_term', 'common': ''},
                     ]),
                 proxy._find(request={'term': '3_term_2'})[0])
 
@@ -110,8 +113,8 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     {'guid': self.guid_1, 'term': '1_term', 'not_term': '1_not_term', 'common': 'common'},
                     {'guid': self.guid_2, 'term': '2_term', 'not_term': '2_not_term', 'common': 'common'},
-                    {'guid': '3', 'term': '3_term_2', 'not_term': '3_not_term'},
-                    {'guid': '4', 'term': '4_term', 'not_term': '4_not_term'},
+                    {'guid': '3', 'term': '3_term_2', 'not_term': '3_not_term', 'common': ''},
+                    {'guid': '4', 'term': '4_term', 'not_term': '4_not_term', 'common': ''},
                     ]),
                 proxy._find()[0])
 
@@ -192,6 +195,10 @@ class IndexProxy(index_proxy.IndexProxy):
         result = []
         for guid, props in documents:
             props['guid'] = guid
+            if 'ctime' in props:
+                del props['ctime']
+            if 'mtime' in props:
+                del props['mtime']
             result.append(props)
         return sorted(result), total
 

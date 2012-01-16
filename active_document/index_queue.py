@@ -121,6 +121,11 @@ def close():
     """Flush all pending changes."""
     put(None, None)
     _write_thread.join()
+    _queue_async.close()
+    while _flush_async:
+        __, async = _flush_async.popitem()
+        async.close()
+    _commit_seqno.clear()
 
 
 class _IndexWriter(IndexWriter):
@@ -225,7 +230,10 @@ class _AsyncEvent(object):
     def __init__(self):
         self._async = gevent.get_hub().loop.async()
         self._event = Event()
-        gevent.spawn(self._wakeup)
+        self._wakeup_job = gevent.spawn(self._wakeup)
+
+    def close(self):
+        self._wakeup_job.kill()
 
     def send(self):
         self._async.send()
