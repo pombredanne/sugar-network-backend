@@ -1,3 +1,8 @@
+0.1
+===
+- get() for RO properties
+- user's guid in storage is incorrent after user creation
+
 1.0
 ===
 - IndexProxy should be smarter to take into account sorting of cached documents

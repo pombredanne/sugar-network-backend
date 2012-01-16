@@ -1,0 +1,21 @@
+[DEFAULT]
+implement = Server:%(major)s/%(name)s
+name      = active-document
+summary   = Active Record pattern to use Xapian as a "NoSQL replacement"
+license   = GPLv3+
+homepage  = http://wiki.sugarlabs.org/go/Sugar_Server_Kit/Active_Document
+
+major     = Factory
+version   = 0.1
+stability = developer
+
+[Package]
+requires  = gevent
+source    = %(name)s-%(version)s.tar.gz
+
+[Build]
+install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
+            cp -r active_document %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
+            install -m 0755 -d %(DESTDIR)s/%(DATADIR)s/doc/%(name)s &&
+            cp AUTHORS COPYING HACKING README TODO %(DESTDIR)s/%(DATADIR)s/doc/%(name)s/ &&
+            true
