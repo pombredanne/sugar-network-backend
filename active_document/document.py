@@ -71,7 +71,7 @@ class Document(object):
     _storage = None
     _index = None
 
-    def __init__(self, guid=None, indexed_props=None, **kwargs):
+    def __init__(self, guid=None, indexed_props=None, raw=False, **kwargs):
         """
         :param guid:
             GUID of existing document; if omitted, newly created object
@@ -86,6 +86,7 @@ class Document(object):
 
         """
         self.init()
+        self._raw = raw
         self._is_new = False
         self._cache = {}
         self._record = None
@@ -95,8 +96,6 @@ class Document(object):
             if not indexed_props:
                 indexed_props = self._index.get_cache(guid)
             for prop_name, value in (indexed_props or {}).items():
-                self.authorize_property(env.ACCESS_READ,
-                        self.metadata[prop_name])
                 self._cache[prop_name] = (value, None)
             self.authorize_document(env.ACCESS_READ, self)
         else:
@@ -342,7 +341,7 @@ class Document(object):
         """Does caller have permissions to access to the specified property.
 
         If caller does not have permissions, function should raise
-        `active_document.Unauthorized` exception.
+        `active_document.Forbidden` exception.
 
         :param mode:
             one of `active_document.ACCESS_*` constants
@@ -351,7 +350,7 @@ class Document(object):
             property to check access for
 
         """
-        enforce(mode & prop.permissions, env.Unauthorized,
+        enforce(self._raw or mode & prop.permissions, env.Forbidden,
                 _('%s access is disabled for "%s" property in "%s"'),
                 env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
 
@@ -360,7 +359,7 @@ class Document(object):
         """Does caller have permissions to access to the document.
 
         If caller does not have permissions, function should raise
-        `active_document.Unauthorized` exception.
+        `active_document.Forbidden` exception.
 
         :param mode:
             one of `active_document.ACCESS_*` constants

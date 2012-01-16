@@ -102,6 +102,6 @@ class NotFound(Exception):
     pass
 
 
-class Unauthorized(Exception):
+class Forbidden(Exception):
     """Caller does not have permissions to get access."""
     pass

@@ -660,39 +660,39 @@ class DocumentTest(tests.Test):
             @classmethod
             def authorize_document(cls, mode, document=None):
                 if not (mode & cls.mode):
-                    raise env.Unauthorized()
+                    raise env.Forbidden()
 
             @document.active_property(slot=1, default='')
             def prop(self, value):
                 return value
 
         doc = Document()
-        self.assertRaises(env.Unauthorized, doc.post)
+        self.assertRaises(env.Forbidden, doc.post)
         Document.mode = env.ACCESS_WRITE
-        self.assertRaises(env.Unauthorized, doc.post)
+        self.assertRaises(env.Forbidden, doc.post)
         Document.mode = env.ACCESS_CREATE
         doc.post()
 
         Document.mode = 0
-        self.assertRaises(env.Unauthorized, Document.find, 0, 100)
+        self.assertRaises(env.Forbidden, Document.find, 0, 100)
         Document.mode = env.ACCESS_READ
         Document.find(0, 100)
 
         Document.mode = 0
-        self.assertRaises(env.Unauthorized, Document, doc.guid)
+        self.assertRaises(env.Forbidden, Document, doc.guid)
         Document.mode = env.ACCESS_READ
         Document(doc.guid)
 
         Document.mode = env.ACCESS_READ
         doc_2 = Document(doc.guid)
-        self.assertRaises(env.Unauthorized, doc.post)
+        self.assertRaises(env.Forbidden, doc.post)
         Document.mode = env.ACCESS_READ | env.ACCESS_CREATE
-        self.assertRaises(env.Unauthorized, doc.post)
+        self.assertRaises(env.Forbidden, doc.post)
         Document.mode = env.ACCESS_READ | env.ACCESS_WRITE
         doc.post()
 
         Document.mode = 0
-        self.assertRaises(env.Unauthorized, Document.delete, doc.guid)
+        self.assertRaises(env.Forbidden, Document.delete, doc.guid)
         Document.mode = env.ACCESS_DELETE
         Document.delete(doc.guid)
 
@@ -711,37 +711,37 @@ class DocumentTest(tests.Test):
         doc.post()
 
         Document.metadata['prop']._permissions = 0
-        self.assertRaises(env.Unauthorized, lambda: doc['prop'])
+        self.assertRaises(env.Forbidden, lambda: doc['prop'])
         Document.metadata['prop']._permissions = env.ACCESS_READ
         doc['prop']
 
         Document.metadata['prop']._permissions = 0
         documents, total = Document.find(0, 100, reply=['guid', 'prop'])
-        self.assertRaises(env.Unauthorized, documents.next)
+        self.assertRaises(env.Forbidden, lambda: documents.next().prop)
         Document.metadata['prop']._permissions = env.ACCESS_READ
         documents, total = Document.find(0, 100, reply=['guid', 'prop'])
-        documents.next
+        documents.next().prop
 
         Document.metadata['prop']._permissions = 0
-        self.assertRaises(env.Unauthorized, Document, prop='1')
+        self.assertRaises(env.Forbidden, Document, prop='1')
         Document.metadata['prop']._permissions = env.ACCESS_WRITE
-        self.assertRaises(env.Unauthorized, Document, prop='1')
+        self.assertRaises(env.Forbidden, Document, prop='1')
         Document.metadata['prop']._permissions = env.ACCESS_CREATE
         Document(prop='1')
 
         Document.metadata['prop']._permissions = 0
         doc_2 = Document()
-        self.assertRaises(env.Unauthorized, doc_2.__setitem__, 'prop', '1')
+        self.assertRaises(env.Forbidden, doc_2.__setitem__, 'prop', '1')
         Document.metadata['prop']._permissions = env.ACCESS_WRITE
-        self.assertRaises(env.Unauthorized, doc_2.__setitem__, 'prop', '1')
+        self.assertRaises(env.Forbidden, doc_2.__setitem__, 'prop', '1')
         Document.metadata['prop']._permissions = env.ACCESS_CREATE
         doc_2['prop'] = '1'
 
         Document.metadata['prop']._permissions = 0
         doc_2 = Document(doc.guid)
-        self.assertRaises(env.Unauthorized, doc_2.__setitem__, 'prop', '1')
+        self.assertRaises(env.Forbidden, doc_2.__setitem__, 'prop', '1')
         Document.metadata['prop']._permissions = env.ACCESS_CREATE
-        self.assertRaises(env.Unauthorized, doc_2.__setitem__, 'prop', '1')
+        self.assertRaises(env.Forbidden, doc_2.__setitem__, 'prop', '1')
         Document.metadata['prop']._permissions = env.ACCESS_WRITE
         doc_2['prop'] = '1'
 
@@ -757,12 +757,12 @@ class DocumentTest(tests.Test):
         doc.post()
 
         Document.metadata['blob']._permissions = 0
-        self.assertRaises(env.Unauthorized, doc.get_blob, 'blob')
+        self.assertRaises(env.Forbidden, doc.get_blob, 'blob')
         Document.metadata['blob']._permissions = env.ACCESS_READ
         doc.get_blob('blob')
 
         Document.metadata['blob']._permissions = 0
-        self.assertRaises(env.Unauthorized, doc.set_blob, 'blob', StringIO('data'))
+        self.assertRaises(env.Forbidden, doc.set_blob, 'blob', StringIO('data'))
         Document.metadata['blob']._permissions = env.ACCESS_WRITE
         doc.set_blob('blob', StringIO('data'))
 
