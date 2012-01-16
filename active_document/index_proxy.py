@@ -39,6 +39,11 @@ class IndexProxy(IndexReader):
     def close(self):
         self._wait_for_reopen_job.kill()
 
+    def get_cache(self, guid):
+        cached = self._cache.get(guid)
+        if cached is not None:
+            return cached.properties
+
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         _logger.debug('Push store request to "%s"\'s queue for "%s"',
                 self.metadata.name, guid)

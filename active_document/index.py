@@ -59,6 +59,19 @@ class IndexReader(object):
         else:
             return 0
 
+    def get_cache(self, guid):
+        """Return cached document.
+
+        Only in case if index support caching updates.
+
+        :param guid:
+            document GUID to get cache for
+        :returns:
+            dictionary with cached properties or `None`
+
+        """
+        pass
+
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         """Store new document in the index.
 

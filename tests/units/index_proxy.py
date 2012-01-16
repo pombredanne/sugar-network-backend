@@ -184,6 +184,15 @@ class IndexProxyTest(tests.Test):
                     ]), 0),
                 proxy._find(request={'common': 'common'}))
 
+    def test_Get(self):
+        doc = self.Document(term='3', not_term='3', common='3')
+        doc.post()
+
+        doc_2 = self.Document(doc.guid)
+        self.assertEqual('3', doc_2.term)
+        self.assertEqual('3', doc_2.not_term)
+        self.assertEqual('3', doc_2.common)
+
 
 class IndexProxy(index_proxy.IndexProxy):
 

@@ -90,12 +90,11 @@ class Document(object):
         self._cache = {}
         self._record = None
 
-        if indexed_props is None:
-            indexed_props = {}
-
         if guid:
             self._guid = guid
-            for prop_name, value in indexed_props.items():
+            if not indexed_props:
+                indexed_props = self._index.get_cache(guid)
+            for prop_name, value in (indexed_props or {}).items():
                 self.authorize_property(env.ACCESS_READ,
                         self.metadata[prop_name])
                 self._cache[prop_name] = (value, None)
