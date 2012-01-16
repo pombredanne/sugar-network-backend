@@ -505,7 +505,10 @@ class Document(object):
             yield
 
     @classmethod
-    def init(cls):
+    def init(cls, final_cls=None):
+        if final_cls is not None:
+            cls = final_cls
+
         if cls._initated:
             return
 
