@@ -100,9 +100,9 @@ class Document(object):
             self.authorize_document(env.ACCESS_READ, self)
         else:
             self._is_new = True
-            self._guid = str(uuid.uuid1())
-            kwargs['guid'] = self.guid
+            kwargs['guid'] = str(uuid.uuid1())
             self.on_create(kwargs)
+            self._guid = kwargs['guid']
 
             for name, prop in self.metadata.items():
                 if isinstance(prop, StoredProperty):

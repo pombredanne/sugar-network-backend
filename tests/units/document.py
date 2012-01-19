@@ -484,27 +484,28 @@ class DocumentTest(tests.Test):
                 return value
 
             def on_create(self, properties):
+                properties['guid'] = properties.pop('manual_guid')
                 properties['prop'] = 'foo'
 
-        doc = Document()
+        doc = Document(manual_guid='guid')
         doc.post()
         self.assertEqual(
-                ['foo'],
-                [i.prop for i in Document.find(0, 1024)[0]])
+                [('guid', 'foo')],
+                [(i.guid, i.prop) for i in Document.find(0, 1024)[0]])
 
         doc_2 = Document(doc.guid)
         doc_2.prop = 'probe'
         doc_2.post()
         self.assertEqual(
-                ['probe'],
-                [i.prop for i in Document.find(0, 1024)[0]])
+                [('guid', 'probe')],
+                [(i.guid, i.prop) for i in Document.find(0, 1024)[0]])
 
-        doc_3 = Document()
+        doc_3 = Document(manual_guid='guid2')
         doc_3.prop = 'bar'
         doc_3.post()
         self.assertEqual(
-                ['probe', 'bar'],
-                [i.prop for i in Document.find(0, 1024)[0]])
+                [('guid', 'probe'), ('guid2', 'bar')],
+                [(i.guid, i.prop) for i in Document.find(0, 1024)[0]])
 
     def test_on_modify(self):
 
