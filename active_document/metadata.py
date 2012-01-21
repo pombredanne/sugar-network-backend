@@ -105,6 +105,11 @@ class Property(object):
         """Default property value or None."""
         return self._default
 
+    @property
+    def is_trait(self):
+        """Property to return from find() requests."""
+        return True
+
 
 class IndexedProperty(Property):
     """Property that need to be indexed."""
@@ -265,3 +270,7 @@ class BlobProperty(Property):
 
         """
         return self._mime_type
+
+    @property
+    def is_trait(self):
+        return False

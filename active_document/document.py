@@ -27,6 +27,7 @@ from active_document.metadata import GuidProperty, BlobProperty
 from active_document.metadata import AggregatorProperty, IndexedProperty
 from active_document.index import IndexWriter
 from active_document.index_proxy import IndexProxy
+from active_document.seqno import Seqno
 from active_document.util import enforce
 
 
@@ -69,8 +70,9 @@ class Document(object):
     _initated = False
     _storage = None
     _index = None
+    _seqno = None
 
-    def __init__(self, guid=None, indexed_props=None, raw=False, **kwargs):
+    def __init__(self, guid=None, indexed_props=None, raw=None, **kwargs):
         """
         :param guid:
             GUID of existing document; if omitted, newly created object
@@ -78,6 +80,9 @@ class Document(object):
             only after calling `post`
         :param indexed_props:
             property values got from index to populate the cache
+        :param raw:
+            list of property names to avoid any checks for
+            users' visible properties
         :param kwargs:
             optional key arguments with new property values; specifing these
             arguments will mean the same as setting properties after `Document`
@@ -85,7 +90,7 @@ class Document(object):
 
         """
         self.init()
-        self._raw = raw
+        self._raw = raw or []
         self._is_new = False
         self._cache = {}
         self._record = None
@@ -99,13 +104,16 @@ class Document(object):
             self.authorize_document(env.ACCESS_READ, self)
         else:
             self._is_new = True
-            kwargs['guid'] = str(uuid.uuid1())
-            self.on_create(kwargs)
-            self._guid = kwargs['guid']
+
+            cache = {}
+            self.on_create(kwargs, cache)
+            for name, value in cache.items():
+                self._cache[name] = (None, value)
+            self._guid = cache['guid']
 
             for name, prop in self.metadata.items():
                 if isinstance(prop, StoredProperty):
-                    if name in kwargs:
+                    if name in kwargs or name in self._cache:
                         continue
                     enforce(prop.default is not None,
                             _('Property "%s" should be passed for ' \
@@ -123,13 +131,17 @@ class Document(object):
         return self._guid
 
     @active_property(slot=1000, prefix='IC', typecast=int,
-            permissions=env.ACCESS_CREATE | env.ACCESS_READ, default=0)
+            permissions=env.ACCESS_READ, default=0)
     def ctime(self, value):
         return value
 
     @active_property(slot=1001, prefix='IM', typecast=int,
-            permissions=env.ACCESS_CREATE | env.ACCESS_READ, default=0)
+            permissions=env.ACCESS_READ, default=0)
     def mtime(self, value):
+        return value
+
+    @active_property(slot=1002, prefix='IS', typecast=int, permissions=0)
+    def seqno(self, value):
         return value
 
     def __getitem__(self, prop_name):
@@ -300,18 +312,24 @@ class Document(object):
                 prop_name, self.metadata.name)
         self._storage.set_blob(self.guid, prop_name, stream, size)
 
-    def on_create(self, properties):
+    def on_create(self, properties, cache):
         """Call back to call on document creation.
 
         Function needs to be re-implemented in child classes.
 
         :param properties:
             dictionary with new document properties values
+        :param cache:
+            properties to use as predefined values
 
         """
+        cache['guid'] = str(uuid.uuid1())
+
         ts = str(int(time.mktime(datetime.utcnow().timetuple())))
-        properties['ctime'] = ts
-        properties['mtime'] = ts
+        cache['ctime'] = ts
+        cache['mtime'] = ts
+
+        self._set_seqno(cache)
 
     def on_modify(self, properties):
         """Call back to call on existing document modification.
@@ -324,6 +342,8 @@ class Document(object):
         """
         ts = str(int(time.mktime(datetime.utcnow().timetuple())))
         properties['mtime'] = ts
+
+        self._set_seqno(properties)
 
     def on_post(self, properties):
         """Call back to call on exery `post()` call.
@@ -349,7 +369,8 @@ class Document(object):
             property to check access for
 
         """
-        enforce(self._raw or mode & prop.permissions, env.Forbidden,
+        enforce(prop.name in self._raw or \
+                mode & prop.permissions, env.Forbidden,
                 _('%s access is disabled for "%s" property in "%s"'),
                 env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
 
@@ -457,7 +478,7 @@ class Document(object):
             order_by = 'ctime'
 
         for prop_name in reply:
-            enforce(not isinstance(cls.metadata[prop_name], BlobProperty),
+            enforce(cls.metadata[prop_name].is_trait,
                     _('Property "%s" in "%s" is not suitable ' \
                             'for find requests'),
                     prop_name, cls.metadata.name)
@@ -514,6 +535,7 @@ class Document(object):
         cls.metadata['guid'] = GuidProperty()
 
         cls._storage = Storage(cls.metadata)
+        cls._seqno = Seqno(cls.metadata)
 
         slots = {}
         prefixes = {}
@@ -587,3 +609,7 @@ class Document(object):
             for name in prop_names:
                 __, new = self._cache.get(name, (None, None))
                 self._cache[name] = (doc[name], new)
+
+    def _set_seqno(self, properties):
+        if 'seqno' not in self._raw:
+            properties['seqno'] = self._seqno.next()

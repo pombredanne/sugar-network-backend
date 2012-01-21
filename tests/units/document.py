@@ -417,10 +417,14 @@ class DocumentTest(tests.Test):
 
         self.touch(
                 ('document/1/1/.document', ''),
+
+                ('document/1/1/seqno', '0'),
                 ('document/1/1/ctime', '1'),
                 ('document/1/1/mtime', '1'),
                 ('document/1/1/prop', 'prop-1'),
                 ('document/1/1/vote/-1', ''),
+
+                ('document/2/2/seqno', '0'),
                 ('document/2/2/.document', ''),
                 ('document/2/2/ctime', '2'),
                 ('document/2/2/mtime', '2'),
@@ -459,8 +463,9 @@ class DocumentTest(tests.Test):
             def prop(self, value):
                 return value
 
-            def on_create(self, properties):
-                properties['guid'] = properties.pop('manual_guid')
+            def on_create(self, properties, cache):
+                document.Document.on_create(self, properties, cache)
+                cache['guid'] = properties.pop('manual_guid')
                 properties['prop'] = 'foo'
 
         doc = Document(manual_guid='guid')
@@ -771,6 +776,68 @@ class DocumentTest(tests.Test):
         doc_3['prop'] = '2'
         doc_3.post()
         assert doc_3['ctime'] < doc_3['mtime']
+
+    def test_UpdateInternalProps(self):
+
+        class Document(document.Document):
+            pass
+
+        self.assertRaises(env.Forbidden, lambda: Document(ctime=1))
+        doc = Document()
+        doc['ctime']
+        self.assertRaises(env.Forbidden, lambda: doc.__setitem__('ctime', 1))
+        doc.post()
+
+        self.assertRaises(env.Forbidden, lambda: Document(mtime=1))
+        doc = Document()
+        doc['mtime']
+        self.assertRaises(env.Forbidden, lambda: doc.__setitem__('mtime', 1))
+        doc.post()
+
+        self.assertRaises(env.Forbidden, lambda: Document(seqno=1))
+        doc = Document()
+        self.assertRaises(env.Forbidden, lambda: doc.__getitem__('seqno'))
+        self.assertRaises(env.Forbidden, lambda: doc.__setitem__('seqno', 1))
+        doc.post()
+
+        doc = Document(raw=['seqno'], seqno=1024)
+        self.assertEqual(1024, doc['seqno'])
+        doc.post()
+        self.assertEqual(
+                [doc.guid],
+                [i.guid for i in Document.find(0, 1024, request={'seqno': 1024})[0]])
+
+    def test_seqno(self):
+
+        class Document(document.Document):
+            pass
+
+        class Seqno(object):
+
+            seqno = 0
+
+            def next(self):
+                Seqno.seqno += 1
+                return Seqno.seqno
+
+        Document.init()
+        Document._seqno = Seqno()
+
+        doc = Document()
+        doc.post()
+        self.assertEqual('1', Document(doc.guid, raw=['seqno']).seqno)
+
+        doc = Document()
+        doc.post()
+        self.assertEqual('2', Document(doc.guid, raw=['seqno']).seqno)
+
+        doc = Document(raw=['seqno'], seqno=1024)
+        doc.post()
+        self.assertEqual('1024', Document(doc.guid, raw=['seqno']).seqno)
+
+        doc = Document()
+        doc.post()
+        self.assertEqual('3', Document(doc.guid, raw=['seqno']).seqno)
 
 
 if __name__ == '__main__':
