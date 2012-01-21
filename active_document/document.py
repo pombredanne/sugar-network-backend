@@ -23,7 +23,7 @@ from active_document import env, util
 from active_document.storage import Storage
 from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, StoredProperty
-from active_document.metadata import GuidProperty, BlobProperty
+from active_document.metadata import GuidProperty, BlobProperty, SeqnoProperty
 from active_document.metadata import AggregatorProperty, IndexedProperty
 from active_document.index import IndexWriter
 from active_document.index_proxy import IndexProxy
@@ -82,7 +82,7 @@ class Document(object):
             property values got from index to populate the cache
         :param raw:
             list of property names to avoid any checks for
-            users' visible properties
+            users' visible properties; only for server local use
         :param kwargs:
             optional key arguments with new property values; specifing these
             arguments will mean the same as setting properties after `Document`
@@ -140,7 +140,7 @@ class Document(object):
     def mtime(self, value):
         return value
 
-    @active_property(slot=1002, prefix='IS', typecast=int, permissions=0)
+    @active_property(SeqnoProperty, slot=1002, prefix='IS')
     def seqno(self, value):
         return value
 
@@ -206,6 +206,9 @@ class Document(object):
             property value to set
 
         """
+        if prop_name == 'guid':
+            enforce(self._is_new, _('GUID can be set only for new documents'))
+
         prop = self.metadata[prop_name]
         if self._is_new:
             self.authorize_property(env.ACCESS_CREATE, prop)
@@ -225,6 +228,9 @@ class Document(object):
 
         orig, __ = self._cache.get(prop_name, (None, None))
         self._cache[prop_name] = (orig, value)
+
+        if prop_name == 'guid':
+            self._guid = value
 
     def post(self):
         """Store changed properties."""
@@ -392,30 +398,36 @@ class Document(object):
         pass
 
     @classmethod
-    def create(cls, properties):
+    def create(cls, properties, raw=None):
         """Create new document.
 
         :param properties:
             new document properties
+        :param raw:
+            list of property names to avoid any checks for
+            users' visible properties; only for server local use
         :returns:
             created `Document` object
 
         """
-        doc = cls(**(properties or {}))
+        doc = cls(raw=raw, **(properties or {}))
         doc.post()
         return doc
 
     @classmethod
-    def update(cls, guid, properties):
+    def update(cls, guid, properties, raw=None):
         """Update properties for an existing document.
 
         :param guid:
             document GUID to store
         :param properties:
             properties to store, not necessary all document's properties
+        :param raw:
+            list of property names to avoid any checks for
+            users' visible properties; only for server local use
 
         """
-        doc = cls(guid, **(properties or {}))
+        doc = cls(guid, raw=raw, **(properties or {}))
         doc.post()
 
     @classmethod

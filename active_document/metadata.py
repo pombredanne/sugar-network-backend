@@ -274,3 +274,15 @@ class BlobProperty(Property):
     @property
     def is_trait(self):
         return False
+
+
+class SeqnoProperty(ActiveProperty):
+    """Seqno property which is not a trait."""
+
+    def __init__(self, name, **kwargs):
+        ActiveProperty.__init__(self, name, permissions=0, typecast=int,
+                **kwargs)
+
+    @property
+    def is_trait(self):
+        return False
