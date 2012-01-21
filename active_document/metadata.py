@@ -79,11 +79,9 @@ class Metadata(dict):
 class Property(object):
     """Bacis class to collect information about document property."""
 
-    def __init__(self, name, permissions=env.ACCESS_FULL, large=False,
-            default=None):
+    def __init__(self, name, permissions=env.ACCESS_FULL, default=None):
         self._name = name
         self._permissions = permissions
-        self._large = large
         self._default = default
         self.writable = False
 
@@ -103,23 +101,9 @@ class Property(object):
         return self._permissions
 
     @property
-    def large(self):
-        """Property values are large enough for `Document.find()`.
-
-        Create `Document` object to get access to these properties for
-        particular document.
-
-        """
-        return self._large
-
-    @property
     def default(self):
         """Default property value or None."""
         return self._default
-
-    @property
-    def is_trait(self):
-        return True
 
 
 class IndexedProperty(Property):
@@ -128,7 +112,7 @@ class IndexedProperty(Property):
     def __init__(self, name,
             slot=None, prefix=None, full_text=False,
             boolean=False, multiple=False, separator=None, typecast=None,
-            permissions=env.ACCESS_FULL, large=False, default=None):
+            permissions=env.ACCESS_FULL, default=None):
         enforce(name == 'guid' or slot != 0,
                 _('For "%s" property, ' \
                         'the slot "0" is reserved for internal needs'),
@@ -141,8 +125,7 @@ class IndexedProperty(Property):
                 _('For "%s" property, ' \
                         'either slot, prefix or full_text need to be set'),
                 name)
-        Property.__init__(self, name, permissions=permissions, large=large,
-                default=default)
+        Property.__init__(self, name, permissions=permissions, default=default)
         self._slot = slot
         self._prefix = prefix
         self._full_text = full_text
@@ -271,7 +254,7 @@ class BlobProperty(Property):
 
     def __init__(self, name, permissions=env.ACCESS_FULL,
             mime_type='application/octet-stream'):
-        Property.__init__(self, name, permissions=permissions, large=True)
+        Property.__init__(self, name, permissions=permissions)
         self._mime_type = mime_type
 
     @property
@@ -282,7 +265,3 @@ class BlobProperty(Property):
 
         """
         return self._mime_type
-
-    @property
-    def is_trait(self):
-        return False

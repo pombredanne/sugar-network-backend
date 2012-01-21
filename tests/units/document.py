@@ -17,30 +17,6 @@ from active_document.metadata import AggregatorProperty
 
 class DocumentTest(tests.Test):
 
-    def test_Property_Large(self):
-
-        class Document(document.Document):
-
-            @document.active_property(StoredProperty, large=True)
-            def large(self, value):
-                return value
-
-            @large.setter
-            def large(self, value):
-                return value
-
-        doc = Document(large='probe')
-        self.assertEqual(True, doc.metadata['large'].large)
-
-        doc.post()
-        self.assertRaises(RuntimeError, Document.find, 0, 100, reply='large')
-        self.assertEqual('probe', Document(doc.guid).large)
-
-        doc2 = Document(doc.guid)
-        doc2.large = 'foo'
-        doc2.post()
-        self.assertEqual('foo', Document(doc2.guid).large)
-
     def test_IndexedProperty_Slotted(self):
 
         class Document(document.Document):

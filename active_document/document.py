@@ -23,9 +23,8 @@ from active_document import env, util
 from active_document.storage import Storage
 from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, StoredProperty
-from active_document.metadata import GuidProperty
+from active_document.metadata import GuidProperty, BlobProperty
 from active_document.metadata import AggregatorProperty, IndexedProperty
-from active_document.metadata import BlobProperty
 from active_document.index import IndexWriter
 from active_document.index_proxy import IndexProxy
 from active_document.util import enforce
@@ -458,7 +457,7 @@ class Document(object):
             order_by = 'ctime'
 
         for prop_name in reply:
-            enforce(not cls.metadata[prop_name].large,
+            enforce(not isinstance(cls.metadata[prop_name], BlobProperty),
                     _('Property "%s" in "%s" is not suitable ' \
                             'for find requests'),
                     prop_name, cls.metadata.name)
