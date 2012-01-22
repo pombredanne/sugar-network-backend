@@ -27,7 +27,7 @@ from active_document.metadata import GuidProperty, BlobProperty, SeqnoProperty
 from active_document.metadata import AggregatorProperty, IndexedProperty
 from active_document.index import IndexWriter
 from active_document.index_proxy import IndexProxy
-from active_document.seqno import Seqno
+from active_document.sync import Seqno
 from active_document.util import enforce
 
 
@@ -398,36 +398,30 @@ class Document(object):
         pass
 
     @classmethod
-    def create(cls, properties, raw=None):
+    def create(cls, properties):
         """Create new document.
 
         :param properties:
             new document properties
-        :param raw:
-            list of property names to avoid any checks for
-            users' visible properties; only for server local use
         :returns:
             created `Document` object
 
         """
-        doc = cls(raw=raw, **(properties or {}))
+        doc = cls(**(properties or {}))
         doc.post()
         return doc
 
     @classmethod
-    def update(cls, guid, properties, raw=None):
+    def update(cls, guid, properties):
         """Update properties for an existing document.
 
         :param guid:
             document GUID to store
         :param properties:
             properties to store, not necessary all document's properties
-        :param raw:
-            list of property names to avoid any checks for
-            users' visible properties; only for server local use
 
         """
-        doc = cls(guid, raw=raw, **(properties or {}))
+        doc = cls(guid, **(properties or {}))
         doc.post()
 
     @classmethod

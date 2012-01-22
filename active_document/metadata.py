@@ -42,8 +42,6 @@ class Metadata(dict):
             absolute path
 
         """
-        enforce(env.data_root.value,
-                _('The active_document.data_root.value is not set'))
         result = join(env.data_root.value, self.name, *args)
         return abspath(result)
 
@@ -59,8 +57,6 @@ class Metadata(dict):
             absolute path
 
         """
-        enforce(env.data_root.value,
-                _('The active_document.data_root.value is not set'))
         result = join(env.data_root.value, self.name, *args)
         if result.endswith(os.sep):
             result_dir = result = result.rstrip(os.sep)
