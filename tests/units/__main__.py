@@ -8,5 +8,6 @@ from document import *
 from storage import *
 from index_proxy import *
 from folder import *
+from sync import *
 
 tests.main()
