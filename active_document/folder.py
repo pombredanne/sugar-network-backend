@@ -18,7 +18,7 @@ import json
 import uuid
 import gzip
 import logging
-from os.path import join, exists
+from os.path import join, exists, dirname, abspath
 from gettext import gettext as _
 
 from active_document import env, util
@@ -27,6 +27,7 @@ from active_document.util import enforce
 
 
 _HEADER_SIZE = 4096
+_RESERVED_SIZE = 1024 * 1024
 
 _logger = logging.getLogger('ad.folder')
 
@@ -77,32 +78,42 @@ class _Folder(dict):
         _logger.info(_('Syncing with %s directory'), volume_path)
 
         id_path = join(volume_path, self.id + '.gz')
+        unknown_documents = set()
+
         if exists(id_path):
             with _InPacket(id_path) as packet:
-                for document, ack in packet.acks:
+                for row in packet.read_rows(type='ack'):
                     yield
-                    self._synchronizers[document].process_ack(ack)
-                packet.unlink()
+                    synchronizer = self._synchronizers.get(row['document'])
+                    if synchronizer is None:
+                        unknown_documents.add((row['document'], packet.path))
+                        continue
+                    synchronizer.process_ack(row['ack'])
+            os.unlink(id_path)
 
         for filename in os.listdir(volume_path):
             with _InPacket(join(volume_path, filename)) as packet:
-                for document, region, rows in packet.dumps:
-                    synchronizer = self._synchronizers[document]
-                    for row in rows:
-                        yield
-                        synchronizer.merge(row)
-                    if region:
-                        yield
-                        synchronizer.process_region(region)
+                for row in packet.read_rows(type='dump'):
+                    synchronizer = self._synchronizers.get(row['document'])
+                    if synchronizer is None:
+                        unknown_documents.add((row['document'], packet.path))
+                        continue
+                    synchronizer.merge(row['row'])
 
-        syn, rows = self._synchronizers[self.id].create_syn()
-        if syn is not None:
-            with _OutPacket(id_path, next_volume_cb) as packet:
-                yield
-                packet.writeln(syn)
-                for row in rows:
-                    yield
-                    packet.writeln(row)
+        for document, path in unknown_documents:
+            _logger.warning(_('Unknown document "%s" in "%s" packet'),
+                    document, path)
+
+        syns, rows = self._synchronizers[self.id].create_syn()
+        try:
+            with _OutPacket(id_path, next_volume_cb, sender=self.id) as packet:
+                for document, syn in syns:
+                    packet.write_row(type='syn', document=document, syn=syn)
+                for document, row in rows:
+                    packet.write_row(type='dump', document=document, dump=row)
+        except IOError, error:
+            _logger.warning(_('Packet was not fully uploaded to "%s": %s'),
+                    volume_path, error)
 
 
 class NodeFolder(_Folder):
@@ -114,7 +125,7 @@ class NodeFolder(_Folder):
 class _InPacket(object):
 
     def __init__(self, path):
-        self._path = path
+        self.path = path
         self._zip = gzip.GzipFile(path)
         self.sender = None
         self.receiver = None
@@ -122,10 +133,10 @@ class _InPacket(object):
 
         header = self._read(size=_HEADER_SIZE, subject='Sugar Network Packet')
         if header is None:
-            _logger.info(_('Skip not recognized packet file, %s'), path)
+            _logger.info(_('Skip not recognized input packet file, %s'), path)
             self.close()
         else:
-            _logger.info(_('Open packet file, %s: %r'), path, header)
+            _logger.info(_('Open input packet file, %s: %r'), path, header)
             self.sender = header.get('sender')
             self.receiver = header.get('receiver')
 
@@ -133,37 +144,12 @@ class _InPacket(object):
     def opened(self):
         return self._zip is not None
 
-    @property
-    def syns(self):
+    def read_rows(self, **kwargs):
         while True:
-            row = self._read(type='syn')
+            row = self._read(**kwargs)
             if row is None:
                 break
-            yield row['document'], row['syn']
-
-    @property
-    def acks(self):
-        while True:
-            row = self._read(type='ack')
-            if row is None:
-                break
-            yield row['document'], row['ack']
-
-    @property
-    def dumps(self):
-
-        def read_rows():
-            while True:
-                row = self._read(type='row')
-                if row is None:
-                    break
-                yield row['row']
-
-        while True:
-            row = self._read(type='dump')
-            if row is None:
-                break
-            yield row['document'], row['region'], read_rows()
+            yield row
 
     def close(self):
         if self._zip is not None:
@@ -177,7 +163,7 @@ class _InPacket(object):
                     return
                 row = self._zip.readline(size)
                 if not row:
-                    _logger.warning(_('EOF for packet file, %s'), self._path)
+                    _logger.warning(_('EOF for packet file, %s'), self.path)
                     self.close()
                     return
                 row = dict(json.loads(row))
@@ -193,10 +179,48 @@ class _InPacket(object):
             return row
 
         except (IOError, ValueError, TypeError), error:
-            _logger.warning(_('Malformed packet file, %s: %s'),
-                    self._path, error)
+            _logger.warning(_('Malformed input packet file "%s": %s'),
+                    self.path, error)
             self.close()
 
 
 class _OutPacket(object):
-    pass
+
+    def __init__(self, path, next_volume_cb=None, **kwargs):
+        self.path = path
+        self._next_volume_cb = next_volume_cb
+        self._header = {'subject': 'Sugar Network Packet'}
+        self._header.update(kwargs)
+        self._zip = None
+        self._couter = 0
+
+    def close(self):
+        if self._zip is not None:
+            self._zip.close()
+            self._zip = None
+            self._couter = 0
+
+    def write_row(self, **kwargs):
+        if self._zip is None or self._couter >= _RESERVED_SIZE:
+            self._next_volume()
+        data = json.dumps(kwargs)
+        self._zip.write(data)
+        self._zip.write('\n')
+        self._couter += len(data) + 1
+
+    def _next_volume(self):
+        self.close()
+
+        fs_path = abspath(dirname(self.path))
+        while True:
+            stat = os.statvfs(fs_path)
+            if stat.f_bfree * stat.f_frsize >= _RESERVED_SIZE * 2:
+                break
+            if self._next_volume_cb is None or \
+                    not self._next_volume_cb(fs_path):
+                raise IOError(_('No free disk space in "%s"') % fs_path)
+            _logger.info(_('Switched volumes for "%s"'), fs_path)
+
+        _logger.info(_('Open output packet file "%s"'), self.path)
+        self._zip = gzip.GzipFile(self.path, 'w')
+        self.write_row(**self._header)

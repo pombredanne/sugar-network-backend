@@ -1,43 +1,48 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import gzip
 import json
 from os.path import exists
 
 from __init__ import tests
 
-from active_document import env
-from active_document.folder import NodeFolder, _InPacket
+from active_document import env, folder
+
 
 
 class FolderTest(tests.Test):
 
+    def setUp(self):
+        tests.Test.setUp(self)
+        self.override(os, 'statvfs', lambda *args: statvfs())
+
     def test_id(self):
-        folder = NodeFolder([])
+        node_folder = folder.NodeFolder([])
         assert exists('id')
         self.assertNotEqual('', file('id').read().strip())
 
         self.touch(('id', 'foo'))
-        folder = NodeFolder([])
+        node_folder = folder.NodeFolder([])
         self.assertEqual('foo', file('id').read())
 
     def test_InPacket_WrongFile(self):
         bundle = gzip.GzipFile('test.gz', 'w')
         bundle.close()
-        packet = _InPacket('test.gz')
+        packet = folder._InPacket('test.gz')
         assert not packet.opened
 
         bundle = gzip.GzipFile('test.gz', 'w')
         bundle.write(json.dumps({'subject': 'bar'}))
         bundle.close()
-        packet = _InPacket('test.gz')
+        packet = folder._InPacket('test.gz')
         assert not packet.opened
 
         bundle = gzip.GzipFile('test.gz', 'w')
         bundle.write(json.dumps({'subject': 'Sugar Network Packet'}))
         bundle.close()
-        packet = _InPacket('test.gz')
+        packet = folder._InPacket('test.gz')
         assert packet.opened
         self.assertEqual(None, packet.sender)
         self.assertEqual(None, packet.receiver)
@@ -45,20 +50,20 @@ class FolderTest(tests.Test):
         bundle = gzip.GzipFile('test.gz', 'w')
         bundle.write(json.dumps({'subject': 'Sugar Network Packet', 'sender': 'me', 'receiver': 'you'}))
         bundle.close()
-        packet = _InPacket('test.gz')
+        packet = folder._InPacket('test.gz')
         assert packet.opened
         self.assertEqual('me', packet.sender)
         self.assertEqual('you', packet.receiver)
 
-    def test_InPacket_syns(self):
+    def test_InPacket(self):
         bundle = gzip.GzipFile('test.gz', 'w')
         bundle.write(json.dumps({'subject': 'Sugar Network Packet'}))
         bundle.close()
 
-        packet = _InPacket('test.gz')
+        packet = folder._InPacket('test.gz')
         self.assertEqual(
                 [],
-                [i for i in packet.syns])
+                [i for i in packet.read_rows(type='syn')])
         assert not packet.opened
 
         bundle = gzip.GzipFile('test.gz', 'w')
@@ -66,140 +71,140 @@ class FolderTest(tests.Test):
         bundle.write(json.dumps({'type': 'syn'}) + '\n')
         bundle.close()
 
-        packet = _InPacket('test.gz')
-        self.assertRaises(KeyError, packet.syns.next)
-
         bundle = gzip.GzipFile('test.gz', 'w')
         bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'syn', 'document': 'foo', 'syn': 'bar'}) + '\n')
+        bundle.write(json.dumps({'type': 'syn', 'foo': 'bar'}) + '\n')
         bundle.close()
 
-        packet = _InPacket('test.gz')
+        packet = folder._InPacket('test.gz')
         self.assertEqual(
-                [('foo', 'bar')],
-                [i for i in packet.syns])
+                [{'type': 'syn', 'foo': 'bar'}],
+                [i for i in packet.read_rows(type='syn')])
         assert not packet.opened
 
         bundle = gzip.GzipFile('test.gz', 'w')
         bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'syn', 'document': 'foo', 'syn': 'bar-1'}) + '\n')
-        bundle.write(json.dumps({'type': 'syn', 'document': 'foo', 'syn': 'bar-2'}) + '\n')
+        bundle.write(json.dumps({'type': 'syn', 'foo': 1}) + '\n')
+        bundle.write(json.dumps({'type': 'syn', 'foo': 2}) + '\n')
         bundle.write(json.dumps({'type': 'stop'}) + '\n')
-        bundle.write(json.dumps({'type': 'syn', 'document': 'fake', 'syn': 'bar-3'}) + '\n')
+        bundle.write(json.dumps({'type': 'syn', 'foo': 3}) + '\n')
         bundle.close()
 
-        packet = _InPacket('test.gz')
+        packet = folder._InPacket('test.gz')
         self.assertEqual(
-                [('foo', 'bar-1'), ('foo', 'bar-2')],
-                [i for i in packet.syns])
+                [{'type': 'syn', 'foo': 1}, {'type': 'syn', 'foo': 2}],
+                [i for i in packet.read_rows(type='syn')])
         assert packet.opened
-
-    def test_InPacket_acks(self):
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}))
-        bundle.close()
-
-        packet = _InPacket('test.gz')
         self.assertEqual(
-                [],
-                [i for i in packet.acks])
-        assert not packet.opened
-
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'ack'}) + '\n')
-        bundle.close()
-
-        packet = _InPacket('test.gz')
-        self.assertRaises(KeyError, packet.acks.next)
-
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'ack', 'document': 'foo', 'ack': 'bar'}) + '\n')
-        bundle.close()
-
-        packet = _InPacket('test.gz')
-        self.assertEqual(
-                [('foo', 'bar')],
-                [i for i in packet.acks])
-        assert not packet.opened
-
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'ack', 'document': 'foo', 'ack': 'bar-1'}) + '\n')
-        bundle.write(json.dumps({'type': 'ack', 'document': 'foo', 'ack': 'bar-2'}) + '\n')
-        bundle.write(json.dumps({'type': 'stop'}) + '\n')
-        bundle.write(json.dumps({'type': 'ack', 'document': 'fake', 'ack': 'bar-3'}) + '\n')
-        bundle.close()
-
-        packet = _InPacket('test.gz')
-        self.assertEqual(
-                [('foo', 'bar-1'), ('foo', 'bar-2')],
-                [i for i in packet.acks])
+                [{'type': 'stop'}],
+                [i for i in packet.read_rows(type='stop')])
         assert packet.opened
-
-    def test_InPacket_dumps(self):
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}))
-        bundle.close()
-
-        packet = _InPacket('test.gz')
         self.assertEqual(
-                [],
-                [i for i in packet.dumps])
+                [{'type': 'syn', 'foo': 3}],
+                [i for i in packet.read_rows(type='syn')])
         assert not packet.opened
 
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'dump'}) + '\n')
-        bundle.close()
+    def test_OutPacket(self):
+        out_packet = folder._OutPacket('test.gz', sender='me')
+        out_packet.close()
+        assert not exists('test.gz')
 
-        packet = _InPacket('test.gz')
-        self.assertRaises(KeyError, packet.dumps.next)
-
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'dump', 'document': 'foo', 'region': 'bar'}) + '\n')
-        bundle.close()
-
-        packet = _InPacket('test.gz')
-        dumps = packet.dumps
-        document, region, rows = dumps.next()
-        self.assertEqual('foo', document)
-        self.assertEqual('bar', region)
+        out_packet = folder._OutPacket('test.gz', sender='me')
+        out_packet.write_row(foo='bar')
+        out_packet.write_row(bar='foo')
+        out_packet.close()
+        assert exists('test.gz')
+        in_packet = folder._InPacket('test.gz')
+        self.assertEqual('me', in_packet.sender)
         self.assertEqual(
-                [],
-                [i for i in rows])
-        assert not packet.opened
+                [{'foo': 'bar'}, {'bar': 'foo'}],
+                [i for i in in_packet.read_rows()])
 
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'dump', 'document': 'foo', 'region': 1}) + '\n')
-        bundle.write(json.dumps({'type': 'row', 'row': 1}) + '\n')
-        bundle.write(json.dumps({'type': 'row', 'row': 2}) + '\n')
-        bundle.write(json.dumps({'type': 'dump', 'document': 'bar', 'region': 2}) + '\n')
-        bundle.write(json.dumps({'type': 'row', 'row': 3}) + '\n')
-        bundle.write(json.dumps({'type': 'stop'}) + '\n')
-        bundle.write(json.dumps({'type': 'dump', 'document': 'fake', 'region': 3}) + '\n')
-        bundle.write(json.dumps({'type': 'row', 'row': 4}) + '\n')
-        bundle.close()
+    def test_OutPacket_DiskFull(self):
+        statvfs.f_bfree = folder._RESERVED_SIZE * 2 - 1
+        out_packet = folder._OutPacket('test.gz', sender='me')
+        self.assertRaises(IOError, out_packet.write_row, foo='bar')
+        out_packet.close()
+        assert not exists('test.gz')
 
-        packet = _InPacket('test.gz')
-        dumps = packet.dumps
-        document, region, rows = dumps.next()
-        self.assertEqual('foo', document)
-        self.assertEqual(1, region)
+        statvfs.f_bfree = folder._RESERVED_SIZE * 2
+        out_packet = folder._OutPacket('test.gz', sender='me')
+        out_packet.write_row(foo='bar')
+        out_packet.close()
+        in_packet = folder._InPacket('test.gz')
+        self.assertEqual('me', in_packet.sender)
         self.assertEqual(
-                [1, 2],
-                [i for i in rows])
-        document, region, rows = dumps.next()
-        self.assertEqual('bar', document)
-        self.assertEqual(2, region)
+                [{'foo': 'bar'}],
+                [i for i in in_packet.read_rows()])
+
+    def test_OutPacket_SwitchVolumes(self):
+        switches = []
+
+        def next_volume_cb(path):
+            switches.append(path)
+            if len(switches) == 3:
+                statvfs.f_bfree += 1
+            return True
+
+        statvfs.f_bfree = folder._RESERVED_SIZE * 2 - 1
+        out_packet = folder._OutPacket('test.gz', sender='me',
+                next_volume_cb=next_volume_cb)
+        out_packet.write_row(foo='bar')
+        out_packet.close()
+
+        self.assertEqual(
+                [tests.tmpdir] * 3,
+                switches)
+        self.assertEqual(
+                [{'foo': 'bar'}],
+                [i for i in folder._InPacket('test.gz').read_rows()])
+
+    def test_OutPacket_WriteToSeveralVolumes(self):
+        switches = []
+
+        def next_volume_cb(path):
+            switches.append(path)
+            os.rename('test.gz', 'test.gz.%s' % len(switches))
+            statvfs.f_bfree = folder._RESERVED_SIZE * 2
+            return True
+
+        statvfs.f_bfree = folder._RESERVED_SIZE * 2
+        out_packet = folder._OutPacket('test.gz', sender='me',
+                next_volume_cb=next_volume_cb)
+        out_packet.write_row(write=1, data='*' * folder._RESERVED_SIZE)
+        statvfs.f_bfree = folder._RESERVED_SIZE
+        out_packet.write_row(write=2, data='*' * folder._RESERVED_SIZE)
+        statvfs.f_bfree = folder._RESERVED_SIZE
+        out_packet.write_row(write=3, data='*' * folder._RESERVED_SIZE)
+        out_packet.close()
+
+        self.assertEqual(
+                [tests.tmpdir] * 2,
+                switches)
+
+        in_packet = folder._InPacket('test.gz.1')
+        self.assertEqual('me', in_packet.sender)
+        self.assertEqual(
+                [1],
+                [i['write'] for i in in_packet.read_rows()])
+
+        in_packet = folder._InPacket('test.gz.2')
+        self.assertEqual('me', in_packet.sender)
+        self.assertEqual(
+                [2],
+                [i['write'] for i in in_packet.read_rows()])
+
+        in_packet = folder._InPacket('test.gz')
+        self.assertEqual('me', in_packet.sender)
         self.assertEqual(
                 [3],
-                [i for i in rows])
-        self.assertRaises(StopIteration, dumps.next)
-        assert packet.opened
+                [i['write'] for i in in_packet.read_rows()])
+
+
+class statvfs(object):
+
+    f_bfree = folder._RESERVED_SIZE * 10
+    f_frsize = 1
 
 
 if __name__ == '__main__':
