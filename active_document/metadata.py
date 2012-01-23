@@ -107,7 +107,12 @@ class Property(object):
         return True
 
 
-class IndexedProperty(Property):
+class StoredProperty(Property):
+    """Property that can be saved in persistent storare."""
+    pass
+
+
+class ActiveProperty(StoredProperty):
     """Property that need to be indexed."""
 
     def __init__(self, name,
@@ -126,7 +131,8 @@ class IndexedProperty(Property):
                 _('For "%s" property, ' \
                         'either slot, prefix or full_text need to be set'),
                 name)
-        Property.__init__(self, name, permissions=permissions, default=default)
+        StoredProperty.__init__(self, name, permissions=permissions,
+                default=default)
         self._slot = slot
         self._prefix = prefix
         self._full_text = full_text
@@ -212,16 +218,6 @@ class AggregatorProperty(Property):
         raise NotImplementedError()
 
 
-class StoredProperty(Property):
-    """Property that can be saved in persistent storare."""
-    pass
-
-
-class ActiveProperty(IndexedProperty, StoredProperty):
-    """Default property type."""
-    pass
-
-
 class GuidProperty(ActiveProperty):
 
     def __init__(self):
@@ -230,7 +226,7 @@ class GuidProperty(ActiveProperty):
                 prefix=env.GUID_PREFIX)
 
 
-class CounterProperty(IndexedProperty):
+class CounterProperty(ActiveProperty):
     """Only index property that can be changed only by incrementing.
 
     For reading it is an `int` type (in string as usual) property.
@@ -240,7 +236,7 @@ class CounterProperty(IndexedProperty):
     """
 
     def __init__(self, name, slot):
-        IndexedProperty.__init__(self, name,
+        ActiveProperty.__init__(self, name,
                 permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=slot,
                 default='0')
 

@@ -21,14 +21,8 @@ from gettext import gettext as _
 
 from active_document import env, util
 from active_document.document_class import DocumentClass
-from active_document.storage import Storage
-from active_document.metadata import Metadata
-from active_document.metadata import ActiveProperty, StoredProperty
-from active_document.metadata import GuidProperty, BlobProperty, SeqnoProperty
-from active_document.metadata import AggregatorProperty, IndexedProperty
-from active_document.index import IndexWriter
-from active_document.index_proxy import IndexProxy
-from active_document.sync import Seqno
+from active_document.metadata import BlobProperty, StoredProperty
+from active_document.metadata import ActiveProperty, AggregatorProperty
 from active_document.util import enforce
 
 
@@ -126,9 +120,6 @@ class Document(DocumentClass):
                 self._record = self._storage.get(self.guid)
             orig = self._record.get(prop_name)
         else:
-            if isinstance(prop, IndexedProperty):
-                self._get_not_storable_but_indexd_props()
-                orig, __ = self._cache.get(prop_name, (None, None))
             if orig is None and isinstance(prop, AggregatorProperty):
                 value = self._storage.is_aggregated(
                         self.guid, prop_name, prop.value)
@@ -151,7 +142,7 @@ class Document(DocumentClass):
         """
         value = self[prop_name]
         prop = self.metadata[prop_name]
-        if isinstance(prop, IndexedProperty):
+        if isinstance(prop, ActiveProperty):
             return prop.list_value(value)
         else:
             return [value]
@@ -192,7 +183,6 @@ class Document(DocumentClass):
             self._guid = value
 
     def post(self):
-        """Store changed properties."""
         changes = {}
         for prop_name, (__, new) in self._cache.items():
             if new is not None:
@@ -209,8 +199,7 @@ class Document(DocumentClass):
 
         for prop_name, value in changes.items():
             prop = self.metadata[prop_name]
-            if not isinstance(prop, IndexedProperty) or \
-                    prop.typecast is None:
+            if not isinstance(prop, ActiveProperty) or prop.typecast is None:
                 continue
             try:
                 value_parts = []
@@ -277,6 +266,13 @@ class Document(DocumentClass):
                 prop_name, self.metadata.name)
         self._storage.set_blob(self.guid, prop_name, stream, size)
 
+    def diff(self, timestamp):
+        return self._storage.diff(self.guid, timestamp)
+
+    def apply(self, diff):
+        self._storage.apply(self.guid, diff)
+        self._index.store(self.guid, None, False)
+
     def on_create(self, properties, cache):
         """Call back to call on document creation.
 
@@ -338,19 +334,6 @@ class Document(DocumentClass):
                 mode & prop.permissions, env.Forbidden,
                 _('%s access is disabled for "%s" property in "%s"'),
                 env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
-
-    def _get_not_storable_but_indexd_props(self):
-        prop_names = []
-        for name, prop in self.metadata.items():
-            if not isinstance(prop, StoredProperty) and \
-                    isinstance(prop, IndexedProperty):
-                prop_names.append(name)
-        documents, __ = self.find(0, 1,
-                request={'guid': self.guid}, reply=prop_names)
-        for doc in documents:
-            for name in prop_names:
-                __, new = self._cache.get(name, (None, None))
-                self._cache[name] = (doc[name], new)
 
     def _set_seqno(self, properties):
         if 'seqno' not in self._raw:

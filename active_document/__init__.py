@@ -25,7 +25,7 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         index_write_queue, find_limit, \
         NotFound, Forbidden
 
-from active_document.metadata import Metadata, Property, IndexedProperty, \
+from active_document.metadata import Metadata, Property, \
         AggregatorProperty, StoredProperty, ActiveProperty, GuidProperty, \
         CounterProperty, BlobProperty
 

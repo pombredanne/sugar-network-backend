@@ -12,6 +12,7 @@ from __init__ import tests
 
 from active_document import env
 from active_document import index_queue, document
+from active_document.document_class import active_property
 from active_document.index import IndexWriter
 
 
@@ -24,7 +25,7 @@ class IndexQueueTest(tests.Test):
 
             populate_timeout = 0
 
-            @document.active_property(slot=1, prefix='P', full_text=True)
+            @active_property(slot=1, prefix='P', full_text=True)
             def prop(self, value):
                 return value
 

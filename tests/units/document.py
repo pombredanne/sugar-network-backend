@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # sugar-lint: disable
 
+import os
+import stat
 import time
 from cStringIO import StringIO
 
@@ -12,13 +14,13 @@ from __init__ import tests
 from active_document import document, storage, env, index
 from active_document.document_class import active_property
 from active_document.metadata import StoredProperty, BlobProperty
-from active_document.metadata import CounterProperty, IndexedProperty
+from active_document.metadata import CounterProperty
 from active_document.metadata import AggregatorProperty
 
 
 class DocumentTest(tests.Test):
 
-    def test_IndexedProperty_Slotted(self):
+    def test_ActiveProperty_Slotted(self):
 
         class Document(document.Document):
 
@@ -42,7 +44,7 @@ class DocumentTest(tests.Test):
 
         self.assertRaises(RuntimeError, Document.find, 0, 100, order_by='not_slotted')
 
-    def test_IndexedProperty_SlottedIUnique(self):
+    def test_ActiveProperty_SlottedIUnique(self):
 
         class Document(document.Document):
 
@@ -56,7 +58,7 @@ class DocumentTest(tests.Test):
 
         self.assertRaises(RuntimeError, Document, prop_1='1', prop_2='2')
 
-    def test_IndexedProperty_Terms(self):
+    def test_ActiveProperty_Terms(self):
 
         class Document(document.Document):
 
@@ -82,7 +84,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(0, Document.find(0, 100, query='not_term:not_term')[-1])
         self.assertEqual(1, Document.find(0, 100, query='not_term:=not_term')[-1])
 
-    def test_IndexedProperty_TermsUnique(self):
+    def test_ActiveProperty_TermsUnique(self):
 
         class Document(document.Document):
 
@@ -96,7 +98,7 @@ class DocumentTest(tests.Test):
 
         self.assertRaises(RuntimeError, Document, prop_1='1', prop_2='2')
 
-    def test_IndexedProperty_Multiple(self):
+    def test_ActiveProperty_Multiple(self):
 
         class Document(document.Document):
 
@@ -131,7 +133,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '5'})[-1])
         self.assertEqual(1, Document.find(0, 100, request={'by_semicolon': '6'})[-1])
 
-    def test_IndexedProperty_FullTextSearch(self):
+    def test_ActiveProperty_FullTextSearch(self):
 
         class Document(document.Document):
 
@@ -163,7 +165,7 @@ class DocumentTest(tests.Test):
             def wo_default(self, value):
                 return value
 
-            @active_property(IndexedProperty, slot=1, default='not_stored_default')
+            @active_property(slot=1, default='not_stored_default')
             def not_stored_default(self, value):
                 return value
 
@@ -423,6 +425,7 @@ class DocumentTest(tests.Test):
                 ('document/1/1/mtime', '1'),
                 ('document/1/1/prop', 'prop-1'),
                 ('document/1/1/vote/-1', ''),
+                ('document/1/1/counter', '0'),
 
                 ('document/2/2/seqno', '0'),
                 ('document/2/2/.document', ''),
@@ -431,7 +434,11 @@ class DocumentTest(tests.Test):
                 ('document/2/2/prop', 'prop-2'),
                 ('document/2/2/vote/-2', ''),
                 ('document/2/2/vote/-3', ''),
+                ('document/2/2/counter', '0'),
                 )
+        os.chmod('document/1/1/vote/-1', os.stat('document/1/1/vote/-1').st_mode | stat.S_ISVTX)
+        os.chmod('document/2/2/vote/-2', os.stat('document/2/2/vote/-2').st_mode | stat.S_ISVTX)
+        os.chmod('document/2/2/vote/-3', os.stat('document/2/2/vote/-3').st_mode | stat.S_ISVTX)
 
         Document.init()
         for i in Document.populate():
@@ -450,6 +457,13 @@ class DocumentTest(tests.Test):
         self.assertEqual('0', doc['vote'])
         self.assertEqual('2', doc['counter'])
         self.assertEqual('prop-2', doc['prop'])
+
+        self.assertEqual(
+                [
+                    ('1', '1', '1', '1', 'prop-1'),
+                    ('2', '2', '0', '2', 'prop-2'),
+                    ],
+                [(i.ctime, i.mtime, i.vote, i.counter, i.prop) for i in Document.find(0, 10)[0]])
 
     def test_on_create(self):
 
@@ -838,6 +852,56 @@ class DocumentTest(tests.Test):
         doc = Document()
         doc.post()
         self.assertEqual('3', Document(doc.guid, raw=['seqno']).seqno)
+
+    def test_CounterProperty(self):
+
+        class Document(document.Document):
+
+            @active_property(CounterProperty, slot=1)
+            def counter(self, value):
+                return value
+
+            @counter.setter
+            def counter(self, value):
+                return value
+
+        doc = Document()
+        doc.post()
+        self.assertEqual(
+                ['0'],
+                [i.counter for i in Document.find(0, 10)[0]])
+        self.assertEqual('0', Document(doc.guid).counter)
+
+        doc = Document(doc.guid, raw=['counter'])
+        doc.counter = 1
+        doc.post()
+        self.assertEqual(
+                ['1'],
+                [i.counter for i in Document.find(0, 10)[0]])
+        self.assertEqual('1', Document(doc.guid).counter)
+
+        doc = Document(doc.guid, raw=['counter'])
+        doc.counter = 2
+        doc.post()
+        self.assertEqual(
+                ['3'],
+                [i.counter for i in Document.find(0, 10)[0]])
+        self.assertEqual('3', Document(doc.guid).counter)
+
+        doc = Document(doc.guid, raw=['counter'])
+        doc.counter = -3
+        doc.post()
+        self.assertEqual(
+                ['0'],
+                [i.counter for i in Document.find(0, 10)[0]])
+        self.assertEqual('0', Document(doc.guid).counter)
+
+        doc_2 = Document(counter='3', raw=['counter'])
+        doc_2.post()
+        self.assertEqual(
+                ['3'],
+                [i.counter for i in Document.find(0, 10, request={'guid': doc_2.guid})[0]])
+        self.assertEqual('3', Document(doc_2.guid).counter)
 
 
 if __name__ == '__main__':

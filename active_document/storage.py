@@ -23,7 +23,8 @@ from os.path import exists, join, isdir, dirname
 from gettext import gettext as _
 
 from active_document import util, env
-from active_document.metadata import IndexedProperty, StoredProperty
+from active_document.metadata import StoredProperty
+from active_document.metadata import AggregatorProperty, BlobProperty
 from active_document.util import enforce
 
 
@@ -71,7 +72,7 @@ class Storage(object):
 
         """
         try:
-            root = self._ensure_path(guid, '')
+            root = self._ensure_path(True, guid, '')
             for name, value in properties.items():
                 f = util.new_file(join(root, name))
                 f.write(value)
@@ -116,9 +117,8 @@ class Storage(object):
             return entities that were modified after `mtime`
         :returns:
             generator returns (guid, properties) typle for all found
-            documents;
-            the properties dictionary will contain only properties
-            or `StoredProperty` and `IndexedProperty` clasess
+            documents; the properties dictionary will contain only
+            `StoredProperty` properties
 
         """
         for guids_dirname in os.listdir(self._root):
@@ -133,8 +133,7 @@ class Storage(object):
                     continue
                 properties = {}
                 for name, prop in self.metadata.items():
-                    if not isinstance(prop, StoredProperty) or \
-                            not isinstance(prop, IndexedProperty):
+                    if not isinstance(prop, StoredProperty):
                         continue
                     path = join(guid_path, name)
                     if exists(path):
@@ -197,7 +196,7 @@ class Storage(object):
             size = sys.maxint
         result = 0
         try:
-            f = util.new_file(self._ensure_path(guid, name))
+            f = util.new_file(self._ensure_path(False, guid, name))
             while size > 0:
                 chunk = stream.read(min(size, _PAGE_SIZE))
                 if len(chunk) == 0:
@@ -242,19 +241,7 @@ class Storage(object):
             value to aggregate
 
         """
-        try:
-            path = self._ensure_path(guid, name, str(value))
-            if not exists(path):
-                file(path, 'w').close()
-            mode = os.stat(path).st_mode | stat.S_ISVTX
-            os.chmod(path, mode)
-        except Exception, error:
-            util.exception()
-            raise RuntimeError(_('Cannot aggregate "%s" for "%s" ' \
-                    'property of "%s" in "%s": %s') % \
-                    (value, name, guid, self.metadata.name, error))
-        _logger.debug('Aggregated %r to "%s" of "%s" document in "%s"',
-                value, name, guid, self.metadata.name)
+        self._set_aggregate(guid, name, value, True, time.time())
 
     def disaggregate(self, guid, name, value):
         """Remove specified `value` to `name` property.
@@ -267,18 +254,7 @@ class Storage(object):
             value to remove
 
         """
-        try:
-            path = self._ensure_path(guid, name, str(value))
-            if exists(path):
-                mode = os.stat(path).st_mode & ~stat.S_ISVTX
-                os.chmod(path, mode)
-        except Exception, error:
-            util.exception()
-            raise RuntimeError(_('Cannot disaggregate absent "%s" for "%s" ' \
-                    'property of "%s" in "%s": %s') % \
-                    (value, name, guid, self.metadata.name, error))
-        _logger.debug('Disagregated %r from "%s" of "%s" document in "%s"',
-                value, name, guid, self.metadata.name)
+        self._set_aggregate(guid, name, value, False, time.time())
 
     def count_aggregated(self, guid, name):
         """Count number of entities aggregated to `name` property.
@@ -293,9 +269,8 @@ class Storage(object):
         """
         result = 0
         try:
-            path = self._path(guid, name)
-            for i in os.listdir(path):
-                if os.stat(join(path, i)).st_mode & stat.S_ISVTX:
+            for i in os.listdir(self._path(guid, name)):
+                if self.is_aggregated(guid, name, i):
                     result += 1
         except Exception:
             pass
@@ -307,11 +282,12 @@ class Storage(object):
     def _path(self, guid, *args):
         return join(self._root, guid[:2], guid, *args)
 
-    def _ensure_path(self, guid, *args):
+    def _ensure_path(self, create_stamp, guid, *args):
         path = self._path(guid)
         if not exists(path):
             os.makedirs(path)
-            file(join(path, _DOCUMENT_STAMP), 'w').close()
+            if create_stamp:
+                file(join(path, _DOCUMENT_STAMP), 'w').close()
 
         path = join(path, *args)
         if not exists(path):
@@ -320,6 +296,26 @@ class Storage(object):
                 os.makedirs(dir_path)
 
         return path
+
+    def _set_aggregate(self, guid, name, value, aggregated, timestamp):
+        try:
+            path = self._ensure_path(False, guid, name, str(value))
+            if not exists(path):
+                file(path, 'w').close()
+            mode = os.stat(path).st_mode
+            if aggregated:
+                mode |= stat.S_ISVTX
+            else:
+                mode &= ~stat.S_ISVTX
+            os.chmod(path, mode)
+            os.utime(path, (timestamp, timestamp))
+        except Exception, error:
+            util.exception()
+            raise RuntimeError(_('Cannot change "%s" aggregatation for "%s" ' \
+                    'property of "%s" in "%s": %s') % \
+                    (value, name, guid, self.metadata.name, error))
+        _logger.debug('Changed "%s" agregattion from "%s" of "%s" document ' \
+                'in "%s"', value, name, guid, self.metadata.name)
 
 
 class Record(object):

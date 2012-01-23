@@ -24,7 +24,7 @@ from gettext import gettext as _
 import xapian
 
 from active_document import util, env
-from active_document.metadata import IndexedProperty, CounterProperty
+from active_document.metadata import ActiveProperty, CounterProperty
 from active_document.util import enforce
 
 
@@ -47,7 +47,7 @@ class IndexReader(object):
         self._props = {}
 
         for name, prop in self.metadata.items():
-            if isinstance(prop, IndexedProperty):
+            if isinstance(prop, ActiveProperty):
                 self._props[name] = prop
 
     @property
@@ -250,7 +250,7 @@ class IndexReader(object):
             query = query[:exact_term.start()] + query[exact_term.end():]
             term, __, value = exact_term.groups()
             prop = self.metadata.get(term)
-            if isinstance(prop, IndexedProperty) and prop.prefix:
+            if isinstance(prop, ActiveProperty) and prop.prefix:
                 props[term] = value
         return query
 

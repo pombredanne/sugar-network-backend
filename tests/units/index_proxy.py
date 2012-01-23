@@ -12,6 +12,7 @@ from __init__ import tests
 
 from active_document import env
 from active_document import index_queue, document, index_proxy
+from active_document.document_class import active_property
 from active_document.metadata import StoredProperty
 
 
@@ -22,16 +23,16 @@ class IndexProxyTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1, prefix='A')
+            @active_property(slot=1, prefix='A')
             def term(self, value):
                 return value
 
-            @document.active_property(slot=2, prefix='B',
+            @active_property(slot=2, prefix='B',
                     permissions=env.ACCESS_CREATE | env.ACCESS_READ)
             def not_term(self, value):
                 return value
 
-            @document.active_property(slot=3, prefix='C')
+            @active_property(slot=3, prefix='C')
             def common(self, value):
                 return value
 

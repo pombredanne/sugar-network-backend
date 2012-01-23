@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import time
 import threading
 from cStringIO import StringIO
+from os.path import exists
 
 from __init__ import tests
 
 from active_document import env
-from active_document.metadata import Metadata, ActiveProperty
+from active_document.metadata import Metadata, ActiveProperty, GuidProperty
+from active_document.metadata import AggregatorProperty, BlobProperty
 from active_document.storage import Storage, _PAGE_SIZE
 
 

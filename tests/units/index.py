@@ -10,20 +10,20 @@ from os.path import exists
 from __init__ import tests
 
 from active_document import index, env
-from active_document.metadata import Metadata, IndexedProperty, GuidProperty
+from active_document.metadata import Metadata, ActiveProperty, GuidProperty
 
 
 class IndexTest(tests.Test):
 
     def test_Term_AvoidCollisionsWithGuid(self):
-        self.assertRaises(RuntimeError, IndexedProperty, 'key', 0, 'I')
-        self.assertRaises(RuntimeError, IndexedProperty, 'key', 0, 'K')
-        self.assertRaises(RuntimeError, IndexedProperty, 'key', 1, 'I')
-        IndexedProperty('key', 1, 'K')
-        IndexedProperty('guid', 0, 'I')
+        self.assertRaises(RuntimeError, ActiveProperty, 'key', 0, 'I')
+        self.assertRaises(RuntimeError, ActiveProperty, 'key', 0, 'K')
+        self.assertRaises(RuntimeError, ActiveProperty, 'key', 1, 'I')
+        ActiveProperty('key', 1, 'K')
+        ActiveProperty('guid', 0, 'I')
 
     def test_Create(self):
-        db = Index({'key': IndexedProperty('key', 1, 'K')})
+        db = Index({'key': ActiveProperty('key', 1, 'K')})
 
         db.store('1', {'key': 'value_1'}, True)
         self.assertEqual(
@@ -38,8 +38,8 @@ class IndexTest(tests.Test):
 
     def test_update(self):
         db = Index({
-            'var_1': IndexedProperty('var_1', 1, 'A'),
-            'var_2': IndexedProperty('var_2', 2, 'B'),
+            'var_1': ActiveProperty('var_1', 1, 'A'),
+            'var_2': ActiveProperty('var_2', 2, 'B'),
             })
 
         db.store('1', {'var_1': 'value_1', 'var_2': 'value_2'}, True)
@@ -53,7 +53,7 @@ class IndexTest(tests.Test):
                 db._find(reply=['var_1', 'var_2']))
 
     def test_delete(self):
-        db = Index({'key': IndexedProperty('key', 1, 'K')})
+        db = Index({'key': ActiveProperty('key', 1, 'K')})
 
         db.store('1', {'key': 'value'}, True)
         self.assertEqual(
@@ -67,9 +67,9 @@ class IndexTest(tests.Test):
 
     def test_find(self):
         db = Index({
-            'var_1': IndexedProperty('var_1', 1, 'A', full_text=True),
-            'var_2': IndexedProperty('var_2', 2, 'B', full_text=True),
-            'var_3': IndexedProperty('var_3', 3, 'C', full_text=True),
+            'var_1': ActiveProperty('var_1', 1, 'A', full_text=True),
+            'var_2': ActiveProperty('var_2', 2, 'B', full_text=True),
+            'var_3': ActiveProperty('var_3', 3, 'C', full_text=True),
             })
 
         db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
@@ -98,9 +98,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithProps(self):
         db = Index({
-            'var_1': IndexedProperty('var_1', 1, 'A', full_text=True),
-            'var_2': IndexedProperty('var_2', 2, 'B', full_text=True),
-            'var_3': IndexedProperty('var_3', 3, 'C', full_text=True),
+            'var_1': ActiveProperty('var_1', 1, 'A', full_text=True),
+            'var_2': ActiveProperty('var_2', 2, 'B', full_text=True),
+            'var_3': ActiveProperty('var_3', 3, 'C', full_text=True),
             })
 
         db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
@@ -126,9 +126,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithAllBooleanProps(self):
         db = Index({
-            'var_1': IndexedProperty('var_1', 1, 'A', boolean=True, full_text=True),
-            'var_2': IndexedProperty('var_2', 2, 'B', boolean=True, full_text=True),
-            'var_3': IndexedProperty('var_3', 3, 'C', boolean=True, full_text=True),
+            'var_1': ActiveProperty('var_1', 1, 'A', boolean=True, full_text=True),
+            'var_2': ActiveProperty('var_2', 2, 'B', boolean=True, full_text=True),
+            'var_3': ActiveProperty('var_3', 3, 'C', boolean=True, full_text=True),
             })
 
         db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
@@ -149,9 +149,9 @@ class IndexTest(tests.Test):
 
     def test_find_WithBooleanProps(self):
         db = Index({
-            'var_1': IndexedProperty('var_1', 1, 'A', boolean=True, full_text=True),
-            'var_2': IndexedProperty('var_2', 2, 'B', boolean=False, full_text=True),
-            'var_3': IndexedProperty('var_3', 3, 'C', boolean=True, full_text=True),
+            'var_1': ActiveProperty('var_1', 1, 'A', boolean=True, full_text=True),
+            'var_2': ActiveProperty('var_2', 2, 'B', boolean=False, full_text=True),
+            'var_3': ActiveProperty('var_3', 3, 'C', boolean=True, full_text=True),
             })
 
         db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
@@ -171,7 +171,7 @@ class IndexTest(tests.Test):
                 db._find(query='б', request={'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, reply=['var_1']))
 
     def test_find_ExactQuery(self):
-        db = Index({'key': IndexedProperty('key', 1, 'K', full_text=True)})
+        db = Index({'key': ActiveProperty('key', 1, 'K', full_text=True)})
 
         db.store('1', {'key': 'фу'}, True)
         db.store('2', {'key': 'фу бар'}, True)
@@ -197,7 +197,7 @@ class IndexTest(tests.Test):
     def test_find_ExactQueryTerms(self):
         term = 'azAZ09_'
 
-        db = Index({term: IndexedProperty(term, 1, 'T', full_text=True)})
+        db = Index({term: ActiveProperty(term, 1, 'T', full_text=True)})
 
         db.store('1', {term: 'test'}, True)
         db.store('2', {term: 'test fail'}, True)
@@ -207,7 +207,7 @@ class IndexTest(tests.Test):
                 db._find(query='%s:=test' % term, reply=['guid']))
 
     def test_find_ReturnPortions(self):
-        db = Index({'key': IndexedProperty('key', 1, 'K')})
+        db = Index({'key': ActiveProperty('key', 1, 'K')})
 
         db.store('1', {'key': '1'}, True)
         db.store('2', {'key': '2'}, True)
@@ -228,9 +228,9 @@ class IndexTest(tests.Test):
 
     def test_find_OrderBy(self):
         db = Index({
-            'var_1': IndexedProperty('var_1', 1, 'A'),
-            'var_2': IndexedProperty('var_2', 2, 'B'),
-            'var_3': IndexedProperty('var_3', 3, 'C'),
+            'var_1': ActiveProperty('var_1', 1, 'A'),
+            'var_2': ActiveProperty('var_2', 2, 'B'),
+            'var_3': ActiveProperty('var_3', 3, 'C'),
             })
 
         db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '5'}, True)
@@ -249,9 +249,9 @@ class IndexTest(tests.Test):
 
     def test_TermsAreLists(self):
         db = Index({
-            'var_1': IndexedProperty('var_1', 1, 'A'),
-            'var_2': IndexedProperty('var_2', 2, 'B', multiple=True),
-            'var_3': IndexedProperty('var_3', 3, 'C', multiple=True, separator=';'),
+            'var_1': ActiveProperty('var_1', 1, 'A'),
+            'var_2': ActiveProperty('var_2', 2, 'B', multiple=True),
+            'var_3': ActiveProperty('var_3', 3, 'C', multiple=True, separator=';'),
             })
 
         db.store('1', {'var_1': '1', 'var_2': '1 2', 'var_3': '4;5'}, True)
@@ -274,7 +274,7 @@ class IndexTest(tests.Test):
     def test_FlushThreshold(self):
         env.index_flush_threshold.value = 2
         env.index_flush_timeout.value = 0
-        db = Index({'key': IndexedProperty('key', 1, 'K')})
+        db = Index({'key': ActiveProperty('key', 1, 'K')})
 
         db.store('1', {'key': '1'}, True)
         self.assertEqual(0, db.committed)
@@ -353,7 +353,7 @@ class IndexTest(tests.Test):
         db.close()
 
     def test_find_OrderByGUIDAllTime(self):
-        db = Index({'prop': IndexedProperty('prop', 1, 'P')})
+        db = Index({'prop': ActiveProperty('prop', 1, 'P')})
 
         db.store('3', {'prop': '1'}, True)
         db.store('2', {'prop': '1'}, True)

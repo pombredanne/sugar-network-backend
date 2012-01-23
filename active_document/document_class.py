@@ -13,18 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
-import uuid
 import logging
-from datetime import datetime
 from gettext import gettext as _
 
-from active_document import env, util
+from active_document import env
 from active_document.storage import Storage
 from active_document.metadata import Metadata
-from active_document.metadata import ActiveProperty, StoredProperty
-from active_document.metadata import GuidProperty, BlobProperty, SeqnoProperty
-from active_document.metadata import AggregatorProperty, IndexedProperty
+from active_document.metadata import ActiveProperty, AggregatorProperty
+from active_document.metadata import GuidProperty, SeqnoProperty
+from active_document.metadata import CounterProperty
 from active_document.index import IndexWriter
 from active_document.index_proxy import IndexProxy
 from active_document.sync import Seqno
@@ -85,6 +82,10 @@ class DocumentClass(object):
     @active_property(SeqnoProperty, slot=1002, prefix='IS')
     def seqno(self, value):
         return value
+
+    def post(self):
+        """Store changed properties."""
+        raise NotImplementedError()
 
     @classmethod
     def authorize_document(cls, mode, document=None):
@@ -229,8 +230,10 @@ class DocumentClass(object):
 
         for guid, props in cls._storage.walk(cls._index.mtime):
             for prop in aggregated_props:
-                props[prop.counter] = env.value(
+                counter = env.value(
                         cls._storage.count_aggregated(guid, prop.name))
+                if counter != props[prop.counter]:
+                    cls._storage.put(guid, {prop.counter: counter})
             cls._index.store(guid, props, True)
             yield
 
@@ -283,15 +286,32 @@ class DocumentClass(object):
 
     @classmethod
     def _pre_store(cls, guid, changes):
+        is_new = 'guid' in changes
+
         for prop_name, new in changes.items():
             prop = cls.metadata[prop_name]
             if not isinstance(prop, AggregatorProperty):
                 continue
             orig = cls._storage.is_aggregated(guid, prop_name, prop.value)
             if new == env.value(orig):
-                del changes[prop_name]
+                if not is_new:
+                    del changes[prop_name]
             elif prop.counter:
-                changes[prop.counter] = '1' if int(new) else '-1'
+                if int(new):
+                    changes[prop.counter] = '1'
+                elif not is_new:
+                    changes[prop.counter] = '-1'
+
+        if not is_new:
+            record = cls._storage.get(guid)
+            for prop_name, prop in cls.metadata.items():
+                if prop_name in changes:
+                    if isinstance(prop, CounterProperty):
+                        changes[prop_name] = str(
+                                int(record.get(prop_name) or '0') + \
+                                int(changes[prop_name]))
+                else:
+                    changes[prop_name] = record.get(prop_name)
 
     @classmethod
     def _post_store(cls, guid, changes):
@@ -303,8 +323,6 @@ class DocumentClass(object):
                 cls._storage.aggregate(guid, prop_name, prop.value)
             else:
                 cls._storage.disaggregate(guid, prop_name, prop.value)
-            if prop.counter:
-                del changes[prop.counter]
             del changes[prop_name]
 
         cls._storage.put(guid, changes)
