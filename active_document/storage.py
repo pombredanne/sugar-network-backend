@@ -16,6 +16,7 @@
 import os
 import sys
 import time
+import stat
 import shutil
 import logging
 from os.path import exists, join, isdir, dirname
@@ -227,7 +228,8 @@ class Storage(object):
             `True` if `value` is aggregated
 
         """
-        return exists(self._path(guid, name, str(value)))
+        path = self._path(guid, name, str(value))
+        return exists(path) and bool(os.stat(path).st_mode & stat.S_ISVTX)
 
     def aggregate(self, guid, name, value):
         """Append specified `value` to `name` property.
@@ -241,7 +243,11 @@ class Storage(object):
 
         """
         try:
-            _touch(self._ensure_path(guid, name, ''), str(value))
+            path = self._ensure_path(guid, name, str(value))
+            if not exists(path):
+                file(path, 'w').close()
+            mode = os.stat(path).st_mode | stat.S_ISVTX
+            os.chmod(path, mode)
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot aggregate "%s" for "%s" ' \
@@ -262,9 +268,10 @@ class Storage(object):
 
         """
         try:
-            path = join(self._ensure_path(guid, name, ''), str(value))
+            path = self._ensure_path(guid, name, str(value))
             if exists(path):
-                os.unlink(path)
+                mode = os.stat(path).st_mode & ~stat.S_ISVTX
+                os.chmod(path, mode)
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot disaggregate absent "%s" for "%s" ' \
@@ -286,7 +293,10 @@ class Storage(object):
         """
         result = 0
         try:
-            result = len(os.listdir(self._path(guid, name)))
+            path = self._path(guid, name)
+            for i in os.listdir(path):
+                if os.stat(join(path, i)).st_mode & stat.S_ISVTX:
+                    result += 1
         except Exception:
             pass
         _logger.debug('There are %s entities in "%s" aggregated property ' \
@@ -301,7 +311,7 @@ class Storage(object):
         path = self._path(guid)
         if not exists(path):
             os.makedirs(path)
-            _touch(path, _DOCUMENT_STAMP)
+            file(join(path, _DOCUMENT_STAMP), 'w').close()
 
         path = join(path, *args)
         if not exists(path):
@@ -329,7 +339,3 @@ class Record(object):
             return value.read()
         finally:
             value.close()
-
-
-def _touch(path, *args):
-    file(join(path, *args), 'w').close()
