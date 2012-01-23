@@ -272,7 +272,7 @@ class IndexWriter(IndexReader):
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         if pre_cb is not None:
-            pre_cb(guid, properties)
+            pre_cb(guid, properties, new)
 
         _logger.debug('Store "%s" object: %r', self.metadata.name, properties)
 
@@ -311,7 +311,7 @@ class IndexWriter(IndexReader):
         self._commit()
 
         if post_cb is not None:
-            post_cb(guid, properties)
+            post_cb(guid, properties, new)
 
     def delete(self, guid, post_cb=None):
         _logger.debug('Delete "%s" document from "%s"',

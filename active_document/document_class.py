@@ -21,7 +21,7 @@ from active_document.storage import Storage
 from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, AggregatorProperty
 from active_document.metadata import GuidProperty, SeqnoProperty
-from active_document.metadata import CounterProperty
+from active_document.metadata import CounterProperty, StoredProperty
 from active_document.index import IndexWriter
 from active_document.index_proxy import IndexProxy
 from active_document.sync import Seqno
@@ -286,6 +286,8 @@ class DocumentClass(object):
 
     @classmethod
     def _pre_store(cls, guid, changes, is_new):
+        is_reindexing = not changes
+
         for prop_name, new in changes.items():
             prop = cls.metadata[prop_name]
             if not isinstance(prop, AggregatorProperty):
@@ -300,15 +302,19 @@ class DocumentClass(object):
                 elif not is_new:
                     changes[prop.counter] = '-1'
 
-        if not is_new:
+        if is_reindexing or not is_new:
             record = cls._storage.get(guid)
             for prop_name, prop in cls.metadata.items():
                 if prop_name in changes:
-                    if isinstance(prop, CounterProperty):
+                    if not is_reindexing and isinstance(prop, CounterProperty):
                         changes[prop_name] = str(
                                 int(record.get(prop_name) or '0') + \
                                 int(changes[prop_name]))
-                else:
+                elif isinstance(prop, AggregatorProperty):
+                    if is_reindexing:
+                        changes[prop.counter] = env.value(
+                                cls._storage.count_aggregated(guid, prop_name))
+                elif isinstance(prop, StoredProperty):
                     changes[prop_name] = record.get(prop_name)
 
     @classmethod

@@ -267,11 +267,30 @@ class Document(DocumentClass):
         self._storage.set_blob(self.guid, prop_name, stream, size)
 
     def diff(self, timestamp):
+        """Return changed properties since specified timestamp.
+
+        :param guid:
+            document GUID to check changed properties for
+        :param timestamp:
+            return properties changed from `timestamp` time;
+            `timestamp` is UNIX seconds in UTC
+        :returns:
+            tuple of dictionaries for regular properties and BLOBs
+
+        """
         return self._storage.diff(self.guid, timestamp)
 
     def apply(self, diff):
-        self._storage.apply(self.guid, diff)
-        self._index.store(self.guid, None, False)
+        """Apply changes for the document.
+
+        :param diff:
+            dictionary with changes in format that `diff()` returns;
+            for BLOB properties, property value is a stream to read BLOB from
+
+        """
+        if self._storage.apply(self.guid, diff):
+            self._index.store(self.guid, {}, False,
+                    self._pre_store, self._post_store)
 
     def on_create(self, properties, cache):
         """Call back to call on document creation.

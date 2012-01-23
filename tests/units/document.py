@@ -909,6 +909,37 @@ class DocumentTest(tests.Test):
                 [i.counter for i in Document.find(0, 10, request={'guid': doc_2.guid})[0]])
         self.assertEqual('3', Document(doc_2.guid).counter)
 
+    def test_apply_AggregatorProperty(self):
+
+        class Vote(AggregatorProperty):
+
+            @property
+            def value(self):
+                pass
+
+        class Document(document.Document):
+
+            @active_property(CounterProperty, slot=1)
+            def counter(self, value):
+                return value
+
+            @active_property(Vote, counter='counter')
+            def vote(self, value):
+                return value
+
+        doc = Document()
+        doc.post()
+
+        ts = time.time()
+        diff = {
+                'counter': ('0', ts + 60),
+                'vote': [(('enabled', True), ts + 60), (('None', True), ts + 60)],
+                }
+        doc.apply(diff)
+        self.assertEqual(
+                [(doc.guid, '1', '2')],
+                [(i.guid, i.vote, i.counter) for i in Document.find(0, 100)[0]])
+
 
 if __name__ == '__main__':
     tests.main()

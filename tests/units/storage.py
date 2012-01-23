@@ -192,7 +192,7 @@ class StorageTest(tests.Test):
                 'prop_3': (StringIO('blob'), 4),
                 }
 
-        assert storage.apply('guid_1', diff)
+        assert not storage.apply('guid_1', diff)
         assert not exists('test/gu/guid_1/.document')
         assert os.stat('test/gu/guid_1/prop_1').st_mtime == 1
         self.assertEqual('value', file('test/gu/guid_1/prop_1').read())
