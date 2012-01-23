@@ -10,6 +10,7 @@ import gobject
 from __init__ import tests
 
 from active_document import document, storage, env, index
+from active_document.document_class import active_property
 from active_document.metadata import StoredProperty, BlobProperty
 from active_document.metadata import CounterProperty, IndexedProperty
 from active_document.metadata import AggregatorProperty
@@ -21,11 +22,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def slotted(self, value):
                 return value
 
-            @document.active_property(StoredProperty)
+            @active_property(StoredProperty)
             def not_slotted(self, value):
                 return value
 
@@ -45,11 +46,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def prop_1(self, value):
                 return value
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def prop_2(self, value):
                 return value
 
@@ -59,11 +60,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(prefix='T')
+            @active_property(prefix='T')
             def term(self, value):
                 return value
 
-            @document.active_property(StoredProperty)
+            @active_property(StoredProperty)
             def not_term(self, value):
                 return value
 
@@ -85,11 +86,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(prefix='P')
+            @active_property(prefix='P')
             def prop_1(self, value):
                 return value
 
-            @document.active_property(prefix='P')
+            @active_property(prefix='P')
             def prop_2(self, value):
                 return value
 
@@ -99,11 +100,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(prefix='A', multiple=True)
+            @active_property(prefix='A', multiple=True)
             def by_space(self, value):
                 return value
 
-            @document.active_property(prefix='b', multiple=True, separator=';')
+            @active_property(prefix='b', multiple=True, separator=';')
             def by_semicolon(self, value):
                 return value
 
@@ -134,11 +135,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(full_text=False, slot=1)
+            @active_property(full_text=False, slot=1)
             def no(self, value):
                 return value
 
-            @document.active_property(full_text=True, slot=2)
+            @active_property(full_text=True, slot=2)
             def yes(self, value):
                 return value
 
@@ -154,15 +155,15 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(StoredProperty, default='default')
+            @active_property(StoredProperty, default='default')
             def w_default(self, value):
                 return value
 
-            @document.active_property(StoredProperty)
+            @active_property(StoredProperty)
             def wo_default(self, value):
                 return value
 
-            @document.active_property(IndexedProperty, slot=1, default='not_stored_default')
+            @active_property(IndexedProperty, slot=1, default='not_stored_default')
             def not_stored_default(self, value):
                 return value
 
@@ -184,7 +185,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(BlobProperty)
+            @active_property(BlobProperty)
             def blob(self, value):
                 return value
 
@@ -215,11 +216,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(CounterProperty, slot=1)
+            @active_property(CounterProperty, slot=1)
             def counter(self, value):
                 return value
 
-            @document.active_property(Vote, counter='counter')
+            @active_property(Vote, counter='counter')
             def vote(self, value):
                 return value
 
@@ -287,11 +288,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(CounterProperty, slot=1)
+            @active_property(CounterProperty, slot=1)
             def counter(self, value):
                 return value
 
-            @document.active_property(Vote, counter='counter')
+            @active_property(Vote, counter='counter')
             def vote(self, value):
                 return value
 
@@ -320,7 +321,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def prop_1(self, value):
                 return value
 
@@ -328,7 +329,7 @@ class DocumentTest(tests.Test):
             def prop_1(self, value):
                 return value
 
-            @document.active_property(StoredProperty)
+            @active_property(StoredProperty)
             def prop_2(self, value):
                 return value
 
@@ -350,18 +351,17 @@ class DocumentTest(tests.Test):
                 [(i.prop_1, i.prop_2) for i in Document.find(0, 1024)[0]])
 
         doc_2 = Document(doc_1.guid)
-        doc_2.prop_1 = '5'
         doc_2.prop_2 = '6'
         doc_2.post()
         self.assertEqual(
-                [('5', '6')],
+                [('3', '6')],
                 [(i.prop_1, i.prop_2) for i in Document.find(0, 1024)[0]])
 
     def test_delete(self):
 
         class Document(document.Document):
 
-            @document.active_property(prefix='P')
+            @active_property(prefix='P')
             def prop(self, value):
                 return value
 
@@ -403,15 +403,15 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def prop(self, value):
                 return value
 
-            @document.active_property(CounterProperty, slot=2)
+            @active_property(CounterProperty, slot=2)
             def counter(self, value):
                 return value
 
-            @document.active_property(Vote, counter='counter')
+            @active_property(Vote, counter='counter')
             def vote(self, value):
                 return value
 
@@ -455,7 +455,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def prop(self, value):
                 return value
 
@@ -492,7 +492,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def prop(self, value):
                 return value
 
@@ -526,7 +526,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def prop(self, value):
                 return value
 
@@ -560,7 +560,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1, typecast=int)
+            @active_property(slot=1, typecast=int)
             def prop(self, value):
                 return value
 
@@ -576,7 +576,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1, typecast=bool)
+            @active_property(slot=1, typecast=bool)
             def prop(self, value):
                 return value
 
@@ -603,11 +603,11 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1, typecast=['foo', 'bar'], default='foo')
+            @active_property(slot=1, typecast=['foo', 'bar'], default='foo')
             def prop(self, value):
                 return value
 
-            @document.active_property(slot=2, typecast=['foo', 'bar'], multiple=True, default='foo')
+            @active_property(slot=2, typecast=['foo', 'bar'], multiple=True, default='foo')
             def multiple_prop(self, value):
                 return value
 
@@ -644,7 +644,7 @@ class DocumentTest(tests.Test):
                 if not (mode & cls.mode):
                     raise env.Forbidden()
 
-            @document.active_property(slot=1, default='')
+            @active_property(slot=1, default='')
             def prop(self, value):
                 return value
 
@@ -682,7 +682,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1, default='')
+            @active_property(slot=1, default='')
             def prop(self, value):
                 return value
 
@@ -731,7 +731,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(BlobProperty)
+            @active_property(BlobProperty)
             def blob(self, value):
                 return value
 
@@ -752,7 +752,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @document.active_property(slot=1)
+            @active_property(slot=1)
             def prop(self, value):
                 return value
 

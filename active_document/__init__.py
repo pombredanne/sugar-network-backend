@@ -15,7 +15,9 @@
 
 from active_document import util
 
-from active_document.document import Document, active_property
+from active_document.document import Document
+
+from active_document.document_class import active_property
 
 from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         ACCESS_DELETE, ACCESS_FULL, \
