@@ -321,14 +321,14 @@ class Storage(object):
 
         return traits, blobs
 
-    def apply(self, guid, diff):
+    def merge(self, guid, diff):
         """Apply changes for the document.
 
         :param diff:
             dictionary with changes in format that `diff()` returns;
             for BLOB properties, property value is a stream to read BLOB from
         :returns:
-            `True` if document needs to be reindexed after applying
+            `True` if document needs to be reindexed after merging
 
         """
         applied = False

@@ -178,7 +178,7 @@ class StorageTest(tests.Test):
                 { },
                 blobs)
 
-    def test_apply(self):
+    def test_merge(self):
         storage = self.storage([
             GuidProperty(),
             ActiveProperty('prop_1', slot=1),
@@ -192,7 +192,7 @@ class StorageTest(tests.Test):
                 'prop_3': (StringIO('blob'), 4),
                 }
 
-        assert not storage.apply('guid_1', diff)
+        assert not storage.merge('guid_1', diff)
         assert not exists('test/gu/guid_1/.document')
         assert os.stat('test/gu/guid_1/prop_1').st_mtime == 1
         self.assertEqual('value', file('test/gu/guid_1/prop_1').read())
@@ -204,10 +204,10 @@ class StorageTest(tests.Test):
         self.assertEqual('blob', file('test/gu/guid_1/prop_3').read())
 
         diff['guid'] = ('fake', 5)
-        self.assertRaises(RuntimeError, storage.apply, 'guid_2', diff)
+        self.assertRaises(RuntimeError, storage.merge, 'guid_2', diff)
 
         diff['guid'] = ('guid_2', 5)
-        assert storage.apply('guid_2', diff)
+        assert storage.merge('guid_2', diff)
         assert exists('test/gu/guid_2/.document')
         assert os.stat('test/gu/guid_2/guid').st_mtime == 5
         self.assertEqual('guid_2', file('test/gu/guid_2/guid').read())
@@ -219,7 +219,7 @@ class StorageTest(tests.Test):
         storage.set_blob('guid_3', 'prop_3', StringIO('blob_2'))
 
         diff.pop('guid')
-        assert not storage.apply('guid_3', diff)
+        assert not storage.merge('guid_3', diff)
         assert os.stat('test/gu/guid_3/prop_1').st_mtime >= ts
         self.assertEqual('value_2', file('test/gu/guid_3/prop_1').read())
         assert os.stat('test/gu/guid_3/prop_2/enabled').st_mtime >= ts

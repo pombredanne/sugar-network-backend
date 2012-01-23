@@ -280,7 +280,7 @@ class Document(DocumentClass):
         """
         return self._storage.diff(self.guid, timestamp)
 
-    def apply(self, diff):
+    def merge(self, diff):
         """Apply changes for the document.
 
         :param diff:
@@ -288,7 +288,7 @@ class Document(DocumentClass):
             for BLOB properties, property value is a stream to read BLOB from
 
         """
-        if self._storage.apply(self.guid, diff):
+        if self._storage.merge(self.guid, diff):
             self._index.store(self.guid, {}, False,
                     self._pre_store, self._post_store)
 
