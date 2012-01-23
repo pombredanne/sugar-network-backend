@@ -6,6 +6,7 @@ import os
 import stat
 import time
 from cStringIO import StringIO
+from os.path import join, exists
 
 import gobject
 
@@ -232,6 +233,11 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, doc.__setitem__, 'vote', 'foo')
         self.assertRaises(RuntimeError, doc.__setitem__, 'vote', '-1')
         self.assertRaises(RuntimeError, doc.__setitem__, 'vote', '')
+        doc.post()
+        path = join('document', doc.guid[:2], doc.guid)
+        assert not exists(join(path, 'vote'))
+
+        doc = Document(doc.guid)
         doc['vote'] = '100'
         self.assertEqual('1', doc['vote'])
         doc.post()

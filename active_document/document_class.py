@@ -285,9 +285,7 @@ class DocumentClass(object):
         cls._initated = True
 
     @classmethod
-    def _pre_store(cls, guid, changes):
-        is_new = 'guid' in changes
-
+    def _pre_store(cls, guid, changes, is_new):
         for prop_name, new in changes.items():
             prop = cls.metadata[prop_name]
             if not isinstance(prop, AggregatorProperty):
@@ -314,14 +312,14 @@ class DocumentClass(object):
                     changes[prop_name] = record.get(prop_name)
 
     @classmethod
-    def _post_store(cls, guid, changes):
+    def _post_store(cls, guid, changes, is_new):
         for prop_name, new in changes.items():
             prop = cls.metadata[prop_name]
             if not isinstance(prop, AggregatorProperty):
                 continue
             if int(new):
                 cls._storage.aggregate(guid, prop_name, prop.value)
-            else:
+            elif not is_new:
                 cls._storage.disaggregate(guid, prop_name, prop.value)
             del changes[prop_name]
 
