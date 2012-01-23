@@ -11,7 +11,6 @@ from __init__ import tests
 
 from active_document import index, env
 from active_document.metadata import Metadata, IndexedProperty, GuidProperty
-from active_document.metadata import CounterProperty
 
 
 class IndexTest(tests.Test):
@@ -48,9 +47,9 @@ class IndexTest(tests.Test):
                 ([{'guid': '1', 'var_1': 'value_1', 'var_2': 'value_2'}], 1),
                 db._find(reply=['var_1', 'var_2']))
 
-        db.store('1', {'var_1': 'value_3'}, False)
+        db.store('1', {'var_1': 'value_3', 'var_2': 'value_4'}, False)
         self.assertEqual(
-                ([{'guid': '1', 'var_1': 'value_3', 'var_2': 'value_2'}], 1),
+                ([{'guid': '1', 'var_1': 'value_3', 'var_2': 'value_4'}], 1),
                 db._find(reply=['var_1', 'var_2']))
 
     def test_delete(self):
@@ -308,29 +307,6 @@ class IndexTest(tests.Test):
         db = Index({})
         self.assertNotEqual(0, os.stat('index/version').st_mtime)
         db.close()
-
-    def test_CounterProperty(self):
-        db = Index({'counter': CounterProperty('counter', 1)})
-
-        self.assertRaises(RuntimeError, db.store, '1', {'counter': 'foo'}, True)
-        self.assertEqual(
-                ([], 0),
-                db._find())
-
-        db.store('1', {'counter': '-1'}, True)
-        self.assertEqual(
-                ([{'guid': '1', 'counter': '-1'}], 1),
-                db._find())
-
-        db.store('1', {'counter': '-1'}, False)
-        self.assertEqual(
-                ([{'guid': '1', 'counter': '-2'}], 1),
-                db._find())
-
-        db.store('1', {'counter': '4'}, False)
-        self.assertEqual(
-                ([{'guid': '1', 'counter': '2'}], 1),
-                db._find())
 
     def test_Callbacks(self):
         db = Index({})

@@ -287,22 +287,6 @@ class IndexWriter(IndexReader):
                         'is not an integer value') % \
                         (name, self.metadata.name))
 
-        if not new:
-            documents, __ = self.find(0, 1, {'guid': guid})
-            existing_doc = None
-            for __, existing_doc in documents:
-                break
-            enforce(existing_doc is not None,
-                    _('Cannot find "%s" in "%s" to store'),
-                    guid, self.metadata.name)
-            for name, prop in self._props.items():
-                if name in properties and isinstance(prop, CounterProperty):
-                    properties[name] = str(
-                            int(existing_doc[name] or '0') + \
-                            int(properties[name]))
-            existing_doc.update(properties)
-            properties = existing_doc
-
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
         term_generator.set_document(document)
