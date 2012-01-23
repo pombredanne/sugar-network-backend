@@ -23,7 +23,7 @@ from os.path import exists, join, isdir, dirname
 from gettext import gettext as _
 
 from active_document import util, env
-from active_document.metadata import StoredProperty
+from active_document.metadata import StoredProperty, CounterProperty
 from active_document.metadata import AggregatorProperty, BlobProperty
 from active_document.util import enforce
 
@@ -279,6 +279,71 @@ class Storage(object):
                 result, name, guid, self.metadata.name)
         return result
 
+    def diff(self, guid, timestamp):
+        traits = {}
+        blobs = {}
+
+        for name, prop in self.metadata.items():
+            path = self._path(guid, name)
+            if isinstance(prop, CounterProperty):
+                continue
+            elif isinstance(prop, AggregatorProperty):
+                values = []
+                for i in os.listdir(path):
+                    ts = _utc_mtime(path, i)
+                    if ts >= timestamp:
+                        aggregated = self.is_aggregated(guid, name, i)
+                        values.append(((i, aggregated), ts))
+                if values:
+                    traits[name] = values
+            else:
+                ts = _utc_mtime(path)
+                if ts >= timestamp:
+                    if isinstance(prop, BlobProperty):
+                        blobs[name] = (path, ts)
+                    else:
+                        value = file(path)
+                        try:
+                            traits[name] = (value.read(), ts)
+                        finally:
+                            value.close()
+
+        return traits, blobs
+
+    def apply(self, guid, diff):
+        applied = False
+
+        if 'guid' in diff:
+            enforce(guid == diff['guid'][0],
+                    _('Malformed document diff, GUID is incorrect'))
+            create_stamp = True
+        else:
+            create_stamp = False
+
+        for name in diff.keys():
+            path = self._ensure_path(create_stamp, guid, name)
+
+            prop = self.metadata[name]
+            if isinstance(prop, AggregatorProperty):
+                for (value, aggregated), ts in diff[name]:
+                    agg_path = join(path, value)
+                    if not exists(agg_path) or _utc_mtime(agg_path) < ts:
+                        self._set_aggregate(guid, name, value, aggregated, ts)
+                        applied = True
+            else:
+                value, ts = diff[name]
+                if not exists(path) or _utc_mtime(path) < ts:
+                    if isinstance(prop, BlobProperty):
+                        self.set_blob(guid, name, value)
+                    else:
+                        f = util.new_file(path)
+                        f.write(value)
+                        f.close()
+                    os.utime(path, (ts, ts))
+                    applied = True
+
+        return applied
+
     def _path(self, guid, *args):
         return join(self._root, guid[:2], guid, *args)
 
@@ -335,3 +400,8 @@ class Record(object):
             return value.read()
         finally:
             value.close()
+
+
+def _utc_mtime(*args):
+    ts = os.stat(join(*args)).st_mtime
+    return time.mktime(time.gmtime(ts))
