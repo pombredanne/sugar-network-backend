@@ -47,12 +47,15 @@ class IndexProxy(IndexReader):
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         _logger.debug('Push store request to "%s"\'s queue for "%s"',
                 self.metadata.name, guid)
-        # Needs to be called before `index_queue.put()`
-        # to let it chance to read original properties from the storage
-        self._cache_update(guid, properties, new)
+        is_reindexing = not properties
+        if not is_reindexing:
+            # Needs to be called before `index_queue.put()`
+            # to give it a chance to read original properties from the storage
+            self._cache_update(guid, properties, new)
         seqno = index_queue.put(self.metadata.name, IndexWriter.store,
                 guid, properties, new, pre_cb, post_cb)
-        self._cache_log.append((seqno, guid, properties, new))
+        if not is_reindexing:
+            self._cache_log.append((seqno, guid, properties, new))
 
     def delete(self, guid, post_cb=None):
         _logger.debug('Push delete request to "%s"\'s queue for "%s"',
