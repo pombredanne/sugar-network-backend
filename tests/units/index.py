@@ -283,6 +283,42 @@ class IndexTest(tests.Test):
                     ],
                 db._find(query='prop:=89', order_by='prop')[0])
 
+    def test_Floats(self):
+        db = Index({
+            'prop': ActiveProperty('prop', 1, 'A', typecast=float, full_text=True),
+            })
+
+        db.store('1', {'prop': 9.1}, True)
+        db.store('2', {'prop': 89.2}, True)
+        db.store('3', {'prop': 777.3}, True)
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9.1},
+                    {'guid': '2', 'prop': 89.2},
+                    {'guid': '3', 'prop': 777.3},
+                    ],
+                db._find(order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9.1},
+                    {'guid': '2', 'prop': 89.2},
+                    ],
+                db._find(query='prop:0..100', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9.1},
+                    ],
+                db._find(query='prop:9.1', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': 89.2},
+                    ],
+                db._find(query='prop:=89.2', order_by='prop')[0])
+
     def test_Booleans(self):
         db = Index({
             'prop': ActiveProperty('prop', 1, 'A', typecast=bool, full_text=True),

@@ -31,14 +31,6 @@ _logger = logging.getLogger('ad.document')
 
 class Document(DocumentClass):
 
-    #: `Metadata` object that describes the document
-    metadata = None
-
-    _initated = False
-    _storage = None
-    _index = None
-    _seqno = None
-
     def __init__(self, guid=None, indexed_props=None, raw=None, **kwargs):
         """
         :param guid:

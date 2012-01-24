@@ -105,6 +105,7 @@ class Property(object):
         Supported values are:
         * `None`, string values
         * `int`, interger values
+        * `float`, float values
         * `bool`, boolean values repesented by symbols `0` and `1`
         * sequence of strings, property value should confirm one of values
           from the sequence
@@ -154,8 +155,9 @@ class ActiveProperty(StoredProperty):
                         'either slot, prefix or full_text need to be set'),
                 name)
         enforce(slot is None or \
-                kwargs.get('typecast') in [None, int, bool, str],
-                _('Slot can be set only for str, int and bool properties'))
+                kwargs.get('typecast') in [None, int, float, bool, str],
+                _('Slot can be set only for str, int, float ' \
+                        'and bool properties'))
         StoredProperty.__init__(self, name, **kwargs)
         self._slot = slot
         self._prefix = prefix
@@ -268,6 +270,8 @@ def _convert(typecast, value):
                     _('Value "%s" is not in "%r" list'), value, typecast)
     elif typecast is int:
         value = int(value)
+    elif typecast is float:
+        value = float(value)
     elif typecast is bool:
         value = bool(value)
     else:

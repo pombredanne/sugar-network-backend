@@ -24,7 +24,7 @@ from gettext import gettext as _
 import xapian
 
 from active_document import util, env
-from active_document.metadata import ActiveProperty, CounterProperty
+from active_document.metadata import ActiveProperty
 from active_document.util import enforce
 
 
@@ -144,6 +144,8 @@ class IndexReader(object):
                         value = hit.document.get_value(prop.slot)
                         if prop.typecast is int:
                             value = int(xapian.sortable_unserialise(value))
+                        elif prop.typecast is float:
+                            value = xapian.sortable_unserialise(value)
                         elif prop.typecast is bool:
                             value = bool(xapian.sortable_unserialise(value))
                         props[name] = value
@@ -171,7 +173,7 @@ class IndexReader(object):
                 else:
                     parser.add_prefix(name, prop.prefix)
                 parser.add_prefix('', prop.prefix)
-                if prop.typecast in [int, bool]:
+                if prop.typecast in [int, float, bool]:
                     value_range = xapian.NumberValueRangeProcessor(
                             prop.slot, name + ':')
                     parser.add_valuerangeprocessor(value_range)
@@ -286,17 +288,6 @@ class IndexWriter(IndexReader):
 
         _logger.debug('Store "%s" object: %r', self.metadata.name, properties)
 
-        for name, value in properties.items():
-            prop = self.metadata[name]
-            if not isinstance(prop, CounterProperty):
-                continue
-            try:
-                int(value)
-            except ValueError:
-                raise RuntimeError(_('Counter property "%s" in "%s" ' \
-                        'is not an integer value') % \
-                        (name, self.metadata.name))
-
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
         term_generator.set_document(document)
@@ -305,7 +296,7 @@ class IndexWriter(IndexReader):
             value = guid if prop.slot == 0 else properties[name]
 
             if prop.slot is not None:
-                if prop.typecast in [int, bool]:
+                if prop.typecast in [int, float, bool]:
                     add_value = xapian.sortable_serialise(value)
                 else:
                     add_value = value

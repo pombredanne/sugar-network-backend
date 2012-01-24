@@ -17,6 +17,14 @@ class MetadataTest(tests.Test):
         self.assertRaises(ValueError, prop.convert, '')
         self.assertRaises(TypeError, prop.convert, None)
 
+        prop = Property('prop', typecast=float)
+        self.assertEqual(1.0, prop.convert(1))
+        self.assertEqual(1.1, prop.convert(1.1))
+        self.assertEqual(1.0, prop.convert('1'))
+        self.assertEqual(1.1, prop.convert('1.1'))
+        self.assertRaises(ValueError, prop.convert, '')
+        self.assertRaises(TypeError, prop.convert, None)
+
         prop = Property('prop', typecast=bool)
         self.assertEqual(False, prop.convert(0))
         self.assertEqual(True, prop.convert(1))
@@ -63,6 +71,10 @@ class MetadataTest(tests.Test):
         prop = Property('prop', typecast=int)
         self.assertEqual(['0'], prop.serialise(0))
         self.assertEqual(['1'], prop.serialise(1))
+
+        prop = Property('prop', typecast=float)
+        self.assertEqual(['0'], prop.serialise(0))
+        self.assertEqual(['1.1'], prop.serialise(1.1))
 
         prop = Property('prop', typecast=bool)
         self.assertEqual(['1'], prop.serialise(True))
