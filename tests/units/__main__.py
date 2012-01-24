@@ -9,5 +9,6 @@ from storage import *
 from index_proxy import *
 from folder import *
 from sync import *
+from metadata import *
 
 tests.main()

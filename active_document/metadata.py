@@ -75,9 +75,11 @@ class Metadata(dict):
 class Property(object):
     """Bacis class to collect information about document property."""
 
-    def __init__(self, name, permissions=env.ACCESS_FULL, default=None):
+    def __init__(self, name, permissions=env.ACCESS_FULL, typecast=None,
+            default=None):
         self._name = name
         self._permissions = permissions
+        self._typecast = typecast
         self._default = default
         self.writable = False
 
@@ -97,14 +99,36 @@ class Property(object):
         return self._permissions
 
     @property
+    def typecast(self):
+        """Value type that property's string value should repesent.
+
+        Supported values are:
+        * `None`, string values
+        * `int`, interger values
+        * `bool`, boolean values repesented by symbols `0` and `1`
+        * sequence of strings, property value should confirm one of values
+          from the sequence
+
+        """
+        return self._typecast
+
+    @property
     def default(self):
         """Default property value or None."""
         return self._default
 
-    @property
-    def is_trait(self):
-        """Property to return from find() requests."""
-        return True
+    def convert(self, value):
+        """Convert specified value to property type."""
+        return _convert(self.typecast, value)
+
+    def serialise(self, value):
+        """Convert value to list of strings ready to index."""
+        result = []
+        for value in (value if type(value) is list else [value]):
+            if type(value) is bool:
+                value = int(value)
+            result.append(str(value))
+        return result
 
 
 class StoredProperty(Property):
@@ -115,10 +139,8 @@ class StoredProperty(Property):
 class ActiveProperty(StoredProperty):
     """Property that need to be indexed."""
 
-    def __init__(self, name,
-            slot=None, prefix=None, full_text=False,
-            boolean=False, multiple=False, separator=None, typecast=None,
-            permissions=env.ACCESS_FULL, default=None):
+    def __init__(self, name, slot=None, prefix=None, full_text=False,
+            boolean=False, **kwargs):
         enforce(name == 'guid' or slot != 0,
                 _('For "%s" property, ' \
                         'the slot "0" is reserved for internal needs'),
@@ -131,15 +153,14 @@ class ActiveProperty(StoredProperty):
                 _('For "%s" property, ' \
                         'either slot, prefix or full_text need to be set'),
                 name)
-        StoredProperty.__init__(self, name, permissions=permissions,
-                default=default)
+        enforce(slot is None or \
+                kwargs.get('typecast') in [None, int, bool, str],
+                _('Slot can be set only for str, int and bool properties'))
+        StoredProperty.__init__(self, name, **kwargs)
         self._slot = slot
         self._prefix = prefix
         self._full_text = full_text
         self._boolean = boolean
-        self._multiple = multiple
-        self._separator = separator
-        self._typecast = typecast
 
     @property
     def slot(self):
@@ -161,38 +182,6 @@ class ActiveProperty(StoredProperty):
         """Xapian will use boolean search for this property."""
         return self._boolean
 
-    @property
-    def multiple(self):
-        """Should property value be treated as a list of words."""
-        return self._multiple
-
-    @property
-    def separator(self):
-        """Separator for multiplied properties, spaces by default."""
-        return self._separator
-
-    @property
-    def typecast(self):
-        """Value type that property's string value should repesent.
-
-        Supported values are:
-        * `None`, string values
-        * `int`, interger values
-        * `bool`, boolean values repesented by symbols `0` and `1`
-        * sequence of strings, property value should confirm one of values
-          from the sequence
-
-        """
-        return self._typecast
-
-    def list_value(self, value):
-        """If property value contains several values, list them all."""
-        if self._multiple:
-            return [i.strip() for i in value.split(self._separator) \
-                    if i.strip()]
-        else:
-            return [value]
-
 
 class AggregatorProperty(Property):
     """Property that aggregates arbitrary values.
@@ -205,7 +194,7 @@ class AggregatorProperty(Property):
     """
 
     def __init__(self, name, counter):
-        Property.__init__(self, name, default='0')
+        Property.__init__(self, name, typecast=bool, default=False)
         self._counter = counter
 
     @property
@@ -238,7 +227,7 @@ class CounterProperty(ActiveProperty):
     def __init__(self, name, slot):
         ActiveProperty.__init__(self, name,
                 permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=slot,
-                default='0')
+                typecast=int, default=0)
 
 
 class BlobProperty(Property):
@@ -263,18 +252,24 @@ class BlobProperty(Property):
         """
         return self._mime_type
 
-    @property
-    def is_trait(self):
-        return False
 
-
-class SeqnoProperty(ActiveProperty):
-    """Seqno property which is not a trait."""
-
-    def __init__(self, name, **kwargs):
-        ActiveProperty.__init__(self, name, permissions=0, typecast=int,
-                **kwargs)
-
-    @property
-    def is_trait(self):
-        return False
+def _convert(typecast, value):
+    if typecast in [None, str]:
+        if isinstance(value, unicode):
+            value = value.encode('utf-8')
+        else:
+            value = str(value)
+    elif isinstance(typecast, tuple) or isinstance(typecast, list):
+        if typecast and type(typecast[0]) in [type, list, tuple]:
+            typecast, = typecast
+            value = [_convert(typecast, i) for i in value]
+        else:
+            enforce(value in typecast,
+                    _('Value "%s" is not in "%r" list'), value, typecast)
+    elif typecast is int:
+        value = int(value)
+    elif typecast is bool:
+        value = bool(value)
+    else:
+        raise RuntimeError(_('Unknown typecast'))
+    return value

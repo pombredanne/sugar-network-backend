@@ -63,40 +63,6 @@ find_limit = util.Option(
         default=32, type_cast=int)
 
 
-def term(prefix, term_value):
-    """Compose full Xapian term value applying all needed prefixes.
-
-    :param prefix:
-        term prefix
-    :param term_value:
-        term value; for long strings, only short partion will be used
-        to avoid storing big terms
-    :returns:
-        final term value
-
-    """
-    return EXACT_PREFIX + prefix + str(term_value).split('\n')[0][:243]
-
-
-def value(raw_value):
-    """Convert value to a string before passing it to Xapian.
-
-    :param raw_value:
-        arbitrary type value
-    :returns:
-        value in string representation
-
-    """
-    if isinstance(raw_value, unicode):
-        return raw_value.encode('utf-8')
-    elif isinstance(raw_value, bool):
-        return '1' if raw_value else '0'
-    elif not isinstance(raw_value, basestring):
-        return str(raw_value)
-    else:
-        return raw_value
-
-
 class NotFound(Exception):
     """Document was not found."""
     pass

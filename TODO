@@ -1,6 +1,7 @@
 0.1
 ===
 - i18n for SN content
+- range generators for bool and dates
 
 1.0
 ===

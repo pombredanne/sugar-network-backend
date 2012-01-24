@@ -22,7 +22,7 @@ from gettext import gettext as _
 from active_document import env, util
 from active_document.document_class import DocumentClass
 from active_document.metadata import BlobProperty, StoredProperty
-from active_document.metadata import ActiveProperty, AggregatorProperty
+from active_document.metadata import AggregatorProperty
 from active_document.util import enforce
 
 
@@ -121,31 +121,13 @@ class Document(DocumentClass):
             orig = self._record.get(prop_name)
         else:
             if orig is None and isinstance(prop, AggregatorProperty):
-                value = self._storage.is_aggregated(
+                orig = self._storage.is_aggregated(
                         self.guid, prop_name, prop.value)
-                orig = env.value(value)
             enforce(orig is not None, _('Property "%s" in "%s" cannot be get'),
                     prop_name, self.metadata.name)
 
         self._cache[prop_name] = (orig, new)
         return orig
-
-    def get_list(self, prop_name):
-        """If property value contains several values, list them all.
-
-        :param prop_name:
-            property name to return value for
-        :returns:
-            list of value's portions; for not multiple properties,
-            return singular value as the only part of the list
-
-        """
-        value = self[prop_name]
-        prop = self.metadata[prop_name]
-        if isinstance(prop, ActiveProperty):
-            return prop.list_value(value)
-        else:
-            return [value]
 
     def __setitem__(self, prop_name, value):
         """set document's property value.
@@ -165,16 +147,10 @@ class Document(DocumentClass):
         else:
             self.authorize_property(env.ACCESS_WRITE, prop)
 
-        if isinstance(prop, StoredProperty):
-            pass
-        elif isinstance(prop, AggregatorProperty):
-            enforce(value.isdigit(),
-                    _('Property "%s" in "%s" should be either "0" or "1"'),
-                    prop_name, self.metadata.name)
-            value = env.value(bool(int(value)))
-        else:
-            raise RuntimeError(_('Property "%s" in "%s" cannot be set') % \
-                    (prop_name, self.metadata.name))
+        enforce(isinstance(prop, StoredProperty) or \
+                isinstance(prop, AggregatorProperty),
+                _('Property "%s" in "%s" cannot be set'),
+                prop_name, self.metadata.name)
 
         orig, __ = self._cache.get(prop_name, (None, None))
         self._cache[prop_name] = (orig, value)
@@ -199,21 +175,8 @@ class Document(DocumentClass):
 
         for prop_name, value in changes.items():
             prop = self.metadata[prop_name]
-            if not isinstance(prop, ActiveProperty) or prop.typecast is None:
-                continue
             try:
-                value_parts = []
-                for part in prop.list_value(value):
-                    if prop.typecast is int:
-                        part = str(int(part))
-                    elif prop.typecast is bool:
-                        part = str(int(bool(int(part))))
-                    else:
-                        enforce(part in prop.typecast,
-                                _('Value "%s" is not from "%s" list'),
-                                part, ', '.join(prop.typecast))
-                    value_parts.append(part)
-                changes[prop_name] = (prop.separator or ' ').join(value_parts)
+                changes[prop_name] = prop.convert(value)
             except Exception:
                 error = _('Value for "%s" property for "%s" is invalid') % \
                         (prop_name, self.metadata.name)
@@ -305,7 +268,7 @@ class Document(DocumentClass):
         """
         cache['guid'] = str(uuid.uuid1())
 
-        ts = str(int(time.mktime(datetime.utcnow().timetuple())))
+        ts = int(time.mktime(datetime.utcnow().timetuple()))
         cache['ctime'] = ts
         cache['mtime'] = ts
 
@@ -320,7 +283,7 @@ class Document(DocumentClass):
             dictionary with document properties updates
 
         """
-        ts = str(int(time.mktime(datetime.utcnow().timetuple())))
+        ts = int(time.mktime(datetime.utcnow().timetuple()))
         properties['mtime'] = ts
 
         self._set_seqno(properties)

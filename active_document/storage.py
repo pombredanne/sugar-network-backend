@@ -17,6 +17,7 @@ import os
 import sys
 import time
 import stat
+import json
 import shutil
 import logging
 from os.path import exists, join, isdir, dirname
@@ -74,9 +75,7 @@ class Storage(object):
         try:
             root = self._ensure_path(True, guid, '')
             for name, value in properties.items():
-                f = util.new_file(join(root, name))
-                f.write(value)
-                f.close()
+                _write_property(join(root, name), value)
 
             # Touch directory to let it possible to crawl this directory
             # on startup when index was not previously closed properly
@@ -137,9 +136,7 @@ class Storage(object):
                         continue
                     path = join(guid_path, name)
                     if exists(path):
-                        f = file(path)
-                        properties[name] = f.read()
-                        f.close()
+                        properties[name] = _read_property(path)
 
                 yield guid, properties
 
@@ -313,11 +310,7 @@ class Storage(object):
                     if isinstance(prop, BlobProperty):
                         blobs[name] = (path, ts)
                     else:
-                        value = file(path)
-                        try:
-                            traits[name] = (value.read(), ts)
-                        finally:
-                            value.close()
+                        traits[name] = (_read_property(path), ts)
 
         return traits, blobs
 
@@ -356,9 +349,7 @@ class Storage(object):
                     if isinstance(prop, BlobProperty):
                         self.set_blob(guid, name, value)
                     else:
-                        f = util.new_file(path)
-                        f.write(value)
-                        f.close()
+                        _write_property(path, value)
                     os.utime(path, (ts, ts))
                     applied = True
 
@@ -371,8 +362,10 @@ class Storage(object):
         path = self._path(guid)
         if not exists(path):
             os.makedirs(path)
-            if create_stamp:
-                file(join(path, _DOCUMENT_STAMP), 'w').close()
+        if create_stamp:
+            stamt_path = join(path, _DOCUMENT_STAMP)
+            if not exists(stamt_path):
+                file(stamt_path, 'w').close()
 
         path = join(path, *args)
         if not exists(path):
@@ -415,13 +408,25 @@ class Record(object):
         path = join(self._root, name)
         enforce(exists(path), _('Cannot find "%s" property of "%s" in "%s"'),
                 name, self._guid, self.metadata.name)
-        value = file(path)
-        try:
-            return value.read()
-        finally:
-            value.close()
+        return _read_property(path)
 
 
 def _utc_mtime(*args):
     ts = os.stat(join(*args)).st_mtime
     return time.mktime(time.gmtime(ts))
+
+
+def _write_property(path, value):
+    f = util.new_file(path)
+    try:
+        json.dump(value, f)
+    finally:
+        f.close()
+
+
+def _read_property(path):
+    f = file(path)
+    try:
+        return json.load(f)
+    finally:
+        f.close()

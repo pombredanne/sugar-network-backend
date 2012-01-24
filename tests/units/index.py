@@ -247,29 +247,105 @@ class IndexTest(tests.Test):
                 ([{'guid': '3', 'var_1': '3'}, {'guid': '2', 'var_1': '2'}, {'guid': '1', 'var_1': '1'}], 3),
                 db._find(reply=['var_1'], order_by='-var_2'))
 
-    def test_TermsAreLists(self):
+    def test_Integers(self):
         db = Index({
-            'var_1': ActiveProperty('var_1', 1, 'A'),
-            'var_2': ActiveProperty('var_2', 2, 'B', multiple=True),
-            'var_3': ActiveProperty('var_3', 3, 'C', multiple=True, separator=';'),
+            'prop': ActiveProperty('prop', 1, 'A', typecast=int, full_text=True),
             })
 
-        db.store('1', {'var_1': '1', 'var_2': '1 2', 'var_3': '4;5'}, True)
-        db.store('2', {'var_1': '2', 'var_2': ' 2  3 ', 'var_3': ' 5 ; 6 '}, True)
+        db.store('1', {'prop': 9}, True)
+        db.store('2', {'prop': 89}, True)
+        db.store('3', {'prop': 777}, True)
 
         self.assertEqual(
-                ([{'guid': '1', 'var_1': '1'}], 1),
-                db._find(request={'var_2': '1'}, reply=['var_1']))
-        self.assertEqual(
-                ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 2),
-                db._find(request={'var_2': '2'}, reply=['var_1']))
+                [
+                    {'guid': '1', 'prop': 9},
+                    {'guid': '2', 'prop': 89},
+                    {'guid': '3', 'prop': 777},
+                    ],
+                db._find(order_by='prop')[0])
 
         self.assertEqual(
-                ([{'guid': '2', 'var_1': '2'}], 1),
-                db._find(request={'var_3': '6'}, reply=['var_1']))
+                [
+                    {'guid': '1', 'prop': 9},
+                    {'guid': '2', 'prop': 89},
+                    ],
+                db._find(query='prop:0..100', order_by='prop')[0])
+
         self.assertEqual(
-                ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 2),
-                db._find(request={'var_3': '5'}, reply=['var_1']))
+                [
+                    {'guid': '1', 'prop': 9},
+                    ],
+                db._find(query='prop:9', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': 89},
+                    ],
+                db._find(query='prop:=89', order_by='prop')[0])
+
+    def test_Booleans(self):
+        db = Index({
+            'prop': ActiveProperty('prop', 1, 'A', typecast=bool, full_text=True),
+            })
+
+        db.store('1', {'prop': True}, True)
+        db.store('2', {'prop': False}, True)
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': False},
+                    {'guid': '1', 'prop': True},
+                    ],
+                db._find(order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': False},
+                    {'guid': '1', 'prop': True},
+                    ],
+                db._find(query='prop:0..100', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': True},
+                    ],
+                db._find(query='prop:1..1', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': False},
+                    ],
+                db._find(query='prop:0', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': True},
+                    ],
+                db._find(query='prop:=1', order_by='prop')[0])
+
+    def test_MultipleValues(self):
+        db = Index({
+            'prop': ActiveProperty('prop', prefix='B', typecast=[1, 2], full_text=True),
+            })
+
+        db.store('1', {'prop': [1, 2]}, True)
+        db.store('2', {'prop': [2, 3]}, True)
+
+        self.assertEqual(
+                [{'guid': '1'}],
+                db._find(request={'prop': 1}, reply=['guid'])[0])
+
+        self.assertEqual(
+                [{'guid': '1'}, {'guid': '2'}],
+                db._find(request={'prop': 2}, reply=['guid'])[0])
+
+        self.assertEqual(
+                [{'guid': '1'}, {'guid': '2'}],
+                db._find(query='2', reply=['guid'])[0])
+
+        self.assertEqual(
+                [{'guid': '2'}],
+                db._find(query='3', reply=['guid'])[0])
 
     def test_FlushThreshold(self):
         env.index_flush_threshold.value = 2
@@ -370,6 +446,18 @@ class IndexTest(tests.Test):
         self.assertEqual(
                 ([{'guid': '1', 'prop': '3'}, {'guid': '2', 'prop': '1'}, {'guid': '3', 'prop': '1'}], 3),
                 db._find(reply=['prop'], order_by='-prop'))
+
+    def test_find_Region(self):
+        term = 'azAZ09_'
+
+        db = Index({term: ActiveProperty(term, 1, 'T', full_text=True)})
+
+        db.store('1', {term: 'test'}, True)
+        db.store('2', {term: 'test fail'}, True)
+
+        self.assertEqual(
+                ([{'guid': '1'}], 1),
+                db._find(query='%s:=test' % term, reply=['guid']))
 
 
 class Index(index.IndexWriter):

@@ -141,7 +141,12 @@ class IndexReader(object):
                                 name, self.metadata.name)
                         continue
                     if prop.slot is not None and prop.slot != 0:
-                        props[name] = hit.document.get_value(prop.slot)
+                        value = hit.document.get_value(prop.slot)
+                        if prop.typecast is int:
+                            value = int(xapian.sortable_unserialise(value))
+                        elif prop.typecast is bool:
+                            value = bool(xapian.sortable_unserialise(value))
+                        props[name] = value
                 guid = hit.document.get_value(0)
                 yield guid, props
 
@@ -159,12 +164,17 @@ class IndexReader(object):
             parser = xapian.QueryParser()
             parser.set_database(self._db)
             for name, prop in self._props.items():
-                if prop.prefix:
-                    if prop.boolean:
-                        parser.add_boolean_prefix(name, prop.prefix)
-                    else:
-                        parser.add_prefix(name, prop.prefix)
-                    parser.add_prefix('', prop.prefix)
+                if not prop.prefix:
+                    continue
+                if prop.boolean:
+                    parser.add_boolean_prefix(name, prop.prefix)
+                else:
+                    parser.add_prefix(name, prop.prefix)
+                parser.add_prefix('', prop.prefix)
+                if prop.typecast in [int, bool]:
+                    value_range = xapian.NumberValueRangeProcessor(
+                            prop.slot, name + ':')
+                    parser.add_valuerangeprocessor(value_range)
             parser.add_prefix('', '')
             query = parser.parse_query(query,
                     xapian.QueryParser.FLAG_PHRASE |
@@ -181,7 +191,7 @@ class IndexReader(object):
             enforce(prop is not None and prop.prefix,
                     _('Unknow search term "%s" for "%s"'),
                     name, self.metadata.name)
-            query = xapian.Query(env.term(prop.prefix, value))
+            query = xapian.Query(_term(prop.prefix, value))
             if prop.boolean:
                 boolean_queries.append(query)
             else:
@@ -293,21 +303,27 @@ class IndexWriter(IndexReader):
 
         for name, prop in self._props.items():
             value = guid if prop.slot == 0 else properties[name]
+
             if prop.slot is not None:
-                document.add_value(prop.slot, value)
+                if prop.typecast in [int, bool]:
+                    add_value = xapian.sortable_serialise(value)
+                else:
+                    add_value = value
+                document.add_value(prop.slot, add_value)
+
             if prop.prefix or prop.full_text:
-                for value in prop.list_value(value):
+                for value in prop.serialise(value):
                     if prop.prefix:
                         if prop.boolean:
                             document.add_boolean_term(
-                                    env.term(prop.prefix, value))
+                                    _term(prop.prefix, value))
                         else:
-                            document.add_term(env.term(prop.prefix, value))
+                            document.add_term(_term(prop.prefix, value))
                     if prop.full_text:
                         term_generator.index_text(value, 1, prop.prefix or '')
                     term_generator.increase_termpos()
 
-        self._db.replace_document(env.term(env.GUID_PREFIX, guid), document)
+        self._db.replace_document(_term(env.GUID_PREFIX, guid), document)
         self._commit()
 
         if post_cb is not None:
@@ -316,7 +332,7 @@ class IndexWriter(IndexReader):
     def delete(self, guid, post_cb=None):
         _logger.debug('Delete "%s" document from "%s"',
                 guid, self.metadata.name)
-        self._db.delete_document(env.term(env.GUID_PREFIX, guid))
+        self._db.delete_document(_term(env.GUID_PREFIX, guid))
         self._commit()
         if post_cb is not None:
             post_cb(guid)
@@ -410,3 +426,7 @@ class Total(object):
             return cmp(self.value, other.value)
         else:
             return cmp(self.value, int(other))
+
+
+def _term(prefix, value):
+    return env.EXACT_PREFIX + prefix + str(value).split('\n')[0][:243]

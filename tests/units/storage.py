@@ -195,7 +195,7 @@ class StorageTest(tests.Test):
         assert not storage.merge('guid_1', diff)
         assert not exists('test/gu/guid_1/.document')
         assert os.stat('test/gu/guid_1/prop_1').st_mtime == 1
-        self.assertEqual('value', file('test/gu/guid_1/prop_1').read())
+        self.assertEqual('"value"', file('test/gu/guid_1/prop_1').read())
         assert os.stat('test/gu/guid_1/prop_2/enabled').st_mtime == 2
         assert storage.is_aggregated('guid_1', 'prop_2', 'enabled')
         assert os.stat('test/gu/guid_1/prop_2/disabled').st_mtime == 3
@@ -210,7 +210,7 @@ class StorageTest(tests.Test):
         assert storage.merge('guid_2', diff)
         assert exists('test/gu/guid_2/.document')
         assert os.stat('test/gu/guid_2/guid').st_mtime == 5
-        self.assertEqual('guid_2', file('test/gu/guid_2/guid').read())
+        self.assertEqual('"guid_2"', file('test/gu/guid_2/guid').read())
 
         ts = int(time.time())
         storage.put('guid_3', {'prop_1': 'value_2'})
@@ -221,7 +221,7 @@ class StorageTest(tests.Test):
         diff.pop('guid')
         assert not storage.merge('guid_3', diff)
         assert os.stat('test/gu/guid_3/prop_1').st_mtime >= ts
-        self.assertEqual('value_2', file('test/gu/guid_3/prop_1').read())
+        self.assertEqual('"value_2"', file('test/gu/guid_3/prop_1').read())
         assert os.stat('test/gu/guid_3/prop_2/enabled').st_mtime >= ts
         assert not storage.is_aggregated('guid_3', 'prop_2', 'enabled')
         assert os.stat('test/gu/guid_3/prop_2/disabled').st_mtime >= ts
