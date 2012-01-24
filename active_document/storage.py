@@ -276,20 +276,26 @@ class Storage(object):
                 result, name, guid, self.metadata.name)
         return result
 
-    def diff(self, guid, timestamp):
+    def diff(self, guid, start, end=None):
         """Return changed properties since specified timestamp.
 
         :param guid:
             document GUID to check changed properties for
-        :param timestamp:
-            return properties changed from `timestamp` time;
-            `timestamp` is UNIX seconds in UTC
+        :param start:
+            return properties changed starting `start` time;
+            in UNIX seconds in UTC
+        :param end:
+            return properties changed ending by `end` time;
+            in UNIX seconds in UTC
         :returns:
             tuple of dictionaries for regular properties and BLOBs
 
         """
         traits = {}
         blobs = {}
+
+        def in_time(ts):
+            return ts >= start and (end is None or ts <= end)
 
         for name, prop in self.metadata.items():
             path = self._path(guid, name)
@@ -299,14 +305,14 @@ class Storage(object):
                 values = []
                 for i in os.listdir(path):
                     ts = _utc_mtime(path, i)
-                    if ts >= timestamp:
+                    if in_time(ts):
                         aggregated = self.is_aggregated(guid, name, i)
                         values.append(((i, aggregated), ts))
                 if values:
                     traits[name] = values
             else:
                 ts = _utc_mtime(path)
-                if ts >= timestamp:
+                if in_time(ts):
                     if isinstance(prop, BlobProperty):
                         blobs[name] = (path, ts)
                     else:

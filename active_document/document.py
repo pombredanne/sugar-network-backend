@@ -229,19 +229,22 @@ class Document(DocumentClass):
                 prop_name, self.metadata.name)
         self._storage.set_blob(self.guid, prop_name, stream, size)
 
-    def diff(self, timestamp):
+    def diff(self, start, end=None):
         """Return changed properties since specified timestamp.
 
         :param guid:
             document GUID to check changed properties for
-        :param timestamp:
-            return properties changed from `timestamp` time;
-            `timestamp` is UNIX seconds in UTC
+        :param start:
+            return properties changed starting `start` time;
+            in UNIX seconds in UTC
+        :param end:
+            return properties changed ending by `end` time;
+            in UNIX seconds in UTC
         :returns:
             tuple of dictionaries for regular properties and BLOBs
 
         """
-        return self._storage.diff(self.guid, timestamp)
+        return self._storage.diff(self.guid, start, end)
 
     def merge(self, diff):
         """Apply changes for the document.

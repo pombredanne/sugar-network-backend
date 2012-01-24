@@ -135,47 +135,62 @@ class StorageTest(tests.Test):
             CounterProperty('prop_4', slot=2),
             ])
 
-        storage.put('guid_1', {'prop_1': 'value_1', 'prop_4': '0'})
-        storage.aggregate('guid_1', 'prop_2', 'enabled_1')
-        storage.disaggregate('guid_1', 'prop_2', 'disabled_1')
-        storage.set_blob('guid_1', 'prop_3', StringIO('blob_1'))
+        storage.put('guid', {'prop_1': 'value', 'prop_4': '0'})
+        storage.aggregate('guid', 'prop_2', 'enabled')
+        storage.disaggregate('guid', 'prop_2', 'disabled')
+        storage.set_blob('guid', 'prop_3', StringIO('blob'))
 
-        os.utime('test/gu/guid_1/prop_1', (1, 1))
-        os.utime('test/gu/guid_1/prop_2/enabled_1', (2, 2))
-        os.utime('test/gu/guid_1/prop_2/disabled_1', (1, 1))
-        os.utime('test/gu/guid_1/prop_3', (2, 2))
+        os.utime('test/gu/guid/prop_1', (1, 1))
+        os.utime('test/gu/guid/prop_2/enabled', (2, 2))
+        os.utime('test/gu/guid/prop_2/disabled', (3, 3))
+        os.utime('test/gu/guid/prop_3', (2, 2))
 
-        traits, blobs = storage.diff('guid_1', 1)
+        traits, blobs = storage.diff('guid', 1)
         self.assertEqual(
                 {
-                    'prop_1': ('value_1', 1),
-                    'prop_2': [(('disabled_1', False), 1), (('enabled_1', True), 2)],
+                    'prop_1': ('value', 1),
+                    'prop_2': [(('enabled', True), 2), (('disabled', False), 3)],
                     },
                 traits)
         self.assertEqual(
                 {
-                    'prop_3': (tests.tmpdir + '/test/gu/guid_1/prop_3', 2),
+                    'prop_3': (tests.tmpdir + '/test/gu/guid/prop_3', 2),
                     },
                 blobs)
 
-        traits, blobs = storage.diff('guid_1', 2)
+        traits, blobs = storage.diff('guid', 2)
         self.assertEqual(
                 {
-                    'prop_2': [(('enabled_1', True), 2)],
+                    'prop_2': [(('enabled', True), 2), (('disabled', False), 3)],
                     },
                 traits)
         self.assertEqual(
                 {
-                    'prop_3': (tests.tmpdir + '/test/gu/guid_1/prop_3', 2),
+                    'prop_3': (tests.tmpdir + '/test/gu/guid/prop_3', 2),
                     },
                 blobs)
 
-        traits, blobs = storage.diff('guid_1', 3)
+        traits, blobs = storage.diff('guid', 3)
         self.assertEqual(
-                { },
+                {
+                    'prop_2': [(('disabled', False), 3)],
+                    },
                 traits)
         self.assertEqual(
                 { },
+                blobs)
+
+        traits, blobs = storage.diff('guid', 1, 2)
+        self.assertEqual(
+                {
+                    'prop_1': ('value', 1),
+                    'prop_2': [(('enabled', True), 2)],
+                    },
+                traits)
+        self.assertEqual(
+                {
+                    'prop_3': (tests.tmpdir + '/test/gu/guid/prop_3', 2),
+                    },
                 blobs)
 
     def test_merge(self):
