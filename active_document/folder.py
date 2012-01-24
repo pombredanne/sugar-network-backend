@@ -21,8 +21,10 @@ import logging
 from os.path import join, exists, dirname, abspath
 from gettext import gettext as _
 
+import gevent
+
 from active_document import env, util
-from active_document.sync import Synchronizer
+from active_document.sync import Sync
 from active_document.util import enforce
 
 
@@ -37,7 +39,7 @@ class _Folder(dict):
     def __init__(self, is_master, document_classes):
         self._is_master = is_master
         self._id = None
-        self._synchronizers = {}
+        self._syncs = {}
 
         enforce(env.data_root.value,
                 _('The active_document.data_root.value is not set'))
@@ -46,7 +48,7 @@ class _Folder(dict):
 
         for cls in document_classes:
             cls.init()
-            self._synchronizers[cls.metadata.name] = Synchronizer(cls.metadata)
+            self._syncs[cls.metadata.name] = Sync(cls.metadata)
 
         if env.index_write_queue.value > 0:
             from active_document import index_queue
@@ -78,42 +80,60 @@ class _Folder(dict):
         _logger.info(_('Syncing with %s directory'), volume_path)
 
         id_path = join(volume_path, self.id + '.gz')
-        unknown_documents = set()
 
         if exists(id_path):
             with _InPacket(id_path) as packet:
                 for row in packet.read_rows(type='ack'):
-                    yield
-                    synchronizer = self._synchronizers.get(row['document'])
-                    if synchronizer is None:
-                        unknown_documents.add((row['document'], packet.path))
+                    self._dispatch()
+                    syncer = self._syncs.get(row['document'])
+                    if syncer is None:
+                        _logger.warning(
+                                _('Unknown document "%s" in "%s" packet'),
+                                row['document'], packet.path)
                         continue
-                    synchronizer.process_ack(row['ack'])
+                    syncer.process_ack(row['ack'])
             os.unlink(id_path)
 
         for filename in os.listdir(volume_path):
             with _InPacket(join(volume_path, filename)) as packet:
-                for row in packet.read_rows(type='dump'):
-                    synchronizer = self._synchronizers.get(row['document'])
-                    if synchronizer is None:
-                        unknown_documents.add((row['document'], packet.path))
+                for changeset in packet.read_rows(type='changeset'):
+                    syncer = self._syncs.get(changeset['document'])
+                    if syncer is None:
+                        _logger.warning(
+                                _('Unknown document "%s" in "%s" packet'),
+                                changeset['document'], packet.path)
                         continue
-                    synchronizer.merge(row['row'])
 
-        for document, path in unknown_documents:
-            _logger.warning(_('Unknown document "%s" in "%s" packet'),
-                    document, path)
+                    def iterate():
+                        seqno = None
+                        for row in packet.read_rows(type='diff'):
+                            self._dispatch()
+                            if packet.sender == 'master':
+                                seqno = row['seqno']
+                            yield seqno, row['guid'], row['diff']
 
-        syns, rows = self._synchronizers[self.id].create_syn()
+                    syncer.merge(iterate())
+
         try:
             with _OutPacket(id_path, next_volume_cb, sender=self.id) as packet:
-                for document, syn in syns:
+                for document, syncer in self._syncs.items():
+                    syn, patch = syncer.create_syn()
+                    self._dispatch()
                     packet.write_row(type='syn', document=document, syn=syn)
-                for document, row in rows:
-                    packet.write_row(type='dump', document=document, dump=row)
+                    for seqno, guid, diff in patch:
+                        self._dispatch()
+                        packet.write_row(type='diff', document=document,
+                                seqno=seqno, guid=guid, diff=diff)
         except IOError, error:
             _logger.warning(_('Packet was not fully uploaded to "%s": %s'),
                     volume_path, error)
+
+        for syncer in self._syncs.values():
+            self._dispatch()
+            syncer.flush()
+
+    def _dispatch(self):
+        gevent.sleep()
 
 
 class NodeFolder(_Folder):

@@ -15,50 +15,106 @@
 
 import os
 import json
+import time
 import logging
-from os.path import exists
+from datetime import datetime
+from os.path import exists, join
 
+from active_document import env
 from active_document.util import enforce
 
+
+_PAGE_SIZE = 64
 
 _logger = logging.getLogger('ad.storage')
 
 
-class Seqno(object):
+class NodeSeqno(object):
     """."""
 
     def __init__(self, metadata):
-        """
-        :param name:
-            document name
-
-        """
-        self.metadata = metadata
-        self._root = metadata.ensure_path('')
+        self._time = 0
+        self._ts = 0
 
     def next(self):
-        return 1
+        cur_time = int(time.mktime(datetime.utcnow().timetuple()))
+        if cur_time == self._time:
+            self._ts += 1
+        else:
+            self._time = cur_time
+            self._ts = cur_time * 1000
+        return self._ts
 
 
-class Synchronizer(object):
+class Sync(object):
 
-    def __init__(self, metadata):
-        self.metadata = metadata
+    def __init__(self, document_cls):
+        self._document_cls = document_cls
+        self._to_send = _Timeline('send')
+        self._to_receive = _Timeline('receive')
+        self._pending_flush = False
 
     def create_syn(self):
-        return None, None
+
+        def patch():
+            for start, end in self._to_send[:]:
+                query = {'query': 'seqno:%s..%s' % (start, end or ''),
+                         'order_by': 'seqno',
+                         'reply': ['seqno'],
+                         'limit': _PAGE_SIZE,
+                         }
+                offset = 0
+
+                while True:
+                    documents, total = self._document_cls.find(
+                            offset=offset, **query)
+                    for i in documents:
+                        seqno = i.get('seqno', raw=True)
+                        yield seqno, i.guid, i.diff(start, end)
+                    offset += _PAGE_SIZE
+                    if offset >= total.value:
+                        break
+
+                if not total.value:
+                    self._to_send.exclude(start, end)
+                    self._pending_flush = True
+
+        return self._to_receive, patch()
 
     def process_ack(self, ack):
-        pass
+        for master_range, node_range in ack:
+            self._to_send.exclude(*node_range)
+            self._to_receive.exclude(*master_range)
+            self._pending_flush = True
 
-    def merge(self, row):
-        pass
+    def merge(self, patch):
+        seqno_start = None
+        seqno_end = None
+
+        for seqno, guid, diff in patch:
+            if seqno:
+                if not seqno_start or seqno < seqno_start:
+                    seqno_start = seqno
+                if not seqno_end or seqno > seqno_end:
+                    seqno_end = seqno
+            self._document_cls(guid).merge(diff)
+
+        if seqno_start:
+            self._to_receive.exclude(seqno_start, seqno_end)
+            self._pending_flush = True
+
+    def flush(self):
+        if not self._pending_flush:
+            return
+        self._to_send.flush()
+        self._to_receive.flush()
+        self._pending_flush = False
 
 
 class _Timeline(list):
 
-    def __init__(self, path):
-        self._path = path
+    def __init__(self, name):
+        self._path = join(env.data_root.value, name + '.timeline')
 
         if exists(self._path):
             f = file(self._path)

@@ -31,7 +31,7 @@ _logger = logging.getLogger('ad.document')
 
 class Document(DocumentClass):
 
-    def __init__(self, guid=None, indexed_props=None, raw=None, **kwargs):
+    def __init__(self, guid=None, indexed_props=None, **kwargs):
         """
         :param guid:
             GUID of existing document; if omitted, newly created object
@@ -39,9 +39,6 @@ class Document(DocumentClass):
             only after calling `post`
         :param indexed_props:
             property values got from index to populate the cache
-        :param raw:
-            list of property names to avoid any checks for
-            users' visible properties; only for server local use
         :param kwargs:
             optional key arguments with new property values; specifing these
             arguments will mean the same as setting properties after `Document`
@@ -49,7 +46,6 @@ class Document(DocumentClass):
 
         """
         self.init()
-        self._raw = raw or []
         self._is_new = False
         self._cache = {}
         self._record = None
@@ -89,17 +85,22 @@ class Document(DocumentClass):
         """Document GUID."""
         return self._guid
 
-    def __getitem__(self, prop_name):
+    def get(self, prop_name, raw=False):
         """Get document's property value.
 
         :param prop_name:
             property name to get value
+        :param raw:
+            if `True`, avoid any checks for users' visible properties;
+            only for server local use
         :returns:
             `prop_name` value
 
         """
         prop = self.metadata[prop_name]
-        self.authorize_property(env.ACCESS_READ, prop)
+
+        if not raw:
+            self.authorize_property(env.ACCESS_READ, prop)
 
         orig, new = self._cache.get(prop_name, (None, None))
         if new is not None:
@@ -121,11 +122,14 @@ class Document(DocumentClass):
         self._cache[prop_name] = (orig, new)
         return orig
 
-    def __setitem__(self, prop_name, value):
+    def set(self, prop_name, value, raw=False):
         """set document's property value.
 
         :param prop_name:
             property name to set
+        :param raw:
+            if `True`, avoid any checks for users' visible properties;
+            only for server local use
         :param value:
             property value to set
 
@@ -134,10 +138,12 @@ class Document(DocumentClass):
             enforce(self._is_new, _('GUID can be set only for new documents'))
 
         prop = self.metadata[prop_name]
-        if self._is_new:
-            self.authorize_property(env.ACCESS_CREATE, prop)
-        else:
-            self.authorize_property(env.ACCESS_WRITE, prop)
+
+        if not raw:
+            if self._is_new:
+                self.authorize_property(env.ACCESS_CREATE, prop)
+            else:
+                self.authorize_property(env.ACCESS_WRITE, prop)
 
         enforce(isinstance(prop, StoredProperty) or \
                 isinstance(prop, AggregatorProperty),
@@ -261,13 +267,11 @@ class Document(DocumentClass):
             properties to use as predefined values
 
         """
+        cache['seqno'] = self._seqno.next()
         cache['guid'] = str(uuid.uuid1())
-
         ts = int(time.mktime(datetime.utcnow().timetuple()))
         cache['ctime'] = ts
         cache['mtime'] = ts
-
-        self._set_seqno(cache)
 
     def on_modify(self, properties):
         """Call back to call on existing document modification.
@@ -278,10 +282,9 @@ class Document(DocumentClass):
             dictionary with document properties updates
 
         """
+        properties['seqno'] = self._seqno.next()
         ts = int(time.mktime(datetime.utcnow().timetuple()))
         properties['mtime'] = ts
-
-        self._set_seqno(properties)
 
     def on_post(self, properties):
         """Call back to call on exery `post()` call.
@@ -307,11 +310,12 @@ class Document(DocumentClass):
             property to check access for
 
         """
-        enforce(prop.name in self._raw or \
-                mode & prop.permissions, env.Forbidden,
+        enforce(mode & prop.permissions, env.Forbidden,
                 _('%s access is disabled for "%s" property in "%s"'),
                 env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
 
-    def _set_seqno(self, properties):
-        if 'seqno' not in self._raw:
-            properties['seqno'] = self._seqno.next()
+    def __getitem__(self, prop_name):
+        return self.get(prop_name)
+
+    def __setitem__(self, prop_name, value):
+        self.set(prop_name, value)

@@ -24,7 +24,7 @@ from active_document.metadata import GuidProperty
 from active_document.metadata import CounterProperty, StoredProperty
 from active_document.index import IndexWriter
 from active_document.index_proxy import IndexProxy
-from active_document.sync import Seqno
+from active_document.sync import NodeSeqno
 from active_document.util import enforce
 
 
@@ -239,9 +239,9 @@ class DocumentClass(object):
             yield
 
     @classmethod
-    def init(cls, final_cls=None):
-        if final_cls is not None:
-            cls = final_cls
+    def init(cls, final_class=None, seqno_class=None):
+        if final_class is not None:
+            cls = final_class
 
         if cls._initated:
             return
@@ -251,7 +251,7 @@ class DocumentClass(object):
         cls.metadata['guid'] = GuidProperty()
 
         cls._storage = Storage(cls.metadata)
-        cls._seqno = Seqno(cls.metadata)
+        cls._seqno = (seqno_class or NodeSeqno)(cls.metadata)
 
         slots = {}
         prefixes = {}
@@ -315,7 +315,7 @@ class DocumentClass(object):
                         changes[prop.counter] = \
                                 cls._storage.count_aggregated(guid, prop_name)
                 elif isinstance(prop, StoredProperty):
-                    changes[prop_name] = record.get(prop_name)
+                    changes[prop_name] = record.get(prop_name, prop.default)
 
     @classmethod
     def _post_store(cls, guid, changes, is_new):

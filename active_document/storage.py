@@ -299,7 +299,7 @@ class Storage(object):
 
         for name, prop in self.metadata.items():
             path = self._path(guid, name)
-            if isinstance(prop, CounterProperty):
+            if not exists(path) or isinstance(prop, CounterProperty):
                 continue
             elif isinstance(prop, AggregatorProperty):
                 values = []
@@ -359,6 +359,10 @@ class Storage(object):
                     os.utime(path, (ts, ts))
                     applied = True
 
+        seqno_path = self._ensure_path(create_stamp, guid, 'seqno')
+        if not exists(seqno_path):
+            _write_property(seqno_path, 0)
+
         return applied and exists(self._path(guid, _DOCUMENT_STAMP))
 
     def _path(self, guid, *args):
@@ -410,10 +414,13 @@ class Record(object):
         self._guid = guid
         self.metadata = metadata
 
-    def get(self, name):
+    def get(self, name, default=None):
         path = join(self._root, name)
-        enforce(exists(path), _('Cannot find "%s" property of "%s" in "%s"'),
-                name, self._guid, self.metadata.name)
+        if not exists(path):
+            enforce(default is not None,
+                    _('Cannot find "%s" property of "%s" in "%s"'),
+                    name, self._guid, self.metadata.name)
+            return default
         return _read_property(path)
 
 

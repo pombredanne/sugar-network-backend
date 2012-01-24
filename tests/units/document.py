@@ -705,8 +705,9 @@ class DocumentTest(tests.Test):
         self.assertRaises(env.Forbidden, lambda: doc.__setitem__('seqno', 1))
         doc.post()
 
-        doc = Document(raw=['seqno'], seqno=1024)
-        self.assertEqual(1024, doc['seqno'])
+        doc = Document()
+        doc.set('seqno', 1024, raw=True)
+        self.assertEqual(1024, doc.get('seqno', raw=True))
         doc.post()
         self.assertEqual(
                 [doc.guid],
@@ -721,28 +722,22 @@ class DocumentTest(tests.Test):
 
             seqno = 0
 
+            def __init__(self, *args):
+                pass
+
             def next(self):
                 Seqno.seqno += 1
                 return Seqno.seqno
 
-        Document.init()
-        Document._seqno = Seqno()
+        Document.init(seqno_class=Seqno)
 
         doc = Document()
         doc.post()
-        self.assertEqual(1, Document(doc.guid, raw=['seqno']).seqno)
+        self.assertEqual(1, Document(doc.guid).get('seqno', raw=True))
 
         doc = Document()
         doc.post()
-        self.assertEqual(2, Document(doc.guid, raw=['seqno']).seqno)
-
-        doc = Document(raw=['seqno'], seqno=1024)
-        doc.post()
-        self.assertEqual(1024, Document(doc.guid, raw=['seqno']).seqno)
-
-        doc = Document()
-        doc.post()
-        self.assertEqual(3, Document(doc.guid, raw=['seqno']).seqno)
+        self.assertEqual(2, Document(doc.guid).get('seqno', raw=True))
 
     def test_CounterProperty(self):
 
@@ -763,31 +758,32 @@ class DocumentTest(tests.Test):
                 [i.counter for i in Document.find(0, 10)[0]])
         self.assertEqual(0, Document(doc.guid).counter)
 
-        doc = Document(doc.guid, raw=['counter'])
-        doc.counter = 1
+        doc = Document(doc.guid)
+        doc.set('counter', 1, raw=True)
         doc.post()
         self.assertEqual(
                 [1],
                 [i.counter for i in Document.find(0, 10)[0]])
         self.assertEqual(1, Document(doc.guid).counter)
 
-        doc = Document(doc.guid, raw=['counter'])
-        doc.counter = 2
+        doc = Document(doc.guid)
+        doc.set('counter', 2, raw=True)
         doc.post()
         self.assertEqual(
                 [3],
                 [i.counter for i in Document.find(0, 10)[0]])
         self.assertEqual(3, Document(doc.guid).counter)
 
-        doc = Document(doc.guid, raw=['counter'])
-        doc.counter = -3
+        doc = Document(doc.guid)
+        doc.set('counter', -3, raw=True)
         doc.post()
         self.assertEqual(
                 [0],
                 [i.counter for i in Document.find(0, 10)[0]])
         self.assertEqual(0, Document(doc.guid).counter)
 
-        doc_2 = Document(counter='3', raw=['counter'])
+        doc_2 = Document()
+        doc_2.set('counter', 3, raw=True)
         doc_2.post()
         self.assertEqual(
                 [3],
