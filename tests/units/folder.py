@@ -2,209 +2,271 @@
 # sugar-lint: disable
 
 import os
-import gzip
 import json
-from os.path import exists
+import shutil
+from glob import glob
+from os.path import exists, join, isfile
+from cStringIO import StringIO
+
+import gevent
 
 from __init__ import tests
 
-from active_document import env, folder
-
+from active_document import env, folder, document, util, index_queue, sneakernet
+from active_document.document_class import active_property
+from active_document.metadata import CounterProperty, BlobProperty
+from active_document.metadata import AggregatorProperty
 
 
 class FolderTest(tests.Test):
 
-    def setUp(self):
-        tests.Test.setUp(self)
-        self.override(os, 'statvfs', lambda *args: statvfs())
+    def test_sync_Walkthrough(self):
+        with Sync(folder.Node, 'node', 'node-1') as node:
+            doc_1 = node.Document(prop='1')
+            doc_1.set_blob('blob', StringIO('1'))
+            doc_1.post()
+
+            doc_2 = node.Document(prop='2')
+            doc_2.set_blob('blob', StringIO('2'))
+            doc_2.post()
+
+            node.sync('sync')
+            self.assertEqual(4, node.Document.metadata.last_seqno)
+            self.assertEqual(
+                    [('1', ['1']), ('2', ['2'])],
+                    node.props)
+            self.assertEqual(
+                    [[1, None]],
+                    json.load(file('node-1/document/send.range')))
+            self.assertEqual(
+                    [[1, None]],
+                    json.load(file('node-1/document/receive.range')))
+
+        self.assertEqual(
+                sorted([
+                    ('node', None, ['request', 'diff', 'diff', 'syn']),
+                    ]),
+                sorted(load_packets()))
+
+        with Sync(folder.Master, 'master', 'master-1') as master:
+            doc = master.Document(prop='3')
+            doc.post()
+
+            doc = master.Document(prop='4')
+            doc.post()
+            doc.set_blob('blob', StringIO('4'))
+
+            master.Document.commit()
+            self.assertEqual(3, master.Document.metadata.last_seqno)
+
+            master.sync('sync')
+            self.assertEqual(5, master.Document.metadata.last_seqno)
+            self.assertEqual(
+                    [('1', []), ('2', []), ('3', []), ('4', ['4'])],
+                    master.props)
+
+        self.assertEqual(
+                sorted([
+                    ('master', 'node', ['ack']),
+                    ('master', None, ['diff', 'diff', 'syn']),
+                    ]),
+                sorted(load_packets()))
+
+        with Sync(folder.Node, 'node', 'node-2', 'node-1') as node:
+            doc_1 = node.Document(prop='1')
+            doc_1.set_blob('blob', StringIO('1'))
+            doc_1.post()
+
+            doc_2 = node.Document(prop='2')
+            doc_2.set_blob('blob', StringIO('2'))
+            doc_2.post()
+
+            node.Document.commit()
+            self.assertEqual(4, node.Document.metadata.last_seqno)
+
+            doc = node.Document(prop='5')
+            doc.post()
+            doc.set_blob('blob', StringIO('5'))
+
+            node.sync('sync')
+            self.assertEqual(6, node.Document.metadata.last_seqno)
+            self.assertEqual(
+                    [('1', ['1']), ('2', ['2']), ('3', []), ('4', []), ('5', ['5'])],
+                    node.props)
+            self.assertEqual(
+                    [[5, None]],
+                    json.load(file('node-2/document/send.range')))
+            self.assertEqual(
+                    [[6, None]],
+                    json.load(file('node-2/document/receive.range')))
+
+        self.assertEqual(
+                sorted([
+                    ('node', None, ['request', 'diff', 'syn']),
+                    ('master', None, ['diff', 'diff', 'syn']),
+                    ]),
+                sorted(load_packets()))
+
+        with Sync(folder.Node, 'more_node', 'node-3') as node:
+            node.sync('sync')
+            self.assertEqual(0, node.Document.metadata.last_seqno)
+            self.assertEqual(
+                    [('3', []), ('4', []), ('5', [])],
+                    node.props)
+            self.assertEqual(
+                    [[1, None]],
+                    json.load(file('node-3/document/send.range')))
+            self.assertEqual(
+                    [[4, None]],
+                    json.load(file('node-3/document/receive.range')))
+
+        self.assertEqual(
+                sorted([
+                    ('more_node', None, ['request']),
+                    ('node', None, ['request', 'diff', 'syn']),
+                    ('master', None, ['diff', 'diff', 'syn']),
+                    ]),
+                sorted(load_packets()))
+
+        with Sync(folder.Node, 'one_more_node', 'node-4') as node:
+            doc = node.Document(prop='6')
+            doc.post()
+            doc.set_blob('blob', StringIO('6'))
+
+            node.sync('sync')
+            self.assertEqual(2, node.Document.metadata.last_seqno)
+            self.assertEqual(
+                    [('3', []), ('4', []), ('5', []), ('6', ['6'])],
+                    node.props)
+            self.assertEqual(
+                    [[1, None]],
+                    json.load(file('node-4/document/send.range')))
+            self.assertEqual(
+                    [[4, None]],
+                    json.load(file('node-4/document/receive.range')))
+
+        self.assertEqual(
+                sorted([
+                    ('one_more_node', None, ['request', 'diff', 'syn']),
+                    ('more_node', None, ['request']),
+                    ('node', None, ['request', 'diff', 'syn']),
+                    ('master', None, ['diff', 'diff', 'syn']),
+                    ]),
+                sorted(load_packets()))
+
+        with Sync(folder.Master, 'master', 'master-2', 'master-1') as master:
+            doc = master.Document(prop='3')
+            doc.post()
+
+            doc = master.Document(prop='4')
+            doc.post()
+            doc.set_blob('blob', StringIO('4'))
+
+            master.Document.commit()
+            self.assertEqual(3, master.Document.metadata.last_seqno)
+
+            master.Document(prop='1').post()
+            master.Document(prop='2').post()
+
+            master.Document.commit()
+            self.assertEqual(5, master.Document.metadata.last_seqno)
+
+            master.sync('sync')
+            self.assertEqual(7, master.Document.metadata.last_seqno)
+            self.assertEqual(
+                    [('1', []), ('2', []), ('3', []), ('4', ['4']), ('5', []), ('6', [])],
+                    master.props)
+
+        self.assertEqual(
+                sorted([
+                    ('master', 'one_more_node', ['ack']),
+                    ('master', 'node', ['ack']),
+                    ('master', None, ['diff', 'diff', 'diff', 'diff', 'syn']),
+                    ]),
+                sorted(load_packets()))
+
+        with Sync(folder.Node, 'more_node', 'node-5', 'node-3') as node:
+            node.sync('sync')
+            self.assertEqual(
+                    [('1', []), ('2', []), ('5', []), ('6', [])],
+                    node.props)
+            self.assertEqual(
+                    [[1, None]],
+                    json.load(file('node-5/document/send.range')))
+            self.assertEqual(
+                    [[8, None]],
+                    json.load(file('node-5/document/receive.range')))
 
     def test_id(self):
-        node_folder = folder.NodeFolder([])
+        node_folder = folder.Node([])
         assert exists('id')
         self.assertNotEqual('', file('id').read().strip())
 
         self.touch(('id', 'foo'))
-        node_folder = folder.NodeFolder([])
+        node_folder = folder.Node([])
         self.assertEqual('foo', file('id').read())
 
-    def test_InPacket_WrongFile(self):
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.close()
-        packet = folder._InPacket('test.gz')
-        assert not packet.opened
 
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'bar'}))
-        bundle.close()
-        packet = folder._InPacket('test.gz')
-        assert not packet.opened
+class Sync(object):
 
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}))
-        bundle.close()
-        packet = folder._InPacket('test.gz')
-        assert packet.opened
-        self.assertEqual(None, packet.sender)
-        self.assertEqual(None, packet.receiver)
+    def __init__(self, cls, id, root, root_from=None):
 
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet', 'sender': 'me', 'receiver': 'you'}))
-        bundle.close()
-        packet = folder._InPacket('test.gz')
-        assert packet.opened
-        self.assertEqual('me', packet.sender)
-        self.assertEqual('you', packet.receiver)
+        class Document(document.Document):
 
-    def test_InPacket(self):
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}))
-        bundle.close()
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
 
-        packet = folder._InPacket('test.gz')
-        self.assertEqual(
-                [],
-                [i for i in packet.read_rows(type='syn')])
-        assert not packet.opened
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
 
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'syn'}) + '\n')
-        bundle.close()
+        env.data_root.value = root
+        if not exists('sync'):
+            os.makedirs('sync')
+        os.makedirs(root + '/document')
 
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'syn', 'foo': 'bar'}) + '\n')
-        bundle.close()
+        if root_from:
+            root_from = join(root_from, 'document')
+            for i in os.listdir(root_from):
+                path = join(root_from, i)
+                if isfile(path):
+                    shutil.copy2(path, join(root, 'document', i))
 
-        packet = folder._InPacket('test.gz')
-        self.assertEqual(
-                [{'type': 'syn', 'foo': 'bar'}],
-                [i for i in packet.read_rows(type='syn')])
-        assert not packet.opened
+        with file(root + '/id', 'w') as f:
+            f.write(id)
+        with file(root + '/document/seqno', 'w') as f:
+            f.write('0')
 
-        bundle = gzip.GzipFile('test.gz', 'w')
-        bundle.write(json.dumps({'subject': 'Sugar Network Packet'}) + '\n')
-        bundle.write(json.dumps({'type': 'syn', 'foo': 1}) + '\n')
-        bundle.write(json.dumps({'type': 'syn', 'foo': 2}) + '\n')
-        bundle.write(json.dumps({'type': 'stop'}) + '\n')
-        bundle.write(json.dumps({'type': 'syn', 'foo': 3}) + '\n')
-        bundle.close()
+        self._sync = cls([Document])
+        self.Document = Document
 
-        packet = folder._InPacket('test.gz')
-        self.assertEqual(
-                [{'type': 'syn', 'foo': 1}, {'type': 'syn', 'foo': 2}],
-                [i for i in packet.read_rows(type='syn')])
-        assert packet.opened
-        self.assertEqual(
-                [{'type': 'stop'}],
-                [i for i in packet.read_rows(type='stop')])
-        assert packet.opened
-        self.assertEqual(
-                [{'type': 'syn', 'foo': 3}],
-                [i for i in packet.read_rows(type='syn')])
-        assert not packet.opened
+    def sync(self, *args):
+        self._sync.sync(*args)
+        self.Document.commit()
 
-    def test_OutPacket(self):
-        out_packet = folder._OutPacket('test.gz', sender='me')
-        out_packet.close()
-        assert not exists('test.gz')
+    @property
+    def props(self):
+        return [(i.prop, [j for j in i.get_blob('blob')]) \
+                for i in self.Document.find(0, 100, order_by='prop')[0]]
 
-        out_packet = folder._OutPacket('test.gz', sender='me')
-        out_packet.write_row(foo='bar')
-        out_packet.write_row(bar='foo')
-        out_packet.close()
-        assert exists('test.gz')
-        in_packet = folder._InPacket('test.gz')
-        self.assertEqual('me', in_packet.sender)
-        self.assertEqual(
-                [{'foo': 'bar'}, {'bar': 'foo'}],
-                [i for i in in_packet.read_rows()])
+    def __enter__(self):
+        return self
 
-    def test_OutPacket_DiskFull(self):
-        statvfs.f_bfree = folder._RESERVED_SIZE * 2 - 1
-        out_packet = folder._OutPacket('test.gz', sender='me')
-        self.assertRaises(IOError, out_packet.write_row, foo='bar')
-        out_packet.close()
-        assert not exists('test.gz')
-
-        statvfs.f_bfree = folder._RESERVED_SIZE * 2
-        out_packet = folder._OutPacket('test.gz', sender='me')
-        out_packet.write_row(foo='bar')
-        out_packet.close()
-        in_packet = folder._InPacket('test.gz')
-        self.assertEqual('me', in_packet.sender)
-        self.assertEqual(
-                [{'foo': 'bar'}],
-                [i for i in in_packet.read_rows()])
-
-    def test_OutPacket_SwitchVolumes(self):
-        switches = []
-
-        def next_volume_cb(path):
-            switches.append(path)
-            if len(switches) == 3:
-                statvfs.f_bfree += 1
-            return True
-
-        statvfs.f_bfree = folder._RESERVED_SIZE * 2 - 1
-        out_packet = folder._OutPacket('test.gz', sender='me',
-                next_volume_cb=next_volume_cb)
-        out_packet.write_row(foo='bar')
-        out_packet.close()
-
-        self.assertEqual(
-                [tests.tmpdir] * 3,
-                switches)
-        self.assertEqual(
-                [{'foo': 'bar'}],
-                [i for i in folder._InPacket('test.gz').read_rows()])
-
-    def test_OutPacket_WriteToSeveralVolumes(self):
-        switches = []
-
-        def next_volume_cb(path):
-            switches.append(path)
-            os.rename('test.gz', 'test.gz.%s' % len(switches))
-            statvfs.f_bfree = folder._RESERVED_SIZE * 2
-            return True
-
-        statvfs.f_bfree = folder._RESERVED_SIZE * 2
-        out_packet = folder._OutPacket('test.gz', sender='me',
-                next_volume_cb=next_volume_cb)
-        out_packet.write_row(write=1, data='*' * folder._RESERVED_SIZE)
-        statvfs.f_bfree = folder._RESERVED_SIZE
-        out_packet.write_row(write=2, data='*' * folder._RESERVED_SIZE)
-        statvfs.f_bfree = folder._RESERVED_SIZE
-        out_packet.write_row(write=3, data='*' * folder._RESERVED_SIZE)
-        out_packet.close()
-
-        self.assertEqual(
-                [tests.tmpdir] * 2,
-                switches)
-
-        in_packet = folder._InPacket('test.gz.1')
-        self.assertEqual('me', in_packet.sender)
-        self.assertEqual(
-                [1],
-                [i['write'] for i in in_packet.read_rows()])
-
-        in_packet = folder._InPacket('test.gz.2')
-        self.assertEqual('me', in_packet.sender)
-        self.assertEqual(
-                [2],
-                [i['write'] for i in in_packet.read_rows()])
-
-        in_packet = folder._InPacket('test.gz')
-        self.assertEqual('me', in_packet.sender)
-        self.assertEqual(
-                [3],
-                [i['write'] for i in in_packet.read_rows()])
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._sync.close()
 
 
-class statvfs(object):
-
-    f_bfree = folder._RESERVED_SIZE * 10
-    f_frsize = 1
+def load_packets():
+    packets = []
+    for i in glob('sync/*.packet.gz'):
+        with sneakernet._InPacket(i) as packet:
+            packets.append((
+                packet.header.get('sender'),
+                packet.header.get('to'),
+                [i.get('type') for i in packet.read_rows()] + [i['type'] for i in packet.syns],
+                ))
+    return packets
 
 
 if __name__ == '__main__':

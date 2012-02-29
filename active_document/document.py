@@ -16,7 +16,6 @@
 import time
 import uuid
 import logging
-from datetime import datetime
 from gettext import gettext as _
 
 from active_document import env, util
@@ -45,7 +44,8 @@ class Document(DocumentClass):
             object creation
 
         """
-        self.init()
+        enforce(self._initated)
+
         self._is_new = False
         self._cache = {}
         self._record = None
@@ -112,12 +112,12 @@ class Document(DocumentClass):
             if self._record is None:
                 self._record = self._storage.get(self.guid)
             orig = self._record.get(prop_name)
+        elif isinstance(prop, AggregatorProperty):
+            orig = self._storage.is_aggregated(
+                    self.guid, prop_name, prop.value)
         else:
-            if orig is None and isinstance(prop, AggregatorProperty):
-                orig = self._storage.is_aggregated(
-                        self.guid, prop_name, prop.value)
-            enforce(orig is not None, _('Property "%s" in "%s" cannot be get'),
-                    prop_name, self.metadata.name)
+            raise RuntimeError(_('Property "%s" in "%s" cannot be get') % \
+                    (prop_name, self.metadata.name))
 
         self._cache[prop_name] = (orig, new)
         return orig
@@ -225,35 +225,9 @@ class Document(DocumentClass):
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
                 prop_name, self.metadata.name)
-        self._storage.set_blob(self.guid, prop_name, stream, size)
-
-    def diff(self, start, end=None):
-        """Return changed properties since specified timestamp.
-
-        :param guid:
-            document GUID to check changed properties for
-        :param start:
-            return properties changed starting `start` time;
-            in UNIX seconds in UTC
-        :param end:
-            return properties changed ending by `end` time;
-            in UNIX seconds in UTC
-        :returns:
-            tuple of dictionaries for regular properties and BLOBs
-
-        """
-        return self._storage.diff(self.guid, start, end)
-
-    def merge(self, diff):
-        """Apply changes for the document.
-
-        :param diff:
-            dictionary with changes in format that `diff()` returns;
-            for BLOB properties, property value is a stream to read BLOB from
-
-        """
-        if self._storage.merge(self.guid, diff):
-            self._index.store(self.guid, {}, False,
+        seqno = self._storage.set_blob(self.guid, prop_name, stream, size)
+        if seqno:
+            self._index.store(self.guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
 
     def on_create(self, properties, cache):
@@ -267,9 +241,8 @@ class Document(DocumentClass):
             properties to use as predefined values
 
         """
-        cache['seqno'] = self._seqno.next()
         cache['guid'] = str(uuid.uuid1())
-        ts = int(time.mktime(datetime.utcnow().timetuple()))
+        ts = int(time.time())
         cache['ctime'] = ts
         cache['mtime'] = ts
 
@@ -282,8 +255,7 @@ class Document(DocumentClass):
             dictionary with document properties updates
 
         """
-        properties['seqno'] = self._seqno.next()
-        ts = int(time.mktime(datetime.utcnow().timetuple()))
+        ts = int(time.time())
         properties['mtime'] = ts
 
     def on_post(self, properties):

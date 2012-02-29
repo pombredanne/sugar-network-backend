@@ -28,14 +28,15 @@ from active_document.index import IndexWriter
 from active_document.util import enforce
 
 
+errnum = 0
+
 _COMMIT = 1
 
 _queue = None
 _queue_async = None
 _write_thread = None
-_flush_async = {}
+_commit_async = {}
 _put_seqno = 0
-_commit_seqno = {}
 
 _logger = logging.getLogger('ad.index_queue')
 
@@ -52,90 +53,97 @@ def init(document_classes):
     """
     global _queue, _queue_async, _write_thread
 
+    if _queue is not None:
+        return
+
     _queue = queue.Queue(env.index_write_queue.value)
     _queue_async = _AsyncEvent()
 
     for cls in document_classes:
-        _flush_async[cls.metadata.name] = _AsyncEvent()
-        _commit_seqno[cls.metadata.name] = 0
+        _commit_async[cls.metadata.name] = _AsyncEvent()
 
     _write_thread = _WriteThread(document_classes)
     _write_thread.start()
 
 
-def put(document_name, op, *args):
+def put(document, op, *args):
     """Put new index change operation to the queue.
 
     Function migh be stuck in green wait if queue is full.
 
-    :param document_name:
+    :param document:
         document index name
     :param op:
         arbitrary function
     :param args:
         optional arguments to pass to `op`
-    :returns:
-        put seqno
 
     """
-    while True:
-        global _put_seqno
-        try:
-            _queue.put((_put_seqno + 1, document_name, op, args), False)
-            _put_seqno += 1
-            return _put_seqno
-        except queue.Full:
-            _logger.debug('Postpone %r operation for "%s" index',
-                    op, document_name)
-            # This is potential race (we released `_queue`'s mitex),
-            # but we need to avoid locking greenlets in `_queue`'s mutex.
-            # The race might be avoided by using big enough `_queue`'s size
-            _queue_async.wait()
+    _put(document, op, *args)
 
 
-def wait_commit(document_name):
+def wait_commit(document):
     """Wait for changes in the specified document index.
 
     Function will be stuck in green wait until specified document index
     won't be flushed to the disk.
 
-    :param document_name:
+    :param document:
         document index name
-    :returns:
-        seqno for the last put that was flushed
 
     """
-    enforce(document_name in _flush_async,
-            _('Document "%s" is not registered in `init()` call'),
-            document_name)
-    _flush_async[document_name].wait()
-    return _commit_seqno[document_name]
+    enforce(document in _commit_async,
+            _('Document "%s" is not registered in `init()` call'), document)
+    _commit_async[document].wait()
 
 
 def commit(document):
-    """Flush all pending changes."""
+    """Flush all pending changes.
+
+    :param document:
+        document index name
+
+    """
     put(document, _COMMIT)
+
+
+def commit_and_wait(document):
+    """Flush all pending changes.
+
+    The function is different to `commit()` because it waits for
+    commit finishing.
+
+    :param document:
+        document index name
+
+    """
+    seqno = _put(document, _COMMIT)
+    while _commit_async[document].wait() != seqno:
+        pass
 
 
 def close():
     """Flush all pending changes."""
+    global _queue
+    if _queue is None:
+        return
     put(None, None)
     _write_thread.join()
     _queue_async.close()
-    while _flush_async:
-        __, async = _flush_async.popitem()
+    while _commit_async:
+        __, async = _commit_async.popitem()
         async.close()
-    _commit_seqno.clear()
+    _queue = None
 
 
 class _IndexWriter(IndexWriter):
 
-    put_seqno = 0
-
     def commit(self):
+        self.commit_with_send(None)
+
+    def commit_with_send(self, seqno):
         IndexWriter.commit(self)
-        _commit_seqno[self.metadata.name] = self.put_seqno
-        _flush_async[self.metadata.name].send()
+        _commit_async[self.metadata.name].send(seqno)
 
 
 class _WriteThread(threading.Thread):
@@ -155,6 +163,8 @@ class _WriteThread(threading.Thread):
         except _WriteThread._Closing:
             self._close()
         except Exception:
+            global errnum
+            errnum += 1
             util.exception(
                     _('Write queue died, will abort the whole application'))
             thread.interrupt_main()
@@ -172,12 +182,12 @@ class _WriteThread(threading.Thread):
                             cls.metadata.name)
                     populating = True
                 try:
-                    # Try to server requests in parallel with populating
+                    # Try to serve requests in parallel with populating
                     self._serve_put(*_queue.get(False))
                 except queue.Empty:
                     pass
 
-        _logger.debug('Start processing "%s" queue', cls.metadata.name)
+        _logger.debug('Start processing queue')
 
         next_commit = 0
         if env.index_flush_timeout.value:
@@ -195,25 +205,27 @@ class _WriteThread(threading.Thread):
                     writer.commit()
                 next_commit = time.time() + env.index_flush_timeout.value
 
-    def _serve_put(self, put_seqno, document_name, op, args):
-        if document_name is None:
+        _logger.debug('Stop processing queue')
+
+    def _serve_put(self, seqno, document, op, args):
+        if document is None:
             raise _WriteThread._Closing
 
         # Wakeup greenlets stuck in `put()`
         _queue_async.send()
 
-        writer = self._writers[document_name]
-        writer.put_seqno = put_seqno
-
+        writer = self._writers[document]
         try:
             if op is _COMMIT:
-                writer.commit()
+                writer.commit_with_send(seqno)
             else:
                 op(writer, *args)
         except Exception:
+            global errnum
+            errnum += 1
             util.exception(_logger,
-                    _('Cannot process %r operation for "%s" index'),
-                    op, document_name)
+                    _('Cannot process %r(%r) operation for "%s" index'),
+                    op, args, document)
 
     def _close(self):
         while self._writers:
@@ -222,6 +234,8 @@ class _WriteThread(threading.Thread):
             try:
                 writer.close()
             except Exception:
+                global errnum
+                errnum += 1
                 util.exception(_logger, _('Fail to close "%s" index'), name)
 
 
@@ -231,18 +245,37 @@ class _AsyncEvent(object):
         self._async = gevent.get_hub().loop.async()
         self._event = Event()
         self._wakeup_job = gevent.spawn(self._wakeup)
+        self._arg = None
 
     def close(self):
         self._wakeup_job.kill()
 
-    def send(self):
+    def send(self, arg=None):
+        self._arg = arg
         self._async.send()
 
     def wait(self):
         self._event.wait()
+        return self._arg
 
     def _wakeup(self):
         while True:
             gevent.get_hub().wait(self._async)
             self._event.set()
             self._event.clear()
+
+
+def _put(document, op, *args):
+    while True:
+        global _put_seqno
+        try:
+            _queue.put((_put_seqno + 1, document, op, args), False)
+            _put_seqno += 1
+            return _put_seqno
+        except queue.Full:
+            _logger.debug('Postpone %r operation for "%s" index',
+                    op, document)
+            # This is potential race (we released `_queue`'s mitex),
+            # but we need to avoid locking greenlets in `_queue`'s mutex.
+            # The race might be avoided by using big enough `_queue`'s size
+            _queue_async.wait()

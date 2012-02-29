@@ -26,7 +26,7 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         NotFound, Forbidden
 
 from active_document.metadata import Metadata, Property, \
-        AggregatorProperty, StoredProperty, ActiveProperty, GuidProperty, \
+        AggregatorProperty, StoredProperty, ActiveProperty, \
         CounterProperty, BlobProperty
 
-from active_document.folder import NodeFolder
+from active_document.folder import Master, Node

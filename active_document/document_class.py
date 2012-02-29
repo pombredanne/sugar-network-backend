@@ -20,13 +20,11 @@ from active_document import env
 from active_document.storage import Storage
 from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, AggregatorProperty
-from active_document.metadata import GuidProperty
 from active_document.metadata import CounterProperty, StoredProperty
-from active_document.index import IndexWriter
-from active_document.index_proxy import IndexProxy
-from active_document.sync import NodeSeqno
 from active_document.util import enforce
 
+
+_DIFF_PAGE_SIZE = 256
 
 _logger = logging.getLogger('ad.document')
 
@@ -67,7 +65,6 @@ class DocumentClass(object):
     _initated = False
     _storage = None
     _index = None
-    _seqno = None
 
     @active_property(slot=1000, prefix='IC', typecast=int,
             permissions=env.ACCESS_READ, default=0)
@@ -80,7 +77,7 @@ class DocumentClass(object):
         return value
 
     @active_property(slot=1002, prefix='IS', typecast=int,
-            permissions=0)
+            permissions=0, default=0)
     def seqno(self, value):
         return value
 
@@ -239,19 +236,89 @@ class DocumentClass(object):
             yield
 
     @classmethod
-    def init(cls, final_class=None, seqno_class=None):
+    def commit(cls):
+        """Flush pending chnages to disk."""
+        cls._index.commit()
+
+    @classmethod
+    def diff(cls, accept_range):
+        """Return documents' properties for specified times range.
+
+        :param accept_range:
+            sequence object with times to accept documents
+        :returns:
+            tuple of dictionaries for regular properties and BLOBs
+
+        """
+        result = [None, None]
+
+        def do():
+            # To make fetching docs more reliable, avoid using intermediate
+            # find's offsets (documents can be changed and offset will point
+            # to different document).
+            if hasattr(accept_range, 'first'):
+                start = accept_range.first
+            else:
+                start = accept_range[0]
+
+            while True:
+                documents, total = cls.find(
+                        query='seqno:%s..' % start,
+                        order_by='seqno', reply=['guid'],
+                        limit=_DIFF_PAGE_SIZE)
+                if not total.value:
+                    break
+                seqno = None
+                for i in documents:
+                    start = max(start, i.get('seqno', raw=True))
+                    diff, __ = cls._storage.diff(i.guid, accept_range)
+                    if not diff:
+                        continue
+                    seqno = max(seqno, i.get('seqno', raw=True))
+                    if result[0] is None:
+                        result[0] = seqno
+                    yield i.guid, diff
+                if seqno:
+                    result[1] = seqno
+                start += 1
+
+        if accept_range:
+            return result, do()
+        else:
+            return result, []
+
+    @classmethod
+    def merge(cls, guid, diff, touch=True):
+        """Apply changes for documents.
+
+        :param guid:
+            document's GUID to merge `diff` to
+        :param diff:
+            document changes
+        :param touch:
+            if `True`, touch local mtime
+        :returns:
+            seqno value for applied `diff`;
+            `None` if `diff` was not applied
+
+        """
+        seqno = cls._storage.merge(guid, diff, touch)
+        if seqno is not None:
+            cls._index.store(guid, {}, None, cls._pre_store, cls._post_store)
+        return seqno
+
+    @classmethod
+    def init(cls, index_class, final_class=None):
         if final_class is not None:
             cls = final_class
 
         if cls._initated:
             return
 
-        cls.metadata = Metadata()
-        cls.metadata.name = cls.__name__.lower()
-        cls.metadata['guid'] = GuidProperty()
-
-        cls._storage = Storage(cls.metadata)
-        cls._seqno = (seqno_class or NodeSeqno)(cls.metadata)
+        cls.metadata = Metadata(cls.__name__.lower())
+        cls.metadata['guid'] = ActiveProperty('guid',
+                permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
+                prefix=env.GUID_PREFIX)
 
         slots = {}
         prefixes = {}
@@ -278,10 +345,8 @@ class DocumentClass(object):
                 setattr(cls, attr.name, property(attr))
             cls.metadata[attr.prop.name] = attr.prop
 
-        if env.index_write_queue.value > 0:
-            cls._index = IndexProxy(cls.metadata)
-        else:
-            cls._index = IndexWriter(cls.metadata)
+        cls._storage = Storage(cls.metadata)
+        cls._index = index_class(cls.metadata)
 
         cls._initated = True
 
@@ -316,6 +381,9 @@ class DocumentClass(object):
                                 cls._storage.count_aggregated(guid, prop_name)
                 elif isinstance(prop, StoredProperty):
                     changes[prop_name] = record.get(prop_name, prop.default)
+
+        if is_new is not None:
+            changes['seqno'] = cls.metadata.next_seqno()
 
     @classmethod
     def _post_store(cls, guid, changes, is_new):

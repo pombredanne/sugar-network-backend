@@ -10,9 +10,9 @@ from gevent.event import Event
 
 from __init__ import tests
 
-from active_document import env
-from active_document import index_queue, document
+from active_document import env, index_queue, document
 from active_document.document_class import active_property
+from active_document.index_proxy import IndexProxy
 from active_document.index import IndexWriter
 
 
@@ -34,8 +34,7 @@ class IndexQueueTest(tests.Test):
                 time.sleep(cls.populate_timeout)
                 return []
 
-        env.index_write_queue.value = 1
-        Document.init()
+        Document.init(IndexProxy)
         self.Document = Document
 
     def test_put(self):
@@ -64,6 +63,7 @@ class IndexQueueTest(tests.Test):
             event.set()
 
         def put():
+            gevent.sleep(1)
             self.Document(prop='value').post()
             event.wait()
 

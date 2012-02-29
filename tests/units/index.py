@@ -10,7 +10,7 @@ from os.path import exists
 from __init__ import tests
 
 from active_document import index, env
-from active_document.metadata import Metadata, ActiveProperty, GuidProperty
+from active_document.metadata import Metadata, ActiveProperty
 
 
 class IndexTest(tests.Test):
@@ -499,10 +499,11 @@ class IndexTest(tests.Test):
 class Index(index.IndexWriter):
 
     def __init__(self, props):
-        metadata = Metadata()
+        metadata = Metadata('index')
         metadata.update(props)
-        metadata.name = 'index'
-        metadata['guid'] = GuidProperty()
+        metadata['guid'] = ActiveProperty('guid',
+                permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
+                prefix=env.GUID_PREFIX)
 
         index.IndexWriter.__init__(self, metadata)
         self.committed = 0

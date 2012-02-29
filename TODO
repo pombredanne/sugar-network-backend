@@ -1,8 +1,8 @@
-0.1
-===
-- i18n for SN content
+- nocache for diff()
+- find only within `accept_range` ranges in DocumentClass.diff()
 - range generators for bool and dates
 
 1.0
 ===
 - IndexProxy should be smarter to take into account sorting of cached documents
+- i18n for SN content

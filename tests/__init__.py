@@ -10,7 +10,9 @@ from os.path import dirname, join, exists, abspath
 import dbus.glib
 import dbus.mainloop.glib
 
-from active_document import env as _env
+from active_document import env as _env, index_queue as _index_queue
+from active_document import sneakernet as _sneakernet
+from active_document import document_class as _document_class
 
 
 root = abspath(dirname(__file__))
@@ -51,18 +53,40 @@ class Test(unittest.TestCase):
         _env.index_flush_timeout.value = 0
         _env.index_flush_threshold.value = 1
         _env.find_limit.value = 1024
-        _env.index_write_queue.value = 0
+        _env.index_write_queue.value = 1
         _env.LAYOUT_VERSION = 1
+        _sneakernet.next_volume_cb = None
+        _document_class._DIFF_PAGE_SIZE = 256
+
+        _index_queue.errnum = 0
 
     def tearDown(self):
+        self.assertEqual(0, _index_queue.errnum)
         while self._overriden:
-            mod, name, old_handler = self._overriden.pop(0)
+            mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
+        _index_queue.close()
         sys.stdout.flush()
 
     def override(self, mod, name, new_handler):
         self._overriden.append((mod, name, getattr(mod, name)))
         setattr(mod, name, new_handler)
+
+    def fork(self, cb):
+        pid = os.fork()
+        if not pid:
+            try:
+                cb()
+                result = 0
+            except Exception:
+                logging.exception('Child failed')
+                result = 1
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os._exit(0)
+        else:
+            __, status = os.waitpid(pid, 0)
+            self.assertEqual(0, os.WEXITSTATUS(status))
 
     def touch(self, *files):
         for i in files:

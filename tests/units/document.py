@@ -3,6 +3,7 @@
 # sugar-lint: disable
 
 import os
+import sys
 import stat
 import time
 from cStringIO import StringIO
@@ -12,18 +13,19 @@ import gobject
 
 from __init__ import tests
 
-from active_document import document, storage, env, index
+from active_document import document, storage, env, index, document_class
 from active_document.document_class import active_property
 from active_document.metadata import StoredProperty, BlobProperty
 from active_document.metadata import CounterProperty
 from active_document.metadata import AggregatorProperty
+from active_document.index import IndexWriter
 
 
 class DocumentTest(tests.Test):
 
     def test_ActiveProperty_Slotted(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1)
             def slotted(self, value):
@@ -47,7 +49,7 @@ class DocumentTest(tests.Test):
 
     def test_ActiveProperty_SlottedIUnique(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1)
             def prop_1(self, value):
@@ -61,7 +63,7 @@ class DocumentTest(tests.Test):
 
     def test_ActiveProperty_Terms(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(prefix='T')
             def term(self, value):
@@ -87,7 +89,7 @@ class DocumentTest(tests.Test):
 
     def test_ActiveProperty_TermsUnique(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(prefix='P')
             def prop_1(self, value):
@@ -101,7 +103,7 @@ class DocumentTest(tests.Test):
 
     def test_ActiveProperty_FullTextSearch(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(full_text=False, slot=1)
             def no(self, value):
@@ -121,7 +123,7 @@ class DocumentTest(tests.Test):
 
     def test_StoredProperty_Defaults(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(StoredProperty, default='default')
             def w_default(self, value):
@@ -151,7 +153,7 @@ class DocumentTest(tests.Test):
 
     def test_properties_Blob(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(BlobProperty)
             def blob(self, value):
@@ -174,7 +176,7 @@ class DocumentTest(tests.Test):
 
     def test_AggregatorProperty(self):
 
-        voter = [-1]
+        voter = ['probe']
 
         class Vote(AggregatorProperty):
 
@@ -182,7 +184,7 @@ class DocumentTest(tests.Test):
             def value(self):
                 return voter[0]
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(CounterProperty, slot=1)
             def counter(self, value):
@@ -209,7 +211,7 @@ class DocumentTest(tests.Test):
                 [(True, 1)],
                 [(i.vote, i.counter) for i in docs])
 
-        voter[:] = [-2]
+        voter[:] = ['probe2']
 
         doc_2 = Document(doc.guid)
         self.assertEqual(False, doc_2['vote'])
@@ -222,7 +224,7 @@ class DocumentTest(tests.Test):
                 [(True, 2)],
                 [(i.vote, i.counter) for i in docs])
 
-        voter[:] = [-1]
+        voter[:] = ['probe']
 
         doc_3 = Document(doc.guid)
         self.assertEqual(True, doc_3['vote'])
@@ -235,7 +237,7 @@ class DocumentTest(tests.Test):
                 [(False, 1)],
                 [(i.vote, i.counter) for i in docs])
 
-        voter[:] = [-2]
+        voter[:] = ['probe2']
 
         doc_4 = Document(doc.guid)
         self.assertEqual(True, doc_4['vote'])
@@ -256,7 +258,7 @@ class DocumentTest(tests.Test):
             def value(self):
                 return -1
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(CounterProperty, slot=1)
             def counter(self, value):
@@ -276,7 +278,7 @@ class DocumentTest(tests.Test):
 
     def test_find_MaxLimit(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
             pass
 
         Document().post()
@@ -289,7 +291,7 @@ class DocumentTest(tests.Test):
 
     def test_update(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1)
             def prop_1(self, value):
@@ -329,7 +331,7 @@ class DocumentTest(tests.Test):
 
     def test_delete(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(prefix='P')
             def prop(self, value):
@@ -371,7 +373,7 @@ class DocumentTest(tests.Test):
             def value(self):
                 return -1
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1)
             def prop(self, value):
@@ -386,29 +388,29 @@ class DocumentTest(tests.Test):
                 return value
 
         self.touch(
-                ('document/1/1/.document', ''),
+                ('document/1/1/.seqno', ''),
 
-                ('document/1/1/seqno', '0'),
+                ('document/1/1/guid', '1'),
                 ('document/1/1/ctime', '1'),
                 ('document/1/1/mtime', '1'),
                 ('document/1/1/prop', '"prop-1"'),
-                ('document/1/1/vote/-1', ''),
+                ('document/1/1/vote.-1.value', ''),
                 ('document/1/1/counter', '0'),
 
-                ('document/2/2/seqno', '0'),
-                ('document/2/2/.document', ''),
+                ('document/2/2/.seqno', ''),
+                ('document/2/2/guid', '2'),
                 ('document/2/2/ctime', '2'),
                 ('document/2/2/mtime', '2'),
                 ('document/2/2/prop', '"prop-2"'),
-                ('document/2/2/vote/-2', ''),
-                ('document/2/2/vote/-3', ''),
+                ('document/2/2/vote.-2.value', ''),
+                ('document/2/2/vote.-3.value', ''),
                 ('document/2/2/counter', '0'),
                 )
-        os.chmod('document/1/1/vote/-1', os.stat('document/1/1/vote/-1').st_mode | stat.S_ISVTX)
-        os.chmod('document/2/2/vote/-2', os.stat('document/2/2/vote/-2').st_mode | stat.S_ISVTX)
-        os.chmod('document/2/2/vote/-3', os.stat('document/2/2/vote/-3').st_mode | stat.S_ISVTX)
+        os.chmod('document/1/1/vote.-1.value', os.stat('document/1/1/vote.-1.value').st_mode | stat.S_ISVTX)
+        os.chmod('document/2/2/vote.-2.value', os.stat('document/2/2/vote.-2.value').st_mode | stat.S_ISVTX)
+        os.chmod('document/2/2/vote.-3.value', os.stat('document/2/2/vote.-3.value').st_mode | stat.S_ISVTX)
 
-        Document.init()
+        Document.init(IndexWriter)
         for i in Document.populate():
             pass
 
@@ -435,7 +437,7 @@ class DocumentTest(tests.Test):
 
     def test_on_create(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1)
             def prop(self, value):
@@ -446,7 +448,7 @@ class DocumentTest(tests.Test):
                 return value
 
             def on_create(self, properties, cache):
-                document.Document.on_create(self, properties, cache)
+                TestDocument.on_create(self, properties, cache)
                 cache['guid'] = properties.pop('manual_guid')
                 properties['prop'] = 'foo'
 
@@ -472,7 +474,7 @@ class DocumentTest(tests.Test):
 
     def test_on_modify(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1)
             def prop(self, value):
@@ -506,7 +508,7 @@ class DocumentTest(tests.Test):
 
     def test_on_post(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1)
             def prop(self, value):
@@ -540,7 +542,7 @@ class DocumentTest(tests.Test):
 
     def test_authorize_document(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             mode = 0
 
@@ -585,13 +587,13 @@ class DocumentTest(tests.Test):
 
     def test_authorize_property(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1, default='')
             def prop(self, value):
                 return value
 
-        Document.init()
+        Document()
 
         Document.metadata['prop']._permissions = 0
         doc = Document()
@@ -634,7 +636,7 @@ class DocumentTest(tests.Test):
 
     def test_authorize_property_Blobs(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(BlobProperty)
             def blob(self, value):
@@ -655,7 +657,7 @@ class DocumentTest(tests.Test):
 
     def test_times(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(slot=1)
             def prop(self, value):
@@ -684,7 +686,7 @@ class DocumentTest(tests.Test):
 
     def test_UpdateInternalProps(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
             pass
 
         self.assertRaises(env.Forbidden, lambda: Document(ctime=1))
@@ -699,49 +701,30 @@ class DocumentTest(tests.Test):
         self.assertRaises(env.Forbidden, lambda: doc.__setitem__('mtime', 1))
         doc.post()
 
-        self.assertRaises(env.Forbidden, lambda: Document(seqno=1))
-        doc = Document()
-        self.assertRaises(env.Forbidden, lambda: doc.__getitem__('seqno'))
-        self.assertRaises(env.Forbidden, lambda: doc.__setitem__('seqno', 1))
-        doc.post()
-
-        doc = Document()
-        doc.set('seqno', 1024, raw=True)
-        self.assertEqual(1024, doc.get('seqno', raw=True))
-        doc.post()
-        self.assertEqual(
-                [doc.guid],
-                [i.guid for i in Document.find(0, 1024, request={'seqno': 1024})[0]])
-
     def test_seqno(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
             pass
 
-        class Seqno(object):
+        Document.init(IndexWriter)
 
-            seqno = 0
+        doc_1 = Document()
+        doc_1.post()
+        self.assertEqual(
+                os.stat('document/%s/%s/.seqno' % (doc_1.guid[:2], doc_1.guid)).st_mtime,
+                Document(doc_1.guid).get('seqno', raw=True))
+        self.assertEqual(1, Document(doc_1.guid).get('seqno', raw=True))
 
-            def __init__(self, *args):
-                pass
-
-            def next(self):
-                Seqno.seqno += 1
-                return Seqno.seqno
-
-        Document.init(seqno_class=Seqno)
-
-        doc = Document()
-        doc.post()
-        self.assertEqual(1, Document(doc.guid).get('seqno', raw=True))
-
-        doc = Document()
-        doc.post()
-        self.assertEqual(2, Document(doc.guid).get('seqno', raw=True))
+        doc_2 = Document()
+        doc_2.post()
+        self.assertEqual(
+                os.stat('document/%s/%s/.seqno' % (doc_2.guid[:2], doc_2.guid)).st_mtime,
+                Document(doc_2.guid).get('seqno', raw=True))
+        self.assertEqual(2, Document(doc_2.guid).get('seqno', raw=True))
 
     def test_CounterProperty(self):
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(CounterProperty, slot=1)
             def counter(self, value):
@@ -798,7 +781,7 @@ class DocumentTest(tests.Test):
             def value(self):
                 pass
 
-        class Document(document.Document):
+        class Document(TestDocument):
 
             @active_property(CounterProperty, slot=1)
             def counter(self, value):
@@ -810,17 +793,72 @@ class DocumentTest(tests.Test):
 
         doc = Document()
         doc.post()
-        return
 
         ts = time.time()
         diff = {
                 'counter': (0, ts + 60),
                 'vote': [(('enabled', True), ts + 60), (('None', True), ts + 60)],
                 }
-        doc.merge(diff)
+        Document.merge(doc.guid, diff)
         self.assertEqual(
                 [(doc.guid, True, 2)],
                 [(i.guid, i.vote, i.counter) for i in Document.find(0, 100)[0]])
+
+    def test_merge_New(self):
+
+        class Document(TestDocument):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        doc = Document(prop='2')
+        doc.post()
+
+        ts = int(time.time())
+        Document.merge('1', {
+            'guid': ('1', 1),
+            'prop': ('1', 1),
+            'ctime': (1, 1),
+            })
+        Document.merge('3', {
+            'guid': ('3', ts + 60),
+            'prop': ('3', ts + 60),
+            'ctime': (ts + 60, ts + 60),
+            })
+
+        self.assertEqual(
+                [('1', '1', 1), (doc.guid, '2', doc.ctime), ('3', '3', ts + 60)],
+                [(i.guid, i.prop, i.ctime) for i in Document.find(0, 100)[0]])
+
+    def test_diff(self):
+
+        class Document(TestDocument):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        Document(prop='1').post()
+        Document(prop='2').post()
+        Document(prop='3').post()
+        Document(prop='4').post()
+
+        document_class._DIFF_PAGE_SIZE = 2
+        diff_rage, docs = Document.diff(xrange(10))
+
+        self.assertEqual([None, None], diff_rage)
+        self.assertEqual(
+                ['1', '2', '3', '4'],
+                [diff.get('prop')[0] for guid, diff in docs])
+        self.assertEqual([1, 4], diff_rage)
+
+
+class TestDocument(document.Document):
+
+    def __init__(self, guid=None, indexed_props=None, **kwargs):
+        self.init(IndexWriter)
+        document.Document.__init__(self, guid, indexed_props, **kwargs)
 
 
 if __name__ == '__main__':

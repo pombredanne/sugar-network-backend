@@ -1,4 +1,4 @@
-# Copyright (C) 2011, Aleksey Lim
+# Copyright (C) 2011-2012, Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Data: 2012-01-05$
+$Data: 2012-02-23$
 
 """
 
@@ -495,8 +495,8 @@ class Option(object):
             the first value from a tuple returned by
             `OptionParser.parse_args()` function
         :param config_files:
-            list of paths to files that will be used to read default
-            option values instead of reusing `--config` value
+            list of either config paths or `ConfigParser` objects to get
+            default option values
 
         """
         from ConfigParser import ConfigParser
@@ -507,17 +507,21 @@ class Option(object):
                         'its config_files argument was None'))
             config_files = Option._config.value
 
-        config = ConfigParser()
-        for i in config_files:
-            if exists(expanduser(i)):
-                config.read(expanduser(i))
+        configs = [ConfigParser()]
+        for config_file in config_files:
+            if isinstance(config_file, ConfigParser):
+                configs.append(config_file)
+            elif exists(expanduser(config_file)):
+                configs[0].read(expanduser(config_file))
 
         for prop in Option.items.values():
             if hasattr(options, prop.attr_name) and \
                     getattr(options, prop.attr_name) is not None:
                 prop.value = getattr(options, prop.attr_name)
-            elif config.has_option(prop.section, prop.name):
-                prop.value = config.get(prop.section, prop.name)
+            else:
+                for config in configs:
+                    if config.has_option(prop.section, prop.name):
+                        prop.value = config.get(prop.section, prop.name)
 
     @staticmethod
     def export():

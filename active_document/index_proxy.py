@@ -15,7 +15,6 @@
 
 import bisect
 import logging
-import collections
 
 import xapian
 import gevent
@@ -33,8 +32,10 @@ class IndexProxy(IndexReader):
     def __init__(self, metadata):
         IndexReader.__init__(self, metadata)
         self._cache = {}
-        self._cache_log = collections.deque()
         self._wait_for_reopen_job = gevent.spawn(self._wait_for_reopen)
+
+    def commit(self):
+        index_queue.commit_and_wait(self.metadata.name)
 
     def close(self):
         self._wait_for_reopen_job.kill()
@@ -47,15 +48,12 @@ class IndexProxy(IndexReader):
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
         _logger.debug('Push store request to "%s"\'s queue for "%s"',
                 self.metadata.name, guid)
-        is_reindexing = not properties
-        if not is_reindexing:
+        if properties and new is not None:
             # Needs to be called before `index_queue.put()`
             # to give it a chance to read original properties from the storage
             self._cache_update(guid, properties, new)
-        seqno = index_queue.put(self.metadata.name, IndexWriter.store,
+        index_queue.put(self.metadata.name, IndexWriter.store,
                 guid, properties, new, pre_cb, post_cb)
-        if not is_reindexing:
-            self._cache_log.append((seqno, guid, properties, new))
 
     def delete(self, guid, post_cb=None):
         _logger.debug('Push delete request to "%s"\'s queue for "%s"',
@@ -79,9 +77,13 @@ class IndexProxy(IndexReader):
                 return documents, total
 
             def patched_guid_find():
+                processed = False
                 for guid, props in documents:
+                    processed = True
                     props.update(cache.properties)
                     yield guid, props
+                if not processed:
+                    yield cache.guid, cache.properties
 
             return patched_guid_find(), total
 
@@ -158,14 +160,8 @@ class IndexProxy(IndexReader):
 
     def _wait_for_reopen(self):
         while True:
-            seqno = index_queue.wait_commit(self.metadata.name)
-
-            while self._cache_log and self._cache_log[0][0] < seqno:
-                self._cache_log.popleft()
+            index_queue.wait_commit(self.metadata.name)
             self._cache.clear()
-            for __, guid, properties, new in self._cache_log:
-                self._cache_update(guid, properties, new)
-
             try:
                 if self._db is not None:
                     self._db.reopen()
@@ -177,8 +173,8 @@ class IndexProxy(IndexReader):
     def _cache_update(self, guid, properties, new):
         existing = self._cache.get(guid)
         if existing is None:
-            self._cache[guid] = _CachedDocument(
-                    self.metadata, guid, properties, new)
+            self._cache[guid] = \
+                    _CachedDocument(self.metadata, guid, properties, new)
         else:
             existing.update(properties)
 

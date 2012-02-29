@@ -81,7 +81,7 @@ class IndexReader(object):
             document's properties to store; for non new entities,
             not necessary all document's properties
         :param new:
-            is this initial store for the document
+            initial store for the document; `None` for merging from other nodes
         :param pre_cb:
             callback to execute before storing;
             will be called with passing `guid` and `properties`
@@ -153,6 +153,10 @@ class IndexReader(object):
                 yield guid, props
 
         return iterate(), total
+
+    def commit(self):
+        """Flush index changes to the disk."""
+        raise NotImplementedError()
 
     def _enquire(self, request, query, order_by):
         enquire = xapian.Enquire(self._db)
@@ -329,13 +333,12 @@ class IndexWriter(IndexReader):
             post_cb(guid)
 
     def commit(self):
-        """Flush index changes to the disk."""
         if not self._pending_writes:
             return
 
-        ts = time.time()
         _logger.debug('Commiting %s changes of "%s" to the disk',
                 self._pending_writes, self.metadata.name)
+        ts = time.time()
 
         if hasattr(self._db, 'commit'):
             self._db.commit()
@@ -343,6 +346,7 @@ class IndexWriter(IndexReader):
             self._db.flush()
         self._touch_stamp()
         self._pending_writes = 0
+        self.metadata.commit_seqno()
 
         _logger.debug('Commit "%s" changes took %s seconds',
                 self.metadata.name, time.time() - ts)
