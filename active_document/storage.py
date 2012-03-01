@@ -128,7 +128,7 @@ class Storage(object):
 
             for guid in os.listdir(guids_dir):
                 guid_path = join(guids_dir, guid)
-                if not exists(join(guid_path, 'guid')) or \
+                if not _is_document(guid_path) or \
                         mtime and os.stat(guid_path).st_mtime < mtime:
                     continue
 
@@ -196,7 +196,7 @@ class Storage(object):
         seqno = self.metadata.next_seqno()
         self._set_blob(guid, name, stream, size, seqno)
         self._write_property(guid, 'seqno', seqno)
-        if exists(self._path(guid, 'guid')):
+        if _is_document(self._path(guid)):
             return seqno
 
     def is_aggregated(self, guid, name, value):
@@ -351,7 +351,7 @@ class Storage(object):
                 self._write_property(guid, 'seqno', seqno)
             else:
                 seqno = Record(self._path(guid)).get('seqno')
-            if exists(self._path(guid, 'guid')):
+            if _is_document(self._path(guid)):
                 return seqno
 
     def _path(self, guid, *args):
@@ -456,7 +456,8 @@ class Record(object):
         path = join(self._root, name)
         if not exists(path):
             enforce(default is not None,
-                    _('Cannot find "%s" property in "%s"'), name, self._root)
+                    _('Cannot find "%s" property in "%s"'),
+                    name, basename(self._root))
             return default
         return _read_property(path)
 
@@ -481,3 +482,7 @@ def _read_property(path):
 
 def _aggregated(path):
     return exists(path) and bool(os.stat(path).st_mode & stat.S_ISVTX)
+
+
+def _is_document(path):
+    return exists(join(path, _SEQNO_SUFFIX)) and exists(join(path, 'guid'))
