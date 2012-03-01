@@ -158,6 +158,8 @@ class _WriteThread(threading.Thread):
         self._writers = {}
 
     def run(self):
+        _logger.debug('Start processing queue')
+        populate_job = gevent.spawn(self._populate)
         try:
             self._run()
         except _WriteThread._Closing:
@@ -168,26 +170,14 @@ class _WriteThread(threading.Thread):
             util.exception(
                     _('Write queue died, will abort the whole application'))
             thread.interrupt_main()
+        finally:
+            populate_job.kill()
+            _logger.debug('Stop processing queue')
 
     def _run(self):
         for cls in self._document_classes:
             _logger.info(_('Open "%s" index'), cls.metadata.name)
             self._writers[cls.metadata.name] = _IndexWriter(cls.metadata)
-
-        for cls in self._document_classes:
-            populating = False
-            for __ in cls.populate():
-                if not populating:
-                    _logger.info(_('Start populating "%s" index'),
-                            cls.metadata.name)
-                    populating = True
-                try:
-                    # Try to serve requests in parallel with populating
-                    self._serve_put(*_queue.get(False))
-                except queue.Empty:
-                    pass
-
-        _logger.debug('Start processing queue')
 
         next_commit = 0
         if env.index_flush_timeout.value:
@@ -205,11 +195,26 @@ class _WriteThread(threading.Thread):
                     writer.commit()
                 next_commit = time.time() + env.index_flush_timeout.value
 
-        _logger.debug('Stop processing queue')
+    def _populate(self):
+        for cls in self._document_classes:
+            populating = False
+            for __ in cls.populate():
+                if not populating:
+                    _logger.info(_('Start populating "%s" index'),
+                            cls.metadata.name)
+                    populating = True
+                try:
+                    # Try to serve requests in parallel with populating
+                    self._serve_put(*_queue.get(False))
+                except queue.Empty:
+                    pass
 
     def _serve_put(self, seqno, document, op, args):
         if document is None:
             raise _WriteThread._Closing
+
+        _logger.debug('Start processing %r(%r) operation for "%s" index',
+                op, args, document)
 
         # Wakeup greenlets stuck in `put()`
         _queue_async.send()

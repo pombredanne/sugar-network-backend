@@ -21,7 +21,7 @@ from active_document.metadata import AggregatorProperty
 class FolderTest(tests.Test):
 
     def test_sync_Walkthrough(self):
-        with Sync(folder.Node, 'node', 'node-1') as node:
+        with Sync(folder.Node, 'node') as node:
             doc_1 = node.Document(prop='1')
             doc_1.set_blob('blob', StringIO('1'))
             doc_1.post()
@@ -37,10 +37,10 @@ class FolderTest(tests.Test):
                     node.props)
             self.assertEqual(
                     [[1, None]],
-                    json.load(file('node-1/document/send.range')))
+                    json.load(file('node/document/send.range')))
             self.assertEqual(
                     [[1, None]],
-                    json.load(file('node-1/document/receive.range')))
+                    json.load(file('node/document/receive.range')))
 
         self.assertEqual(
                 sorted([
@@ -48,7 +48,7 @@ class FolderTest(tests.Test):
                     ]),
                 sorted(load_packets()))
 
-        with Sync(folder.Master, 'master', 'master-1') as master:
+        with Sync(folder.Master, 'master') as master:
             doc = master.Document(prop='3')
             doc.post()
 
@@ -72,18 +72,7 @@ class FolderTest(tests.Test):
                     ]),
                 sorted(load_packets()))
 
-        with Sync(folder.Node, 'node', 'node-2', 'node-1') as node:
-            doc_1 = node.Document(prop='1')
-            doc_1.set_blob('blob', StringIO('1'))
-            doc_1.post()
-
-            doc_2 = node.Document(prop='2')
-            doc_2.set_blob('blob', StringIO('2'))
-            doc_2.post()
-
-            node.Document.commit()
-            self.assertEqual(4, node.Document.metadata.last_seqno)
-
+        with Sync(folder.Node, 'node') as node:
             doc = node.Document(prop='5')
             doc.post()
             doc.set_blob('blob', StringIO('5'))
@@ -95,10 +84,10 @@ class FolderTest(tests.Test):
                     node.props)
             self.assertEqual(
                     [[5, None]],
-                    json.load(file('node-2/document/send.range')))
+                    json.load(file('node/document/send.range')))
             self.assertEqual(
                     [[6, None]],
-                    json.load(file('node-2/document/receive.range')))
+                    json.load(file('node/document/receive.range')))
 
         self.assertEqual(
                 sorted([
@@ -107,7 +96,7 @@ class FolderTest(tests.Test):
                     ]),
                 sorted(load_packets()))
 
-        with Sync(folder.Node, 'more_node', 'node-3') as node:
+        with Sync(folder.Node, 'more_node') as node:
             node.sync('sync')
             self.assertEqual(0, node.Document.metadata.last_seqno)
             self.assertEqual(
@@ -115,10 +104,10 @@ class FolderTest(tests.Test):
                     node.props)
             self.assertEqual(
                     [[1, None]],
-                    json.load(file('node-3/document/send.range')))
+                    json.load(file('more_node/document/send.range')))
             self.assertEqual(
                     [[4, None]],
-                    json.load(file('node-3/document/receive.range')))
+                    json.load(file('more_node/document/receive.range')))
 
         self.assertEqual(
                 sorted([
@@ -128,7 +117,7 @@ class FolderTest(tests.Test):
                     ]),
                 sorted(load_packets()))
 
-        with Sync(folder.Node, 'one_more_node', 'node-4') as node:
+        with Sync(folder.Node, 'one_more_node') as node:
             doc = node.Document(prop='6')
             doc.post()
             doc.set_blob('blob', StringIO('6'))
@@ -140,10 +129,10 @@ class FolderTest(tests.Test):
                     node.props)
             self.assertEqual(
                     [[1, None]],
-                    json.load(file('node-4/document/send.range')))
+                    json.load(file('one_more_node/document/send.range')))
             self.assertEqual(
                     [[4, None]],
-                    json.load(file('node-4/document/receive.range')))
+                    json.load(file('one_more_node/document/receive.range')))
 
         self.assertEqual(
                 sorted([
@@ -154,23 +143,7 @@ class FolderTest(tests.Test):
                     ]),
                 sorted(load_packets()))
 
-        with Sync(folder.Master, 'master', 'master-2', 'master-1') as master:
-            doc = master.Document(prop='3')
-            doc.post()
-
-            doc = master.Document(prop='4')
-            doc.post()
-            doc.set_blob('blob', StringIO('4'))
-
-            master.Document.commit()
-            self.assertEqual(3, master.Document.metadata.last_seqno)
-
-            master.Document(prop='1').post()
-            master.Document(prop='2').post()
-
-            master.Document.commit()
-            self.assertEqual(5, master.Document.metadata.last_seqno)
-
+        with Sync(folder.Master, 'master') as master:
             master.sync('sync')
             self.assertEqual(7, master.Document.metadata.last_seqno)
             self.assertEqual(
@@ -185,17 +158,17 @@ class FolderTest(tests.Test):
                     ]),
                 sorted(load_packets()))
 
-        with Sync(folder.Node, 'more_node', 'node-5', 'node-3') as node:
+        with Sync(folder.Node, 'more_node') as node:
             node.sync('sync')
             self.assertEqual(
-                    [('1', []), ('2', []), ('5', []), ('6', [])],
+                    [('1', []), ('2', []), ('3', []), ('4', []), ('5', []), ('6', [])],
                     node.props)
             self.assertEqual(
                     [[1, None]],
-                    json.load(file('node-5/document/send.range')))
+                    json.load(file('more_node/document/send.range')))
             self.assertEqual(
                     [[8, None]],
-                    json.load(file('node-5/document/receive.range')))
+                    json.load(file('more_node/document/receive.range')))
 
     def test_id(self):
         node_folder = folder.Node([])
@@ -209,7 +182,7 @@ class FolderTest(tests.Test):
 
 class Sync(object):
 
-    def __init__(self, cls, id, root, root_from=None):
+    def __init__(self, cls, id):
 
         class Document(document.Document):
 
@@ -221,22 +194,14 @@ class Sync(object):
             def blob(self, value):
                 return value
 
-        env.data_root.value = root
+        env.data_root.value = id
+
         if not exists('sync'):
             os.makedirs('sync')
-        os.makedirs(root + '/document')
-
-        if root_from:
-            root_from = join(root_from, 'document')
-            for i in os.listdir(root_from):
-                path = join(root_from, i)
-                if isfile(path):
-                    shutil.copy2(path, join(root, 'document', i))
-
-        with file(root + '/id', 'w') as f:
+        if not exists(id):
+            os.makedirs(id)
+        with file(id + '/id', 'w') as f:
             f.write(id)
-        with file(root + '/document/seqno', 'w') as f:
-            f.write('0')
 
         self._sync = cls([Document])
         self.Document = Document
