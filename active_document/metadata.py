@@ -164,7 +164,12 @@ class Property(object):
         return result
 
 
-class StoredProperty(Property):
+class BrowsableProperty(object):
+    """Property that can be listed while browsing documents."""
+    pass
+
+
+class StoredProperty(Property, BrowsableProperty):
     """Property that can be saved in persistent storare."""
     pass
 
@@ -217,7 +222,7 @@ class ActiveProperty(StoredProperty):
         return self._boolean
 
 
-class AggregatorProperty(Property):
+class AggregatorProperty(Property, BrowsableProperty):
     """Property that aggregates arbitrary values.
 
     This properties is repesented by boolean value (int in string notation)

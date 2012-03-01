@@ -27,6 +27,6 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
 
 from active_document.metadata import Metadata, Property, \
         AggregatorProperty, StoredProperty, ActiveProperty, \
-        CounterProperty, BlobProperty
+        CounterProperty, BlobProperty, BrowsableProperty
 
 from active_document.folder import Master, Node

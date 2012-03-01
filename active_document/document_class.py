@@ -21,6 +21,7 @@ from active_document.storage import Storage
 from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, AggregatorProperty
 from active_document.metadata import CounterProperty, StoredProperty
+from active_document.metadata import BrowsableProperty
 from active_document.util import enforce
 
 
@@ -190,7 +191,7 @@ class DocumentClass(object):
 
         for prop_name in reply:
             prop = cls.metadata[prop_name]
-            enforce(isinstance(prop, StoredProperty),
+            enforce(isinstance(prop, BrowsableProperty),
                     _('Property "%s" in "%s" is not suitable ' \
                             'for find requests'),
                     prop_name, cls.metadata.name)
