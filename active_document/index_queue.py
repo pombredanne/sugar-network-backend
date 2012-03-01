@@ -59,10 +59,12 @@ def init(document_classes):
     _queue = queue.Queue(env.index_write_queue.value)
     _queue_async = _AsyncEvent()
 
+    classes = []
     for cls in document_classes:
         _commit_async[cls.metadata.name] = _AsyncEvent()
+        classes.append(cls)
 
-    _write_thread = _WriteThread(document_classes)
+    _write_thread = _WriteThread(classes)
     _write_thread.start()
 
 

@@ -60,9 +60,8 @@ index_flush_threshold = util.Option(
 
 index_write_queue = util.Option(
         _('for concurent access, run index writer in separate thread; ' \
-                'this option specifies the writer\'s queue size; ' \
-                '0 means not threading the writer'),
-        default=0, type_cast=int)
+                'this option specifies the writer\'s queue size'),
+        default=256, type_cast=int)
 
 find_limit = util.Option(
         _('limit the resulting list for search requests'),

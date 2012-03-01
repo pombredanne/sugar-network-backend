@@ -363,25 +363,38 @@ class IndexTest(tests.Test):
         db = Index({
             'prop': ActiveProperty('prop', prefix='B', typecast=[1, 2], full_text=True),
             })
-
         db.store('1', {'prop': [1, 2]}, True)
         db.store('2', {'prop': [2, 3]}, True)
-
         self.assertEqual(
                 [{'guid': '1'}],
                 db._find(request={'prop': 1}, reply=['guid'])[0])
-
         self.assertEqual(
                 [{'guid': '1'}, {'guid': '2'}],
                 db._find(request={'prop': 2}, reply=['guid'])[0])
-
         self.assertEqual(
                 [{'guid': '1'}, {'guid': '2'}],
                 db._find(query='2', reply=['guid'])[0])
-
         self.assertEqual(
                 [{'guid': '2'}],
                 db._find(query='3', reply=['guid'])[0])
+
+        db = Index({
+            'prop': ActiveProperty('prop', prefix='B', typecast=[], full_text=True),
+            })
+        db.store('1', {'prop': ['a', 'b']}, True)
+        db.store('2', {'prop': ['b', 'c']}, True)
+        self.assertEqual(
+                [{'guid': '1'}],
+                db._find(request={'prop': 'a'}, reply=['guid'])[0])
+        self.assertEqual(
+                [{'guid': '1'}, {'guid': '2'}],
+                db._find(request={'prop': 'b'}, reply=['guid'])[0])
+        self.assertEqual(
+                [{'guid': '1'}, {'guid': '2'}],
+                db._find(query='b', reply=['guid'])[0])
+        self.assertEqual(
+                [{'guid': '2'}],
+                db._find(query='c', reply=['guid'])[0])
 
     def test_FlushThreshold(self):
         env.index_flush_threshold.value = 2

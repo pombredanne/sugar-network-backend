@@ -50,7 +50,7 @@ class _Folder(dict):
             cls.init(IndexProxy)
             self._synchronizers[cls.metadata.name] = sync_class(cls)
 
-        index_queue.init(document_classes)
+        index_queue.init(self.documents)
 
         _logger.info(_('Open "%s" documents folder'), self.id)
 
@@ -142,20 +142,19 @@ class Node(_Folder):
 
         """
         self._id = None
-
-        id_path = join(env.data_root.value, 'id')
-        if exists(id_path):
-            with file(id_path) as f:
-                self._id = f.read().strip()
-        else:
-            self._id = str(uuid.uuid1())
-            with util.new_file(id_path) as f:
-                f.write(self._id)
-
         _Folder.__init__(self, _NodeSynchronizer, document_classes)
 
     @property
     def id(self):
+        if self._id is None:
+            path = join(env.data_root.value, 'id')
+            if exists(path):
+                with file(path) as f:
+                    self._id = f.read().strip()
+            else:
+                self._id = str(uuid.uuid1())
+                with util.new_file(path) as f:
+                    f.write(self._id)
         return self._id
 
     def sync(self, volume_path):

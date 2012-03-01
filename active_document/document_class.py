@@ -330,8 +330,9 @@ class DocumentClass(object):
                 enforce(attr.prop.slot is None or \
                         attr.prop.slot not in slots,
                         _('Property "%s" has a slot already defined ' \
-                                'for "%s"'),
-                        attr.prop.name, slots.get(attr.prop.slot))
+                                'for "%s" in "%s"'),
+                        attr.prop.name, slots.get(attr.prop.slot),
+                        cls.metadata.name)
                 slots[attr.prop.slot] = attr.prop.name
             if hasattr(attr.prop, 'prefix'):
                 enforce(not attr.prop.prefix or \
