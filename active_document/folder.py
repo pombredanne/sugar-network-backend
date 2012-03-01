@@ -52,7 +52,7 @@ class _Folder(dict):
 
         index_queue.init(document_classes)
 
-        _logger.info(_('Open %s documents folder'), self.id)
+        _logger.info(_('Open "%s" documents folder'), self.id)
 
     def __enter__(self):
         return self
@@ -65,6 +65,12 @@ class _Folder(dict):
         """Server unique identity."""
         raise NotImplementedError()
 
+    @property
+    def documents(self):
+        """Iterate all document classes."""
+        for i in self._synchronizers.values():
+            yield i.cls
+
     def sync(self, volume_path):
         """Synchronize server data."""
 
@@ -74,6 +80,7 @@ class _Folder(dict):
 
     def close(self):
         """Close operations with the server."""
+        _logger.info(_('Closing "%s" documents folder'), self.id)
         index_queue.close()
 
     def _merge(self, packet, row, *args):
