@@ -22,6 +22,7 @@ import gevent
 from active_document import util, index_queue, env
 from active_document.storage import Storage
 from active_document.index import IndexReader, IndexWriter, Total
+from active_document.metadata import StoredProperty
 
 
 _logger = logging.getLogger('ad.index_proxy')
@@ -214,4 +215,5 @@ class _CachedDocument(object):
 
 
 def _is_term(prop):
-    return prop.permissions & env.ACCESS_WRITE
+    return isinstance(prop, StoredProperty) and \
+            prop.permissions & env.ACCESS_WRITE
