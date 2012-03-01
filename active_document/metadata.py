@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import collections
 from os.path import join, exists, abspath, dirname
 from gettext import gettext as _
 
@@ -191,10 +192,10 @@ class ActiveProperty(StoredProperty):
                 _('For "%s" property, ' \
                         'either slot, prefix or full_text need to be set'),
                 name)
-        enforce(slot is None or \
-                kwargs.get('typecast') in [None, int, float, bool, str],
-                _('Slot can be set only for str, int, float ' \
-                        'and bool properties'))
+        enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')),
+                _('Slot can be set only for properties for str, int, float, ' \
+                        'bool types, or, for list of these types'))
+
         StoredProperty.__init__(self, name, **kwargs)
         self._slot = slot
         self._prefix = prefix
@@ -290,8 +291,8 @@ def _convert(typecast, value):
             value = value.encode('utf-8')
         else:
             value = str(value)
-    elif isinstance(typecast, tuple) or isinstance(typecast, list):
-        if typecast and type(typecast[0]) in [type, list, tuple]:
+    elif issubclass(type(typecast), collections.Iterable):
+        if typecast and issubclass(type(typecast[0]), collections.Iterable):
             typecast, = typecast
             value = [_convert(typecast, i) for i in value]
         else:
@@ -306,3 +307,12 @@ def _convert(typecast, value):
     else:
         raise RuntimeError(_('Unknown typecast'))
     return value
+
+
+def _is_sloted_prop(typecast):
+    if typecast in [None, int, float, bool, str]:
+        return True
+    if issubclass(type(typecast), collections.Iterable):
+        if not typecast or [i for i in typecast \
+                if type(i) in [None, int, float, bool, str]]:
+            return True
