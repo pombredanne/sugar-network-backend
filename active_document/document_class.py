@@ -309,10 +309,19 @@ class DocumentClass(object):
         return seqno
 
     @classmethod
-    def init(cls, index_class, final_class=None):
-        if final_class is not None:
-            cls = final_class
+    def init(cls, index_class):
+        """Initialize `DocumentClass` class usage.
 
+        This method should be called before any usage of the `DocumentClass`
+        (and its derivates) class. For regular cases, it will be done
+        implicitly from `Master` and `Node` classes.
+
+        :param index_class:
+            what class to use to access to indexes, for regular casses
+            (using `Master` and `Node`, it will be all time ProxyIndex to
+            keep writer in separate thread).
+
+        """
         if cls._initated:
             return
 
