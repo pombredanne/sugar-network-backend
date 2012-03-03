@@ -158,7 +158,7 @@ class Property(object):
     def serialise(self, value):
         """Convert value to list of strings ready to index."""
         result = []
-        for value in (value if type(value) is list else [value]):
+        for value in (value if type(value) in [tuple, list] else [value]):
             if type(value) is bool:
                 value = int(value)
             result.append(str(value))
@@ -292,12 +292,18 @@ def _convert(typecast, value):
         else:
             value = str(value)
     elif issubclass(type(typecast), collections.Iterable):
-        if typecast and issubclass(type(typecast[0]), collections.Iterable):
-            typecast, = typecast
-            value = [_convert(typecast, i) for i in value]
-        else:
+        if typecast and type(typecast[0]) is not type and \
+                not issubclass(type(typecast[0]), collections.Iterable):
+            # Enums
             enforce(value in typecast,
-                    _('Value "%s" is not in "%r" list'), value, typecast)
+                    _('Value "%s" is not in "%s" list'),
+                    value, ', '.join([str(i) for i in typecast]))
+        else:
+            # Lists
+            enforce(len(typecast) <= 1,
+                    _('List values should contain values of the same type'))
+            typecast, = typecast or [str]
+            value = tuple([_convert(typecast, i) for i in value])
     elif typecast is int:
         value = int(value)
     elif typecast is float:
