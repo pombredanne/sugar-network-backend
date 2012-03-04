@@ -77,6 +77,14 @@ class MetadataTest(tests.Test):
         self.assertEqual(('',), prop.convert(['']))
         self.assertEqual((), prop.convert([]))
 
+        prop = metadata.Property('prop', typecast=[['A', 'B', 'C']])
+        self.assertEqual((), prop.convert(''))
+        self.assertRaises(RuntimeError, prop.convert, [''])
+        self.assertEqual((), prop.convert([]))
+        self.assertEqual(('A', 'B', 'C'), prop.convert(['A', 'B', 'C']))
+        self.assertRaises(RuntimeError, prop.convert, ['a'])
+        self.assertRaises(RuntimeError, prop.convert, ['A', 'x'])
+
     def test_Property_serialise(self):
         prop = metadata.Property('prop', typecast=int)
         self.assertEqual(['0'], prop.serialise(0))

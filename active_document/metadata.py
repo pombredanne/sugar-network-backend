@@ -291,9 +291,9 @@ def _convert(typecast, value):
             value = value.encode('utf-8')
         else:
             value = str(value)
-    elif issubclass(type(typecast), collections.Iterable):
+    elif type(typecast) in (list, tuple):
         if typecast and type(typecast[0]) is not type and \
-                not issubclass(type(typecast[0]), collections.Iterable):
+                type(typecast[0]) not in (list, tuple):
             # Enums
             enforce(value in typecast,
                     _('Value "%s" is not in "%s" list'),
@@ -318,7 +318,7 @@ def _convert(typecast, value):
 def _is_sloted_prop(typecast):
     if typecast in [None, int, float, bool, str]:
         return True
-    if issubclass(type(typecast), collections.Iterable):
+    if type(typecast) in (list, tuple):
         if not typecast or [i for i in typecast \
                 if type(i) in [None, int, float, bool, str]]:
             return True
