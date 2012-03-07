@@ -48,7 +48,8 @@ ACCESS_NAMES = {
 
 data_root = util.Option(
         _('path to the root directory for placing documents\' ' \
-                'data and indexes'))
+                'data and indexes'),
+        default='/var/lib/sugar-network/db')
 
 index_flush_timeout = util.Option(
         _('flush index index after specified seconds since the last change'),

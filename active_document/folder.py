@@ -52,7 +52,8 @@ class _Folder(dict):
 
         index_queue.init(self.documents)
 
-        _logger.info(_('Open "%s" documents folder'), self.id)
+        _logger.info(_('Open "%s" documents folder in "%s"'),
+                self.id, env.data_root.value)
 
     def __enter__(self):
         return self

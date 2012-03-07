@@ -1,17 +1,17 @@
 [DEFAULT]
-implement = Server:%(major)s/%(name)s
 name      = active-document
+
+[Package]
+project   = Server:Factory
+implement = %(name)s
 summary   = Active Record pattern to use Xapian as a "NoSQL replacement"
 license   = GPLv3+
 homepage  = http://wiki.sugarlabs.org/go/Sugar_Server_Kit/Active_Document
 
-major     = Factory
 version   = 0.1
 stability = developer
 
-[Package]
 requires  = gevent
-source    = %(name)s-%(version)s.tar.gz
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&

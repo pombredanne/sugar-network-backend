@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Data: 2012-02-23$
+$Data: 2012-03-04$
 
 """
 
@@ -503,7 +503,7 @@ class Option(object):
 
         if config_files is None:
             if Option._config is None:
-                raise RuntimeError(_('Method Option.merge was not called or ' \
+                raise RuntimeError(_('Method Option.bind was not called or ' \
                         'its config_files argument was None'))
             config_files = Option._config.value
 
