@@ -1,0 +1,15 @@
+Introduction
+============
+
+Client side library to access to Sugar Network server.
+See `home page`_ for more details.
+
+Sources
+=======
+
+Clone source repository from `Gitorious`_ project:
+
+    ``git clone git://git.sugarlabs.org/network/client.git``
+
+.. _home page: http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
+.. _Gitorious: http://git.sugarlabs.org/network
