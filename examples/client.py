@@ -16,7 +16,6 @@ def main():
         context['title'] = title
         context['description'] = 'Description'
         context['license'] = ['GPLv3+']
-        context['author'] = [client.guid()]
         context.post()
 
     context_new('#1')

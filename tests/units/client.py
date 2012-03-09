@@ -3,7 +3,7 @@
 
 from __init__ import tests
 
-from sugar_network import client
+from sugar_network import client, sugar
 
 
 class ClientTest(tests.Test):
@@ -138,6 +138,18 @@ class ClientTest(tests.Test):
         self.assertEqual('new', obj['foo'])
         obj.post()
         self.assertEqual([], self.stat['requests'][3:])
+
+    def test_Object_CheckAuthorOnPost(self):
+        obj = client.Object('resource')
+        obj['foo'] = 'bar'
+        obj.post()
+        self.assertEqual(1, len(self.stat['requests']))
+        self.assertEqual([sugar.guid()], obj['author'])
+
+        obj = client.Object('resource')
+        obj['author'] = ['fake']
+        self.assertRaises(RuntimeError, obj.post)
+        self.assertEqual(1, len(self.stat['requests']))
 
     def test_Object_DoNotOverrideSetsAfterPost(self):
         obj = client.Object('resource')

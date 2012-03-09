@@ -243,6 +243,12 @@ class Object(dict):
         if 'guid' in self:
             request('PUT', self._path, data=data)
         else:
+            if 'author' in data:
+                enforce(sugar.guid() in data['author'],
+                        _('Current user should be in "author" property'))
+            else:
+                data['author'] = [sugar.guid()]
+                dict.__setitem__(self, 'author', [sugar.guid()])
             reply = request('POST', '/' + self._resource, data=data)
             self.update(reply)
             self._path = '/%s/%s' % (self._resource, self['guid'])
