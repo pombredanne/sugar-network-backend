@@ -122,6 +122,21 @@ class IndexProxyTest(tests.Test):
                     ]),
                 proxy._find()[0])
 
+    def test_Create_FindForNotCreatedDB(self):
+
+        class Document2(document.Document):
+            pass
+
+        index_queue.close()
+        Document2.init(IndexProxy)
+        index_queue.init([Document2])
+
+        proxy = IndexProxy(Document2.metadata)
+        proxy.store('1', {'ctime': 1, 'mtime': 1, 'seqno': 0}, True)
+        self.assertEqual(
+                [{'guid': '1'}],
+                proxy._find()[0])
+
     def test_Update(self):
         proxy = IndexProxy(self.metadata)
 

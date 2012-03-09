@@ -64,12 +64,14 @@ class IndexProxy(IndexReader):
     def find(self, offset, limit, request, query=None, reply=None,
             order_by=None):
         if self._db is None:
-            if not self._open():
-                return [], Total(0)
+            self._open()
 
         def direct_find():
-            return IndexReader.find(self, offset, limit, request, query, reply,
-                    order_by)
+            if self._db is None:
+                return [], Total(0)
+            else:
+                return IndexReader.find(self, offset, limit, request, query,
+                        reply, order_by)
 
         if 'guid' in request:
             documents, total = direct_find()
@@ -152,12 +154,10 @@ class IndexProxy(IndexReader):
     def _open(self):
         try:
             self._db = xapian.Database(self.metadata.ensure_path('index', ''))
+            _logger.debug('Opened "%s" RO index', self.metadata.name)
         except xapian.DatabaseOpeningError:
             util.exception(_logger, 'Cannot open "%s" RO index',
                     self.metadata.name)
-            return False
-        _logger.debug('Opened "%s" RO index', self.metadata.name)
-        return True
 
     def _wait_for_reopen(self):
         while True:
