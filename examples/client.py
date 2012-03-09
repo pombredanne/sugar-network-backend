@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import time
 import signal
 
 import restful_document
@@ -10,19 +9,33 @@ import sugar_network_server as server
 
 
 def main():
-    context = client.Context.new()
-    context['type'] = 'activity'
-    context['title'] = 'Title %s' % time.time()
-    context['description'] = 'Description'
-    context['license'] = ['GPLv3+']
-    context['author'] = [client.guid()]
-    context.post()
+
+    def context_new(title):
+        context = client.Context.new()
+        context['type'] = 'activity'
+        context['title'] = title
+        context['description'] = 'Description'
+        context['license'] = ['GPLv3+']
+        context['author'] = [client.guid()]
+        context.post()
+
+    context_new('#1')
+    context_new('#2')
+    context_new('#3')
 
     query = client.Context.find()
-    for i in range(query.total):
-        print query[i]['guid'], query[i]['title']
 
-    client.Context.delete(context['guid'])
+    # Browse using iterators
+    for i in query:
+        print i.offset, i['guid'], i['title']
+
+    # Browse by offset
+    for i in range(query.total):
+        print i, query[i]['guid'], query[i]['title']
+
+    query.offset = -1
+    for i in query:
+        client.Context.delete(i['guid'])
 
 
 if __name__ == '__main__':

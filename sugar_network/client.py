@@ -73,8 +73,20 @@ class Query(object):
         self._total = None
         self._page_access = collections.deque([], _PAGE_NUMBER)
         self._pages = {}
+        self._offset = -1
 
         self._reset()
+
+    # pylint: disable-msg=E1101,E0102,E0202
+    @property
+    def offset(self):
+        """Current position in query results."""
+        return self._offset
+
+    @offset.setter
+    def offset(self, value):
+        """Change current position in query results."""
+        self._offset = max(-1, value)
 
     @property
     def total(self):
@@ -100,6 +112,11 @@ class Query(object):
             return
         self._order_by = value
         self._reset()
+
+    def __iter__(self):
+        while self.offset + 1 < self.total:
+            self.offset += 1
+            yield self.get(self.offset)
 
     def filter(self, query=None, **filters):
         """Change query parameters.
@@ -150,10 +167,12 @@ class Query(object):
         return result
 
     def _fetch_page(self, page):
+        offset = page * _PAGE_SIZE
+
         params = {}
         if self._filters:
             params.update(self._filters)
-        params['offset'] = page * _PAGE_SIZE
+        params['offset'] = offset
         params['limit'] = _PAGE_SIZE
         if self._query:
             params['query'] = self._query
@@ -167,7 +186,8 @@ class Query(object):
 
         result = [None] * len(reply['result'])
         for i, props in enumerate(reply['result']):
-            result[i] = Object(self._resource or props['document'], props)
+            result[i] = Object(self._resource or props['document'],
+                    props, offset + i)
 
         if not self._page_access or self._page_access[-1] != page:
             if len(self._page_access) == _PAGE_NUMBER:
@@ -183,7 +203,7 @@ class Query(object):
 
 class Object(dict):
 
-    def __init__(self, resource, props=None):
+    def __init__(self, resource, props=None, offset=None):
         dict.__init__(self, props or {})
         self._resource = resource
         if 'guid' in self:
@@ -192,6 +212,7 @@ class Object(dict):
             self._path = None
         self._got = False
         self._dirty = set()
+        self.offset = offset
 
     def __getitem__(self, prop):
         result = self.get(prop)
