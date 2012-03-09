@@ -67,6 +67,14 @@ def init(document_classes):
     _write_thread = _WriteThread(classes)
     _write_thread.start()
 
+    for cls in document_classes:
+        populating = False
+        for __ in cls.populate():
+            if not populating:
+                _logger.info(_('Start populating "%s" index'),
+                        cls.metadata.name)
+                populating = True
+
 
 def put(document, op, *args):
     """Put new index change operation to the queue.
@@ -161,7 +169,6 @@ class _WriteThread(threading.Thread):
 
     def run(self):
         _logger.debug('Start processing queue')
-        populate_job = gevent.spawn(self._populate)
         try:
             self._run()
         except _WriteThread._Closing:
@@ -173,7 +180,6 @@ class _WriteThread(threading.Thread):
                     _('Write queue died, will abort the whole application'))
             thread.interrupt_main()
         finally:
-            populate_job.kill()
             _logger.debug('Stop processing queue')
 
     def _run(self):
@@ -182,34 +188,18 @@ class _WriteThread(threading.Thread):
             self._writers[cls.metadata.name] = _IndexWriter(cls.metadata)
 
         next_commit = 0
-        if env.index_flush_timeout.value:
-            next_commit = time.time() + env.index_flush_timeout.value
-
         while True:
+            if env.index_flush_timeout.value and not next_commit:
+                next_commit = time.time() + env.index_flush_timeout.value
             try:
                 timeout = None
                 if next_commit:
                     timeout = max(1, next_commit - time.time())
-                request = _queue.get(timeout=timeout)
-                self._serve_put(*request)
+                self._serve_put(*_queue.get(timeout=timeout))
             except queue.Empty:
                 for writer in self._writers.values():
                     writer.commit()
-                next_commit = time.time() + env.index_flush_timeout.value
-
-    def _populate(self):
-        for cls in self._document_classes:
-            populating = False
-            for __ in cls.populate():
-                if not populating:
-                    _logger.info(_('Start populating "%s" index'),
-                            cls.metadata.name)
-                    populating = True
-                try:
-                    # Try to serve requests in parallel with populating
-                    self._serve_put(*_queue.get(False))
-                except queue.Empty:
-                    pass
+                next_commit = 0
 
     def _serve_put(self, seqno, document, op, args):
         if document is None:

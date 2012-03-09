@@ -37,6 +37,10 @@ class IndexQueueTest(tests.Test):
         Document.init(IndexProxy)
         self.Document = Document
 
+    def tearDown(self):
+        index_queue.close()
+        tests.Test.tearDown(self)
+
     def test_put(self):
         index_queue.init([self.Document])
 
@@ -108,6 +112,30 @@ class IndexQueueTest(tests.Test):
         self.assertEqual(1, len(committed))
 
         index_queue.close()
+
+    def test_Populate(self):
+
+        class Document(document.Document):
+            pass
+
+        Document.init(IndexProxy)
+
+        self.touch(
+                ('document/1/1/.seqno', ''),
+                ('document/1/1/guid', '1'),
+                ('document/1/1/ctime', '1'),
+                ('document/1/1/mtime', '1'),
+
+                ('document/2/2/.seqno', ''),
+                ('document/2/2/guid', '2'),
+                ('document/2/2/ctime', '2'),
+                ('document/2/2/mtime', '2'),
+                )
+
+        index_queue.init([Document])
+        self.assertEqual(
+                sorted(['1', '2']),
+                sorted([i.guid for i in Document.find()[0]]))
 
 
 if __name__ == '__main__':

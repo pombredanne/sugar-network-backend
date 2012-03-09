@@ -1,6 +1,9 @@
+- query for all docs, return document name
 - nocache for diff()
 - find only within `accept_range` ranges in DocumentClass.diff()
 - range generators for bool and dates
+- if not completed populate (but commit happened) was aborted, the rest of populate will be skipped next populate
+- (?) make populate in spawned job
 
 1.0
 ===
