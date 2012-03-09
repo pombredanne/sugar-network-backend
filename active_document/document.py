@@ -176,8 +176,8 @@ class Document(DocumentClass):
             try:
                 changes[prop_name] = prop.convert(value)
             except Exception:
-                error = _('Value for "%s" property for "%s" is invalid') % \
-                        (prop_name, self.metadata.name)
+                error = _('Value %r for "%s" property for "%s" is invalid') % \
+                        (value, prop_name, self.metadata.name)
                 util.exception(error)
                 raise RuntimeError(error)
 

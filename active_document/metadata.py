@@ -14,12 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import collections
 from os.path import join, exists, abspath, dirname
 from gettext import gettext as _
 
 from active_document import env, util
 from active_document.util import enforce
+
+
+_LIST_TYPES = (list, tuple, frozenset)
 
 
 class Metadata(dict):
@@ -158,7 +160,7 @@ class Property(object):
     def serialise(self, value):
         """Convert value to list of strings ready to index."""
         result = []
-        for value in (value if type(value) in [tuple, list] else [value]):
+        for value in (value if type(value) in _LIST_TYPES else [value]):
             if type(value) is bool:
                 value = int(value)
             result.append(str(value))
@@ -286,14 +288,18 @@ class BlobProperty(Property):
 
 
 def _convert(typecast, value):
+
+    def is_enum(x):
+        first = iter(typecast).next()
+        return type(first) is not type and type(first) not in _LIST_TYPES
+
     if typecast in [None, str]:
         if isinstance(value, unicode):
             value = value.encode('utf-8')
         else:
             value = str(value)
-    elif type(typecast) in (list, tuple):
-        if typecast and type(typecast[0]) is not type and \
-                type(typecast[0]) not in (list, tuple):
+    elif type(typecast) in _LIST_TYPES:
+        if typecast and is_enum(typecast):
             # Enums
             enforce(value in typecast,
                     _('Value "%s" is not in "%s" list'),
@@ -318,7 +324,7 @@ def _convert(typecast, value):
 def _is_sloted_prop(typecast):
     if typecast in [None, int, float, bool, str]:
         return True
-    if type(typecast) in (list, tuple):
-        if not typecast or [i for i in typecast \
+    if type(typecast) in _LIST_TYPES:
+        if typecast and [i for i in typecast \
                 if type(i) in [None, int, float, bool, str]]:
             return True
