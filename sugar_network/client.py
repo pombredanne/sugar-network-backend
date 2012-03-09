@@ -260,7 +260,7 @@ def request(method, path, data=None, params=None):
             raise
 
         if response.status_code != 200:
-            if response.status_code == 401 and path != '/user':
+            if response.status_code == 401:
                 _register()
                 continue
             content = response.content
