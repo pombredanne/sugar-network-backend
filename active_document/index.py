@@ -384,22 +384,19 @@ class IndexWriter(IndexReader):
         path = self.metadata.ensure_path('version')
         if not exists(path):
             return True
-        layout = file(path)
-        version = layout.read()
-        layout.close()
+        with file(path) as f:
+            version = f.read()
         return not version.isdigit() or int(version) != env.LAYOUT_VERSION
 
     def _save_layout(self):
-        version = file(self.metadata.ensure_path('version'), 'w')
-        version.write(str(env.LAYOUT_VERSION))
-        version.close()
+        with file(self.metadata.ensure_path('version'), 'w') as f:
+            f.write(str(env.LAYOUT_VERSION))
 
     def _touch_stamp(self):
-        stamp = file(self.metadata.ensure_path('stamp'), 'w')
-        # Xapian's flush uses fsync
-        # so, it is a good idea to do the same for stamp file
-        os.fsync(stamp.fileno())
-        stamp.close()
+        with file(self.metadata.ensure_path('stamp'), 'w') as f:
+            # Xapian's flush uses fsync
+            # so, it is a good idea to do the same for stamp file
+            os.fsync(f.fileno())
 
     def _wipe_out(self):
         shutil.rmtree(self.metadata.path('index'), ignore_errors=True)

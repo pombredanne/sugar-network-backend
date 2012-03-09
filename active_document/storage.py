@@ -160,16 +160,15 @@ class Storage(object):
             return
 
         try:
-            f = file(path)
-            while True:
-                chunk = f.read(_PAGE_SIZE)
-                if len(chunk) == 0:
-                    break
-                try:
-                    yield chunk
-                except GeneratorExit:
-                    break
-            f.close()
+            with file(path) as f:
+                while True:
+                    chunk = f.read(_PAGE_SIZE)
+                    if len(chunk) == 0:
+                        break
+                    try:
+                        yield chunk
+                    except GeneratorExit:
+                        break
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot read BLOB "%s" property ' \
@@ -473,11 +472,8 @@ def _touch_seqno(path, seqno):
 
 
 def _read_property(path):
-    f = file(path)
-    try:
+    with file(path) as f:
         return json.load(f)
-    finally:
-        f.close()
 
 
 def _aggregated(path):
