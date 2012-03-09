@@ -31,7 +31,7 @@ class ClientTest(tests.Test):
                     range(params['offset'], params['offset'] + params['limit'])]
             return {'total': 10, 'result': result}
 
-        self.override(client, '_request', request)
+        self.override(client, 'request', request)
 
     def test_Query_Browse(self):
         client._PAGE_SIZE = 1

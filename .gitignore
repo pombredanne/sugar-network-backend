@@ -1,8 +1,9 @@
 .*
 *.tar.*
 doc/build
-tests/integration/active_document
-tests/integration/restful_document
-tests/integration/sugar_network
-tests/integration/sugar_network_server
-tests/integration/sugar_stats_server
+active_document
+restful_document
+sugar_network
+sugar_network_server
+sugar_stats_server
+tmp

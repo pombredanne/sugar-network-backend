@@ -115,26 +115,26 @@ class Test(unittest.TestCase):
         logging.basicConfig(level=logging.DEBUG, filename=tmpdir + '-%s.http.log' % self.httpd_seqno)
 
         from gevent.wsgi import WSGIServer
-        import active_document as ad
-        import restful_document as rd
-        from sugar_network_server import objects
-        import sugar_stats_server
+        import sugar_network_server as server
 
-        sugar_stats_server.stats_root.value = tmpdir + '/' + 'stats'
-        ad.data_root.value = tmpdir + '/' + 'db'
-        rd.logdir.value = tmpdir + '/' + 'log'
-        rd.rundir.value = tmpdir + '/' + 'run'
-        ad.index_flush_timeout.value = 0
-        ad.index_flush_threshold.value = 1
+        server.stats_root.value = tmpdir + '/' + 'stats'
+        server.data_root.value = tmpdir + '/' + 'db'
+        server.logdir.value = tmpdir + '/' + 'log'
+        server.rundir.value = tmpdir + '/' + 'run'
+        server.index_flush_timeout.value = 0
+        server.index_flush_threshold.value = 1
 
-        node = ad.Master(objects.items())
-        httpd = WSGIServer(('localhost', port), rd.Router(node))
+        node = server.Master(server.resources())
+        httpd = WSGIServer(('localhost', port), server.Router(node))
 
         try:
             httpd.serve_forever()
+        except KeyboardInterrupt:
+            pass
         finally:
             httpd.stop()
             node.close()
+        os._exit(0)
 
     def httpdown(self, port):
         pid = Test.httpd_pids[port]

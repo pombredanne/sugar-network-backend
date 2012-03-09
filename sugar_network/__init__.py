@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from sugar_network.resources import User
+from sugar_network.resources import User, Context, Question, Idea, Problem, \
+        Review, Solution, Artifact, Version, Report, Notification, Comment
 
 from sugar_network.env import api_url, certfile, no_check_certificate
 

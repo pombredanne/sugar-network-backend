@@ -33,6 +33,13 @@ _logger = logging.getLogger('client')
 _headers = {}
 
 
+class ServerError(Exception):
+
+    def __init__(self, request_, error):
+        self.request = request_
+        Exception.__init__(self, error)
+
+
 class Query(object):
     """Query resource objects."""
 
@@ -233,7 +240,7 @@ def request(method, path, data=None, params=None):
 
     headers = _headers.copy()
     if method in ('PUT', 'POST'):
-        headers = {'Content-Type': 'application/json'}
+        headers['Content-Type'] = 'application/json'
         data = json.dumps(data)
 
     verify = True
@@ -256,9 +263,14 @@ def request(method, path, data=None, params=None):
             if response.status_code == 401 and path != '/user':
                 _register()
                 continue
-            _logger.debug('Got %s HTTP error for "%s" request:\n%s',
-                    response.status_code, path, response.content)
-            response.raise_for_status()
+            content = response.content
+            try:
+                error = json.loads(content)
+                raise ServerError(error['request'], error['error'])
+            except ValueError:
+                _logger.debug('Got %s HTTP error for "%s" request:\n%s',
+                        response.status_code, path, content)
+                response.raise_for_status()
 
         return json.loads(response.content)
 

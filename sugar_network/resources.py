@@ -94,3 +94,71 @@ class User(Resource):
     @classmethod
     def delete(cls, guid):
         raise RuntimeError(_('Users cannot be deleted explicitly'))
+
+
+class Context(Resource):
+
+    resource = 'context'
+    reply_properties = ['guid', 'author', 'name', 'title']
+
+
+class Question(Resource):
+
+    resource = 'question'
+    reply_properties = ['guid', 'author', 'context', 'title']
+
+
+class Idea(Resource):
+
+    resource = 'idea'
+    reply_properties = ['guid', 'author', 'context', 'title']
+
+
+class Problem(Resource):
+
+    resource = 'problem'
+    reply_properties = ['guid', 'author', 'context', 'title']
+
+
+class Review(Resource):
+
+    resource = 'review'
+    reply_properties = ['guid', 'author', 'context', 'title']
+
+
+class Solution(Resource):
+
+    resource = 'solution'
+    reply_properties = ['guid', 'author', 'parent_type', 'parent', 'title']
+
+
+class Artifact(Resource):
+
+    resource = 'artifact'
+    reply_properties = ['guid', 'author', 'context', 'title']
+
+
+class Version(Resource):
+
+    resource = 'version'
+    reply_properties = \
+            ['guid', 'author', 'context', 'version', 'date', 'stability']
+
+
+class Report(Resource):
+
+    resource = 'report'
+    reply_properties = ['guid', 'author', 'version', 'title']
+
+
+class Notification(Resource):
+
+    resource = 'notification'
+    reply_properties = [
+            'guid', 'author', 'type', 'object_type', 'object', 'to', 'message']
+
+
+class Comment(Resource):
+
+    resource = 'comment'
+    reply_properties = ['guid', 'author', 'message']

@@ -27,6 +27,13 @@ class ResourcesTest(tests.Test):
         self.assertEqual(sn.guid(), query[0]['guid'])
         self.assertEqual(sn.nickname(), query[0]['nickname'])
 
+        query = sn.User.find(nickname='foo')
+        self.assertEqual(0, query.total)
+
+        query = sn.User.find(nickname=sn.nickname())
+        self.assertEqual(1, query.total)
+        self.assertEqual(sn.guid(), query[0]['guid'])
+
 
 if __name__ == '__main__':
     tests.main()
