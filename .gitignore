@@ -3,7 +3,6 @@
 doc/build
 active_document
 restful_document
-sugar_network
 sugar_network_server
 sugar_stats_server
 tmp

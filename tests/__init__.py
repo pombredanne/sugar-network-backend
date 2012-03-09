@@ -116,16 +116,17 @@ class Test(unittest.TestCase):
 
         from gevent.wsgi import WSGIServer
         import sugar_network_server as server
+        import active_document as ad
+        import restful_document as rd
 
         server.stats_root.value = tmpdir + '/' + 'stats'
         server.data_root.value = tmpdir + '/' + 'db'
         server.logdir.value = tmpdir + '/' + 'log'
-        server.rundir.value = tmpdir + '/' + 'run'
         server.index_flush_timeout.value = 0
         server.index_flush_threshold.value = 1
 
-        node = server.Master(server.resources())
-        httpd = WSGIServer(('localhost', port), server.Router(node))
+        node = ad.Master(server.resources())
+        httpd = WSGIServer(('localhost', port), rd.Router(node))
 
         try:
             httpd.serve_forever()
