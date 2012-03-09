@@ -82,6 +82,9 @@ class _Folder(dict):
     def close(self):
         """Close operations with the server."""
         _logger.info(_('Closing "%s" documents folder'), self.id)
+        while self._synchronizers:
+            __, sync = self._synchronizers.popitem()
+            sync.cls.close()
         index_queue.close()
 
     def _merge(self, packet, row, *args):

@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import time
+import shutil
 import logging
 import threading
 
@@ -114,12 +116,6 @@ class IndexQueueTest(tests.Test):
         index_queue.close()
 
     def test_Populate(self):
-
-        class Document(document.Document):
-            pass
-
-        Document.init(IndexProxy)
-
         self.touch(
                 ('document/1/1/.seqno', ''),
                 ('document/1/1/guid', '1'),
@@ -132,10 +128,42 @@ class IndexQueueTest(tests.Test):
                 ('document/2/2/mtime', '2'),
                 )
 
+        class Document(document.Document):
+            pass
+        Document.init(IndexProxy)
         index_queue.init([Document])
+        Document.commit()
         self.assertEqual(
                 sorted(['1', '2']),
                 sorted([i.guid for i in Document.find()[0]]))
+        index_queue.close()
+
+        os.unlink('document/stamp')
+        shutil.rmtree('document/index')
+
+        class Document(document.Document):
+            pass
+        Document.init(IndexProxy)
+        index_queue.init([Document])
+        Document.commit()
+        self.assertEqual(
+                sorted(['1', '2']),
+                sorted([i.guid for i in Document.find()[0]]))
+        index_queue.close()
+
+        time.sleep(1)
+        shutil.rmtree('document/index')
+        self.touch('document/stamp')
+
+        class Document(document.Document):
+            pass
+        Document.init(IndexProxy)
+        index_queue.init([Document])
+        Document.commit()
+        self.assertEqual(
+                sorted([]),
+                sorted([i.guid for i in Document.find()[0]]))
+        index_queue.close()
 
 
 if __name__ == '__main__':

@@ -233,7 +233,8 @@ class DocumentClass(object):
                 counter = cls._storage.count_aggregated(guid, prop.name)
                 if counter != props[prop.counter]:
                     cls._storage.put(guid, {prop.counter: counter})
-            cls._index.store(guid, props, True)
+            cls._index.store(guid, props, None,
+                    cls._pre_store, cls._post_store)
             yield
 
     @classmethod

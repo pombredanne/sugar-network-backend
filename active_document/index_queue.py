@@ -67,7 +67,7 @@ def init(document_classes):
     _write_thread = _WriteThread(classes)
     _write_thread.start()
 
-    for cls in document_classes:
+    for cls in classes:
         populating = False
         for __ in cls.populate():
             if not populating:

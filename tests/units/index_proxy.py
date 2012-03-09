@@ -37,7 +37,6 @@ class IndexProxyTest(tests.Test):
             def common(self, value):
                 return value
 
-        env.index_write_queue.value = 100
         env.index_flush_threshold.value = 100
         env.index_flush_timeout.value = 0
 
