@@ -15,6 +15,7 @@
 
 import bisect
 import logging
+from os.path import exists
 
 import xapian
 import gevent
@@ -152,8 +153,11 @@ class IndexProxy(IndexReader):
         return adds, deletes, updates
 
     def _open(self):
+        path = self.metadata.path('index')
+        if not exists(path):
+            return
         try:
-            self._db = xapian.Database(self.metadata.ensure_path('index', ''))
+            self._db = xapian.Database(path)
             _logger.debug('Opened "%s" RO index', self.metadata.name)
         except xapian.DatabaseOpeningError:
             util.exception(_logger, 'Cannot open "%s" RO index',
