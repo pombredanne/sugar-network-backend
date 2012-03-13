@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import time
 import signal
 
 import restful_document
@@ -18,22 +19,33 @@ def main():
         context['license'] = ['GPLv3+']
         context.post()
 
-    context_new('#1')
-    context_new('#2')
-    context_new('#3')
+    context_new('Title1')
+    context_new('Title2')
+    context_new('Title3')
 
-    query = client.Context.find()
-
-    # Browse using iterators
-    for i in query:
+    print '-- Browse using iterators'
+    for i in client.Context.find():
         print i.offset, i['guid'], i['title']
 
-    # Browse by offset
+    print '-- Browse by offset'
+    query = client.Context.find()
     for i in range(query.total):
         print i, query[i]['guid'], query[i]['title']
 
-    query.offset = -1
-    for i in query:
+    print '-- Query by property value'
+    for i in client.Context.find(title='Title2'):
+        print i.offset, i['guid'], i['title']
+
+    # Wait until server will update index,
+    # fulltext search does not work for cahced changes
+    time.sleep(3)
+
+    print '-- Full text search query'
+    for i in client.Context.find(query='Title1 OR Title3'):
+        print i.offset, i['guid'], i['title']
+
+    print '-- Delete objects'
+    for i in client.Context.find():
         client.Context.delete(i['guid'])
 
 
@@ -42,6 +54,7 @@ if __name__ == '__main__':
     server.data_root.value = 'tmp/db'
     server.stats_root.value = 'tmp/stats'
     server.logdir.value = 'tmp/log'
+    server.index_flush_threshold.value = 1
     server_pid = restful_document.fork(server.resources())
 
     client.api_url.value = \
