@@ -151,6 +151,12 @@ class Property(object):
         return self._typecast
 
     @property
+    def composite(self):
+        """Is property value a list of values."""
+        is_composite, __ = _is_composite(self.typecast)
+        return is_composite
+
+    @property
     def default(self):
         """Default property value or None."""
         return self._default
@@ -294,31 +300,40 @@ class BlobProperty(Property):
         return self._mime_type
 
 
+def _is_composite(typecast):
+    if type(typecast) in _LIST_TYPES:
+        if typecast:
+            first = iter(typecast).next()
+            if type(first) is not type and \
+                    type(first) not in _LIST_TYPES:
+                return False, True
+        return True, False
+    return False, False
+
+
 def _convert(typecast, value):
+    enforce(value is not None, ValueError, _('Property value cannot be None'))
 
-    def is_enum(x):
-        first = iter(typecast).next()
-        return type(first) is not type and type(first) not in _LIST_TYPES
+    is_composite, is_enum = _is_composite(typecast)
 
-    if type(typecast) is types.FunctionType:
+    if is_composite:
+        enforce(len(typecast) <= 1, ValueError,
+                _('List values should contain values of the same type'))
+        if type(value) not in _LIST_TYPES:
+            value = (value,)
+        typecast, = typecast or [str]
+        value = tuple([_convert(typecast, i) for i in value])
+    elif is_enum:
+        enforce(value in typecast, ValueError,
+                _('Value "%s" is not in "%s" list'),
+                value, ', '.join([str(i) for i in typecast]))
+    elif type(typecast) is types.FunctionType:
         value = typecast(value)
     elif typecast in [None, str]:
         if isinstance(value, unicode):
             value = value.encode('utf-8')
         else:
             value = str(value)
-    elif type(typecast) in _LIST_TYPES:
-        if typecast and is_enum(typecast):
-            # Enums
-            enforce(value in typecast,
-                    _('Value "%s" is not in "%s" list'),
-                    value, ', '.join([str(i) for i in typecast]))
-        else:
-            # Lists
-            enforce(len(typecast) <= 1,
-                    _('List values should contain values of the same type'))
-            typecast, = typecast or [str]
-            value = tuple([_convert(typecast, i) for i in value])
     elif typecast is int:
         value = int(value)
     elif typecast is float:
@@ -326,7 +341,7 @@ def _convert(typecast, value):
     elif typecast is bool:
         value = bool(value)
     else:
-        raise RuntimeError(_('Unknown typecast'))
+        raise ValueError(_('Unknown typecast'))
     return value
 
 
