@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import types
 from os.path import join, exists, abspath, dirname
 from gettext import gettext as _
 
@@ -299,7 +300,9 @@ def _convert(typecast, value):
         first = iter(typecast).next()
         return type(first) is not type and type(first) not in _LIST_TYPES
 
-    if typecast in [None, str]:
+    if type(typecast) is types.FunctionType:
+        value = typecast(value)
+    elif typecast in [None, str]:
         if isinstance(value, unicode):
             value = value.encode('utf-8')
         else:

@@ -88,6 +88,9 @@ class MetadataTest(tests.Test):
         prop = metadata.Property('prop', typecast=[frozenset(['A', 'B', 'C'])])
         self.assertEqual(('A', 'B', 'C'), prop.convert(['A', 'B', 'C']))
 
+        prop = metadata.Property('prop', typecast=lambda x: x + 1)
+        self.assertEqual(1, prop.convert(0))
+
     def test_Property_reprcast(self):
         prop = metadata.Property('prop', typecast=int)
         self.assertEqual(['0'], prop.reprcast(0))
