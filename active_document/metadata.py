@@ -111,10 +111,11 @@ class Property(object):
     """Bacis class to collect information about document property."""
 
     def __init__(self, name, permissions=env.ACCESS_FULL, typecast=None,
-            default=None):
+            reprcast=None, default=None):
         self._name = name
         self._permissions = permissions
         self._typecast = typecast
+        self._reprcast = reprcast
         self._default = default
         self.writable = False
 
@@ -157,13 +158,18 @@ class Property(object):
         """Convert specified value to property type."""
         return _convert(self.typecast, value)
 
-    def serialise(self, value):
+    def reprcast(self, value):
         """Convert value to list of strings ready to index."""
         result = []
+
+        if self._reprcast is not None:
+            value = self._reprcast(value)
+
         for value in (value if type(value) in _LIST_TYPES else [value]):
             if type(value) is bool:
                 value = int(value)
             result.append(str(value))
+
         return result
 
 

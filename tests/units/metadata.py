@@ -88,27 +88,30 @@ class MetadataTest(tests.Test):
         prop = metadata.Property('prop', typecast=[frozenset(['A', 'B', 'C'])])
         self.assertEqual(('A', 'B', 'C'), prop.convert(['A', 'B', 'C']))
 
-    def test_Property_serialise(self):
+    def test_Property_reprcast(self):
         prop = metadata.Property('prop', typecast=int)
-        self.assertEqual(['0'], prop.serialise(0))
-        self.assertEqual(['1'], prop.serialise(1))
+        self.assertEqual(['0'], prop.reprcast(0))
+        self.assertEqual(['1'], prop.reprcast(1))
 
         prop = metadata.Property('prop', typecast=float)
-        self.assertEqual(['0'], prop.serialise(0))
-        self.assertEqual(['1.1'], prop.serialise(1.1))
+        self.assertEqual(['0'], prop.reprcast(0))
+        self.assertEqual(['1.1'], prop.reprcast(1.1))
 
         prop = metadata.Property('prop', typecast=bool)
-        self.assertEqual(['1'], prop.serialise(True))
-        self.assertEqual(['0'], prop.serialise(False))
+        self.assertEqual(['1'], prop.reprcast(True))
+        self.assertEqual(['0'], prop.reprcast(False))
 
         prop = metadata.Property('prop', typecast=[int])
-        self.assertEqual(['0', '1'], prop.serialise([0, 1]))
+        self.assertEqual(['0', '1'], prop.reprcast([0, 1]))
 
         prop = metadata.Property('prop', typecast=[1, 2])
-        self.assertEqual(['2', '1'], prop.serialise([2, 1]))
+        self.assertEqual(['2', '1'], prop.reprcast([2, 1]))
 
         prop = metadata.Property('prop', typecast=[[True, 0, 'probe']])
-        self.assertEqual(['probe', '1', '0'], prop.serialise(['probe', True, 0]))
+        self.assertEqual(['probe', '1', '0'], prop.reprcast(['probe', True, 0]))
+
+        prop = metadata.Property('prop', reprcast=lambda x: x.keys())
+        self.assertEqual(['a', '2'], prop.reprcast({'a': 1, 2: 'b'}))
 
 
 if __name__ == '__main__':
