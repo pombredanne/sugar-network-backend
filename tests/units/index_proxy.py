@@ -21,6 +21,9 @@ class IndexProxyTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+        self.Document = None
+
+    def setup_document(self):
 
         class Document(document.Document):
 
@@ -69,12 +72,14 @@ class IndexProxyTest(tests.Test):
         self.wait_job = gevent.spawn(waiter)
 
     def tearDown(self):
-        assert not self.committed
-        self.wait_job.kill()
+        if self.Document is not None:
+            assert not self.committed
+            self.wait_job.kill()
+            self.Document.close()
         tests.Test.tearDown(self)
-        self.Document.close()
 
     def test_Create(self):
+        self.setup_document()
         proxy = IndexProxy(self.metadata)
 
         self.assertEqual(
@@ -138,6 +143,7 @@ class IndexProxyTest(tests.Test):
                 proxy._find()[0])
 
     def test_Update(self):
+        self.setup_document()
         proxy = IndexProxy(self.metadata)
 
         proxy._store(self.doc_1, {'term': '1_term_2'})
@@ -151,6 +157,7 @@ class IndexProxyTest(tests.Test):
                 proxy._find()[0])
 
     def test_Update_Adds(self):
+        self.setup_document()
         proxy = IndexProxy(self.metadata)
 
         self.assertEqual(
@@ -181,6 +188,7 @@ class IndexProxyTest(tests.Test):
                 proxy._find()[0])
 
     def test_Update_Deletes(self):
+        self.setup_document()
         proxy = IndexProxy(self.metadata)
 
         self.assertEqual(
@@ -204,6 +212,7 @@ class IndexProxyTest(tests.Test):
                 proxy._find(request={'common': 'common'}))
 
     def test_Get(self):
+        self.setup_document()
         doc = self.Document(term='3', not_term='3', common='3')
         doc.post()
 
@@ -213,6 +222,7 @@ class IndexProxyTest(tests.Test):
         self.assertEqual('3', doc_2.common)
 
     def test_Document_merge(self):
+        self.setup_document()
         ts = int(time.time())
 
         self.Document.merge(self.doc_1.guid, {
@@ -262,6 +272,33 @@ class IndexProxyTest(tests.Test):
                 [(i.guid, i.term, i.ctime) for i in self.Document.find(0, 100)[0]])
 
         del self.committed[:]
+
+    def test_FindByListProps(self):
+
+        class Document2(document.Document):
+
+            @active_property(prefix='A', typecast=[])
+            def prop(self, value):
+                return value
+
+        index_queue.close()
+        Document2.init(IndexProxy)
+        index_queue.init([Document2])
+        proxy = IndexProxy(Document2.metadata)
+
+        proxy.store('1', {'ctime': 0, 'mtime': 0, 'seqno': 0, 'prop': ('a',)}, True)
+        proxy.store('2', {'ctime': 0, 'mtime': 0, 'seqno': 0, 'prop': ('a', 'aa')}, True)
+        proxy.store('3', {'ctime': 0, 'mtime': 0, 'seqno': 0, 'prop': ('aa', 'aaa')}, True)
+
+        self.assertEqual(
+                ['1', '2'],
+                [i['guid'] for i in proxy._find(request={'prop': 'a'})[0]])
+        self.assertEqual(
+                ['2', '3'],
+                [i['guid'] for i in proxy._find(request={'prop': 'aa'})[0]])
+        self.assertEqual(
+                ['3'],
+                [i['guid'] for i in proxy._find(request={'prop': 'aaa'})[0]])
 
 
 class IndexProxy(index_proxy.IndexProxy):

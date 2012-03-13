@@ -131,8 +131,17 @@ class IndexProxy(IndexReader):
 
         terms = set()
         for prop_name, value in request.items():
-            if _is_term(self.metadata[prop_name]):
-                terms.add((prop_name, value))
+            prop = self.metadata[prop_name]
+            if not _is_term(prop):
+                continue
+            try:
+                value = prop.convert(value)
+            except ValueError, error:
+                _logger.debug('Wrong request property value %r for "%s" ' \
+                        'property, thus the whole request is empty: %s',
+                        value, prop_name, error)
+                return None, None, None
+            terms.add(_TermValue(prop, value))
 
         for cache in self._cache.values():
             if cache.new:
@@ -192,15 +201,17 @@ class _CachedDocument(object):
         self.new = new
         self.terms = set()
         self.orig_terms = set()
-        self._term_names = []
+        self._term_props = []
 
         if not new:
             record = Storage(metadata).get(guid)
         for prop_name, prop in metadata.items():
-            if _is_term(prop):
-                self._term_names.append(prop_name)
-                if not new:
-                    self.orig_terms.add((prop_name, record.get(prop_name)))
+            if not _is_term(prop):
+                continue
+            self._term_props.append(prop)
+            if not new:
+                self.orig_terms.add(_TermValue(prop, record.get(prop_name)))
+
         self._update_terms()
 
     def __sort__(self, other):
@@ -212,10 +223,36 @@ class _CachedDocument(object):
 
     def _update_terms(self):
         self.terms.clear()
-        orig_terms = dict(self.orig_terms)
-        for prop_name in self._term_names:
-            term = self.properties.get(prop_name, orig_terms.get(prop_name))
-            self.terms.add((prop_name, term))
+        orig_terms = {}
+        for i in self.orig_terms:
+            orig_terms[i.prop] = i.value
+        for prop in self._term_props:
+            term = self.properties.get(prop.name, orig_terms.get(prop))
+            self.terms.add(_TermValue(prop, term))
+
+
+class _TermValue:
+
+    def __init__(self, prop, value):
+        self.prop = prop
+        self.value = value
+
+    def __cmp__(self, other):
+        result = cmp(self.prop.name, other.prop.name)
+        if result:
+            return result
+        if not self.prop.composite:
+            return cmp(self.value, other.value)
+        self_value = set(self.value)
+        other_value = set(other.value)
+        if self_value.issubset(other_value) or \
+                other_value.issubset(self_value):
+            return 0
+        else:
+            return cmp(self.value, other.value)
+
+    def __hash__(self):
+        return hash(self.prop.name)
 
 
 def _is_term(prop):

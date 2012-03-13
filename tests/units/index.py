@@ -508,6 +508,25 @@ class IndexTest(tests.Test):
                 ([{'guid': '1'}], 1),
                 db._find(query='%s:=test' % term, reply=['guid']))
 
+    def test_find_WithListProps(self):
+        db = Index({'prop': ActiveProperty('prop', None, 'A', full_text=True, typecast=[])})
+
+        db.store('1', {'prop': ('a', )}, True)
+        db.store('2', {'prop': ('a', 'aa')}, True)
+        db.store('3', {'prop': ('aa', 'aaa')}, True)
+
+        self.assertEqual(
+                ([{'guid': '1'}, {'guid': '2'}], 2),
+                db._find(request={'prop': 'a'}, reply=['prop']))
+
+        self.assertEqual(
+                ([{'guid': '2'}, {'guid': '3'}], 2),
+                db._find(request={'prop': 'aa'}))
+
+        self.assertEqual(
+                ([{'guid': '3'}], 1),
+                db._find(request={'prop': 'aaa'}))
+
 
 class Index(index.IndexWriter):
 
