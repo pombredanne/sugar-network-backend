@@ -276,7 +276,6 @@ class IndexWriter(IndexReader):
 
     def __init__(self, metadata):
         IndexReader.__init__(self, metadata)
-        self._pending_writes = 0
         self._open(False)
 
     def close(self):
@@ -322,7 +321,6 @@ class IndexWriter(IndexReader):
 
         if post_cb is not None:
             post_cb(guid, properties, new)
-        self._pending_writes += 1
 
     def delete(self, guid, post_cb=None):
         _logger.debug('Delete "%s" document from "%s"',
@@ -330,14 +328,10 @@ class IndexWriter(IndexReader):
         self._db.delete_document(_term(env.GUID_PREFIX, guid))
         if post_cb is not None:
             post_cb(guid)
-        self._pending_writes += 1
 
     def commit(self):
-        if not self._pending_writes:
-            return
-
-        _logger.debug('Commiting %s changes of "%s" index to the disk',
-                self._pending_writes, self.metadata.name)
+        _logger.debug('Commiting changes of "%s" index to the disk',
+                self.metadata.name)
         ts = time.time()
 
         if hasattr(self._db, 'commit'):
@@ -345,7 +339,6 @@ class IndexWriter(IndexReader):
         else:
             self._db.flush()
         self._touch_stamp()
-        self._pending_writes = 0
         self.metadata.commit_seqno()
 
         _logger.debug('Commit "%s" changes took %s seconds',

@@ -52,6 +52,14 @@ class _Folder(dict):
 
         index_queue.init(self.documents)
 
+        for cls in self.documents:
+            populating = False
+            for __ in cls.populate():
+                if not populating:
+                    _logger.info(_('Start populating "%s" index'),
+                            cls.metadata.name)
+                    populating = True
+
         _logger.info(_('Open "%s" documents folder in "%s"'),
                 self.id, env.data_root.value)
 

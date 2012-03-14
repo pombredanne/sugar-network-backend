@@ -24,19 +24,10 @@ class IndexQueueTest(tests.Test):
         tests.Test.setUp(self)
 
         class Document(document.Document):
-
-            populate_timeout = 0
-
-            @active_property(slot=1, prefix='P', full_text=True)
-            def prop(self, value):
-                return value
-
-            @classmethod
-            def populate(cls):
-                time.sleep(cls.populate_timeout)
-                return []
+            pass
 
         Document.init(IndexProxy)
+        index_queue.init([Document])
         self.Document = Document
 
     def tearDown(self):
@@ -44,139 +35,75 @@ class IndexQueueTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_put(self):
-        index_queue.init([self.Document])
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 0
 
-        doc_1 = self.Document(prop='value_1')
-        doc_1.post()
+        put = []
+        index_queue.put('document', lambda *args: put.append(1))
+        index_queue.put('document', lambda *args: put.append(2))
+        index_queue.put('document', lambda *args: put.append(3))
 
-        doc_2 = self.Document(prop='value_2')
-        doc_2.post()
-
-        index_queue.close()
-
-        db = IndexWriter(self.Document.metadata)
-        documents, total = db.find(0, 10, {})
-        self.assertEqual(2, total.value)
-        self.assertEqual(
-                sorted([(doc_1.guid, 'value_1'), (doc_2.guid, 'value_2')]),
-                sorted([(guid, props['prop']) for guid, props in documents]))
+        self.assertEqual([], put)
+        self.assertEqual(0, index_queue.commit_seqno('document'))
+        index_queue.commit_and_wait('document')
+        self.assertEqual([1, 2, 3], put)
+        self.assertEqual(1, index_queue.commit_seqno('document'))
+        index_queue.commit_and_wait('document')
+        self.assertEqual(1, index_queue.commit_seqno('document'))
 
     def test_FlushThreshold(self):
-        commits = []
-
-        def waiter():
-            while True:
-                index_queue.wait_commit('document')
-                commits.append(True)
-
-        index_queue.init([self.Document])
-        waiter_job = gevent.spawn(waiter)
+        env.index_flush_timeout.value = 0
 
         env.index_flush_threshold.value = 1
-        self.Document(prop='value').post()
-        gevent.sleep(3)
-        self.assertEqual(1, len(commits))
+        self.assertEqual(0, index_queue.commit_seqno('document'))
+        self.assertEqual(1, index_queue.put('document', lambda *args: None))
+        self.assertEqual(2, index_queue.put('document', lambda *args: None))
+        self.assertEqual(3, index_queue.put('document', lambda *args: None))
+        index_queue.commit_and_wait('document')
+        self.assertEqual(3, index_queue.commit_seqno('document'))
+        index_queue.close()
 
         env.index_flush_threshold.value = 2
-        self.Document(prop='value').post()
-        self.Document(prop='value').post()
-        gevent.sleep(3)
-        self.assertEqual(2, len(commits))
-
-        env.index_flush_threshold.value = 3
-        self.Document(prop='value').post()
-        gevent.sleep(3)
-        self.assertEqual(2, len(commits))
-
-        waiter_job.kill()
-
-    def test_PutWait(self):
-        self.Document.populate_timeout = 1
-
-        def put(value):
-            self.Document(prop=value).post()
-
         index_queue.init([self.Document])
-
-        jobs = []
-        for i in range(3):
-            jobs.append(gevent.spawn(put, str(i)))
-
-        gevent.joinall(jobs)
+        self.assertEqual(0, index_queue.commit_seqno('document'))
+        self.assertEqual(1, index_queue.put('document', lambda *args: None))
+        self.assertEqual(1, index_queue.put('document', lambda *args: None))
+        self.assertEqual(2, index_queue.put('document', lambda *args: None))
+        self.assertEqual(2, index_queue.put('document', lambda *args: None))
+        self.assertEqual(3, index_queue.put('document', lambda *args: None))
+        index_queue.commit_and_wait('document')
+        self.assertEqual(3, index_queue.commit_seqno('document'))
         index_queue.close()
 
     def test_FlushTimeout(self):
         env.index_flush_threshold.value = 0
-        env.index_flush_timeout.value = 2
+        env.index_flush_timeout.value = 1
 
-        index_queue.init([self.Document])
-
-        committed = []
-
-        def waiter():
-            index_queue.wait_commit('document')
-            committed.append(True)
-
-        gevent.spawn(waiter)
-        self.Document(prop='value').post()
-
-        gevent.sleep(1)
-        self.assertEqual(0, len(committed))
-
-        gevent.sleep(3)
-        self.assertEqual(1, len(committed))
-
-        index_queue.close()
-
-    def test_Populate(self):
-        self.touch(
-                ('document/1/1/.seqno', ''),
-                ('document/1/1/guid', '1'),
-                ('document/1/1/ctime', '1'),
-                ('document/1/1/mtime', '1'),
-
-                ('document/2/2/.seqno', ''),
-                ('document/2/2/guid', '2'),
-                ('document/2/2/ctime', '2'),
-                ('document/2/2/mtime', '2'),
-                )
-
-        class Document(document.Document):
-            pass
-        Document.init(IndexProxy)
-        index_queue.init([Document])
-        Document.commit()
-        self.assertEqual(
-                sorted(['1', '2']),
-                sorted([i.guid for i in Document.find()[0]]))
-        index_queue.close()
-
-        os.unlink('document/stamp')
-        shutil.rmtree('document/index')
-
-        class Document(document.Document):
-            pass
-        Document.init(IndexProxy)
-        index_queue.init([Document])
-        Document.commit()
-        self.assertEqual(
-                sorted(['1', '2']),
-                sorted([i.guid for i in Document.find()[0]]))
-        index_queue.close()
-
+        self.assertEqual(0, index_queue.commit_seqno('document'))
+        self.assertEqual(1, index_queue.put('document', lambda *args: None))
+        self.assertEqual(1, index_queue.put('document', lambda *args: None))
+        self.assertEqual(1, index_queue.put('document', lambda *args: None))
         time.sleep(1)
-        shutil.rmtree('document/index')
-        self.touch('document/stamp')
+        self.assertEqual(1, index_queue.put('document', lambda *args: None))
+        self.assertEqual(2, index_queue.put('document', lambda *args: None))
+        self.assertEqual(2, index_queue.put('document', lambda *args: None))
+        time.sleep(1)
+        self.assertEqual(2, index_queue.put('document', lambda *args: None))
+        self.assertEqual(3, index_queue.put('document', lambda *args: None))
+        self.assertEqual(3, index_queue.put('document', lambda *args: None))
+        index_queue.commit_and_wait('document')
+        self.assertEqual(3, index_queue.commit_seqno('document'))
 
-        class Document(document.Document):
-            pass
-        Document.init(IndexProxy)
-        index_queue.init([Document])
-        Document.commit()
-        self.assertEqual(
-                sorted([]),
-                sorted([i.guid for i in Document.find()[0]]))
-        index_queue.close()
+    def test_FlushTimeoutGlobal(self):
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 1
+
+        self.assertEqual(1, index_queue.put('document', lambda *args: None))
+        self.assertEqual(0, index_queue.commit_seqno('document'))
+        time.sleep(1.5)
+        self.assertEqual(1, index_queue.commit_seqno('document'))
+        time.sleep(1.5)
+        self.assertEqual(1, index_queue.commit_seqno('document'))
 
 
 if __name__ == '__main__':

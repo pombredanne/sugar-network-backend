@@ -21,21 +21,15 @@ import collections
 from gettext import gettext as _
 
 import gevent
-from gevent.event import Event
 
 from active_document import env, util
 from active_document.index import IndexWriter
-from active_document.util import enforce
 
 
 errnum = 0
 
-_COMMIT = 1
-
 _queue = None
-_queue_async = None
 _write_thread = None
-_commit_async = {}
 
 _logger = logging.getLogger('ad.index_queue')
 
@@ -50,29 +44,14 @@ def init(document_classes):
         index writes for
 
     """
-    global _queue, _queue_async, _write_thread
+    global _queue, _write_thread
 
     if _queue is not None:
         return
 
     _queue = _Queue()
-    _queue_async = _AsyncEvent()
-
-    classes = []
-    for cls in document_classes:
-        _commit_async[cls.metadata.name] = _AsyncEvent()
-        classes.append(cls)
-
-    _write_thread = _WriteThread(classes)
+    _write_thread = _WriteThread(document_classes)
     _write_thread.start()
-
-    for cls in classes:
-        populating = False
-        for __ in cls.populate():
-            if not populating:
-                _logger.info(_('Start populating "%s" index'),
-                        cls.metadata.name)
-                populating = True
 
 
 def put(document, op, *args):
@@ -86,24 +65,11 @@ def put(document, op, *args):
         arbitrary function
     :param args:
         optional arguments to pass to `op`
+    :returns:
+        commit seqno put was associated with
 
     """
-    _queue.push(document, op, *args)
-
-
-def wait_commit(document):
-    """Wait for changes in the specified document index.
-
-    Function will be stuck in green wait until specified document index
-    won't be flushed to the disk.
-
-    :param document:
-        document index name
-
-    """
-    enforce(document in _commit_async,
-            _('Document "%s" is not registered in `init()` call'), document)
-    _commit_async[document].wait()
+    return _queue.push(False, document, op, *args)
 
 
 def commit(document):
@@ -113,7 +79,7 @@ def commit(document):
         document index name
 
     """
-    put(document, _COMMIT)
+    _queue.push(True, document)
 
 
 def commit_and_wait(document):
@@ -126,8 +92,13 @@ def commit_and_wait(document):
         document index name
 
     """
-    seqno = _queue.push(document, _COMMIT)
-    _commit_async[document].wait(seqno)
+    _queue.push(True, document)
+    _queue.wait()
+
+
+def commit_seqno(document):
+    """Last commit seqno."""
+    return _queue.commit_seqno(document)
 
 
 def close():
@@ -137,21 +108,7 @@ def close():
         return
     put(None, None)
     _write_thread.join()
-    _queue_async.close()
-    while _commit_async:
-        __, async = _commit_async.popitem()
-        async.close()
     _queue = None
-
-
-class _IndexWriter(IndexWriter):
-
-    def commit(self):
-        self.commit_with_send(None)
-
-    def commit_with_send(self, seqno):
-        IndexWriter.commit(self)
-        _commit_async[self.metadata.name].send(seqno)
 
 
 class _WriteThread(threading.Thread):
@@ -183,39 +140,30 @@ class _WriteThread(threading.Thread):
     def _run(self):
         for cls in self._document_classes:
             _logger.info(_('Open "%s" index'), cls.metadata.name)
-            self._writers[cls.metadata.name] = _IndexWriter(cls.metadata)
+            self._writers[cls.metadata.name] = IndexWriter(cls.metadata)
 
         while True:
-            try:
-                self._serve_put(*_queue.pop())
-            except _Queue.Commit, pending:
-                for i in pending:
-                    self._serve_put(*i)
-                for writer in self._writers.values():
-                    writer.commit()
+            document, op, args, to_commit = _queue.pop()
+            if document is None:
+                raise _WriteThread._Closing
+            writer = self._writers[document]
 
-    def _serve_put(self, seqno, document, op, args):
-        if document is None:
-            raise _WriteThread._Closing
-
-        _logger.debug('Start processing %r(%r) operation for "%s" index',
-                op, args, document)
-
-        # Wakeup greenlets stuck in `put()`
-        _queue_async.send()
-
-        writer = self._writers[document]
-        try:
-            if op is _COMMIT:
-                writer.commit_with_send(seqno)
-            else:
-                op(writer, *args)
-        except Exception:
-            global errnum
-            errnum += 1
-            util.exception(_logger,
-                    _('Cannot process %r(%r) operation for "%s" index'),
+            _logger.debug('Start processing %r(%r) operation for "%s" index',
                     op, args, document)
+
+            if op is not None:
+                try:
+                    op(writer, *args)
+                except Exception:
+                    global errnum
+                    errnum += 1
+                    util.exception(_logger,
+                            _('Cannot process %r(%r) for "%s" index'),
+                            op, args, document)
+            if to_commit:
+                writer.commit()
+
+            _queue.done(document, to_commit)
 
     def _close(self):
         while self._writers:
@@ -229,60 +177,29 @@ class _WriteThread(threading.Thread):
                 util.exception(_logger, _('Fail to close "%s" index'), name)
 
 
-class _AsyncEvent(object):
-
-    def __init__(self):
-        self._async = gevent.get_hub().loop.async()
-        self._event = Event()
-        self._wakeup_job = gevent.spawn(self._wakeup)
-        self._sent_seqno = None
-
-    def close(self):
-        self._wakeup_job.kill()
-
-    def send(self, arg=None):
-        self._sent_seqno = max(self._sent_seqno, arg)
-        self._async.send()
-
-    def wait(self, seqno=None):
-        if not seqno:
-            self._event.wait()
-        else:
-            while seqno > self._sent_seqno:
-                self._event.wait()
-
-    def _wakeup(self):
-        while True:
-            gevent.get_hub().wait(self._async)
-            self._event.set()
-            self._event.clear()
-
-
 class _Queue(object):
 
-    class Commit(Exception):
+    class _Seqno(object):
 
-        def __init__(self, queue):
-            self._queue = queue
-            Exception.__init__(self)
-
-        def __iter__(self):
-            while self._queue:
-                yield self._queue.popleft()
+        def __init__(self):
+            self.pending_seqno = 1
+            self.commit_seqno = 0
+            self.changes = 0
+            self.endtime = time.time() + env.index_flush_timeout.value
 
     def __init__(self):
-        self._maxsize = env.index_write_queue.value
-        self._queue = collections.deque([], self._maxsize)
+        self._queue = collections.deque()
         self._mutex = threading.Lock()
         self._push_cond = threading.Condition(self._mutex)
-        self._seqno = 0
-        self._endtime = None
-        self._pushes = 0
+        self._done_cond = threading.Condition(self._mutex)
+        self._done_async = gevent.get_hub().loop.async()
+        self._endtime = time.time() + env.index_flush_timeout.value
+        self._seqno = {}
 
-    def push(self, document, op, *args):
+    def push(self, to_commit, document, op=None, *args):
         self._mutex.acquire()
         try:
-            while len(self._queue) >= self._maxsize:
+            while len(self._queue) >= env.index_write_queue.value:
                 self._mutex.release()
                 try:
                     # This is potential race but we need it to avoid using
@@ -290,49 +207,86 @@ class _Queue(object):
                     # less not obvious behaviour). The race might be avoided
                     # by using big enough `env.index_write_queue.value`
                     _logger.debug('Postpone %r for "%s" index', op, document)
-                    _queue_async.wait()
+                    gevent.get_hub().wait(self._done_async)
                 finally:
                     self._mutex.acquire()
-            self._queue.append((self._seqno + 1, document, op, args))
-            self._pushes += 1
-            self._seqno += 1
-            self._push_cond.notify()
-            return self._seqno
+            return self._push(to_commit, document, op, args)
         finally:
             self._mutex.release()
 
     def pop(self):
-
-        def flush():
-            self._pushes = 0
-            if self._queue:
-                pending = self._queue
-                self._queue = collections.deque([], self._maxsize)
-            else:
-                pending = []
-            raise _Queue.Commit(pending)
-
         self._mutex.acquire()
         try:
-            if env.index_flush_threshold.value:
-                if self._pushes >= env.index_flush_threshold.value:
-                    flush()
-            if env.index_flush_timeout.value:
-                if not self._endtime:
-                    self._endtime = time.time() + env.index_flush_timeout.value
-                while True:
-                    remaining = self._endtime - time.time()
+            while True:
+                remaining = None
+                if env.index_flush_timeout.value:
+                    ts = time.time()
+                    remaining = self._endtime - ts
                     if remaining <= 0.0:
-                        self._endtime = None
-                        if self._pushes:
-                            flush()
-                        else:
-                            break
-                    if self._queue:
-                        break
+                        for document, seqno in self._seqno.items():
+                            if seqno.endtime <= ts:
+                                self._push(True, document, None, None)
+                        remaining = env.index_flush_timeout.value
+                        self._endtime = ts + remaining
+                if not self._queue:
                     self._push_cond.wait(remaining)
-            while not self._queue:
-                self._push_cond.wait()
-            return self._queue.popleft()
+                if self._queue:
+                    return self._queue[0]
         finally:
             self._mutex.release()
+
+    def done(self, document, to_commit):
+        self._mutex.acquire()
+        try:
+            self._queue.popleft()
+            if to_commit:
+                self._seqno[document].commit_seqno += 1
+            self._done_cond.notify()
+        finally:
+            self._mutex.release()
+        self._done_async.send()
+
+    def wait(self):
+        self._mutex.acquire()
+        try:
+            while self._queue:
+                self._done_cond.wait()
+        finally:
+            self._mutex.release()
+
+    def commit_seqno(self, document):
+        self._mutex.acquire()
+        try:
+            seqno = self._seqno.get(document)
+            return 0 if seqno is None else seqno.commit_seqno
+        finally:
+            self._mutex.release()
+
+    def _push(self, to_commit, document, op, args):
+        seqno = self._seqno.get(document)
+        if seqno is None:
+            seqno = self._seqno[document] = _Queue._Seqno()
+        old_pending_seqno = seqno.pending_seqno
+        if op is not None:
+            seqno.changes += 1
+
+        if env.index_flush_threshold.value:
+            if seqno.changes >= env.index_flush_threshold.value:
+                to_commit = True
+        if env.index_flush_timeout.value:
+            ts = time.time()
+            if seqno.endtime <= ts:
+                to_commit = True
+                seqno.endtime = ts + env.index_flush_timeout.value
+
+        if to_commit:
+            if seqno.changes:
+                seqno.pending_seqno += 1
+                seqno.changes = 0
+            else:
+                to_commit = False
+
+        self._queue.append((document, op, args, to_commit))
+        self._push_cond.notify()
+
+        return old_pending_seqno
