@@ -396,28 +396,6 @@ class IndexTest(tests.Test):
                 [{'guid': '2'}],
                 db._find(query='c', reply=['guid'])[0])
 
-    def test_FlushThreshold(self):
-        env.index_flush_threshold.value = 2
-        env.index_flush_timeout.value = 0
-        db = Index({'key': ActiveProperty('key', 1, 'K')})
-
-        db.store('1', {'key': '1'}, True)
-        self.assertEqual(0, db.committed)
-
-        db.store('2', {'key': '2'}, True)
-        self.assertEqual(1, db.committed)
-
-        db.store('3', {'key': '3'}, True)
-        self.assertEqual(1, db.committed)
-
-        db.store('4', {'key': '4'}, True)
-        self.assertEqual(2, db.committed)
-
-        db.store('5', {'key': '5'}, True)
-        self.assertEqual(2, db.committed)
-
-        self.assertEqual(5, db._find()[-1])
-
     def test_LayoutVersion(self):
         db = Index({})
         assert exists('index/version')
@@ -462,6 +440,7 @@ class IndexTest(tests.Test):
 
         db = Index({})
         db.store('1', {}, True)
+        db.commit()
         self.assertNotEqual(0, db.mtime)
         mtime = db.mtime
         db.close()
@@ -469,11 +448,13 @@ class IndexTest(tests.Test):
         time.sleep(1)
 
         db = Index({})
+        db.commit()
         self.assertEqual(mtime, db.mtime)
         db.close()
 
         db = Index({})
         db.store('2', {}, True)
+        db.commit()
         self.assertNotEqual(mtime, db.mtime)
         db.close()
 
@@ -538,11 +519,6 @@ class Index(index.IndexWriter):
                 prefix=env.GUID_PREFIX)
 
         index.IndexWriter.__init__(self, metadata)
-        self.committed = 0
-
-    def commit(self):
-        index.IndexWriter.commit(self)
-        self.committed += 1
 
     def _find(self, offset=0, limit=1024, request=None, query=None, reply=None,
             order_by=None):

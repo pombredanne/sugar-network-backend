@@ -129,14 +129,13 @@ class IndexProxyTest(tests.Test):
 
     def test_Create_FindForNotCreatedDB(self):
 
-        class Document2(document.Document):
+        class Document(document.Document):
             pass
 
-        index_queue.close()
-        Document2.init(IndexProxy)
-        index_queue.init([Document2])
+        Document.init(IndexProxy)
+        index_queue.init([Document])
 
-        proxy = IndexProxy(Document2.metadata)
+        proxy = IndexProxy(Document.metadata)
         proxy.store('1', {'ctime': 1, 'mtime': 1, 'seqno': 0}, True)
         self.assertEqual(
                 [{'guid': '1'}],
@@ -275,16 +274,15 @@ class IndexProxyTest(tests.Test):
 
     def test_FindByListProps(self):
 
-        class Document2(document.Document):
+        class Document(document.Document):
 
             @active_property(prefix='A', typecast=[])
             def prop(self, value):
                 return value
 
-        index_queue.close()
-        Document2.init(IndexProxy)
-        index_queue.init([Document2])
-        proxy = IndexProxy(Document2.metadata)
+        Document.init(IndexProxy)
+        index_queue.init([Document])
+        proxy = IndexProxy(Document.metadata)
 
         proxy.store('1', {'ctime': 0, 'mtime': 0, 'seqno': 0, 'prop': ('a',)}, True)
         proxy.store('2', {'ctime': 0, 'mtime': 0, 'seqno': 0, 'prop': ('a', 'aa')}, True)
@@ -299,6 +297,31 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(
                 ['3'],
                 [i['guid'] for i in proxy._find(request={'prop': 'aaa'})[0]])
+
+    def test_SeamlessCache(self):
+
+        class Document(document.Document):
+            pass
+
+        Document.init(IndexProxy)
+        index_queue.init([Document])
+        proxy = IndexProxy(Document.metadata)
+
+        def wait_commit(*args):
+            gevent.sleep(1)
+
+        self.override(index_queue, 'wait_commit', wait_commit)
+        self.override(index_queue, 'put', lambda *args: None)
+
+        proxy.store('1', {'ctime': 0, 'mtime': 0, 'seqno': 0}, True)
+        proxy.store('2', {'ctime': 0, 'mtime': 0, 'seqno': 0}, True)
+        proxy.store('3', {'ctime': 0, 'mtime': 0, 'seqno': 0}, True)
+
+        gevent.sleep(2)
+
+        self.assertEqual(
+                ['1', '2', '3'],
+                [i['guid'] for i in proxy._find()[0]])
 
 
 class IndexProxy(index_proxy.IndexProxy):

@@ -61,21 +61,34 @@ class IndexQueueTest(tests.Test):
                 sorted([(doc_1.guid, 'value_1'), (doc_2.guid, 'value_2')]),
                 sorted([(guid, props['prop']) for guid, props in documents]))
 
-    def test_wait(self):
-        event = Event()
+    def test_FlushThreshold(self):
+        commits = []
 
         def waiter():
-            index_queue.wait_commit('document')
-            event.set()
-
-        def put():
-            gevent.sleep(1)
-            self.Document(prop='value').post()
-            event.wait()
+            while True:
+                index_queue.wait_commit('document')
+                commits.append(True)
 
         index_queue.init([self.Document])
-        gevent.joinall([gevent.spawn(waiter), gevent.spawn(put)])
-        index_queue.close()
+        waiter_job = gevent.spawn(waiter)
+
+        env.index_flush_threshold.value = 1
+        self.Document(prop='value').post()
+        gevent.sleep(3)
+        self.assertEqual(1, len(commits))
+
+        env.index_flush_threshold.value = 2
+        self.Document(prop='value').post()
+        self.Document(prop='value').post()
+        gevent.sleep(3)
+        self.assertEqual(2, len(commits))
+
+        env.index_flush_threshold.value = 3
+        self.Document(prop='value').post()
+        gevent.sleep(3)
+        self.assertEqual(2, len(commits))
+
+        waiter_job.kill()
 
     def test_PutWait(self):
         self.Document.populate_timeout = 1

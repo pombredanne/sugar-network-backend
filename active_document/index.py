@@ -319,24 +319,24 @@ class IndexWriter(IndexReader):
                     term_generator.increase_termpos()
 
         self._db.replace_document(_term(env.GUID_PREFIX, guid), document)
-        self._commit()
 
         if post_cb is not None:
             post_cb(guid, properties, new)
+        self._pending_writes += 1
 
     def delete(self, guid, post_cb=None):
         _logger.debug('Delete "%s" document from "%s"',
                 guid, self.metadata.name)
         self._db.delete_document(_term(env.GUID_PREFIX, guid))
-        self._commit()
         if post_cb is not None:
             post_cb(guid)
+        self._pending_writes += 1
 
     def commit(self):
         if not self._pending_writes:
             return
 
-        _logger.debug('Commiting %s changes of "%s" to the disk',
+        _logger.debug('Commiting %s changes of "%s" index to the disk',
                 self._pending_writes, self.metadata.name)
         ts = time.time()
 
@@ -373,12 +373,6 @@ class IndexWriter(IndexReader):
 
         if reset:
             self._save_layout()
-
-    def _commit(self):
-        self._pending_writes += 1
-        if env.index_flush_threshold.value and \
-                self._pending_writes >= env.index_flush_threshold.value:
-            self.commit()
 
     def _is_layout_stale(self):
         path = self.metadata.ensure_path('version')

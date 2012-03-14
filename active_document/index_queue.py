@@ -17,7 +17,7 @@ import time
 import thread
 import logging
 import threading
-import Queue as queue
+import collections
 from gettext import gettext as _
 
 import gevent
@@ -36,7 +36,6 @@ _queue = None
 _queue_async = None
 _write_thread = None
 _commit_async = {}
-_put_seqno = 0
 
 _logger = logging.getLogger('ad.index_queue')
 
@@ -56,7 +55,7 @@ def init(document_classes):
     if _queue is not None:
         return
 
-    _queue = queue.Queue(env.index_write_queue.value)
+    _queue = _Queue()
     _queue_async = _AsyncEvent()
 
     classes = []
@@ -89,7 +88,7 @@ def put(document, op, *args):
         optional arguments to pass to `op`
 
     """
-    _put(document, op, *args)
+    _queue.push(document, op, *args)
 
 
 def wait_commit(document):
@@ -127,9 +126,8 @@ def commit_and_wait(document):
         document index name
 
     """
-    seqno = _put(document, _COMMIT)
-    while _commit_async[document].wait() != seqno:
-        pass
+    seqno = _queue.push(document, _COMMIT)
+    _commit_async[document].wait(seqno)
 
 
 def close():
@@ -187,19 +185,14 @@ class _WriteThread(threading.Thread):
             _logger.info(_('Open "%s" index'), cls.metadata.name)
             self._writers[cls.metadata.name] = _IndexWriter(cls.metadata)
 
-        next_commit = 0
         while True:
-            if env.index_flush_timeout.value and not next_commit:
-                next_commit = time.time() + env.index_flush_timeout.value
             try:
-                timeout = None
-                if next_commit:
-                    timeout = max(1, next_commit - time.time())
-                self._serve_put(*_queue.get(timeout=timeout))
-            except queue.Empty:
+                self._serve_put(*_queue.pop())
+            except _Queue.Commit, pending:
+                for i in pending:
+                    self._serve_put(*i)
                 for writer in self._writers.values():
                     writer.commit()
-                next_commit = 0
 
     def _serve_put(self, seqno, document, op, args):
         if document is None:
@@ -242,18 +235,21 @@ class _AsyncEvent(object):
         self._async = gevent.get_hub().loop.async()
         self._event = Event()
         self._wakeup_job = gevent.spawn(self._wakeup)
-        self._arg = None
+        self._sent_seqno = None
 
     def close(self):
         self._wakeup_job.kill()
 
     def send(self, arg=None):
-        self._arg = arg
+        self._sent_seqno = max(self._sent_seqno, arg)
         self._async.send()
 
-    def wait(self):
-        self._event.wait()
-        return self._arg
+    def wait(self, seqno=None):
+        if not seqno:
+            self._event.wait()
+        else:
+            while seqno > self._sent_seqno:
+                self._event.wait()
 
     def _wakeup(self):
         while True:
@@ -262,17 +258,81 @@ class _AsyncEvent(object):
             self._event.clear()
 
 
-def _put(document, op, *args):
-    while True:
-        global _put_seqno
+class _Queue(object):
+
+    class Commit(Exception):
+
+        def __init__(self, queue):
+            self._queue = queue
+            Exception.__init__(self)
+
+        def __iter__(self):
+            while self._queue:
+                yield self._queue.popleft()
+
+    def __init__(self):
+        self._maxsize = env.index_write_queue.value
+        self._queue = collections.deque([], self._maxsize)
+        self._mutex = threading.Lock()
+        self._push_cond = threading.Condition(self._mutex)
+        self._seqno = 0
+        self._endtime = None
+        self._pushes = 0
+
+    def push(self, document, op, *args):
+        self._mutex.acquire()
         try:
-            _queue.put((_put_seqno + 1, document, op, args), False)
-            _put_seqno += 1
-            return _put_seqno
-        except queue.Full:
-            _logger.debug('Postpone %r operation for "%s" index',
-                    op, document)
-            # This is potential race (we released `_queue`'s mitex),
-            # but we need to avoid locking greenlets in `_queue`'s mutex.
-            # The race might be avoided by using big enough `_queue`'s size
-            _queue_async.wait()
+            while len(self._queue) >= self._maxsize:
+                self._mutex.release()
+                try:
+                    # This is potential race but we need it to avoid using
+                    # gevent.monkey patching (less not obvious code,
+                    # less not obvious behaviour). The race might be avoided
+                    # by using big enough `env.index_write_queue.value`
+                    _logger.debug('Postpone %r for "%s" index', op, document)
+                    _queue_async.wait()
+                finally:
+                    self._mutex.acquire()
+            self._queue.append((self._seqno + 1, document, op, args))
+            self._pushes += 1
+            self._seqno += 1
+            self._push_cond.notify()
+            return self._seqno
+        finally:
+            self._mutex.release()
+
+    def pop(self):
+
+        def flush():
+            self._pushes = 0
+            if self._queue:
+                pending = self._queue
+                self._queue = collections.deque([], self._maxsize)
+            else:
+                pending = []
+            raise _Queue.Commit(pending)
+
+        self._mutex.acquire()
+        try:
+            if env.index_flush_threshold.value:
+                if self._pushes >= env.index_flush_threshold.value:
+                    flush()
+            if env.index_flush_timeout.value:
+                if not self._endtime:
+                    self._endtime = time.time() + env.index_flush_timeout.value
+                while True:
+                    remaining = self._endtime - time.time()
+                    if remaining <= 0.0:
+                        self._endtime = None
+                        if self._pushes:
+                            flush()
+                        else:
+                            break
+                    if self._queue:
+                        break
+                    self._push_cond.wait(remaining)
+            while not self._queue:
+                self._push_cond.wait()
+            return self._queue.popleft()
+        finally:
+            self._mutex.release()
