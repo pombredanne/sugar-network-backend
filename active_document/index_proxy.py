@@ -80,17 +80,7 @@ class IndexProxy(IndexReader):
         self._put(IndexWriter.delete, guid, post_cb)
 
     def find(self, query):
-        if self._db is None:
-            if exists(self.metadata.path('index')):
-                self._reopen()
-        else:
-            seqno = index_queue.commit_seqno(self.metadata.name)
-            if seqno != self._commit_seqno:
-                self._reopen()
-                for page_num in self._pages.keys():
-                    if page_num <= seqno:
-                        del self._pages[page_num]
-                self._commit_seqno = seqno
+        self._reopen()
 
         if query.no_cache:
             pages = []
@@ -112,6 +102,14 @@ class IndexProxy(IndexReader):
         return [self._pages[i] for i in sorted(self._pages.keys())]
 
     def _reopen(self):
+        if self._db is None:
+            if not exists(self.metadata.path('index')):
+                return
+        else:
+            seqno = index_queue.commit_seqno(self.metadata.name)
+            if seqno == self._commit_seqno:
+                return
+
         try:
             if self._db is None:
                 self._db = xapian.Database(self.metadata.path('index'))
@@ -123,6 +121,12 @@ class IndexProxy(IndexReader):
             util.exception(_logger,
                     'Cannot open "%s" RO index', self.metadata.name)
             self._db = None
+            return
+
+        self._commit_seqno = index_queue.commit_seqno(self.metadata.name)
+        for seqno in self._pages.keys():
+            if seqno <= self._commit_seqno:
+                del self._pages[seqno]
 
     def _put(self, op, *args):
         _logger.debug('Push %r(%r) to "%s"\'s queue',

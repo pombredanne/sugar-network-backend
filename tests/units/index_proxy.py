@@ -14,7 +14,7 @@ from active_document import env
 from active_document import index_queue, document
 from active_document.document_class import active_property
 from active_document.index_proxy import IndexProxy
-from active_document.index import IndexReader, Total
+from active_document.index import IndexReader, Total, IndexWriter
 from active_document.storage import Storage
 
 
@@ -45,13 +45,14 @@ class IndexProxyTest(tests.Test):
         env.index_flush_timeout.value = 0
 
     def test_Create(self):
+        IndexWriter(self.metadata).close()
+
         existing = ([
             ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
             ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
             ], Total(2))
 
         proxy = TestIndexProxy(self.metadata)
-        proxy._db = True
 
         self.override(IndexReader, 'find', lambda *args: existing)
         self.assertEqual(
@@ -134,6 +135,8 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
 
     def test_Update(self):
+        IndexWriter(self.metadata).close()
+
         existing = ([
             ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
             ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
@@ -145,7 +148,6 @@ class IndexProxyTest(tests.Test):
         storage.put(*existing[0][1])
 
         proxy = TestIndexProxy(self.metadata)
-        proxy._db = True
 
         proxy.store('1', {'guid': '1', 'term': 'qq', 'not_term': 'ww'}, False)
         proxy.store('2', {'guid': '2', 'term': 'aa', 'not_term': 'ss'}, False)
@@ -158,6 +160,8 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
 
     def test_Update_Adds(self):
+        IndexWriter(self.metadata).close()
+
         existing = ([
             ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
             ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
@@ -169,7 +173,6 @@ class IndexProxyTest(tests.Test):
         storage.put(*existing[0][1])
 
         proxy = TestIndexProxy(self.metadata)
-        proxy._db = True
 
         self.assertEqual(
                 sorted([
@@ -194,6 +197,8 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(request={'term': 'foo'}))
 
     def test_Update_Deletes(self):
+        IndexWriter(self.metadata).close()
+
         existing = ([
             ('1', {'guid': '1', 'term': 'orig', 'not_term': ''}),
             ('2', {'guid': '2', 'term': 'orig', 'not_term': ''}),
@@ -205,7 +210,6 @@ class IndexProxyTest(tests.Test):
         storage.put(*existing[0][1])
 
         proxy = TestIndexProxy(self.metadata)
-        proxy._db = True
 
         self.assertEqual(
                 sorted([
@@ -283,6 +287,8 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(request={'prop': 'aaa'}))
 
     def test_SeamlessCache(self):
+        IndexWriter(self.metadata).close()
+
         existing = ([
             ('1', {'guid': '1', 'term': 'orig', 'not_term': 'a'}),
             ], Total(1))
@@ -290,7 +296,6 @@ class IndexProxyTest(tests.Test):
         storage.put(*existing[0][0])
 
         proxy = TestIndexProxy(self.metadata)
-        proxy._db = True
 
         self.override(index_queue, 'put', lambda *args: 2)
         proxy.store('2', {'guid': '2', 'term': 'orig', 'not_term': 'b'}, True)
@@ -390,7 +395,9 @@ class IndexProxyTest(tests.Test):
                     ]),
                 proxy.find_(request={'term': 'new'}))
 
-    def test_SeamlessCache_DropPages(self):
+    def test_DropPages(self):
+        IndexWriter(self.metadata).close()
+
         proxy = TestIndexProxy(self.metadata)
 
         self.override(index_queue, 'put', lambda *args: 2)
@@ -403,7 +410,6 @@ class IndexProxyTest(tests.Test):
         proxy.store('4', {'guid': '4', 'term': ' ', 'not_term': ' '}, True)
         self.assertEqual(5, len(proxy._pages))
 
-        proxy._db = True
         self.override(index_queue, 'commit_seqno', lambda *args: 0)
         self.assertEqual(
                 sorted([
@@ -415,7 +421,6 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
         self.assertEqual(5, len(proxy._pages))
 
-        proxy._db = True
         self.override(index_queue, 'commit_seqno', lambda *args: 1)
         self.assertEqual(
                 sorted([
@@ -426,7 +431,6 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
         self.assertEqual(4, len(proxy._pages))
 
-        proxy._db = True
         self.override(index_queue, 'commit_seqno', lambda *args: 3)
         self.assertEqual(
                 sorted([
@@ -435,7 +439,6 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
         self.assertEqual(2, len(proxy._pages))
 
-        proxy._db = True
         self.override(index_queue, 'commit_seqno', lambda *args: 4)
         self.assertEqual(
                 sorted([
@@ -443,7 +446,6 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
         self.assertEqual(1, len(proxy._pages))
 
-        proxy._db = True
         self.override(index_queue, 'commit_seqno', lambda *args: 5)
         self.assertEqual(
                 sorted([
@@ -451,13 +453,14 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
         self.assertEqual(0, len(proxy._pages))
 
-    def test_SeamlessCache_DropPages(self):
+    def test_NoCache(self):
+        IndexWriter(self.metadata).close()
+
         existing = ([
             ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
             ], Total(1))
 
         proxy = TestIndexProxy(self.metadata)
-        proxy._db = True
 
         proxy.store('2', {'guid': '2', 'term': ' ', 'not_term': ' '}, True)
 
@@ -478,6 +481,16 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     ]),
                 proxy.find_(no_cache=True))
+
+    def test_SetSeqnoOnInitialOpen(self):
+        IndexWriter(self.metadata).close()
+
+        proxy = TestIndexProxy(self.metadata)
+
+        self.assertEqual(0, proxy._commit_seqno)
+        self.override(index_queue, 'commit_seqno', lambda *args: 5)
+        proxy.find_()
+        self.assertEqual(5, proxy._commit_seqno)
 
 
 class TestIndexProxy(IndexProxy):
