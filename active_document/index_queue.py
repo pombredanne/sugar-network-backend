@@ -66,7 +66,7 @@ def put(document, op, *args):
     :param args:
         optional arguments to pass to `op`
     :returns:
-        commit seqno put was associated with
+        commit seqno that will be used for the next `put()` call
 
     """
     return _queue.push(False, document, op, *args)
@@ -266,7 +266,6 @@ class _Queue(object):
         seqno = self._seqno.get(document)
         if seqno is None:
             seqno = self._seqno[document] = _Queue._Seqno()
-        old_pending_seqno = seqno.pending_seqno
         if op is not None:
             seqno.changes += 1
 
@@ -289,4 +288,4 @@ class _Queue(object):
         self._queue.append((document, op, args, to_commit))
         self._push_cond.notify()
 
-        return old_pending_seqno
+        return seqno.pending_seqno

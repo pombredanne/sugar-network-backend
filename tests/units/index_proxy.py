@@ -11,19 +11,17 @@ from gevent.event import Event
 from __init__ import tests
 
 from active_document import env
-from active_document import index_queue, document, index_proxy
+from active_document import index_queue, document
 from active_document.document_class import active_property
-from active_document.metadata import StoredProperty
 from active_document.index_proxy import IndexProxy
+from active_document.index import IndexReader, Total
+from active_document.storage import Storage
 
 
 class IndexProxyTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.Document = None
-
-    def setup_document(self):
 
         class Document(document.Document):
 
@@ -36,241 +34,220 @@ class IndexProxyTest(tests.Test):
             def not_term(self, value):
                 return value
 
-            @active_property(slot=3, prefix='C')
-            def common(self, value):
-                return value
+        Document.init(TestIndexProxy)
+        self.metadata = Document.metadata
 
-        env.index_flush_threshold.value = 100
+        self.override(index_queue, 'put', lambda *args: 1)
+        self.override(index_queue, 'commit_seqno', lambda *args: 0)
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+
+        env.index_flush_threshold.value = 0
         env.index_flush_timeout.value = 0
 
-        self.Document = Document
-        Document.init(IndexProxy)
-        self.metadata = Document.metadata
-        index_queue.init([Document])
-
-        self.doc_1 = Document(term='1_term', not_term='1_not_term', common='common')
-        self.guid_1 = self.doc_1.guid
-        self.doc_1.post()
-
-        self.doc_2 = Document(term='2_term', not_term='2_not_term', common='common')
-        self.guid_2 = self.doc_2.guid
-        self.doc_2.post()
-
-        def waiter():
-            index_queue.wait_commit('document')
-
-        wait_job = gevent.spawn(waiter)
-        index_queue.commit('document')
-        gevent.joinall([wait_job])
-
-        self.committed = []
-
-        def waiter():
-            index_queue.wait_commit('document')
-            self.committed.append(True)
-
-        self.wait_job = gevent.spawn(waiter)
-
-    def tearDown(self):
-        if self.Document is not None:
-            assert not self.committed
-            self.wait_job.kill()
-            self.Document.close()
-        tests.Test.tearDown(self)
-
     def test_Create(self):
-        self.setup_document()
-        proxy = IndexProxy(self.metadata)
+        existing = ([
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
+            ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
+            ], Total(2))
 
+        proxy = TestIndexProxy(self.metadata)
+        proxy._db = True
+
+        self.override(IndexReader, 'find', lambda *args: existing)
         self.assertEqual(
                 sorted([
-                    {'guid': self.guid_1, 'term': '1_term', 'not_term': '1_not_term', 'common': 'common'},
-                    {'guid': self.guid_2, 'term': '2_term', 'not_term': '2_not_term', 'common': 'common'},
+                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
+                    {'guid': '2', 'term': 'a', 'not_term': 's'},
                     ]),
-                proxy._find()[0])
+                proxy.find_())
 
-        proxy.store('3', {'ctime': 1, 'mtime': 1, 'term': '3_term', 'not_term': '3_not_term', 'common': '', 'seqno': 0}, True)
-        proxy.store('4', {'ctime': 1, 'mtime': 1, 'term': '4_term', 'not_term': '4_not_term', 'common': '', 'seqno': 0}, True)
+        proxy.store('3', {'guid': '3', 'term': 'a', 'not_term': 's'}, True)
+        proxy.store('4', {'guid': '4', 'term': 'z', 'not_term': 'x'}, True)
 
+        self.override(IndexReader, 'find', lambda *args: existing)
         self.assertEqual(
                 sorted([
-                    {'guid': self.guid_2, 'term': '2_term', 'not_term': '2_not_term', 'common': 'common'},
-                    {'guid': '3', 'term': '3_term', 'not_term': '3_not_term', 'common': ''},
-                    {'guid': '4', 'term': '4_term', 'not_term': '4_not_term', 'common': ''},
+                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
+                    {'guid': '2', 'term': 'a', 'not_term': 's'},
+                    {'guid': '3', 'term': 'a', 'not_term': 's'},
+                    {'guid': '4', 'term': 'z', 'not_term': 'x'},
                     ]),
-                proxy._find(1, 4)[0])
-        self.assertEqual(
-                sorted([
-                    {'guid': '3', 'term': '3_term', 'not_term': '3_not_term', 'common': ''},
-                    ]),
-                proxy._find(request={'term': '3_term'})[0])
-        self.assertEqual(
-                sorted([
-                    {'guid': '4', 'term': '4_term', 'not_term': '4_not_term', 'common': ''},
-                    ]),
-                proxy._find(request={'guid': '4'})[0])
+                proxy.find_())
 
-        proxy.store('3', {'ctime': 1, 'mtime': 1, 'term': '3_term_2', 'not_term': '3_not_term', 'common': '', 'seqno': 0}, True)
-
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
         self.assertEqual(
                 sorted([
-                    {'guid': '3', 'term': '3_term_2', 'not_term': '3_not_term', 'common': ''},
+                    {'guid': '4', 'term': 'z', 'not_term': 'x',},
                     ]),
-                proxy._find(request={'term': '3_term_2'})[0])
+                proxy.find_(request={'guid': '4'}))
 
+        self.override(IndexReader, 'find', lambda *args: ([existing[0][1]], Total(1)))
         self.assertEqual(
                 sorted([
-                    {'guid': self.guid_1, 'term': '1_term', 'not_term': '1_not_term', 'common': 'common'},
-                    {'guid': self.guid_2, 'term': '2_term', 'not_term': '2_not_term', 'common': 'common'},
-                    {'guid': '3', 'term': '3_term_2', 'not_term': '3_not_term', 'common': ''},
-                    {'guid': '4', 'term': '4_term', 'not_term': '4_not_term', 'common': ''},
+                    {'guid': '2', 'term': 'a', 'not_term': 's'},
+                    {'guid': '3', 'term': 'a', 'not_term': 's'},
                     ]),
-                proxy._find()[0])
+                proxy.find_(request={'term': 'a'}))
+
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+        self.assertEqual(
+                sorted([
+                    {'guid': '4', 'term': 'z', 'not_term': 'x'},
+                    ]),
+                proxy.find_(request={'term': 'z'}))
+
+        self.override(IndexReader, 'find', lambda *args: ([existing[0][0]], Total(1)))
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
+                    ]),
+                proxy.find_(request={'term': 'q'}))
+
+        proxy.store('3', {'guid': '3', 'term': 'aa', 'not_term': 's'}, True)
+
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+        self.assertEqual(
+                sorted([
+                    {'guid': '3', 'term': 'aa', 'not_term': 's'},
+                    ]),
+                proxy.find_(request={'term': 'aa'}))
+
+        self.override(IndexReader, 'find', lambda *args: existing)
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
+                    {'guid': '2', 'term': 'a', 'not_term': 's'},
+                    {'guid': '3', 'term': 'aa', 'not_term': 's'},
+                    {'guid': '4', 'term': 'z', 'not_term': 'x'},
+                    ]),
+                proxy.find_())
 
     def test_Create_FindForNotCreatedDB(self):
+        proxy = TestIndexProxy(self.metadata)
+        proxy.store('1', {'guid': '1', 'term': 'a', 'not_term': 's'}, True)
 
-        class Document(document.Document):
-            pass
-
-        Document.init(IndexProxy)
-        index_queue.init([Document])
-
-        proxy = IndexProxy(Document.metadata)
-        proxy.store('1', {'ctime': 1, 'mtime': 1, 'seqno': 0}, True)
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
         self.assertEqual(
-                [{'guid': '1'}],
-                proxy._find()[0])
+                sorted([
+                    {'guid': '1', 'term': 'a', 'not_term': 's'},
+                    ]),
+                proxy.find_())
 
     def test_Update(self):
-        self.setup_document()
-        proxy = IndexProxy(self.metadata)
+        existing = ([
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
+            ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
+            ], Total(2))
+        self.override(IndexReader, 'find', lambda *args: existing)
 
-        proxy._store(self.doc_1, {'term': '1_term_2'})
-        proxy._store(self.doc_2, {'term': '2_term_2'})
+        storage = Storage(self.metadata)
+        storage.put(*existing[0][0])
+        storage.put(*existing[0][1])
+
+        proxy = TestIndexProxy(self.metadata)
+        proxy._db = True
+
+        proxy.store('1', {'guid': '1', 'term': 'qq', 'not_term': 'ww'}, False)
+        proxy.store('2', {'guid': '2', 'term': 'aa', 'not_term': 'ss'}, False)
 
         self.assertEqual(
                 sorted([
-                    {'guid': self.guid_1, 'term': '1_term_2', 'not_term': '1_not_term', 'common': 'common'},
-                    {'guid': self.guid_2, 'term': '2_term_2', 'not_term': '2_not_term', 'common': 'common'},
+                    {'guid': '1', 'term': 'qq', 'not_term': 'ww'},
+                    {'guid': '2', 'term': 'aa', 'not_term': 'ss'},
                     ]),
-                proxy._find()[0])
+                proxy.find_())
 
     def test_Update_Adds(self):
-        self.setup_document()
-        proxy = IndexProxy(self.metadata)
+        existing = ([
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
+            ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
+            ], Total(2))
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+
+        storage = Storage(self.metadata)
+        storage.put(*existing[0][0])
+        storage.put(*existing[0][1])
+
+        proxy = TestIndexProxy(self.metadata)
+        proxy._db = True
 
         self.assertEqual(
                 sorted([
                     ]),
-                proxy._find(request={'term': 'foo'})[0])
+                proxy.find_(request={'term': 'foo'}))
 
-        proxy._store(self.doc_1, {'term': 'foo'})
-        self.assertEqual(
-                sorted([
-                    {'guid': self.guid_1, 'term': 'foo', 'not_term': '1_not_term', 'common': 'common'},
-                    ]),
-                proxy._find(request={'term': 'foo'})[0])
-
-        proxy._store(self.doc_2, {'term': 'foo'})
-        self.assertEqual(
-                sorted([
-                    {'guid': self.guid_1, 'term': 'foo', 'not_term': '1_not_term', 'common': 'common'},
-                    {'guid': self.guid_2, 'term': 'foo', 'not_term': '2_not_term', 'common': 'common'},
-                    ]),
-                proxy._find(request={'term': 'foo'})[0])
+        proxy.store('1', {'guid': '1', 'term': 'foo', 'not_term': 'w'}, False)
 
         self.assertEqual(
                 sorted([
-                    {'guid': self.guid_1, 'term': 'foo', 'not_term': '1_not_term', 'common': 'common'},
-                    {'guid': self.guid_2, 'term': 'foo', 'not_term': '2_not_term', 'common': 'common'},
+                    {'guid': '1', 'term': 'foo', 'not_term': 'w'},
                     ]),
-                proxy._find()[0])
+                proxy.find_(request={'term': 'foo'}))
+
+        proxy.store('2', {'guid': '2', 'term': 'foo', 'not_term': 's'}, False)
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'foo', 'not_term': 'w'},
+                    {'guid': '2', 'term': 'foo', 'not_term': 's'},
+                    ]),
+                proxy.find_(request={'term': 'foo'}))
 
     def test_Update_Deletes(self):
-        self.setup_document()
-        proxy = IndexProxy(self.metadata)
+        existing = ([
+            ('1', {'guid': '1', 'term': 'orig', 'not_term': ''}),
+            ('2', {'guid': '2', 'term': 'orig', 'not_term': ''}),
+            ], Total(2))
+        self.override(IndexReader, 'find', lambda *args: existing)
+
+        storage = Storage(self.metadata)
+        storage.put(*existing[0][0])
+        storage.put(*existing[0][1])
+
+        proxy = TestIndexProxy(self.metadata)
+        proxy._db = True
 
         self.assertEqual(
-                (sorted([
-                    {'guid': self.guid_1, 'term': '1_term', 'not_term': '1_not_term', 'common': 'common'},
-                    {'guid': self.guid_2, 'term': '2_term', 'not_term': '2_not_term', 'common': 'common'},
-                    ]), 2),
-                proxy._find(request={'common': 'common'}))
+                sorted([
+                    {'guid': '1', 'term': 'orig', 'not_term': ''},
+                    {'guid': '2', 'term': 'orig', 'not_term': ''},
+                    ]),
+                proxy.find_(request={'term': 'orig'}))
 
-        proxy._store(self.doc_1, {'common': '1_common'})
-        self.assertEqual(
-                (sorted([
-                    {'guid': self.guid_2, 'term': '2_term', 'not_term': '2_not_term', 'common': 'common'},
-                    ]), 1),
-                proxy._find(request={'common': 'common'}))
-
-        proxy._store(self.doc_2, {'common': '2_common'})
-        self.assertEqual(
-                (sorted([
-                    ]), 0),
-                proxy._find(request={'common': 'common'}))
-
-    def test_Get(self):
-        self.setup_document()
-        doc = self.Document(term='3', not_term='3', common='3')
-        doc.post()
-
-        doc_2 = self.Document(doc.guid)
-        self.assertEqual('3', doc_2.term)
-        self.assertEqual('3', doc_2.not_term)
-        self.assertEqual('3', doc_2.common)
-
-    def test_Document_merge(self):
-        self.setup_document()
-        ts = int(time.time())
-
-        self.Document.merge(self.doc_1.guid, {
-            'term': ('2', ts + 60),
-            'not_term': ('2', ts + 60),
-            'common': ('2', ts + 60),
-            })
-        self.Document.merge(self.doc_2.guid, {
-            'term': ('3', ts + 60),
-            'not_term': ('3', ts + 60),
-            'common': ('3', ts + 60),
-            })
-        self.Document.merge('1', {
-            'guid': ('1', 1),
-            'term': ('1', 1),
-            'not_term': ('1', 1),
-            'common': ('1', 1),
-            'ctime': (1, 1),
-            })
-        self.Document.merge('4', {
-            'guid': ('4', ts + 60),
-            'term': ('4', ts + 60),
-            'not_term': ('4', ts + 60),
-            'common': ('4', ts + 60),
-            'ctime': (ts + 60, ts + 60),
-            })
+        proxy.store('1', {'guid': '1', 'term': '', 'not_term': ''}, False)
 
         self.assertEqual(
-                [(self.doc_1.guid, '2', self.doc_1.ctime),
-                    (self.doc_2.guid, '3', self.doc_2.ctime),
-                    ],
-                [(i.guid, i.term, i.ctime) for i in self.Document.find(0, 100)[0]])
+                sorted([
+                    {'guid': '2', 'term': 'orig', 'not_term': ''},
+                    ]),
+                proxy.find_(request={'term': 'orig'}))
 
-        def waiter():
-            index_queue.wait_commit('document')
-
-        wait_job = gevent.spawn(waiter)
-        index_queue.commit('document')
-        gevent.joinall([wait_job])
+        proxy.store('2', {'guid': '2', 'term': '', 'not_term': ''}, False)
 
         self.assertEqual(
-                [('1', '1', 1),
-                    (self.doc_1.guid, '2', self.doc_1.ctime),
-                    (self.doc_2.guid, '3', self.doc_2.ctime),
-                    ('4', '4', ts + 60),
-                    ],
-                [(i.guid, i.term, i.ctime) for i in self.Document.find(0, 100)[0]])
+                sorted([
+                    ]),
+                proxy.find_(request={'term': 'orig'}))
 
-        del self.committed[:]
+    def test_get_cached(self):
+        existing = ([
+            ('1', {'guid': '1', 'term': 'orig', 'not_term': ''}),
+            ('2', {'guid': '2', 'term': 'orig', 'not_term': ''}),
+            ], Total(2))
+        self.override(IndexReader, 'find', lambda *args: existing)
+
+        storage = Storage(self.metadata)
+        storage.put(*existing[0][0])
+        storage.put(*existing[0][1])
+
+        proxy = TestIndexProxy(self.metadata)
+        self.assertEqual({}, proxy.get_cached('1'))
+
+        proxy.store('1', {'guid': '1', 'term': 'new', 'not_term': 'new'}, False)
+        self.assertEqual({'guid': '1', 'term': 'new', 'not_term': 'new'}, proxy.get_cached('1'))
+
+        proxy.store('3', {'guid': '3', 'term': 'z', 'not_term': 'x'}, True)
+        self.assertEqual({'guid': '3', 'term': 'z', 'not_term': 'x'}, proxy.get_cached('3'))
 
     def test_FindByListProps(self):
 
@@ -280,79 +257,206 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(IndexProxy)
-        index_queue.init([Document])
-        proxy = IndexProxy(Document.metadata)
+        Document.init(TestIndexProxy)
+        proxy = TestIndexProxy(Document.metadata)
 
-        proxy.store('1', {'ctime': 0, 'mtime': 0, 'seqno': 0, 'prop': ('a',)}, True)
-        proxy.store('2', {'ctime': 0, 'mtime': 0, 'seqno': 0, 'prop': ('a', 'aa')}, True)
-        proxy.store('3', {'ctime': 0, 'mtime': 0, 'seqno': 0, 'prop': ('aa', 'aaa')}, True)
+        proxy.store('1', {'guid': '1', 'prop': ('a',)}, True)
+        proxy.store('2', {'guid': '2', 'prop': ('a', 'aa')}, True)
+        proxy.store('3', {'guid': '3', 'prop': ('aa', 'aaa')}, True)
 
         self.assertEqual(
-                ['1', '2'],
-                [i['guid'] for i in proxy._find(request={'prop': 'a'})[0]])
+                sorted([
+                    {'guid': '1', 'prop': ('a',)},
+                    {'guid': '2', 'prop': ('a', 'aa')},
+                    ]),
+                proxy.find_(request={'prop': 'a'}))
         self.assertEqual(
-                ['2', '3'],
-                [i['guid'] for i in proxy._find(request={'prop': 'aa'})[0]])
+                sorted([
+                    {'guid': '2', 'prop': ('a', 'aa')},
+                    {'guid': '3', 'prop': ('aa', 'aaa')},
+                    ]),
+                proxy.find_(request={'prop': 'aa'}))
         self.assertEqual(
-                ['3'],
-                [i['guid'] for i in proxy._find(request={'prop': 'aaa'})[0]])
+                sorted([
+                    {'guid': '3', 'prop': ('aa', 'aaa')},
+                    ]),
+                proxy.find_(request={'prop': 'aaa'}))
 
     def test_SeamlessCache(self):
+        existing = ([
+            ('1', {'guid': '1', 'term': 'orig', 'not_term': 'a'}),
+            ], Total(1))
+        storage = Storage(self.metadata)
+        storage.put(*existing[0][0])
 
-        class Document(document.Document):
-            pass
+        proxy = TestIndexProxy(self.metadata)
+        proxy._db = True
 
-        Document.init(IndexProxy)
-        index_queue.init([Document])
-        proxy = IndexProxy(Document.metadata)
+        self.override(index_queue, 'put', lambda *args: 2)
+        proxy.store('2', {'guid': '2', 'term': 'orig', 'not_term': 'b'}, True)
+        self.assertEqual(2, len(proxy._pages))
 
-        def wait_commit(*args):
-            gevent.sleep(1)
+        self.override(index_queue, 'put', lambda *args: 3)
+        proxy.store('3', {'guid': '3', 'term': 'orig', 'not_term': 'c'}, True)
+        self.assertEqual(3, len(proxy._pages))
 
-        self.override(index_queue, 'wait_commit', wait_commit)
-        self.override(index_queue, 'put', lambda *args: None)
-
-        proxy.store('1', {'ctime': 0, 'mtime': 0, 'seqno': 0}, True)
-        proxy.store('2', {'ctime': 0, 'mtime': 0, 'seqno': 0}, True)
-        proxy.store('3', {'ctime': 0, 'mtime': 0, 'seqno': 0}, True)
-
-        gevent.sleep(2)
-
+        self.override(IndexReader, 'find', lambda *args: existing)
         self.assertEqual(
-                ['1', '2', '3'],
-                [i['guid'] for i in proxy._find()[0]])
+                sorted([
+                    {'guid': '1', 'term': 'orig', 'not_term': 'a'},
+                    {'guid': '2', 'term': 'orig', 'not_term': 'b'},
+                    {'guid': '3', 'term': 'orig', 'not_term': 'c'},
+                    ]),
+                proxy.find_())
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'orig', 'not_term': 'a'},
+                    {'guid': '2', 'term': 'orig', 'not_term': 'b'},
+                    {'guid': '3', 'term': 'orig', 'not_term': 'c'},
+                    ]),
+                proxy.find_(request={'term': 'orig'}))
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+        self.assertEqual(
+                sorted([
+                    ]),
+                proxy.find_(request={'term': 'new'}))
+
+        proxy.store('2', {'guid': '2', 'term': 'new', 'not_term': 'b'}, False)
+
+        self.override(IndexReader, 'find', lambda *args: existing)
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'orig', 'not_term': 'a'},
+                    {'guid': '2', 'term': 'new', 'not_term': 'b'},
+                    {'guid': '3', 'term': 'orig', 'not_term': 'c'},
+                    ]),
+                proxy.find_())
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'orig', 'not_term': 'a'},
+                    {'guid': '3', 'term': 'orig', 'not_term': 'c'},
+                    ]),
+                proxy.find_(request={'term': 'orig'}))
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+        self.assertEqual(
+                sorted([
+                    {'guid': '2', 'term': 'new', 'not_term': 'b'},
+                    ]),
+                proxy.find_(request={'term': 'new'}))
+
+        proxy.store('3', {'guid': '3', 'term': 'new', 'not_term': 'c'}, False)
+
+        self.override(IndexReader, 'find', lambda *args: existing)
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'orig', 'not_term': 'a'},
+                    {'guid': '2', 'term': 'new', 'not_term': 'b'},
+                    {'guid': '3', 'term': 'new', 'not_term': 'c'},
+                    ]),
+                proxy.find_())
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'orig', 'not_term': 'a'},
+                    ]),
+                proxy.find_(request={'term': 'orig'}))
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+        self.assertEqual(
+                sorted([
+                    {'guid': '2', 'term': 'new', 'not_term': 'b'},
+                    {'guid': '3', 'term': 'new', 'not_term': 'c'},
+                    ]),
+                proxy.find_(request={'term': 'new'}))
+
+        proxy.store('1', {'guid': '1', 'term': 'new', 'not_term': 'a'}, False)
+
+        self.override(IndexReader, 'find', lambda *args: existing)
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'new', 'not_term': 'a'},
+                    {'guid': '2', 'term': 'new', 'not_term': 'b'},
+                    {'guid': '3', 'term': 'new', 'not_term': 'c'},
+                    ]),
+                proxy.find_())
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+        self.assertEqual(
+                sorted([
+                    ]),
+                proxy.find_(request={'term': 'orig'}))
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'new', 'not_term': 'a'},
+                    {'guid': '2', 'term': 'new', 'not_term': 'b'},
+                    {'guid': '3', 'term': 'new', 'not_term': 'c'},
+                    ]),
+                proxy.find_(request={'term': 'new'}))
+
+    def test_SeamlessCache_DropPages(self):
+        proxy = TestIndexProxy(self.metadata)
+
+        self.override(index_queue, 'put', lambda *args: 2)
+        proxy.store('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}, True)
+        self.override(index_queue, 'put', lambda *args: 3)
+        proxy.store('2', {'guid': '2', 'term': 'a', 'not_term': 's'}, True)
+        self.override(index_queue, 'put', lambda *args: 4)
+        proxy.store('3', {'guid': '3', 'term': 'z', 'not_term': 'x'}, True)
+        self.override(index_queue, 'put', lambda *args: 5)
+        proxy.store('4', {'guid': '4', 'term': ' ', 'not_term': ' '}, True)
+        self.assertEqual(5, len(proxy._pages))
+
+        proxy._db = True
+        self.override(index_queue, 'commit_seqno', lambda *args: 0)
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
+                    {'guid': '2', 'term': 'a', 'not_term': 's'},
+                    {'guid': '3', 'term': 'z', 'not_term': 'x'},
+                    {'guid': '4', 'term': ' ', 'not_term': ' '},
+                    ]),
+                proxy.find_())
+        self.assertEqual(5, len(proxy._pages))
+
+        proxy._db = True
+        self.override(index_queue, 'commit_seqno', lambda *args: 1)
+        self.assertEqual(
+                sorted([
+                    {'guid': '2', 'term': 'a', 'not_term': 's'},
+                    {'guid': '3', 'term': 'z', 'not_term': 'x'},
+                    {'guid': '4', 'term': ' ', 'not_term': ' '},
+                    ]),
+                proxy.find_())
+        self.assertEqual(4, len(proxy._pages))
+
+        proxy._db = True
+        self.override(index_queue, 'commit_seqno', lambda *args: 3)
+        self.assertEqual(
+                sorted([
+                    {'guid': '4', 'term': ' ', 'not_term': ' '},
+                    ]),
+                proxy.find_())
+        self.assertEqual(2, len(proxy._pages))
+
+        proxy._db = True
+        self.override(index_queue, 'commit_seqno', lambda *args: 4)
+        self.assertEqual(
+                sorted([
+                    ]),
+                proxy.find_())
+        self.assertEqual(1, len(proxy._pages))
+
+        proxy._db = True
+        self.override(index_queue, 'commit_seqno', lambda *args: 5)
+        self.assertEqual(
+                sorted([
+                    ]),
+                proxy.find_())
+        self.assertEqual(0, len(proxy._pages))
 
 
-class IndexProxy(index_proxy.IndexProxy):
+class TestIndexProxy(IndexProxy):
 
-    def _find(self, offset=0, limit=100, request=None):
-        if request is None:
-            request = {}
-        documents, total = self.find(offset, limit, request,
-                reply=['guid', 'term', 'not_term', 'common'])
-        result = []
-        for guid, props in documents:
-            props['guid'] = guid
-            if 'ctime' in props:
-                del props['ctime']
-            if 'mtime' in props:
-                del props['mtime']
-            if 'seqno' in props:
-                del props['seqno']
-            result.append(props)
-        return sorted(result), total
-
-    def _store(self, doc, update):
-        props = {'ctime': doc.ctime,
-                 'mtime': doc.mtime,
-                 'term': doc.term,
-                 'not_term': doc.not_term,
-                 'common': doc.common,
-                 'seqno': 0,
-                 }
-        props.update(update)
-        self.store(doc.guid, props, False)
+    def find_(self, *args, **kwargs):
+        query = env.Query(*args, **kwargs)
+        return sorted([props for __, props in self.find(query)[0]])
 
 
 if __name__ == '__main__':

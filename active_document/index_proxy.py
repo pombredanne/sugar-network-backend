@@ -18,7 +18,6 @@ import logging
 from os.path import exists
 
 import xapian
-import gevent
 
 from active_document import util, index_queue, env
 from active_document.storage import Storage
@@ -33,50 +32,122 @@ class IndexProxy(IndexReader):
 
     def __init__(self, metadata):
         IndexReader.__init__(self, metadata)
-        self._cache = {}
-        self._wait_for_reopen_job = gevent.spawn(self._wait_for_reopen)
+        self._commit_seqno = 0
+        self._cache_seqno = 1
+        self._term_props = {}
+
+        for prop in metadata.values():
+            if isinstance(prop, StoredProperty) and \
+                    prop.permissions & env.ACCESS_WRITE:
+                self._term_props[prop.name] = prop
+
+        self._pages = {self._cache_seqno: _CachedPage(self._term_props)}
 
     def commit(self):
         index_queue.commit_and_wait(self.metadata.name)
 
     def close(self):
-        self._wait_for_reopen_job.kill()
+        pass
 
-    def get_cache(self, guid):
-        cached = self._cache.get(guid)
-        if cached is not None:
-            return cached.properties
+    def get_cached(self, guid):
+        result = {}
+        for page in self._sorted_pages:
+            cached = page.get(guid)
+            if cached is not None:
+                result.update(cached.properties)
+        return result
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
-        _logger.debug('Push store request to "%s"\'s queue for "%s"',
-                self.metadata.name, guid)
         if properties and new is not None:
+            if new:
+                orig = None
+            else:
+                orig = self.get_cached(guid)
+                try:
+                    record = Storage(self.metadata).get(guid)
+                    for prop in self._term_props.values():
+                        if prop.name not in orig:
+                            orig[prop.name] = record.get(prop.name)
+                except env.NotFound:
+                    pass
             # Needs to be called before `index_queue.put()`
             # to give it a chance to read original properties from the storage
-            self._cache_update(guid, properties, new)
-        index_queue.put(self.metadata.name, IndexWriter.store,
-                guid, properties, new, pre_cb, post_cb)
+            self._pages[self._cache_seqno].update(guid, properties, orig)
+
+        self._put(IndexWriter.store, guid, properties, new, pre_cb, post_cb)
 
     def delete(self, guid, post_cb=None):
-        _logger.debug('Push delete request to "%s"\'s queue for "%s"',
-                self.metadata.name, guid)
-        index_queue.put(self.metadata.name, IndexWriter.delete, guid, post_cb)
+        self._put(IndexWriter.delete, guid, post_cb)
 
-    def find(self, offset, limit, request, query=None, reply=None,
-            order_by=None):
+    def find(self, query):
         if self._db is None:
-            self._open()
+            if exists(self.metadata.path('index')):
+                self._reopen()
+        else:
+            seqno = index_queue.commit_seqno(self.metadata.name)
+            if seqno != self._commit_seqno:
+                self._reopen()
+                for page_num in self._pages.keys():
+                    if page_num <= seqno:
+                        del self._pages[page_num]
+                self._commit_seqno = seqno
 
-        def direct_find():
-            if self._db is None:
+        pages = self._sorted_pages
+
+        def next_page_find(query):
+            if pages:
+                return pages.pop().find(query, next_page_find)
+            elif self._db is None:
                 return [], Total(0)
             else:
-                return IndexReader.find(self, offset, limit, request, query,
-                        reply, order_by)
+                return IndexReader.find(self, query)
 
-        if 'guid' in request:
-            documents, total = direct_find()
-            cache = self._cache.get(request['guid'])
+        return next_page_find(query)
+
+    @property
+    def _sorted_pages(self):
+        return [self._pages[i] for i in sorted(self._pages.keys())]
+
+    def _reopen(self):
+        try:
+            if self._db is None:
+                self._db = xapian.Database(self.metadata.path('index'))
+                _logger.debug('Opened "%s" RO index', self.metadata.name)
+            else:
+                self._db.reopen()
+                _logger.debug('Re-opened "%s" RO index', self.metadata.name)
+        except Exception:
+            util.exception(_logger,
+                    'Cannot open "%s" RO index', self.metadata.name)
+            self._db = None
+
+    def _put(self, op, *args):
+        _logger.debug('Push %r(%r) to "%s"\'s queue',
+                op, args, self.metadata.name)
+
+        new_cache_seqno = index_queue.put(self.metadata.name, op, *args)
+
+        if new_cache_seqno != self._cache_seqno:
+            self._cache_seqno = new_cache_seqno
+            self._pages[new_cache_seqno] = _CachedPage(self._term_props)
+
+
+class _CachedPage(dict):
+
+    def __init__(self, term_props):
+        self._term_props = term_props
+
+    def update(self, guid, props, orig):
+        existing = self.get(guid)
+        if existing is None:
+            self[guid] = _CachedDocument(self._term_props, guid, props, orig)
+        else:
+            existing.update(props)
+
+    def find(self, query, direct_find):
+        if 'guid' in query.request:
+            documents, total = direct_find(query)
+            cache = self.get(query.request['guid'])
             if cache is None:
                 return documents, total
 
@@ -91,16 +162,16 @@ class IndexProxy(IndexReader):
 
             return patched_guid_find(), total
 
-        if not self._cache:
-            return direct_find()
+        if not self:
+            return direct_find(query)
 
-        adds, deletes, updates = self._patch_find(request)
+        adds, deletes, updates = self._patch_find(query.request)
         if not adds and not deletes and not updates:
-            return direct_find()
+            return direct_find(query)
 
-        orig_limit = limit
-        limit += len(deletes)
-        documents, total = direct_find()
+        orig_limit = query.limit
+        query.limit += len(deletes)
+        documents, total = direct_find(query)
         total.value += len(adds)
 
         def patched_find(orig_limit):
@@ -131,8 +202,8 @@ class IndexProxy(IndexReader):
 
         terms = set()
         for prop_name, value in request.items():
-            prop = self.metadata[prop_name]
-            if not _is_term(prop):
+            prop = self._term_props.get(prop_name)
+            if prop is None:
                 continue
             try:
                 value = prop.convert(value)
@@ -143,7 +214,7 @@ class IndexProxy(IndexReader):
                 return None, None, None
             terms.add(_TermValue(prop, value))
 
-        for cache in self._cache.values():
+        for cache in self.values():
             if cache.new:
                 if terms.issubset(cache.terms):
                     bisect.insort(adds, cache)
@@ -161,56 +232,20 @@ class IndexProxy(IndexReader):
 
         return adds, deletes, updates
 
-    def _open(self):
-        path = self.metadata.path('index')
-        if not exists(path):
-            return
-        try:
-            self._db = xapian.Database(path)
-            _logger.debug('Opened "%s" RO index', self.metadata.name)
-        except xapian.DatabaseOpeningError:
-            util.exception(_logger, 'Cannot open "%s" RO index',
-                    self.metadata.name)
-
-    def _wait_for_reopen(self):
-        while True:
-            index_queue.wait_commit(self.metadata.name)
-            self._cache.clear()
-            try:
-                if self._db is not None:
-                    self._db.reopen()
-            except Exception:
-                util.exception(_logger, 'Cannot reopen "%s" RO index',
-                        self.metadata.name)
-                self._db = None
-
-    def _cache_update(self, guid, properties, new):
-        existing = self._cache.get(guid)
-        if existing is None:
-            self._cache[guid] = \
-                    _CachedDocument(self.metadata, guid, properties, new)
-        else:
-            existing.update(properties)
-
 
 class _CachedDocument(object):
 
-    def __init__(self, metadata, guid, properties, new):
+    def __init__(self, term_props, guid, properties, orig):
         self.guid = guid
         self.properties = properties.copy()
-        self.new = new
+        self.new = orig is None
         self.terms = set()
         self.orig_terms = set()
-        self._term_props = []
+        self._term_props = term_props
 
-        if not new:
-            record = Storage(metadata).get(guid)
-        for prop_name, prop in metadata.items():
-            if not _is_term(prop):
-                continue
-            self._term_props.append(prop)
-            if not new:
-                self.orig_terms.add(_TermValue(prop, record.get(prop_name)))
+        for prop in term_props.values():
+            if orig is not None:
+                self.orig_terms.add(_TermValue(prop, orig.get(prop.name)))
 
         self._update_terms()
 
@@ -226,7 +261,7 @@ class _CachedDocument(object):
         orig_terms = {}
         for i in self.orig_terms:
             orig_terms[i.prop] = i.value
-        for prop in self._term_props:
+        for prop in self._term_props.values():
             term = self.properties.get(prop.name, orig_terms.get(prop))
             self.terms.add(_TermValue(prop, term))
 
@@ -253,8 +288,3 @@ class _TermValue:
 
     def __hash__(self):
         return hash(self.prop.name)
-
-
-def _is_term(prop):
-    return isinstance(prop, StoredProperty) and \
-            prop.permissions & env.ACCESS_WRITE
