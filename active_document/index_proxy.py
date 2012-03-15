@@ -92,7 +92,10 @@ class IndexProxy(IndexReader):
                         del self._pages[page_num]
                 self._commit_seqno = seqno
 
-        pages = self._sorted_pages
+        if query.no_cache:
+            pages = []
+        else:
+            pages = self._sorted_pages
 
         def next_page_find(query):
             if pages:

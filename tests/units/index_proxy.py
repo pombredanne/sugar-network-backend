@@ -451,6 +451,34 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
         self.assertEqual(0, len(proxy._pages))
 
+    def test_SeamlessCache_DropPages(self):
+        existing = ([
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
+            ], Total(1))
+
+        proxy = TestIndexProxy(self.metadata)
+        proxy._db = True
+
+        proxy.store('2', {'guid': '2', 'term': ' ', 'not_term': ' '}, True)
+
+        self.override(IndexReader, 'find', lambda *args: existing)
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
+                    {'guid': '2', 'term': ' ', 'not_term': ' '},
+                    ]),
+                proxy.find_())
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
+                    ]),
+                proxy.find_(no_cache=True))
+        self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
+        self.assertEqual(
+                sorted([
+                    ]),
+                proxy.find_(no_cache=True))
+
 
 class TestIndexProxy(IndexProxy):
 

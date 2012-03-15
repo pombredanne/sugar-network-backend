@@ -264,8 +264,29 @@ class Range(list):
 class Query(object):
 
     def __init__(self, offset=None, limit=None, request=None, query='',
-            reply=None, order_by=None):
+            reply=None, order_by=None, no_cache=False):
+        """
+        :param offset:
+            the resulting list should start with this offset;
+            0 by default
+        :param limit:
+            the resulting list will be at least `limit` size;
+            the `--find-limit` will be used by default
+        :param request:
+            a dictionary with property values to restrict the search
+        :param query:
+            a string in Xapian serach format, empty to avoid text search
+        :param reply:
+            an array of property names to use only in the resulting list;
+            only GUID property will be used by default
+        :param order_by:
+            property name to sort resulting list; might be prefixed with ``+``
+            (or without any prefixes) for ascending order, and ``-`` for
+            descending order
+
+        """
         self.query = query
+        self.no_cache = no_cache
 
         if offset is None:
             offset = 0

@@ -142,30 +142,13 @@ class DocumentClass(object):
         cls._index.delete(guid, lambda guid: cls._storage.delete(guid))
 
     @classmethod
-    def find(cls, offset=None, limit=None, request=None, query='',
-            reply=None, order_by=None):
+    def find(cls, *args, **kwargs):
         """Search documents.
 
         The result will be an array of dictionaries with found documents'
-        properties.
+        properties. Function accepts the same arguments as
+        `active_document.Query`.
 
-        :param offset:
-            the resulting list should start with this offset;
-            0 by default
-        :param limit:
-            the resulting list will be at least `limit` size;
-            the `--find-limit` will be used by default
-        :param request:
-            a dictionary with property values to restrict the search
-        :param query:
-            a string in Xapian serach format, empty to avoid text search
-        :param reply:
-            an array of property names to use only in the resulting list;
-            only GUID property will be used by default
-        :param order_by:
-            property name to sort resulting list; might be prefixed with ``+``
-            (or without any prefixes) for ascending order, and ``-`` for
-            descending order
         :returns:
             a tuple of (`documents`, `total_count`); where the `total_count` is
             the total number of documents conforming the search parameters,
@@ -174,7 +157,7 @@ class DocumentClass(object):
         """
         cls.authorize_document(env.ACCESS_READ)
 
-        query = env.Query(offset, limit, request, query, reply, order_by)
+        query = env.Query(*args, **kwargs)
 
         for prop_name in query.reply:
             prop = cls.metadata[prop_name]
@@ -253,7 +236,7 @@ class DocumentClass(object):
                 documents, total = cls.find(
                         query='seqno:%s..' % start,
                         order_by='seqno', reply=['guid'],
-                        limit=_DIFF_PAGE_SIZE)
+                        limit=_DIFF_PAGE_SIZE, no_cache=True)
                 if not total.value:
                     break
                 seqno = None
