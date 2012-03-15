@@ -254,19 +254,27 @@ class Object(dict):
             self._path = '/%s/%s' % (self._resource, self['guid'])
         self._dirty.clear()
 
+    def set_blob(self, prop, data):
+        enforce('guid' in self, _('Object needs to be postet first'))
+        request('PUT', '/%s/%s/%s' % (self._resource, self['guid'], prop),
+                headers={'Content-Type': 'application/octet-stream'},
+                data=data)
+
 
 def delete(resource, guid):
     request('DELETE', '/%s/%s' % (resource, guid))
 
 
-def request(method, path, data=None, params=None):
+def request(method, path, data=None, params=None, headers=None):
     if not _headers:
         uid = sugar.guid()
         _headers['sugar_user'] = uid
         _headers['sugar_user_signature'] = _sign(uid)
 
-    headers = _headers.copy()
-    if method in ('PUT', 'POST'):
+    if headers is None:
+        headers = {}
+    headers.update(_headers)
+    if method in ('PUT', 'POST') and 'Content-Type' not in headers:
         headers['Content-Type'] = 'application/json'
         data = json.dumps(data)
 
