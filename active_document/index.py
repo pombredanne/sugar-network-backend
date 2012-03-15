@@ -59,7 +59,7 @@ class IndexReader(object):
         else:
             return 0
 
-    def get_cache(self, guid):
+    def get_cached(self, guid):
         """Return cached document.
 
         Only in case if index support caching updates.
@@ -104,8 +104,7 @@ class IndexReader(object):
         """
         raise NotImplementedError()
 
-    def find(self, offset, limit, request, query=None, reply=None,
-            order_by=None):
+    def find(self, query):
         """Search documents within the index.
 
         Function interface is the same as for `active_document.Document.find`.
@@ -118,22 +117,21 @@ class IndexReader(object):
 
         start_timestamp = time.time()
         # This will assure that the results count is exact.
-        check_at_least = offset + limit + 1
+        check_at_least = query.offset + query.limit + 1
 
-        enquire = self._enquire(request, query, order_by)
-        result = self._call_db(enquire.get_mset, offset, limit, check_at_least)
+        enquire = self._enquire(query.request, query.query, query.order_by)
+        result = self._call_db(enquire.get_mset, query.offset, query.limit,
+                check_at_least)
         total = Total(result.get_matches_estimated())
 
-        _logger.debug('Found in %s: offset=%s limit=%s request=%r query=%r ' \
-                'order_by=%s time=%s  total_count=%s parsed=%s',
-                self.metadata.name, offset, limit, request, query, order_by,
-                time.time() - start_timestamp, total.value,
-                enquire.get_query())
+        _logger.debug('Found in %s: %s time=%s total_count=%s parsed=%s',
+                self.metadata.name, query, time.time() - start_timestamp,
+                total.value, enquire.get_query())
 
         def iterate():
             for hit in result:
                 props = {}
-                for name in reply or self._props.keys():
+                for name in query.reply or self._props.keys():
                     prop = self._props.get(name)
                     if prop is None:
                         _logger.warning(_('Unknown property name "%s" ' \

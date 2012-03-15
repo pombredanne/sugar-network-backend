@@ -53,7 +53,7 @@ class Document(DocumentClass):
         if guid:
             self._guid = guid
             if not indexed_props:
-                indexed_props = self._index.get_cache(guid)
+                indexed_props = self._index.get_cached(guid)
             for prop_name, value in (indexed_props or {}).items():
                 self._cache[prop_name] = (value, None)
             self.authorize_document(env.ACCESS_READ, self)

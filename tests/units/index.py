@@ -448,11 +448,6 @@ class IndexTest(tests.Test):
         time.sleep(1)
 
         db = Index({})
-        db.commit()
-        self.assertEqual(mtime, db.mtime)
-        db.close()
-
-        db = Index({})
         db.store('2', {}, True)
         db.commit()
         self.assertNotEqual(mtime, db.mtime)
@@ -520,12 +515,12 @@ class Index(index.IndexWriter):
 
         index.IndexWriter.__init__(self, metadata)
 
-    def _find(self, offset=0, limit=1024, request=None, query=None, reply=None,
-            order_by=None):
-        if request is None:
-            request = {}
-        documents, total = self.find(offset, limit, request,
-                query, reply, order_by)
+    def _find(self, *args, **kwargs):
+        if 'reply' not in kwargs:
+            kwargs['reply'] = {}
+        if 'order_by' not in kwargs:
+            kwargs['order_by'] = 'guid'
+        documents, total = self.find(env.Query(*args, **kwargs))
         result = []
         for guid, props in documents:
             props['guid'] = guid

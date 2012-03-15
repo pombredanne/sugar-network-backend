@@ -174,30 +174,16 @@ class DocumentClass(object):
         """
         cls.authorize_document(env.ACCESS_READ)
 
-        if offset is None:
-            offset = 0
-        if limit is None:
-            limit = env.find_limit.value
-        elif limit > env.find_limit.value:
-            _logger.warning(_('The find limit for "%s" is restricted to "%s"'),
-                    cls.metadata.name, env.find_limit.value)
-            limit = env.find_limit.value
-        if request is None:
-            request = {}
-        if not reply:
-            reply = ['guid']
-        if order_by is None:
-            order_by = 'ctime'
+        query = env.Query(offset, limit, request, query, reply, order_by)
 
-        for prop_name in reply:
+        for prop_name in query.reply:
             prop = cls.metadata[prop_name]
             enforce(isinstance(prop, BrowsableProperty),
                     _('Property "%s" in "%s" is not suitable ' \
                             'for find requests'),
                     prop_name, cls.metadata.name)
 
-        documents, total = cls._index.find(offset, limit, request, query,
-                reply, order_by)
+        documents, total = cls._index.find(query)
 
         def iterate():
             for guid, props in documents:

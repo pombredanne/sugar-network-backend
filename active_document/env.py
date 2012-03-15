@@ -15,12 +15,16 @@
 
 import os
 import json
+import logging
 import collections
 from os.path import exists, join
 from gettext import gettext as _
 
 from active_document import util
 from active_document.util import enforce
+
+
+_logger = logging.getLogger('ad')
 
 
 #: To invalidate existed Xapian db on stcuture changes in stored documents
@@ -255,3 +259,39 @@ class Range(list):
                 if range_start < range_end:
                     self.exclude(range_start, range_end)
             break
+
+
+class Query(object):
+
+    def __init__(self, offset=None, limit=None, request=None, query='',
+            reply=None, order_by=None):
+        self.query = query
+
+        if offset is None:
+            offset = 0
+        self.offset = offset
+
+        if limit is None:
+            limit = find_limit.value
+        elif limit > find_limit.value:
+            _logger.warning(_('The find limit is restricted to %s'),
+                    find_limit.value)
+            limit = find_limit.value
+        self.limit = limit
+
+        if request is None:
+            request = {}
+        self.request = request
+
+        if reply is None:
+            reply = ['guid']
+        self.reply = reply
+
+        if order_by is None:
+            order_by = 'ctime'
+        self.order_by = order_by
+
+    def __repr__(self):
+        return 'offset=%s limit=%s request=%r query=%r order_by=%s' % \
+                (self.offset, self.limit, self.request, self.query,
+                        self.order_by)
