@@ -99,56 +99,55 @@ class User(Resource):
 class Context(Resource):
 
     resource = 'context'
-    reply_properties = ['guid', 'author', 'name', 'title']
+    reply_properties = ['guid', 'author', 'name', 'title', 'summary']
 
 
 class Question(Resource):
 
     resource = 'question'
-    reply_properties = ['guid', 'author', 'context', 'title']
+    reply_properties = ['guid', 'author', 'title']
 
 
 class Idea(Resource):
 
     resource = 'idea'
-    reply_properties = ['guid', 'author', 'context', 'title']
+    reply_properties = ['guid', 'author', 'title']
 
 
 class Problem(Resource):
 
     resource = 'problem'
-    reply_properties = ['guid', 'author', 'context', 'title']
+    reply_properties = ['guid', 'author', 'title']
 
 
 class Review(Resource):
 
     resource = 'review'
-    reply_properties = ['guid', 'author', 'context', 'title']
+    reply_properties = ['guid', 'author', 'title']
 
 
 class Solution(Resource):
 
     resource = 'solution'
-    reply_properties = ['guid', 'author', 'parent_type', 'parent', 'title']
+    reply_properties = ['guid', 'author', 'title']
 
 
 class Artifact(Resource):
 
     resource = 'artifact'
-    reply_properties = ['guid', 'author', 'context', 'title']
+    reply_properties = ['guid', 'author', 'title']
 
 
-class Version(Resource):
+class Implementation(Resource):
 
-    resource = 'version'
-    reply_properties = \
-            ['guid', 'author', 'context', 'version', 'date', 'stability']
+    resource = 'implementation'
+    reply_properties = ['guid', 'author', 'version', 'date', 'stability']
 
 
 class Report(Resource):
 
     resource = 'report'
-    reply_properties = ['guid', 'author', 'version', 'title']
+    reply_properties = ['guid', 'author', 'title']
 
 
 class Notification(Resource):
