@@ -35,13 +35,12 @@ class IndexProxy(IndexReader):
         self._commit_seqno = 0
         self._cache_seqno = 1
         self._term_props = {}
+        self._pages = {}
 
         for prop in metadata.values():
             if isinstance(prop, StoredProperty) and \
                     prop.permissions & env.ACCESS_WRITE:
                 self._term_props[prop.name] = prop
-
-        self._pages = {self._cache_seqno: _CachedPage(self._term_props)}
 
     def commit(self):
         index_queue.commit_and_wait(self.metadata.name)
@@ -72,7 +71,11 @@ class IndexProxy(IndexReader):
                     pass
             # Needs to be called before `index_queue.put()`
             # to give it a chance to read original properties from the storage
-            self._pages[self._cache_seqno].update(guid, properties, orig)
+            page = self._pages.get(self._cache_seqno)
+            if page is None:
+                page = self._pages[self._cache_seqno] = \
+                        _CachedPage(self._term_props)
+            page.update(guid, properties, orig)
 
         self._put(IndexWriter.store, guid, properties, new, pre_cb, post_cb)
 

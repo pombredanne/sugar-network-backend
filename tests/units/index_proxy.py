@@ -492,6 +492,25 @@ class IndexProxyTest(tests.Test):
         proxy.find_()
         self.assertEqual(5, proxy._commit_seqno)
 
+    def test_NotFailOnEmptyCache(self):
+        IndexWriter(self.metadata).close()
+        proxy = TestIndexProxy(self.metadata)
+
+        self.override(index_queue, 'commit_seqno', lambda *args: 10)
+        proxy.find_()
+        self.assertEqual(0, len(proxy._pages))
+
+        proxy.store('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}, True)
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
+                    ]),
+                proxy.find_())
+
+
+
+
+
 
 class TestIndexProxy(IndexProxy):
 
