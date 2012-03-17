@@ -6,3 +6,4 @@ restful_document
 sugar_network_server
 sugar_stats_server
 tmp
+sugar_network/sweets/lib/zeroinstall
