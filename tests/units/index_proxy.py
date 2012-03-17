@@ -490,22 +490,22 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(0, proxy._commit_seqno)
         self.override(index_queue, 'commit_seqno', lambda *args: 5)
         proxy.find_()
+        self.assertEqual(0, proxy._commit_seqno)
+        self.assertEqual({}, proxy.get_cached('fake'))
         self.assertEqual(5, proxy._commit_seqno)
 
     def test_NotFailOnEmptyCache(self):
         IndexWriter(self.metadata).close()
         proxy = TestIndexProxy(self.metadata)
+        self.assertEqual(0, len(proxy._pages))
 
         self.override(index_queue, 'commit_seqno', lambda *args: 10)
         proxy.find_()
         self.assertEqual(0, len(proxy._pages))
 
         proxy.store('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}, True)
-        self.assertEqual(
-                sorted([
-                    {'guid': '1', 'term': 'q', 'not_term': 'w'},
-                    ]),
-                proxy.find_())
+        proxy.find_()
+        self.assertEqual(0, len(proxy._pages))
 
     def test_get_cached_DropPages(self):
         proxy = TestIndexProxy(self.metadata)

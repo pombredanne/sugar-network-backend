@@ -36,6 +36,7 @@ class IndexProxy(IndexReader):
         self._cache_seqno = 1
         self._term_props = {}
         self._pages = {}
+        self._dirty = False
 
         for prop in metadata.values():
             if isinstance(prop, StoredProperty) and \
@@ -50,13 +51,11 @@ class IndexProxy(IndexReader):
 
     def get_cached(self, guid):
         self._drop_pages()
-
         result = {}
         for page in self._sorted_pages:
             cached = page.get(guid)
             if cached is not None:
                 result.update(cached.properties)
-
         return result
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
@@ -78,6 +77,9 @@ class IndexProxy(IndexReader):
             if page is None:
                 page = self._pages[self._cache_seqno] = \
                         _CachedPage(self._term_props)
+                _logger.debug('New cache page for "%s" with seqno %s to ' \
+                        'insert "%s"', self.metadata.name, self._cache_seqno,
+                        guid)
             page.update(guid, properties, orig)
 
         self._put(IndexWriter.store, guid, properties, new, pre_cb, post_cb)
@@ -113,10 +115,8 @@ class IndexProxy(IndexReader):
         if self._db is None:
             if not exists(db_path):
                 return
-        else:
-            seqno = index_queue.commit_seqno(self.metadata.name)
-            if seqno == self._commit_seqno:
-                return
+        elif not self._drop_pages() and not self._dirty:
+            return
 
         try:
             if self._db is None:
@@ -125,29 +125,34 @@ class IndexProxy(IndexReader):
             else:
                 self._db.reopen()
                 _logger.debug('Re-opened "%s" RO index', self.metadata.name)
+            self._dirty = False
         except Exception:
             util.exception(_logger,
                     'Cannot open "%s" RO index', self.metadata.name)
             self._db = None
-            return
-
-        self._drop_pages()
 
     def _drop_pages(self):
-        self._commit_seqno = index_queue.commit_seqno(self.metadata.name)
+        commit_seqno = index_queue.commit_seqno(self.metadata.name)
+        if commit_seqno == self._commit_seqno:
+            return False
         for seqno in self._pages.keys():
-            if seqno <= self._commit_seqno:
+            if seqno <= commit_seqno:
                 del self._pages[seqno]
+                _logger.debug('Drop cache page for "%s" with seqno %s',
+                        self.metadata.name, seqno)
+        self._commit_seqno = commit_seqno
+        self._dirty = True
+        return True
 
     def _put(self, op, *args):
         _logger.debug('Push %r(%r) to "%s"\'s queue',
                 op, args, self.metadata.name)
-
         new_cache_seqno = index_queue.put(self.metadata.name, op, *args)
-
         if new_cache_seqno != self._cache_seqno:
             self._cache_seqno = new_cache_seqno
             self._pages[new_cache_seqno] = _CachedPage(self._term_props)
+            _logger.debug('New cache page for "%s" with seqno %s',
+                    self.metadata.name, new_cache_seqno)
 
 
 class _CachedPage(dict):
