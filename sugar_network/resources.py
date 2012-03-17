@@ -16,9 +16,10 @@
 from gettext import gettext as _
 
 from sugar_network import client
+from sugar_network.util import enforce
 
 
-class Resource(object):
+class Resource(client.Object):
     """Common routines for Sugar Network resources."""
 
     #: Resource name
@@ -27,30 +28,33 @@ class Resource(object):
     # additional requests to fetch missed properties
     reply_properties = None
 
-    @classmethod
-    def new(cls):
-        """Create empty resource object.
-
-        To send create request to a server, call `post()` function
-        for returned object.
-
-        :returns:
-            `sugar_network.Object` object
-
-        """
-        return client.Object(cls.resource)
-
-    @classmethod
-    def get(cls, guid):
+    def __init__(self, guid=None, **filters):
         """Get access to resource object.
 
+        If no arguments given, new object will be assumed.
+
         :param guid:
-            object's GUID to get
-        :returns:
-            `sugar_network.Object` object
+            object's GUID to find
+        :param filters:
+            a dictionary of properties to find object if `guid`
+            was not specified
 
         """
-        return client.Object(cls.resource, {'guid': guid})
+        if guid:
+            client.Object.__init__(self, self.resource, {'guid': guid})
+        elif not filters:
+            client.Object.__init__(self, self.resource)
+        else:
+            query = self.find(**filters)
+            enforce(query.total, _('No objects found'))
+            enforce(query.total == 1, _('Found more than one object'))
+            client.Object.__init__(self, self.resource, query[0])
+
+    def call(self, command, **kwargs):
+        enforce('guid' in self, _('Object needs to be postet first'))
+        path = '/%s/%s' % (self.resource, self['guid'])
+        kwargs['cmd'] = command
+        return client.request('GET', path, params=kwargs)
 
     @classmethod
     def find(cls, *args, **kwargs):
@@ -72,14 +76,6 @@ class Resource(object):
 
         """
         client.delete(cls.resource, guid)
-
-    def __init__(self, guid):
-        self._guid = guid
-        self._path = '/%s/%s' % (self.resource, guid)
-
-    def call(self, command, **kwargs):
-        kwargs['cmd'] = command
-        return client.request('GET', self._path, params=kwargs)
 
 
 class User(Resource):

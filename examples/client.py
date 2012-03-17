@@ -12,13 +12,14 @@ import sugar_network_server as server
 def main():
 
     def context_new(title):
-        context = client.Context.new()
+        context = client.Context()
         context['type'] = 'activity'
         context['title'] = title
+        context['summary'] = 'Description'
         context['description'] = 'Description'
-        context['license'] = ['GPLv3+']
         context.post()
 
+    print '-- Create new objects'
     context_new('Title1')
     context_new('Title2')
     context_new('Title3')
@@ -31,6 +32,11 @@ def main():
     query = client.Context.find()
     for i in range(query.total):
         print i, query[i]['guid'], query[i]['title']
+
+    print '-- Get objects directly'
+    print client.Context(query[0]['guid'])['title']
+    print client.Context(title='Title2')['title']
+    print client.Context(title='Title3')['title']
 
     print '-- Query by property value'
     for i in client.Context.find(title='Title2'):
