@@ -25,6 +25,8 @@ from glob import glob
 from os.path import exists, join, isdir, dirname, basename
 from gettext import gettext as _
 
+from gevent.coros import Semaphore
+
 from active_document import util, env
 from active_document.metadata import StoredProperty, CounterProperty
 from active_document.metadata import AggregatorProperty, BlobProperty
@@ -36,6 +38,7 @@ _SEQNO_SUFFIX = '.seqno'
 _AGGREGATE_SUFFIX = '.value'
 
 _logger = logging.getLogger('ad.storage')
+_ensure_path_locker = Semaphore()
 
 
 class Storage(object):
@@ -371,22 +374,21 @@ class Storage(object):
         return self.metadata.path(guid[:2], guid, *args)
 
     def _ensure_path(self, create_stamp, guid, *args):
-        path = self._path(guid)
-        if not exists(path):
-            os.makedirs(path)
-        if create_stamp:
-            stamt_path = join(path, _SEQNO_SUFFIX)
-            if not exists(stamt_path):
-                file(stamt_path, 'w').close()
-                os.utime(stamt_path, (0, 0))
-
-        path = join(path, *args)
-        if not exists(path):
-            dir_path = path if path.endswith(os.sep) else dirname(path)
-            if not exists(dir_path):
-                os.makedirs(dir_path)
-
-        return path
+        with _ensure_path_locker:
+            path = self._path(guid)
+            if not exists(path):
+                os.makedirs(path)
+            if create_stamp:
+                stamt_path = join(path, _SEQNO_SUFFIX)
+                if not exists(stamt_path):
+                    file(stamt_path, 'w').close()
+                    os.utime(stamt_path, (0, 0))
+            path = join(path, *args)
+            if not exists(path):
+                dir_path = path if path.endswith(os.sep) else dirname(path)
+                if not exists(dir_path):
+                    os.makedirs(dir_path)
+            return path
 
     def _set_blob(self, guid, name, stream, size, seqno, mtime=None):
         if size is None:
