@@ -6,6 +6,7 @@ import os
 import sys
 import stat
 import time
+import hashlib
 from cStringIO import StringIO
 from os.path import join, exists
 
@@ -168,11 +169,16 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, lambda: Document(doc.guid).blob)
         self.assertRaises(RuntimeError, lambda: Document(doc.guid).__setitem__('blob', 'foo'))
 
-        doc.set_blob('blob', StringIO('data'))
+        data = 'payload'
+
+        doc.set_blob('blob', StringIO(data))
         stream = StringIO()
         for i in doc.get_blob('blob'):
             stream.write(i)
-        self.assertEqual('data', stream.getvalue())
+        self.assertEqual(data, stream.getvalue())
+        self.assertEqual(
+                {'size': len(data), 'sha1sum': hashlib.sha1(data).hexdigest()},
+                doc.stat_blob('blob'))
 
     def test_AggregatorProperty(self):
 

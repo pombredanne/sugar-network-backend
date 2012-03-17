@@ -19,6 +19,7 @@ import time
 import stat
 import json
 import shutil
+import hashlib
 import logging
 from glob import glob
 from os.path import exists, join, isdir, dirname, basename
@@ -197,6 +198,16 @@ class Storage(object):
         self._write_property(guid, 'seqno', seqno)
         if _is_document(self._path(guid)):
             return seqno
+
+    def stat_blob(self, guid, name):
+        path = self._path(guid, name)
+        if not exists(path):
+            return
+        with file(path + '.sha1') as f:
+            sha1sum = f.read().strip()
+        return {'size': os.stat(path).st_size,
+                'sha1sum': sha1sum,
+                }
 
     def is_aggregated(self, guid, name, value):
         """Check if specified `value` is aggregated to the `name` property.
@@ -377,28 +388,34 @@ class Storage(object):
     def _set_blob(self, guid, name, stream, size, seqno, mtime=None):
         if size is None:
             size = sys.maxint
-        result = 0
+        final_size = 0
+        digest = hashlib.sha1()
+        path = self._ensure_path(False, guid, name)
+
         try:
-            path = self._ensure_path(False, guid, name)
             with util.new_file(path) as f:
                 while size > 0:
                     chunk = stream.read(min(size, _PAGE_SIZE))
                     if len(chunk) == 0:
                         break
                     f.write(chunk)
-                    result += len(chunk)
+                    final_size += len(chunk)
                     size -= len(chunk)
+                    digest.update(chunk)
             if mtime:
                 os.utime(path, (mtime, mtime))
+            with util.new_file(path + '.sha1') as f:
+                f.write(digest.hexdigest())
             _touch_seqno(path, seqno)
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot receive BLOB "%s" property ' \
                     'of "%s" in "%s": %s') % \
                     (name, guid, self.metadata.name, error))
+
         _logger.debug('Received "%s" BLOB property from "%s" document in "%s"',
                 name, guid, self.metadata.name)
-        return result
+        return final_size
 
     def _set_aggregate(self, guid, name, value, aggregated, seqno, mtime=None):
         try:

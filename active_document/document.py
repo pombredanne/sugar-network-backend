@@ -194,7 +194,7 @@ class Document(DocumentClass):
         This function works in parallel to getting non-BLOB properties values.
 
         :param prop_name:
-            property name
+            BLOB property name
         :returns:
             generator that returns data by portions
 
@@ -213,7 +213,7 @@ class Document(DocumentClass):
         and `post()` function.
 
         :param prop_name:
-            property name
+            BLOB property name
         :param stream:
             stream to receive property value from
         :param size:
@@ -229,6 +229,22 @@ class Document(DocumentClass):
         if seqno:
             self._index.store(self.guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
+
+    def stat_blob(self, prop_name):
+        """Receive BLOB property information.
+
+        :param prop_name:
+            BLOB property name
+        :returns:
+            a dictionary of `size`, `sha1sum` keys
+
+        """
+        prop = self.metadata[prop_name]
+        self.authorize_property(env.ACCESS_WRITE, prop)
+        enforce(isinstance(prop, BlobProperty),
+                _('Property "%s" in "%s" is not a BLOB'),
+                prop_name, self.metadata.name)
+        return self._storage.stat_blob(self.guid, prop_name)
 
     def on_create(self, properties, cache):
         """Call back to call on document creation.

@@ -4,6 +4,8 @@
 - range generators for bool and dates
 - if not completed populate (but commit happened) was aborted, the rest of populate will be skipped next populate
 - (?) make populate in spawned job
+- upload blobs by external url
+- limit uploaded size, at least for blobs
 
 1.0
 ===
