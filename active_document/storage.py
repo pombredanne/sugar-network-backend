@@ -121,6 +121,9 @@ class Storage(object):
 
         """
         root = self.metadata.path()
+        if not exists(root):
+            return
+
         for guids_dirname in os.listdir(root):
             guids_dir = join(root, guids_dirname)
             if not isdir(guids_dir) or \
