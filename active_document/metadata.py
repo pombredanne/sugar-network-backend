@@ -340,6 +340,8 @@ def _convert(typecast, value):
         value = float(value)
     elif typecast is bool:
         value = bool(value)
+    elif typecast is dict:
+        value = dict(value)
     else:
         raise ValueError(_('Unknown typecast'))
     return value

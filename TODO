@@ -6,6 +6,7 @@
 - (?) make populate in spawned job
 - upload blobs by external url
 - limit uploaded size, at least for blobs
+- (?) hide new docs in IndexProxy
 
 1.0
 ===
