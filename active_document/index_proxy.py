@@ -49,11 +49,14 @@ class IndexProxy(IndexReader):
         pass
 
     def get_cached(self, guid):
+        self._drop_pages()
+
         result = {}
         for page in self._sorted_pages:
             cached = page.get(guid)
             if cached is not None:
                 result.update(cached.properties)
+
         return result
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
@@ -105,8 +108,10 @@ class IndexProxy(IndexReader):
         return [self._pages[i] for i in sorted(self._pages.keys())]
 
     def _reopen(self):
+        db_path = self.metadata.path('index')
+
         if self._db is None:
-            if not exists(self.metadata.path('index')):
+            if not exists(db_path):
                 return
         else:
             seqno = index_queue.commit_seqno(self.metadata.name)
@@ -115,7 +120,7 @@ class IndexProxy(IndexReader):
 
         try:
             if self._db is None:
-                self._db = xapian.Database(self.metadata.path('index'))
+                self._db = xapian.Database(db_path)
                 _logger.debug('Opened "%s" RO index', self.metadata.name)
             else:
                 self._db.reopen()
@@ -126,6 +131,9 @@ class IndexProxy(IndexReader):
             self._db = None
             return
 
+        self._drop_pages()
+
+    def _drop_pages(self):
         self._commit_seqno = index_queue.commit_seqno(self.metadata.name)
         for seqno in self._pages.keys():
             if seqno <= self._commit_seqno:

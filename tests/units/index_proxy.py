@@ -507,9 +507,15 @@ class IndexProxyTest(tests.Test):
                     ]),
                 proxy.find_())
 
+    def test_get_cached_DropPages(self):
+        proxy = TestIndexProxy(self.metadata)
 
+        proxy.store('1', {'guid': '1', 'term': 'z', 'not_term': 'x'}, True)
+        self.assertEqual(1, len(proxy._pages))
 
-
+        self.override(index_queue, 'commit_seqno', lambda *args: 10)
+        self.assertEqual({}, proxy.get_cached('0'))
+        self.assertEqual(0, len(proxy._pages))
 
 
 class TestIndexProxy(IndexProxy):
