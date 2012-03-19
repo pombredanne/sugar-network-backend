@@ -75,7 +75,10 @@ class Document(DocumentClass):
                                     'new "%s" document'),
                             name, self.metadata.name)
                 if prop.default is not None:
-                    self._cache[name] = (None, prop.default)
+                    default = prop.default
+                    if prop.converter is not None:
+                        default = prop.converter(self, default)
+                    self._cache[name] = (None, default)
 
         for prop_name, value in kwargs.items():
             self[prop_name] = value
@@ -150,6 +153,8 @@ class Document(DocumentClass):
                 _('Property "%s" in "%s" cannot be set'),
                 prop_name, self.metadata.name)
 
+        if prop.converter is not None:
+            value = prop.converter(self, value)
         orig, __ = self._cache.get(prop_name, (None, None))
         self._cache[prop_name] = (orig, value)
 

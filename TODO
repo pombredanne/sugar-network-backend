@@ -7,6 +7,8 @@
 - upload blobs by external url
 - limit uploaded size, at least for blobs
 - (?) hide new docs in IndexProxy
+- mime_type while setting blob
+- aslo_sync server errors
 
 1.0
 ===

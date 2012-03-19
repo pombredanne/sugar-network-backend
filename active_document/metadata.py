@@ -113,12 +113,13 @@ class Property(object):
 
     def __init__(self, name, permissions=env.ACCESS_FULL, typecast=None,
             reprcast=None, default=None):
+        self.setter = None
+        self.converter = None
         self._name = name
         self._permissions = permissions
         self._typecast = typecast
         self._reprcast = reprcast
         self._default = default
-        self.writable = False
 
     @property
     def name(self):

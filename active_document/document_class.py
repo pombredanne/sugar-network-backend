@@ -36,13 +36,10 @@ def active_property(property_class=ActiveProperty, *args, **kwargs):
         value = self[func.__name__]
         return func(self, value)
 
-    def setter(func, self, value):
-        value = func(self, value)
-        self[func.__name__] = value
-
     def decorate_setter(func, attr):
-        attr.prop.writable = True
-        attr.writer = lambda self, value: setter(func, self, value)
+        attr.prop.converter = lambda self, value: func(self, value)
+        attr.prop.setter = lambda self, value: \
+                self.set(attr.name, func(self, value))
         return attr
 
     def decorate_getter(func):
@@ -305,26 +302,25 @@ class DocumentClass(object):
         for attr in [getattr(cls, i) for i in dir(cls)]:
             if not hasattr(attr, '_is_active_property'):
                 continue
-            if hasattr(attr.prop, 'slot'):
-                enforce(attr.prop.slot is None or \
-                        attr.prop.slot not in slots,
+            prop = attr.prop
+            if hasattr(prop, 'slot'):
+                enforce(prop.slot is None or prop.slot not in slots,
                         _('Property "%s" has a slot already defined ' \
                                 'for "%s" in "%s"'),
-                        attr.prop.name, slots.get(attr.prop.slot),
+                        prop.name, slots.get(prop.slot),
                         cls.metadata.name)
-                slots[attr.prop.slot] = attr.prop.name
-            if hasattr(attr.prop, 'prefix'):
-                enforce(not attr.prop.prefix or \
-                        attr.prop.prefix not in prefixes,
+                slots[prop.slot] = prop.name
+            if hasattr(prop, 'prefix'):
+                enforce(not prop.prefix or prop.prefix not in prefixes,
                         _('Property "%s" has a prefix already defined ' \
                                 'for "%s"'),
-                        attr.prop.name, prefixes.get(attr.prop.prefix))
-                prefixes[attr.prop.prefix] = attr.prop.name
-            if attr.prop.writable:
-                setattr(cls, attr.name, property(attr, attr.writer))
+                        prop.name, prefixes.get(prop.prefix))
+                prefixes[prop.prefix] = prop.name
+            if prop.setter is not None:
+                setattr(cls, attr.name, property(attr, prop.setter))
             else:
                 setattr(cls, attr.name, property(attr))
-            cls.metadata[attr.prop.name] = attr.prop
+            cls.metadata[prop.name] = prop
 
         cls._storage = Storage(cls.metadata)
         cls._index = index_class(cls.metadata)
@@ -361,7 +357,7 @@ class DocumentClass(object):
                         changes[prop.counter] = \
                                 cls._storage.count_aggregated(guid, prop_name)
                 elif isinstance(prop, StoredProperty):
-                    changes[prop_name] = record.get(prop_name, prop.default)
+                    changes[prop_name] = record.get(prop_name)
 
         if is_new is not None:
             changes['seqno'] = cls.metadata.next_seqno()

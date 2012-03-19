@@ -826,11 +826,13 @@ class DocumentTest(tests.Test):
             'guid': ('1', 1),
             'prop': ('1', 1),
             'ctime': (1, 1),
+            'mtime': (1, 1),
             })
         Document.merge('3', {
             'guid': ('3', ts + 60),
             'prop': ('3', ts + 60),
             'ctime': (ts + 60, ts + 60),
+            'mtime': (ts + 60, ts + 60),
             })
 
         self.assertEqual(
