@@ -275,6 +275,7 @@ class IndexWriter(IndexReader):
     def __init__(self, metadata):
         IndexReader.__init__(self, metadata)
         self._open(False)
+        self._dirty = False
 
     def close(self):
         """Flush index write pending queue and close the index."""
@@ -316,6 +317,7 @@ class IndexWriter(IndexReader):
                     term_generator.increase_termpos()
 
         self._db.replace_document(_term(env.GUID_PREFIX, guid), document)
+        self._dirty = True
 
         if post_cb is not None:
             post_cb(guid, properties, new)
@@ -324,10 +326,14 @@ class IndexWriter(IndexReader):
         _logger.debug('Delete "%s" document from "%s"',
                 guid, self.metadata.name)
         self._db.delete_document(_term(env.GUID_PREFIX, guid))
+        self._dirty = True
         if post_cb is not None:
             post_cb(guid)
 
     def commit(self):
+        if not self._dirty:
+            return
+
         _logger.debug('Commiting changes of "%s" index to the disk',
                 self.metadata.name)
         ts = time.time()
@@ -338,6 +344,7 @@ class IndexWriter(IndexReader):
             self._db.flush()
         self._touch_stamp()
         self.metadata.commit_seqno()
+        self._dirty = False
 
         _logger.debug('Commit "%s" changes took %s seconds',
                 self.metadata.name, time.time() - ts)

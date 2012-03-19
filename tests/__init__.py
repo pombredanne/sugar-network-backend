@@ -12,6 +12,7 @@ import dbus.mainloop.glib
 
 from active_document import env as _env, index_queue as _index_queue
 from active_document import sneakernet as _sneakernet
+from active_document import storage as _storage
 from active_document import document_class as _document_class
 
 
@@ -58,6 +59,8 @@ class Test(unittest.TestCase):
         _document_class._DIFF_PAGE_SIZE = 256
 
         _index_queue.errnum = 0
+
+        _storage._ensure_path_locker = _FakeLocker()
 
     def tearDown(self):
         self.assertEqual(0, _index_queue.errnum)
@@ -111,3 +114,12 @@ class Test(unittest.TestCase):
             f = file(path, 'w')
             f.write(str(content))
             f.close()
+
+
+class _FakeLocker(object):
+
+    def __enter__(self, *args):
+        return self
+
+    def __exit__(self, *args):
+        pass
