@@ -28,6 +28,7 @@ from sugar_network.util import enforce
 
 _PAGE_SIZE = 16
 _PAGE_NUMBER = 5
+_CHUNK_SIZE = 1024 * 10
 
 _logger = logging.getLogger('client')
 _headers = {}
@@ -62,9 +63,9 @@ class Query(object):
             a dictionary of properties to filter resulting list
 
         """
-        self._path = '/'
+        self._path = []
         if resource:
-            self._path += resource
+            self._path.append(resource)
         self._resource = resource
         self._query = query
         self._order_by = order_by
@@ -144,7 +145,8 @@ class Query(object):
             `Object` value or `default`
 
         """
-        if offset < 0 or self._total is not None and offset >= self._total:
+        if offset < 0 or self._total is not None and \
+                (offset >= self._total):
             return default
         page = offset / _PAGE_SIZE
         if page not in self._pages:
@@ -181,7 +183,8 @@ class Query(object):
         if self._reply_properties:
             params['reply'] = ','.join(self._reply_properties)
 
-        reply = request('GET', self._path, params=params)
+        reply = _request('GET', self._path, params=params,
+                headers={'Content-Type': 'application/json'})
         self._total = reply['total']
 
         result = [None] * len(reply['result'])
@@ -206,19 +209,26 @@ class Object(dict):
     def __init__(self, resource, props=None, offset=None):
         dict.__init__(self, props or {})
         self._resource = resource
-        if 'guid' in self:
-            self._path = '/%s/%s' % (resource, self['guid'])
-        else:
-            self._path = None
+        self._path = None
         self._got = False
         self._dirty = set()
         self.offset = offset
+
+        if 'guid' in self:
+            self._path = [resource, self['guid']]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.post()
 
     def __getitem__(self, prop):
         result = self.get(prop)
         if result is None:
             if self._path and not self._got:
-                reply = request('GET', self._path)
+                reply = _request('GET', self._path,
+                        headers={'Content-Type': 'application/json'})
                 reply.update(self)
                 self.update(reply)
                 self._got = True
@@ -241,7 +251,8 @@ class Object(dict):
         for i in self._dirty:
             data[i] = self[i]
         if 'guid' in self:
-            request('PUT', self._path, data=data)
+            _request('PUT', self._path, data=data,
+                    headers={'Content-Type': 'application/json'})
         else:
             if 'author' in data:
                 enforce(sugar.guid() in data['author'],
@@ -249,33 +260,52 @@ class Object(dict):
             else:
                 data['author'] = [sugar.guid()]
                 dict.__setitem__(self, 'author', [sugar.guid()])
-            reply = request('POST', '/' + self._resource, data=data)
+            reply = _request('POST', [self._resource], data=data,
+                    headers={'Content-Type': 'application/json'})
             self.update(reply)
             self._path = '/%s/%s' % (self._resource, self['guid'])
         self._dirty.clear()
 
+    def get_blob(self, prop):
+        enforce('guid' in self, _('Object needs to be postet first'))
+        response = _request('GET', [self._resource, self['guid'], prop],
+                headers={'Content-Type': 'application/octet-stream'})
+        length = int(response.headers.get('Content-Length', _CHUNK_SIZE))
+        return response.iter_content(chunk_size=min(length, _CHUNK_SIZE))
+
     def set_blob(self, prop, data):
         enforce('guid' in self, _('Object needs to be postet first'))
-        request('PUT', '/%s/%s/%s' % (self._resource, self['guid'], prop),
-                headers={'Content-Type': 'application/octet-stream'},
-                data=data)
+        headers = None
+        if type(data) is dict:
+            files = data
+            data = None
+        elif hasattr(data, 'read'):
+            files = {prop: data}
+            data = None
+        else:
+            files = None
+            headers = {'Content-Type': 'application/octet-stream'}
+        _request('PUT', [self._resource, self['guid'], prop], headers=headers,
+                data=data, files=files)
 
 
 def delete(resource, guid):
-    request('DELETE', '/%s/%s' % (resource, guid))
+    _request('DELETE', [resource, guid])
 
 
-def request(method, path, data=None, params=None, headers=None):
+def _request(method, path, data=None, headers=None, **kwargs):
+    path = '/'.join([i.strip('/') for i in [env.api_url.value] + path])
+
     if not _headers:
         uid = sugar.guid()
         _headers['sugar_user'] = uid
         _headers['sugar_user_signature'] = _sign(uid)
+    if headers:
+        headers.update(_headers)
+    else:
+        headers = _headers
 
-    if headers is None:
-        headers = {}
-    headers.update(_headers)
-    if method in ('PUT', 'POST') and 'Content-Type' not in headers:
-        headers['Content-Type'] = 'application/json'
+    if data is not None and headers.get('Content-Type') == 'application/json':
         data = json.dumps(data)
 
     verify = True
@@ -286,9 +316,8 @@ def request(method, path, data=None, params=None, headers=None):
 
     while True:
         try:
-            response = requests.request(method, env.api_url.value + path,
-                    params=params, data=data, verify=verify, headers=headers,
-                    config={'keep_alive': True})
+            response = requests.request(method, path, data=data, verify=verify,
+                    headers=headers, config={'keep_alive': True}, **kwargs)
         except requests.exceptions.SSLError:
             _logger.warning(_('Pass --no-check-certificate ' \
                     'to avoid SSL checks'))
@@ -307,17 +336,23 @@ def request(method, path, data=None, params=None, headers=None):
                         response.status_code, path, content)
                 response.raise_for_status()
 
-        return json.loads(response.content)
+        if headers.get('Content-Type') == 'application/json':
+            return json.loads(response.content)
+        else:
+            return response
 
 
 def _register():
-    request('POST', '/user', {
-        'nickname': sugar.nickname() or '',
-        'color': sugar.color() or '#000000,#000000',
-        'machine_sn': sugar.machine_sn() or '',
-        'machine_uuid': sugar.machine_uuid() or '',
-        'pubkey': sugar.pubkey(),
-        })
+    _request('POST', ['user'],
+            headers={'Content-Type': 'application/json'},
+            data={
+                'nickname': sugar.nickname() or '',
+                'color': sugar.color() or '#000000,#000000',
+                'machine_sn': sugar.machine_sn() or '',
+                'machine_uuid': sugar.machine_uuid() or '',
+                'pubkey': sugar.pubkey(),
+                },
+            )
 
 
 def _sign(data):

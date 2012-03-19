@@ -3,6 +3,7 @@
 import os
 import time
 import signal
+from cStringIO import StringIO
 
 import restful_document
 import sugar_network as client
@@ -10,6 +11,12 @@ import sugar_network_server as server
 
 
 def main():
+    guids = [None] * 3
+    titles = ['Title1', 'Title2', 'Title3']
+
+    print '-- Delete objects'
+    for i in client.Context.find():
+        client.Context.delete(i['guid'])
 
     def context_new(title):
         context = client.Context()
@@ -18,41 +25,62 @@ def main():
         context['summary'] = 'Description'
         context['description'] = 'Description'
         context.post()
+        return context['guid']
 
     print '-- Create new objects'
-    context_new('Title1')
-    context_new('Title2')
-    context_new('Title3')
+    guids[0] = context_new(titles[0])
+    assert guids[0]
+    guids[1] = context_new(titles[1])
+    assert guids[1] and guids[1] != guids[0]
+    guids[2] = context_new(titles[2])
+    assert guids[2] and guids[2] != guids[1] and guids[2] != guids[0]
 
     print '-- Browse using iterators'
-    for i in client.Context.find():
-        print i.offset, i['guid'], i['title']
+    for i, obj in enumerate(client.Context.find()):
+        assert i == obj.offset
+        assert obj['guid'] == guids[i]
 
     print '-- Browse by offset'
     query = client.Context.find()
     for i in range(query.total):
-        print i, query[i]['guid'], query[i]['title']
+        assert query[i]['guid'] == guids[i]
 
     print '-- Get objects directly'
-    print client.Context(query[0]['guid'])['title']
-    print client.Context(title='Title2')['title']
-    print client.Context(title='Title3')['title']
+    assert client.Context(guids[0])['title'] == titles[0]
+    assert client.Context(guids[1])['title'] == titles[1]
+    assert client.Context(guids[2])['title'] == titles[2]
+
+    print '-- Set BLOB properties'
+    with client.Artifact() as artifact:
+        artifact['context'] = guids[0]
+        artifact['type'] = 'screenshot'
+        artifact['title'] = titles[0]
+        artifact['description'] = titles[0]
+        artifact['mime_type'] = 'image/png'
+    artifact.set_blob('preview', StringIO('screenshot-image'))
+
+    print '-- Get BLOB properties'
+    stream = StringIO()
+    for chunk in client.Artifact(artifact['guid']).get_blob('preview'):
+        stream.write(chunk)
+    assert stream.getvalue() == 'screenshot-image'
 
     print '-- Query by property value'
-    for i in client.Context.find(title='Title2'):
-        print i.offset, i['guid'], i['title']
+    for obj in client.Context.find(title='Title2'):
+        assert obj['guid'] == guids[1]
+        assert obj['title'] == titles[1]
 
     # Wait until server will update index,
     # fulltext search does not work for cahced changes
     time.sleep(3)
 
     print '-- Full text search query'
-    for i in client.Context.find(query='Title1 OR Title3'):
-        print i.offset, i['guid'], i['title']
-
-    print '-- Delete objects'
-    for i in client.Context.find():
-        client.Context.delete(i['guid'])
+    query = client.Context.find(query='Title1 OR Title3')
+    assert query.total == 2
+    assert query[0]['guid'] == guids[0]
+    assert query[0]['title'] == titles[0]
+    assert query[1]['guid'] == guids[2]
+    assert query[1]['title'] == titles[2]
 
 
 if __name__ == '__main__':
