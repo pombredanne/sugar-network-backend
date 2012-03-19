@@ -3,6 +3,7 @@
 import os
 import time
 import signal
+import urllib2
 from cStringIO import StringIO
 
 import restful_document
@@ -13,6 +14,7 @@ import sugar_network_server as server
 def main():
     guids = [None] * 3
     titles = ['Title1', 'Title2', 'Title3']
+    image_url = 'http://sugarlabs.org/assets/logo_black_01.png'
 
     print '-- Delete objects'
     for i in client.Context.find():
@@ -56,14 +58,16 @@ def main():
         artifact['type'] = 'screenshot'
         artifact['title'] = titles[0]
         artifact['description'] = titles[0]
-        artifact['mime_type'] = 'image/png'
     artifact.set_blob('preview', StringIO('screenshot-image'))
+
+    print '-- Set BLOB properties by url'
+    artifact.set_blob_with_url('data', image_url)
 
     print '-- Get BLOB properties'
     stream = StringIO()
-    for chunk in client.Artifact(artifact['guid']).get_blob('preview'):
+    for chunk in client.Artifact(artifact['guid']).get_blob('data'):
         stream.write(chunk)
-    assert stream.getvalue() == 'screenshot-image'
+    assert stream.getvalue() == urllib2.urlopen(image_url).read()
 
     print '-- Query by property value'
     for obj in client.Context.find(title='Title2'):

@@ -267,14 +267,15 @@ class Object(dict):
         self._dirty.clear()
 
     def get_blob(self, prop):
-        enforce('guid' in self, _('Object needs to be postet first'))
+        enforce('guid' in self, _('Object needs to be posted first'))
         response = _request('GET', [self._resource, self['guid'], prop],
-                headers={'Content-Type': 'application/octet-stream'})
+                headers={'Content-Type': 'application/octet-stream'},
+                allow_redirects=True)
         length = int(response.headers.get('Content-Length', _CHUNK_SIZE))
         return response.iter_content(chunk_size=min(length, _CHUNK_SIZE))
 
     def set_blob(self, prop, data):
-        enforce('guid' in self, _('Object needs to be postet first'))
+        enforce('guid' in self, _('Object needs to be posted first'))
         headers = None
         if type(data) is dict:
             files = data
@@ -287,6 +288,11 @@ class Object(dict):
             headers = {'Content-Type': 'application/octet-stream'}
         _request('PUT', [self._resource, self['guid'], prop], headers=headers,
                 data=data, files=files)
+
+    def set_blob_with_url(self, prop, url):
+        enforce('guid' in self, _('Object needs to be posted first'))
+        _request('PUT', [self._resource, self['guid'], prop],
+                params={'url': url})
 
 
 def delete(resource, guid):
