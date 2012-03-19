@@ -113,7 +113,9 @@ class IndexProxy(IndexReader):
         db_path = self.metadata.path('index')
 
         if self._db is None:
-            if not exists(db_path):
+            if exists(db_path):
+                self._drop_pages()
+            else:
                 return
         elif not self._drop_pages() and not self._dirty:
             return
@@ -295,6 +297,9 @@ class _TermValue:
         self.prop = prop
         self.value = value
 
+    def __repr__(self):
+        return '%s=%s' % (self.prop.name, self.value)
+
     def __cmp__(self, other):
         result = cmp(self.prop.name, other.prop.name)
         if result:
@@ -303,8 +308,8 @@ class _TermValue:
             return cmp(self.value, other.value)
         self_value = set(self.value)
         other_value = set(other.value)
-        if self_value.issubset(other_value) or \
-                other_value.issubset(self_value):
+        if self_value and self_value.issubset(other_value) or \
+                other_value and other_value.issubset(self_value):
             return 0
         else:
             return cmp(self.value, other.value)

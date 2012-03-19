@@ -286,7 +286,106 @@ class IndexProxyTest(tests.Test):
                     ]),
                 proxy.find_(request={'prop': 'aaa'}))
 
-    def test_SeamlessCache(self):
+    def test_Update_AddsByListProps(self):
+        IndexWriter(self.metadata).close()
+
+        existing = ([
+            ('1', {'guid': '1', 'prop': ()}),
+            ('2', {'guid': '2', 'prop': ()}),
+            ], Total(2))
+
+        storage = Storage(self.metadata)
+        storage.put(*existing[0][0])
+        storage.put(*existing[0][1])
+
+        class Document(document.Document):
+
+            @active_property(prefix='A', typecast=[])
+            def prop(self, value):
+                return value
+
+        Document.init(TestIndexProxy)
+        proxy = TestIndexProxy(Document.metadata)
+
+        self.assertEqual(
+                sorted([
+                    ]),
+                proxy.find_(request={'prop': 'a'}))
+
+        proxy.store('1', {'guid': '1', 'prop': ('a',)}, False)
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'prop': ('a',)},
+                    ]),
+                proxy.find_(request={'prop': 'a'}))
+
+        proxy.store('2', {'guid': '2', 'prop': ('a',)}, False)
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'prop': ('a',)},
+                    {'guid': '2', 'prop': ('a',)},
+                    ]),
+                proxy.find_(request={'prop': 'a'}))
+
+    def test_Update_DeletesByListProps(self):
+        IndexWriter(self.metadata).close()
+
+        existing = ([
+            ('1', {'guid': '1', 'prop': ('a',)}),
+            ('2', {'guid': '2', 'prop': ('a', 'aa')}),
+            ('3', {'guid': '3', 'prop': ('a', 'aa', 'aaa')}),
+            ], Total(3))
+        self.override(IndexReader, 'find', lambda *args: existing)
+
+        storage = Storage(self.metadata)
+        storage.put(*existing[0][0])
+        storage.put(*existing[0][1])
+        storage.put(*existing[0][2])
+
+        class Document(document.Document):
+
+            @active_property(prefix='A', typecast=[])
+            def prop(self, value):
+                return value
+
+        Document.init(TestIndexProxy)
+        proxy = TestIndexProxy(Document.metadata)
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'prop': ('a',)},
+                    {'guid': '2', 'prop': ('a', 'aa')},
+                    {'guid': '3', 'prop': ('a', 'aa', 'aaa')},
+                    ]),
+                proxy.find_(request={'prop': 'a'}))
+
+        proxy.store('2', {'guid': '2', 'prop': ('aa',)}, False)
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'prop': ('a',)},
+                    {'guid': '3', 'prop': ('a', 'aa', 'aaa')},
+                    ]),
+                proxy.find_(request={'prop': 'a'}))
+
+        proxy.store('3', {'guid': '3', 'prop': ('aaa',)}, False)
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1', 'prop': ('a',)},
+                    ]),
+                proxy.find_(request={'prop': 'a'}))
+
+        proxy.store('1', {'guid': '1', 'prop': ()}, False)
+
+        self.assertEqual(
+                sorted([
+                    ]),
+                proxy.find_(request={'prop': 'a'}))
+
+    def test_SeamlessCache_Create(self):
         IndexWriter(self.metadata).close()
 
         existing = ([
@@ -395,6 +494,62 @@ class IndexProxyTest(tests.Test):
                     ]),
                 proxy.find_(request={'term': 'new'}))
 
+    def test_SeamlessCache_WithRequest(self):
+        existing = ([
+            ('1', {'guid': '1', 'prop': ('a',)}),
+            ('2', {'guid': '2', 'prop': ('a',)}),
+            ('3', {'guid': '3', 'prop': ('a',)}),
+            ], Total(3))
+        self.override(IndexReader, 'find', lambda *args: existing)
+
+        class Document(document.Document):
+
+            @active_property(prefix='A', typecast=[])
+            def prop(self, value):
+                return value
+
+        Document.init(TestIndexProxy)
+        IndexWriter(Document.metadata).close()
+
+        storage = Storage(Document.metadata)
+        storage.put(*existing[0][0])
+        storage.put(*existing[0][1])
+        storage.put(*existing[0][2])
+
+        proxy = TestIndexProxy(Document.metadata)
+
+        self.override(index_queue, 'put', lambda *args: 2)
+        proxy.store('1', {'guid': '1', 'prop': ('aa',)}, False)
+        self.assertEqual(2, len(proxy._pages))
+
+        self.override(index_queue, 'put', lambda *args: 3)
+        proxy.store('2', {'guid': '2', 'prop': ('aa',)}, False)
+        self.assertEqual(3, len(proxy._pages))
+
+        self.override(index_queue, 'put', lambda *args: 4)
+        proxy.store('3', {'guid': '3', 'prop': ('aa',)}, False)
+        self.assertEqual(4, len(proxy._pages))
+
+        self.override(index_queue, 'put', lambda *args: 5)
+        proxy.store('4', {'guid': '4', 'prop': ('a',)}, True)
+        self.assertEqual(5, len(proxy._pages))
+
+        self.override(index_queue, 'put', lambda *args: 6)
+        proxy.store('5', {'guid': '5', 'prop': ('a',)}, True)
+        self.assertEqual(6, len(proxy._pages))
+
+        self.override(index_queue, 'put', lambda *args: 7)
+        proxy.store('6', {'guid': '6', 'prop': ('a',)}, True)
+        self.assertEqual(7, len(proxy._pages))
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '4', 'prop': ('a',)},
+                    {'guid': '5', 'prop': ('a',)},
+                    {'guid': '6', 'prop': ('a',)},
+                    ]),
+                proxy.find_(request={'prop': ('a',)}))
+
     def test_DropPages(self):
         IndexWriter(self.metadata).close()
 
@@ -490,7 +645,7 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(0, proxy._commit_seqno)
         self.override(index_queue, 'commit_seqno', lambda *args: 5)
         proxy.find_()
-        self.assertEqual(0, proxy._commit_seqno)
+        self.assertEqual(5, proxy._commit_seqno)
         self.assertEqual({}, proxy.get_cached('fake'))
         self.assertEqual(5, proxy._commit_seqno)
 
@@ -505,7 +660,7 @@ class IndexProxyTest(tests.Test):
 
         proxy.store('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}, True)
         proxy.find_()
-        self.assertEqual(0, len(proxy._pages))
+        self.assertEqual(1, len(proxy._pages))
 
     def test_get_cached_DropPages(self):
         proxy = TestIndexProxy(self.metadata)
