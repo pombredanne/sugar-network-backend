@@ -46,6 +46,8 @@ class IndexReader(object):
         self._db = None
         self._props = {}
         self._path = self.metadata.path('index')
+        self._layout_path = self.metadata.path('index/layout')
+        self._mtime_path = self.metadata.path('index/mtime')
 
         for name, prop in self.metadata.items():
             if isinstance(prop, ActiveProperty):
@@ -54,8 +56,8 @@ class IndexReader(object):
     @property
     def mtime(self):
         """UNIX seconds of the last `commit()` call."""
-        if exists(self._path):
-            return os.stat(self._path).st_mtime
+        if exists(self._mtime_path):
+            return os.stat(self._mtime_path).st_mtime
         else:
             return 0
 
@@ -275,7 +277,6 @@ class IndexWriter(IndexReader):
     def __init__(self, metadata):
         IndexReader.__init__(self, metadata)
         self._dirty = False
-        self._layout_path = self.metadata.path('index.layout')
 
         self._open(False)
 
@@ -344,8 +345,8 @@ class IndexWriter(IndexReader):
             self._db.commit()
         else:
             self._db.flush()
-        ts = time.time()
-        os.utime(self._path, (ts, ts))
+        with file(self._mtime_path, 'w'):
+            pass
         self.metadata.commit_seqno()
         self._dirty = False
 
@@ -358,8 +359,6 @@ class IndexWriter(IndexReader):
 
         if reset:
             shutil.rmtree(self._path, ignore_errors=True)
-            if exists(self._layout_path):
-                os.unlink(self._layout_path)
 
         try:
             self._db = xapian.WritableDatabase(self._path,
