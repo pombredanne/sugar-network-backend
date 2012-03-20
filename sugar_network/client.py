@@ -350,7 +350,7 @@ def _request(method, path, data=None, headers=None, **kwargs):
                         response.status_code, path, content)
                 response.raise_for_status()
 
-        if headers.get('Content-Type') == 'application/json':
+        if response.headers.get('Content-Type') == 'application/json':
             return json.loads(response.content)
         else:
             return response
