@@ -117,7 +117,10 @@ class Query(object):
     def __iter__(self):
         while self.offset + 1 < self.total:
             self.offset += 1
-            yield self.get(self.offset)
+            obj = self.get(self.offset)
+            if obj is None:
+                break
+            yield obj
 
     def filter(self, query=None, **filters):
         """Change query parameters.
@@ -149,11 +152,16 @@ class Query(object):
                 (offset >= self._total):
             return default
         page = offset / _PAGE_SIZE
+        offset -= page * _PAGE_SIZE
         if page not in self._pages:
             self._fetch_page(page)
-            if offset >= self._total:
-                return default
-        return self._pages[page][offset - page * _PAGE_SIZE]
+        if offset >= len(self._pages[page]):
+            total = page + len(self._pages[page])
+            _logger.warning('Miscalculated total number, %s instead of %s',
+                    total, self._total)
+            self._total = total
+            return default
+        return self._pages[page][offset]
 
     def __getitem__(self, offset):
         """Get object by offset.
