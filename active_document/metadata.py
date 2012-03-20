@@ -176,7 +176,11 @@ class Property(object):
         for value in (value if type(value) in _LIST_TYPES else [value]):
             if type(value) is bool:
                 value = int(value)
-            result.append(str(value))
+            if type(value) is unicode:
+                value = unicode(value).encode('utf8')
+            else:
+                value = str(value)
+            result.append(value)
 
         return result
 
