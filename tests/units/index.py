@@ -398,17 +398,17 @@ class IndexTest(tests.Test):
 
     def test_LayoutVersion(self):
         db = Index({})
-        assert exists('index/version')
-        os.utime('index/version', (0, 0))
+        assert exists('index/index.layout')
+        os.utime('index/index.layout', (0, 0))
         db.close()
 
         db = Index({})
-        self.assertEqual(0, os.stat('index/version').st_mtime)
+        self.assertEqual(0, os.stat('index/index.layout').st_mtime)
         db.close()
 
         env.LAYOUT_VERSION += 1
         db = Index({})
-        self.assertNotEqual(0, os.stat('index/version').st_mtime)
+        self.assertNotEqual(0, os.stat('index/index.layout').st_mtime)
         db.close()
 
     def test_Callbacks(self):
@@ -435,12 +435,6 @@ class IndexTest(tests.Test):
 
     def test_mtime(self):
         db = Index({})
-        self.assertEqual(0, db.mtime)
-        db.close()
-
-        db = Index({})
-        db.store('1', {}, True)
-        db.commit()
         self.assertNotEqual(0, db.mtime)
         mtime = db.mtime
         db.close()

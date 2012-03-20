@@ -45,6 +45,7 @@ class IndexReader(object):
         self.metadata = metadata
         self._db = None
         self._props = {}
+        self._path = self.metadata.path('index')
 
         for name, prop in self.metadata.items():
             if isinstance(prop, ActiveProperty):
@@ -53,9 +54,8 @@ class IndexReader(object):
     @property
     def mtime(self):
         """UNIX seconds of the last `commit()` call."""
-        path = self.metadata.path('stamp')
-        if exists(path):
-            return os.stat(path).st_mtime
+        if exists(self._path):
+            return os.stat(self._path).st_mtime
         else:
             return 0
 
@@ -274,8 +274,10 @@ class IndexWriter(IndexReader):
 
     def __init__(self, metadata):
         IndexReader.__init__(self, metadata)
-        self._open(False)
         self._dirty = False
+        self._layout_path = self.metadata.path('index.layout')
+
+        self._open(False)
 
     def close(self):
         """Flush index write pending queue and close the index."""
@@ -342,7 +344,8 @@ class IndexWriter(IndexReader):
             self._db.commit()
         else:
             self._db.flush()
-        self._touch_stamp()
+        ts = time.time()
+        os.utime(self._path, (ts, ts))
         self.metadata.commit_seqno()
         self._dirty = False
 
@@ -352,12 +355,14 @@ class IndexWriter(IndexReader):
     def _open(self, reset):
         if not reset and self._is_layout_stale():
             reset = True
+
         if reset:
-            self._wipe_out()
+            shutil.rmtree(self._path, ignore_errors=True)
+            if exists(self._layout_path):
+                os.unlink(self._layout_path)
 
         try:
-            self._db = xapian.WritableDatabase(
-                    self.metadata.ensure_path('index', ''),
+            self._db = xapian.WritableDatabase(self._path,
                     xapian.DB_CREATE_OR_OPEN)
         except xapian.DatabaseError:
             if reset:
@@ -373,31 +378,15 @@ class IndexWriter(IndexReader):
             self._save_layout()
 
     def _is_layout_stale(self):
-        path = self.metadata.ensure_path('version')
-        if not exists(path):
+        if not exists(self._layout_path):
             return True
-        with file(path) as f:
+        with file(self._layout_path) as f:
             version = f.read()
         return not version.isdigit() or int(version) != env.LAYOUT_VERSION
 
     def _save_layout(self):
-        with file(self.metadata.ensure_path('version'), 'w') as f:
+        with file(self._layout_path, 'w') as f:
             f.write(str(env.LAYOUT_VERSION))
-
-    def _touch_stamp(self):
-        with file(self.metadata.ensure_path('stamp'), 'w') as f:
-            # Xapian's flush uses fsync
-            # so, it is a good idea to do the same for stamp file
-            os.fsync(f.fileno())
-
-    def _wipe_out(self):
-        shutil.rmtree(self.metadata.path('index'), ignore_errors=True)
-        path = self.metadata.ensure_path('version')
-        if exists(path):
-            os.unlink(path)
-        path = self.metadata.ensure_path('stamp')
-        if exists(path):
-            os.unlink(path)
 
 
 class Total(object):
