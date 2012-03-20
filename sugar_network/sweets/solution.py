@@ -13,13 +13,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import zipfile
+from os.path import join, exists, dirname
+
+from sugar_network import sugar, util
+from sugar_network.resources import Implementation
+
 
 DEEP = 2
 
 
 class Solution(object):
 
-    interface = property(lambda self: self.value.interface)
+    context = property(lambda self: self.value.interface)
     selections = property(lambda self: self.value.selections)
 
     def __init__(self, value, req):
@@ -28,14 +35,11 @@ class Solution(object):
         self.details = {}
         self.failure_reason = None
         self.requirements = req
-        self._for_build = False#hooks.pkg_type != 'runtime'
 
     def __getitem__(self, url):
-        result = self.selections.get(url)
-        if result is not None:
-            return _Selection(result)
-        else:
-            return None
+        selection = self.selections.get(url)
+        if selection is not None:
+            return _Selection(selection)
 
     def __iter__(self):
         for i in self.selections.values():
@@ -49,11 +53,11 @@ class Solution(object):
 
     @property
     def id(self):
-        return (self.interface, tuple([i.path for i in self.commands]))
+        return (self.context, tuple([i.path for i in self.commands]))
 
     @property
     def top(self):
-        return self[self.interface]
+        return self[self.context]
 
     @property
     def commands(self):
@@ -65,63 +69,82 @@ class Solution(object):
     def walk(self, reverse=False, depth=DEEP, uniq=True, include_top=True):
         done = set()
 
-        def process_node(url, parent_dep, extra_deps, path):
+        def process_node(context, parent_dep, extra_deps, path):
             if uniq:
-                if url in done:
+                if context in done:
                     return
-                done.add(url)
+                done.add(context)
 
-            sel = self[url]
+            sel = self[context]
             if sel is None:
-                yield _Selection(None, url), parent_dep, path
+                yield _Selection(None, context), parent_dep, path
                 return
 
             if reverse:
-                if include_top or url != self.interface:
+                if include_top or context != self.context:
                     yield sel, parent_dep, path
 
             if _is_shallow(len(path) + 1, depth):
                 for dep in sel.dependencies + extra_deps:
-                    for i in process_node(
-                            dep.interface, dep, [], path + [sel]):
+                    for i in process_node(dep.context, dep, [], path + [sel]):
                         yield i
 
             if not reverse:
-                if include_top or url != self.interface:
+                if include_top or context != self.context:
                     yield sel, parent_dep, path
 
         extra_deps = []
         for i in self.commands:
             extra_deps += i.requires
 
-        return process_node(self.interface, None, extra_deps, [])
+        return process_node(self.context, None, extra_deps, [])
 
 
 class _Selection(object):
 
-    def __init__(self, orig, interface=None):
+    def __init__(self, orig, context=None):
         self._value = orig
         self._installed = None
         self._to_install = None
-        self._interface = interface
+        self._context = context
 
     def __repr__(self):
-        return self.interface
+        return self.context
 
     @property
-    def interface(self):
+    def nil(self):
+        return self._value is None
+
+    @property
+    def context(self):
         if self._value is None:
-            return self._interface
+            return self._context
         else:
             return self['interface']
 
-    @property
-    def bindings(self):
-        return self._value.bindings
+    # pylint: disable-msg=W0212
+    guid = property(lambda self: self._value.impl.id)
+    bindings = property(lambda self: self._value.impl.bindings)
+    dependencies = property(lambda self: self._value.dependencies)
+    download_sources = property(lambda self: self._value.impl.download_sources)
+    local_path = property(lambda self: self._value.impl.local_path)
 
-    @property
-    def dependencies(self):
-        return self._value.dependencies
+    def download(self):
+        path = sugar.profile_path('implementations', self.guid)
+        if not exists(path):
+            tmp_path = util.TempFilePath(dir=dirname(path))
+            with file(tmp_path, 'wb') as f:
+                for chunk in Implementation(self.guid).get_blob('bundle'):
+                    f.write(chunk)
+                if not f.tell():
+                    return
+            bundle = zipfile.ZipFile(tmp_path)
+            bundle.extractall(path)
+
+        top_files = os.listdir(path)
+        if len(top_files) == 1:
+            path = join(path, top_files[0])
+        self._value.impl.local_path = path
 
     def __contains__(self, key):
         return key in self._value.attrs

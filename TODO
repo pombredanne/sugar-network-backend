@@ -1,0 +1,2 @@
+- import <bundle_id> data dir into data/
+- reuse the same data dir for all SN names for the same context

@@ -14,6 +14,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import time
+import uuid
+import random
 import hashlib
 from os.path import join, exists, dirname
 from gettext import gettext as _
@@ -88,6 +91,12 @@ def machine_sn():
 def machine_uuid():
     if exists(_XO_UUID_PATH):
         return _read_XO_value(_XO_UUID_PATH)
+
+
+def uuid_new():
+    data = '%s%s%s' % \
+            (time.time(), random.randint(10000, 100000), uuid.getnode())
+    return hashlib.sha1(data).hexdigest()
 
 
 def _read_XO_value(path):

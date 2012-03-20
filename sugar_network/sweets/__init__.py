@@ -20,6 +20,7 @@ sys.path.insert(0, join(abspath(dirname(__file__)), 'lib'))
 from zeroinstall.injector.requirements import Requirements
 
 from sugar_network.sweets.solver import solve
+from sugar_network.sweets.injector import launch, make, execute
 
 
 def _inject_sweets():

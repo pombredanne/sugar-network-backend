@@ -34,8 +34,8 @@ def load(context):
                 src['stability'], src['guid'])
 
         stability = model.stability_levels[src['stability']]
-        requires = []
 
+        requires = []
         for guid, props in src['feed'].get('requires', {}).items():
             dep = _Dependency(guid,
                 props.get('importance', model.Dependency.Essential))
@@ -43,13 +43,17 @@ def load(context):
                     _parse_version(props.get('constraints') or ''))
             requires.append(dep)
 
+        commands = {}
+        for name, cmd in src['feed'].get('commands', {}).items():
+            commands[name] = _Command(name, cmd)
+
         impl_id = src['guid']
         impl = model.ZeroInstallImplementation(feed, impl_id, None)
         impl.version = model.parse_version(src['version'])
         impl.released = src['date']
         impl.arch = '*-*'
         impl.upstream_stability = stability
-        impl.commands['run'] = _Command()
+        impl.commands.update(commands)
         impl.requires.extend(requires)
         impl.add_download_source(impl_id, 0, None)
 
@@ -117,6 +121,10 @@ class _Dependency(model.InterfaceDependency):
         self.bindings = []
 
     @property
+    def context(self):
+        return self.interface
+
+    @property
     def metadata(self):
         return self._metadata
 
@@ -134,12 +142,14 @@ class _Dependency(model.InterfaceDependency):
 
 class _Command(model.Command):
 
-    def __init__(self):
+    def __init__(self, name, cmd):
         self.qdom = None
+        self.name = name
+        self.cmd = cmd
 
     @property
     def path(self):
-        return ''
+        return self.cmd
 
     @property
     def requires(self):
