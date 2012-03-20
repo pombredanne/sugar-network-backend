@@ -329,6 +329,11 @@ class DocumentClass(object):
 
     @classmethod
     def _pre_store(cls, guid, changes, is_new):
+        """Pre index store handle.
+
+        Method will be called in separate, index writer, thread.
+
+        """
         is_reindexing = not changes
 
         for prop_name, new in changes.items():
@@ -364,6 +369,11 @@ class DocumentClass(object):
 
     @classmethod
     def _post_store(cls, guid, changes, is_new):
+        """Post index store handle.
+
+        Method will be called in separate, index writer, thread.
+
+        """
         for prop_name, new in changes.items():
             prop = cls.metadata[prop_name]
             if not isinstance(prop, AggregatorProperty):
