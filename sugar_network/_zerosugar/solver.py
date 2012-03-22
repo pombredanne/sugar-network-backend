@@ -19,11 +19,11 @@ from gettext import gettext as _
 from zeroinstall.injector import model
 from zeroinstall.injector.driver import Driver
 
-from sugar_network.sweets.config import config
-from sugar_network.sweets.solution import Solution
+from sugar_network._zerosugar.config import config
+from sugar_network._zerosugar.solution import Solution
 
 
-_logger = logging.getLogger('sweets')
+_logger = logging.getLogger('zerosugar')
 
 
 def solve(req, record_details=False):

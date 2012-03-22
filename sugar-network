@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2012, Aleksey Lim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import re
+import sys
+import logging
+from optparse import OptionParser
+from os.path import basename
+from gettext import gettext as _
+
+import sugar_network as client
+from sugar_network import util, cli
+from sugar_network.util import enforce
+
+
+_GUID_RE = '[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{8}'
+
+
+def cmd_launch():
+    from sugar_network import _zerosugar
+
+    enforce(args, _('Context is not specified'))
+    context = args.pop(0)
+
+    if re.match(_GUID_RE, context) is None:
+        context = client.Context(implement=context)['guid']
+
+    _zerosugar.launch(context, cli.command.value, args)
+
+
+def cmd_config():
+    print '\n'.join(util.Option.export())
+
+
+HELP = """
+Commands:
+  launch [CONTEXT]      launch context implementation
+  config                output current configuration
+
+See http://wiki.sugarlabs.org/go/Sugar_Network for details."""
+
+parser = OptionParser(
+        usage='%prog [OPTIONS]',
+        description='sugar-network client application.',
+        add_help_option=False)
+parser.add_option('-h', '--help',
+        help=_('show this help message and exit'),
+        action='store_true')
+
+util.Option.seek('cli', cli)
+options, args = client.config(parser)
+
+if not args and not options.help:
+    prog = basename(sys.argv[0])
+    print 'Usage: %s [OPTIONS] [COMMAND]' % prog
+    print '       %s -h|--help' % prog
+    print
+    print parser.description
+    print HELP
+    exit(0)
+
+if options.help:
+    parser.print_help()
+    print HELP
+    exit(0)
+
+try:
+    if not client.debug.value:
+        level = logging.WARNING
+    elif client.debug.value == 1:
+        level = logging.INFO
+    else:
+        level = logging.DEBUG
+    logging.basicConfig(level=level,
+            format='-- %(levelname)s (%(name)s) %(message)s')
+
+    command = args.pop(0)
+    enforce('cmd_' + command in globals(),
+            _('Unknown command "%s"') % command)
+    exit(globals()['cmd_' + command]() or 0)
+
+except Exception, error:
+    util.exception(_('sugar-network aborted: %s'), error)
+    exit(1)

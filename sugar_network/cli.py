@@ -18,18 +18,7 @@ from gettext import gettext as _
 from sugar_network import util
 
 
-api_url = util.Option(
-        _('url to connect to Sugar Network server API'),
-        default='https://api.network.sugarlabs.org', short_option='-a')
-
-certfile = util.Option(
-        _('path to SSL certificate file to connect to server via HTTPS'))
-
-no_check_certificate = util.Option(
-        _('do not check the server certificate against the available ' \
-                'certificate authorities'),
-        default=False, type_cast=util.Option.bool_cast, action='store_true')
-
-debug = util.Option(
-        _('debug logging level; multiple argument'),
-        default=0, type_cast=int, short_option='-D', action='count')
+command = util.Option(
+        _('implementation\'s command to launch, if context implementation ' \
+                'supports several ones'),
+        default='activity', short_option='-C')

@@ -19,13 +19,13 @@ sys.path.insert(0, join(abspath(dirname(__file__)), 'lib'))
 
 from zeroinstall.injector.requirements import Requirements
 
-from sugar_network.sweets.solver import solve
-from sugar_network.sweets.injector import launch, make, execute
+from sugar_network._zerosugar.solver import solve
+from sugar_network._zerosugar.injector import launch, make, execute
 
 
-def _inject_sweets():
+def _inject_zerosugar():
     from zeroinstall.injector import reader, model
-    from sugar_network.sweets import feeds
+    from sugar_network._zerosugar import feeds
     from sugar_network.util import enforce
 
     def Interface_init(self, url):
@@ -39,4 +39,4 @@ def _inject_sweets():
     reader.check_readable = lambda * args, ** kwargs: True
 
 
-_inject_sweets()
+_inject_zerosugar()

@@ -23,11 +23,11 @@ from gettext import gettext as _
 from zeroinstall.injector.requirements import Requirements
 
 from sugar_network import sugar
-from sugar_network.sweets import solver
+from sugar_network._zerosugar import solver
 from sugar_network.util import enforce
 
 
-def launch(context, command='activity', args=None):
+def launch(context, command, args=None):
     in_fd = os.open('/dev/null', os.O_RDONLY)
     os.dup2(in_fd, sys.stdin.fileno())
     os.close(in_fd)
