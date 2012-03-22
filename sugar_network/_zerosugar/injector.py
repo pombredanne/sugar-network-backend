@@ -20,10 +20,12 @@ import logging
 from os.path import join, exists
 from gettext import gettext as _
 
+from zeroinstall.injector import model
 from zeroinstall.injector.requirements import Requirements
 
 from sugar_network import sugar
 from sugar_network._zerosugar import solver
+from sugar_network._zerosugar.config import config
 from sugar_network.util import enforce
 
 
@@ -63,7 +65,7 @@ def make(solution):
     for sel, __, __ in solution.walk():
         enforce(sel.download_sources, \
                 _('No sources to download implementation for "%s" context'),
-                sel.context)
+                sel.interface)
         sel.download()
 
 
@@ -71,13 +73,13 @@ def execute(solution, args):
     selection = solution.top
     command = solution.commands[0]
     args = command.path.split() + (args or [])
-    args.extend(['-a', sugar.uuid_new(), '-b', solution.context])
+    args.extend(['-a', sugar.uuid_new(), '-b', selection.id])
 
     if command.name == 'activity':
         _activity_env(selection, os.environ)
         os.chdir(selection.local_path)
 
-    logging.info(_('Executing %s: %s'), solution.context, args)
+    logging.info(_('Executing %s: %s'), solution.interface, args)
 
     pid = os.fork()
     if not pid:
@@ -108,7 +110,8 @@ def _log_path(context):
 
 
 def _activity_env(selection, env):
-    root = sugar.profile_path('data', selection.context)
+    root = sugar.profile_path('data', selection.interface)
+    iface = config.iface_cache.get_interface(selection.interface)
 
     for path in ['instance', 'data', 'tmp']:
         path = join(root, path)
@@ -116,7 +119,9 @@ def _activity_env(selection, env):
             os.makedirs(path)
 
     env['SUGAR_BUNDLE_PATH'] = selection.local_path
-    env['SUGAR_BUNDLE_ID'] = selection.context
+    env['SUGAR_BUNDLE_ID'] = selection.id
+    env['SUGAR_BUNDLE_NAME'] = iface.name
+    env['SUGAR_BUNDLE_VERSION'] = model.format_version(selection.version)
     env['SUGAR_ACTIVITY_ROOT'] = root
     env['PATH'] = '%s:%s' % (join(selection.local_path, 'bin'), env['PATH'])
     env['PYTHONPATH'] = '%s:%s' % (selection.local_path, env['PYTHONPATH'])

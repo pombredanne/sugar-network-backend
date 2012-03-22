@@ -26,7 +26,7 @@ DEEP = 2
 
 class Solution(object):
 
-    context = property(lambda self: self.value.interface)
+    interface = property(lambda self: self.value.interface)
     selections = property(lambda self: self.value.selections)
 
     def __init__(self, value, req):
@@ -53,11 +53,11 @@ class Solution(object):
 
     @property
     def id(self):
-        return (self.context, tuple([i.path for i in self.commands]))
+        return (self.interface, tuple([i.path for i in self.commands]))
 
     @property
     def top(self):
-        return self[self.context]
+        return self[self.interface]
 
     @property
     def commands(self):
@@ -69,72 +69,70 @@ class Solution(object):
     def walk(self, reverse=False, depth=DEEP, uniq=True, include_top=True):
         done = set()
 
-        def process_node(context, parent_dep, extra_deps, path):
+        def process_node(interface, parent_dep, extra_deps, path):
             if uniq:
-                if context in done:
+                if interface in done:
                     return
-                done.add(context)
+                done.add(interface)
 
-            sel = self[context]
+            sel = self[interface]
             if sel is None:
-                yield _Selection(None, context), parent_dep, path
+                yield _Selection(None, interface), parent_dep, path
                 return
 
             if reverse:
-                if include_top or context != self.context:
+                if include_top or interface != self.interface:
                     yield sel, parent_dep, path
 
             if _is_shallow(len(path) + 1, depth):
                 for dep in sel.dependencies + extra_deps:
-                    for i in process_node(dep.context, dep, [], path + [sel]):
+                    for i in process_node(dep.interface,
+                            dep, [], path + [sel]):
                         yield i
 
             if not reverse:
-                if include_top or context != self.context:
+                if include_top or interface != self.interface:
                     yield sel, parent_dep, path
 
         extra_deps = []
         for i in self.commands:
             extra_deps += i.requires
 
-        return process_node(self.context, None, extra_deps, [])
+        return process_node(self.interface, None, extra_deps, [])
 
 
 class _Selection(object):
 
-    def __init__(self, orig, context=None):
+    def __init__(self, orig, interface=None):
         self._value = orig
         self._installed = None
         self._to_install = None
-        self._context = context
+        self._interface = interface
 
     def __repr__(self):
-        return self.context
+        return self.interface
 
     @property
     def nil(self):
         return self._value is None
 
     @property
-    def context(self):
+    def interface(self):
         if self._value is None:
-            return self._context
+            return self._interface
         else:
             return self['interface']
 
-    # pylint: disable-msg=W0212
-    guid = property(lambda self: self._value.impl.id)
-    bindings = property(lambda self: self._value.impl.bindings)
-    dependencies = property(lambda self: self._value.dependencies)
-    download_sources = property(lambda self: self._value.impl.download_sources)
-    local_path = property(lambda self: self._value.impl.local_path)
+    @property
+    def dependencies(self):
+        return self._value.dependencies
 
     def download(self):
-        path = sugar.profile_path('implementations', self.guid)
+        path = sugar.profile_path('implementations', self.id)
         if not exists(path):
             tmp_path = util.TempFilePath(dir=dirname(path))
             with file(tmp_path, 'wb') as f:
-                for chunk in Implementation(self.guid).get_blob('bundle'):
+                for chunk in Implementation(self.id).get_blob('bundle'):
                     f.write(chunk)
                 if not f.tell():
                     return
@@ -145,6 +143,9 @@ class _Selection(object):
         if len(top_files) == 1:
             path = join(path, top_files[0])
         self._value.impl.local_path = path
+
+    def __getattr__(self, name):
+        return getattr(self._value.impl, name)
 
     def __contains__(self, key):
         return key in self._value.attrs
