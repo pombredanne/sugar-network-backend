@@ -17,10 +17,7 @@ import sys
 from os.path import join, abspath, dirname
 sys.path.insert(0, join(abspath(dirname(__file__)), 'lib'))
 
-from zeroinstall.injector.requirements import Requirements
-
-from sugar_network._zerosugar.solver import solve
-from sugar_network._zerosugar.injector import launch, make, execute
+from sugar_network._zerosugar.injector import launch
 
 
 def _inject_zerosugar():

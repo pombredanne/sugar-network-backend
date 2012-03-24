@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Data: 2012-03-04$
+$Date$
 
 """
 
@@ -446,82 +446,65 @@ class Option(object):
             Option.sections[section][attr.name] = attr
 
     @staticmethod
-    def bind(parser, config_files=None, notice=None):
-        """Initilize option usage.
+    def load(config_files):
+        """Load option settings from configure files.
 
-        Call this function after invoking `Option.seek()`.
+        If application accepts command-line arguments,
+        use `Option.parse_args()` function instead.
 
-        :param parser:
-            if not `None`, `OptionParser` object to export,
-            collected by `Option.seek` options, to
         :param config_files:
             list of paths to files that will be used to read default
             option values; this value will initiate `Option.config` variable
-        :param notice:
-            optional notice to print with arguments' description
 
         """
-        if config_files:
-            Option._config = Option()
-            Option._config.name = 'config'
-            Option._config.attr_name = 'config'
-            Option._config.description = \
-                    _('colon separated list of paths to alternative ' \
-                    'configuration file(s)')
-            Option._config.short_option = '-c'
-            Option._config.type_cast = \
-                    lambda x: [i for i in re.split('[\s:;,]+', x) if i]
-            Option._config.type_repr = \
-                    lambda x: ':'.join(x)
-            Option._config.value = ':'.join(config_files)
+        Option._merge(None, config_files)
 
+    @staticmethod
+    def parse_args(parser, config_files=None, stop_args=None, notice=None):
+        """Load configure files and combine them with command-line arguments.
+
+        :param parser:
+            `OptionParser` object to parse for command-line arguments
+        :param config_files:
+            list of paths to files that will be used to read default
+            option values; this value will initiate `Option.config` variable
+        :param stop_args:
+            optional list of arguments that should stop further command-line
+            arguments parsing
+        :param notice:
+            optional notice to use only in command-line related cases
+        :returns:
+            (`options`, `args`) tuple with data parsed from
+            command-line arguments
+
+        """
+        Option._bind(parser, config_files, notice)
+
+        if stop_args:
+            parser.disable_interspersed_args()
+        options, args = parser.parse_args()
+        if stop_args and args and args[0] not in stop_args:
+            parser.enable_interspersed_args()
+            options, args = parser.parse_args(args, options)
+
+        Option._merge(options, None)
+
+        # Update default values accoriding to current values
+        # to expose them while processing --help
         for prop in [Option._config] + Option.items.values():
-            desc = prop.description
-            if prop.value is not None:
-                desc += ' [%s]' % prop
-            if notice:
-                desc += '; ' + notice
-            if parser is not None:
-                parser.add_option(prop.short_option, prop.long_option,
-                        action=prop.action, help=desc)
+            parser.set_default(prop.name.replace('-', '_'), prop)
+
+        return options, args
+
+    @staticmethod
+    def bind(parser, config_files=None, notice=None):
+        # DEPRECATED
+        Option._bind(parser, config_files, notice)
 
     @staticmethod
     def merge(options, config_files=None):
-        """Combine default values with command-line arguments and config files.
-
-        Call this function after invoking `Option.bind()`.
-
-        :param options:
-            the first value from a tuple returned by
-            `OptionParser.parse_args()` function
-        :param config_files:
-            list of either config paths or `ConfigParser` objects to get
-            default option values
-
-        """
-        from ConfigParser import ConfigParser
-
-        if config_files is None:
-            if Option._config is None:
-                raise RuntimeError(_('Method Option.bind was not called or ' \
-                        'its config_files argument was None'))
-            config_files = Option._config.value
-
-        configs = [ConfigParser()]
-        for config_file in config_files:
-            if isinstance(config_file, ConfigParser):
-                configs.append(config_file)
-            elif exists(expanduser(config_file)):
-                configs[0].read(expanduser(config_file))
-
-        for prop in Option.items.values():
-            if hasattr(options, prop.attr_name) and \
-                    getattr(options, prop.attr_name) is not None:
-                prop.value = getattr(options, prop.attr_name)
-            else:
-                for config in configs:
-                    if config.has_option(prop.section, prop.name):
-                        prop.value = config.get(prop.section, prop.name)
+        # DEPRECATED
+        Option._merge(options, config_files)
 
     @staticmethod
     def export():
@@ -578,6 +561,58 @@ class Option(object):
 
     def __unicode__(self):
         return self.__str__()
+
+    @staticmethod
+    def _bind(parser, config_files, notice):
+        if config_files:
+            Option._config = Option()
+            Option._config.name = 'config'
+            Option._config.attr_name = 'config'
+            Option._config.description = \
+                    _('colon separated list of paths to alternative ' \
+                    'configuration file(s)')
+            Option._config.short_option = '-c'
+            Option._config.type_cast = \
+                    lambda x: [i for i in re.split('[\s:;,]+', x) if i]
+            Option._config.type_repr = \
+                    lambda x: ':'.join(x)
+            Option._config.value = ':'.join(config_files)
+
+        for prop in [Option._config] + Option.items.values():
+            desc = prop.description
+            if prop.value is not None:
+                desc += ' [%default]'
+            if notice:
+                desc += '; ' + notice
+            if parser is not None:
+                parser.add_option(prop.short_option, prop.long_option,
+                        action=prop.action, help=desc)
+
+    @staticmethod
+    def _merge(options, config_files):
+        from ConfigParser import ConfigParser
+
+        if config_files is None:
+            if Option._config is None:
+                raise RuntimeError(_('Method Option.bind was not called or ' \
+                        'its config_files argument was None'))
+            config_files = Option._config.value
+
+        configs = [ConfigParser()]
+        for config_file in config_files:
+            if isinstance(config_file, ConfigParser):
+                configs.append(config_file)
+            elif exists(expanduser(config_file)):
+                configs[0].read(expanduser(config_file))
+
+        for prop in Option.items.values():
+            if hasattr(options, prop.attr_name) and \
+                    getattr(options, prop.attr_name) is not None:
+                prop.value = getattr(options, prop.attr_name)
+            else:
+                for config in configs:
+                    if config.has_option(prop.section, prop.name):
+                        prop.value = config.get(prop.section, prop.name)
 
 
 class Command(object):

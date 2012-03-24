@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import re
 import sys
 import logging
 from optparse import OptionParser
@@ -27,42 +26,50 @@ from sugar_network import util, cli
 from sugar_network.util import enforce
 
 
-_GUID_RE = '[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{8}'
-
-
 def cmd_launch():
     from sugar_network import _zerosugar
 
     enforce(args, _('Context is not specified'))
     context = args.pop(0)
 
-    if re.match(_GUID_RE, context) is None:
+    if not client.is_guid(context):
         context = client.Context(implement=context)['guid']
 
-    _zerosugar.launch(context, cli.command.value, args)
+    _zerosugar.launch(context, cli.command.value, cli.jobject.value, args)
 
 
 def cmd_config():
     print '\n'.join(util.Option.export())
 
 
-HELP = """
+HELP = _("""
 Commands:
-  launch [CONTEXT]      launch context implementation
-  config                output current configuration
+  launch [CONTEXT] [RESTRICTION] [ARGS]
+                        if context is associatad with software,
+                        launch one of its implementations
+  config                output current configuration""")
 
-See http://wiki.sugarlabs.org/go/Sugar_Network for details."""
+DETAILS = _("""
+Where:
+  CONTEXT               context GUID or name context should implement
+  RESTRICTION           particular context implementation in form of:
+                        =|>=|< VERSION
+  ARGS                  arbitrary command-line arguments to pass as-is
+                        to launching context implementation""")
+
+FOOTER = _("""
+See http://wiki.sugarlabs.org/go/Sugar_Network for details.""")
 
 parser = OptionParser(
         usage='%prog [OPTIONS]',
-        description='sugar-network client application.',
+        description='Sugar Network client utility.',
         add_help_option=False)
 parser.add_option('-h', '--help',
         help=_('show this help message and exit'),
         action='store_true')
 
 util.Option.seek('cli', cli)
-options, args = client.config(parser)
+options, args = client.config(parser, ['launch'])
 
 if not args and not options.help:
     prog = basename(sys.argv[0])
@@ -71,11 +78,14 @@ if not args and not options.help:
     print
     print parser.description
     print HELP
+    print FOOTER
     exit(0)
 
 if options.help:
     parser.print_help()
     print HELP
+    print DETAILS
+    print FOOTER
     exit(0)
 
 try:

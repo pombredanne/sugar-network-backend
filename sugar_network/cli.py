@@ -19,6 +19,11 @@ from sugar_network import util
 
 
 command = util.Option(
-        _('implementation\'s command to launch, if context implementation ' \
-                'supports several ones'),
+        _('if context implementation supports several commands, ' \
+                'specify one of them to launch'),
         default='activity', short_option='-C')
+
+jobject = util.Option(
+        _('Journal object id to resume while launching ' \
+                'context implementation'),
+        short_option='-j')

@@ -93,21 +93,23 @@ def _parse_version(args):
 
 class _Feed(model.ZeroInstallFeed):
 
-    def __init__(self, context):
+    def __init__(self, guid):
+        context = client.Context(guid)
+
         self.local_path = None
         self.implementations = {}
-        self.name = context
+        self.name = context['title']
         self.summaries = {}	# { lang: str }
-        self.first_summary = context
+        self.first_summary = context['summary']
         self.descriptions = {}	# { lang: str }
-        self.first_description = None
+        self.first_description = context['description']
         self.last_modified = None
         self.feeds = []
-        self.feed_for = set([context])
+        self.feed_for = set([guid])
         self.metadata = []
         self.last_checked = None
         self._package_implementations = []
-        self.url = context
+        self.url = guid
 
 
 class _Dependency(model.InterfaceDependency):
