@@ -150,7 +150,7 @@ def _activity_env(selection, env):
             os.makedirs(path)
 
     env['SUGAR_BUNDLE_PATH'] = selection.local_path
-    env['SUGAR_BUNDLE_ID'] = selection.id
+    env['SUGAR_BUNDLE_ID'] = selection.feed.url
     env['SUGAR_BUNDLE_NAME'] = selection.feed.name
     env['SUGAR_BUNDLE_VERSION'] = model.format_version(selection.version)
     env['SUGAR_ACTIVITY_ROOT'] = root
