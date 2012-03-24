@@ -2,7 +2,7 @@
 name      = sugar-network
 
 [Package]
-project   = Server:Factory
+project   = SweetsDistribution:Factory
 implement = %(name)s
 summary   = Client side library to access to Sugar Network server
 license   = GPLv3+
