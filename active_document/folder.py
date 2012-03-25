@@ -48,6 +48,7 @@ class _Folder(dict):
 
         for cls in document_classes:
             cls.init(IndexProxy)
+            cls.metadata.ensure_path('')
             self._synchronizers[cls.metadata.name] = sync_class(cls)
 
         index_queue.init(self.documents)
@@ -90,10 +91,10 @@ class _Folder(dict):
     def close(self):
         """Close operations with the server."""
         _logger.info(_('Closing "%s" documents folder'), self.id)
+        index_queue.close()
         while self._synchronizers:
             __, sync = self._synchronizers.popitem()
             sync.cls.close()
-        index_queue.close()
 
     def _merge(self, packet, row, *args):
         _dispatch()
