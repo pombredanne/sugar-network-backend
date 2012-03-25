@@ -23,7 +23,7 @@ Sources
 
 Clone source repository from `Gitorious`_ project:
 
-    ``git clone git://git.sugarlabs.org/server/active-document.git``
+    ``git clone git://git.sugarlabs.org/network/active-document.git``
 
 Indices and tables
 ==================
@@ -32,5 +32,5 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-.. _home page: http://wiki.sugarlabs.org/go/Sugar_Server_Kit/Active_Document
-.. _Gitorious: http://git.sugarlabs.org/server
+.. _home page: http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
+.. _Gitorious: http://git.sugarlabs.org/network

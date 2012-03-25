@@ -2,11 +2,11 @@
 name      = active-document
 
 [Package]
-project   = Server:Factory
+project   = SweetsDistribution:Factory
 implement = %(name)s
-summary   = Active Record pattern to use Xapian as a "NoSQL replacement"
+summary   = Active Record pattern implementation to use Xapian as a "NoSQL replacement"
 license   = GPLv3+
-homepage  = http://wiki.sugarlabs.org/go/Sugar_Server_Kit/Active_Document
+homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
 
 version   = 0.1
 stability = developer
