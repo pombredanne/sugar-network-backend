@@ -148,10 +148,9 @@ class _WriteThread(threading.Thread):
                 raise _WriteThread._Closing
             writer = self._writers[document]
 
-            _logger.debug('Start processing %r(%r) operation for "%s" index',
-                    op, args, document)
-
             if op is not None:
+                _logger.debug('Start processing %r(%r) for "%s" index',
+                        op, args, document)
                 try:
                     op(writer, *args)
                 except Exception:

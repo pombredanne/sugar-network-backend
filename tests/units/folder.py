@@ -33,7 +33,7 @@ class FolderTest(tests.Test):
             node.sync('sync')
             self.assertEqual(4, node.Document.metadata.last_seqno)
             self.assertEqual(
-                    [('1', ['1']), ('2', ['2'])],
+                    [('1', '1'), ('2', '2')],
                     node.props)
             self.assertEqual(
                     [[1, None]],
@@ -62,7 +62,7 @@ class FolderTest(tests.Test):
             master.sync('sync')
             self.assertEqual(5, master.Document.metadata.last_seqno)
             self.assertEqual(
-                    [('1', []), ('2', []), ('3', []), ('4', ['4'])],
+                    [('1', None), ('2', None), ('3', None), ('4', '4')],
                     master.props)
 
         self.assertEqual(
@@ -80,7 +80,7 @@ class FolderTest(tests.Test):
             node.sync('sync')
             self.assertEqual(6, node.Document.metadata.last_seqno)
             self.assertEqual(
-                    [('1', ['1']), ('2', ['2']), ('3', []), ('4', []), ('5', ['5'])],
+                    [('1', '1'), ('2', '2'), ('3', None), ('4', None), ('5', '5')],
                     node.props)
             self.assertEqual(
                     [[5, None]],
@@ -100,7 +100,7 @@ class FolderTest(tests.Test):
             node.sync('sync')
             self.assertEqual(0, node.Document.metadata.last_seqno)
             self.assertEqual(
-                    [('3', []), ('4', []), ('5', [])],
+                    [('3', None), ('4', None), ('5', None)],
                     node.props)
             self.assertEqual(
                     [[1, None]],
@@ -125,7 +125,7 @@ class FolderTest(tests.Test):
             node.sync('sync')
             self.assertEqual(2, node.Document.metadata.last_seqno)
             self.assertEqual(
-                    [('3', []), ('4', []), ('5', []), ('6', ['6'])],
+                    [('3', None), ('4', None), ('5', None), ('6', '6')],
                     node.props)
             self.assertEqual(
                     [[1, None]],
@@ -147,7 +147,7 @@ class FolderTest(tests.Test):
             master.sync('sync')
             self.assertEqual(7, master.Document.metadata.last_seqno)
             self.assertEqual(
-                    [('1', []), ('2', []), ('3', []), ('4', ['4']), ('5', []), ('6', [])],
+                    [('1', None), ('2', None), ('3', None), ('4', '4'), ('5', None), ('6', None)],
                     master.props)
 
         self.assertEqual(
@@ -161,7 +161,7 @@ class FolderTest(tests.Test):
         with Sync(folder.Node, 'more_node') as node:
             node.sync('sync')
             self.assertEqual(
-                    [('1', []), ('2', []), ('3', []), ('4', []), ('5', []), ('6', [])],
+                    [('1', None), ('2', None), ('3', None), ('4', None), ('5', None), ('6', None)],
                     node.props)
             self.assertEqual(
                     [[1, None]],
@@ -261,8 +261,14 @@ class Sync(object):
 
     @property
     def props(self):
-        return [(i.prop, [j for j in i.get_blob('blob')]) \
-                for i in self.Document.find(0, 100, order_by='prop')[0]]
+        result = []
+        docs, total = self.Document.find(0, 100, order_by='prop')
+        for i in docs:
+            blob = i.get_blob('blob')
+            if blob is not None:
+                blob = blob.read()
+            result.append((i.prop, blob))
+        return result
 
     def __enter__(self):
         return self

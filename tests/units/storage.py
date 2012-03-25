@@ -76,19 +76,15 @@ class StorageTest(tests.Test):
         stream = StringIO('foo')
         self.assertEqual(None, storage.set_blob('guid', 'blob', stream))
 
-        stream = StringIO()
-        for i in storage.get_blob('guid', 'blob'):
-            stream.write(i)
-        self.assertEqual('foo', stream.getvalue())
+        stream = storage.get_blob('guid', 'blob')
+        self.assertEqual('foo', stream.read())
 
         data = '!' * _PAGE_SIZE * 2
         stream = StringIO(data)
         self.assertEqual(None, storage.set_blob('guid', 'blob', stream))
 
-        stream = StringIO()
-        for i in storage.get_blob('guid', 'blob'):
-            stream.write(i)
-        self.assertEqual(data, stream.getvalue())
+        stream = storage.get_blob('guid', 'blob')
+        self.assertEqual(data, stream.read())
 
         stream = StringIO('12345')
         self.assertEqual(None, storage.set_blob('guid', 'blob', stream, 1))

@@ -157,30 +157,15 @@ class Storage(object):
         :param name:
             BLOB property name
         :returns:
-            generator that returns data by portions
+            file-like object or `None`
 
         """
         path = self._path(guid, name)
         if not exists(path):
             return
-
-        try:
-            with file(path) as f:
-                while True:
-                    chunk = f.read(_PAGE_SIZE)
-                    if len(chunk) == 0:
-                        break
-                    try:
-                        yield chunk
-                    except GeneratorExit:
-                        break
-        except Exception, error:
-            util.exception()
-            raise RuntimeError(_('Cannot read BLOB "%s" property ' \
-                    'of "%s" in "%s": %s') % \
-                    (name, guid, self.metadata.name, error))
-        _logger.debug('Sent "%s" BLOB property from "%s" document in "%s"',
+        _logger.debug('Read "%s" BLOB property from "%s" document in "%s"',
                 name, guid, self.metadata.name)
+        return file(path)
 
     def set_blob(self, guid, name, stream, size=None):
         """Write the content of document's BLOB property.

@@ -103,7 +103,7 @@ class Document(DocumentClass):
         prop = self.metadata[prop_name]
 
         if not raw:
-            self.authorize_property(env.ACCESS_READ, prop)
+            self.assert_access(env.ACCESS_READ, prop)
 
         orig, new = self._cache.get(prop_name, (None, None))
         if new is not None:
@@ -144,9 +144,9 @@ class Document(DocumentClass):
 
         if not raw:
             if self._is_new:
-                self.authorize_property(env.ACCESS_CREATE, prop)
+                self.assert_access(env.ACCESS_CREATE, prop)
             else:
-                self.authorize_property(env.ACCESS_WRITE, prop)
+                self.assert_access(env.ACCESS_WRITE, prop)
 
         enforce(isinstance(prop, StoredProperty) or \
                 isinstance(prop, AggregatorProperty),
@@ -193,25 +193,29 @@ class Document(DocumentClass):
                 self._pre_store, self._post_store)
         self._is_new = False
 
-    def get_blob(self, prop_name):
-        """Read BLOB property content.
+    def get_blob(self, prop_name, raw=False):
+        """Read the content of document's BLOB property.
 
         This function works in parallel to getting non-BLOB properties values.
 
         :param prop_name:
             BLOB property name
+        :param raw:
+            if `True`, avoid any checks for users' visible properties;
+            only for server local use
         :returns:
-            generator that returns data by portions
+            file-like object or `None`
 
         """
         prop = self.metadata[prop_name]
-        self.authorize_property(env.ACCESS_READ, prop)
+        if not raw:
+            self.assert_access(env.ACCESS_READ, prop)
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
                 prop_name, self.metadata.name)
         return self._storage.get_blob(self.guid, prop_name)
 
-    def set_blob(self, prop_name, stream, size=None):
+    def set_blob(self, prop_name, stream, size=None, raw=False):
         """Receive BLOB property from a stream.
 
         This function works in parallel to setting non-BLOB properties values
@@ -223,10 +227,14 @@ class Document(DocumentClass):
             stream to receive property value from
         :param size:
             read only specified number of bytes; otherwise, read until the EOF
+        :param raw:
+            if `True`, avoid any checks for users' visible properties;
+            only for server local use
 
         """
         prop = self.metadata[prop_name]
-        self.authorize_property(env.ACCESS_WRITE, prop)
+        if not raw:
+            self.assert_access(env.ACCESS_WRITE, prop)
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
                 prop_name, self.metadata.name)
@@ -235,17 +243,21 @@ class Document(DocumentClass):
             self._index.store(self.guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
 
-    def stat_blob(self, prop_name):
+    def stat_blob(self, prop_name, raw=False):
         """Receive BLOB property information.
 
         :param prop_name:
             BLOB property name
+        :param raw:
+            if `True`, avoid any checks for users' visible properties;
+            only for server local use
         :returns:
             a dictionary of `size`, `sha1sum` keys
 
         """
         prop = self.metadata[prop_name]
-        self.authorize_property(env.ACCESS_WRITE, prop)
+        if not raw:
+            self.assert_access(env.ACCESS_WRITE, prop)
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
                 prop_name, self.metadata.name)
@@ -290,7 +302,7 @@ class Document(DocumentClass):
         """
         pass
 
-    def authorize_property(self, mode, prop):
+    def assert_access(self, mode, prop):
         """Does caller have permissions to access to the specified property.
 
         If caller does not have permissions, function should raise

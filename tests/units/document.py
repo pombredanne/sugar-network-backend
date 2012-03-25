@@ -172,10 +172,7 @@ class DocumentTest(tests.Test):
         data = 'payload'
 
         doc.set_blob('blob', StringIO(data))
-        stream = StringIO()
-        for i in doc.get_blob('blob'):
-            stream.write(i)
-        self.assertEqual(data, stream.getvalue())
+        self.assertEqual(data, doc.get_blob('blob').read())
         self.assertEqual(
                 {'size': len(data), 'sha1sum': hashlib.sha1(data).hexdigest()},
                 doc.stat_blob('blob'))
