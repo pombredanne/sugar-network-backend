@@ -132,7 +132,8 @@ class _Selection(object):
         if not exists(path):
             tmp_path = util.TempFilePath(dir=dirname(path))
             with file(tmp_path, 'wb') as f:
-                for chunk in Implementation(self.id).get_blob('bundle'):
+                impl = Implementation(self.id)
+                for chunk in impl.blobs['bundle'].iter_content():
                     f.write(chunk)
                 if not f.tell():
                     return

@@ -50,13 +50,6 @@ class Resource(client.Object):
             enforce(query.total == 1, _('Found more than one object'))
             client.Object.__init__(self, self.resource, query[0])
 
-    def call(self, command, **kwargs):
-        enforce('guid' in self, _('Object needs to be postet first'))
-        kwargs['cmd'] = command
-        return client.request('GET', [self.resource, self['guid']],
-                headers={'Content-Type': 'application/json'},
-                params=kwargs)
-
     @classmethod
     def find(cls, *args, **kwargs):
         """Query resource objects.

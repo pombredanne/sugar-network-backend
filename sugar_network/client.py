@@ -34,6 +34,10 @@ _logger = logging.getLogger('client')
 _headers = {}
 
 
+def delete(resource, guid):
+    _request('DELETE', [resource, guid])
+
+
 class ServerError(Exception):
 
     def __init__(self, request_, error):
@@ -191,8 +195,7 @@ class Query(object):
         if self._reply_properties:
             params['reply'] = ','.join(self._reply_properties)
 
-        reply = request('GET', self._path, params=params,
-                headers={'Content-Type': 'application/json'})
+        reply = _request('GET', self._path, params=params)
         self._total = reply['total']
 
         result = [None] * len(reply['result'])
@@ -225,6 +228,11 @@ class Object(dict):
         if 'guid' in self:
             self._path = [resource, self['guid']]
 
+    @property
+    def blobs(self):
+        enforce(self._path is not None, _('Object needs to be posted first'))
+        return _Blobs(self._path)
+
     def __enter__(self):
         return self
 
@@ -235,8 +243,7 @@ class Object(dict):
         result = self.get(prop)
         if result is None:
             if self._path and not self._got:
-                reply = request('GET', self._path,
-                        headers={'Content-Type': 'application/json'})
+                reply = _request('GET', self._path)
                 reply.update(self)
                 self.update(reply)
                 self._got = True
@@ -259,7 +266,7 @@ class Object(dict):
         for i in self._dirty:
             data[i] = self[i]
         if 'guid' in self:
-            request('PUT', self._path, data=data,
+            _request('PUT', self._path, data=data,
                     headers={'Content-Type': 'application/json'})
         else:
             if 'author' in data:
@@ -268,22 +275,65 @@ class Object(dict):
             else:
                 data['author'] = [sugar.guid()]
                 dict.__setitem__(self, 'author', [sugar.guid()])
-            reply = request('POST', [self._resource], data=data,
+            reply = _request('POST', [self._resource], data=data,
                     headers={'Content-Type': 'application/json'})
             self.update(reply)
-            self._path = '/%s/%s' % (self._resource, self['guid'])
+            self._path = [self._resource, self['guid']]
         self._dirty.clear()
 
-    def get_blob(self, prop):
-        enforce('guid' in self, _('Object needs to be posted first'))
-        response = request('GET', [self._resource, self['guid'], prop],
-                headers={'Content-Type': 'application/octet-stream'},
-                allow_redirects=True)
+    def call(self, command, method='GET', **kwargs):
+        enforce(self._path is not None, _('Object needs to be posted first'))
+        kwargs['cmd'] = command
+        return _request(method, self._path, params=kwargs)
+
+
+class Blob(object):
+
+    def __init__(self, path):
+        self._path = path
+
+    @property
+    def content(self):
+        """Return entire BLOB value as a string."""
+        response = _request('GET', self._path, allow_redirects=True)
+        if hasattr(response, 'content'):
+            return response.content
+        else:
+            return response
+
+    @property
+    def path(self):
+        """Return file-system path to file that contain BLOB value."""
+        return '/home/me/Activities/cartoon-builder.activity/' \
+                'activity/activity-cartoonbuilder.svg'
+
+    def iter_content(self):
+        """Return BLOB value by poritons.
+
+        :returns:
+            generator that returns BLOB value by chunks
+
+        """
+        response = _request('GET', self._path, allow_redirects=True)
         length = int(response.headers.get('Content-Length', _CHUNK_SIZE))
         return response.iter_content(chunk_size=min(length, _CHUNK_SIZE))
 
-    def set_blob(self, prop, data):
-        enforce('guid' in self, _('Object needs to be posted first'))
+    def _set_url(self, url):
+        _request('PUT', self._path, params={'url': url})
+
+    #: Set BLOB value by url
+    url = property(None, _set_url)
+
+
+class _Blobs(object):
+
+    def __init__(self, path):
+        self._path = path
+
+    def __getitem__(self, prop):
+        return Blob(self._path + [prop])
+
+    def __setitem__(self, prop, data):
         headers = None
         if type(data) is dict:
             files = data
@@ -294,20 +344,11 @@ class Object(dict):
         else:
             files = None
             headers = {'Content-Type': 'application/octet-stream'}
-        request('PUT', [self._resource, self['guid'], prop], headers=headers,
+        _request('PUT', self._path + [prop], headers=headers,
                 data=data, files=files)
 
-    def set_blob_with_url(self, prop, url):
-        enforce('guid' in self, _('Object needs to be posted first'))
-        request('PUT', [self._resource, self['guid'], prop],
-                params={'url': url})
 
-
-def delete(resource, guid):
-    request('DELETE', [resource, guid])
-
-
-def request(method, path, data=None, headers=None, **kwargs):
+def _request(method, path, data=None, headers=None, **kwargs):
     path = '/'.join([i.strip('/') for i in [env.api_url.value] + path])
 
     if not _headers:
@@ -357,7 +398,7 @@ def request(method, path, data=None, headers=None, **kwargs):
 
 
 def _register():
-    request('POST', ['user'],
+    _request('POST', ['user'],
             headers={'Content-Type': 'application/json'},
             data={
                 'nickname': sugar.nickname() or '',
