@@ -206,8 +206,8 @@ class ActiveProperty(StoredProperty):
                 name)
         enforce(name == 'guid' or prefix != env.GUID_PREFIX,
                 _('For "%s" property, ' \
-                        'the prefix "I" is reserved for internal needs'),
-                name)
+                        'the prefix "%s" is reserved for internal needs'),
+                name, env.GUID_PREFIX)
         enforce(slot is not None or prefix or full_text,
                 _('For "%s" property, ' \
                         'either slot, prefix or full_text need to be set'),

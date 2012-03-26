@@ -257,7 +257,7 @@ class Document(DocumentClass):
         """
         prop = self.metadata[prop_name]
         if not raw:
-            self.assert_access(env.ACCESS_WRITE, prop)
+            self.assert_access(env.ACCESS_READ, prop)
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
                 prop_name, self.metadata.name)
