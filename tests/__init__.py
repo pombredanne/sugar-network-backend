@@ -125,7 +125,7 @@ class Test(unittest.TestCase):
         server.index_flush_timeout.value = 0
         server.index_flush_threshold.value = 1
 
-        node = ad.Master(server.resources())
+        node = ad.Master(server.resources)
         httpd = WSGIServer(('localhost', port), rd.Router(node))
 
         try:

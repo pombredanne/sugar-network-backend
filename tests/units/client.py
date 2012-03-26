@@ -16,14 +16,14 @@ class ClientTest(tests.Test):
                 'response': [],
                 }
 
-        def request(method, path, data=None, params=None):
-            self.stat['requests'].append((method, path, params))
+        def request(method, path, data=None, params=None, headers=None):
+            self.stat['requests'].append((method, '/' + '/'.join(path), params))
 
             if params is None:
                 if self.stat['response']:
                     return self.stat['response'].pop(0)
                 else:
-                    return {'guid': path.split('/')[-1],
+                    return {'guid': path[-1],
                             'prop': 'value',
                             }
 
@@ -83,10 +83,10 @@ class ClientTest(tests.Test):
                 self.stat['requests'][10:])
 
     def test_Object_Gets(self):
-        obj = client.Object('resource', {'guid': 1})
+        obj = client.Object('resource', {'guid': '1'})
         self.assertEqual([], self.stat['requests'])
 
-        self.assertEqual(1, obj['guid'])
+        self.assertEqual('1', obj['guid'])
         self.assertEqual([], self.stat['requests'])
 
         self.assertEqual('value', obj['prop'])
@@ -97,7 +97,7 @@ class ClientTest(tests.Test):
         self.assertRaises(KeyError, lambda: obj['foo'])
         self.assertEqual([('GET', '/resource/1', None)], self.stat['requests'])
 
-        obj = client.Object('resource', {'guid': 2})
+        obj = client.Object('resource', {'guid': '2'})
         self.assertRaises(KeyError, lambda: obj['foo'])
         self.assertEqual([('GET', '/resource/2', None)], self.stat['requests'][1:])
         self.assertRaises(KeyError, lambda: obj['foo'])
@@ -154,7 +154,7 @@ class ClientTest(tests.Test):
     def test_Object_DoNotOverrideSetsAfterPost(self):
         obj = client.Object('resource')
         obj['foo'] = 'bar'
-        self.stat['response'].append({'guid': 1})
+        self.stat['response'].append({'guid': '1'})
         obj.post()
 
         self.assertEqual(

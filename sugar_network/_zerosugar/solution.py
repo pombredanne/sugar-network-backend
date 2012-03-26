@@ -13,11 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import zipfile
-from os.path import join, exists, dirname
+from os.path import join
 
-from sugar_network import sugar, util
 from sugar_network.resources import Implementation
 
 
@@ -128,22 +125,11 @@ class _Selection(object):
         return self._value.dependencies
 
     def download(self):
-        path = sugar.profile_path('implementations', self.id)
-        if not exists(path):
-            tmp_path = util.TempFilePath(dir=dirname(path))
-            with file(tmp_path, 'wb') as f:
-                impl = Implementation(self.id)
-                for chunk in impl.blobs['bundle'].iter_content():
-                    f.write(chunk)
-                if not f.tell():
-                    return
-            bundle = zipfile.ZipFile(tmp_path)
-            bundle.extractall(path)
-
-        top_files = os.listdir(path)
-        if len(top_files) == 1:
-            path = join(path, top_files[0])
-        self._value.impl.local_path = path
+        if not self.download_sources:
+            return
+        impl = Implementation(self.id)
+        self._value.impl.local_path = join(impl.blobs['bundle'].path,
+                self.download_sources[0].extract)
 
     def __getattr__(self, name):
         return getattr(self._value.impl, name)

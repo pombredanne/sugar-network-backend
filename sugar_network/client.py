@@ -13,36 +13,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import json
 import logging
-import hashlib
 import collections
 from gettext import gettext as _
 
-import requests
-from M2Crypto import DSA
-
-from sugar_network import env, sugar
+from sugar_network import sugar
+from sugar_network.blobs import Blob
+from sugar_network.request import request
 from sugar_network.util import enforce
 
 
 _PAGE_SIZE = 16
 _PAGE_NUMBER = 5
-_CHUNK_SIZE = 1024 * 10
 
 _logger = logging.getLogger('client')
-_headers = {}
 
 
 def delete(resource, guid):
-    _request('DELETE', [resource, guid])
-
-
-class ServerError(Exception):
-
-    def __init__(self, request_, error):
-        self.request = request_
-        Exception.__init__(self, error)
+    request('DELETE', [resource, guid])
 
 
 class Query(object):
@@ -195,7 +183,7 @@ class Query(object):
         if self._reply_properties:
             params['reply'] = ','.join(self._reply_properties)
 
-        reply = _request('GET', self._path, params=params)
+        reply = request('GET', self._path, params=params)
         self._total = reply['total']
 
         result = [None] * len(reply['result'])
@@ -243,7 +231,7 @@ class Object(dict):
         result = self.get(prop)
         if result is None:
             if self._path and not self._got:
-                reply = _request('GET', self._path)
+                reply = request('GET', self._path)
                 reply.update(self)
                 self.update(reply)
                 self._got = True
@@ -266,7 +254,7 @@ class Object(dict):
         for i in self._dirty:
             data[i] = self[i]
         if 'guid' in self:
-            _request('PUT', self._path, data=data,
+            request('PUT', self._path, data=data,
                     headers={'Content-Type': 'application/json'})
         else:
             if 'author' in data:
@@ -275,7 +263,7 @@ class Object(dict):
             else:
                 data['author'] = [sugar.guid()]
                 dict.__setitem__(self, 'author', [sugar.guid()])
-            reply = _request('POST', [self._resource], data=data,
+            reply = request('POST', [self._resource], data=data,
                     headers={'Content-Type': 'application/json'})
             self.update(reply)
             self._path = [self._resource, self['guid']]
@@ -284,45 +272,7 @@ class Object(dict):
     def call(self, command, method='GET', **kwargs):
         enforce(self._path is not None, _('Object needs to be posted first'))
         kwargs['cmd'] = command
-        return _request(method, self._path, params=kwargs)
-
-
-class Blob(object):
-
-    def __init__(self, path):
-        self._path = path
-
-    @property
-    def content(self):
-        """Return entire BLOB value as a string."""
-        response = _request('GET', self._path, allow_redirects=True)
-        if hasattr(response, 'content'):
-            return response.content
-        else:
-            return response
-
-    @property
-    def path(self):
-        """Return file-system path to file that contain BLOB value."""
-        return '/home/me/Activities/cartoon-builder.activity/' \
-                'activity/activity-cartoonbuilder.svg'
-
-    def iter_content(self):
-        """Return BLOB value by poritons.
-
-        :returns:
-            generator that returns BLOB value by chunks
-
-        """
-        response = _request('GET', self._path, allow_redirects=True)
-        length = int(response.headers.get('Content-Length', _CHUNK_SIZE))
-        return response.iter_content(chunk_size=min(length, _CHUNK_SIZE))
-
-    def _set_url(self, url):
-        _request('PUT', self._path, params={'url': url})
-
-    #: Set BLOB value by url
-    url = property(None, _set_url)
+        return request(method, self._path, params=kwargs)
 
 
 class _Blobs(object):
@@ -344,72 +294,5 @@ class _Blobs(object):
         else:
             files = None
             headers = {'Content-Type': 'application/octet-stream'}
-        _request('PUT', self._path + [prop], headers=headers,
+        request('PUT', self._path + [prop], headers=headers,
                 data=data, files=files)
-
-
-def _request(method, path, data=None, headers=None, **kwargs):
-    path = '/'.join([i.strip('/') for i in [env.api_url.value] + path])
-
-    if not _headers:
-        uid = sugar.guid()
-        _headers['sugar_user'] = uid
-        _headers['sugar_user_signature'] = _sign(uid)
-    if headers:
-        headers.update(_headers)
-    else:
-        headers = _headers
-
-    if data is not None and headers.get('Content-Type') == 'application/json':
-        data = json.dumps(data)
-
-    verify = True
-    if env.no_check_certificate.value:
-        verify = False
-    elif env.certfile.value:
-        verify = env.certfile.value
-
-    while True:
-        try:
-            response = requests.request(method, path, data=data, verify=verify,
-                    headers=headers, config={'keep_alive': True}, **kwargs)
-        except requests.exceptions.SSLError:
-            _logger.warning(_('Pass --no-check-certificate ' \
-                    'to avoid SSL checks'))
-            raise
-
-        if response.status_code != 200:
-            if response.status_code == 401:
-                _register()
-                continue
-            content = response.content
-            try:
-                error = json.loads(content)
-                raise ServerError(error['request'], error['error'])
-            except ValueError:
-                _logger.debug('Got %s HTTP error for "%s" request:\n%s',
-                        response.status_code, path, content)
-                response.raise_for_status()
-
-        if response.headers.get('Content-Type') == 'application/json':
-            return json.loads(response.content)
-        else:
-            return response
-
-
-def _register():
-    _request('POST', ['user'],
-            headers={'Content-Type': 'application/json'},
-            data={
-                'nickname': sugar.nickname() or '',
-                'color': sugar.color() or '#000000,#000000',
-                'machine_sn': sugar.machine_sn() or '',
-                'machine_uuid': sugar.machine_uuid() or '',
-                'pubkey': sugar.pubkey(),
-                },
-            )
-
-
-def _sign(data):
-    key = DSA.load_key(sugar.profile_path('owner.key'))
-    return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
