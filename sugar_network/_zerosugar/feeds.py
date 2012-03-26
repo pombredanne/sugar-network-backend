@@ -13,89 +13,51 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import re
 from gettext import gettext as _
 
 from zeroinstall.injector import model
 
-import sugar_network as client
-from sugar_network.util import enforce
+from sugar_network import util, Context
 
 
-_VERSION_RE = re.compile('(\s*(>=|<|=)\s*([.0-9]*[0-9]))')
+def read(context):
+    context = Context(context)
 
+    try:
+        feed = _Feed(context)
+    except Exception:
+        util.exception(_('Cannot resolve "%s" context'), context['guid'])
+        return None
 
-def load(context):
-    feed = _Feed(context)
+    for version, version_data in context.blobs['feed'].content.items():
+        for arch, impl_data in version_data.items():
+            impl_id = impl_data['guid']
 
-    for src in client.Implementation.find(context=context):
-        enforce(src['stability'] in model.stability_levels,
-                _('Unknown stability "%s" for %s implementation'),
-                src['stability'], src['guid'])
+            impl = model.ZeroInstallImplementation(feed, impl_id, None)
+            impl.version = model.parse_version(version)
+            impl.released = 0
+            impl.arch = arch
+            impl.upstream_stability = \
+                    model.stability_levels[impl_data['stability']]
+            impl.requires.extend(_read_requires(impl_data.get('requires')))
+            impl.add_download_source(impl_id,
+                    impl_data['size'], impl_data['extract'])
 
-        stability = model.stability_levels[src['stability']]
+            for name, command in impl_data['commands'].items():
+                impl.commands[name] = _Command(name, command)
 
-        requires = []
-        for guid, props in src['feed'].get('requires', {}).items():
-            dep = _Dependency(guid,
-                props.get('importance', model.Dependency.Essential))
-            dep.restrictions.extend(
-                    _parse_version(props.get('constraints') or ''))
-            requires.append(dep)
+            for name, insert, mode in impl_data.get('bindings') or []:
+                binding = model.EnvironmentBinding(name, insert, mode=mode)
+                impl.bindings.append(binding)
 
-        commands = {}
-        for name, cmd in src['feed'].get('commands', {}).items():
-            commands[name] = _Command(name, cmd)
-
-        impl_id = src['guid']
-        impl = model.ZeroInstallImplementation(feed, impl_id, None)
-        impl.version = model.parse_version(src['version'])
-        impl.released = src['date']
-        impl.arch = '*-*'
-        impl.upstream_stability = stability
-        impl.commands.update(commands)
-        impl.requires.extend(requires)
-        impl.add_download_source(impl_id, 0, None)
-
-        feed.implementations[impl_id] = impl
+            feed.implementations[impl_id] = impl
 
     return feed
 
 
-def _parse_version(args):
-    result = []
-    line = ''.join(args)
-
-    while line:
-        match = _VERSION_RE.match(line)
-        if match is None:
-            break
-        word, relation, version = match.groups()
-        line = line[len(word):]
-        if relation == '>=':
-            before = None
-            not_before = version
-        elif relation == '<':
-            before = version
-            not_before = None
-        elif relation == '=':
-            not_before = version
-            parts = version.split('.')
-            before = '.'.join(parts[:-1] + [str(int(parts[-1]) + 1)])
-        else:
-            continue
-        result.append(model.VersionRangeRestriction(
-            not_before=model.parse_version(not_before),
-            before=model.parse_version(before)))
-
-    return result
-
-
 class _Feed(model.ZeroInstallFeed):
 
-    def __init__(self, guid):
-        context = client.Context(guid)
-
+    def __init__(self, context):
         self.local_path = None
         self.implementations = {}
         self.name = context['title']
@@ -105,22 +67,28 @@ class _Feed(model.ZeroInstallFeed):
         self.first_description = context['description']
         self.last_modified = None
         self.feeds = []
-        self.feed_for = set([guid])
+        self.feed_for = set([context['guid']])
         self.metadata = []
         self.last_checked = None
         self._package_implementations = []
-        self.url = guid
+        self.url = context['guid']
 
 
 class _Dependency(model.InterfaceDependency):
 
-    def __init__(self, guid, importance):
-        self._importance = importance
+    def __init__(self, guid, data):
+        self._importance = data.get('importance', model.Dependency.Essential)
         self._metadata = {}
         self.qdom = None
         self.interface = guid
         self.restrictions = []
         self.bindings = []
+
+        for not_before, before in data.get('restrictions') or []:
+            restriction = model.VersionRangeRestriction(
+                    not_before=not_before and model.parse_version(not_before),
+                    before=before and model.parse_version(before))
+            self.restrictions.append(restriction)
 
     @property
     def context(self):
@@ -144,18 +112,19 @@ class _Dependency(model.InterfaceDependency):
 
 class _Command(model.Command):
 
-    def __init__(self, name, cmd):
+    def __init__(self, name, data):
         self.qdom = None
         self.name = name
-        self.cmd = cmd
+        self._path = data['exec']
+        self._requires = _read_requires(data.get('requires'))
 
     @property
     def path(self):
-        return self.cmd
+        return self._path
 
     @property
     def requires(self):
-        return []
+        return self._requires
 
     def get_runner(self):
         pass
@@ -166,3 +135,10 @@ class _Command(model.Command):
     @property
     def bindings(self):
         return []
+
+
+def _read_requires(data):
+    result = []
+    for guid, dep_data in (data or {}).items():
+        result.append(_Dependency(guid, dep_data))
+    return result

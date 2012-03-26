@@ -32,7 +32,7 @@ def _inject_zerosugar():
 
     model.Interface.__init__ = Interface_init
     reader.load_feed_from_cache = \
-            lambda url, * args, ** kwargs: feeds.load(url)
+            lambda url, * args, ** kwargs: feeds.read(url)
     reader.check_readable = lambda * args, ** kwargs: True
 
 
