@@ -13,18 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
 import logging
 import collections
 from gettext import gettext as _
 
-from sugar_network import sugar
-from sugar_network.blobs import Blob
+from sugar_network import sugar, cache
 from sugar_network.request import request
 from sugar_network.util import enforce
 
 
 _PAGE_SIZE = 16
 _PAGE_NUMBER = 5
+_CHUNK_SIZE = 1024 * 10
 
 _logger = logging.getLogger('client')
 
@@ -221,32 +222,6 @@ class Object(dict):
         enforce(self._path is not None, _('Object needs to be posted first'))
         return _Blobs(self._path)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.post()
-
-    def __getitem__(self, prop):
-        result = self.get(prop)
-        if result is None:
-            if self._path and not self._got:
-                reply = request('GET', self._path)
-                reply.update(self)
-                self.update(reply)
-                self._got = True
-            enforce(prop in self, KeyError,
-                    _('Property "%s" is absent in "%s" resource'),
-                    prop, self._resource)
-            result = self.get(prop)
-        return result
-
-    def __setitem__(self, prop, value):
-        enforce(prop != 'guid', _('Property "guid" is read-only'))
-        if self.get(prop) != value:
-            self._dirty.add(prop)
-        dict.__setitem__(self, prop, value)
-
     def post(self):
         if not self._dirty:
             return
@@ -273,6 +248,77 @@ class Object(dict):
         enforce(self._path is not None, _('Object needs to be posted first'))
         kwargs['cmd'] = command
         return request(method, self._path, params=kwargs)
+
+    def __getitem__(self, prop):
+        result = self.get(prop)
+        if result is None:
+            if self._path and not self._got:
+                properties = cache.get_properties(*self._path)
+                properties.update(self)
+                self.update(properties)
+                self._got = True
+            enforce(prop in self, KeyError,
+                    _('Property "%s" is absent in "%s" resource'),
+                    prop, self._resource)
+            result = self.get(prop)
+        return result
+
+    def __setitem__(self, prop, value):
+        enforce(prop != 'guid', _('Property "guid" is read-only'))
+        if self.get(prop) != value:
+            self._dirty.add(prop)
+        dict.__setitem__(self, prop, value)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.post()
+
+
+class Blob(object):
+
+    def __init__(self, path):
+        self._path = path
+
+    @property
+    def content(self):
+        """Return entire BLOB value as a string."""
+        path, mime_path = cache.get_blob(*self._path)
+        with file(mime_path) as f:
+            mime_type = f.read().strip()
+        with file(path) as f:
+            if mime_type == 'application/json':
+                return json.load(f)
+            else:
+                return f.read()
+
+    @property
+    def path(self):
+        """Return file-system path to file that contain BLOB value."""
+        path, __ = cache.get_blob(*self._path)
+        return path
+
+    def iter_content(self):
+        """Return BLOB value by poritons.
+
+        :returns:
+            generator that returns BLOB value by chunks
+
+        """
+        path, __ = cache.get_blob(*self._path)
+        with file(path) as f:
+            while True:
+                chunk = f.read(_CHUNK_SIZE)
+                if not chunk:
+                    break
+                yield chunk
+
+    def _set_url(self, url):
+        request('PUT', self._path, params={'url': url})
+
+    #: Set BLOB value by url
+    url = property(None, _set_url)
 
 
 class _Blobs(object):

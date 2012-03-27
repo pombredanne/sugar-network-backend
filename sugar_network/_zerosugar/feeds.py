@@ -20,13 +20,12 @@ from zeroinstall.injector import model
 from sugar_network import util, Context
 
 
-def read(context):
-    context = Context(context)
-
+def read(guid):
     try:
+        context = Context(guid)
         feed = _Feed(context)
     except Exception:
-        util.exception(_('Cannot resolve "%s" context'), context['guid'])
+        util.exception(_('Cannot resolve "%s" context'), guid)
         return None
 
     for version, version_data in context.blobs['feed'].content.items():

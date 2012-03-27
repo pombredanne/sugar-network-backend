@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import re
 import os
 import sys
 from os.path import exists, join, dirname
@@ -37,10 +36,6 @@ no_check_certificate = util.Option(
 debug = util.Option(
         _('debug logging level; multiple argument'),
         default=0, type_cast=int, short_option='-D', action='count')
-
-
-_GUID_RE = re.compile(
-        '[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{8}')
 
 
 def config(parser=None, stop_args=None):
@@ -69,11 +64,6 @@ def config(parser=None, stop_args=None):
         util.Option.load(config_files)
     else:
         return util.Option.parse_args(parser, config_files, stop_args)
-
-
-def is_guid(value):
-    """Is specified string a GUID."""
-    return _GUID_RE.match(value) is not None
 
 
 def launch(context, jobject=None, command='activity', args=None):

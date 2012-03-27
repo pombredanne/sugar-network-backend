@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+from os.path import join
+
 from __init__ import tests
 
-from sugar_network import client, sugar
+from sugar_network import client, sugar, cache
 
 
 class ClientTest(tests.Test):
@@ -16,7 +18,8 @@ class ClientTest(tests.Test):
                 'response': [],
                 }
 
-        def request(method, path, data=None, params=None, headers=None):
+        def request(method, path, data=None, headers=None, **kwargs):
+            params = kwargs.get('params')
             self.stat['requests'].append((method, '/' + '/'.join(path), params))
 
             if params is None:
@@ -32,6 +35,13 @@ class ClientTest(tests.Test):
             return {'total': 10, 'result': result}
 
         self.override(client, 'request', request)
+        self.override(cache, 'request', request)
+        self.override(cache, 'raw_request', request)
+
+        def cache_path(resource, guid, *args):
+            return join(tests.tmpdir, guid, *args)
+
+        self.override(cache, '_path', cache_path)
 
     def test_Query_Browse(self):
         client._PAGE_SIZE = 1
@@ -83,25 +93,27 @@ class ClientTest(tests.Test):
                 self.stat['requests'][10:])
 
     def test_Object_Gets(self):
-        obj = client.Object('resource', {'guid': '1'})
+        guid = '00000000-0000-0000-0000-000000000000'
+        obj = client.Object('resource', {'guid': guid})
         self.assertEqual([], self.stat['requests'])
 
-        self.assertEqual('1', obj['guid'])
+        self.assertEqual(guid, obj['guid'])
         self.assertEqual([], self.stat['requests'])
 
         self.assertEqual('value', obj['prop'])
-        self.assertEqual([('GET', '/resource/1', None)], self.stat['requests'])
+        self.assertEqual([('GET', '/resource/' + guid, None)], self.stat['requests'])
         self.assertEqual('value', obj['prop'])
-        self.assertEqual([('GET', '/resource/1', None)], self.stat['requests'])
+        self.assertEqual([('GET', '/resource/' + guid, None)], self.stat['requests'])
 
         self.assertRaises(KeyError, lambda: obj['foo'])
-        self.assertEqual([('GET', '/resource/1', None)], self.stat['requests'])
+        self.assertEqual([('GET', '/resource/' + guid, None)], self.stat['requests'])
 
-        obj = client.Object('resource', {'guid': '2'})
+        guid = '00000000-0000-0000-0000-000000000001'
+        obj = client.Object('resource', {'guid': guid})
         self.assertRaises(KeyError, lambda: obj['foo'])
-        self.assertEqual([('GET', '/resource/2', None)], self.stat['requests'][1:])
+        self.assertEqual([('GET', '/resource/' + guid, None)], self.stat['requests'][1:])
         self.assertRaises(KeyError, lambda: obj['foo'])
-        self.assertEqual([('GET', '/resource/2', None)], self.stat['requests'][1:])
+        self.assertEqual([('GET', '/resource/' + guid, None)], self.stat['requests'][1:])
 
     def test_Object_Sets(self):
         obj = client.Object('resource')

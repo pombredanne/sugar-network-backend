@@ -11,7 +11,7 @@ homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
 version   = 0.1
 stability = developer
 
-requires  = base/requests
+requires  = base/requests; sweets-recipe
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&

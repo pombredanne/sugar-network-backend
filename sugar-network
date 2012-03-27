@@ -32,9 +32,6 @@ def cmd_launch():
     enforce(args, _('Context is not specified'))
     context = args.pop(0)
 
-    if not client.is_guid(context):
-        context = client.Context(implement=context)['guid']
-
     _zerosugar.launch(context, cli.command.value, cli.jobject.value, args)
 
 

@@ -1,5 +1,4 @@
 - import <bundle_id> data dir into data/
 - reuse the same data dir for all SN names for the same context
 - treat "/" in user datain requests
-- GC blobs cache
-- add suffixes for cached BLOB files to bot break logic
+- GC cache

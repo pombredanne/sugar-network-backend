@@ -13,10 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import re
 from gettext import gettext as _
 
-from sugar_network import client
+from sugar_network import client, cache
 from sugar_network.util import enforce
+
+
+_GUID_RE = re.compile(
+        '[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{8}')
 
 
 class Resource(client.Object):
@@ -90,6 +95,14 @@ class Context(Resource):
 
     resource = 'context'
     reply_properties = ['guid', 'author', 'name', 'title', 'summary']
+
+    def __init__(self, guid=None, **filters):
+        if guid and _GUID_RE.match(guid) is None:
+            guid = self.resolve(guid)
+        Resource.__init__(self, guid, **filters)
+
+    def resolve(self, name):
+        return cache.resolve_context(name)
 
 
 class Question(Resource):
