@@ -66,18 +66,16 @@ def config(parser=None, stop_args=None):
         return util.Option.parse_args(parser, config_files, stop_args)
 
 
-def launch(context, jobject=None, command='activity', args=None):
+def launch(context, command='activity', args=None):
     """Launch context implementation.
 
     Function will call fork at the beginning. In forked process, it will try
-    to choose proper implementation to execute.
+    to choose proper implementation to execute and launch it.
 
     Execution log will be stored in `~/.sugar/PROFILE/logs` directory.
 
     :param context:
-        context GUID to look for implementations to launch
-    :param jobject:
-        if specified, Journal object id to resume during the launch
+        context GUID or name to look for implementations to launch
     :param command:
         command that selected implementation should support
     :param args:
@@ -90,18 +88,12 @@ def launch(context, jobject=None, command='activity', args=None):
     if pid:
         return pid
 
-    cmd = ['sugar-network']
-    if jobject:
-        cmd.extend(['--jobject', jobject])
-    if command:
-        cmd.extend(['--command', command])
-    cmd.extend(['launch', context])
-    if args:
-        cmd.extend(args)
+    cmd = ['sugar-network', '-C', command, 'launch', context] + (args or [])
 
     cmd_path = join(dirname(__file__), '..', 'sugar-network')
     if exists(cmd_path):
         os.execv(cmd_path, cmd)
     else:
         os.execvp(cmd[0], cmd)
+
     sys.exit(1)

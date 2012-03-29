@@ -55,22 +55,47 @@ def read(guid):
 
 
 class _Feed(model.ZeroInstallFeed):
+    # pylint: disable-msg=E0202
 
     def __init__(self, context):
+        self.context = context
         self.local_path = None
         self.implementations = {}
-        self.name = context['title']
-        self.summaries = {}	# { lang: str }
-        self.first_summary = context['summary']
-        self.descriptions = {}	# { lang: str }
-        self.first_description = context['description']
         self.last_modified = None
         self.feeds = []
-        self.feed_for = set([context['guid']])
         self.metadata = []
         self.last_checked = None
         self._package_implementations = []
-        self.url = context['guid']
+
+    @property
+    def url(self):
+        return self.context['guid']
+
+    @property
+    def feed_for(self):
+        return set([self.context['guid']])
+
+    @property
+    def name(self):
+        return self.context['title']
+
+    @property
+    def summaries(self):
+        # TODO i18n
+        return {}
+
+    @property
+    def first_summary(self):
+        return self.context['summary']
+
+    @property
+    def descriptions(self):
+        # TODO i18n
+        return {}
+
+    @property
+    def first_description(self):
+        return self.context['description']
 
 
 class _Dependency(model.InterfaceDependency):

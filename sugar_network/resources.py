@@ -20,8 +20,7 @@ from sugar_network import client, cache
 from sugar_network.util import enforce
 
 
-_GUID_RE = re.compile(
-        '[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{8}')
+_GUID_RE = re.compile('[a-z0-9]{28}')
 
 
 class Resource(client.Object):
@@ -100,6 +99,22 @@ class Context(Resource):
         if guid and _GUID_RE.match(guid) is None:
             guid = self.resolve(guid)
         Resource.__init__(self, guid, **filters)
+
+    @property
+    def implement(self):
+        """Sugar Network name the context is implementing.
+
+        It is the first, if there are more than one, entity from `implement`
+        context property. If `implement` is empty, return `guid`.
+
+        :returns:
+            string value
+
+        """
+        if self['implement']:
+            return self['implement'][0]
+        else:
+            return self['guid']
 
     def resolve(self, name):
         return cache.resolve_context(name)

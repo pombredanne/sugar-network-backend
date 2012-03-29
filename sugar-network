@@ -22,17 +22,21 @@ from os.path import basename
 from gettext import gettext as _
 
 import sugar_network as client
-from sugar_network import util, cli
+from sugar_network import util
 from sugar_network.util import enforce
+
+
+command = util.Option(
+        _('if context implementation supports several commands, ' \
+                'specify one of them to launch'),
+        default='activity', short_option='-C')
 
 
 def cmd_launch():
     from sugar_network import _zerosugar
-
     enforce(args, _('Context is not specified'))
     context = args.pop(0)
-
-    _zerosugar.launch(context, cli.command.value, cli.jobject.value, args)
+    _zerosugar.launch(context, command.value, args)
 
 
 def cmd_config():
@@ -65,7 +69,7 @@ parser.add_option('-h', '--help',
         help=_('show this help message and exit'),
         action='store_true')
 
-util.Option.seek('cli', cli)
+util.Option.seek('cli')
 options, args = client.config(parser, ['launch'])
 
 if not args and not options.help:
@@ -95,10 +99,10 @@ try:
     logging.basicConfig(level=level,
             format='-- %(levelname)s (%(name)s) %(message)s')
 
-    command = args.pop(0)
-    enforce('cmd_' + command in globals(),
-            _('Unknown command "%s"') % command)
-    exit(globals()['cmd_' + command]() or 0)
+    cmd = args.pop(0)
+    enforce('cmd_' + cmd in globals(),
+            _('Unknown command "%s"') % cmd)
+    exit(globals()['cmd_' + cmd]() or 0)
 
 except Exception, error:
     util.exception(_('sugar-network aborted: %s'), error)

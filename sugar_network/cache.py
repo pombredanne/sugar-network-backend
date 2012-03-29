@@ -35,7 +35,7 @@ _logger = logging.getLogger('client')
 
 def resolve_context(name):
     enforce(os.sep not in name,
-            _('Not allowed symbols in content name "%s"'), name)
+            _('Not allowed symbols in context name "%s"'), name)
 
     path = _resolve_path(name)
     if lexists(path):

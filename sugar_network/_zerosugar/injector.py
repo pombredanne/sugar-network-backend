@@ -26,60 +26,68 @@ import dbus
 from zeroinstall.injector import model
 from zeroinstall.injector.requirements import Requirements
 
-from sugar_network import sugar
+from sugar_network import sugar, util, Context
 from sugar_network._zerosugar import solver
 from sugar_network.util import enforce
 
 
-def launch(context, command='activity', jobject=None, args=None):
-    _setup_logging(context)
+_logger = logging.getLogger('client')
 
-    if args is None:
-        args = []
 
+def launch(context, command, args):
     if command == 'activity':
+        _setup_logging(context)
+
         launcher = dbus.Interface(
                 dbus.SessionBus().get_object(
                     'org.sugarlabs.shell.Launch',
                     '/org/sugarlabs/shell/Launch'),
                 'org.sugarlabs.shell.Launch')
-        seqno = launcher.Start(context, jobject or '')
 
-        args.extend(['-a', str(seqno), '-b', context])
-        if jobject:
-            args.extend(['-o', jobject])
-
+        object_id = _optparse(args, '-o', '--object-id')
+        activity_id = launcher.Start(context, object_id)
         try:
-            _lauch(context, command, args,
-                    lambda op, * args: getattr(launcher, op)(seqno, *args))
+            if not _optparse(args, '-a', '--activity-id'):
+                args.extend(['-a', str(activity_id)])
+            args.extend(['-b', Context(context).implement])
+
+            feedback_cb = lambda op, * args: \
+                    getattr(launcher, op)(activity_id, *args)
+            _launch(context, command, args, feedback_cb)
+
         except Exception:
-            launcher.Failure(seqno)
-            raise
-        finally:
-            launcher.Stop(seqno)
+            util.exception()
+            launcher.Failure(activity_id)
+        else:
+            launcher.Stop(activity_id)
     else:
-        _lauch(context, command, args, lambda * args: None)
+        _launch(context, command, args)
 
 
-def _lauch(context, command, args, launcher):
+def _launch(context, command, args, feedback_cb=None):
+
+    def feedback(*args):
+        if feedback_cb is not None:
+            feedback_cb(*args)
+
     requirement = Requirements(context)
     requirement.command = command
 
-    launcher('Progress', 'analyze', -1)
+    feedback('Progress', 'analyze', -1)
     solution = solver.solve(requirement)
     enforce(solution.ready, solution.failure_reason)
 
     for __ in _download(solution):
-        launcher('Progress', 'download', -1)
+        feedback('Progress', 'download', -1)
 
     command = solution.commands[0]
     args = command.path.split() + args
     if command.name == 'activity':
         _activity_env(solution.top, os.environ)
         os.chdir(solution.top.local_path)
-    logging.info(_('Executing %s: %s'), solution.interface, args)
+    _logger.info(_('Executing %s: %s'), solution.interface, args)
 
-    launcher('Progress', 'exec', -1)
+    feedback('Progress', 'exec', -1)
     pid = os.fork()
     if not pid:
         os.execvpe(args[0], args, os.environ)
@@ -90,17 +98,17 @@ def _lauch(context, command, args, launcher):
         status = os.WEXITSTATUS(status)
         message = _('Exited with status %s') % status
         if status:
-            launcher('Failure')
+            feedback('Failure')
     elif os.WIFSIGNALED(status):
         signum = os.WTERMSIG(status)
         message = _('Terminated by signal %s') % signum
         if signum not in (signal.SIGINT, signal.SIGKILL, signal.SIGTERM):
-            launcher('Failure')
+            feedback('Failure')
     else:
         signum = os.WTERMSIG(status)
         message = _('Undefined status with signal %s') % signum
-        launcher('Failure')
-    logging.info(_('Exited %s: %s'), context, message)
+        feedback('Failure')
+    _logger.info(_('Exited %s: %s'), context, message)
 
 
 def _download(solution):
@@ -110,6 +118,21 @@ def _download(solution):
                 sel.interface)
         yield
         sel.download()
+
+
+def _optparse(args, short_opt, long_opt):
+    for i, arg in enumerate(args):
+        if arg.startswith(short_opt):
+            if len(arg) > len(short_opt):
+                return arg[len(short_opt):]
+        elif arg.startswith(long_opt):
+            if '=' in arg:
+                return arg.split('=', 1)[-1].strip()
+        else:
+            continue
+        if i + 1 < len(args):
+            return args[i + 1]
+    return ''
 
 
 def _setup_logging(filename):
@@ -149,8 +172,9 @@ def _activity_env(selection, env):
         if not exists(path):
             os.makedirs(path)
 
+    env['SUGAR_CONTEXT'] = selection.feed.context['guid']
     env['SUGAR_BUNDLE_PATH'] = selection.local_path
-    env['SUGAR_BUNDLE_ID'] = selection.feed.url
+    env['SUGAR_BUNDLE_ID'] = selection.feed.context.implement
     env['SUGAR_BUNDLE_NAME'] = selection.feed.name
     env['SUGAR_BUNDLE_VERSION'] = model.format_version(selection.version)
     env['SUGAR_ACTIVITY_ROOT'] = root
