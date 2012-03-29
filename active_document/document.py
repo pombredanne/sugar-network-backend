@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-import uuid
 import logging
 from gettext import gettext as _
 
@@ -274,7 +273,7 @@ class Document(DocumentClass):
             properties to use as predefined values
 
         """
-        cache['guid'] = str(uuid.uuid1())
+        cache['guid'] = env.uuid()
         ts = int(time.time())
         cache['ctime'] = ts
         cache['mtime'] = ts

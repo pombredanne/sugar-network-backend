@@ -17,6 +17,7 @@ import os
 import json
 import logging
 import collections
+from uuid import uuid1
 from os.path import exists, join
 from gettext import gettext as _
 
@@ -71,6 +72,21 @@ index_write_queue = util.Option(
 find_limit = util.Option(
         _('limit the resulting list for search requests'),
         default=32, type_cast=int)
+
+
+def uuid():
+    """Generate GUID value.
+
+    Function will tranform `uuid.uuid1()` result to leave only alnum symbols.
+    The reason is reusing the same resulting GUID in different cases, e.g.,
+    for Telepathy names where `-` symbols, from `uuid.uuid1()`, are not
+    permitted.
+
+    :returns:
+        GUID string value
+
+    """
+    return ''.join(str(uuid1()).split('-'))
 
 
 class NotFound(Exception):

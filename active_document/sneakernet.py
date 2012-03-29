@@ -16,11 +16,12 @@
 import os
 import json
 import gzip
-import uuid
 import logging
 from glob import glob
 from os.path import abspath, isfile, join
 from gettext import gettext as _
+
+from active_document import env
 
 
 #: Callback to execute while synchronizing server data when target directory
@@ -186,7 +187,7 @@ class _OutPacket(object):
         self._write_row(kwargs)
 
     def _next_volume(self):
-        next_guid = str(uuid.uuid1())
+        next_guid = env.uuid()
         if self._zip is not None:
             self._write_row({'type': 'part', 'next': next_guid})
             self.header['prev'] = self.header['guid']

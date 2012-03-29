@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import uuid
 import copy
 import logging
 from os.path import join, exists
@@ -165,7 +164,7 @@ class Node(_Folder):
                 with file(path) as f:
                     self._id = f.read().strip()
             else:
-                self._id = str(uuid.uuid1())
+                self._id = env.uuid()
                 with util.new_file(path) as f:
                     f.write(self._id)
         return self._id
