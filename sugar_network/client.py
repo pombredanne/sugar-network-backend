@@ -36,8 +36,8 @@ def delete(resource, guid):
 class Query(object):
     """Query resource objects."""
 
-    def __init__(self, resource=None, query=None, order_by=None,
-            reply_properties=None, reply=None, **filters):
+    def __init__(self, resource=None, query=None, order_by=None, reply=None,
+            **filters):
         """
         :param resource:
             resource name to search in; if `None`, look for all resource types
@@ -46,7 +46,7 @@ class Query(object):
         :param order_by:
             name of property to sort by; might be prefixed by either `+` or `-`
             to change order's direction
-        :param reply_properties:
+        :param reply:
             list of property names to return for found objects;
             by default, only GUIDs will be returned; for missed properties,
             will be sent additional requests to a server on getting access
@@ -61,7 +61,7 @@ class Query(object):
         self._resource = resource
         self._query = query
         self._order_by = order_by
-        self._reply_properties = reply_properties
+        self._reply = reply or ['guid']
         self._filters = filters
         self._total = None
         self._page_access = collections.deque([], _PAGE_NUMBER)
@@ -180,8 +180,8 @@ class Query(object):
             params['query'] = self._query
         if self._order_by:
             params['order_by'] = self._order_by
-        if self._reply_properties:
-            params['reply'] = ','.join(self._reply_properties)
+        if self._reply:
+            params['reply'] = ','.join(self._reply)
 
         reply = http.request('GET', self._path, params=params)
         self._total = reply['total']
@@ -205,12 +205,13 @@ class Query(object):
 
 class Object(dict):
 
-    def __init__(self, resource, props=None, offset=None):
+    def __init__(self, resource, props=None, offset=None, reply=None):
         dict.__init__(self, props or {})
         self._resource = resource
         self._path = None
         self._got = False
         self._dirty = set()
+        self._reply = reply
         self.offset = offset
 
         if 'guid' in self:
@@ -250,16 +251,22 @@ class Object(dict):
 
     def __getitem__(self, prop):
         result = self.get(prop)
-        if result is None:
-            if self._path and not self._got:
-                properties = cache.get_properties(*self._path)
-                properties.update(self)
-                self.update(properties)
-                self._got = True
-            enforce(prop in self, KeyError,
-                    _('Property "%s" is absent in "%s" resource'),
-                    prop, self._resource)
-            result = self.get(prop)
+        if result is not None:
+            return result
+
+        if self._path and not self._got:
+            params = None
+            if self._reply and prop in self._reply:
+                params = {'reply': ','.join(self._reply)}
+            properties = http.request('GET', self._path, params=params)
+            properties.update(self)
+            self.update(properties)
+            self._got = True
+
+        result = self.get(prop)
+        enforce(result is not None, KeyError,
+                _('Property "%s" is absent in "%s" resource'),
+                prop, self._resource)
         return result
 
     def __setitem__(self, prop, value):

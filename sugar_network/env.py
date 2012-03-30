@@ -33,7 +33,7 @@ no_check_certificate = util.Option(
                 'certificate authorities'),
         default=False, type_cast=util.Option.bool_cast, action='store_true')
 
-cache_dir = util.Option(
+cachedir = util.Option(
         _('path to directory to keep persistent cache; ' \
                 'if omited, ~/sugar/*/cache directory will be used'))
 

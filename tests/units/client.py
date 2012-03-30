@@ -12,27 +12,46 @@ class ClientTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+
+        self.total = 10
         self.requests = []
         self.responses = []
 
-        def request(method, path, data=None, headers=None, **kwargs):
+        def request(method, path, **kwargs):
             params = kwargs.get('params')
             self.requests.append((method, '/' + '/'.join(path), params))
-
-            if params is None:
-                if self.responses:
-                    return self.responses.pop(0)
-                else:
-                    return {'guid': path[-1],
-                            'prop': 'value',
-                            }
-
-            result = [{'document': None, 'guid': i} for i in \
-                    range(params['offset'], params['offset'] + params['limit'])]
-            return {'total': 10, 'result': result}
-
+            if self.responses:
+                return self.responses.pop(0)
+            elif params and 'offset' in params:
+                result = [{'document': None, 'guid': i} for i in \
+                        range(params['offset'], params['offset'] + \
+                        params['limit'])]
+                return {'total': self.total, 'result': result}
+            else:
+                return {}
         self.override(http, 'request', request)
         self.override(http, 'raw_request', request)
+
+        client._PAGE_SIZE = 16
+        client._PAGE_NUMBER = 5
+
+    def test_SpecifyReplyProps(self):
+        self.responses.append({'p1': 'value'})
+        obj = client.Object('resource', {'guid': 'guid'}, reply=['p1', 'p2', 'p3'])
+        self.assertEqual('value', obj['p1'])
+        self.assertEqual(
+                [
+                    ('GET', '/resource/guid', {'reply': 'p1,p2,p3'}),
+                    ],
+                self.requests)
+
+        query = client.Query(reply=['p1', 'p2', 'p3'])
+        self.assertEqual(10, query.total)
+        self.assertEqual(
+                [
+                    ('GET', '/', {'offset': 0, 'limit': 16, 'reply': 'p1,p2,p3'}),
+                    ],
+                self.requests[1:])
 
     def test_Query_Browse(self):
         client._PAGE_SIZE = 1
@@ -43,13 +62,13 @@ class ClientTest(tests.Test):
         self.assertEqual(10, query.total)
         self.assertEqual(
                 [
-                    ('GET', '/', {'offset': 0, 'limit': 1}),
+                    ('GET', '/', {'offset': 0, 'limit': 1, 'reply': 'guid'}),
                     ],
                 self.requests)
         self.assertEqual(10, query.total)
         self.assertEqual(
                 [
-                    ('GET', '/', {'offset': 0, 'limit': 1}),
+                    ('GET', '/', {'offset': 0, 'limit': 1, 'reply': 'guid'}),
                     ],
                 self.requests)
 
@@ -57,15 +76,15 @@ class ClientTest(tests.Test):
             self.assertEqual(i, query[i]['guid'])
         self.assertEqual(
                 [
-                    ('GET', '/', {'offset': 1, 'limit': 1}),
-                    ('GET', '/', {'offset': 2, 'limit': 1}),
-                    ('GET', '/', {'offset': 3, 'limit': 1}),
-                    ('GET', '/', {'offset': 4, 'limit': 1}),
-                    ('GET', '/', {'offset': 5, 'limit': 1}),
-                    ('GET', '/', {'offset': 6, 'limit': 1}),
-                    ('GET', '/', {'offset': 7, 'limit': 1}),
-                    ('GET', '/', {'offset': 8, 'limit': 1}),
-                    ('GET', '/', {'offset': 9, 'limit': 1}),
+                    ('GET', '/', {'offset': 1, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 2, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 3, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 4, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 5, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 6, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 7, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 8, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 9, 'limit': 1, 'reply': 'guid'}),
                     ],
                 self.requests[1:])
 
@@ -73,18 +92,20 @@ class ClientTest(tests.Test):
             self.assertEqual(i, query[i]['guid'])
         self.assertEqual(
                 [
-                    ('GET', '/', {'offset': 6, 'limit': 1}),
-                    ('GET', '/', {'offset': 5, 'limit': 1}),
-                    ('GET', '/', {'offset': 4, 'limit': 1}),
-                    ('GET', '/', {'offset': 3, 'limit': 1}),
-                    ('GET', '/', {'offset': 2, 'limit': 1}),
-                    ('GET', '/', {'offset': 1, 'limit': 1}),
-                    ('GET', '/', {'offset': 0, 'limit': 1}),
+                    ('GET', '/', {'offset': 6, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 5, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 4, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 3, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 2, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 1, 'limit': 1, 'reply': 'guid'}),
+                    ('GET', '/', {'offset': 0, 'limit': 1, 'reply': 'guid'}),
                     ],
                 self.requests[10:])
 
     def test_Object_Gets(self):
         guid = '00000000-0000-0000-0000-000000000000'
+        self.responses.append({'prop': 'value'})
+
         obj = client.Object('resource', {'guid': guid})
         self.assertEqual([], self.requests)
 
@@ -121,7 +142,7 @@ class ClientTest(tests.Test):
         self.assertEqual('bar', obj['foo'])
         self.assertEqual([], self.requests)
 
-        self.responses.append({'guid': 'guid'})
+        self.responses.append({'guid': 'guid', 'foo': 'bar'})
         obj.post()
         self.assertEqual([('POST', '/resource', None)], self.requests)
         obj.post()
@@ -143,10 +164,16 @@ class ClientTest(tests.Test):
         self.assertEqual([], self.requests[3:])
 
     def test_Object_CheckAuthorOnPost(self):
-        obj = client.Object('resource')
+        obj = client.Object('resource', {
+            'guid': 'guid',
+            'author': [sugar.guid()],
+            })
         obj['foo'] = 'bar'
         obj.post()
-        self.assertEqual(1, len(self.requests))
+
+        self.assertEqual(
+                [('PUT', '/resource/guid', None)],
+                self.requests)
         self.assertEqual([sugar.guid()], obj['author'])
 
         obj = client.Object('resource')

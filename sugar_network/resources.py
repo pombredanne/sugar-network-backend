@@ -28,9 +28,6 @@ class Resource(client.Object):
 
     #: Resource name
     resource = None
-    #: List of properties to return from query to avoid
-    # additional requests to fetch missed properties
-    reply_properties = None
 
     def __init__(self, guid=None, **filters):
         """Get access to resource object.
@@ -61,8 +58,6 @@ class Resource(client.Object):
         Function accpet the same arguments as `sugar_network.Query()`.
 
         """
-        if 'reply_properties' not in kwargs:
-            kwargs['reply_properties'] = cls.reply_properties
         return client.Query(cls.resource, *args, **kwargs)
 
     @classmethod
@@ -79,7 +74,6 @@ class Resource(client.Object):
 class User(Resource):
 
     resource = 'user'
-    reply_properties = ['guid', 'nickname', 'color']
 
     @classmethod
     def new(cls):
@@ -93,7 +87,6 @@ class User(Resource):
 class Context(Resource):
 
     resource = 'context'
-    reply_properties = ['guid', 'author', 'name', 'title', 'summary']
 
     def __init__(self, guid=None, **filters):
         if guid and _GUID_RE.match(guid) is None:
@@ -123,59 +116,48 @@ class Context(Resource):
 class Question(Resource):
 
     resource = 'question'
-    reply_properties = ['guid', 'author', 'title']
 
 
 class Idea(Resource):
 
     resource = 'idea'
-    reply_properties = ['guid', 'author', 'title']
 
 
 class Problem(Resource):
 
     resource = 'problem'
-    reply_properties = ['guid', 'author', 'title']
 
 
 class Review(Resource):
 
     resource = 'review'
-    reply_properties = ['guid', 'author', 'title']
 
 
 class Solution(Resource):
 
     resource = 'solution'
-    reply_properties = ['guid', 'author', 'title']
 
 
 class Artifact(Resource):
 
     resource = 'artifact'
-    reply_properties = ['guid', 'author', 'title']
 
 
 class Implementation(Resource):
 
     resource = 'implementation'
-    reply_properties = ['guid', 'author', 'version', 'date', 'stability']
 
 
 class Report(Resource):
 
     resource = 'report'
-    reply_properties = ['guid', 'author', 'title']
 
 
 class Notification(Resource):
 
     resource = 'notification'
-    reply_properties = [
-            'guid', 'author', 'type', 'object_type', 'object', 'to', 'message']
 
 
 class Comment(Resource):
 
     resource = 'comment'
-    reply_properties = ['guid', 'author', 'message']

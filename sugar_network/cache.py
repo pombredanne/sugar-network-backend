@@ -82,6 +82,9 @@ def get_blob(resource, guid, prop):
     response = http.raw_request('GET', [resource, guid, prop],
             allow_redirects=True)
 
+    if not exists(dirname(path)):
+        os.makedirs(dirname(path))
+
     with file(mime_path, 'w') as f:
         f.write(response.headers.get('Content-Type') or \
                 'application/octet-stream')
@@ -112,10 +115,10 @@ def get_blob(resource, guid, prop):
 
 
 def _path(resource, guid, *args):
-    cache_dir = env.cache_dir.value
-    if not cache_dir:
-        cache_dir = sugar.profile_path('cache')
-    return join(cache_dir, resource, guid[:2], guid, *args)
+    cachedir = env.cachedir.value
+    if not cachedir:
+        cachedir = sugar.profile_path('cache')
+    return join(cachedir, resource, guid[:2], guid, *args)
 
 
 def _resolve_path(*args):
