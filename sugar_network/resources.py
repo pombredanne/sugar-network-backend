@@ -174,5 +174,5 @@ client.Object.cache_props = {
         }
 
 client.Object.persistent_props = {
-        Context.name(): frozenset(['title']),
+        Context.name(): frozenset(['title', 'implement']),
         }
