@@ -18,8 +18,7 @@ import logging
 import collections
 from gettext import gettext as _
 
-from sugar_network import sugar, cache
-from sugar_network.request import request
+from sugar_network import sugar, cache, http
 from sugar_network.util import enforce
 
 
@@ -31,14 +30,14 @@ _logger = logging.getLogger('client')
 
 
 def delete(resource, guid):
-    request('DELETE', [resource, guid])
+    http.request('DELETE', [resource, guid])
 
 
 class Query(object):
     """Query resource objects."""
 
     def __init__(self, resource=None, query=None, order_by=None,
-            reply_properties=None, **filters):
+            reply_properties=None, reply=None, **filters):
         """
         :param resource:
             resource name to search in; if `None`, look for all resource types
@@ -184,7 +183,7 @@ class Query(object):
         if self._reply_properties:
             params['reply'] = ','.join(self._reply_properties)
 
-        reply = request('GET', self._path, params=params)
+        reply = http.request('GET', self._path, params=params)
         self._total = reply['total']
 
         result = [None] * len(reply['result'])
@@ -229,7 +228,7 @@ class Object(dict):
         for i in self._dirty:
             data[i] = self[i]
         if 'guid' in self:
-            request('PUT', self._path, data=data,
+            http.request('PUT', self._path, data=data,
                     headers={'Content-Type': 'application/json'})
         else:
             if 'author' in data:
@@ -238,7 +237,7 @@ class Object(dict):
             else:
                 data['author'] = [sugar.guid()]
                 dict.__setitem__(self, 'author', [sugar.guid()])
-            reply = request('POST', [self._resource], data=data,
+            reply = http.request('POST', [self._resource], data=data,
                     headers={'Content-Type': 'application/json'})
             self.update(reply)
             self._path = [self._resource, self['guid']]
@@ -247,7 +246,7 @@ class Object(dict):
     def call(self, command, method='GET', **kwargs):
         enforce(self._path is not None, _('Object needs to be posted first'))
         kwargs['cmd'] = command
-        return request(method, self._path, params=kwargs)
+        return http.request(method, self._path, params=kwargs)
 
     def __getitem__(self, prop):
         result = self.get(prop)
@@ -315,7 +314,7 @@ class Blob(object):
                 yield chunk
 
     def _set_url(self, url):
-        request('PUT', self._path, params={'url': url})
+        http.request('PUT', self._path, params={'url': url})
 
     #: Set BLOB value by url
     url = property(None, _set_url)
@@ -340,5 +339,5 @@ class _Blobs(object):
         else:
             files = None
             headers = {'Content-Type': 'application/octet-stream'}
-        request('PUT', self._path + [prop], headers=headers,
+        http.request('PUT', self._path + [prop], headers=headers,
                 data=data, files=files)

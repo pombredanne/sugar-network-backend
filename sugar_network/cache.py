@@ -23,8 +23,7 @@ from gettext import gettext as _
 
 from sweets_recipe import Bundle
 
-from sugar_network import sugar
-from sugar_network.request import request, raw_request
+from sugar_network import sugar, env, http
 from sugar_network.util import enforce
 
 
@@ -41,7 +40,7 @@ def resolve_context(name):
     if lexists(path):
         return basename(os.readlink(path))
 
-    reply = request('GET', ['context'], params={'implement': name})
+    reply = http.request('GET', ['context'], params={'implement': name})
     enforce(reply['total'], _('Cannot resolve "%s" context name'), name)
     enforce(reply['total'] == 1,
             _('Name "%s" is associated with more than one context'), name)
@@ -59,7 +58,7 @@ def get_properties(resource, guid):
         with file(path) as f:
             properties = json.load(f)
     else:
-        properties = request('GET', [resource, guid])
+        properties = http.request('GET', [resource, guid])
         if not exists(dirname(path)):
             os.makedirs(dirname(path))
         with file(path, 'w') as f:
@@ -80,7 +79,8 @@ def get_blob(resource, guid, prop):
     if isdir(path):
         shutil.rmtree(path)
 
-    response = raw_request('GET', [resource, guid, prop], allow_redirects=True)
+    response = http.raw_request('GET', [resource, guid, prop],
+            allow_redirects=True)
 
     with file(mime_path, 'w') as f:
         f.write(response.headers.get('Content-Type') or \
@@ -112,7 +112,10 @@ def get_blob(resource, guid, prop):
 
 
 def _path(resource, guid, *args):
-    return sugar.profile_path('cache', resource, guid[:2], guid, *args)
+    cache_dir = env.cache_dir.value
+    if not cache_dir:
+        cache_dir = sugar.profile_path('cache')
+    return join(cache_dir, resource, guid[:2], guid, *args)
 
 
 def _resolve_path(*args):
