@@ -162,9 +162,13 @@ class Property(object):
         """Default property value or None."""
         return self._default
 
-    def convert(self, value):
-        """Convert specified value to property type."""
-        return _convert(self.typecast, value)
+    def encode(self, value):
+        """Convert property value to internal representation."""
+        return _encode(self.typecast, value)
+
+    def decode(self, value):
+        """Convert property value from internal representation."""
+        return value
 
     def reprcast(self, value):
         """Convert value to list of strings ready to index."""
@@ -266,8 +270,11 @@ class AggregatorProperty(Property, BrowsableProperty):
     def value(self):
         raise NotImplementedError()
 
-    def convert(self, value):
+    def encode(self, value):
         return AggregatedValue(self.value, bool(value))
+
+    def decode(self, value):
+        return bool(value)
 
 
 class CounterProperty(ActiveProperty):
@@ -335,7 +342,7 @@ def _is_composite(typecast):
     return False, False
 
 
-def _convert(typecast, value):
+def _encode(typecast, value):
     enforce(value is not None, ValueError, _('Property value cannot be None'))
 
     is_composite, is_enum = _is_composite(typecast)
@@ -346,7 +353,7 @@ def _convert(typecast, value):
         if type(value) not in _LIST_TYPES:
             value = (value,)
         typecast, = typecast or [str]
-        value = tuple([_convert(typecast, i) for i in value])
+        value = tuple([_encode(typecast, i) for i in value])
     elif is_enum:
         enforce(value in typecast, ValueError,
                 _('Value "%s" is not in "%s" list'),

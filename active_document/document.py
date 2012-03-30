@@ -119,7 +119,8 @@ class Document(DocumentClass):
                     (prop_name, self.metadata.name))
 
         self._cache[prop_name] = (orig, new)
-        return orig
+
+        return prop.decode(orig)
 
     def set(self, prop_name, value, raw=False):
         """set document's property value.
@@ -316,7 +317,7 @@ class Document(DocumentClass):
             if prop.converter is not None:
                 value = prop.converter(self, value)
             try:
-                value = prop.convert(value)
+                value = prop.encode(value)
             except Exception:
                 error = _('Value %r for "%s" property for "%s" is invalid') % \
                         (value, prop.name, self.metadata.name)
