@@ -29,6 +29,7 @@ from gettext import gettext as _
 from active_document import util, env
 from active_document.metadata import StoredProperty, CounterProperty
 from active_document.metadata import AggregatorProperty, BlobProperty
+from active_document.metadata import AggregatedValue
 from active_document.util import enforce
 
 
@@ -212,7 +213,7 @@ class Storage(object):
 
         """
         path = self._path(guid, name + '.' + str(value) + _AGGREGATE_SUFFIX)
-        return _aggregated(path)
+        return AggregatedValue(value, _aggregated(path))
 
     def aggregate(self, guid, name, value):
         """Append specified `value` to `name` property.

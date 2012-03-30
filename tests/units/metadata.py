@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import json
+
 from __init__ import tests
 
 from active_document import metadata
@@ -119,6 +121,19 @@ class MetadataTest(tests.Test):
 
         prop = metadata.Property('prop', reprcast=lambda x: x.keys())
         self.assertEqual(['a', '2'], prop.reprcast({'a': 1, 2: 'b'}))
+
+    def test_AggregatedValue_cmp(self):
+        self.assertEqual(metadata.AggregatedValue('value', True), metadata.AggregatedValue('value', True))
+        self.assertNotEqual(metadata.AggregatedValue('value', True), metadata.AggregatedValue('value2', True))
+        self.assertNotEqual(metadata.AggregatedValue('value', True), metadata.AggregatedValue('value', False))
+
+        self.assertEqual(1, metadata.AggregatedValue('value', True))
+        self.assertEqual(0, metadata.AggregatedValue('value', False))
+
+        self.assertEqual('1', json.dumps(metadata.AggregatedValue('value', True)))
+        self.assertEqual('1', json.dumps(metadata.AggregatedValue('foo', True)))
+        self.assertEqual('0', json.dumps(metadata.AggregatedValue('value', False)))
+        self.assertEqual('0', json.dumps(metadata.AggregatedValue('bar', False)))
 
 
 if __name__ == '__main__':

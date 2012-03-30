@@ -138,7 +138,7 @@ class Property(object):
 
     @property
     def typecast(self):
-        """Value type that property's string value should repesent.
+        """Cast property value before storing in the system.
 
         Supported values are:
         * `None`, string values
@@ -266,6 +266,9 @@ class AggregatorProperty(Property, BrowsableProperty):
     def value(self):
         raise NotImplementedError()
 
+    def convert(self, value):
+        return AggregatedValue(self.value, bool(value))
+
 
 class CounterProperty(ActiveProperty):
     """Only index property that can be changed only by incrementing.
@@ -303,6 +306,22 @@ class BlobProperty(Property):
 
         """
         return self._mime_type
+
+
+class AggregatedValue(int):
+
+    def __new__(cls, value, enabled):
+        self = int.__new__(cls, int(enabled))
+        self.value = value
+        return self
+
+    def __cmp__(self, other):
+        if hasattr(other, 'value'):
+            # pylint: disable-msg=E1101
+            diff = cmp(self.value, other.value)
+            if diff:
+                return diff
+        return int.__cmp__(self, other)
 
 
 def _is_composite(typecast):

@@ -340,7 +340,7 @@ class DocumentClass(object):
             prop = cls.metadata[prop_name]
             if not isinstance(prop, AggregatorProperty):
                 continue
-            orig = cls._storage.is_aggregated(guid, prop_name, prop.value)
+            orig = cls._storage.is_aggregated(guid, prop_name, new.value)
             if new == orig:
                 if not is_new:
                     del changes[prop_name]
@@ -379,9 +379,9 @@ class DocumentClass(object):
             if not isinstance(prop, AggregatorProperty):
                 continue
             if new:
-                cls._storage.aggregate(guid, prop_name, prop.value)
+                cls._storage.aggregate(guid, prop_name, new.value)
             elif not is_new:
-                cls._storage.disaggregate(guid, prop_name, prop.value)
+                cls._storage.disaggregate(guid, prop_name, new.value)
             del changes[prop_name]
 
         cls._storage.put(guid, changes)

@@ -99,26 +99,26 @@ class StorageTest(tests.Test):
     def test_Aggregates(self):
         storage = self.storage([])
 
-        self.assertEqual(False, storage.is_aggregated('guid', 'prop', 'probe'))
+        self.assertEqual(0, storage.is_aggregated('guid', 'prop', 'probe'))
         self.assertEqual(0, storage.count_aggregated('guid', 'prop'))
 
         storage.aggregate('guid', 'prop', 'probe')
-        self.assertEqual(True, storage.is_aggregated('guid', 'prop', 'probe'))
+        self.assertEqual(1, storage.is_aggregated('guid', 'prop', 'probe'))
         self.assertEqual(1, storage.count_aggregated('guid', 'prop'))
 
         storage.aggregate('guid', 'prop', 'probe2')
-        self.assertEqual(True, storage.is_aggregated('guid', 'prop', 'probe'))
-        self.assertEqual(True, storage.is_aggregated('guid', 'prop', 'probe2'))
+        self.assertEqual(1, storage.is_aggregated('guid', 'prop', 'probe'))
+        self.assertEqual(1, storage.is_aggregated('guid', 'prop', 'probe2'))
         self.assertEqual(2, storage.count_aggregated('guid', 'prop'))
 
         storage.disaggregate('guid', 'prop', 'probe')
-        self.assertEqual(False, storage.is_aggregated('guid', 'prop', 'probe'))
-        self.assertEqual(True, storage.is_aggregated('guid', 'prop', 'probe2'))
+        self.assertEqual(0, storage.is_aggregated('guid', 'prop', 'probe'))
+        self.assertEqual(1, storage.is_aggregated('guid', 'prop', 'probe2'))
         self.assertEqual(1, storage.count_aggregated('guid', 'prop'))
 
         storage.disaggregate('guid', 'prop', 'probe2')
-        self.assertEqual(False, storage.is_aggregated('guid', 'prop', 'probe'))
-        self.assertEqual(False, storage.is_aggregated('guid', 'prop', 'probe2'))
+        self.assertEqual(0, storage.is_aggregated('guid', 'prop', 'probe'))
+        self.assertEqual(0, storage.is_aggregated('guid', 'prop', 'probe2'))
         self.assertEqual(0, storage.count_aggregated('guid', 'prop'))
 
     def test_diff(self):

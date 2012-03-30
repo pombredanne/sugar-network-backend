@@ -198,7 +198,7 @@ class DocumentTest(tests.Test):
                 return value
 
         doc = Document()
-        self.assertEqual(False, doc['vote'])
+        self.assertEqual(0, doc['vote'])
         self.assertEqual(0, doc['counter'])
         doc.post()
         path = join('document', doc.guid[:2], doc.guid)
@@ -206,51 +206,51 @@ class DocumentTest(tests.Test):
 
         doc = Document(doc.guid)
         doc['vote'] = True
-        self.assertEqual(True, doc['vote'])
+        self.assertEqual(1, doc['vote'])
         doc.post()
         docs, total = Document.find(0, 100)
         self.assertEqual(1, total.value)
         self.assertEqual(
-                [(True, 1)],
+                [(1, 1)],
                 [(i.vote, i.counter) for i in docs])
 
         voter[:] = ['probe2']
 
         doc_2 = Document(doc.guid)
-        self.assertEqual(False, doc_2['vote'])
+        self.assertEqual(0, doc_2['vote'])
         self.assertEqual(1, doc_2['counter'])
         doc_2['vote'] = True
         doc_2.post()
         docs, total = Document.find(0, 100)
         self.assertEqual(1, total.value)
         self.assertEqual(
-                [(True, 2)],
+                [(1, 2)],
                 [(i.vote, i.counter) for i in docs])
 
         voter[:] = ['probe']
 
         doc_3 = Document(doc.guid)
-        self.assertEqual(True, doc_3['vote'])
+        self.assertEqual(1, doc_3['vote'])
         self.assertEqual(2, doc_3['counter'])
         doc_3['vote'] = False
         doc_3.post()
         docs, total = Document.find(0, 100)
         self.assertEqual(1, total.value)
         self.assertEqual(
-                [(False, 1)],
+                [(0, 1)],
                 [(i.vote, i.counter) for i in docs])
 
         voter[:] = ['probe2']
 
         doc_4 = Document(doc.guid)
-        self.assertEqual(True, doc_4['vote'])
+        self.assertEqual(1, doc_4['vote'])
         self.assertEqual(1, doc_4['counter'])
         doc_4['vote'] = False
         doc_4.post()
         docs, total = Document.find(0, 100)
         self.assertEqual(1, total.value)
         self.assertEqual(
-                [(False, 0)],
+                [(0, 0)],
                 [(i.vote, i.counter) for i in docs])
 
     def test_AggregatorProperty_DoNotAggregateOnNoChanches(self):
@@ -276,7 +276,7 @@ class DocumentTest(tests.Test):
         docs, total = Document.find(0, 100)
         self.assertEqual(1, total.value)
         self.assertEqual(
-                [(False, 0)],
+                [(0, 0)],
                 [(i.vote, i.counter) for i in docs])
 
     def test_find_MaxLimit(self):
@@ -420,21 +420,21 @@ class DocumentTest(tests.Test):
         doc = Document('1')
         self.assertEqual(1, doc['ctime'])
         self.assertEqual(1, doc['mtime'])
-        self.assertEqual(True, doc['vote'])
+        self.assertEqual(1, doc['vote'])
         self.assertEqual(1, doc['counter'])
         self.assertEqual('prop-1', doc['prop'])
 
         doc = Document('2')
         self.assertEqual(2, doc['ctime'])
         self.assertEqual(2, doc['mtime'])
-        self.assertEqual(False, doc['vote'])
+        self.assertEqual(0, doc['vote'])
         self.assertEqual(2, doc['counter'])
         self.assertEqual('prop-2', doc['prop'])
 
         self.assertEqual(
                 [
-                    (1, 1, True, 1, 'prop-1'),
-                    (2, 2, False, 2, 'prop-2'),
+                    (1, 1, 1, 1, 'prop-1'),
+                    (2, 2, 0, 2, 'prop-2'),
                     ],
                 [(i.ctime, i.mtime, i.vote, i.counter, i.prop) for i in Document.find(0, 10)[0]])
 
@@ -804,7 +804,7 @@ class DocumentTest(tests.Test):
                 }
         Document.merge(doc.guid, diff)
         self.assertEqual(
-                [(doc.guid, True, 2)],
+                [(doc.guid, 1, 2)],
                 [(i.guid, i.vote, i.counter) for i in Document.find(0, 100)[0]])
 
     def test_merge_New(self):

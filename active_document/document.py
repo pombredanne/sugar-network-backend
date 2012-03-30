@@ -54,7 +54,7 @@ class Document(DocumentClass):
             if not indexed_props:
                 indexed_props = self._index.get_cached(guid)
             for prop_name, value in (indexed_props or {}).items():
-                self._cache[prop_name] = (value, None)
+                self._set(self.metadata[prop_name], value, None)
             self.authorize_document(env.ACCESS_READ, self)
         else:
             self._is_new = True
@@ -62,7 +62,7 @@ class Document(DocumentClass):
             cache = {}
             self.on_create(kwargs, cache)
             for name, value in cache.items():
-                self._cache[name] = (None, value)
+                self._set(self.metadata[name], None, value)
             self._guid = cache['guid']
 
             for name, prop in self.metadata.items():
@@ -74,10 +74,7 @@ class Document(DocumentClass):
                                     'new "%s" document'),
                             name, self.metadata.name)
                 if prop.default is not None:
-                    default = prop.default
-                    if prop.converter is not None:
-                        default = prop.converter(self, default)
-                    self._cache[name] = (None, default)
+                    self._set(prop, None, prop.default)
 
         for prop_name, value in kwargs.items():
             self[prop_name] = value
@@ -152,12 +149,9 @@ class Document(DocumentClass):
                 _('Property "%s" in "%s" cannot be set'),
                 prop_name, self.metadata.name)
 
-        if prop.converter is not None:
-            value = prop.converter(self, value)
-        orig, __ = self._cache.get(prop_name, (None, None))
-        self._cache[prop_name] = (orig, value)
+        self._set(prop, None, value)
 
-        if prop_name == 'guid':
+        if prop.name == 'guid':
             self._guid = value
 
     def post(self):
@@ -174,16 +168,6 @@ class Document(DocumentClass):
             self.authorize_document(env.ACCESS_WRITE, self)
             self.on_modify(changes)
         self.on_post(changes)
-
-        for prop_name, value in changes.items():
-            prop = self.metadata[prop_name]
-            try:
-                changes[prop_name] = prop.convert(value)
-            except Exception:
-                error = _('Value %r for "%s" property for "%s" is invalid') % \
-                        (value, prop_name, self.metadata.name)
-                util.exception(error)
-                raise RuntimeError(error)
 
         if self._is_new:
             _logger.debug('Create new document "%s"', self.guid)
@@ -323,3 +307,23 @@ class Document(DocumentClass):
 
     def __setitem__(self, prop_name, value):
         self.set(prop_name, value)
+
+    def _set(self, prop, orig, new):
+
+        def cast(value):
+            if value is None:
+                return None
+            if prop.converter is not None:
+                value = prop.converter(self, value)
+            try:
+                value = prop.convert(value)
+            except Exception:
+                error = _('Value %r for "%s" property for "%s" is invalid') % \
+                        (value, prop.name, self.metadata.name)
+                util.exception(error)
+                raise RuntimeError(error)
+            return value
+
+        if orig is None:
+            orig, __ = self._cache.get(prop.name, (None, None))
+        self._cache[prop.name] = cast(orig), cast(new)
