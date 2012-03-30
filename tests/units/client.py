@@ -288,6 +288,21 @@ class ClientTest(tests.Test):
         self.assertEqual(True, client.Object('resource', {'guid': 'guid'})['vote'])
         self.assertEqual([], self.requests[1:])
 
+    def test_Object_MemoryCache_DoNotMarkObjectAsFetched(self):
+        client.Object.memory_cache['resource'] = {'vote': (1, None)}
+        self.responses.append({'prop': 'value'})
+
+        obj = client.Object('resource', {'guid': 'guid'})
+        self.assertEqual(1, obj['vote'])
+        self.assertEqual([], self.requests)
+
+        self.assertEqual('value', obj['prop'])
+        self.assertEqual(
+                [
+                    ('GET', '/resource/guid', None),
+                    ],
+                self.requests)
+
 
 if __name__ == '__main__':
     tests.main()

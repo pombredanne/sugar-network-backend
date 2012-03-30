@@ -81,7 +81,7 @@ def main():
     context = Context(guids[0])
     context['vote'] = True
     context.post()
-    assert Context(guids[0])['vote'] is True
+    assert Context(guids[0])['vote']
 
     # Wait until server will update index,
     # fulltext search does not work for cahced changes

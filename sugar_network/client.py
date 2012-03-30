@@ -276,10 +276,8 @@ class Object(dict):
 
         if self._path and not self._got:
             properties = self._fetch(prop)
-            print '>', prop, properties
             properties.update(self)
             self.update(properties)
-            self._got = True
 
         result = self.get(prop)
         enforce(result is not None, KeyError,
@@ -309,7 +307,9 @@ class Object(dict):
         if self._reply and prop in self._reply:
             params = {'reply': ','.join(self._reply)}
 
-        return http.request('GET', self._path, params=params)
+        result = http.request('GET', self._path, params=params)
+        self._got = True
+        return result
 
     def _update_cache(self):
         cached = self._cache.get(self['guid'])
