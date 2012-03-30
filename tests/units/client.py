@@ -208,6 +208,86 @@ class ClientTest(tests.Test):
         client.delete('resource', 'guid')
         self.assertEqual([('DELETE', '/resource/guid', None)], self.requests)
 
+    def test_Object_MemoryCache(self):
+        client.Object.memory_cache['resource'] = {'vote': (None, None)}
+
+        self.responses.append({'vote': False})
+        self.assertEqual(False, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual(
+                [
+                    ('GET', '/resource/guid', None),
+                    ],
+                self.requests)
+
+        obj = client.Object('resource', {'guid': 'guid'})
+        obj['vote'] = True
+        obj.post()
+        self.assertEqual(True, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual(
+                [
+                    ('PUT', '/resource/guid', None),
+                    ],
+                self.requests[1:])
+
+        self.assertEqual(True, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual([], self.requests[2:])
+
+        self.assertEqual(True, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual([], self.requests[2:])
+
+    def test_Object_MemoryCache_Typecast(self):
+        client.Object.memory_cache['resource'] = {'vote': (None, bool)}
+        self.responses.append({'guid': 'guid'})
+
+        obj = client.Object('resource')
+        obj['vote'] = 1
+        obj.post()
+        self.assertEqual(True, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual(
+                [
+                    ('POST', '/resource', None),
+                    ],
+                self.requests)
+
+        obj = client.Object('resource', {'guid': 'guid'})
+        obj['vote'] = 0
+        obj.post()
+        self.assertEqual(False, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual(
+                [
+                    ('PUT', '/resource/guid', None),
+                    ],
+                self.requests[1:])
+
+        obj = client.Object('resource', {'guid': 'guid'})
+        obj['vote'] = -1
+        obj.post()
+        self.assertEqual(True, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual(
+                [
+                    ('PUT', '/resource/guid', None),
+                    ],
+                self.requests[2:])
+
+    def test_Object_MemoryCache_Defaults(self):
+        client.Object.memory_cache['resource'] = {'vote': (True, None)}
+        self.responses.append({'guid': 'guid'})
+
+        obj = client.Object('resource')
+        obj['foo'] = 'bar'
+        obj.post()
+        self.assertEqual(
+                [
+                    ('POST', '/resource', None),
+                    ],
+                self.requests)
+
+        self.assertEqual(True, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual([], self.requests[1:])
+
+        self.assertEqual(True, client.Object('resource', {'guid': 'guid'})['vote'])
+        self.assertEqual([], self.requests[1:])
+
 
 if __name__ == '__main__':
     tests.main()

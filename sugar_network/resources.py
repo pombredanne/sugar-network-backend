@@ -24,10 +24,6 @@ _GUID_RE = re.compile('[a-z0-9]{28}')
 
 
 class Resource(client.Object):
-    """Common routines for Sugar Network resources."""
-
-    #: Resource name
-    resource = None
 
     def __init__(self, guid=None, **filters):
         """Get access to resource object.
@@ -42,14 +38,18 @@ class Resource(client.Object):
 
         """
         if guid:
-            client.Object.__init__(self, self.resource, {'guid': guid})
+            client.Object.__init__(self, self.name(), {'guid': guid})
         elif not filters:
-            client.Object.__init__(self, self.resource)
+            client.Object.__init__(self, self.name())
         else:
             query = self.find(**filters)
             enforce(query.total, KeyError, _('No objects found'))
             enforce(query.total == 1, _('Found more than one object'))
-            client.Object.__init__(self, self.resource, query[0])
+            client.Object.__init__(self, self.name(), query[0])
+
+    @classmethod
+    def name(cls):
+        return cls.__name__.lower()
 
     @classmethod
     def find(cls, *args, **kwargs):
@@ -58,7 +58,7 @@ class Resource(client.Object):
         Function accpet the same arguments as `sugar_network.Query()`.
 
         """
-        return client.Query(cls.resource, *args, **kwargs)
+        return client.Query(cls.name(), *args, **kwargs)
 
     @classmethod
     def delete(cls, guid):
@@ -68,16 +68,14 @@ class Resource(client.Object):
             resource object's GUID
 
         """
-        client.delete(cls.resource, guid)
+        client.delete(cls.name(), guid)
 
 
 class User(Resource):
 
-    resource = 'user'
-
-    @classmethod
-    def new(cls):
-        raise RuntimeError(_('Users cannot be created explicitly'))
+    def __init__(self, guid, **filters):
+        enforce(guid, _('Users cannot be created explicitly'))
+        Resource.__init__(self, guid, **filters)
 
     @classmethod
     def delete(cls, guid):
@@ -85,8 +83,6 @@ class User(Resource):
 
 
 class Context(Resource):
-
-    resource = 'context'
 
     def __init__(self, guid=None, **filters):
         if guid and _GUID_RE.match(guid) is None:
@@ -114,50 +110,65 @@ class Context(Resource):
 
 
 class Question(Resource):
-
-    resource = 'question'
+    pass
 
 
 class Idea(Resource):
-
-    resource = 'idea'
+    pass
 
 
 class Problem(Resource):
-
-    resource = 'problem'
+    pass
 
 
 class Review(Resource):
-
-    resource = 'review'
+    pass
 
 
 class Solution(Resource):
-
-    resource = 'solution'
+    pass
 
 
 class Artifact(Resource):
-
-    resource = 'artifact'
+    pass
 
 
 class Implementation(Resource):
-
-    resource = 'implementation'
+    pass
 
 
 class Report(Resource):
-
-    resource = 'report'
+    pass
 
 
 class Notification(Resource):
-
-    resource = 'notification'
+    pass
 
 
 class Comment(Resource):
+    pass
 
-    resource = 'comment'
+
+client.Object.memory_cache = {
+        Context.name(): {
+            'vote': (False, bool),
+            },
+        Question.name(): {
+            'vote': (False, bool),
+            },
+        Idea.name(): {
+            'vote': (False, bool),
+            },
+        Problem.name(): {
+            'vote': (False, bool),
+            },
+        Review.name(): {
+            'vote': (False, bool),
+            },
+        Solution.name(): {
+            'vote': (False, bool),
+            },
+        Artifact.name(): {
+            'vote': (False, bool),
+            },
+        }

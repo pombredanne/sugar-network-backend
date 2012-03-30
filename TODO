@@ -1,4 +1,5 @@
 - import <bundle_id> data dir into data/
 - reuse the same data dir for all SN names for the same context
 - treat "/" in user datain requests
-- GC cache
+- GC and stale fs cache
+- stale Object.memory_cache

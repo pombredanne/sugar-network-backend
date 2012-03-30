@@ -9,7 +9,7 @@ import logging
 import unittest
 from os.path import dirname, join, exists, abspath
 
-from sugar_network import env
+from sugar_network import env, client
 
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
@@ -38,7 +38,10 @@ class Test(unittest.TestCase):
         if exists(logfile):
             os.unlink(logfile)
 
-        env.cache_dir.value = join(tmpdir, 'cache')
+        env.cachedir.value = join(tmpdir, 'cache')
+
+        client.Object.memory_cache = {}
+        client.Object.__cache = {}
 
         self._logfile = file(logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile

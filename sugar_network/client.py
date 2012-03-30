@@ -205,13 +205,29 @@ class Query(object):
 
 class Object(dict):
 
+    #: Dictionary of `resource: {prop: (default, typecast)}` to cache
+    #: properties in memory; it make sense for special cases like `vote`
+    #: property that cannot be cached on server side
+    memory_cache = {}
+
+    __cache = {}
+
     def __init__(self, resource, props=None, offset=None, reply=None):
         dict.__init__(self, props or {})
+
         self._resource = resource
         self._path = None
         self._got = False
         self._dirty = set()
         self._reply = reply
+        self._memory_cache = {}
+        self._cache = None
+
+        if resource in self.memory_cache:
+            self._memory_cache = self.memory_cache[resource]
+            self.__cache.setdefault(resource, {})
+            self._cache = self.__cache[resource]
+
         self.offset = offset
 
         if 'guid' in self:
@@ -225,6 +241,7 @@ class Object(dict):
     def post(self):
         if not self._dirty:
             return
+
         data = {}
         for i in self._dirty:
             data[i] = self[i]
@@ -242,6 +259,9 @@ class Object(dict):
                     headers={'Content-Type': 'application/json'})
             self.update(reply)
             self._path = [self._resource, self['guid']]
+
+        if self._memory_cache:
+            self._update_cache()
         self._dirty.clear()
 
     def call(self, command, method='GET', **kwargs):
@@ -255,10 +275,8 @@ class Object(dict):
             return result
 
         if self._path and not self._got:
-            params = None
-            if self._reply and prop in self._reply:
-                params = {'reply': ','.join(self._reply)}
-            properties = http.request('GET', self._path, params=params)
+            properties = self._fetch(prop)
+            print '>', prop, properties
             properties.update(self)
             self.update(properties)
             self._got = True
@@ -280,6 +298,32 @@ class Object(dict):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.post()
+
+    def _fetch(self, prop):
+        if prop in self._memory_cache:
+            cached = self._cache.get(self['guid'])
+            if cached is not None:
+                return cached
+
+        params = None
+        if self._reply and prop in self._reply:
+            params = {'reply': ','.join(self._reply)}
+
+        return http.request('GET', self._path, params=params)
+
+    def _update_cache(self):
+        cached = self._cache.get(self['guid'])
+        if cached is None:
+            cached = self._cache[self['guid']] = {}
+
+        for prop, (default, typecast) in self._memory_cache.items():
+            if prop not in self:
+                value = default
+            elif typecast is not None:
+                value = typecast(self[prop])
+            else:
+                value = self[prop]
+            cached[prop] = value
 
 
 class Blob(object):
