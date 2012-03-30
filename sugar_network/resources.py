@@ -149,7 +149,7 @@ class Comment(Resource):
     pass
 
 
-client.Object.memory_cache = {
+client.Object.cache_props = {
         Context.name(): {
             'vote': (False, bool),
             },
@@ -171,4 +171,8 @@ client.Object.memory_cache = {
         Artifact.name(): {
             'vote': (False, bool),
             },
+        }
+
+client.Object.persistent_props = {
+        Context.name(): frozenset(['title']),
         }

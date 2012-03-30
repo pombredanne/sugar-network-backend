@@ -40,7 +40,7 @@ class Test(unittest.TestCase):
 
         env.cachedir.value = join(tmpdir, 'cache')
 
-        client.Object.memory_cache = {}
+        client.Object.cache_props = {}
         client.Object.__cache = {}
 
         self._logfile = file(logfile + '.out', 'a')

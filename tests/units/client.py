@@ -209,7 +209,7 @@ class ClientTest(tests.Test):
         self.assertEqual([('DELETE', '/resource/guid', None)], self.requests)
 
     def test_Object_MemoryCache(self):
-        client.Object.memory_cache['resource'] = {'vote': (None, None)}
+        client.Object.cache_props['resource'] = {'vote': (None, None)}
 
         self.responses.append({'vote': False})
         self.assertEqual(False, client.Object('resource', {'guid': 'guid'})['vote'])
@@ -236,7 +236,7 @@ class ClientTest(tests.Test):
         self.assertEqual([], self.requests[2:])
 
     def test_Object_MemoryCache_Typecast(self):
-        client.Object.memory_cache['resource'] = {'vote': (None, bool)}
+        client.Object.cache_props['resource'] = {'vote': (None, bool)}
         self.responses.append({'guid': 'guid'})
 
         obj = client.Object('resource')
@@ -270,7 +270,7 @@ class ClientTest(tests.Test):
                 self.requests[2:])
 
     def test_Object_MemoryCache_Defaults(self):
-        client.Object.memory_cache['resource'] = {'vote': (True, None)}
+        client.Object.cache_props['resource'] = {'vote': (True, None)}
         self.responses.append({'guid': 'guid'})
 
         obj = client.Object('resource')
@@ -289,7 +289,7 @@ class ClientTest(tests.Test):
         self.assertEqual([], self.requests[1:])
 
     def test_Object_MemoryCache_DoNotMarkObjectAsFetched(self):
-        client.Object.memory_cache['resource'] = {'vote': (1, None)}
+        client.Object.cache_props['resource'] = {'vote': (1, None)}
         self.responses.append({'prop': 'value'})
 
         obj = client.Object('resource', {'guid': 'guid'})

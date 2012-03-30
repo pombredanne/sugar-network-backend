@@ -208,7 +208,13 @@ class Object(dict):
     #: Dictionary of `resource: {prop: (default, typecast)}` to cache
     #: properties in memory; it make sense for special cases like `vote`
     #: property that cannot be cached on server side
-    memory_cache = {}
+    cache_props = {}
+
+    #: Dictionary of `resource: frozenset(prop)` to cache properties on
+    #: the disk; it make sense for special cases like random access to contexts
+    #: from Sugar Shell for, e.g., getting activity names for Journal and
+    #: Neighbourhood view
+    persistent_props = {}
 
     __cache = {}
 
@@ -220,13 +226,17 @@ class Object(dict):
         self._got = False
         self._dirty = set()
         self._reply = reply
-        self._memory_cache = {}
+        self._cache_props = {}
+        self._persistent_props = []
         self._cache = None
 
-        if resource in self.memory_cache:
-            self._memory_cache = self.memory_cache[resource]
+        if resource in self.cache_props:
+            self._cache_props = self.cache_props[resource]
             self.__cache.setdefault(resource, {})
             self._cache = self.__cache[resource]
+
+        if resource in self.persistent_props:
+            self._persistent_props = self.persistent_props[resource]
 
         self.offset = offset
 
@@ -260,7 +270,7 @@ class Object(dict):
             self.update(reply)
             self._path = [self._resource, self['guid']]
 
-        if self._memory_cache:
+        if self._cache_props:
             self._update_cache()
         self._dirty.clear()
 
@@ -298,8 +308,13 @@ class Object(dict):
         self.post()
 
     def _fetch(self, prop):
-        if prop in self._memory_cache:
+        if prop in self._cache_props:
             cached = self._cache.get(self['guid'])
+            if cached is not None:
+                return cached
+
+        if prop in self._persistent_props:
+            cached = cache.get_properties(*self._path)
             if cached is not None:
                 return cached
 
@@ -309,6 +324,12 @@ class Object(dict):
 
         result = http.request('GET', self._path, params=params)
         self._got = True
+
+        if self._persistent_props:
+            to_cache = [(key, value) for key, value in result.items() \
+                    if key in self._persistent_props]
+            cache.set_properties(dict(to_cache), *self._path)
+
         return result
 
     def _update_cache(self):
@@ -316,7 +337,7 @@ class Object(dict):
         if cached is None:
             cached = self._cache[self['guid']] = {}
 
-        for prop, (default, typecast) in self._memory_cache.items():
+        for prop, (default, typecast) in self._cache_props.items():
             if prop not in self:
                 value = default
             elif typecast is not None:

@@ -40,7 +40,8 @@ def resolve_context(name):
     if lexists(path):
         return basename(os.readlink(path))
 
-    reply = http.request('GET', ['context'], params={'implement': name})
+    reply = http.request('GET', ['context'],
+            params={'implement': name, 'reply': ['guid']})
     enforce(reply['total'], _('Cannot resolve "%s" context name'), name)
     enforce(reply['total'] == 1,
             _('Name "%s" is associated with more than one context'), name)
@@ -53,20 +54,18 @@ def resolve_context(name):
 
 def get_properties(resource, guid):
     path = _path(resource, guid, 'properties')
+    if not exists(path):
+        return
+    with file(path) as f:
+        return json.load(f)
 
-    if exists(path):
-        with file(path) as f:
-            properties = json.load(f)
-    else:
-        properties = http.request('GET', [resource, guid])
-        if not exists(dirname(path)):
-            os.makedirs(dirname(path))
-        with file(path, 'w') as f:
-            json.dump(properties, f)
-        if resource == 'context':
-            _store_resolve_result(guid, properties['implement'])
 
-    return properties
+def set_properties(props, resource, guid):
+    path = _path(resource, guid, 'properties')
+    if not exists(dirname(path)):
+        os.makedirs(dirname(path))
+    with file(path, 'w') as f:
+        json.dump(props, f)
 
 
 def get_blob(resource, guid, prop):
