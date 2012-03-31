@@ -460,7 +460,7 @@ class Option(object):
         Option._merge(None, config_files)
 
     @staticmethod
-    def parse_args(parser, config_files=None, notice=None):
+    def parse_args(parser, config_files=None, stop_args=None, notice=None):
         """Load configure files and combine them with command-line arguments.
 
         :param parser:
@@ -468,6 +468,9 @@ class Option(object):
         :param config_files:
             list of paths to files that will be used to read default
             option values; this value will initiate `Option.config` variable
+        :param stop_args:
+            optional list of arguments that should stop further command-line
+            arguments parsing
         :param notice:
             optional notice to use only in command-line related cases
         :returns:
@@ -476,7 +479,14 @@ class Option(object):
 
         """
         Option._bind(parser, config_files, notice)
+
+        if stop_args:
+            parser.disable_interspersed_args()
         options, args = parser.parse_args()
+        if stop_args and args and args[0] not in stop_args:
+            parser.enable_interspersed_args()
+            options, args = parser.parse_args(args, options)
+
         Option._merge(options, None)
 
         # Update default values accoriding to current values
