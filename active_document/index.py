@@ -136,9 +136,6 @@ class IndexReader(object):
                 for name in query.reply or self._props.keys():
                     prop = self._props.get(name)
                     if prop is None:
-                        _logger.warning(_('Unknown property name "%s" ' \
-                                'for "%s" to return from find'),
-                                name, self.metadata.name)
                         continue
                     if prop.slot is not None and prop.slot != 0:
                         value = hit.document.get_value(prop.slot)
