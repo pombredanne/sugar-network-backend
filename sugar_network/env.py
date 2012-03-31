@@ -23,7 +23,7 @@ from sugar_network import util, sugar
 
 api_url = util.Option(
         _('url to connect to Sugar Network server API'),
-        default='https://api.network.sugarlabs.org', short_option='-a')
+        default='http://18.85.44.120:8000', short_option='-a')
 
 certfile = util.Option(
         _('path to SSL certificate file to connect to server via HTTPS'))
