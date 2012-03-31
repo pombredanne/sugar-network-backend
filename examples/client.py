@@ -3,6 +3,7 @@
 import os
 import time
 import signal
+import logging
 import urllib2
 from cStringIO import StringIO
 
@@ -97,7 +98,8 @@ def main():
 
 
 if __name__ == '__main__':
-    server.debug.value = 3
+    logging.getLogger().setLevel(logging.DEBUG)
+
     server.data_root.value = 'tmp/db'
     server.stats_root.value = 'tmp/stats'
     server.logdir.value = 'tmp/log'

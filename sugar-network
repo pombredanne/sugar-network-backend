@@ -31,6 +31,10 @@ command = util.Option(
                 'specify one of them to launch'),
         default='activity', short_option='-C')
 
+debug = util.Option(
+        _('debug logging level; multiple argument'),
+        default=0, type_cast=int, short_option='-D', action='count')
+
 
 def cmd_launch():
     from sugar_network import _zerosugar
@@ -69,7 +73,7 @@ parser.add_option('-h', '--help',
         help=_('show this help message and exit'),
         action='store_true')
 
-util.Option.seek('cli')
+util.Option.seek('main')
 options, args = client.config(parser, ['launch'])
 
 if not args and not options.help:
@@ -90,9 +94,9 @@ if options.help:
     exit(0)
 
 try:
-    if not client.debug.value:
+    if not debug.value:
         level = logging.WARNING
-    elif client.debug.value == 1:
+    elif debug.value == 1:
         level = logging.INFO
     else:
         level = logging.DEBUG

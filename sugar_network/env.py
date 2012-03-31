@@ -37,10 +37,6 @@ cachedir = util.Option(
         _('path to directory to keep persistent cache; ' \
                 'if omited, ~/sugar/*/cache directory will be used'))
 
-debug = util.Option(
-        _('debug logging level; multiple argument'),
-        default=0, type_cast=int, short_option='-D', action='count')
-
 
 def config(parser=None, stop_args=None):
     """Load sugar-network configure settings.
@@ -56,12 +52,12 @@ def config(parser=None, stop_args=None):
         with data parsed from command line arguments
 
     """
-    util.Option.seek('main')
+    util.Option.seek('sugar-network')
 
     config_files = [
-            '/etc/sugar-network.conf',
-            '~/.config/sugar-network/config',
-            sugar.profile_path('sugar-network.conf'),
+            '/etc/sweets.conf',
+            '~/.config/sweets/config',
+            sugar.profile_path('sweets.conf'),
             ]
 
     if parser is None:
