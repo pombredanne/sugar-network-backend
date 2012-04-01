@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Data: 2012-03-24$
+$Data: 2012-03-31$
 
 """
 
@@ -174,7 +174,9 @@ def call(cmd, stdin=None, asserts=False, raw=False, error_cb=None, **kwargs):
         logging.debug('Failed to execute error="%s" stdout=%r stderr=%r',
                 error, str(stdout).split('\n'), str(stderr).split('\n'))
         if asserts:
-            raise RuntimeError(_('Failed to execute %r command: %s') % \
+            if type(cmd) not in (str, unicode):
+                cmd = ' '.join(cmd)
+            raise RuntimeError(_('Failed to execute "%s" command: %s') % \
                     (cmd, error))
         elif error_cb is not None:
             error_cb(returncode, stdout, stderr)
