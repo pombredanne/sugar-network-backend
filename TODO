@@ -3,3 +3,4 @@
 - treat "/" in user datain requests
 - GC and stale fs cache
 - stale Object.cache_props Object.persistent_props caches
+- empty stub for not accessible SN server should be replaced by local SN db

@@ -18,7 +18,7 @@ import logging
 import collections
 from gettext import gettext as _
 
-from sugar_network import sugar, cache, http
+from sugar_network import sugar, cache, http, util
 from sugar_network.util import enforce
 
 
@@ -183,8 +183,13 @@ class Query(object):
         if self._reply:
             params['reply'] = ','.join(self._reply)
 
-        reply = http.request('GET', self._path, params=params)
-        self._total = reply['total']
+        try:
+            reply = http.request('GET', self._path, params=params)
+            self._total = reply['total']
+        except Exception:
+            util.exception(_('Failed to fetch %s'), self._path)
+            self._total = 0
+            return
 
         result = [None] * len(reply['result'])
         for i, props in enumerate(reply['result']):
