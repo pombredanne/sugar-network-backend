@@ -85,7 +85,8 @@ class Query(object):
     def total(self):
         """Total number of objects."""
         if self._total is None:
-            self._fetch_page(0)
+            if not self._fetch_page(0):
+                return 0
         return self._total
 
     @property
@@ -146,7 +147,8 @@ class Query(object):
         page = offset / _PAGE_SIZE
         offset -= page * _PAGE_SIZE
         if page not in self._pages:
-            self._fetch_page(page)
+            if not self._fetch_page(page):
+                return default
         if offset >= len(self._pages[page]):
             total = page + len(self._pages[page])
             _logger.warning('Miscalculated total number, %s instead of %s',
@@ -189,7 +191,7 @@ class Query(object):
         except Exception:
             util.exception(_('Failed to fetch %s'), self._path)
             self._total = None
-            return
+            return False
 
         result = [None] * len(reply['result'])
         for i, props in enumerate(reply['result']):
@@ -201,6 +203,8 @@ class Query(object):
                 del self._pages[self._page_access[0]]
             self._page_access.append(page)
         self._pages[page] = result
+
+        return True
 
     def _reset(self):
         self._page_access.clear()
