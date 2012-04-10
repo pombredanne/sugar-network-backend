@@ -22,7 +22,7 @@ from os.path import basename
 from gettext import gettext as _
 
 import sugar_network as client
-from sugar_network import util
+from sugar_network import util, env
 from sugar_network.util import enforce
 
 
@@ -30,10 +30,6 @@ command = util.Option(
         _('if context implementation supports several commands, ' \
                 'specify one of them to launch'),
         default='activity', short_option='-C')
-
-debug = util.Option(
-        _('debug logging level; multiple argument'),
-        default=0, type_cast=int, short_option='-D', action='count')
 
 
 def cmd_launch():
@@ -94,9 +90,9 @@ if options.help:
     exit(0)
 
 try:
-    if not debug.value:
+    if not env.debug.value:
         level = logging.WARNING
-    elif debug.value == 1:
+    elif env.debug.value == 1:
         level = logging.INFO
     else:
         level = logging.DEBUG

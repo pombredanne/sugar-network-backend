@@ -18,7 +18,7 @@ from sugar_network.resources import User, Context, Question, Idea, Problem, \
         Comment
 
 from sugar_network.env import api_url, certfile, no_check_certificate, \
-        cachedir, config, launch
+        cachedir, debug, config, launch
 
 from sugar_network.sugar import guid, profile_path, pubkey, nickname, color, \
         machine_sn, machine_uuid

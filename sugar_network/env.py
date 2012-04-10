@@ -21,6 +21,18 @@ from gettext import gettext as _
 from sugar_network import util, sugar
 
 
+def _sugar_logger_level():
+    _LEVELS = {
+            'error': 0,
+            'warning': 0,
+            'info': 1,
+            'debug': 2,
+            'all': 2,
+            }
+    level = os.environ.get('SUGAR_LOGGER_LEVEL')
+    return _LEVELS.get(level, 0)
+
+
 api_url = util.Option(
         _('url to connect to Sugar Network server API'),
         default='http://18.85.44.120:8000', short_option='-a')
@@ -36,6 +48,11 @@ no_check_certificate = util.Option(
 cachedir = util.Option(
         _('path to directory to keep persistent cache; ' \
                 'if omited, ~/sugar/*/cache directory will be used'))
+
+debug = util.Option(
+        _('debug logging level; multiple argument'),
+        default=_sugar_logger_level(), type_cast=int, short_option='-D',
+        action='count')
 
 
 def config(parser=None, stop_args=None):
