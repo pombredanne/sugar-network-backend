@@ -188,7 +188,7 @@ class Query(object):
             self._total = reply['total']
         except Exception:
             util.exception(_('Failed to fetch %s'), self._path)
-            self._total = 0
+            self._total = None
             return
 
         result = [None] * len(reply['result'])
