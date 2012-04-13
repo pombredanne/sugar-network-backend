@@ -113,9 +113,6 @@ def close():
 
 class _WriteThread(threading.Thread):
 
-    class _Closing(Exception):
-        pass
-
     def __init__(self, document_classes):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -126,7 +123,7 @@ class _WriteThread(threading.Thread):
         _logger.debug('Start processing queue')
         try:
             self._run()
-        except _WriteThread._Closing:
+        except _EmptyQueue:
             self._close()
         except Exception:
             global errnum
@@ -142,10 +139,15 @@ class _WriteThread(threading.Thread):
             _logger.info(_('Open "%s" index'), cls.metadata.name)
             self._writers[cls.metadata.name] = IndexWriter(cls.metadata)
 
+        closing = False
+
         while True:
-            document, op, args, to_commit = _queue.pop()
+            document, op, args, to_commit = _queue.pop_start(not closing)
             if document is None:
-                raise _WriteThread._Closing
+                _queue.pop_done(document, to_commit)
+                closing = True
+                continue
+
             writer = self._writers[document]
 
             if op is not None:
@@ -162,7 +164,7 @@ class _WriteThread(threading.Thread):
             if to_commit:
                 writer.commit()
 
-            _queue.done(document, to_commit)
+            _queue.pop_done(document, to_commit)
 
     def _close(self):
         while self._writers:
@@ -213,7 +215,7 @@ class _Queue(object):
         finally:
             self._mutex.release()
 
-    def pop(self):
+    def pop_start(self, blocking=True):
         self._mutex.acquire()
         try:
             while True:
@@ -228,13 +230,15 @@ class _Queue(object):
                         remaining = env.index_flush_timeout.value
                         self._endtime = ts + remaining
                 if not self._queue:
+                    if not blocking:
+                        raise _EmptyQueue()
                     self._push_cond.wait(remaining)
                 if self._queue:
                     return self._queue[0]
         finally:
             self._mutex.release()
 
-    def done(self, document, to_commit):
+    def pop_done(self, document, to_commit):
         self._mutex.acquire()
         try:
             self._queue.popleft()
@@ -288,3 +292,7 @@ class _Queue(object):
         self._push_cond.notify()
 
         return seqno.pending_seqno
+
+
+class _EmptyQueue(Exception):
+    pass
