@@ -92,7 +92,7 @@ def launch(context, command='activity', args=None):
     Execution log will be stored in `~/.sugar/PROFILE/logs` directory.
 
     :param context:
-        context GUID or name to look for implementations to launch
+        context GUID to launch
     :param command:
         command that selected implementation should support
     :param args:

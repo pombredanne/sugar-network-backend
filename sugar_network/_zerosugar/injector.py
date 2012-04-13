@@ -31,7 +31,7 @@ from sugar_network._zerosugar import solver
 from sugar_network.util import enforce
 
 
-_logger = logging.getLogger('client')
+_logger = logging.getLogger('zerosugar')
 
 
 def launch(context, command, args):
@@ -49,14 +49,14 @@ def launch(context, command, args):
         try:
             if not _optparse(args, '-a', '--activity-id'):
                 args.extend(['-a', str(activity_id)])
-            args.extend(['-b', Context(context).implement])
+            args.extend(['-b', Context(context)['guid']])
 
             feedback_cb = lambda op, * args: \
                     getattr(launcher, op)(activity_id, *args)
             _launch(context, command, args, feedback_cb)
 
         except Exception:
-            util.exception()
+            util.exception(_logger)
             launcher.Failure(activity_id)
         else:
             launcher.Stop(activity_id)
@@ -172,9 +172,8 @@ def _activity_env(selection, env):
         if not exists(path):
             os.makedirs(path)
 
-    env['SUGAR_CONTEXT'] = selection.feed.context['guid']
     env['SUGAR_BUNDLE_PATH'] = selection.local_path
-    env['SUGAR_BUNDLE_ID'] = selection.feed.context.implement
+    env['SUGAR_BUNDLE_ID'] = selection.feed.context['guid']
     env['SUGAR_BUNDLE_NAME'] = selection.feed.name
     env['SUGAR_BUNDLE_VERSION'] = model.format_version(selection.version)
     env['SUGAR_ACTIVITY_ROOT'] = root

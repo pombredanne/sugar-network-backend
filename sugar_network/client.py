@@ -189,7 +189,7 @@ class Query(object):
             reply = http.request('GET', self._path, params=params)
             self._total = reply['total']
         except Exception:
-            util.exception(_('Failed to fetch %s'), self._path)
+            util.exception(_logger, _('Failed to fetch %s'), self._path)
             self._total = None
             return False
 
@@ -219,12 +219,6 @@ class Object(dict):
     #: property that cannot be cached on server side
     cache_props = {}
 
-    #: Dictionary of `resource: frozenset(prop)` to cache properties on
-    #: the disk; it make sense for special cases like random access to contexts
-    #: from Sugar Shell for, e.g., getting activity names for Journal and
-    #: Neighbourhood view
-    persistent_props = {}
-
     __cache = {}
 
     def __init__(self, resource, props=None, offset=None, reply=None):
@@ -236,16 +230,12 @@ class Object(dict):
         self._dirty = set()
         self._reply = reply
         self._cache_props = {}
-        self._persistent_props = []
         self._cache = None
 
         if resource in self.cache_props:
             self._cache_props = self.cache_props[resource]
             self.__cache.setdefault(resource, {})
             self._cache = self.__cache[resource]
-
-        if resource in self.persistent_props:
-            self._persistent_props = self.persistent_props[resource]
 
         self.offset = offset
 
@@ -322,22 +312,12 @@ class Object(dict):
             if cached is not None:
                 return cached
 
-        if prop in self._persistent_props:
-            cached = cache.get_properties(*self._path)
-            if cached is not None:
-                return cached
-
         params = None
         if self._reply and prop in self._reply:
             params = {'reply': ','.join(self._reply)}
 
         result = http.request('GET', self._path, params=params)
         self._got = True
-
-        if self._persistent_props:
-            to_cache = [(key, value) for key, value in result.items() \
-                    if key in self._persistent_props]
-            cache.set_properties(dict(to_cache), *self._path)
 
         return result
 
@@ -364,9 +344,9 @@ class Blob(object):
     @property
     def content(self):
         """Return entire BLOB value as a string."""
-        path, mime_path = cache.get_blob(*self._path)
-        with file(mime_path) as f:
-            mime_type = f.read().strip()
+        path, mime_type = cache.get_blob(*self._path)
+        if not path:
+            return None
         with file(path) as f:
             if mime_type == 'application/json':
                 return json.load(f)
@@ -387,6 +367,8 @@ class Blob(object):
 
         """
         path, __ = cache.get_blob(*self._path)
+        if not path:
+            return
         with file(path) as f:
             while True:
                 chunk = f.read(_CHUNK_SIZE)

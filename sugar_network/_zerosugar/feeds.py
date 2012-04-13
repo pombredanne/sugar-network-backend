@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
 from gettext import gettext as _
 
 from zeroinstall.injector import model
@@ -20,15 +21,24 @@ from zeroinstall.injector import model
 from sugar_network import util, Context
 
 
+_logger = logging.getLogger('zerosugar')
+
+
 def read(guid):
     try:
         context = Context(guid)
         feed = _Feed(context)
+        feed_content = context.blobs['feed'].content
     except Exception:
-        util.exception(_('Cannot resolve "%s" context'), guid)
+        util.exception(_logger,
+                _('Failed to fetch feed for "%s" context'), guid)
         return None
 
-    for version, version_data in context.blobs['feed'].content.items():
+    if not feed_content:
+        _logger.warning(_('No feed for "%s" context'), guid)
+        return None
+
+    for version, version_data in feed_content.items():
         for arch, impl_data in version_data.items():
             impl_id = impl_data['guid']
 
