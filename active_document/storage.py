@@ -51,6 +51,10 @@ class Storage(object):
         """
         self.metadata = metadata
 
+    def exists(self, guid):
+        """Does specified GUID exist."""
+        return exists(self._path(guid))
+
     def get(self, guid):
         """Get access to particular document's properties.
 

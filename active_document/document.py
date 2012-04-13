@@ -84,6 +84,12 @@ class Document(DocumentClass):
         """Document GUID."""
         return self._guid
 
+    @property
+    def exists(self):
+        if self._is_new:
+            return False
+        return self._storage.exists(self.guid)
+
     def get(self, prop_name, raw=False):
         """Get document's property value.
 
