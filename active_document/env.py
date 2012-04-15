@@ -50,6 +50,8 @@ ACCESS_NAMES = {
         ACCESS_DELETE: _('Delete'),
         }
 
+LAYERS = ['public', 'deleted']
+
 
 data_root = util.Option(
         _('path to the root directory for placing documents\' ' \
@@ -279,8 +281,8 @@ class Range(list):
 
 class Query(object):
 
-    def __init__(self, offset=None, limit=None, request=None, query='',
-            reply=None, order_by=None, no_cache=False):
+    def __init__(self, offset=None, limit=None, query='', reply=None,
+            order_by=None, no_cache=False, **kwargs):
         """
         :param offset:
             the resulting list should start with this offset;
@@ -288,8 +290,6 @@ class Query(object):
         :param limit:
             the resulting list will be at least `limit` size;
             the `--find-limit` will be used by default
-        :param request:
-            a dictionary with property values to restrict the search
         :param query:
             a string in Xapian serach format, empty to avoid text search
         :param reply:
@@ -299,6 +299,8 @@ class Query(object):
             property name to sort resulting list; might be prefixed with ``+``
             (or without any prefixes) for ascending order, and ``-`` for
             descending order
+        :param kwargs:
+            a dictionary with property values to restrict the search
 
         """
         self.query = query
@@ -316,10 +318,6 @@ class Query(object):
             limit = find_limit.value
         self.limit = limit
 
-        if request is None:
-            request = {}
-        self.request = request
-
         if reply is None:
             reply = ['guid']
         self.reply = reply
@@ -327,6 +325,8 @@ class Query(object):
         if order_by is None:
             order_by = 'ctime'
         self.order_by = order_by
+
+        self.request = kwargs
 
     def __repr__(self):
         return 'offset=%s limit=%s request=%r query=%r order_by=%s' % \

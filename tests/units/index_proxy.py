@@ -80,7 +80,7 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     {'guid': '4', 'term': 'z', 'not_term': 'x',},
                     ]),
-                proxy.find_(request={'guid': '4'}))
+                proxy.find_(guid='4'))
 
         self.override(IndexReader, 'find', lambda *args: ([existing[0][1]], Total(1)))
         self.assertEqual(
@@ -88,21 +88,21 @@ class IndexProxyTest(tests.Test):
                     {'guid': '2', 'term': 'a', 'not_term': 's'},
                     {'guid': '3', 'term': 'a', 'not_term': 's'},
                     ]),
-                proxy.find_(request={'term': 'a'}))
+                proxy.find_(term='a'))
 
         self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
         self.assertEqual(
                 sorted([
                     {'guid': '4', 'term': 'z', 'not_term': 'x'},
                     ]),
-                proxy.find_(request={'term': 'z'}))
+                proxy.find_(term='z'))
 
         self.override(IndexReader, 'find', lambda *args: ([existing[0][0]], Total(1)))
         self.assertEqual(
                 sorted([
                     {'guid': '1', 'term': 'q', 'not_term': 'w'},
                     ]),
-                proxy.find_(request={'term': 'q'}))
+                proxy.find_(term='q'))
 
         proxy.store('3', {'guid': '3', 'term': 'aa', 'not_term': 's'}, True)
 
@@ -111,7 +111,7 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     {'guid': '3', 'term': 'aa', 'not_term': 's'},
                     ]),
-                proxy.find_(request={'term': 'aa'}))
+                proxy.find_(term='aa'))
 
         self.override(IndexReader, 'find', lambda *args: existing)
         self.assertEqual(
@@ -177,7 +177,7 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(
                 sorted([
                     ]),
-                proxy.find_(request={'term': 'foo'}))
+                proxy.find_(term='foo'))
 
         proxy.store('1', {'guid': '1', 'term': 'foo', 'not_term': 'w'}, False)
 
@@ -185,7 +185,7 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     {'guid': '1', 'term': 'foo', 'not_term': 'w'},
                     ]),
-                proxy.find_(request={'term': 'foo'}))
+                proxy.find_(term='foo'))
 
         proxy.store('2', {'guid': '2', 'term': 'foo', 'not_term': 's'}, False)
 
@@ -194,7 +194,7 @@ class IndexProxyTest(tests.Test):
                     {'guid': '1', 'term': 'foo', 'not_term': 'w'},
                     {'guid': '2', 'term': 'foo', 'not_term': 's'},
                     ]),
-                proxy.find_(request={'term': 'foo'}))
+                proxy.find_(term='foo'))
 
     def test_Update_Deletes(self):
         IndexWriter(self.metadata).close()
@@ -216,7 +216,7 @@ class IndexProxyTest(tests.Test):
                     {'guid': '1', 'term': 'orig', 'not_term': ''},
                     {'guid': '2', 'term': 'orig', 'not_term': ''},
                     ]),
-                proxy.find_(request={'term': 'orig'}))
+                proxy.find_(term='orig'))
 
         proxy.store('1', {'guid': '1', 'term': '', 'not_term': ''}, False)
 
@@ -224,14 +224,14 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     {'guid': '2', 'term': 'orig', 'not_term': ''},
                     ]),
-                proxy.find_(request={'term': 'orig'}))
+                proxy.find_(term='orig'))
 
         proxy.store('2', {'guid': '2', 'term': '', 'not_term': ''}, False)
 
         self.assertEqual(
                 sorted([
                     ]),
-                proxy.find_(request={'term': 'orig'}))
+                proxy.find_(term='orig'))
 
     def test_get_cached(self):
         existing = ([
@@ -273,18 +273,18 @@ class IndexProxyTest(tests.Test):
                     {'guid': '1', 'prop': ('a',)},
                     {'guid': '2', 'prop': ('a', 'aa')},
                     ]),
-                proxy.find_(request={'prop': 'a'}))
+                proxy.find_(prop='a'))
         self.assertEqual(
                 sorted([
                     {'guid': '2', 'prop': ('a', 'aa')},
                     {'guid': '3', 'prop': ('aa', 'aaa')},
                     ]),
-                proxy.find_(request={'prop': 'aa'}))
+                proxy.find_(prop='aa'))
         self.assertEqual(
                 sorted([
                     {'guid': '3', 'prop': ('aa', 'aaa')},
                     ]),
-                proxy.find_(request={'prop': 'aaa'}))
+                proxy.find_(prop='aaa'))
 
     def test_Update_AddsByListProps(self):
         IndexWriter(self.metadata).close()
@@ -310,7 +310,7 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(
                 sorted([
                     ]),
-                proxy.find_(request={'prop': 'a'}))
+                proxy.find_(prop='a'))
 
         proxy.store('1', {'guid': '1', 'prop': ('a',)}, False)
 
@@ -318,7 +318,7 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     {'guid': '1', 'prop': ('a',)},
                     ]),
-                proxy.find_(request={'prop': 'a'}))
+                proxy.find_(prop='a'))
 
         proxy.store('2', {'guid': '2', 'prop': ('a',)}, False)
 
@@ -327,7 +327,7 @@ class IndexProxyTest(tests.Test):
                     {'guid': '1', 'prop': ('a',)},
                     {'guid': '2', 'prop': ('a',)},
                     ]),
-                proxy.find_(request={'prop': 'a'}))
+                proxy.find_(prop='a'))
 
     def test_Update_DeletesByListProps(self):
         IndexWriter(self.metadata).close()
@@ -359,7 +359,7 @@ class IndexProxyTest(tests.Test):
                     {'guid': '2', 'prop': ('a', 'aa')},
                     {'guid': '3', 'prop': ('a', 'aa', 'aaa')},
                     ]),
-                proxy.find_(request={'prop': 'a'}))
+                proxy.find_(prop='a'))
 
         proxy.store('2', {'guid': '2', 'prop': ('aa',)}, False)
 
@@ -368,7 +368,7 @@ class IndexProxyTest(tests.Test):
                     {'guid': '1', 'prop': ('a',)},
                     {'guid': '3', 'prop': ('a', 'aa', 'aaa')},
                     ]),
-                proxy.find_(request={'prop': 'a'}))
+                proxy.find_(prop='a'))
 
         proxy.store('3', {'guid': '3', 'prop': ('aaa',)}, False)
 
@@ -376,14 +376,14 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     {'guid': '1', 'prop': ('a',)},
                     ]),
-                proxy.find_(request={'prop': 'a'}))
+                proxy.find_(prop='a'))
 
         proxy.store('1', {'guid': '1', 'prop': ()}, False)
 
         self.assertEqual(
                 sorted([
                     ]),
-                proxy.find_(request={'prop': 'a'}))
+                proxy.find_(prop='a'))
 
     def test_SeamlessCache_Create(self):
         IndexWriter(self.metadata).close()
@@ -418,12 +418,12 @@ class IndexProxyTest(tests.Test):
                     {'guid': '2', 'term': 'orig', 'not_term': 'b'},
                     {'guid': '3', 'term': 'orig', 'not_term': 'c'},
                     ]),
-                proxy.find_(request={'term': 'orig'}))
+                proxy.find_(term='orig'))
         self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
         self.assertEqual(
                 sorted([
                     ]),
-                proxy.find_(request={'term': 'new'}))
+                proxy.find_(term='new'))
 
         proxy.store('2', {'guid': '2', 'term': 'new', 'not_term': 'b'}, False)
 
@@ -440,13 +440,13 @@ class IndexProxyTest(tests.Test):
                     {'guid': '1', 'term': 'orig', 'not_term': 'a'},
                     {'guid': '3', 'term': 'orig', 'not_term': 'c'},
                     ]),
-                proxy.find_(request={'term': 'orig'}))
+                proxy.find_(term='orig'))
         self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
         self.assertEqual(
                 sorted([
                     {'guid': '2', 'term': 'new', 'not_term': 'b'},
                     ]),
-                proxy.find_(request={'term': 'new'}))
+                proxy.find_(term='new'))
 
         proxy.store('3', {'guid': '3', 'term': 'new', 'not_term': 'c'}, False)
 
@@ -462,14 +462,14 @@ class IndexProxyTest(tests.Test):
                 sorted([
                     {'guid': '1', 'term': 'orig', 'not_term': 'a'},
                     ]),
-                proxy.find_(request={'term': 'orig'}))
+                proxy.find_(term='orig'))
         self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
         self.assertEqual(
                 sorted([
                     {'guid': '2', 'term': 'new', 'not_term': 'b'},
                     {'guid': '3', 'term': 'new', 'not_term': 'c'},
                     ]),
-                proxy.find_(request={'term': 'new'}))
+                proxy.find_(term='new'))
 
         proxy.store('1', {'guid': '1', 'term': 'new', 'not_term': 'a'}, False)
 
@@ -485,14 +485,14 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(
                 sorted([
                     ]),
-                proxy.find_(request={'term': 'orig'}))
+                proxy.find_(term='orig'))
         self.assertEqual(
                 sorted([
                     {'guid': '1', 'term': 'new', 'not_term': 'a'},
                     {'guid': '2', 'term': 'new', 'not_term': 'b'},
                     {'guid': '3', 'term': 'new', 'not_term': 'c'},
                     ]),
-                proxy.find_(request={'term': 'new'}))
+                proxy.find_(term='new'))
 
     def test_SeamlessCache_WithRequest(self):
         existing = ([
@@ -548,7 +548,7 @@ class IndexProxyTest(tests.Test):
                     {'guid': '5', 'prop': ('a',)},
                     {'guid': '6', 'prop': ('a',)},
                     ]),
-                proxy.find_(request={'prop': ('a',)}))
+                proxy.find_(prop=('a',)))
 
     def test_DropPages(self):
         IndexWriter(self.metadata).close()

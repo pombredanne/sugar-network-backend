@@ -78,13 +78,13 @@ class DocumentTest(tests.Test):
         self.assertEqual('T', doc.metadata['term'].prefix)
 
         doc.post()
-        docs, total = Document.find(0, 100, request={'term': 'term'})
+        docs, total = Document.find(0, 100, term='term')
         self.assertEqual(1, total.value)
         self.assertEqual(
                 [('term', 'not_term')],
                 [(i.term, i.not_term) for i in docs])
 
-        self.assertRaises(RuntimeError, Document.find, 0, 100, request={'not_term': 'not_term'})
+        self.assertRaises(RuntimeError, Document.find, 0, 100, not_term='not_term')
         self.assertEqual(0, Document.find(0, 100, query='not_term:not_term')[-1])
         self.assertEqual(1, Document.find(0, 100, query='not_term:=not_term')[-1])
 
@@ -399,6 +399,7 @@ class DocumentTest(tests.Test):
                 ('document/1/1/prop', '"prop-1"'),
                 ('document/1/1/vote.-1.value', ''),
                 ('document/1/1/counter', '0'),
+                ('document/1/1/layers', '["public"]'),
 
                 ('document/2/2/.seqno', ''),
                 ('document/2/2/guid', '2'),
@@ -408,6 +409,7 @@ class DocumentTest(tests.Test):
                 ('document/2/2/vote.-2.value', ''),
                 ('document/2/2/vote.-3.value', ''),
                 ('document/2/2/counter', '0'),
+                ('document/2/2/layers', '["public"]'),
                 )
         os.chmod('document/1/1/vote.-1.value', os.stat('document/1/1/vote.-1.value').st_mode | stat.S_ISVTX)
         os.chmod('document/2/2/vote.-2.value', os.stat('document/2/2/vote.-2.value').st_mode | stat.S_ISVTX)
@@ -585,7 +587,7 @@ class DocumentTest(tests.Test):
 
         Document.mode = 0
         self.assertRaises(env.Forbidden, Document.delete, doc.guid)
-        Document.mode = env.ACCESS_DELETE
+        Document.mode = env.ACCESS_READ | env.ACCESS_DELETE | env.ACCESS_WRITE
         Document.delete(doc.guid)
 
     def test_authorize_property(self):
@@ -773,7 +775,7 @@ class DocumentTest(tests.Test):
         doc_2.post()
         self.assertEqual(
                 [3],
-                [i.counter for i in Document.find(0, 10, request={'guid': doc_2.guid})[0]])
+                [i.counter for i in Document.find(0, 10, guid=doc_2.guid)[0]])
         self.assertEqual(3, Document(doc_2.guid).counter)
 
     def test_merge_AggregatorProperty(self):
@@ -824,12 +826,14 @@ class DocumentTest(tests.Test):
             'prop': ('1', 1),
             'ctime': (1, 1),
             'mtime': (1, 1),
+            'layers': (['public'], 1),
             })
         Document.merge('3', {
             'guid': ('3', ts + 60),
             'prop': ('3', ts + 60),
             'ctime': (ts + 60, ts + 60),
             'mtime': (ts + 60, ts + 60),
+            'layers': (['public'], ts + 60),
             })
 
         self.assertEqual(

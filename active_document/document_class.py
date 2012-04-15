@@ -79,6 +79,11 @@ class DocumentClass(object):
     def seqno(self, value):
         return value
 
+    @active_property(prefix='IL',
+            default=['public'], typecast=[env.LAYERS], permissions=0)
+    def layers(self, value):
+        return value
+
     def post(self):
         """Store changed properties."""
         raise NotImplementedError()
@@ -128,7 +133,7 @@ class DocumentClass(object):
         doc.post()
 
     @classmethod
-    def delete(cls, guid):
+    def delete(cls, guid, raw=False):
         """Delete document.
 
         :param guid:
@@ -136,7 +141,15 @@ class DocumentClass(object):
 
         """
         cls.authorize_document(env.ACCESS_DELETE, guid)
-        cls._index.delete(guid, lambda guid: cls._storage.delete(guid))
+
+        if raw:
+            cls._index.delete(guid, lambda guid: cls._storage.delete(guid))
+        else:
+            self = cls(guid)
+            # TODO until implementing layers support
+            # pylint: disable-msg=E1101
+            self.set('layers', ['deleted'], raw=True)
+            self.post()
 
     @classmethod
     def find(cls, *args, **kwargs):
@@ -155,6 +168,8 @@ class DocumentClass(object):
         cls.authorize_document(env.ACCESS_READ)
 
         query = env.Query(*args, **kwargs)
+        # TODO until implementing layers support
+        query.request['layers'] = 'public'
 
         for prop_name in query.reply:
             prop = cls.metadata[prop_name]
