@@ -3,7 +3,6 @@
 import os
 import time
 import signal
-import logging
 import urllib2
 from cStringIO import StringIO
 
@@ -98,12 +97,12 @@ def main():
 
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.DEBUG)
-
     server.data_root.value = 'tmp/db'
     server.stats_root.value = 'tmp/stats'
     server.logdir.value = 'tmp/log'
     server.index_flush_threshold.value = 1
+
+    restful_document.debug.value = 3
     server_pid = restful_document.fork(server.resources)
 
     client.api_url.value = \

@@ -163,24 +163,6 @@ class ClientTest(tests.Test):
         obj.post()
         self.assertEqual([], self.requests[3:])
 
-    def test_Object_CheckAuthorOnPost(self):
-        obj = client.Object('resource', {
-            'guid': 'guid',
-            'author': [sugar.guid()],
-            })
-        obj['foo'] = 'bar'
-        obj.post()
-
-        self.assertEqual(
-                [('PUT', '/resource/guid', None)],
-                self.requests)
-        self.assertEqual([sugar.guid()], obj['author'])
-
-        obj = client.Object('resource')
-        obj['author'] = ['fake']
-        self.assertRaises(RuntimeError, obj.post)
-        self.assertEqual(1, len(self.requests))
-
     def test_Object_DoNotOverrideSetsAfterPost(self):
         obj = client.Object('resource')
         obj['foo'] = 'bar'

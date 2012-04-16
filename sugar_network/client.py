@@ -258,12 +258,6 @@ class Object(dict):
             http.request('PUT', self._path, data=data,
                     headers={'Content-Type': 'application/json'})
         else:
-            if 'author' in data:
-                enforce(sugar.guid() in data['author'],
-                        _('Current user should be in "author" property'))
-            else:
-                data['author'] = [sugar.guid()]
-                dict.__setitem__(self, 'author', [sugar.guid()])
             reply = http.request('POST', [self._resource], data=data,
                     headers={'Content-Type': 'application/json'})
             self.update(reply)
