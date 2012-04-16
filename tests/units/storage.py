@@ -19,7 +19,11 @@ from active_document.storage import Storage, _PAGE_SIZE
 class StorageTest(tests.Test):
 
     def storage(self, props):
-        metadata = Metadata('test')
+
+        class Test(object):
+            pass
+
+        metadata = Metadata(Test)
         for i in props:
             metadata[i.name] = i
         return Storage(metadata)

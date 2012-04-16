@@ -20,7 +20,7 @@ from gettext import gettext as _
 from active_document import env, util
 from active_document.document_class import DocumentClass
 from active_document.metadata import BlobProperty, StoredProperty
-from active_document.metadata import AggregatorProperty
+from active_document.metadata import AggregatorProperty, active_method
 from active_document.util import enforce
 
 
@@ -90,24 +90,24 @@ class Document(DocumentClass):
             return False
         return self._storage.exists(self.guid)
 
-    def get(self, prop_name, raw=False):
+    def get(self, prop, raw=False):
         """Get document's property value.
 
-        :param prop_name:
+        :param prop:
             property name to get value
         :param raw:
             if `True`, avoid any checks for users' visible properties;
             only for server local use
         :returns:
-            `prop_name` value
+            `prop` value
 
         """
-        prop = self.metadata[prop_name]
+        prop = self.metadata[prop]
 
         if not raw:
             self.assert_access(env.ACCESS_READ, prop)
 
-        orig, new = self._cache.get(prop_name, (None, None))
+        orig, new = self._cache.get(prop.name, (None, None))
         if new is not None:
             return new
         if orig is not None:
@@ -116,22 +116,22 @@ class Document(DocumentClass):
         if isinstance(prop, StoredProperty):
             if self._record is None:
                 self._record = self._storage.get(self.guid)
-            orig = self._record.get(prop_name)
+            orig = self._record.get(prop.name)
         elif isinstance(prop, AggregatorProperty):
             orig = self._storage.is_aggregated(
-                    self.guid, prop_name, prop.value)
+                    self.guid, prop.name, prop.value)
         else:
             raise RuntimeError(_('Property "%s" in "%s" cannot be get') % \
-                    (prop_name, self.metadata.name))
+                    (prop.name, self.metadata.name))
 
-        self._cache[prop_name] = (orig, new)
+        self._cache[prop.name] = (orig, new)
 
         return prop.decode(orig)
 
-    def set(self, prop_name, value, raw=False):
+    def set(self, prop, value, raw=False):
         """set document's property value.
 
-        :param prop_name:
+        :param prop:
             property name to set
         :param raw:
             if `True`, avoid any checks for users' visible properties;
@@ -140,10 +140,10 @@ class Document(DocumentClass):
             property value to set
 
         """
-        if prop_name == 'guid':
+        if prop == 'guid':
             enforce(self._is_new, _('GUID can be set only for new documents'))
 
-        prop = self.metadata[prop_name]
+        prop = self.metadata[prop]
 
         if not raw:
             if self._is_new:
@@ -154,7 +154,7 @@ class Document(DocumentClass):
         enforce(isinstance(prop, StoredProperty) or \
                 isinstance(prop, AggregatorProperty),
                 _('Property "%s" in "%s" cannot be set'),
-                prop_name, self.metadata.name)
+                prop.name, self.metadata.name)
 
         self._set(prop, None, value)
 
@@ -183,12 +183,12 @@ class Document(DocumentClass):
                 self._pre_store, self._post_store)
         self._is_new = False
 
-    def get_blob(self, prop_name, raw=False):
+    def get_blob(self, prop, raw=False):
         """Read the content of document's BLOB property.
 
         This function works in parallel to getting non-BLOB properties values.
 
-        :param prop_name:
+        :param prop:
             BLOB property name
         :param raw:
             if `True`, avoid any checks for users' visible properties;
@@ -197,21 +197,21 @@ class Document(DocumentClass):
             file-like object or `None`
 
         """
-        prop = self.metadata[prop_name]
+        prop = self.metadata[prop]
         if not raw:
             self.assert_access(env.ACCESS_READ, prop)
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
-                prop_name, self.metadata.name)
-        return self._storage.get_blob(self.guid, prop_name)
+                prop.name, self.metadata.name)
+        return self._storage.get_blob(self.guid, prop.name)
 
-    def set_blob(self, prop_name, stream, size=None, raw=False):
+    def set_blob(self, prop, stream, size=None, raw=False):
         """Receive BLOB property from a stream.
 
         This function works in parallel to setting non-BLOB properties values
         and `post()` function.
 
-        :param prop_name:
+        :param prop:
             BLOB property name
         :param stream:
             stream to receive property value from
@@ -222,21 +222,22 @@ class Document(DocumentClass):
             only for server local use
 
         """
-        prop = self.metadata[prop_name]
+        prop = self.metadata[prop]
         if not raw:
             self.assert_access(env.ACCESS_WRITE, prop)
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
-                prop_name, self.metadata.name)
-        seqno = self._storage.set_blob(self.guid, prop_name, stream, size)
+                prop.name, self.metadata.name)
+        seqno = self._storage.set_blob(self.guid, prop.name, stream, size)
         if seqno:
             self._index.store(self.guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
 
-    def stat_blob(self, prop_name, raw=False):
+    @active_method(cmd='stat-blob')
+    def stat_blob(self, prop, raw=False):
         """Receive BLOB property information.
 
-        :param prop_name:
+        :param prop:
             BLOB property name
         :param raw:
             if `True`, avoid any checks for users' visible properties;
@@ -245,13 +246,13 @@ class Document(DocumentClass):
             a dictionary of `size`, `sha1sum` keys
 
         """
-        prop = self.metadata[prop_name]
+        prop = self.metadata[prop]
         if not raw:
             self.assert_access(env.ACCESS_READ, prop)
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
-                prop_name, self.metadata.name)
-        return self._storage.stat_blob(self.guid, prop_name)
+                prop.name, self.metadata.name)
+        return self._storage.stat_blob(self.guid, prop.name)
 
     def on_create(self, properties, cache):
         """Call back to call on document creation.
@@ -311,11 +312,11 @@ class Document(DocumentClass):
                 _('%s access is disabled for "%s" property in "%s"'),
                 env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
 
-    def __getitem__(self, prop_name):
-        return self.get(prop_name)
+    def __getitem__(self, prop):
+        return self.get(prop)
 
-    def __setitem__(self, prop_name, value):
-        self.set(prop_name, value)
+    def __setitem__(self, prop, value):
+        self.set(prop, value)
 
     def _set(self, prop, orig, new):
 

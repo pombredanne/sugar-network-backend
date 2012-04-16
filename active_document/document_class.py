@@ -18,7 +18,7 @@ from gettext import gettext as _
 
 from active_document import env
 from active_document.storage import Storage
-from active_document.metadata import Metadata
+from active_document.metadata import Metadata, active_property
 from active_document.metadata import ActiveProperty, AggregatorProperty
 from active_document.metadata import CounterProperty, StoredProperty
 from active_document.metadata import BrowsableProperty
@@ -28,31 +28,6 @@ from active_document.util import enforce
 _DIFF_PAGE_SIZE = 256
 
 _logger = logging.getLogger('ad.document')
-
-
-def active_property(property_class=ActiveProperty, *args, **kwargs):
-
-    def getter(func, self):
-        value = self[func.__name__]
-        return func(self, value)
-
-    def decorate_setter(func, attr):
-        attr.prop.converter = lambda self, value: func(self, value)
-        attr.prop.setter = lambda self, value: \
-                self.set(attr.name, func(self, value))
-        return attr
-
-    def decorate_getter(func):
-        enforce(func.__name__ != 'guid',
-                _('Active property should not have "guid" name'))
-        attr = lambda self, * args: getter(func, self)
-        attr.setter = lambda func: decorate_setter(func, attr)
-        attr._is_active_property = True
-        attr.name = func.__name__
-        attr.prop = property_class(attr.name, *args, **kwargs)
-        return attr
-
-    return decorate_getter
 
 
 class DocumentClass(object):
@@ -307,36 +282,10 @@ class DocumentClass(object):
         if cls._initated:
             return
 
-        cls.metadata = Metadata(cls.__name__.lower())
+        cls.metadata = Metadata(cls)
         cls.metadata['guid'] = ActiveProperty('guid',
                 permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
                 prefix=env.GUID_PREFIX)
-
-        slots = {}
-        prefixes = {}
-        for attr in [getattr(cls, i) for i in dir(cls)]:
-            if not hasattr(attr, '_is_active_property'):
-                continue
-            prop = attr.prop
-            if hasattr(prop, 'slot'):
-                enforce(prop.slot is None or prop.slot not in slots,
-                        _('Property "%s" has a slot already defined ' \
-                                'for "%s" in "%s"'),
-                        prop.name, slots.get(prop.slot),
-                        cls.metadata.name)
-                slots[prop.slot] = prop.name
-            if hasattr(prop, 'prefix'):
-                enforce(not prop.prefix or prop.prefix not in prefixes,
-                        _('Property "%s" has a prefix already defined ' \
-                                'for "%s"'),
-                        prop.name, prefixes.get(prop.prefix))
-                prefixes[prop.prefix] = prop.name
-            if prop.setter is not None:
-                setattr(cls, attr.name, property(attr, prop.setter))
-            else:
-                setattr(cls, attr.name, property(attr))
-            cls.metadata[prop.name] = prop
-
         cls._storage = Storage(cls.metadata)
         cls._index = index_class(cls.metadata)
 

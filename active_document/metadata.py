@@ -25,6 +25,42 @@ from active_document.util import enforce
 _LIST_TYPES = (list, tuple, frozenset)
 
 
+def active_property(property_class=None, *args, **kwargs):
+
+    def getter(func, self):
+        value = self[func.__name__]
+        return func(self, value)
+
+    def decorate_setter(func, attr):
+        attr.prop.converter = lambda self, value: func(self, value)
+        attr.prop.setter = lambda self, value: \
+                self.set(attr.name, func(self, value))
+        return attr
+
+    def decorate_getter(func):
+        enforce(func.__name__ != 'guid',
+                _('Active property should not have "guid" name'))
+        attr = lambda self, * args: getter(func, self)
+        attr.setter = lambda func: decorate_setter(func, attr)
+        attr._is_active_property = True
+        attr.name = func.__name__
+        attr.prop = (property_class or ActiveProperty)(
+                attr.name, *args, **kwargs)
+        return attr
+
+    return decorate_getter
+
+
+def active_method(**kwargs):
+
+    def decorate(func):
+        func._is_active_method = True
+        func.kwargs = kwargs
+        return func
+
+    return decorate
+
+
 class Metadata(dict):
     """Structure to describe the document.
 
@@ -32,20 +68,65 @@ class Metadata(dict):
 
     """
 
-    def __init__(self, name):
+    def __init__(self, cls):
         """
-        :param name:
-            document type name
+        :param cls:
+            class inherited from `active_document.Document`
 
         """
-        self._name = name
-        self.ensure_path('')
+        self._name = cls.__name__.lower()
         self._seqno = 0
+        self.class_methods = {}
+        self.object_methods = {}
+
+        slots = {}
+        prefixes = {}
+
+        def register_property(attr):
+            prop = attr.prop
+            if hasattr(prop, 'slot'):
+                enforce(prop.slot is None or prop.slot not in slots,
+                        _('Property "%s" has a slot already defined ' \
+                                'for "%s" in "%s"'),
+                        prop.name, slots.get(prop.slot), self.name)
+                slots[prop.slot] = prop.name
+            if hasattr(prop, 'prefix'):
+                enforce(not prop.prefix or prop.prefix not in prefixes,
+                        _('Property "%s" has a prefix already defined ' \
+                                'for "%s"'),
+                        prop.name, prefixes.get(prop.prefix))
+                prefixes[prop.prefix] = prop.name
+            if prop.setter is not None:
+                setattr(cls, attr.name, property(attr, prop.setter))
+            else:
+                setattr(cls, attr.name, property(attr))
+            self[prop.name] = prop
+
+        def register_method(attr):
+            if isinstance(attr, types.FunctionType):
+                methods = self.class_methods
+            elif isinstance(attr, types.MethodType):
+                methods = self.object_methods
+            else:
+                raise RuntimeError(_('Incorrect active_method for %r') % attr)
+
+            meth = Method(attr, **attr.kwargs)
+            enforce(meth.name not in methods,
+                    _('Method "%s" already exists'), meth.name)
+            methods[meth.name] = meth
+
+        for attr in [getattr(cls, i) for i in dir(cls)]:
+            if hasattr(attr, '_is_active_property'):
+                register_property(attr)
+            elif hasattr(attr, '_is_active_method'):
+                register_method(attr)
 
         seqno_path = self.path('seqno')
         if exists(seqno_path):
             with file(seqno_path) as f:
                 self._seqno = int(f.read().strip())
+
+        self.ensure_path('')
 
     @property
     def name(self):
@@ -329,6 +410,27 @@ class AggregatedValue(int):
             if diff:
                 return diff
         return int.__cmp__(self, other)
+
+
+class Method(object):
+
+    def __init__(self, cb=None, cmd=None, http_method='GET',
+            mime_type='application/json', permissions=env.ACCESS_FULL):
+        self._cb = cb
+        self.cmd = cmd
+        self.http_method = http_method
+        self.mime_type = mime_type
+        self.permissions = permissions
+
+    @property
+    def name(self):
+        return self.cmd or self.http_method
+
+    def __str__(self):
+        return '%s: %s' % (self.name, self._cb)
+
+    def __call__(self, *args, **kwargs):
+        return self._cb(*args, **kwargs)
 
 
 def _is_composite(typecast):

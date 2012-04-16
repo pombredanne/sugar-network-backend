@@ -17,8 +17,6 @@ from active_document import util
 
 from active_document.document import Document
 
-from active_document.document_class import active_property
-
 from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         ACCESS_DELETE, ACCESS_FULL, \
         data_root, index_flush_timeout, index_flush_threshold, \
@@ -27,6 +25,7 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
 
 from active_document.metadata import Metadata, Property, \
         AggregatorProperty, StoredProperty, ActiveProperty, \
-        CounterProperty, BlobProperty, BrowsableProperty
+        CounterProperty, BlobProperty, BrowsableProperty, \
+        active_property, active_method, Method
 
 from active_document.folder import Master, Node

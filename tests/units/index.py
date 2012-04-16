@@ -506,7 +506,11 @@ class IndexTest(tests.Test):
 class Index(index.IndexWriter):
 
     def __init__(self, props):
-        metadata = Metadata('index')
+
+        class Index(object):
+            pass
+
+        metadata = Metadata(Index)
         metadata.update(props)
         metadata['guid'] = ActiveProperty('guid',
                 permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
