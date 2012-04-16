@@ -269,8 +269,12 @@ class Document(DocumentClass):
         ts = int(time.time())
         cache['ctime'] = ts
         cache['mtime'] = ts
+
         # TODO until implementing layers support
         cache['layers'] = ['public']
+
+        enforce(env.principal.user)
+        cache['author'] = [env.principal.user]
 
     def on_modify(self, properties):
         """Call back to call on existing document modification.

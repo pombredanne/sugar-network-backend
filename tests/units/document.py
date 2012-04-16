@@ -400,6 +400,7 @@ class DocumentTest(tests.Test):
                 ('document/1/1/vote.-1.value', ''),
                 ('document/1/1/counter', '0'),
                 ('document/1/1/layers', '["public"]'),
+                ('document/1/1/author', '["me"]'),
 
                 ('document/2/2/.seqno', ''),
                 ('document/2/2/guid', '2'),
@@ -410,6 +411,7 @@ class DocumentTest(tests.Test):
                 ('document/2/2/vote.-3.value', ''),
                 ('document/2/2/counter', '0'),
                 ('document/2/2/layers', '["public"]'),
+                ('document/2/2/author', '["me"]'),
                 )
         os.chmod('document/1/1/vote.-1.value', os.stat('document/1/1/vote.-1.value').st_mode | stat.S_ISVTX)
         os.chmod('document/2/2/vote.-2.value', os.stat('document/2/2/vote.-2.value').st_mode | stat.S_ISVTX)
@@ -460,8 +462,8 @@ class DocumentTest(tests.Test):
         doc = Document(manual_guid='guid')
         doc.post()
         self.assertEqual(
-                [('guid', 'foo')],
-                [(i.guid, i.prop) for i in Document.find(0, 1024)[0]])
+                [('guid', 'foo', ['me'], ['public'])],
+                [(i.guid, i.prop, i.author, i.layers) for i in Document.find(0, 1024)[0]])
 
         doc_2 = Document(doc.guid)
         doc_2.prop = 'probe'
@@ -827,6 +829,7 @@ class DocumentTest(tests.Test):
             'ctime': (1, 1),
             'mtime': (1, 1),
             'layers': (['public'], 1),
+            'author': (['me'], 1),
             })
         Document.merge('3', {
             'guid': ('3', ts + 60),
@@ -834,6 +837,7 @@ class DocumentTest(tests.Test):
             'ctime': (ts + 60, ts + 60),
             'mtime': (ts + 60, ts + 60),
             'layers': (['public'], ts + 60),
+            'author': (['me'], ts + 60),
             })
 
         self.assertEqual(

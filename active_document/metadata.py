@@ -349,7 +349,7 @@ class AggregatorProperty(Property, BrowsableProperty):
 
     @property
     def value(self):
-        raise NotImplementedError()
+        return env.principal.user
 
     def encode(self, value):
         return AggregatedValue(self.value, bool(value))
@@ -415,7 +415,7 @@ class AggregatedValue(int):
 class Method(object):
 
     def __init__(self, cb=None, cmd=None, http_method='GET',
-            mime_type='application/json', permissions=env.ACCESS_FULL):
+            mime_type='application/json', permissions=0):
         self._cb = cb
         self.cmd = cmd
         self.http_method = http_method

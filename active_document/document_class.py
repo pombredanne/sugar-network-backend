@@ -54,9 +54,14 @@ class DocumentClass(object):
     def seqno(self, value):
         return value
 
-    @active_property(prefix='IL',
-            default=['public'], typecast=[env.LAYERS], permissions=0)
+    @active_property(prefix='IL', typecast=[env.LAYERS],
+            permissions=env.ACCESS_READ)
     def layers(self, value):
+        return value
+
+    @active_property(prefix='IA', typecast=[],
+            permissions=env.ACCESS_READ)
+    def author(self, value):
         return value
 
     def post(self):

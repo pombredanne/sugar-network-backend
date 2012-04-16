@@ -55,6 +55,7 @@ class Test(unittest.TestCase):
         _env.index_flush_threshold.value = 1
         _env.find_limit.value = 1024
         _env.LAYOUT_VERSION = 1
+        _env.principal.user = 'me'
         _sneakernet.next_volume_cb = None
         _document_class._DIFF_PAGE_SIZE = 256
 

@@ -18,10 +18,10 @@ from active_document import util
 from active_document.document import Document
 
 from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
-        ACCESS_DELETE, ACCESS_FULL, \
+        ACCESS_DELETE, ACCESS_AUTHOR, ACCESS_FULL, \
         data_root, index_flush_timeout, index_flush_threshold, \
         index_write_queue, find_limit, \
-        NotFound, Forbidden
+        NotFound, Forbidden, principal
 
 from active_document.metadata import Metadata, Property, \
         AggregatorProperty, StoredProperty, ActiveProperty, \
