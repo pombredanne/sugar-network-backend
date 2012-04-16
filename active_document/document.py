@@ -55,7 +55,6 @@ class Document(DocumentClass):
                 indexed_props = self._index.get_cached(guid)
             for prop_name, value in (indexed_props or {}).items():
                 self._set(self.metadata[prop_name], value, None)
-            self.authorize_document(env.ACCESS_READ, self)
         else:
             self._is_new = True
 
@@ -169,10 +168,7 @@ class Document(DocumentClass):
         if not changes:
             return
 
-        if self._is_new:
-            self.authorize_document(env.ACCESS_CREATE, self)
-        else:
-            self.authorize_document(env.ACCESS_WRITE, self)
+        if not self._is_new:
             self.on_modify(changes)
         self.on_post(changes)
 
@@ -300,9 +296,9 @@ class Document(DocumentClass):
         pass
 
     def assert_access(self, mode, prop):
-        """Does caller have permissions to access to the specified property.
+        """Is access to the property permitted.
 
-        If caller does not have permissions, function should raise
+        If there are no permissions, function should raise
         `active_document.Forbidden` exception.
 
         :param mode:

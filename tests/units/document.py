@@ -547,52 +547,7 @@ class DocumentTest(tests.Test):
                 ['trigger!'],
                 [i.prop for i in Document.find(0, 1024)[0]])
 
-    def test_authorize_document(self):
-
-        class Document(TestDocument):
-
-            mode = 0
-
-            @classmethod
-            def authorize_document(cls, mode, document=None):
-                if not (mode & cls.mode):
-                    raise env.Forbidden()
-
-            @active_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-        doc = Document()
-        self.assertRaises(env.Forbidden, doc.post)
-        Document.mode = env.ACCESS_WRITE
-        self.assertRaises(env.Forbidden, doc.post)
-        Document.mode = env.ACCESS_CREATE
-        doc.post()
-
-        Document.mode = 0
-        self.assertRaises(env.Forbidden, Document.find, 0, 100)
-        Document.mode = env.ACCESS_READ
-        Document.find(0, 100)
-
-        Document.mode = 0
-        self.assertRaises(env.Forbidden, Document, doc.guid)
-        Document.mode = env.ACCESS_READ
-        Document(doc.guid)
-
-        Document.mode = env.ACCESS_READ
-        doc_2 = Document(doc.guid)
-        self.assertRaises(env.Forbidden, doc.post)
-        Document.mode = env.ACCESS_READ | env.ACCESS_CREATE
-        self.assertRaises(env.Forbidden, doc.post)
-        Document.mode = env.ACCESS_READ | env.ACCESS_WRITE
-        doc.post()
-
-        Document.mode = 0
-        self.assertRaises(env.Forbidden, Document.delete, doc.guid)
-        Document.mode = env.ACCESS_READ | env.ACCESS_DELETE | env.ACCESS_WRITE
-        Document.delete(doc.guid)
-
-    def test_authorize_property(self):
+    def test_AssertPermissions(self):
 
         class Document(TestDocument):
 

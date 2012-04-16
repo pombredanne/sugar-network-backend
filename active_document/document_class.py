@@ -69,23 +69,6 @@ class DocumentClass(object):
         raise NotImplementedError()
 
     @classmethod
-    def authorize_document(cls, mode, document=None):
-        """Does caller have permissions to access to the document.
-
-        If caller does not have permissions, function should raise
-        `active_document.Forbidden` exception.
-
-        :param mode:
-            one of `active_document.ACCESS_*` constants
-            to specify the access mode
-        :param document:
-            option document if `mode` needs it;
-            might be `Document` object or GUID value
-
-        """
-        pass
-
-    @classmethod
     def create(cls, properties):
         """Create new document.
 
@@ -120,8 +103,6 @@ class DocumentClass(object):
             document GUID to delete
 
         """
-        cls.authorize_document(env.ACCESS_DELETE, guid)
-
         if raw:
             cls._index.delete(guid, lambda guid: cls._storage.delete(guid))
         else:
@@ -145,8 +126,6 @@ class DocumentClass(object):
             i.e., not only documents that are included to the resulting list
 
         """
-        cls.authorize_document(env.ACCESS_READ)
-
         query = env.Query(*args, **kwargs)
         # TODO until implementing layers support
         query.request['layers'] = 'public'
