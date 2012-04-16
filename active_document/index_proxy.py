@@ -39,7 +39,8 @@ class IndexProxy(IndexReader):
         self._dirty = False
 
         for prop in metadata.values():
-            if isinstance(prop, StoredProperty) and \
+            if prop.name in ('layers', 'author') or \
+                    isinstance(prop, StoredProperty) and \
                     prop.permissions & env.ACCESS_WRITE:
                 self._term_props[prop.name] = prop
 

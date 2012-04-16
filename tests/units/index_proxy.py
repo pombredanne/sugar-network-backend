@@ -48,8 +48,8 @@ class IndexProxyTest(tests.Test):
         IndexWriter(self.metadata).close()
 
         existing = ([
-            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
-            ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
+            ('2', {'guid': '2', 'term': 'a', 'not_term': 's', 'layers': ['public'], 'author': ['me']}),
             ], Total(2))
 
         proxy = TestIndexProxy(self.metadata)
@@ -138,8 +138,8 @@ class IndexProxyTest(tests.Test):
         IndexWriter(self.metadata).close()
 
         existing = ([
-            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
-            ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
+            ('2', {'guid': '2', 'term': 'a', 'not_term': 's', 'layers': ['public'], 'author': ['me']}),
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -163,8 +163,8 @@ class IndexProxyTest(tests.Test):
         IndexWriter(self.metadata).close()
 
         existing = ([
-            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
-            ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
+            ('2', {'guid': '2', 'term': 'a', 'not_term': 's', 'layers': ['public'], 'author': ['me']}),
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
 
@@ -200,8 +200,8 @@ class IndexProxyTest(tests.Test):
         IndexWriter(self.metadata).close()
 
         existing = ([
-            ('1', {'guid': '1', 'term': 'orig', 'not_term': ''}),
-            ('2', {'guid': '2', 'term': 'orig', 'not_term': ''}),
+            ('1', {'guid': '1', 'term': 'orig', 'not_term': '', 'layers': ['public'], 'author': ['me']}),
+            ('2', {'guid': '2', 'term': 'orig', 'not_term': '', 'layers': ['public'], 'author': ['me']}),
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -235,8 +235,8 @@ class IndexProxyTest(tests.Test):
 
     def test_get_cached(self):
         existing = ([
-            ('1', {'guid': '1', 'term': 'orig', 'not_term': ''}),
-            ('2', {'guid': '2', 'term': 'orig', 'not_term': ''}),
+            ('1', {'guid': '1', 'term': 'orig', 'not_term': '', 'layers': ['public'], 'author': ['me']}),
+            ('2', {'guid': '2', 'term': 'orig', 'not_term': '', 'layers': ['public'], 'author': ['me']}),
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -290,8 +290,8 @@ class IndexProxyTest(tests.Test):
         IndexWriter(self.metadata).close()
 
         existing = ([
-            ('1', {'guid': '1', 'prop': ()}),
-            ('2', {'guid': '2', 'prop': ()}),
+            ('1', {'guid': '1', 'prop': (), 'layers': ['public'], 'author': ['me']}),
+            ('2', {'guid': '2', 'prop': (), 'layers': ['public'], 'author': ['me']}),
             ], Total(2))
 
         storage = Storage(self.metadata)
@@ -333,9 +333,9 @@ class IndexProxyTest(tests.Test):
         IndexWriter(self.metadata).close()
 
         existing = ([
-            ('1', {'guid': '1', 'prop': ('a',)}),
-            ('2', {'guid': '2', 'prop': ('a', 'aa')}),
-            ('3', {'guid': '3', 'prop': ('a', 'aa', 'aaa')}),
+            ('1', {'guid': '1', 'prop': ('a',), 'layers': ['public'], 'author': ['me']}),
+            ('2', {'guid': '2', 'prop': ('a', 'aa'), 'layers': ['public'], 'author': ['me']}),
+            ('3', {'guid': '3', 'prop': ('a', 'aa', 'aaa'), 'layers': ['public'], 'author': ['me']}),
             ], Total(3))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -389,7 +389,7 @@ class IndexProxyTest(tests.Test):
         IndexWriter(self.metadata).close()
 
         existing = ([
-            ('1', {'guid': '1', 'term': 'orig', 'not_term': 'a'}),
+            ('1', {'guid': '1', 'term': 'orig', 'not_term': 'a', 'layers': ['public'], 'author': ['me']}),
             ], Total(1))
         storage = Storage(self.metadata)
         storage.put(*existing[0][0])
@@ -496,9 +496,9 @@ class IndexProxyTest(tests.Test):
 
     def test_SeamlessCache_WithRequest(self):
         existing = ([
-            ('1', {'guid': '1', 'prop': ('a',)}),
-            ('2', {'guid': '2', 'prop': ('a',)}),
-            ('3', {'guid': '3', 'prop': ('a',)}),
+            ('1', {'guid': '1', 'prop': ('a',), 'layers': ['public'], 'author': ['me']}),
+            ('2', {'guid': '2', 'prop': ('a',), 'layers': ['public'], 'author': ['me']}),
+            ('3', {'guid': '3', 'prop': ('a',), 'layers': ['public'], 'author': ['me']}),
             ], Total(3))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -612,7 +612,7 @@ class IndexProxyTest(tests.Test):
         IndexWriter(self.metadata).close()
 
         existing = ([
-            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
             ], Total(1))
 
         proxy = TestIndexProxy(self.metadata)
@@ -677,6 +677,16 @@ class TestIndexProxy(IndexProxy):
 
     def find_(self, *args, **kwargs):
         query = env.Query(*args, **kwargs)
+
+        result = []
+        for __, props in self.find(query)[0]:
+            if 'layers' in props:
+                props.pop('layers')
+            if 'author' in props:
+                props.pop('author')
+            result.append(props)
+        return sorted(result)
+
         return sorted([props for __, props in self.find(query)[0]])
 
 
