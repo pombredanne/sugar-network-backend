@@ -76,13 +76,6 @@ def main():
         assert obj['guid'] == guids[1]
         assert obj['title'] == titles[1]
 
-    print '-- Set property that will be treated differently for each requester'
-    assert not Context(guids[0])['vote']
-    context = Context(guids[0])
-    context['vote'] = True
-    context.post()
-    assert Context(guids[0])['vote']
-
     # Wait until server will update index,
     # fulltext search does not work for cahced changes
     time.sleep(3)
