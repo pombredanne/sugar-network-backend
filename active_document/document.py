@@ -20,7 +20,7 @@ from gettext import gettext as _
 from active_document import env, util
 from active_document.document_class import DocumentClass
 from active_document.metadata import BlobProperty, StoredProperty
-from active_document.metadata import AggregatorProperty, active_method
+from active_document.metadata import active_method
 from active_document.util import enforce
 
 
@@ -116,9 +116,6 @@ class Document(DocumentClass):
             if self._record is None:
                 self._record = self._storage.get(self.guid)
             orig = self._record.get(prop.name)
-        elif isinstance(prop, AggregatorProperty):
-            orig = self._storage.is_aggregated(
-                    self.guid, prop.name, prop.value)
         else:
             raise RuntimeError(_('Property "%s" in "%s" cannot be get') % \
                     (prop.name, self.metadata.name))
@@ -150,8 +147,7 @@ class Document(DocumentClass):
             else:
                 self.assert_access(env.ACCESS_WRITE, prop)
 
-        enforce(isinstance(prop, StoredProperty) or \
-                isinstance(prop, AggregatorProperty),
+        enforce(isinstance(prop, StoredProperty),
                 _('Property "%s" in "%s" cannot be set'),
                 prop.name, self.metadata.name)
 

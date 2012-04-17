@@ -19,8 +19,7 @@ from gettext import gettext as _
 from active_document import env
 from active_document.storage import Storage
 from active_document.metadata import Metadata, active_property
-from active_document.metadata import ActiveProperty, AggregatorProperty
-from active_document.metadata import CounterProperty, StoredProperty
+from active_document.metadata import ActiveProperty, StoredProperty
 from active_document.metadata import BrowsableProperty
 from active_document.util import enforce
 
@@ -163,16 +162,7 @@ class DocumentClass(object):
             every object to let the caller execute urgent tasks
 
         """
-        aggregated_props = []
-        for prop in cls.metadata.values():
-            if isinstance(prop, AggregatorProperty) and prop.counter:
-                aggregated_props.append(prop)
-
         for guid, props in cls._storage.walk(cls._index.mtime):
-            for prop in aggregated_props:
-                counter = cls._storage.count_aggregated(guid, prop.name)
-                if counter != props[prop.counter]:
-                    cls._storage.put(guid, {prop.counter: counter})
             cls._index.store(guid, props, None,
                     cls._pre_store, cls._post_store)
             yield
@@ -284,32 +274,11 @@ class DocumentClass(object):
         """
         is_reindexing = not changes
 
-        for prop_name, new in changes.items():
-            prop = cls.metadata[prop_name]
-            if not isinstance(prop, AggregatorProperty):
-                continue
-            orig = cls._storage.is_aggregated(guid, prop_name, new.value)
-            if new == orig:
-                if not is_new:
-                    del changes[prop_name]
-            elif prop.counter:
-                if new:
-                    changes[prop.counter] = 1
-                elif not is_new:
-                    changes[prop.counter] = -1
-
         if is_reindexing or not is_new:
             record = cls._storage.get(guid)
             for prop_name, prop in cls.metadata.items():
-                if prop_name in changes:
-                    if not is_reindexing and isinstance(prop, CounterProperty):
-                        changes[prop_name] = \
-                                record.get(prop_name) + changes[prop_name]
-                elif isinstance(prop, AggregatorProperty):
-                    if is_reindexing:
-                        changes[prop.counter] = \
-                                cls._storage.count_aggregated(guid, prop_name)
-                elif isinstance(prop, StoredProperty):
+                if prop_name not in changes and \
+                        isinstance(prop, StoredProperty):
                     changes[prop_name] = record.get(prop_name)
 
         if is_new is not None:
@@ -322,14 +291,4 @@ class DocumentClass(object):
         Method will be called in separate, index writer, thread.
 
         """
-        for prop_name, new in changes.items():
-            prop = cls.metadata[prop_name]
-            if not isinstance(prop, AggregatorProperty):
-                continue
-            if new:
-                cls._storage.aggregate(guid, prop_name, new.value)
-            elif not is_new:
-                cls._storage.disaggregate(guid, prop_name, new.value)
-            del changes[prop_name]
-
         cls._storage.put(guid, changes)

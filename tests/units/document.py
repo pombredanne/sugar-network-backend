@@ -17,8 +17,6 @@ from __init__ import tests
 from active_document import document, storage, env, index, document_class
 from active_document.document_class import active_property
 from active_document.metadata import StoredProperty, BlobProperty
-from active_document.metadata import CounterProperty
-from active_document.metadata import AggregatorProperty
 from active_document.index import IndexWriter
 
 
@@ -177,108 +175,6 @@ class DocumentTest(tests.Test):
                 {'size': len(data), 'sha1sum': hashlib.sha1(data).hexdigest()},
                 doc.stat_blob('blob'))
 
-    def test_AggregatorProperty(self):
-
-        voter = ['probe']
-
-        class Vote(AggregatorProperty):
-
-            @property
-            def value(self):
-                return voter[0]
-
-        class Document(TestDocument):
-
-            @active_property(CounterProperty, slot=1)
-            def counter(self, value):
-                return value
-
-            @active_property(Vote, counter='counter')
-            def vote(self, value):
-                return value
-
-        doc = Document()
-        self.assertEqual(0, doc['vote'])
-        self.assertEqual(0, doc['counter'])
-        doc.post()
-        path = join('document', doc.guid[:2], doc.guid)
-        assert not exists(join(path, 'vote'))
-
-        doc = Document(doc.guid)
-        doc['vote'] = True
-        self.assertEqual(1, doc['vote'])
-        doc.post()
-        docs, total = Document.find(0, 100)
-        self.assertEqual(1, total.value)
-        self.assertEqual(
-                [(1, 1)],
-                [(i.vote, i.counter) for i in docs])
-
-        voter[:] = ['probe2']
-
-        doc_2 = Document(doc.guid)
-        self.assertEqual(0, doc_2['vote'])
-        self.assertEqual(1, doc_2['counter'])
-        doc_2['vote'] = True
-        doc_2.post()
-        docs, total = Document.find(0, 100)
-        self.assertEqual(1, total.value)
-        self.assertEqual(
-                [(1, 2)],
-                [(i.vote, i.counter) for i in docs])
-
-        voter[:] = ['probe']
-
-        doc_3 = Document(doc.guid)
-        self.assertEqual(1, doc_3['vote'])
-        self.assertEqual(2, doc_3['counter'])
-        doc_3['vote'] = False
-        doc_3.post()
-        docs, total = Document.find(0, 100)
-        self.assertEqual(1, total.value)
-        self.assertEqual(
-                [(0, 1)],
-                [(i.vote, i.counter) for i in docs])
-
-        voter[:] = ['probe2']
-
-        doc_4 = Document(doc.guid)
-        self.assertEqual(1, doc_4['vote'])
-        self.assertEqual(1, doc_4['counter'])
-        doc_4['vote'] = False
-        doc_4.post()
-        docs, total = Document.find(0, 100)
-        self.assertEqual(1, total.value)
-        self.assertEqual(
-                [(0, 0)],
-                [(i.vote, i.counter) for i in docs])
-
-    def test_AggregatorProperty_DoNotAggregateOnNoChanches(self):
-
-        class Vote(AggregatorProperty):
-
-            @property
-            def value(self):
-                return -1
-
-        class Document(TestDocument):
-
-            @active_property(CounterProperty, slot=1)
-            def counter(self, value):
-                return value
-
-            @active_property(Vote, counter='counter')
-            def vote(self, value):
-                return value
-
-        doc = Document()
-        doc.post()
-        docs, total = Document.find(0, 100)
-        self.assertEqual(1, total.value)
-        self.assertEqual(
-                [(0, 0)],
-                [(i.vote, i.counter) for i in docs])
-
     def test_find_MaxLimit(self):
 
         class Document(TestDocument):
@@ -370,24 +266,10 @@ class DocumentTest(tests.Test):
 
     def test_crawler(self):
 
-        class Vote(AggregatorProperty):
-
-            @property
-            def value(self):
-                return -1
-
         class Document(TestDocument):
 
             @active_property(slot=1)
             def prop(self, value):
-                return value
-
-            @active_property(CounterProperty, slot=2)
-            def counter(self, value):
-                return value
-
-            @active_property(Vote, counter='counter')
-            def vote(self, value):
                 return value
 
         self.touch(
@@ -397,8 +279,6 @@ class DocumentTest(tests.Test):
                 ('document/1/1/ctime', '1'),
                 ('document/1/1/mtime', '1'),
                 ('document/1/1/prop', '"prop-1"'),
-                ('document/1/1/vote.-1.value', ''),
-                ('document/1/1/counter', '0'),
                 ('document/1/1/layers', '["public"]'),
                 ('document/1/1/author', '["me"]'),
 
@@ -407,15 +287,9 @@ class DocumentTest(tests.Test):
                 ('document/2/2/ctime', '2'),
                 ('document/2/2/mtime', '2'),
                 ('document/2/2/prop', '"prop-2"'),
-                ('document/2/2/vote.-2.value', ''),
-                ('document/2/2/vote.-3.value', ''),
-                ('document/2/2/counter', '0'),
                 ('document/2/2/layers', '["public"]'),
                 ('document/2/2/author', '["me"]'),
                 )
-        os.chmod('document/1/1/vote.-1.value', os.stat('document/1/1/vote.-1.value').st_mode | stat.S_ISVTX)
-        os.chmod('document/2/2/vote.-2.value', os.stat('document/2/2/vote.-2.value').st_mode | stat.S_ISVTX)
-        os.chmod('document/2/2/vote.-3.value', os.stat('document/2/2/vote.-3.value').st_mode | stat.S_ISVTX)
 
         Document.init(IndexWriter)
         for i in Document.populate():
@@ -424,23 +298,19 @@ class DocumentTest(tests.Test):
         doc = Document('1')
         self.assertEqual(1, doc['ctime'])
         self.assertEqual(1, doc['mtime'])
-        self.assertEqual(1, doc['vote'])
-        self.assertEqual(1, doc['counter'])
         self.assertEqual('prop-1', doc['prop'])
 
         doc = Document('2')
         self.assertEqual(2, doc['ctime'])
         self.assertEqual(2, doc['mtime'])
-        self.assertEqual(0, doc['vote'])
-        self.assertEqual(2, doc['counter'])
         self.assertEqual('prop-2', doc['prop'])
 
         self.assertEqual(
                 [
-                    (1, 1, 1, 1, 'prop-1'),
-                    (2, 2, 0, 2, 'prop-2'),
+                    (1, 1, 'prop-1'),
+                    (2, 2, 'prop-2'),
                     ],
-                [(i.ctime, i.mtime, i.vote, i.counter, i.prop) for i in Document.find(0, 10)[0]])
+                [(i.ctime, i.mtime, i.prop) for i in Document.find(0, 10)[0]])
 
     def test_on_create(self):
 
@@ -683,88 +553,6 @@ class DocumentTest(tests.Test):
                 os.stat('document/%s/%s/.seqno' % (doc_2.guid[:2], doc_2.guid)).st_mtime,
                 Document(doc_2.guid).get('seqno', raw=True))
         self.assertEqual(2, Document(doc_2.guid).get('seqno', raw=True))
-
-    def test_CounterProperty(self):
-
-        class Document(TestDocument):
-
-            @active_property(CounterProperty, slot=1)
-            def counter(self, value):
-                return value
-
-            @counter.setter
-            def counter(self, value):
-                return value
-
-        doc = Document()
-        doc.post()
-        self.assertEqual(
-                [0],
-                [i.counter for i in Document.find(0, 10)[0]])
-        self.assertEqual(0, Document(doc.guid).counter)
-
-        doc = Document(doc.guid)
-        doc.set('counter', 1, raw=True)
-        doc.post()
-        self.assertEqual(
-                [1],
-                [i.counter for i in Document.find(0, 10)[0]])
-        self.assertEqual(1, Document(doc.guid).counter)
-
-        doc = Document(doc.guid)
-        doc.set('counter', 2, raw=True)
-        doc.post()
-        self.assertEqual(
-                [3],
-                [i.counter for i in Document.find(0, 10)[0]])
-        self.assertEqual(3, Document(doc.guid).counter)
-
-        doc = Document(doc.guid)
-        doc.set('counter', -3, raw=True)
-        doc.post()
-        self.assertEqual(
-                [0],
-                [i.counter for i in Document.find(0, 10)[0]])
-        self.assertEqual(0, Document(doc.guid).counter)
-
-        doc_2 = Document()
-        doc_2.set('counter', 3, raw=True)
-        doc_2.post()
-        self.assertEqual(
-                [3],
-                [i.counter for i in Document.find(0, 10, guid=doc_2.guid)[0]])
-        self.assertEqual(3, Document(doc_2.guid).counter)
-
-    def test_merge_AggregatorProperty(self):
-
-        class Vote(AggregatorProperty):
-
-            @property
-            def value(self):
-                pass
-
-        class Document(TestDocument):
-
-            @active_property(CounterProperty, slot=1)
-            def counter(self, value):
-                return value
-
-            @active_property(Vote, counter='counter')
-            def vote(self, value):
-                return value
-
-        doc = Document()
-        doc.post()
-
-        ts = time.time()
-        diff = {
-                'counter': (0, ts + 60),
-                'vote': [(('enabled', True), ts + 60), (('None', True), ts + 60)],
-                }
-        Document.merge(doc.guid, diff)
-        self.assertEqual(
-                [(doc.guid, 1, 2)],
-                [(i.guid, i.vote, i.counter) for i in Document.find(0, 100)[0]])
 
     def test_merge_New(self):
 

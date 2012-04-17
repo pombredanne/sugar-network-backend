@@ -328,51 +328,6 @@ class ActiveProperty(StoredProperty):
         return self._boolean
 
 
-class AggregatorProperty(Property, BrowsableProperty):
-    """Property that aggregates arbitrary values.
-
-    This properties is repesented by boolean value (int in string notation)
-    that shows that `AggregatorProperty.value` is aggregated or not.
-    After setting this property, `AggregatorProperty.value` will be added or
-    removed from the aggregatation list.
-
-    """
-
-    def __init__(self, name, counter):
-        Property.__init__(self, name, typecast=bool, default=False)
-        self._counter = counter
-
-    @property
-    def counter(self):
-        """Name of `CounterProperty` to keep aggregated items number."""
-        return self._counter
-
-    @property
-    def value(self):
-        return env.principal.user
-
-    def encode(self, value):
-        return AggregatedValue(self.value, bool(value))
-
-    def decode(self, value):
-        return bool(value)
-
-
-class CounterProperty(ActiveProperty):
-    """Only index property that can be changed only by incrementing.
-
-    For reading it is an `int` type (in string as usual) property.
-    For setting, new value will be treated as a delta to already indexed
-    value.
-
-    """
-
-    def __init__(self, name, slot):
-        ActiveProperty.__init__(self, name,
-                permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=slot,
-                typecast=int, default=0)
-
-
 class BlobProperty(Property):
     """Binary large objects that need to be fetched alone.
 
@@ -394,22 +349,6 @@ class BlobProperty(Property):
 
         """
         return self._mime_type
-
-
-class AggregatedValue(int):
-
-    def __new__(cls, value, enabled):
-        self = int.__new__(cls, int(enabled))
-        self.value = value
-        return self
-
-    def __cmp__(self, other):
-        if hasattr(other, 'value'):
-            # pylint: disable-msg=E1101
-            diff = cmp(self.value, other.value)
-            if diff:
-                return diff
-        return int.__cmp__(self, other)
 
 
 class Method(object):

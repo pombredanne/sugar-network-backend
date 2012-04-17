@@ -16,26 +16,22 @@
 import os
 import sys
 import time
-import stat
 import json
 import errno
 import shutil
 import hashlib
 import logging
-from glob import glob
 from os.path import exists, join, isdir, dirname, basename
 from gettext import gettext as _
 
 from active_document import util, env
-from active_document.metadata import StoredProperty, CounterProperty
-from active_document.metadata import AggregatorProperty, BlobProperty
-from active_document.metadata import AggregatedValue
+from active_document.metadata import StoredProperty
+from active_document.metadata import BlobProperty
 from active_document.util import enforce
 
 
 _PAGE_SIZE = 4096
 _SEQNO_SUFFIX = '.seqno'
-_AGGREGATE_SUFFIX = '.value'
 
 _logger = logging.getLogger('ad.storage')
 
@@ -203,72 +199,6 @@ class Storage(object):
                 'sha1sum': sha1sum,
                 }
 
-    def is_aggregated(self, guid, name, value):
-        """Check if specified `value` is aggregated to the `name` property.
-
-        :param guid:
-            document's GUID to check
-        :param name:
-            aggregated property name
-        :param value:
-            value to check for aggregation
-        :returns:
-            `True` if `value` is aggregated
-
-        """
-        path = self._path(guid, name + '.' + str(value) + _AGGREGATE_SUFFIX)
-        return AggregatedValue(value, _aggregated(path))
-
-    def aggregate(self, guid, name, value):
-        """Append specified `value` to `name` property.
-
-        :param guid:
-            document's GUID to aggregate to
-        :param name:
-            aggregated property name
-        :param value:
-            value to aggregate
-
-        """
-        seqno = self.metadata.next_seqno()
-        self._set_aggregate(guid, name, value, True, seqno, time.time())
-        self._write_property(guid, 'seqno', seqno)
-
-    def disaggregate(self, guid, name, value):
-        """Remove specified `value` to `name` property.
-
-        :param guid:
-            document's GUID to remove from
-        :param name:
-            aggregated property name
-        :param value:
-            value to remove
-
-        """
-        seqno = self.metadata.next_seqno()
-        self._set_aggregate(guid, name, value, False, seqno, time.time())
-        self._write_property(guid, 'seqno', seqno)
-
-    def count_aggregated(self, guid, name):
-        """Count number of entities aggregated to `name` property.
-
-        :param guid:
-            document's GUID to count in
-        :param name:
-            aggregated property name
-        :returns:
-            integer value with number of aggregated entities
-
-        """
-        result = 0
-        for i in glob(self._path(guid, name + '.*' + _AGGREGATE_SUFFIX)):
-            if _aggregated(i):
-                result += 1
-        _logger.debug('There are %s entities in "%s" aggregated property ' \
-                'of "%s" document in "%s"',
-                result, name, guid, self.metadata.name)
-        return result
-
     def diff(self, guid, accept_range):
         """Return changed properties for specified times range.
 
@@ -285,23 +215,15 @@ class Storage(object):
 
         for name, prop in self.metadata.items():
             path = self._path(guid, name)
-            if isinstance(prop, AggregatorProperty):
-                values = []
-                for i in glob(path + '.*' + _AGGREGATE_SUFFIX):
-                    value = basename(i).split('.')[1]
-                    seqno_stat = os.stat(path + '.' + value + _SEQNO_SUFFIX)
-                    if int(seqno_stat.st_mtime) in accept_range:
-                        values.append(
-                                ((value, _aggregated(i)), os.stat(i).st_mtime))
-                if values:
-                    traits[name] = values
-            elif exists(path) and not isinstance(prop, CounterProperty):
-                if int(os.stat(path + _SEQNO_SUFFIX).st_mtime) in accept_range:
-                    stat_ = os.stat(path)
-                    if isinstance(prop, BlobProperty):
-                        blobs[name] = (path, stat_.st_mtime)
-                    else:
-                        traits[name] = (_read_property(path), stat_.st_mtime)
+            if not exists(path):
+                continue
+            if int(os.stat(path + _SEQNO_SUFFIX).st_mtime) not in accept_range:
+                continue
+            stat_ = os.stat(path)
+            if isinstance(prop, BlobProperty):
+                blobs[name] = (path, stat_.st_mtime)
+            else:
+                traits[name] = (_read_property(path), stat_.st_mtime)
 
         return traits, blobs
 
@@ -334,21 +256,13 @@ class Storage(object):
             path = self._ensure_path(create_stamp, guid, name)
 
             prop = self.metadata[name]
-            if isinstance(prop, AggregatorProperty):
-                for (value, aggregated), ts in diff[name]:
-                    agg_path = path + '.' + value + _AGGREGATE_SUFFIX
-                    if not exists(agg_path) or os.stat(agg_path).st_mtime < ts:
-                        self._set_aggregate(guid, name, value, aggregated,
-                                seqno, ts)
-                        applied = True
-            else:
-                value, ts = diff[name]
-                if not exists(path) or os.stat(path).st_mtime < ts:
-                    if isinstance(prop, BlobProperty):
-                        self._set_blob(guid, name, value, None, seqno, ts)
-                    else:
-                        self._write_property(guid, name, value, seqno, ts)
-                    applied = True
+            value, ts = diff[name]
+            if not exists(path) or os.stat(path).st_mtime < ts:
+                if isinstance(prop, BlobProperty):
+                    self._set_blob(guid, name, value, None, seqno, ts)
+                else:
+                    self._write_property(guid, name, value, seqno, ts)
+                applied = True
 
         if applied:
             if seqno:
@@ -425,31 +339,6 @@ class Storage(object):
                 name, guid, self.metadata.name)
         return final_size
 
-    def _set_aggregate(self, guid, name, value, aggregated, seqno, mtime=None):
-        try:
-            value = str(value)
-            enforce(value.isalnum(), _('Aggregated value should be alnum'))
-            path = self._ensure_path(False, guid, name + '.' + value)
-            agg_path = path + _AGGREGATE_SUFFIX
-            if not exists(agg_path):
-                file(agg_path, 'w').close()
-            if mtime:
-                os.utime(agg_path, (mtime, mtime))
-            _touch_seqno(path, seqno)
-            mode = os.stat(agg_path).st_mode
-            if aggregated:
-                mode |= stat.S_ISVTX
-            else:
-                mode &= ~stat.S_ISVTX
-            os.chmod(agg_path, mode)
-        except Exception, error:
-            util.exception()
-            raise RuntimeError(_('Cannot change "%s" aggregatation for "%s" ' \
-                    'property of "%s" in "%s": %s') % \
-                    (value, name, guid, self.metadata.name, error))
-        _logger.debug('Changed "%s" aggregattion from "%s" of "%s" document ' \
-                'in "%s"', value, name, guid, self.metadata.name)
-
     def _write_property(self, guid, name, value, seqno=None, mtime=None):
         if name == 'seqno':
             _touch_seqno(self._path(guid) + os.sep, value)
@@ -499,10 +388,6 @@ def _touch_seqno(path, seqno):
 def _read_property(path):
     with file(path) as f:
         return json.load(f)
-
-
-def _aggregated(path):
-    return exists(path) and bool(os.stat(path).st_mode & stat.S_ISVTX)
 
 
 def _is_document(path):

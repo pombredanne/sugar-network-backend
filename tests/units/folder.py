@@ -14,8 +14,7 @@ from __init__ import tests
 
 from active_document import env, folder, document, util, index_queue, sneakernet
 from active_document.document_class import active_property
-from active_document.metadata import CounterProperty, BlobProperty
-from active_document.metadata import AggregatorProperty
+from active_document.metadata import BlobProperty
 
 
 class FolderTest(tests.Test):

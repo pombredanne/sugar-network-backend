@@ -24,8 +24,8 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         NotFound, Forbidden, principal
 
 from active_document.metadata import Metadata, Property, \
-        AggregatorProperty, StoredProperty, ActiveProperty, \
-        CounterProperty, BlobProperty, BrowsableProperty, \
+        StoredProperty, ActiveProperty, \
+        BlobProperty, BrowsableProperty, \
         active_property, active_method, Method
 
 from active_document.folder import Master, Node

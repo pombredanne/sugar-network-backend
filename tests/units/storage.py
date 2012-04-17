@@ -11,8 +11,7 @@ from __init__ import tests
 
 from active_document import env
 from active_document.metadata import Metadata, ActiveProperty
-from active_document.metadata import AggregatorProperty, BlobProperty
-from active_document.metadata import CounterProperty
+from active_document.metadata import BlobProperty
 from active_document.storage import Storage, _PAGE_SIZE
 
 
@@ -100,54 +99,22 @@ class StorageTest(tests.Test):
         storage.put('guid', {'guid': 'guid'})
         self.assertEqual(6, storage.set_blob('guid', 'blob', stream))
 
-    def test_Aggregates(self):
-        storage = self.storage([])
-
-        self.assertEqual(0, storage.is_aggregated('guid', 'prop', 'probe'))
-        self.assertEqual(0, storage.count_aggregated('guid', 'prop'))
-
-        storage.aggregate('guid', 'prop', 'probe')
-        self.assertEqual(1, storage.is_aggregated('guid', 'prop', 'probe'))
-        self.assertEqual(1, storage.count_aggregated('guid', 'prop'))
-
-        storage.aggregate('guid', 'prop', 'probe2')
-        self.assertEqual(1, storage.is_aggregated('guid', 'prop', 'probe'))
-        self.assertEqual(1, storage.is_aggregated('guid', 'prop', 'probe2'))
-        self.assertEqual(2, storage.count_aggregated('guid', 'prop'))
-
-        storage.disaggregate('guid', 'prop', 'probe')
-        self.assertEqual(0, storage.is_aggregated('guid', 'prop', 'probe'))
-        self.assertEqual(1, storage.is_aggregated('guid', 'prop', 'probe2'))
-        self.assertEqual(1, storage.count_aggregated('guid', 'prop'))
-
-        storage.disaggregate('guid', 'prop', 'probe2')
-        self.assertEqual(0, storage.is_aggregated('guid', 'prop', 'probe'))
-        self.assertEqual(0, storage.is_aggregated('guid', 'prop', 'probe2'))
-        self.assertEqual(0, storage.count_aggregated('guid', 'prop'))
-
     def test_diff(self):
         storage = self.storage([
             ActiveProperty('prop_1', slot=1),
-            AggregatorProperty('prop_2', 'counter'),
             BlobProperty('prop_3'),
-            CounterProperty('prop_4', slot=2),
             ])
 
-        storage.put('guid', {'prop_1': 'value', 'prop_4': '0'})
-        storage.aggregate('guid', 'prop_2', 'enabled')
-        storage.disaggregate('guid', 'prop_2', 'disabled')
+        storage.put('guid', {'prop_1': 'value'})
         storage.set_blob('guid', 'prop_3', StringIO('blob'))
 
         os.utime('test/gu/guid/prop_1', (1, 1))
-        os.utime('test/gu/guid/prop_2.enabled.value', (2, 2))
-        os.utime('test/gu/guid/prop_2.disabled.value', (3, 3))
         os.utime('test/gu/guid/prop_3', (2, 2))
 
         traits, blobs = storage.diff('guid', [1, 2, 3, 4])
         self.assertEqual(
                 {
                     'prop_1': ('value', 1),
-                    'prop_2': [(('enabled', True), 2), (('disabled', False), 3)],
                     },
                 traits)
         self.assertEqual(
@@ -158,30 +125,6 @@ class StorageTest(tests.Test):
 
         traits, blobs = storage.diff('guid', [2, 3, 4])
         self.assertEqual(
-                {
-                    'prop_2': [(('enabled', True), 2), (('disabled', False), 3)],
-                    },
-                traits)
-        self.assertEqual(
-                {
-                    'prop_3': (tests.tmpdir + '/test/gu/guid/prop_3', 2),
-                    },
-                blobs)
-
-        traits, blobs = storage.diff('guid', [3, 4])
-        self.assertEqual(
-                {
-                    'prop_2': [(('disabled', False), 3)],
-                    },
-                traits)
-        self.assertEqual(
-                {
-                    'prop_3': (tests.tmpdir + '/test/gu/guid/prop_3', 2),
-                    },
-                blobs)
-
-        traits, blobs = storage.diff('guid', [4])
-        self.assertEqual(
                 {},
                 traits)
         self.assertEqual(
@@ -190,7 +133,7 @@ class StorageTest(tests.Test):
                     },
                 blobs)
 
-        traits, blobs = storage.diff('guid', [5])
+        traits, blobs = storage.diff('guid', [3, 4])
         self.assertEqual(
                 {},
                 traits)
@@ -202,13 +145,11 @@ class StorageTest(tests.Test):
         storage = self.storage([
             ActiveProperty('guid', slot=0),
             ActiveProperty('prop_1', slot=1),
-            AggregatorProperty('prop_2', 'counter'),
             BlobProperty('prop_3'),
             ])
 
         diff = {
                 'prop_1': ('value', 1),
-                'prop_2': [(('enabled', True), 2), (('disabled', False), 3)],
                 'prop_3': (StringIO('blob'), 4),
                 }
 
@@ -217,10 +158,6 @@ class StorageTest(tests.Test):
         assert not exists('test/gu/guid_1/guid')
         assert os.stat('test/gu/guid_1/prop_1').st_mtime == 1
         self.assertEqual('"value"', file('test/gu/guid_1/prop_1').read())
-        assert os.stat('test/gu/guid_1/prop_2.enabled.value').st_mtime == 2
-        assert storage.is_aggregated('guid_1', 'prop_2', 'enabled')
-        assert os.stat('test/gu/guid_1/prop_2.disabled.value').st_mtime == 3
-        assert not storage.is_aggregated('guid_1', 'prop_2', 'disabled')
         assert os.stat('test/gu/guid_1/prop_3').st_mtime == 4
         self.assertEqual('blob', file('test/gu/guid_1/prop_3').read())
 
@@ -235,18 +172,12 @@ class StorageTest(tests.Test):
 
         ts = int(time.time())
         storage.put('guid_3', {'prop_1': 'value_2'})
-        storage.disaggregate('guid_3', 'prop_2', 'enabled')
-        storage.aggregate('guid_3', 'prop_2', 'disabled')
         storage.set_blob('guid_3', 'prop_3', StringIO('blob_2'))
 
         diff.pop('guid')
         self.assertEqual(None, storage.merge('guid_3', diff))
         assert os.stat('test/gu/guid_3/prop_1').st_mtime >= ts
         self.assertEqual('"value_2"', file('test/gu/guid_3/prop_1').read())
-        assert os.stat('test/gu/guid_3/prop_2.enabled.value').st_mtime >= ts
-        assert not storage.is_aggregated('guid_3', 'prop_2', 'enabled')
-        assert os.stat('test/gu/guid_3/prop_2.disabled.value').st_mtime >= ts
-        assert storage.is_aggregated('guid_3', 'prop_2', 'disabled')
         assert os.stat('test/gu/guid_3/prop_3').st_mtime >= ts
         self.assertEqual('blob_2', file('test/gu/guid_3/prop_3').read())
 
@@ -261,7 +192,6 @@ class StorageTest(tests.Test):
     def test_put_Times(self):
         storage = self.storage([
             ActiveProperty('prop_1', slot=1),
-            AggregatorProperty('prop_2', 'counter'),
             BlobProperty('prop_3'),
             ])
 
@@ -274,15 +204,8 @@ class StorageTest(tests.Test):
                 storage.get('guid').get('seqno'))
         assert ts <= os.stat('test/gu/guid/prop_1').st_mtime
 
-        storage.aggregate('guid', 'prop_2', 'value')
-        self.assertEqual(2, storage.get('guid').get('seqno'))
-        self.assertEqual(
-                int(os.stat('test/gu/guid/prop_2.value.seqno').st_mtime),
-                storage.get('guid').get('seqno'))
-        assert ts <= os.stat('test/gu/guid/prop_2.value.value').st_mtime
-
         storage.set_blob('guid', 'prop_3', StringIO('value'))
-        self.assertEqual(3, storage.get('guid').get('seqno'))
+        self.assertEqual(2, storage.get('guid').get('seqno'))
         self.assertEqual(
                 int(os.stat('test/gu/guid/prop_3.seqno').st_mtime),
                 storage.get('guid').get('seqno'))
@@ -295,7 +218,7 @@ class StorageTest(tests.Test):
         time.sleep(1)
         ts += 1
         storage.put('guid', {'prop_1': 'value'})
-        self.assertEqual(4, storage.get('guid').get('seqno'))
+        self.assertEqual(3, storage.get('guid').get('seqno'))
         self.assertEqual(
                 int(os.stat('test/gu/guid/prop_1.seqno').st_mtime),
                 storage.get('guid').get('seqno'))
@@ -306,20 +229,8 @@ class StorageTest(tests.Test):
 
         time.sleep(1)
         ts += 1
-        storage.disaggregate('guid', 'prop_2', 'value')
-        self.assertEqual(5, storage.get('guid').get('seqno'))
-        self.assertEqual(
-                int(os.stat('test/gu/guid/prop_2.value.seqno').st_mtime),
-                storage.get('guid').get('seqno'))
-        assert ts <= os.stat('test/gu/guid/prop_2.value.value').st_mtime
-        self.assertEqual(
-                int(os.stat('test/gu/guid/.seqno').st_mtime),
-                storage.get('guid').get('seqno'))
-
-        time.sleep(1)
-        ts += 1
         storage.set_blob('guid', 'prop_3', StringIO('value'))
-        self.assertEqual(6, storage.get('guid').get('seqno'))
+        self.assertEqual(4, storage.get('guid').get('seqno'))
         self.assertEqual(
                 int(os.stat('test/gu/guid/prop_3.seqno').st_mtime),
                 storage.get('guid').get('seqno'))
