@@ -16,31 +16,143 @@
 import json
 import logging
 import collections
+from gevent import socket
+from cStringIO import StringIO
 from gettext import gettext as _
 
-from sugar_network import sugar, cache, http, util
-from sugar_network.util import enforce
+from local_document import env, util, enforce
 
 
-_PAGE_SIZE = 16
-_PAGE_NUMBER = 5
-_CHUNK_SIZE = 1024 * 10
-
-_logger = logging.getLogger('client')
+_QUERY_PAGE_SIZE = 16
+_QUERY_PAGES_NUMBER = 5
 
 
-def delete(resource, guid):
-    http.request('DELETE', [resource, guid])
+_logger = logging.getLogger('local_document.ipc_client')
 
 
-class Query(object):
-    """Query resource objects."""
+class Client(object):
 
-    def __init__(self, resource=None, query=None, order_by=None, reply=None,
+    def __init__(self):
+        self._conn = _Connection()
+
+    def __getattr__(self, name):
+        """Get class-like object to access to the server resource."""
+        return _Resource(_Request(self._conn, resource=name.lower()))
+
+    def close(self):
+        self._conn.close()
+
+
+class _Connection(dict):
+
+    def __init__(self):
+        self._file = None
+
+    @property
+    def socket_file(self):
+        if self._file is None:
+            env.rendezvous()
+
+            # pylint: disable-msg=E1101
+            socket_ = socket.socket(socket.AF_UNIX)
+            try:
+                socket_.connect(env.ipc_path('accept'))
+                self._file = socket_.makefile()
+            finally:
+                socket_.close()
+
+        return self._file
+
+    def close(self):
+        if self._file is not None:
+            self._file.close()
+            self._file = None
+
+
+class _Request(dict):
+
+    def __init__(self, conn, **kwargs):
+        dict.__init__(self, kwargs or {})
+        self._conn = conn
+
+    def dup(self, **kwargs):
+        result = _Request(self._conn)
+        result.update(self)
+        result.update(kwargs)
+        return result
+
+    def __call__(self, cmd, stream=None, **kwargs):
+        request = self.copy()
+        request.update(kwargs)
+        request['cmd'] = cmd
+
+        _logger.debug('Make a call: %r', request)
+
+        self._conn.socket_file.write(json.dumps(request) + '\n')
+
+        if stream is not None:
+            sent = 0
+            while True:
+                chunk = stream.read(env.BUFSIZE)
+                if not chunk:
+                    break
+                self._conn.socket_file.write(chunk)
+                sent += len(chunk)
+            _logger.debug('Sent %s bytes of payload', sent)
+
+        self._conn.socket_file.flush()
+        reply = self._conn.socket_file.readline()
+
+        _logger.debug('Got a reply: %r', reply)
+
+        return json.loads(reply)
+
+
+class _Resource(object):
+
+    def __init__(self, request):
+        self._request = request
+
+    @property
+    def name(self):
+        return self._request['resource']
+
+    def find(self, *args, **kwargs):
+        """Query resource objects.
+
+        Function accpets the same arguments as `_Query.__init__()`.
+
+        """
+        return _Query(self._request, *args, **kwargs)
+
+    def delete(self, guid):
+        """Delete resource object.
+
+        :param guid:
+            resource object's GUID
+
+        """
+        return self._request('delete', guid=guid)
+
+    def __call__(self, guid=None, reply=None, **filters):
+        if guid:
+            return _Object(self._request, {'guid': guid}, reply=reply)
+        elif not filters:
+            return _Object(self._request, reply=reply)
+        else:
+            query = self.find(**filters)
+            enforce(query.total, KeyError, _('No objects found'))
+            enforce(query.total == 1, _('Found more than one object'))
+            return _Object(self._request, query[0], reply=reply)
+
+
+class _Query(object):
+
+    def __init__(self, request, query=None, order_by=None, reply=None,
             **filters):
         """
-        :param resource:
-            resource name to search in; if `None`, look for all resource types
+        :param request:
+            _Request object
         :param query:
             full text search query string in Xapian format
         :param order_by:
@@ -55,16 +167,13 @@ class Query(object):
             a dictionary of properties to filter resulting list
 
         """
-        self._path = []
-        if resource:
-            self._path.append(resource)
-        self._resource = resource
+        self._request = request
         self._query = query
         self._order_by = order_by
         self._reply = reply or ['guid']
         self._filters = filters
         self._total = None
-        self._page_access = collections.deque([], _PAGE_NUMBER)
+        self._page_access = collections.deque([], _QUERY_PAGES_NUMBER)
         self._pages = {}
         self._offset = -1
 
@@ -144,8 +253,8 @@ class Query(object):
         if offset < 0 or self._total is not None and \
                 (offset >= self._total):
             return default
-        page = offset / _PAGE_SIZE
-        offset -= page * _PAGE_SIZE
+        page = offset / _QUERY_PAGE_SIZE
+        offset -= page * _QUERY_PAGE_SIZE
         if page not in self._pages:
             if not self._fetch_page(page):
                 return default
@@ -171,35 +280,36 @@ class Query(object):
         return result
 
     def _fetch_page(self, page):
-        offset = page * _PAGE_SIZE
+        offset = page * _QUERY_PAGE_SIZE
 
         params = {}
         if self._filters:
             params.update(self._filters)
         params['offset'] = offset
-        params['limit'] = _PAGE_SIZE
+        params['limit'] = _QUERY_PAGE_SIZE
         if self._query:
             params['query'] = self._query
         if self._order_by:
             params['order_by'] = self._order_by
         if self._reply:
-            params['reply'] = ','.join(self._reply)
+            params['reply'] = self._reply
 
         try:
-            reply = http.request('GET', self._path, params=params)
+            reply = self._request('find', **params)
             self._total = reply['total']
         except Exception:
-            util.exception(_logger, _('Failed to fetch %s'), self._path)
+            util.exception(_logger,
+                    _('Failed to fetch query result: resource=%r query=%r'),
+                    self._request['resource'], params)
             self._total = None
             return False
 
         result = [None] * len(reply['result'])
         for i, props in enumerate(reply['result']):
-            result[i] = Object(self._resource or props['document'],
-                    props, offset + i)
+            result[i] = _Object(self._request, props, offset + i, self._reply)
 
         if not self._page_access or self._page_access[-1] != page:
-            if len(self._page_access) == _PAGE_NUMBER:
+            if len(self._page_access) == _QUERY_PAGES_NUMBER:
                 del self._pages[self._page_access[0]]
             self._page_access.append(page)
         self._pages[page] = result
@@ -212,80 +322,63 @@ class Query(object):
         self._total = None
 
 
-class Object(dict):
+class _Object(dict):
 
-    #: Dictionary of `resource: {prop: (default, typecast)}` to cache
-    #: properties in memory; it make sense for special cases like `vote`
-    #: property that cannot be cached on server side
-    cache_props = {}
-
-    __cache = {}
-
-    def __init__(self, resource, props=None, offset=None, reply=None):
+    def __init__(self, request, props=None, offset=None, reply=None):
         dict.__init__(self, props or {})
 
-        self._resource = resource
-        self._path = None
+        self._request = request
+        if 'guid' in self:
+            self._request['guid'] = self['guid']
         self._got = False
         self._dirty = set()
         self._reply = reply
-        self._cache_props = {}
-        self._cache = None
-
-        if resource in self.cache_props:
-            self._cache_props = self.cache_props[resource]
-            self.__cache.setdefault(resource, {})
-            self._cache = self.__cache[resource]
 
         self.offset = offset
-
-        if 'guid' in self:
-            self._path = [resource, self['guid']]
+        self._blobs = _Blobs(self._request)
 
     @property
     def blobs(self):
-        enforce(self._path is not None, _('Object needs to be posted first'))
-        return _Blobs(self._path)
+        enforce('guid' in self._request, _('Object needs to be posted first'))
+        return self._blobs
 
     def post(self):
         if not self._dirty:
             return
 
-        data = {}
+        props = {}
         for i in self._dirty:
-            data[i] = self[i]
-        if 'guid' in self:
-            http.request('PUT', self._path, data=data,
-                    headers={'Content-Type': 'application/json'})
+            props[i] = self[i]
+
+        if 'guid' in self._request:
+            self._request('update', props=props)
         else:
-            reply = http.request('POST', [self._resource], data=data,
-                    headers={'Content-Type': 'application/json'})
-            self.update(reply)
-            self._path = [self._resource, self['guid']]
+            reply = self._request('create', props=props)
+            guid = reply['guid']
+            dict.__setitem__(self, 'guid', guid)
+            self._request['guid'] = guid
 
-        if self._cache_props:
-            self._update_cache()
         self._dirty.clear()
-
-    def call(self, command, method='GET', **kwargs):
-        enforce(self._path is not None, _('Object needs to be posted first'))
-        kwargs['cmd'] = command
-        return http.request(method, self._path, params=kwargs)
 
     def __getitem__(self, prop):
         result = self.get(prop)
         if result is not None:
             return result
 
-        if self._path and not self._got:
-            properties = self._fetch(prop)
+        if 'guid' in self._request and not self._got:
+            kwargs = {}
+            if self._reply and prop in self._reply:
+                kwargs['reply'] = self._reply
+            properties = self._request('get', **kwargs)
+
+            self._got = True
             properties.update(self)
             self.update(properties)
 
         result = self.get(prop)
         enforce(result is not None, KeyError,
                 _('Property "%s" is absent in "%s" resource'),
-                prop, self._resource)
+                prop, self._request['resource'])
         return result
 
     def __setitem__(self, prop, value):
@@ -294,107 +387,77 @@ class Object(dict):
             self._dirty.add(prop)
         dict.__setitem__(self, prop, value)
 
+    def __getattr__(self, command):
+
+        def call(**kwargs):
+            return self._request(command, **kwargs)
+
+        enforce('guid' in self._request, _('Object needs to be posted first'))
+        return call
+
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.post()
 
-    def _fetch(self, prop):
-        if prop in self._cache_props:
-            cached = self._cache.get(self['guid'])
-            if cached is not None:
-                return cached
 
-        params = None
-        if self._reply and prop in self._reply:
-            params = {'reply': ','.join(self._reply)}
+class _Blobs(object):
 
-        result = http.request('GET', self._path, params=params)
-        self._got = True
+    def __init__(self, request):
+        self._request = request
 
-        return result
+    def __getitem__(self, prop):
+        return _Blob(self._request.dup(prop=prop))
 
-    def _update_cache(self):
-        cached = self._cache.get(self['guid'])
-        if cached is None:
-            cached = self._cache[self['guid']] = {}
-
-        for prop, (default, typecast) in self._cache_props.items():
-            if prop not in self:
-                value = default
-            elif typecast is not None:
-                value = typecast(self[prop])
-            else:
-                value = self[prop]
-            cached[prop] = value
+    def __setitem__(self, prop, data):
+        stream = None
+        kwargs = {}
+        if type(data) is dict:
+            kwargs['files'] = data
+        elif hasattr(data, 'read'):
+            stream = data
+        else:
+            stream = StringIO(data)
+        self._request('set_blob', stream=stream, prop=prop, **kwargs)
 
 
-class Blob(object):
+class _Blob(object):
 
-    def __init__(self, path):
-        self._path = path
+    def __init__(self, request):
+        self._request = request
 
     @property
     def content(self):
-        """Return entire BLOB value as a string."""
-        path, mime_type = cache.get_blob(*self._path)
-        if not path:
+        reply = self._request('get_blob')
+        if 'path' not in reply:
             return None
-        with file(path) as f:
-            if mime_type == 'application/json':
+
+        with file(reply['path']) as f:
+            if reply['mime_type'] == 'application/json':
                 return json.load(f)
             else:
                 return f.read()
 
     @property
     def path(self):
-        """Return file-system path to file that contain BLOB value."""
-        path, __ = cache.get_blob(*self._path)
-        return path
+        reply = self._request('get_blob')
+        return reply.get('path')
 
     def iter_content(self):
-        """Return BLOB value by poritons.
-
-        :returns:
-            generator that returns BLOB value by chunks
-
-        """
-        path, __ = cache.get_blob(*self._path)
-        if not path:
+        reply = self._request('get_blob')
+        if 'path' not in reply:
             return
-        with file(path) as f:
+
+        with file(reply['path']) as f:
             while True:
-                chunk = f.read(_CHUNK_SIZE)
+                chunk = f.read(env.BUFSIZE)
                 if not chunk:
                     break
                 yield chunk
 
     def _set_url(self, url):
-        http.request('PUT', self._path, params={'url': url})
+        self._request('set_blob', url=url)
 
     #: Set BLOB value by url
     url = property(None, _set_url)
-
-
-class _Blobs(object):
-
-    def __init__(self, path):
-        self._path = path
-
-    def __getitem__(self, prop):
-        return Blob(self._path + [prop])
-
-    def __setitem__(self, prop, data):
-        headers = None
-        if type(data) is dict:
-            files = data
-            data = None
-        elif hasattr(data, 'read'):
-            files = {prop: data}
-            data = None
-        else:
-            files = None
-            headers = {'Content-Type': 'application/octet-stream'}
-        http.request('PUT', self._path + [prop], headers=headers,
-                data=data, files=files)

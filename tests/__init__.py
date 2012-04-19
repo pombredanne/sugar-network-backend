@@ -2,14 +2,13 @@
 
 import os
 import sys
-import time
 import signal
 import shutil
 import logging
 import unittest
 from os.path import dirname, join, exists, abspath
 
-from sugar_network import env, client
+from local_document import env
 
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
@@ -22,8 +21,6 @@ def main():
 
 
 class Test(unittest.TestCase):
-
-    httpd_pids = {}
 
     def setUp(self):
         self._overriden = []
@@ -38,10 +35,7 @@ class Test(unittest.TestCase):
         if exists(logfile):
             os.unlink(logfile)
 
-        env.cachedir.value = join(tmpdir, 'cache')
-
-        client.Object.cache_props = {}
-        client.Object.__cache = {}
+        env.ipc_root.value = join(tmpdir, 'ipc')
 
         self._logfile = file(logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile
@@ -50,11 +44,14 @@ class Test(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=logfile)
 
-        self.httpd_seqno = 0
+        self.forks = []
 
     def tearDown(self):
-        while Test.httpd_pids:
-            self.httpdown(Test.httpd_pids.keys()[0])
+        while self.forks:
+            pid = self.forks.pop()
+            os.kill(pid, signal.SIGTERM)
+            __, status = os.waitpid(pid, 0)
+            self.assertEqual(0, os.WEXITSTATUS(status))
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
@@ -63,22 +60,6 @@ class Test(unittest.TestCase):
     def override(self, mod, name, new_handler):
         self._overriden.append((mod, name, getattr(mod, name)))
         setattr(mod, name, new_handler)
-
-    def fork(self, cb):
-        pid = os.fork()
-        if not pid:
-            try:
-                cb()
-                result = 0
-            except Exception:
-                logging.exception('Child failed')
-                result = 1
-            sys.stdout.flush()
-            sys.stderr.flush()
-            os._exit(0)
-        else:
-            __, status = os.waitpid(pid, 0)
-            self.assertEqual(0, os.WEXITSTATUS(status))
 
     def touch(self, *files):
         for i in files:
@@ -105,48 +86,17 @@ class Test(unittest.TestCase):
             f.write(str(content))
             f.close()
 
-    def httpd(self, port):
-        if port in Test.httpd_pids:
-            self.httpdown(port)
-
-        self.httpd_seqno += 1
-
-        child_pid = os.fork()
-        if child_pid:
-            time.sleep(0.25)
-            Test.httpd_pids[port] = child_pid
-            return
-
-        for handler in logging.getLogger().handlers:
-            logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG, filename=tmpdir + '-%s.http.log' % self.httpd_seqno)
-
-        from gevent.wsgi import WSGIServer
-        import sugar_network_server as server
-        import active_document as ad
-        import restful_document as rd
-
-        server.stats_root.value = tmpdir + '/' + 'stats'
-        server.data_root.value = tmpdir + '/' + 'db'
-        server.logdir.value = tmpdir + '/' + 'log'
-        server.index_flush_timeout.value = 0
-        server.index_flush_threshold.value = 1
-
-        node = ad.Master(server.resources)
-        httpd = WSGIServer(('localhost', port), rd.Router(node))
-
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            httpd.stop()
-            node.close()
-        os._exit(0)
-
-    def httpdown(self, port):
-        pid = Test.httpd_pids[port]
-        del Test.httpd_pids[port]
-        os.kill(pid, signal.SIGINT)
-        sys.stdout.flush()
-        os.waitpid(pid, 0)
+    def fork(self, cb):
+        pid = os.fork()
+        if not pid:
+            try:
+                cb()
+                result = 0
+            except Exception:
+                logging.exception('Child failed')
+                result = 1
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os._exit(0)
+        else:
+            self.forks.append(pid)

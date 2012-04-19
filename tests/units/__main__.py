@@ -2,7 +2,7 @@
 
 from __init__ import tests
 
-from client import *
+from ipc import *
 
 
 tests.main()
