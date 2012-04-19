@@ -3,14 +3,13 @@
 
 import time
 import json
-from cStringIO import StringIO
 from os.path import join
 
 import gevent
 
 from __init__ import tests
 
-from local_document.ipc_client import Client
+from sugar_network.ipc_client import Client
 from local_document.ipc_server import Server
 
 
@@ -145,15 +144,13 @@ class IPCTest(tests.Test):
         client = Client()
 
         client.Resource('guid_1').blobs['blob_1'] = 'string'
-        client.Resource('guid_2').blobs['blob_2'] = StringIO('stream')
-        client.Resource('guid_3').blobs['blob_3'] = {'file': 'path'}
-        client.Resource('guid_4').blobs['blob_4'].url = 'url'
+        client.Resource('guid_2').blobs['blob_2'] = {'file': 'path'}
+        client.Resource('guid_3').blobs['blob_3'].url = 'url'
 
         self.assertEqual([
             ('set_blob', 'resource', 'guid_1', 'blob_1', None, None, 'string'),
-            ('set_blob', 'resource', 'guid_2', 'blob_2', None, None, 'stream'),
-            ('set_blob', 'resource', 'guid_3', 'blob_3', {'file': 'path'}, None, None),
-            ('set_blob', 'resource', 'guid_4', 'blob_4', None, 'url', None),
+            ('set_blob', 'resource', 'guid_2', 'blob_2', {'file': 'path'}, None, None),
+            ('set_blob', 'resource', 'guid_3', 'blob_3', None, 'url', None),
             ],
             CommandsProcessor.calls)
 
@@ -198,11 +195,7 @@ class CommandsProcessor(object):
     def set_blob(self_, socket, resource, guid, prop, files=None,
             url=None):
         if files is None and url is None:
-            socket.setblocking(0)
-            try:
-                data = socket.recv(1024)
-            finally:
-                socket.setblocking(1)
+            data = socket.read()
         else:
             data = None
         reply = ('set_blob', resource, guid, prop, files, url, data)

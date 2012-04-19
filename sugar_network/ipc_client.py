@@ -17,10 +17,9 @@ import json
 import logging
 import collections
 from gevent import socket
-from cStringIO import StringIO
 from gettext import gettext as _
 
-from local_document import env, util, enforce
+from local_document import ipc, util, enforce
 
 
 _QUERY_PAGE_SIZE = 16
@@ -46,27 +45,22 @@ class Client(object):
 class _Connection(dict):
 
     def __init__(self):
-        self._file = None
+        self._socket_file = None
 
     @property
     def socket_file(self):
-        if self._file is None:
-            env.rendezvous()
-
+        if self._socket_file is None:
+            ipc.rendezvous()
             # pylint: disable-msg=E1101
             socket_ = socket.socket(socket.AF_UNIX)
-            try:
-                socket_.connect(env.ipc_path('accept'))
-                self._file = socket_.makefile()
-            finally:
-                socket_.close()
-
-        return self._file
+            socket_.connect(ipc.path('accept'))
+            self._socket_file = ipc.SocketFile(socket_)
+        return self._socket_file
 
     def close(self):
-        if self._file is not None:
-            self._file.close()
-            self._file = None
+        if self._socket_file is not None:
+            self._socket_file.close()
+            self._socket_file = None
 
 
 class _Request(dict):
@@ -81,31 +75,22 @@ class _Request(dict):
         result.update(kwargs)
         return result
 
-    def __call__(self, cmd, stream=None, **kwargs):
+    def __call__(self, cmd, data=None, **kwargs):
         request = self.copy()
         request.update(kwargs)
         request['cmd'] = cmd
 
         _logger.debug('Make a call: %r', request)
+        self._conn.socket_file.write_message(request)
 
-        self._conn.socket_file.write(json.dumps(request) + '\n')
+        if data is not None:
+            self._conn.socket_file.write(data)
+            _logger.debug('Sent %s bytes of payload', len(data))
 
-        if stream is not None:
-            sent = 0
-            while True:
-                chunk = stream.read(env.BUFSIZE)
-                if not chunk:
-                    break
-                self._conn.socket_file.write(chunk)
-                sent += len(chunk)
-            _logger.debug('Sent %s bytes of payload', sent)
-
-        self._conn.socket_file.flush()
-        reply = self._conn.socket_file.readline()
-
+        reply = self._conn.socket_file.read_message()
         _logger.debug('Got a reply: %r', reply)
 
-        return json.loads(reply)
+        return reply
 
 
 class _Resource(object):
@@ -136,14 +121,14 @@ class _Resource(object):
 
     def __call__(self, guid=None, reply=None, **filters):
         if guid:
-            return _Object(self._request, {'guid': guid}, reply=reply)
+            return _Object(self._request.dup(), {'guid': guid}, reply=reply)
         elif not filters:
-            return _Object(self._request, reply=reply)
+            return _Object(self._request.dup(), reply=reply)
         else:
             query = self.find(**filters)
             enforce(query.total, KeyError, _('No objects found'))
             enforce(query.total == 1, _('Found more than one object'))
-            return _Object(self._request, query[0], reply=reply)
+            return _Object(self._request.dup(), query[0], reply=reply)
 
 
 class _Query(object):
@@ -306,7 +291,8 @@ class _Query(object):
 
         result = [None] * len(reply['result'])
         for i, props in enumerate(reply['result']):
-            result[i] = _Object(self._request, props, offset + i, self._reply)
+            result[i] = _Object(self._request.dup(), props,
+                    offset + i, self._reply)
 
         if not self._page_access or self._page_access[-1] != page:
             if len(self._page_access) == _QUERY_PAGES_NUMBER:
@@ -369,6 +355,7 @@ class _Object(dict):
             kwargs = {}
             if self._reply and prop in self._reply:
                 kwargs['reply'] = self._reply
+
             properties = self._request('get', **kwargs)
 
             self._got = True
@@ -411,15 +398,11 @@ class _Blobs(object):
         return _Blob(self._request.dup(prop=prop))
 
     def __setitem__(self, prop, data):
-        stream = None
         kwargs = {}
         if type(data) is dict:
             kwargs['files'] = data
-        elif hasattr(data, 'read'):
-            stream = data
-        else:
-            stream = StringIO(data)
-        self._request('set_blob', stream=stream, prop=prop, **kwargs)
+            data = None
+        self._request('set_blob', data=data, prop=prop, **kwargs)
 
 
 class _Blob(object):
@@ -451,7 +434,7 @@ class _Blob(object):
 
         with file(reply['path']) as f:
             while True:
-                chunk = f.read(env.BUFSIZE)
+                chunk = f.read(ipc.BUFSIZE)
                 if not chunk:
                     break
                 yield chunk

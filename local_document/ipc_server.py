@@ -14,14 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import json
 import logging
+from os.path import exists
 from gettext import gettext as _
 
 import gevent
 from gevent import socket
 
-from local_document import env, util, enforce
+from local_document import ipc, util, enforce
 
 
 _logger = logging.getLogger('local_document.ipc_server')
@@ -33,7 +33,9 @@ class Server(object):
         self.commands_processor = commands_processor
 
     def serve_forever(self):
-        accept_path = env.ipc_path('accept')
+        accept_path = ipc.path('accept')
+        if exists(accept_path):
+            os.unlink(accept_path)
         # pylint: disable-msg=E1101
         accept = socket.socket(socket.AF_UNIX)
         accept.bind(accept_path)
@@ -41,7 +43,7 @@ class Server(object):
 
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
-        rendezvous = env.rendezvous(server=True)
+        rendezvous = ipc.rendezvous(server=True)
         try:
             gevent.joinall([
                 gevent.spawn(self._accept_clients, accept),
@@ -59,19 +61,11 @@ class Server(object):
             self._serve_client(conn)
 
     def _serve_client(self, conn):
-        _logger.debug('Opened connection %r', conn.fileno())
+        conn_file = ipc.SocketFile(conn)
 
-        def read_message():
-            cmd_line = env.recvline(conn)
-            if not cmd_line:
-                return False
+        _logger.debug('Opened connection %r', conn_file)
 
-            try:
-                message = json.loads(cmd_line)
-            except Exception:
-                util.exception(_('Bad parse client\'s command, %r'), cmd_line)
-                return True
-
+        def process_message(message):
             _logger.debug('Got a call: %r', message)
 
             enforce('cmd' in message, _('Argument "cmd" was not specified'))
@@ -79,15 +73,20 @@ class Server(object):
             enforce(hasattr(self.commands_processor, cmd),
                     _('Unknown %r command'), cmd)
 
-            reply = getattr(self.commands_processor, cmd)(conn, **message)
-            conn.send(json.dumps(reply) + '\n')
+            reply = getattr(self.commands_processor, cmd)(conn_file, **message)
+            conn_file.write_message(reply)
 
             _logger.debug('Send reply: %r', reply)
-            return True
 
         try:
-            while read_message():
-                pass
+            while True:
+                try:
+                    message = conn_file.read_message()
+                    if message is None:
+                        break
+                    process_message(message)
+                except Exception, error:
+                    util.exception(_('Fail to process message: %s'), error)
         finally:
-            _logger.debug('Closed connection %r', conn.fileno())
-            conn.close()
+            _logger.debug('Closed connection %r', conn_file)
+            conn_file.close()

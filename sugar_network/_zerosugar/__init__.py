@@ -23,7 +23,7 @@ from sugar_network._zerosugar.injector import launch
 def _inject_zerosugar():
     from zeroinstall.injector import reader, model
     from sugar_network._zerosugar import feeds
-    from sugar_network.util import enforce
+    from local_document import enforce
 
     def Interface_init(self, url):
         enforce(url)
