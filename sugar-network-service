@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2012, Aleksey Lim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import sys
+from optparse import OptionParser
+from os.path import basename
+from gettext import gettext as _
+
+import active_document
+from local_document import process, optparse, sugar, env
+
+
+def start():
+    pass
+
+
+def stop():
+    pass
+
+
+HELP = _("""
+Commands:
+  start                 start in daemon mode
+  stop                  stop daemon
+  status                check for launched daemon
+  reload                reopen log files in daemon mode
+  config                output current configuration
+
+See http://wiki.sugarlabs.org/go/Sugar_Network for details.""")
+
+parser = OptionParser(
+        usage='%prog [OPTIONS]',
+        description='Sugar Network client utility.',
+        add_help_option=False)
+parser.add_option('-h', '--help',
+        help=_('show this help message and exit'),
+        action='store_true')
+
+process.logdir.value = sugar.profile_path('logs')
+process.rundir.value = sugar.profile_path('run')
+
+optparse.Option.seek('main', process)
+optparse.Option.seek('local-document', env)
+optparse.Option.seek('active-document', active_document)
+
+options, args = optparse.Option.parse_args(parser,
+        config_files=[
+            '/etc/sweets.conf',
+            '~/.config/sweets/config',
+            sugar.profile_path('sweets.conf'),
+            ],
+        )
+
+if not args and not options.help:
+    prog = basename(sys.argv[0])
+    print 'Usage: %s [OPTIONS] [COMMAND]' % prog
+    print '       %s -h|--help' % prog
+    print
+    print parser.description
+    print HELP
+    exit(0)
+
+if options.help:
+    parser.print_help()
+    print HELP
+    exit(0)
+
+process.run('sugar-network-service', start, stop, args)

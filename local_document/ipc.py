@@ -20,7 +20,8 @@ import struct
 from os.path import dirname, exists, join
 from gettext import gettext as _
 
-from local_document import env, enforce
+from local_document import env
+from active_document import enforce
 
 
 BUFSIZE = 1024 * 10

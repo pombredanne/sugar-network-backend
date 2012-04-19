@@ -23,7 +23,7 @@ from gettext import gettext as _
 
 import gconf
 
-from local_document import enforce
+from active_document import enforce
 
 
 _XO_SERIAL_PATH = '/ofw/mfg-data/SN'

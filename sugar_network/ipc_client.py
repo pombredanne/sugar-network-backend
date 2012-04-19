@@ -19,7 +19,8 @@ import collections
 from gevent import socket
 from gettext import gettext as _
 
-from local_document import ipc, util, enforce
+from local_document import ipc
+from active_document import util, enforce
 
 
 _QUERY_PAGE_SIZE = 16

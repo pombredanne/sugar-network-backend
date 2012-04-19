@@ -21,7 +21,8 @@ from gettext import gettext as _
 import gevent
 from gevent import socket
 
-from local_document import ipc, util, enforce
+from local_document import ipc
+from active_document import util, enforce
 
 
 _logger = logging.getLogger('local_document.ipc_server')

@@ -16,25 +16,26 @@
 from os.path import expanduser
 from gettext import gettext as _
 
-from local_document import util
+from active_document import optparse
 
 
-ipc_root = util.Option(
+ipc_root = optparse.Option(
         _('path to a directory with IPC sockets'),
         default=expanduser('~/.local/var/sugar-network'))
 
-api_url = util.Option(
+api_url = optparse.Option(
         _('url to connect to Sugar Network server API'),
         default='http://18.85.44.120:8000', short_option='-a')
 
-certfile = util.Option(
+certfile = optparse.Option(
         _('path to SSL certificate file to connect to server via HTTPS'))
 
-no_check_certificate = util.Option(
+no_check_certificate = optparse.Option(
         _('do not check the server certificate against the available ' \
                 'certificate authorities'),
-        default=False, type_cast=util.Option.bool_cast, action='store_true')
+        default=False, type_cast=optparse.Option.bool_cast,
+        action='store_true')
 
-local_data_root = util.Option(
+local_data_root = optparse.Option(
         _('path to directory to keep local data; ' \
                 'if omited, ~/sugar/*/sugar-network directory will be used'))
