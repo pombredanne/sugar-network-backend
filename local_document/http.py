@@ -29,13 +29,6 @@ _logger = logging.getLogger('local_document.http')
 _headers = {}
 
 
-class ServerError(Exception):
-
-    def __init__(self, request_, error):
-        self.request = request_
-        Exception.__init__(self, error)
-
-
 def request(method, path, data=None, headers=None, **kwargs):
     response = raw_request(method, path, data, headers, **kwargs)
     if response.headers.get('Content-Type') == 'application/json':
@@ -48,7 +41,7 @@ def raw_request(method, path, data=None, headers=None, **kwargs):
     path = '/'.join([i.strip('/') for i in [env.api_url.value] + path])
 
     if not _headers:
-        uid = sugar.guid()
+        uid = sugar.uid()
         _headers['sugar_user'] = uid
         _headers['sugar_user_signature'] = _sign(uid)
     if headers:
@@ -83,7 +76,7 @@ def raw_request(method, path, data=None, headers=None, **kwargs):
             content = response.content
             try:
                 error = json.loads(content)
-                raise ServerError(error['request'], error['error'])
+                raise RuntimeError(error['error'])
             except ValueError:
                 _logger.debug('Got %s HTTP error for "%s" request:\n%s',
                         response.status_code, path, content)

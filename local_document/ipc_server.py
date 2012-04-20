@@ -30,8 +30,9 @@ _logger = logging.getLogger('local_document.ipc_server')
 
 class Server(object):
 
-    def __init__(self, commands_processor):
-        self.commands_processor = commands_processor
+    def __init__(self, online_cp, offline_cp):
+        self._online_cp = online_cp
+        self._offline_cp = offline_cp
 
     def serve_forever(self):
         accept_path = ipc.path('accept')
@@ -69,12 +70,19 @@ class Server(object):
         def process_message(message):
             _logger.debug('Got a call: %r', message)
 
+            if 'online' in message:
+                if message.pop('online'):
+                    cp = self._online_cp
+                else:
+                    cp = self._offline_cp
+            else:
+                cp = self._offline_cp
+
             enforce('cmd' in message, _('Argument "cmd" was not specified'))
             cmd = message.pop('cmd')
-            enforce(hasattr(self.commands_processor, cmd),
-                    _('Unknown %r command'), cmd)
+            enforce(hasattr(cp, cmd), _('Unknown %r command'), cmd)
 
-            reply = getattr(self.commands_processor, cmd)(conn_file, **message)
+            reply = getattr(cp, cmd)(conn_file, **message)
             conn_file.write_message(reply)
 
             _logger.debug('Send reply: %r', reply)
@@ -88,6 +96,7 @@ class Server(object):
                     process_message(message)
                 except Exception, error:
                     util.exception(_('Fail to process message: %s'), error)
+                    conn_file.write_message({'error': str(error)})
         finally:
             _logger.debug('Closed connection %r', conn_file)
             conn_file.close()

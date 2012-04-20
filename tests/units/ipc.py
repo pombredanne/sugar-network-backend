@@ -9,7 +9,7 @@ import gevent
 
 from __init__ import tests
 
-from sugar_network.ipc_client import Client
+from sugar_network.ipc_client import OfflineClient as Client, ServerError
 from local_document.ipc_server import Server
 
 
@@ -22,7 +22,7 @@ class IPCTest(tests.Test):
     def start_server(self):
 
         def server():
-            Server(CommandsProcessor()).serve_forever()
+            Server(None, CommandsProcessor()).serve_forever()
 
         gevent.spawn(server)
         gevent.sleep()
@@ -31,7 +31,7 @@ class IPCTest(tests.Test):
 
         def server():
             time.sleep(1)
-            Server(CommandsProcessor()).serve_forever()
+            Server(None, CommandsProcessor()).serve_forever()
 
         ts = time.time()
         fork = self.fork(server)
@@ -166,26 +166,31 @@ class IPCTest(tests.Test):
             ],
             CommandsProcessor.calls)
 
+    def test_Exception(self):
+        self.start_server()
+        client = Client()
+        self.assertRaises(ServerError, lambda: client.Resource('guid').fail())
+
 
 class CommandsProcessor(object):
 
     calls = []
 
-    def create(self_, socket, resource, props):
+    def create(self, socket, resource, props):
         reply = ('create', resource, props)
         CommandsProcessor.calls.append(reply)
         return {'guid': -1}
 
-    def update(self_, socket, resource, guid, props):
+    def update(self, socket, resource, guid, props):
         reply = ('update', resource, guid, props)
         CommandsProcessor.calls.append(reply)
 
-    def get(self_, socket, resource, guid, reply=None):
+    def get(self, socket, resource, guid, reply=None):
         reply = ('get', resource, guid, reply)
         CommandsProcessor.calls.append(reply)
         return {'guid': -1, 'prop': 'value'}
 
-    def find(self_, socket, resource, offset=None, limit=None,
+    def find(self, socket, resource, offset=None, limit=None,
             query=None, order_by=None, reply=None, **kwargs):
         reply = ('find', resource, offset, limit, query, order_by,
                 reply, kwargs)
@@ -193,11 +198,11 @@ class CommandsProcessor(object):
         result = [{'guid': i} for i in range(offset, offset + 3)]
         return {'total': 10, 'result': result}
 
-    def delete(self_, socket, resource, guid):
+    def delete(self, socket, resource, guid):
         reply = ('delete', resource, guid)
         CommandsProcessor.calls.append(reply)
 
-    def get_blob(self_, socket, resource, guid, prop):
+    def get_blob(self, socket, resource, guid, prop):
         reply = ('get_blob', resource, guid, prop)
         CommandsProcessor.calls.append(reply)
         if prop == 'empty':
@@ -206,7 +211,7 @@ class CommandsProcessor(object):
             f.write(json.dumps({'blob': -1}))
         return {'path': 'blob-path', 'mime_type': 'application/json'}
 
-    def set_blob(self_, socket, resource, guid, prop, files=None,
+    def set_blob(self, socket, resource, guid, prop, files=None,
             url=None):
         if files is None and url is None:
             data = socket.read()
@@ -215,10 +220,13 @@ class CommandsProcessor(object):
         reply = ('set_blob', resource, guid, prop, files, url, data)
         CommandsProcessor.calls.append(reply)
 
-    def ping(self_, socket):
+    def ping(self, socket):
         reply = 'pong'
         CommandsProcessor.calls.append(reply)
         return reply
+
+    def fail(self, socket, resource, guid):
+        raise RuntimeError('fail')
 
 
 if __name__ == '__main__':

@@ -68,7 +68,7 @@ def pubkey():
             pubkey_path)
 
 
-def guid():
+def uid():
     key = pubkey().split()[1]
     return str(hashlib.sha1(key).hexdigest())
 

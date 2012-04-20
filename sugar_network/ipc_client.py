@@ -29,7 +29,11 @@ _QUERY_PAGES_NUMBER = 5
 _logger = logging.getLogger('local_document.ipc_client')
 
 
-class Client(object):
+class ServerError(RuntimeError):
+    pass
+
+
+class _Client(object):
     """IPC class to get access from a client side.
 
     See http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
@@ -37,8 +41,14 @@ class Client(object):
 
     """
 
-    def __init__(self):
-        self._conn = _Connection()
+    def __init__(self, online):
+        self._socket_file = None
+        self._online = online
+
+    def close(self):
+        if self._socket_file is not None:
+            self._socket_file.close()
+            self._socket_file = None
 
     def __getattr__(self, name):
         """Class-like object to access to a resource or call a method.
@@ -51,48 +61,45 @@ class Client(object):
             remote method that is not linked to specified resource
 
         """
-        if name[0].isupper():
-            return _Resource(_Request(self._conn, resource=name.lower()))
-        else:
-
-            def call(**kwargs):
-                return _Request(self._conn)(name, **kwargs)
-
-            return call
-
-    def close(self):
-        self._conn.close()
-
-
-class _Connection(dict):
-
-    def __init__(self):
-        self._socket_file = None
-
-    @property
-    def socket_file(self):
         if self._socket_file is None:
             ipc.rendezvous()
             # pylint: disable-msg=E1101
             socket_ = socket.socket(socket.AF_UNIX)
             socket_.connect(ipc.path('accept'))
             self._socket_file = ipc.SocketFile(socket_)
-        return self._socket_file
 
-    def close(self):
-        if self._socket_file is not None:
-            self._socket_file.close()
-            self._socket_file = None
+        request = _Request(self._socket_file, online=self._online)
+
+        if name[0].isupper():
+            return _Resource(request.dup(resource=name.lower()))
+        else:
+
+            def call(**kwargs):
+                return request(name, **kwargs)
+
+            return call
+
+
+class OnlineClient(_Client):
+
+    def __init__(self):
+        _Client.__init__(self, True)
+
+
+class OfflineClient(_Client):
+
+    def __init__(self):
+        _Client.__init__(self, False)
 
 
 class _Request(dict):
 
-    def __init__(self, conn, **kwargs):
+    def __init__(self, socket_file, **kwargs):
         dict.__init__(self, kwargs or {})
-        self._conn = conn
+        self._socket_file = socket_file
 
     def dup(self, **kwargs):
-        result = _Request(self._conn)
+        result = _Request(self._socket_file)
         result.update(self)
         result.update(kwargs)
         return result
@@ -103,14 +110,17 @@ class _Request(dict):
         request['cmd'] = cmd
 
         _logger.debug('Make a call: %r', request)
-        self._conn.socket_file.write_message(request)
+        self._socket_file.write_message(request)
 
         if data is not None:
-            self._conn.socket_file.write(data)
+            self._socket_file.write(data)
             _logger.debug('Sent %s bytes of payload', len(data))
 
-        reply = self._conn.socket_file.read_message()
+        reply = self._socket_file.read_message()
         _logger.debug('Got a reply: %r', reply)
+
+        if type(reply) is dict and 'error' in reply:
+            raise ServerError(reply['error'])
 
         return reply
 

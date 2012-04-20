@@ -8,7 +8,9 @@ import logging
 import unittest
 from os.path import dirname, join, exists, abspath
 
+import active_document as ad
 from local_document import env
+import sugar_network_server
 
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
@@ -35,6 +37,11 @@ class Test(unittest.TestCase):
         if exists(logfile):
             os.unlink(logfile)
 
+        ad.data_root.value = tmpdir
+        ad.index_flush_timeout.value = 0
+        ad.index_flush_threshold.value = 1
+        ad.find_limit.value = 1024
+        ad.index_write_queue.value = 10
         env.ipc_root.value = join(tmpdir, 'ipc')
 
         self._logfile = file(logfile + '.out', 'a')
@@ -43,6 +50,8 @@ class Test(unittest.TestCase):
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=logfile)
+
+        sugar_network_server.resources.reset()
 
         self.forks = []
 
