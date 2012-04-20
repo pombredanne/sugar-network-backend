@@ -26,7 +26,7 @@ from active_document.index_proxy import IndexProxy
 from active_document.util import enforce
 
 
-_logger = logging.getLogger('ad.folder')
+_logger = logging.getLogger('active_document.folder')
 
 # Process events loop during long running operations, e.g., synchronization
 _dispatch = gevent.sleep
@@ -53,12 +53,8 @@ class _Folder(dict):
         index_queue.start(self.documents)
 
         for cls in self.documents:
-            populating = False
             for __ in cls.populate():
-                if not populating:
-                    _logger.info(_('Start populating "%s" index'),
-                            cls.metadata.name)
-                    populating = True
+                pass
 
         _logger.info(_('Open "%s" documents folder in "%s"'),
                 self.id, env.data_root.value)

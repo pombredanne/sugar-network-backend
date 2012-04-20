@@ -31,3 +31,5 @@ from active_document.metadata import Metadata, Property, \
         active_property, active_method, Method
 
 from active_document.folder import Master, Node
+
+from active_document.index import IndexWriter

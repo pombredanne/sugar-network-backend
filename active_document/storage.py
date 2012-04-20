@@ -33,7 +33,7 @@ from active_document.util import enforce
 _PAGE_SIZE = 4096
 _SEQNO_SUFFIX = '.seqno'
 
-_logger = logging.getLogger('ad.storage')
+_logger = logging.getLogger('active_document.storage')
 
 
 class Storage(object):

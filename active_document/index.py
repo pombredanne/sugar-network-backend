@@ -35,7 +35,7 @@ _EXACT_QUERY_RE = re.compile('([a-zA-Z0-9_]+):=(")?((?(2)[^"]+|\S+))(?(2)")')
 _REOPEN_LIMIT = 10
 
 
-_logger = logging.getLogger('ad.index')
+_logger = logging.getLogger('active_document.index')
 
 
 class IndexReader(object):

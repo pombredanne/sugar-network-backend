@@ -31,7 +31,7 @@ next_volume_cb = None
 _HEADER_SIZE = 4096
 _RESERVED_SIZE = 1024 * 1024
 
-_logger = logging.getLogger('ad.sneakernet')
+_logger = logging.getLogger('active_document.sneakernet')
 
 
 def sync_node(node, volume_path, merge_cb, diff):

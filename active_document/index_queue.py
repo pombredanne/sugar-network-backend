@@ -31,7 +31,7 @@ errnum = 0
 _queue = None
 _write_thread = None
 
-_logger = logging.getLogger('ad.index_queue')
+_logger = logging.getLogger('active_document.index_queue')
 
 
 def start(document_classes):

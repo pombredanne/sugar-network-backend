@@ -24,7 +24,7 @@ from active_document.metadata import active_method
 from active_document.util import enforce
 
 
-_logger = logging.getLogger('ad.document')
+_logger = logging.getLogger('active_document.document')
 
 
 class Document(DocumentClass):
@@ -123,6 +123,12 @@ class Document(DocumentClass):
         self._cache[prop.name] = (orig, new)
 
         return prop.decode(orig)
+
+    def properties(self, names):
+        result = {}
+        for prop_name in (names or ['guid']):
+            result[prop_name] = self[prop_name]
+        return result
 
     def set(self, prop, value, raw=False):
         """set document's property value.

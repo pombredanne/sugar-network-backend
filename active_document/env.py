@@ -26,7 +26,7 @@ from active_document import util, optparse
 from active_document.util import enforce
 
 
-_logger = logging.getLogger('ad')
+_logger = logging.getLogger('active_document')
 
 
 #: To invalidate existed Xapian db on stcuture changes in stored documents

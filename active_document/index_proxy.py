@@ -25,7 +25,7 @@ from active_document.index import IndexReader, IndexWriter, Total
 from active_document.metadata import StoredProperty
 
 
-_logger = logging.getLogger('ad.index_proxy')
+_logger = logging.getLogger('active_document.index_proxy')
 
 
 class IndexProxy(IndexReader):

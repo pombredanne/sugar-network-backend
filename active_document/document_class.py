@@ -26,7 +26,7 @@ from active_document.util import enforce
 
 _DIFF_PAGE_SIZE = 256
 
-_logger = logging.getLogger('ad.document')
+_logger = logging.getLogger('active_document.document')
 
 
 class DocumentClass(object):
@@ -162,7 +162,12 @@ class DocumentClass(object):
             every object to let the caller execute urgent tasks
 
         """
+        first_population = True
         for guid, props in cls._storage.walk(cls._index.mtime):
+            if first_population:
+                _logger.info(_('Start populating "%s" index'),
+                        cls.metadata.name)
+                first_population = False
             cls._index.store(guid, props, None,
                     cls._pre_store, cls._post_store)
             yield
