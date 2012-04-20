@@ -125,6 +125,7 @@ class SocketFile(object):
     def read(self):
         size_str = self._recv(struct.calcsize('i'))
         size, = struct.unpack('i', size_str)
+        # TODO Make sure that we got exactly `size` bytes
         return self._recv(size)
 
     def close(self):

@@ -37,8 +37,8 @@ class IPCTest(tests.Test):
         fork = self.fork(server)
 
         client = Client()
-        reply = client.Context('guid').ping()
-        self.assertEqual(['ping', 'context', 'guid'], reply)
+        reply = client.ping()
+        self.assertEqual('pong', reply)
         assert time.time() - ts >= 1
 
     def test_delete(self):
@@ -201,8 +201,8 @@ class CommandsProcessor(object):
         reply = ('set_blob', resource, guid, prop, files, url, data)
         CommandsProcessor.calls.append(reply)
 
-    def ping(self_, socket, resource, guid):
-        reply = ('ping', resource, guid)
+    def ping(self_, socket):
+        reply = 'pong'
         CommandsProcessor.calls.append(reply)
         return reply
 

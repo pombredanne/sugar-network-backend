@@ -23,6 +23,9 @@ _logger = logging.getLogger('local_document.cp')
 
 class CommandsProcessor(object):
 
+    def ping(self, socket, hello=None):
+        return 'pong: %s' % hello
+
     def create(self, socket, resource, props):
         reply = http.request('POST', [resource], data=props,
                 headers={'Content-Type': 'application/json'})

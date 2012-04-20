@@ -31,13 +31,35 @@ _logger = logging.getLogger('local_document.ipc_client')
 
 
 class Client(object):
+    """IPC class to get access from a client side.
+
+    See http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
+    for detailed information.
+
+    """
 
     def __init__(self):
         self._conn = _Connection()
 
     def __getattr__(self, name):
-        """Get class-like object to access to the server resource."""
-        return _Resource(_Request(self._conn, resource=name.lower()))
+        """Class-like object to access to a resource or call a method.
+
+        :param name:
+            resource name (started with capital char) or method name
+        :returns:
+            if `name` starts with capital char, return a class-like
+            resource object; otherwise, return a function-like object to call
+            remote method that is not linked to specified resource
+
+        """
+        if name[0].isupper():
+            return _Resource(_Request(self._conn, resource=name.lower()))
+        else:
+
+            def call(**kwargs):
+                return _Request(self._conn)(name, **kwargs)
+
+            return call
 
     def close(self):
         self._conn.close()
