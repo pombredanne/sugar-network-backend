@@ -53,7 +53,10 @@ class CommandsProcessor(object):
 
     def get_blob(self, socket, resource, guid, prop):
         path, mime_type = storage.get_blob(resource, guid, prop)
-        return {'path': path, 'mime_type': mime_type}
+        if path is None:
+            return None
+        else:
+            return {'path': path, 'mime_type': mime_type}
 
     def set_blob(self, socket, resource, guid, prop, files=None, url=None):
         url_path = [resource, guid, prop]

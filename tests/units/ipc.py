@@ -128,14 +128,26 @@ class IPCTest(tests.Test):
         res = client.Resource('guid')
         blob = res.blobs['blob']
 
-        self.assertEqual('blob-path', blob.path)
-        self.assertEqual({'blob': -1}, blob.content)
-        self.assertEqual('{"blob": -1}', ''.join([i for i in blob.iter_content()]))
+        self.assertEqual('blob-path', blob.name)
+        self.assertEqual('{"blob": -1}', blob.read())
+        self.assertEqual('application/json', blob.mime_type)
 
         self.assertEqual([
             ('get_blob', 'resource', 'guid', 'blob'),
-            ('get_blob', 'resource', 'guid', 'blob'),
-            ('get_blob', 'resource', 'guid', 'blob'),
+            ],
+            CommandsProcessor.calls)
+
+    def test_get_blob_EmptyBlob(self):
+        self.start_server()
+        client = Client()
+
+        res = client.Resource('guid')
+        blob = res.blobs['empty']
+
+        self.assertEqual(None, blob)
+
+        self.assertEqual([
+            ('get_blob', 'resource', 'guid', 'empty'),
             ],
             CommandsProcessor.calls)
 
@@ -145,7 +157,7 @@ class IPCTest(tests.Test):
 
         client.Resource('guid_1').blobs['blob_1'] = 'string'
         client.Resource('guid_2').blobs['blob_2'] = {'file': 'path'}
-        client.Resource('guid_3').blobs['blob_3'].url = 'url'
+        client.Resource('guid_3').blobs.set_by_url('blob_3', 'url')
 
         self.assertEqual([
             ('set_blob', 'resource', 'guid_1', 'blob_1', None, None, 'string'),
@@ -188,6 +200,8 @@ class CommandsProcessor(object):
     def get_blob(self_, socket, resource, guid, prop):
         reply = ('get_blob', resource, guid, prop)
         CommandsProcessor.calls.append(reply)
+        if prop == 'empty':
+            return None
         with file('blob-path', 'w') as f:
             f.write(json.dumps({'blob': -1}))
         return {'path': 'blob-path', 'mime_type': 'application/json'}

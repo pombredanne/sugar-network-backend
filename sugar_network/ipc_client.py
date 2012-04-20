@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import json
 import logging
 import collections
 from gevent import socket
@@ -418,7 +417,11 @@ class _Blobs(object):
         self._request = request
 
     def __getitem__(self, prop):
-        return _Blob(self._request.dup(prop=prop))
+        reply = self._request('get_blob', prop=prop)
+        if not reply:
+            return None
+        else:
+            return _Blob(reply['path'], reply['mime_type'])
 
     def __setitem__(self, prop, data):
         kwargs = {}
@@ -427,43 +430,12 @@ class _Blobs(object):
             data = None
         self._request('set_blob', data=data, prop=prop, **kwargs)
 
+    def set_by_url(self, prop, url):
+        self._request('set_blob', prop=prop, url=url)
 
-class _Blob(object):
 
-    def __init__(self, request):
-        self._request = request
+class _Blob(file):
 
-    @property
-    def content(self):
-        reply = self._request('get_blob')
-        if 'path' not in reply:
-            return None
-
-        with file(reply['path']) as f:
-            if reply['mime_type'] == 'application/json':
-                return json.load(f)
-            else:
-                return f.read()
-
-    @property
-    def path(self):
-        reply = self._request('get_blob')
-        return reply.get('path')
-
-    def iter_content(self):
-        reply = self._request('get_blob')
-        if 'path' not in reply:
-            return
-
-        with file(reply['path']) as f:
-            while True:
-                chunk = f.read(ipc.BUFSIZE)
-                if not chunk:
-                    break
-                yield chunk
-
-    def _set_url(self, url):
-        self._request('set_blob', url=url)
-
-    #: Set BLOB value by url
-    url = property(None, _set_url)
+    def __init__(self, path, mime_type):
+        file.__init__(self, path)
+        self.mime_type = mime_type
