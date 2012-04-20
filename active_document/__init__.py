@@ -13,7 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from active_document import util
+from active_document import util, optparse
+
+from active_document.util import enforce
 
 from active_document.document import Document
 

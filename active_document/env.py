@@ -22,7 +22,7 @@ from uuid import uuid1
 from os.path import exists, join
 from gettext import gettext as _
 
-from active_document import util
+from active_document import util, optparse
 from active_document.util import enforce
 
 
@@ -55,25 +55,25 @@ ACCESS_NAMES = {
 LAYERS = ['public', 'deleted']
 
 
-data_root = util.Option(
+data_root = optparse.Option(
         _('path to the root directory for placing documents\' ' \
                 'data and indexes'),
         default='/var/lib/sugar-network/db')
 
-index_flush_timeout = util.Option(
+index_flush_timeout = optparse.Option(
         _('flush index index after specified seconds since the last change'),
         default=5, type_cast=int)
 
-index_flush_threshold = util.Option(
+index_flush_threshold = optparse.Option(
         _('flush index every specified changes'),
         default=32, type_cast=int)
 
-index_write_queue = util.Option(
+index_write_queue = optparse.Option(
         _('for concurent access, run index writer in separate thread; ' \
                 'this option specifies the writer\'s queue size'),
         default=256, type_cast=int)
 
-find_limit = util.Option(
+find_limit = optparse.Option(
         _('limit the resulting list for search requests'),
         default=32, type_cast=int)
 
