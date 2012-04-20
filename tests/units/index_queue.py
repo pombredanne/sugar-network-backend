@@ -27,11 +27,11 @@ class IndexQueueTest(tests.Test):
             pass
 
         Document.init(IndexProxy)
-        index_queue.init([Document])
+        index_queue.start([Document])
         self.Document = Document
 
     def tearDown(self):
-        index_queue.close()
+        index_queue.stop()
         tests.Test.tearDown(self)
 
     def test_put(self):
@@ -61,10 +61,10 @@ class IndexQueueTest(tests.Test):
         self.assertEqual(4, index_queue.put('document', lambda *args: None))
         index_queue.commit_and_wait('document')
         self.assertEqual(3, index_queue.commit_seqno('document'))
-        index_queue.close()
+        index_queue.stop()
 
         env.index_flush_threshold.value = 2
-        index_queue.init([self.Document])
+        index_queue.start([self.Document])
         self.assertEqual(0, index_queue.commit_seqno('document'))
         self.assertEqual(1, index_queue.put('document', lambda *args: None))
         self.assertEqual(2, index_queue.put('document', lambda *args: None))
@@ -73,7 +73,7 @@ class IndexQueueTest(tests.Test):
         self.assertEqual(3, index_queue.put('document', lambda *args: None))
         index_queue.commit_and_wait('document')
         self.assertEqual(3, index_queue.commit_seqno('document'))
-        index_queue.close()
+        index_queue.stop()
 
     def test_FlushTimeout(self):
         env.index_flush_threshold.value = 0

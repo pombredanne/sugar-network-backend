@@ -68,7 +68,7 @@ class Test(unittest.TestCase):
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
-        _index_queue.close()
+        _index_queue.stop()
         sys.stdout.flush()
 
     def override(self, mod, name, new_handler):

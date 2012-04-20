@@ -194,12 +194,12 @@ class FolderTest(tests.Test):
         class Document(document.Document):
             pass
         Document.init(IndexProxy)
-        index_queue.init([Document])
+        index_queue.start([Document])
         Document.commit()
         self.assertEqual(
                 sorted(['1', '2']),
                 sorted([i.guid for i in Document.find()[0]]))
-        index_queue.close()
+        index_queue.stop()
 
         os.unlink('document/stamp')
         shutil.rmtree('document/index')
@@ -207,12 +207,12 @@ class FolderTest(tests.Test):
         class Document(document.Document):
             pass
         Document.init(IndexProxy)
-        index_queue.init([Document])
+        index_queue.start([Document])
         Document.commit()
         self.assertEqual(
                 sorted(['1', '2']),
                 sorted([i.guid for i in Document.find()[0]]))
-        index_queue.close()
+        index_queue.stop()
 
         time.sleep(1)
         shutil.rmtree('document/index')
@@ -221,12 +221,12 @@ class FolderTest(tests.Test):
         class Document(document.Document):
             pass
         Document.init(IndexProxy)
-        index_queue.init([Document])
+        index_queue.start([Document])
         Document.commit()
         self.assertEqual(
                 sorted([]),
                 sorted([i.guid for i in Document.find()[0]]))
-        index_queue.close()
+        index_queue.stop()
 
 class Sync(object):
 

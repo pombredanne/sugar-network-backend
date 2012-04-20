@@ -50,7 +50,7 @@ class _Folder(dict):
             cls.metadata.ensure_path('')
             self._synchronizers[cls.metadata.name] = sync_class(cls)
 
-        index_queue.init(self.documents)
+        index_queue.start(self.documents)
 
         for cls in self.documents:
             populating = False
@@ -90,7 +90,7 @@ class _Folder(dict):
     def close(self):
         """Close operations with the server."""
         _logger.info(_('Closing "%s" documents folder'), self.id)
-        index_queue.close()
+        index_queue.stop()
         while self._synchronizers:
             __, sync = self._synchronizers.popitem()
             sync.cls.close()

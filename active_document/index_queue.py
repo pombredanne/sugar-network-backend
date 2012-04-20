@@ -34,7 +34,7 @@ _write_thread = None
 _logger = logging.getLogger('ad.index_queue')
 
 
-def init(document_classes):
+def start(document_classes):
     """Initialize the queue.
 
     Function will start index writing thread.
@@ -101,7 +101,7 @@ def commit_seqno(document):
     return _queue.commit_seqno(document)
 
 
-def close():
+def stop():
     """Flush all pending changes."""
     global _queue
     if _queue is None:
@@ -203,10 +203,10 @@ class _Queue(object):
             while len(self._queue) >= env.index_write_queue.value:
                 self._mutex.release()
                 try:
-                    # This is potential race but we need it to avoid using
-                    # gevent.monkey patching (less not obvious code,
-                    # less not obvious behaviour). The race might be avoided
-                    # by using big enough `env.index_write_queue.value`
+                    # This is potential race but we need it to avoid hanging
+                    # in condition wait to let other greenlets work.
+                    # The race might be avoided by using big enough
+                    # `active_document.index_write_queue.value`
                     _logger.debug('Postpone %r for "%s" index', op, document)
                     gevent.get_hub().wait(self._done_async)
                 finally:
