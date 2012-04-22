@@ -47,11 +47,15 @@ def profile_path(*args):
         root_dir = join(os.environ['HOME'], '.sugar',
                 os.environ.get('SUGAR_PROFILE', 'default'))
     else:
-        root_dir = '/var/sugar-client'
+        root_dir = '/var/sugar-network'
     result = join(root_dir, *args)
     if not exists(dirname(result)):
         os.makedirs(dirname(result))
     return result
+
+
+def has_pubkey():
+    return exists(profile_path('owner.key.pub'))
 
 
 def pubkey():

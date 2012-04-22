@@ -16,16 +16,25 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
+import logging
 from optparse import OptionParser
 from os.path import basename
 from gettext import gettext as _
+
+import gevent
 
 import active_document
 from local_document import process, optparse, sugar, env
 
 
+_SUGAR_REGISTRATION_TIMEOUT = 5
+
+
 def start():
-    pass
+    while not sugar.has_pubkey():
+        logging.info(_('No Sugar SSH key, will start in %s seconds'),
+                _SUGAR_REGISTRATION_TIMEOUT)
+        gevent.sleep(_SUGAR_REGISTRATION_TIMEOUT, start)
 
 
 def stop():
