@@ -11,6 +11,10 @@
 - aslo_sync server errors
 - do not sync objects that were created and deleted before syncing
 
+0.3
+===
+- get rid of threads, use read/write processes for master server
+
 1.0
 ===
 - IndexProxy should be smarter to take into account sorting of cached documents

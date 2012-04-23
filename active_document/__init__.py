@@ -30,6 +30,4 @@ from active_document.metadata import Metadata, Property, \
         BlobProperty, BrowsableProperty, \
         active_property, active_method, Method
 
-from active_document.folder import Master, Node
-
-from active_document.index import IndexWriter
+from active_document.folder import SingleFolder

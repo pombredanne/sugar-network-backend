@@ -168,8 +168,7 @@ class DocumentClass(object):
                 _logger.info(_('Start populating "%s" index'),
                         cls.metadata.name)
                 first_population = False
-            cls._index.store(guid, props, None,
-                    cls._pre_store, cls._post_store)
+            cls._index.store(guid, props, None, cls._pre_store, None)
             yield
 
     @classmethod
@@ -255,7 +254,7 @@ class DocumentClass(object):
         :param index_class:
             what class to use to access to indexes, for regular casses
             (using `Master` and `Node`, it will be all time ProxyIndex to
-            keep writer in separate thread).
+            keep writer in separate process).
 
         """
         if cls._initated:
@@ -272,11 +271,6 @@ class DocumentClass(object):
 
     @classmethod
     def _pre_store(cls, guid, changes, is_new):
-        """Pre index store handle.
-
-        Method will be called in separate, index writer, thread.
-
-        """
         is_reindexing = not changes
 
         if is_reindexing or not is_new:
@@ -291,9 +285,4 @@ class DocumentClass(object):
 
     @classmethod
     def _post_store(cls, guid, changes, is_new):
-        """Post index store handle.
-
-        Method will be called in separate, index writer, thread.
-
-        """
         cls._storage.put(guid, changes)

@@ -8,8 +8,9 @@ from index_queue import *
 from document import *
 from storage import *
 from index_proxy import *
-from folder import *
 from sneakernet import *
 from metadata import *
+from sync import *
+from folder import *
 
 tests.main()

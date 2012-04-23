@@ -285,7 +285,7 @@ class Storage(object):
             except OSError, error:
                 if error.errno == errno.EEXIST:
                     # Possible race between index readers and writers
-                    # threads/processes. Index readers can access to storage
+                    # processes. Index readers can access to storage
                     # directly to save BLOB properties.
                     pass
                 else:

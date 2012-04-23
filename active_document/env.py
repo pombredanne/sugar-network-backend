@@ -16,11 +16,12 @@
 import os
 import json
 import logging
-import threading
 import collections
 from uuid import uuid1
 from os.path import exists, join
 from gettext import gettext as _
+
+import gevent
 
 from active_document import util, optparse
 from active_document.util import enforce
@@ -56,8 +57,8 @@ LAYERS = ['public', 'deleted']
 
 
 data_root = optparse.Option(
-        _('path to the root directory for placing documents\' ' \
-                'data and indexes'),
+        _('path to the root directory for placing documents\' '
+            'data and indexes'),
         default='/var/lib/sugar-network/db')
 
 index_flush_timeout = optparse.Option(
@@ -69,13 +70,18 @@ index_flush_threshold = optparse.Option(
         default=32, type_cast=int)
 
 index_write_queue = optparse.Option(
-        _('for concurent access, run index writer in separate thread; ' \
-                'this option specifies the writer\'s queue size'),
+        _('if active-document is being used for the scheme with one writer '
+            'process and multiple reader processes, this option specifies '
+            'the writer\'s queue size'),
         default=256, type_cast=int)
 
 find_limit = optparse.Option(
         _('limit the resulting list for search requests'),
         default=32, type_cast=int)
+
+
+#: Process events loop during long running operations, e.g., synchronization
+dispatch = gevent.sleep
 
 
 def uuid():
@@ -336,7 +342,7 @@ class Query(object):
                         self.order_by)
 
 
-class Principal(threading.local):
+class Principal(object):
     """Authenticated user."""
 
     user = None

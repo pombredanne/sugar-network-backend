@@ -14,50 +14,40 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import copy
+import imp
+import inspect
 import logging
-from os.path import join, exists
+from os.path import exists, basename
 from gettext import gettext as _
 
-import gevent
-
-from active_document import env, util, index_queue, sneakernet
-from active_document.index_proxy import IndexProxy
+from active_document import env
+from active_document.document import Document
+from active_document.index import IndexWriter
 from active_document.util import enforce
 
 
 _logger = logging.getLogger('active_document.folder')
 
-# Process events loop during long running operations, e.g., synchronization
-_dispatch = gevent.sleep
-
 
 class _Folder(dict):
 
-    def __init__(self, sync_class, document_classes):
+    def __init__(self, document_classes, index_class):
         enforce(env.data_root.value,
                 _('The active_document.data_root.value is not set'))
-        enforce(env.index_write_queue.value > 0,
-                _('The active_document.index_write_queue.value should be > 0'))
 
-        self._synchronizers = {}
+        if type(document_classes) in (tuple, list):
+            self.update([(i.__name__, i) for i in document_classes])
+        else:
+            self.update(_walk_classes(document_classes))
 
         if not exists(env.data_root.value):
             os.makedirs(env.data_root.value)
 
-        for cls in document_classes:
-            cls.init(IndexProxy)
+        _logger.info(_('Opening documents in "%s"'), env.data_root.value)
+
+        for cls in self.values():
+            cls.init(index_class)
             cls.metadata.ensure_path('')
-            self._synchronizers[cls.metadata.name] = sync_class(cls)
-
-        index_queue.start(self.documents)
-
-        for cls in self.documents:
-            for __ in cls.populate():
-                pass
-
-        _logger.info(_('Open "%s" documents folder in "%s"'),
-                self.id, env.data_root.value)
 
     def __enter__(self):
         return self
@@ -65,206 +55,49 @@ class _Folder(dict):
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    @property
-    def id(self):
-        """Server unique identity."""
-        raise NotImplementedError()
-
-    @property
-    def documents(self):
-        """Iterate all document classes."""
-        for i in self._synchronizers.values():
-            yield i.cls
-
-    def sync(self, volume_path):
-        """Synchronize server data."""
-
-        for sync in self._synchronizers.values():
-            sync.cls.commit()
-            sync.reset()
-
     def close(self):
         """Close operations with the server."""
-        _logger.info(_('Closing "%s" documents folder'), self.id)
-        index_queue.stop()
-        while self._synchronizers:
-            __, sync = self._synchronizers.popitem()
-            sync.cls.close()
+        _logger.info(_('Closing documents in "%s"'), env.data_root.value)
 
-    def _merge(self, packet, row, *args):
-        _dispatch()
-
-        sync = self._synchronizers.get(row['document'])
-        if sync is None:
-            _logger.warning(_('Unknown document "%s"'), row['document'])
-            return
-
-        method = 'process_%s' % row['type']
-        if not hasattr(sync, method):
-            _logger.warning(_('Unknown type "%(row)s"'), row)
-            return
-
-        return getattr(sync, method)(packet, row, *args)
-
-    def _diff(self):
-        for document, sync in self._synchronizers.items():
-            sync.cls.commit()
-
-            for i in sync.diff():
-                yield i
-
-            if not sync.to_diff:
-                continue
-            to_diff = copy.deepcopy(sync.to_diff)
-
-            diff_range, patch = sync.cls.diff(to_diff)
-            for guid, diff in patch:
-                _dispatch()
-                yield None, {
-                        'type': 'diff',
-                        'document': document,
-                        'guid': guid,
-                        'diff': diff,
-                        }
-
-            if diff_range[1]:
-                to_diff.floor(diff_range[1])
-                _dispatch()
-                yield None, {
-                        'type': 'syn',
-                        'document': document,
-                        'syn': to_diff,
-                        }
-
-            sync.commit()
+        while self:
+            __, cls = self.popitem()
+            cls.close()
 
 
-class Node(_Folder):
-    """Node server."""
+class SingleFolder(_Folder):
 
     def __init__(self, document_classes):
-        """
-        :param document_classes:
-            list of active_document.Document classes for documents that
-            server should provide
+        enforce(env.index_write_queue.value > 0,
+                _('The active_document.index_write_queue.value should be > 0'))
 
-        """
-        self._id = None
-        _Folder.__init__(self, _NodeSynchronizer, document_classes)
+        _Folder.__init__(self, document_classes, IndexWriter)
 
-    @property
-    def id(self):
-        if self._id is None:
-            path = join(env.data_root.value, 'id')
-            if exists(path):
-                with file(path) as f:
-                    self._id = f.read().strip()
-            else:
-                self._id = env.uuid()
-                with util.new_file(path) as f:
-                    f.write(self._id)
-        return self._id
-
-    def sync(self, volume_path):
-        _Folder.sync(self, volume_path)
-        sneakernet.sync_node(self.id, volume_path, self._merge, self._diff())
+        for cls in self.values():
+            for __ in cls.populate():
+                env.dispatch()
 
 
-class Master(_Folder):
-    """Master server."""
+def _walk_classes(path):
+    classes = set()
 
-    def __init__(self, document_classes):
-        """
-        :param document_classes:
-            list of active_document.Document classes for documents that
-            server should provide
+    for filename in os.listdir(path):
+        if filename == '__init__.py' or not filename.endswith('.py'):
+            continue
 
-        """
-        _Folder.__init__(self, _MasterSynchronizer, document_classes)
+        mod_name = basename(filename)[:-3]
+        fp, pathname, description = imp.find_module(mod_name, [path])
+        try:
+            mod = imp.load_module(mod_name, fp, pathname, description)
+        finally:
+            if fp:
+                fp.close()
 
-    @property
-    def id(self):
-        return 'master'
+        for __, cls in inspect.getmembers(mod):
+            if inspect.isclass(cls) and issubclass(cls, Document):
+                classes.add(cls)
 
-    def sync(self, volume_path):
-        _Folder.sync(self, volume_path)
-        sneakernet.sync_master(volume_path, self._merge, self._diff())
+    for cls in list(classes):
+        if [i for i in classes if i is not cls and issubclass(i, cls)]:
+            classes = [i for i in classes if i.__name__ != cls.__name__]
 
-
-class _NodeSynchronizer(object):
-
-    def __init__(self, cls):
-        self.cls = cls
-        self.to_diff = env.Range(cls.metadata.path('send'), [1, None])
-        self._to_receive = env.Range(cls.metadata.path('receive'), [1, None])
-
-    def reset(self):
-        pass
-
-    def commit(self):
-        self.to_diff.commit()
-        self._to_receive.commit()
-
-    def process_ack(self, packet, row):
-        self.to_diff.exclude(row['ack'])
-        self._to_receive.exclude(row['merged'])
-
-    def process_diff(self, packet, row):
-        self.cls(row['guid']).merge(row['guid'], row['diff'], False)
-
-    def process_syn(self, packet, row):
-        self._to_receive.exclude(row['syn'])
-
-    def diff(self):
-        yield None, {
-                'type': 'request',
-                'document': self.cls.metadata.name,
-                'request': self._to_receive,
-                }
-
-
-class _MasterSynchronizer(object):
-
-    def __init__(self, cls):
-        self.cls = cls
-        self.to_diff = None
-        self._merged = None
-        self._to_ack = None
-        self.reset()
-
-    def reset(self):
-        self.to_diff = env.Range()
-        self._merged = {}
-        self._to_ack = {}
-
-    def commit(self):
-        pass
-
-    def process_request(self, packet, row):
-        self.to_diff.include(row['request'])
-
-    def process_diff(self, packet, row):
-        seqno = self.cls(row['guid']).merge(row['guid'], row['diff'], True)
-        if seqno:
-            self._merged.setdefault(packet['sender'], env.Range())
-            self._merged[packet['sender']].include(seqno, seqno)
-
-    def process_syn(self, packet, row):
-        self._to_ack.setdefault(packet['sender'], [])
-        self._to_ack[packet['sender']].append(row['syn'])
-
-    def diff(self):
-        for requester, syns in self._to_ack.items():
-            merged = self._merged.get(requester)
-            for syn in syns:
-                yield requester, {
-                        'type': 'ack',
-                        'document': self.cls.metadata.name,
-                        'ack': syn,
-                        'merged': merged or [],
-                        }
-        if len(self._merged) == 1:
-            # Exclude only singular SYN.
-            # Otherwise, all nodes that sent REQUEST need to know about
-            # each other's SYNs.
-            self.to_diff.exclude(self._merged.values()[0])
+    return [(i.__name__, i) for i in classes]
