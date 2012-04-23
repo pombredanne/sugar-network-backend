@@ -238,8 +238,11 @@ class DocumentClass(object):
             `None` if `diff` was not applied
 
         """
-        seqno = cls._storage.merge(guid, diff, touch)
-        if seqno is not None:
+        if touch:
+            seqno = cls.metadata.next_seqno()
+        else:
+            seqno = None
+        if cls._storage.merge(seqno, guid, diff):
             cls._index.store(guid, {}, None, cls._pre_store, cls._post_store)
         return seqno
 

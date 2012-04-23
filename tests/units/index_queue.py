@@ -51,60 +51,6 @@ class IndexQueueTest(tests.Test):
         index_queue.commit_and_wait('document')
         self.assertEqual(1, index_queue.commit_seqno('document'))
 
-    def test_FlushThreshold(self):
-        env.index_flush_timeout.value = 0
-
-        env.index_flush_threshold.value = 1
-        self.assertEqual(0, index_queue.commit_seqno('document'))
-        self.assertEqual(2, index_queue.put('document', lambda *args: None))
-        self.assertEqual(3, index_queue.put('document', lambda *args: None))
-        self.assertEqual(4, index_queue.put('document', lambda *args: None))
-        index_queue.commit_and_wait('document')
-        self.assertEqual(3, index_queue.commit_seqno('document'))
-        index_queue.stop()
-
-        env.index_flush_threshold.value = 2
-        index_queue.start([self.Document])
-        self.assertEqual(0, index_queue.commit_seqno('document'))
-        self.assertEqual(1, index_queue.put('document', lambda *args: None))
-        self.assertEqual(2, index_queue.put('document', lambda *args: None))
-        self.assertEqual(2, index_queue.put('document', lambda *args: None))
-        self.assertEqual(3, index_queue.put('document', lambda *args: None))
-        self.assertEqual(3, index_queue.put('document', lambda *args: None))
-        index_queue.commit_and_wait('document')
-        self.assertEqual(3, index_queue.commit_seqno('document'))
-        index_queue.stop()
-
-    def test_FlushTimeout(self):
-        env.index_flush_threshold.value = 0
-        env.index_flush_timeout.value = 1
-
-        self.assertEqual(0, index_queue.commit_seqno('document'))
-        self.assertEqual(1, index_queue.put('document', lambda *args: None))
-        self.assertEqual(1, index_queue.put('document', lambda *args: None))
-        self.assertEqual(1, index_queue.put('document', lambda *args: None))
-        time.sleep(1)
-        self.assertEqual(2, index_queue.put('document', lambda *args: None))
-        self.assertEqual(2, index_queue.put('document', lambda *args: None))
-        self.assertEqual(2, index_queue.put('document', lambda *args: None))
-        time.sleep(1)
-        self.assertEqual(3, index_queue.put('document', lambda *args: None))
-        self.assertEqual(3, index_queue.put('document', lambda *args: None))
-        self.assertEqual(3, index_queue.put('document', lambda *args: None))
-        index_queue.commit_and_wait('document')
-        self.assertEqual(3, index_queue.commit_seqno('document'))
-
-    def test_FlushTimeoutGlobal(self):
-        env.index_flush_threshold.value = 0
-        env.index_flush_timeout.value = 1
-
-        self.assertEqual(1, index_queue.put('document', lambda *args: None))
-        self.assertEqual(0, index_queue.commit_seqno('document'))
-        time.sleep(1.5)
-        self.assertEqual(1, index_queue.commit_seqno('document'))
-        time.sleep(1.5)
-        self.assertEqual(1, index_queue.commit_seqno('document'))
-
 
 if __name__ == '__main__':
     tests.main()

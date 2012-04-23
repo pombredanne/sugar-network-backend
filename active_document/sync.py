@@ -20,7 +20,7 @@ from gettext import gettext as _
 
 import gevent
 
-from active_document import env, util, sneakernet
+from active_document import env, util, sneakernet, gthread
 
 
 _logger = logging.getLogger('active_document.sync')
@@ -61,7 +61,7 @@ class _Node(object):
             sync.cls.close()
 
     def _merge(self, packet, row, *args):
-        _dispatch()
+        gthread.dispatch()
 
         sync = self._synchronizers.get(row['document'])
         if sync is None:
@@ -88,7 +88,7 @@ class _Node(object):
 
             diff_range, patch = sync.cls.diff(to_diff)
             for guid, diff in patch:
-                _dispatch()
+                gthread.dispatch()
                 yield None, {
                         'type': 'diff',
                         'document': document,
@@ -98,7 +98,7 @@ class _Node(object):
 
             if diff_range[1]:
                 to_diff.floor(diff_range[1])
-                _dispatch()
+                gthread.dispatch()
                 yield None, {
                         'type': 'syn',
                         'document': document,

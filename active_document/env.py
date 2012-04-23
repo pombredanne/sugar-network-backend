@@ -21,8 +21,6 @@ from uuid import uuid1
 from os.path import exists, join
 from gettext import gettext as _
 
-import gevent
-
 from active_document import util, optparse
 from active_document.util import enforce
 
@@ -78,10 +76,6 @@ index_write_queue = optparse.Option(
 find_limit = optparse.Option(
         _('limit the resulting list for search requests'),
         default=32, type_cast=int)
-
-
-#: Process events loop during long running operations, e.g., synchronization
-dispatch = gevent.sleep
 
 
 def uuid():

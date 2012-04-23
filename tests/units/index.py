@@ -7,6 +7,8 @@ import uuid
 import time
 from os.path import exists
 
+import gevent
+
 from __init__ import tests
 
 from active_document import index, env
@@ -501,6 +503,125 @@ class IndexTest(tests.Test):
         self.assertEqual(
                 ([{'guid': '3'}], 1),
                 db._find(prop='aaa'))
+
+    def test_FlushThreshold(self):
+        commits = []
+
+        def cb(sender):
+            commits.append(sender)
+
+        index.connect('committed', cb)
+
+        db = Index({})
+        gevent.sleep()
+        env.index_flush_threshold.value = 1
+        db.store('1', {}, True)
+        gevent.sleep()
+        db.store('2', {}, True)
+        gevent.sleep()
+        db.store('3', {}, True)
+        gevent.sleep()
+        self.assertEqual(['index'] * 3, commits)
+
+        del commits[:]
+        db = Index({})
+        gevent.sleep()
+        env.index_flush_threshold.value = 2
+        db.store('4', {}, True)
+        gevent.sleep()
+        db.store('5', {}, True)
+        gevent.sleep()
+        db.store('6', {}, True)
+        gevent.sleep()
+        db.store('7', {}, True)
+        gevent.sleep()
+        db.store('8', {}, True)
+        gevent.sleep()
+        self.assertEqual(['index'] * 2, commits)
+
+    def test_FlushTimeout(self):
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 1
+
+        commits = []
+
+        def cb(sender):
+            commits.append(sender)
+
+        index.connect('committed', cb)
+
+        db = Index({})
+        gevent.sleep()
+
+        db.store('1', {}, True)
+        gevent.sleep()
+        self.assertEqual(['index'] * 0, commits)
+        db.store('2', {}, True)
+        gevent.sleep()
+        self.assertEqual(['index'] * 0, commits)
+
+        gevent.sleep(1.5)
+        self.assertEqual(['index'] * 1, commits)
+
+        db.store('1', {}, True)
+        gevent.sleep()
+        self.assertEqual(['index'] * 1, commits)
+        db.store('2', {}, True)
+        gevent.sleep()
+        self.assertEqual(['index'] * 1, commits)
+
+        gevent.sleep(1.5)
+        self.assertEqual(['index'] * 2, commits)
+
+        gevent.sleep(1.5)
+        self.assertEqual(['index'] * 2, commits)
+
+    def test_Events(self):
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 0
+
+        commits = []
+
+        def created_cb(sender, guid):
+            commits.append(('index', 'created', guid))
+
+        index.connect('created', created_cb)
+
+        def updated_cb(sender, guid):
+            commits.append(('index', 'updated', guid))
+
+        index.connect('updated', updated_cb)
+
+        def deleted_cb(sender, guid):
+            commits.append(('index', 'deleted', guid))
+
+        index.connect('deleted', deleted_cb)
+
+        db = Index({})
+        gevent.sleep()
+
+        db.store('1', {}, True)
+        gevent.sleep()
+        db.store('1', {}, False)
+        gevent.sleep()
+        db.store('2', {}, True)
+        gevent.sleep()
+        db.store('2', {}, False)
+        gevent.sleep()
+        db.delete('1')
+        gevent.sleep()
+        db.delete('2')
+        gevent.sleep()
+
+        self.assertEqual([
+            ('index', 'created', '1'),
+            ('index', 'updated', '1'),
+            ('index', 'created', '2'),
+            ('index', 'updated', '2'),
+            ('index', 'deleted', '1'),
+            ('index', 'deleted', '2'),
+            ],
+            commits)
 
 
 class Index(index.IndexWriter):

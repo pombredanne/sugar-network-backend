@@ -226,8 +226,8 @@ class Document(DocumentClass):
         enforce(isinstance(prop, BlobProperty),
                 _('Property "%s" in "%s" is not a BLOB'),
                 prop.name, self.metadata.name)
-        seqno = self._storage.set_blob(self.guid, prop.name, stream, size)
-        if seqno:
+        seqno = self.metadata.next_seqno()
+        if self._storage.set_blob(seqno, self.guid, prop.name, stream, size):
             self._index.store(self.guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
 

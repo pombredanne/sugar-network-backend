@@ -78,9 +78,7 @@ class Storage(object):
         """
         try:
             self._ensure_path(True, guid, '')
-            seqno = properties.get('seqno')
-            if seqno is None:
-                seqno = self.metadata.next_seqno()
+            seqno = properties['seqno']
             for name, value in properties.items():
                 self._write_property(guid, name, value, seqno)
             self._write_property(guid, 'seqno', seqno)
@@ -168,9 +166,11 @@ class Storage(object):
                 name, guid, self.metadata.name)
         return file(path)
 
-    def set_blob(self, guid, name, stream, size=None):
+    def set_blob(self, seqno, guid, name, stream, size=None):
         """Write the content of document's BLOB property.
 
+        :param seqno:
+            seqno to set BLOB for
         :param guid:
             document's GUID to receive
         :param name:
@@ -180,14 +180,11 @@ class Storage(object):
         :param size:
             read only specified number of bytes; otherwise, read until the EOF
         :returns:
-            written seqno; `None` if document was not created before
+            `True` if document existed before
 
         """
-        seqno = self.metadata.next_seqno()
         self._set_blob(guid, name, stream, size, seqno)
-        self._write_property(guid, 'seqno', seqno)
-        if _is_document(self._path(guid)):
-            return seqno
+        return _is_document(self._path(guid))
 
     def stat_blob(self, guid, name):
         path = self._path(guid, name)
@@ -227,17 +224,16 @@ class Storage(object):
 
         return traits, blobs
 
-    def merge(self, guid, diff, touch=True):
+    def merge(self, seqno, guid, diff):
         """Apply changes for the document.
 
+        :param seqno:
+            seqno to set merged data for
         :param diff:
             dictionary with changes in format that `diff()` returns;
             for BLOB properties, property value is a stream to read BLOB from
-        :param touch:
-            if `True`, increment seqno
         :returns:
-            seqno value for applied `diff`;
-            `None` if `diff` was not applied
+            `True` if `diff` was applied
 
         """
         applied = False
@@ -247,10 +243,6 @@ class Storage(object):
             create_stamp = True
         else:
             create_stamp = False
-        if touch:
-            seqno = self.metadata.next_seqno()
-        else:
-            seqno = None
 
         for name in diff.keys():
             path = self._ensure_path(create_stamp, guid, name)
@@ -264,13 +256,10 @@ class Storage(object):
                     self._write_property(guid, name, value, seqno, ts)
                 applied = True
 
-        if applied:
-            if seqno:
-                self._write_property(guid, 'seqno', seqno)
-            else:
-                seqno = Record(self._path(guid)).get('seqno')
-            if _is_document(self._path(guid)):
-                return seqno
+        if applied and seqno:
+            self._write_property(guid, 'seqno', seqno)
+
+        return applied and _is_document(self._path(guid))
 
     def _path(self, guid, *args):
         return self.metadata.path(guid[:2], guid, *args)

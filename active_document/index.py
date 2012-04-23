@@ -21,9 +21,12 @@ import logging
 from os.path import exists
 from gettext import gettext as _
 
+import gevent
+import gevent.event
 import xapian
+import blinker
 
-from active_document import util, env
+from active_document import util, env, gthread
 from active_document.metadata import ActiveProperty
 from active_document.util import enforce
 
@@ -34,8 +37,23 @@ _EXACT_QUERY_RE = re.compile('([a-zA-Z0-9_]+):=(")?((?(2)[^"]+|\S+))(?(2)")')
 # How many times to call Xapian database reopen() before fail
 _REOPEN_LIMIT = 10
 
+_signals = {
+        'index.created': blinker.Signal(),
+        'index.updated': blinker.Signal(),
+        'index.deleted': blinker.Signal(),
+        'index.committed': blinker.Signal(),
+        }
 
 _logger = logging.getLogger('active_document.index')
+
+
+def connect(signal, cb, document=None):
+    signal_name = 'index.%s' % signal
+    enforce(signal_name in _signals, _('Unknow index signal, "%s"'), signal)
+    kwargs = {}
+    if document is not None:
+        kwargs['sender'] = document
+    _signals[signal_name].connect(cb, **kwargs)
 
 
 class IndexReader(object):
@@ -273,15 +291,21 @@ class IndexWriter(IndexReader):
 
     def __init__(self, metadata):
         IndexReader.__init__(self, metadata)
-        self._dirty = False
+
+        self._pending_updates = 0
+        self._commit_cond = gthread.Condition()
+        self._commit_job = None
 
         self._open(False)
+        self._commit_job = gevent.spawn(self._commit_handler)
 
     def close(self):
         """Flush index write pending queue and close the index."""
         if self._db is None:
             return
-        self.commit()
+        self._commit()
+        self._commit_job.kill()
+        self._commit_job = None
         self._db = None
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None):
@@ -317,38 +341,34 @@ class IndexWriter(IndexReader):
                     term_generator.increase_termpos()
 
         self._db.replace_document(_term(env.GUID_PREFIX, guid), document)
-        self._dirty = True
+        self._pending_updates += 1
 
         if post_cb is not None:
             post_cb(guid, properties, new)
 
+        signal = 'index.created' if new else 'index.updated'
+        _signals[signal].send(self.metadata.name, guid=guid)
+
+        self._check_for_commit()
+
     def delete(self, guid, post_cb=None):
         _logger.debug('Delete "%s" document from "%s"',
                 guid, self.metadata.name)
+
         self._db.delete_document(_term(env.GUID_PREFIX, guid))
-        self._dirty = True
+        self._pending_updates += 1
+
         if post_cb is not None:
             post_cb(guid)
 
+        _signals['index.deleted'].send(self.metadata.name, guid=guid)
+
+        self._check_for_commit()
+
     def commit(self):
-        if not self._dirty:
-            return
-
-        _logger.debug('Commiting changes of "%s" index to the disk',
-                self.metadata.name)
-        ts = time.time()
-
-        if hasattr(self._db, 'commit'):
-            self._db.commit()
-        else:
-            self._db.flush()
-        with file(self._mtime_path, 'w'):
-            pass
-        self.metadata.commit_seqno()
-        self._dirty = False
-
-        _logger.debug('Commit "%s" changes took %s seconds',
-                self.metadata.name, time.time() - ts)
+        self._commit()
+        # Trigger condition to reset waiting for `index_flush_timeout` timeout
+        self._commit_cond.notify(False)
 
     def _open(self, reset):
         if not reset and self._is_layout_stale():
@@ -373,6 +393,28 @@ class IndexWriter(IndexReader):
         if reset:
             self._save_layout()
 
+    def _commit(self):
+        if self._pending_updates <= 0:
+            return
+
+        _logger.debug('Commiting %s changes of "%s" index to the disk',
+                self._pending_updates, self.metadata.name)
+        ts = time.time()
+
+        if hasattr(self._db, 'commit'):
+            self._db.commit()
+        else:
+            self._db.flush()
+        with file(self._mtime_path, 'w'):
+            pass
+        self.metadata.commit_seqno()
+        self._pending_updates = 0
+
+        _logger.debug('Commit "%s" changes took %s seconds',
+                self.metadata.name, time.time() - ts)
+
+        _signals['index.committed'].send(self.metadata.name)
+
     def _is_layout_stale(self):
         if not exists(self._layout_path):
             return True
@@ -383,6 +425,22 @@ class IndexWriter(IndexReader):
     def _save_layout(self):
         with file(self._layout_path, 'w') as f:
             f.write(str(env.LAYOUT_VERSION))
+
+    def _check_for_commit(self):
+        if env.index_flush_threshold.value > 0 and \
+                self._pending_updates >= env.index_flush_threshold.value:
+            # Avoid processing heavy commits in the same greenlet
+            self._commit_cond.notify(True)
+
+    def _commit_handler(self):
+        if env.index_flush_timeout.value > 0:
+            timeout = env.index_flush_timeout.value
+        else:
+            timeout = None
+
+        while True:
+            if self._commit_cond.wait(timeout) is not False:
+                self._commit()
 
 
 class Total(object):

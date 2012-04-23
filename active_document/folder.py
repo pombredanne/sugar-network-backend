@@ -20,7 +20,7 @@ import logging
 from os.path import exists, basename
 from gettext import gettext as _
 
-from active_document import env
+from active_document import env, gthread
 from active_document.document import Document
 from active_document.index import IndexWriter
 from active_document.util import enforce
@@ -74,7 +74,7 @@ class SingleFolder(_Folder):
 
         for cls in self.values():
             for __ in cls.populate():
-                env.dispatch()
+                gthread.dispatch()
 
 
 def _walk_classes(path):
