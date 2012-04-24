@@ -62,8 +62,7 @@ class Storage(object):
         """
         path = self._path(guid)
         enforce(exists(path), env.NotFound,
-                _('Cannot find "%s" document in "%s"'),
-                guid, self.metadata.name)
+                _('Cannot find %r document in %r'), guid, self.metadata.name)
         return Record(path)
 
     def put(self, guid, properties):
@@ -82,11 +81,11 @@ class Storage(object):
             for name, value in properties.items():
                 self._write_property(guid, name, value, seqno)
             self._write_property(guid, 'seqno', seqno)
-            _logger.debug('Put %r to "%s" document in "%s"',
+            _logger.debug('Put %r to %r document in %r',
                     properties, guid, self.metadata.name)
         except Exception, error:
             util.exception()
-            raise RuntimeError(_('Cannot put "%s" document to "%s": %s') % \
+            raise RuntimeError(_('Cannot put %r document to %r: %s') % \
                     (guid, self.metadata.name, error))
 
     def delete(self, guid):
@@ -103,11 +102,9 @@ class Storage(object):
             shutil.rmtree(path)
         except Exception, error:
             util.exception()
-            raise RuntimeError(
-                    _('Cannot delete "%s" document from "%s": %s') % \
+            raise RuntimeError(_('Cannot delete %r document from %r: %s') % \
                     (guid, self.metadata.name, error))
-        _logger.debug('Delete "%s" document from "%s"',
-                guid, self.metadata.name)
+        _logger.debug('Delete %r document from %r', guid, self.metadata.name)
 
     def walk(self, mtime):
         """Generator function to enumerate all existing documents.
@@ -162,7 +159,7 @@ class Storage(object):
         path = self._path(guid, name)
         if not exists(path):
             return
-        _logger.debug('Read "%s" BLOB property from "%s" document in "%s"',
+        _logger.debug('Read %r BLOB property from %r document in %r',
                 name, guid, self.metadata.name)
         return file(path)
 
@@ -320,11 +317,11 @@ class Storage(object):
             _touch_seqno(path, seqno)
         except Exception, error:
             util.exception()
-            raise RuntimeError(_('Cannot receive BLOB "%s" property ' \
-                    'of "%s" in "%s": %s') % \
+            raise RuntimeError(_('Cannot receive BLOB %r property ' \
+                    'of %r in %r: %s') % \
                     (name, guid, self.metadata.name, error))
 
-        _logger.debug('Received "%s" BLOB property from "%s" document in "%s"',
+        _logger.debug('Received %r BLOB property from %r document in %r',
                 name, guid, self.metadata.name)
         return final_size
 
@@ -358,7 +355,7 @@ class Record(object):
         path = join(self._root, name)
         if not exists(path):
             enforce(default is not None,
-                    _('Cannot find "%s" property in "%s"'),
+                    _('Cannot find %r property in %r'),
                     name, basename(self._root))
             return default
         return _read_property(path)

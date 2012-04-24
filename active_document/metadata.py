@@ -39,7 +39,7 @@ def active_property(property_class=None, *args, **kwargs):
 
     def decorate_getter(func):
         enforce(func.__name__ != 'guid',
-                _('Active property should not have "guid" name'))
+                _("Active property should not have 'guid' name"))
         attr = lambda self, * args: getter(func, self)
         attr.setter = lambda func: decorate_setter(func, attr)
         attr._is_active_property = True
@@ -86,14 +86,14 @@ class Metadata(dict):
             prop = attr.prop
             if hasattr(prop, 'slot'):
                 enforce(prop.slot is None or prop.slot not in slots,
-                        _('Property "%s" has a slot already defined ' \
-                                'for "%s" in "%s"'),
+                        _('Property %r has a slot already defined ' \
+                                'for %r in %r'),
                         prop.name, slots.get(prop.slot), self.name)
                 slots[prop.slot] = prop.name
             if hasattr(prop, 'prefix'):
                 enforce(not prop.prefix or prop.prefix not in prefixes,
-                        _('Property "%s" has a prefix already defined ' \
-                                'for "%s"'),
+                        _('Property %r has a prefix already defined ' \
+                                'for %r'),
                         prop.name, prefixes.get(prop.prefix))
                 prefixes[prop.prefix] = prop.name
             if prop.setter is not None:
@@ -112,7 +112,7 @@ class Metadata(dict):
 
             meth = Method(attr, **attr.kwargs)
             enforce(meth.name not in methods,
-                    _('Method "%s" already exists'), meth.name)
+                    _('Method %r already exists'), meth.name)
             methods[meth.name] = meth
 
         for attr in [getattr(cls, i) for i in dir(cls)]:
@@ -182,7 +182,7 @@ class Metadata(dict):
         return abspath(result)
 
     def __getitem__(self, prop_name):
-        enforce(prop_name in self, _('There is no "%s" property in "%s"'),
+        enforce(prop_name in self, _('There is no %r property in %r'),
                 prop_name, self.name)
         return dict.__getitem__(self, prop_name)
 
@@ -284,15 +284,15 @@ class ActiveProperty(StoredProperty):
     def __init__(self, name, slot=None, prefix=None, full_text=False,
             boolean=False, **kwargs):
         enforce(name == 'guid' or slot != 0,
-                _('For "%s" property, ' \
-                        'the slot "0" is reserved for internal needs'),
+                _('For %r property, ' \
+                        "the slot '0' is reserved for internal needs"),
                 name)
         enforce(name == 'guid' or prefix != env.GUID_PREFIX,
-                _('For "%s" property, ' \
-                        'the prefix "%s" is reserved for internal needs'),
+                _('For %r property, ' \
+                        'the prefix %r is reserved for internal needs'),
                 name, env.GUID_PREFIX)
         enforce(slot is not None or prefix or full_text,
-                _('For "%s" property, ' \
+                _('For %r property, ' \
                         'either slot, prefix or full_text need to be set'),
                 name)
         enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')),
@@ -395,7 +395,7 @@ def _encode(typecast, value):
         value = tuple([_encode(typecast, i) for i in value])
     elif is_enum:
         enforce(value in typecast, ValueError,
-                _('Value "%s" is not in "%s" list'),
+                _("Value %r is not in '%s' list"),
                 value, ', '.join([str(i) for i in typecast]))
     elif type(typecast) is types.FunctionType:
         value = typecast(value)

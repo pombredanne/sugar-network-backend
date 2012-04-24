@@ -78,8 +78,8 @@ class IndexProxy(IndexReader):
             if page is None:
                 page = self._pages[self._cache_seqno] = \
                         _CachedPage(self._term_props)
-                _logger.debug('New cache page for "%s" with seqno %s to ' \
-                        'insert "%s"', self.metadata.name, self._cache_seqno,
+                _logger.debug('New cache page for %r with seqno %s to ' \
+                        'insert %r', self.metadata.name, self._cache_seqno,
                         guid)
             page.update(guid, properties, orig)
 
@@ -124,14 +124,14 @@ class IndexProxy(IndexReader):
         try:
             if self._db is None:
                 self._db = xapian.Database(db_path)
-                _logger.debug('Opened "%s" RO index', self.metadata.name)
+                _logger.debug('Opened %r RO index', self.metadata.name)
             else:
                 self._db.reopen()
-                _logger.debug('Re-opened "%s" RO index', self.metadata.name)
+                _logger.debug('Re-opened %r RO index', self.metadata.name)
             self._dirty = False
         except Exception:
             util.exception(_logger,
-                    'Cannot open "%s" RO index', self.metadata.name)
+                    'Cannot open %r RO index', self.metadata.name)
             self._db = None
 
     def _drop_pages(self):
@@ -141,20 +141,20 @@ class IndexProxy(IndexReader):
         for seqno in self._pages.keys():
             if seqno <= commit_seqno:
                 del self._pages[seqno]
-                _logger.debug('Drop cache page for "%s" with seqno %s',
+                _logger.debug('Drop cache page for %r with seqno %s',
                         self.metadata.name, seqno)
         self._commit_seqno = commit_seqno
         self._dirty = True
         return True
 
     def _put(self, op, *args):
-        _logger.debug('Push %r(%r) to "%s"\'s queue',
+        _logger.debug('Push %r(%r) to %rs queue',
                 op, args, self.metadata.name)
         new_cache_seqno = index_queue.put(self.metadata.name, op, *args)
         if new_cache_seqno != self._cache_seqno:
             self._cache_seqno = new_cache_seqno
             self._pages[new_cache_seqno] = _CachedPage(self._term_props)
-            _logger.debug('New cache page for "%s" with seqno %s',
+            _logger.debug('New cache page for %r with seqno %s',
                     self.metadata.name, new_cache_seqno)
 
 
@@ -234,7 +234,7 @@ class _CachedPage(dict):
             try:
                 value = prop.encode(value)
             except ValueError, error:
-                _logger.debug('Wrong request property value %r for "%s" ' \
+                _logger.debug('Wrong request property value %r for %r ' \
                         'property, thus the whole request is empty: %s',
                         value, prop_name, error)
                 return None, None, None

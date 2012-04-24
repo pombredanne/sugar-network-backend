@@ -38,7 +38,7 @@ class _Node(object):
         for cls in document_classes:
             self._synchronizers[cls.metadata.name] = sync_class(cls)
 
-        _logger.info(_('Open "%s" documents folder in "%s"'),
+        _logger.info(_('Open %r documents folder in %r'),
                 self.node_id, env.data_root.value)
 
     @property
@@ -55,7 +55,7 @@ class _Node(object):
 
     def close(self):
         """Close operations with the server."""
-        _logger.info(_('Closing "%s" documents folder'), self.node_id)
+        _logger.info(_('Closing %r documents folder'), self.node_id)
         while self._synchronizers:
             __, sync = self._synchronizers.popitem()
             sync.cls.close()
@@ -65,12 +65,12 @@ class _Node(object):
 
         sync = self._synchronizers.get(row['document'])
         if sync is None:
-            _logger.warning(_('Unknown document "%s"'), row['document'])
+            _logger.warning(_('Unknown document %r'), row['document'])
             return
 
         method = 'process_%s' % row['type']
         if not hasattr(sync, method):
-            _logger.warning(_('Unknown type "%(row)s"'), row)
+            _logger.warning(_('Unknown type %(row)r'), row)
             return
 
         return getattr(sync, method)(packet, row, *args)

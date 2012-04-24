@@ -149,7 +149,7 @@ class _InPacket(object):
             return row
 
         except (IOError, ValueError, TypeError), error:
-            _logger.warning(_('Malformed input packet file "%s": %s'),
+            _logger.warning(_('Malformed input packet file %r: %s'),
                     self.path, error)
             self.close()
 
@@ -199,14 +199,14 @@ class _OutPacket(object):
                 break
             # pylint: disable-msg=E1102
             if next_volume_cb is None or not next_volume_cb(self._root):
-                raise IOError(_('No free disk space in "%s"') % self._root)
-            _logger.info(_('Switched volumes for "%s"'), self._root)
+                raise IOError(_('No free disk space in %r') % self._root)
+            _logger.info(_('Switched volumes for %r'), self._root)
 
         self._packets.append(next_guid)
         self.header['guid'] = next_guid
         self.path = join(self._root, '%s.packet.gz' % next_guid)
 
-        _logger.info(_('Open output packet file "%s"'), self.path)
+        _logger.info(_('Open output packet file %r'), self.path)
         self._zip = gzip.GzipFile(self.path, 'w')
         self.write_row(**self.header)
 

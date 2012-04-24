@@ -132,8 +132,7 @@ class DocumentClass(object):
         for prop_name in query.reply:
             prop = cls.metadata[prop_name]
             enforce(isinstance(prop, BrowsableProperty),
-                    _('Property "%s" in "%s" is not suitable ' \
-                            'for find requests'),
+                    _('Property %r in %r is not suitable for find requests'),
                     prop_name, cls.metadata.name)
 
         documents, total = cls._index.find(query)
@@ -168,7 +167,7 @@ class DocumentClass(object):
         first_population = True
         for guid, props in cls._storage.walk(cls._index.mtime):
             if first_population:
-                _logger.info(_('Start populating "%s" index'),
+                _logger.info(_('Start populating %r index'),
                         cls.metadata.name)
                 first_population = False
             cls._index.store(guid, props, None, cls._pre_store, None)
@@ -278,7 +277,7 @@ class DocumentClass(object):
         cls._index = index_class(cls.metadata)
         cls._initated = True
 
-        _logger.debug('Initiated %r document: %r', cls, cls.metadata)
+        _logger.debug('Initiated %r document', cls)
 
     @classmethod
     def _pre_store(cls, guid, changes, is_new):

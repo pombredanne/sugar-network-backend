@@ -136,7 +136,7 @@ class _WriteThread(threading.Thread):
 
     def _run(self):
         for cls in self._document_classes:
-            _logger.info(_('Open "%s" index'), cls.metadata.name)
+            _logger.info(_('Open %r index'), cls.metadata.name)
             self._writers[cls.metadata.name] = IndexWriter(cls.metadata)
 
         closing = False
@@ -151,7 +151,7 @@ class _WriteThread(threading.Thread):
             writer = self._writers[document]
 
             if op is not None:
-                _logger.debug('Start processing %r(%r) for "%s" index',
+                _logger.debug('Start processing %r(%r) for %r index',
                         op, args, document)
                 try:
                     op(writer, *args)
@@ -159,7 +159,7 @@ class _WriteThread(threading.Thread):
                     global errnum
                     errnum += 1
                     util.exception(_logger,
-                            _('Cannot process %r(%r) for "%s" index'),
+                            _('Cannot process %r(%r) for %r index'),
                             op, args, document)
             if to_commit:
                 writer.commit()
@@ -169,13 +169,13 @@ class _WriteThread(threading.Thread):
     def _close(self):
         while self._writers:
             name, writer = self._writers.popitem()
-            _logger.info(_('Closing "%s" index'), name)
+            _logger.info(_('Closing %r index'), name)
             try:
                 writer.close()
             except Exception:
                 global errnum
                 errnum += 1
-                util.exception(_logger, _('Fail to close "%s" index'), name)
+                util.exception(_logger, _('Fail to close %r index'), name)
 
 
 class _Queue(object):
@@ -207,7 +207,7 @@ class _Queue(object):
                     # in condition wait to let other greenlets work.
                     # The race might be avoided by using big enough
                     # `active_document.index_write_queue.value`
-                    _logger.debug('Postpone %r for "%s" index', op, document)
+                    _logger.debug('Postpone %r for %r index', op, document)
                     gevent.get_hub().wait(self._done_async)
                 finally:
                     self._mutex.acquire()

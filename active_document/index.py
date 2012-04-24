@@ -49,7 +49,7 @@ _logger = logging.getLogger('active_document.index')
 
 def connect(signal, cb, document=None):
     signal_name = 'index.%s' % signal
-    enforce(signal_name in _signals, _('Unknow index signal, "%s"'), signal)
+    enforce(signal_name in _signals, _('Unknow index signal, %r'), signal)
     kwargs = {}
     if document is not None:
         kwargs['sender'] = document
@@ -210,7 +210,7 @@ class IndexReader(object):
             value = str(value).strip()
             prop = self._props.get(name)
             enforce(prop is not None and prop.prefix,
-                    _('Unknow search term "%s" for "%s"'),
+                    _('Unknow search term %r for %r'),
                     name, self.metadata.name)
             query = xapian.Query(_term(prop.prefix, value))
             if prop.boolean:
@@ -245,7 +245,7 @@ class IndexReader(object):
                     reverse = False
                 prop = self._props.get(order_by)
                 enforce(prop is not None and prop.slot is not None,
-                        _('Cannot sort using "%s" property of "%s"'),
+                        _('Cannot sort using %r property of %r'),
                         order_by, self.metadata.name)
                 sorter.add_value(prop.slot, reverse)
             # Sort by ascending GUID to make order predictable all time
@@ -264,10 +264,10 @@ class IndexReader(object):
                 return op(*args)
             except xapian.DatabaseError, error:
                 if tries >= _REOPEN_LIMIT:
-                    _logger.warning(_('Cannot open "%s" index'),
+                    _logger.warning(_('Cannot open %r index'),
                             self.metadata.name)
                     raise
-                _logger.debug('Fail to %r "%s" index, will reopen it %sth ' \
+                _logger.debug('Fail to %r %r index, will reopen it %sth ' \
                         'time: %s', op, self.metadata.name, tries, error)
                 time.sleep(tries * .1)
                 self._db.reopen()
@@ -312,7 +312,7 @@ class IndexWriter(IndexReader):
         if pre_cb is not None:
             pre_cb(guid, properties, new)
 
-        _logger.debug('Store "%s" object: %r', self.metadata.name, properties)
+        _logger.debug('Store %r object: %r', self.metadata.name, properties)
 
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
@@ -352,7 +352,7 @@ class IndexWriter(IndexReader):
         self._check_for_commit()
 
     def delete(self, guid, post_cb=None):
-        _logger.debug('Delete "%s" document from "%s"',
+        _logger.debug('Delete %r document from %r',
                 guid, self.metadata.name)
 
         self._db.delete_document(_term(env.GUID_PREFIX, guid))
@@ -382,11 +382,11 @@ class IndexWriter(IndexReader):
                     xapian.DB_CREATE_OR_OPEN)
         except xapian.DatabaseError:
             if reset:
-                util.exception(_('Unrecoverable error while opening "%s" ' \
+                util.exception(_('Unrecoverable error while opening %r ' \
                         'Xapian index'), self.metadata.name)
                 raise
             else:
-                util.exception(_('Cannot open Xapian index in "%s", ' \
+                util.exception(_('Cannot open Xapian index in %r, ' \
                         'will rebuild it'), self.metadata.name)
                 self._open(True)
 
@@ -397,7 +397,7 @@ class IndexWriter(IndexReader):
         if self._pending_updates <= 0:
             return
 
-        _logger.debug('Commiting %s changes of "%s" index to the disk',
+        _logger.debug('Commiting %s changes of %r index to the disk',
                 self._pending_updates, self.metadata.name)
         ts = time.time()
 
@@ -410,7 +410,7 @@ class IndexWriter(IndexReader):
         self.metadata.commit_seqno()
         self._pending_updates = 0
 
-        _logger.debug('Commit "%s" changes took %s seconds',
+        _logger.debug('Commit %r changes took %s seconds',
                 self.metadata.name, time.time() - ts)
 
         _signals['index.committed'].send(self.metadata.name)

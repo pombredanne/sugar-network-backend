@@ -45,7 +45,7 @@ class _Folder(dict):
         if not exists(env.data_root.value):
             os.makedirs(env.data_root.value)
 
-        _logger.info(_('Opening documents in "%s"'), env.data_root.value)
+        _logger.info(_('Opening documents in %r'), env.data_root.value)
 
         for cls in self.values():
             cls.init(index_class)
@@ -58,7 +58,7 @@ class _Folder(dict):
 
     def close(self):
         """Close operations with the server."""
-        _logger.info(_('Closing documents in "%s"'), env.data_root.value)
+        _logger.info(_('Closing documents in %r'), env.data_root.value)
 
         while self:
             __, cls = self.popitem()

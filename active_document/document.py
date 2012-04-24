@@ -69,8 +69,8 @@ class Document(DocumentClass):
                     if name in kwargs or name in self._cache:
                         continue
                     enforce(prop.default is not None,
-                            _('Property "%s" should be passed for ' \
-                                    'new "%s" document'),
+                            _('Property %r should be passed for ' \
+                                    'new %r document'),
                             name, self.metadata.name)
                 if prop.default is not None:
                     self._set(prop, None, prop.default)
@@ -117,7 +117,7 @@ class Document(DocumentClass):
                 self._record = self._storage.get(self.guid)
             orig = self._record.get(prop.name)
         else:
-            raise RuntimeError(_('Property "%s" in "%s" cannot be get') % \
+            raise RuntimeError(_('Property %r in %r cannot be get') % \
                     (prop.name, self.metadata.name))
 
         self._cache[prop.name] = (orig, new)
@@ -154,7 +154,7 @@ class Document(DocumentClass):
                 self.assert_access(env.ACCESS_WRITE, prop)
 
         enforce(isinstance(prop, StoredProperty),
-                _('Property "%s" in "%s" cannot be set'),
+                _('Property %r in %r cannot be set'),
                 prop.name, self.metadata.name)
 
         self._set(prop, None, value)
@@ -175,7 +175,7 @@ class Document(DocumentClass):
         self.on_post(changes)
 
         if self._is_new:
-            _logger.debug('Create new document "%s"', self.guid)
+            _logger.debug('Create new document %r', self.guid)
 
         self._index.store(self.guid, changes, self._is_new,
                 self._pre_store, self._post_store)
@@ -199,7 +199,7 @@ class Document(DocumentClass):
         if not raw:
             self.assert_access(env.ACCESS_READ, prop)
         enforce(isinstance(prop, BlobProperty),
-                _('Property "%s" in "%s" is not a BLOB'),
+                _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
         return self._storage.get_blob(self.guid, prop.name)
 
@@ -224,7 +224,7 @@ class Document(DocumentClass):
         if not raw:
             self.assert_access(env.ACCESS_WRITE, prop)
         enforce(isinstance(prop, BlobProperty),
-                _('Property "%s" in "%s" is not a BLOB'),
+                _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
         seqno = self.metadata.next_seqno()
         if self._storage.set_blob(seqno, self.guid, prop.name, stream, size):
@@ -248,7 +248,7 @@ class Document(DocumentClass):
         if not raw:
             self.assert_access(env.ACCESS_READ, prop)
         enforce(isinstance(prop, BlobProperty),
-                _('Property "%s" in "%s" is not a BLOB'),
+                _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
         return self._storage.stat_blob(self.guid, prop.name)
 
@@ -311,7 +311,7 @@ class Document(DocumentClass):
 
         """
         enforce(mode & prop.permissions, env.Forbidden,
-                _('%s access is disabled for "%s" property in "%s"'),
+                _('%s access is disabled for %r property in %r'),
                 env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
 
     def __getitem__(self, prop):
@@ -330,7 +330,7 @@ class Document(DocumentClass):
             try:
                 value = prop.encode(value)
             except Exception:
-                error = _('Value %r for "%s" property for "%s" is invalid') % \
+                error = _('Value %r for %r property for %r is invalid') % \
                         (value, prop.name, self.metadata.name)
                 util.exception(error)
                 raise RuntimeError(error)

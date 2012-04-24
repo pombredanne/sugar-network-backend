@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/optparse.py$
-$Data: 2012-04-20$
+$Data: 2012-04-24$
 
 """
 
@@ -41,6 +41,9 @@ class Option(object):
     items = {}
     #: Collected by `Option.seek()` options by section.
     sections = {}
+    #: Configure files used to form current configuration
+    config_files = []
+
     _config = None
 
     def __init__(self, description=None, default=None, short_option=None,
@@ -295,11 +298,14 @@ class Option(object):
             config_files = Option._config.value
 
         configs = [ConfigParser()]
-        for config_file in config_files:
-            if isinstance(config_file, ConfigParser):
-                configs.append(config_file)
-            elif exists(expanduser(config_file)):
-                configs[0].read(expanduser(config_file))
+        for config in config_files:
+            if isinstance(config, ConfigParser):
+                configs.append(config)
+            else:
+                config = expanduser(config)
+                if exists(config):
+                    Option.config_files.append(config)
+                    configs[0].read(config)
 
         for prop in Option.items.values():
             if hasattr(options, prop.attr_name) and \
