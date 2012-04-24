@@ -636,6 +636,7 @@ class Index(index.IndexWriter):
         metadata['guid'] = ActiveProperty('guid',
                 permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
                 prefix=env.GUID_PREFIX)
+        metadata.ensure_path('')
 
         index.IndexWriter.__init__(self, metadata)
 

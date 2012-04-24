@@ -126,8 +126,6 @@ class Metadata(dict):
             with file(seqno_path) as f:
                 self._seqno = int(f.read().strip())
 
-        self.ensure_path('')
-
     @property
     def name(self):
         """Document type name."""

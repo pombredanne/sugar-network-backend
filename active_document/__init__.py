@@ -30,4 +30,6 @@ from active_document.metadata import Metadata, Property, \
         BlobProperty, BrowsableProperty, \
         active_property, active_method, Method
 
+from active_document.index import connect
+
 from active_document.folder import SingleFolder

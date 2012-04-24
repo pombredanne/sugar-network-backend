@@ -35,7 +35,9 @@ class _Folder(dict):
         enforce(env.data_root.value,
                 _('The active_document.data_root.value is not set'))
 
-        if type(document_classes) in (tuple, list):
+        if type(document_classes) is dict:
+            self.update(document_classes)
+        elif type(document_classes) in (tuple, list):
             self.update([(i.__name__, i) for i in document_classes])
         else:
             self.update(_walk_classes(document_classes))
@@ -47,7 +49,6 @@ class _Folder(dict):
 
         for cls in self.values():
             cls.init(index_class)
-            cls.metadata.ensure_path('')
 
     def __enter__(self):
         return self

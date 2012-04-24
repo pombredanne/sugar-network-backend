@@ -148,6 +148,9 @@ class DocumentClass(object):
     def close(cls):
         """Flush index write pending queue and close the index."""
         cls._index.close()
+        cls._storage = None
+        cls._index = None
+        cls._initated = False
 
     @classmethod
     def populate(cls):
@@ -263,14 +266,19 @@ class DocumentClass(object):
         if cls._initated:
             return
 
-        cls.metadata = Metadata(cls)
-        cls.metadata['guid'] = ActiveProperty('guid',
-                permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
-                prefix=env.GUID_PREFIX)
+        if cls.metadata is None:
+            # Metadata cannot be recreated
+            cls.metadata = Metadata(cls)
+            cls.metadata['guid'] = ActiveProperty('guid',
+                    permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
+                    prefix=env.GUID_PREFIX)
+        cls.metadata.ensure_path('')
+
         cls._storage = Storage(cls.metadata)
         cls._index = index_class(cls.metadata)
-
         cls._initated = True
+
+        _logger.debug('Initiated %r document: %r', cls, cls.metadata)
 
     @classmethod
     def _pre_store(cls, guid, changes, is_new):
