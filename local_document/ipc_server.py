@@ -20,6 +20,7 @@ from gettext import gettext as _
 
 import gevent
 from gevent import socket
+from gevent.event import Event
 
 from local_document import ipc
 from local_document.socket import SocketFile
@@ -34,6 +35,7 @@ class Server(object):
     def __init__(self, online_cp, offline_cp):
         self._online_cp = online_cp
         self._offline_cp = offline_cp
+        self._cancel = Event()
 
     def serve_forever(self):
         accept_path = ipc.path('accept')
@@ -47,16 +49,20 @@ class Server(object):
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
         rendezvous = ipc.rendezvous(server=True)
+        job = gevent.spawn(self._accept_clients, accept)
         try:
-            gevent.joinall([
-                gevent.spawn(self._accept_clients, accept),
-                ])
+            self._cancel.wait()
         except KeyboardInterrupt:
             pass
         finally:
+            job.kill()
+            gevent.joinall([job])
             os.close(rendezvous)
             accept.close()
             os.unlink(accept_path)
+
+    def shutdown(self):
+        self._cancel.set()
 
     def _accept_clients(self, accept):
         while True:

@@ -15,77 +15,68 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys
 import logging
-from optparse import OptionParser
-from os.path import basename
 from gettext import gettext as _
 
 import gevent
 
 import active_document
-from local_document import process, optparse, sugar, env
+from local_document import application, optparse, sugar, env
+from local_document.ipc_server import Server
+from local_document.cp_offline import OfflineCommandsProcessor
+from local_document.cp_online import OnlineCommandsProcessor
+from sugar_network_server import resources
 
 
-_SUGAR_REGISTRATION_TIMEOUT = 5
+VERSION = '0.1'
+
+SUGAR_REGISTRATION_TIMEOUT = 5
 
 
-def start():
-    while not sugar.has_pubkey():
-        logging.info(_('No Sugar SSH key, will start in %s seconds'),
-                _SUGAR_REGISTRATION_TIMEOUT)
-        gevent.sleep(_SUGAR_REGISTRATION_TIMEOUT, start)
+class Application(application.Application):
+
+    server = None
+    folder = None
+
+    def run(self):
+        while not sugar.has_pubkey():
+            logging.info(_('No Sugar SSH key, will start in %s seconds'),
+                    SUGAR_REGISTRATION_TIMEOUT)
+            gevent.sleep(SUGAR_REGISTRATION_TIMEOUT)
+
+        self.folder = active_document.SingleFolder(resources.path)
+        self.server = Server(
+                OnlineCommandsProcessor(self.folder.values()),
+                OfflineCommandsProcessor(self.folder.values()))
+
+        self.server.serve_forever()
+
+    def shutdown(self):
+        self.server.shutdown()
+
+    def epilog(self):
+        if self.folder is not None:
+            self.folder.close()
 
 
-def stop():
-    pass
+# New defaults
+application.logdir.value = sugar.profile_path('logs')
+application.rundir.value = sugar.profile_path('run')
+active_document.data_root.value = sugar.profile_path('network')
 
-
-HELP = _("""
-Commands:
-  start                 start in daemon mode
-  stop                  stop daemon
-  status                check for launched daemon
-  reload                reopen log files in daemon mode
-  config                output current configuration
-
-See http://wiki.sugarlabs.org/go/Sugar_Network for details.""")
-
-parser = OptionParser(
-        usage='%prog [OPTIONS]',
-        description='Sugar Network client utility.',
-        add_help_option=False)
-parser.add_option('-h', '--help',
-        help=_('show this help message and exit'),
-        action='store_true')
-
-process.logdir.value = sugar.profile_path('logs')
-process.rundir.value = sugar.profile_path('run')
-
-optparse.Option.seek('main', process)
+optparse.Option.seek('main', application)
 optparse.Option.seek('local-document', env)
 optparse.Option.seek('active-document', active_document)
 
-options, args = optparse.Option.parse_args(parser,
+app = Application(
+        name='sugar-network-service',
+        description=_('Sugar Network client utility'),
+        epilog=_('See http://wiki.sugarlabs.org/go/Sugar_Network ' \
+                 'for details.'),
+        version=VERSION,
         config_files=[
             '/etc/sweets.conf',
             '~/.config/sweets/config',
             sugar.profile_path('sweets.conf'),
-            ],
-        )
-
-if not args and not options.help:
-    prog = basename(sys.argv[0])
-    print 'Usage: %s [OPTIONS] [COMMAND]' % prog
-    print '       %s -h|--help' % prog
-    print
-    print parser.description
-    print HELP
-    exit(0)
-
-if options.help:
-    parser.print_help()
-    print HELP
-    exit(0)
-
-process.run('sugar-network-service', start, stop, args)
+            ])
+app.start()

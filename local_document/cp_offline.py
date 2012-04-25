@@ -16,8 +16,6 @@
 import logging
 from gettext import gettext as _
 
-import gevent
-
 import active_document as ad
 from local_document import storage, sugar
 from active_document.util import enforce
@@ -31,19 +29,10 @@ class OfflineCommandsProcessor(object):
     def __init__(self, resources):
         self._resources = {}
 
-        ad.principal.user = sugar.uid()
-
         for cls in resources:
             self._resources[cls.metadata.name] = cls
 
-        for cls in self._resources.values():
-            for __ in cls.populate():
-                gevent.sleep()
-
-    def close(self):
-        while self._resources:
-            __, cls = self._resources.popitem()
-            cls.close()
+        ad.principal.user = sugar.uid()
 
     def ping(self, socket, hello=None):
         return 'pong: %s' % hello

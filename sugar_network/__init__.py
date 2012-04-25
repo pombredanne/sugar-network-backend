@@ -13,4 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from active_document import optparse, util, enforce
+
+Option = optparse.Option
+
 from sugar_network.ipc_client import OnlineClient, OfflineClient
+
+from local_document.sugar import profile_path
