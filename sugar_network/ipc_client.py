@@ -19,6 +19,7 @@ from gevent import socket
 from gettext import gettext as _
 
 from local_document import ipc
+from local_document.socket import SocketFile
 from active_document import util, enforce
 
 
@@ -66,7 +67,7 @@ class _Client(object):
             # pylint: disable-msg=E1101
             socket_ = socket.socket(socket.AF_UNIX)
             socket_.connect(ipc.path('accept'))
-            self._socket_file = ipc.SocketFile(socket_)
+            self._socket_file = SocketFile(socket_)
 
         request = _Request(self._socket_file, online=self._online)
 

@@ -9,10 +9,11 @@ import gevent
 
 from __init__ import tests
 
+from active_document import SingleFolder
 from sugar_network.ipc_client import OfflineClient
 from local_document.cp_offline import OfflineCommandsProcessor
 from local_document.ipc_server import Server
-import sugar_network_server
+from sugar_network_server import resources
 
 
 class CPOfflineTest(tests.Test):
@@ -20,8 +21,8 @@ class CPOfflineTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
 
-        resources = [sugar_network_server.resources.Context]
-        self.cp = OfflineCommandsProcessor(resources)
+        folder = SingleFolder(resources.path)
+        self.cp = OfflineCommandsProcessor([folder['Context']])
 
         def server():
             Server(None, self.cp).serve_forever()
@@ -77,8 +78,6 @@ class CPOfflineTest(tests.Test):
                     (guid_3, 'title_3'),
                     ]),
                 sorted([(i['guid'], i['title']) for i in query]))
-
-
 
 
 if __name__ == '__main__':

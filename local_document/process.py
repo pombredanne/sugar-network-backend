@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/process.py$
-$Data: 2012-04-19$
+$Data: 2012-04-24$
 
 """
 
@@ -64,7 +64,16 @@ def run(name, start_cb, stop_cb, args):
     logging_format = _LOGFILE_FORMAT
     if foreground.value or command not in ['start']:
         logging_format = '-- %s' % logging_format
+
+    root_logger = logging.getLogger('')
+    for i in root_logger.handlers:
+        root_logger.removeHandler(i)
+
     logging.basicConfig(level=logging_level, format=logging_format)
+
+    if optparse.Option.config_files:
+        logging.info(_('Load configuration from %s file(s)'),
+                ', '.join(optparse.Option.config_files))
 
     server = _Server(name, start_cb, stop_cb, args)
 

@@ -14,17 +14,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import json
 import errno
-import struct
 from os.path import dirname, exists, join
-from gettext import gettext as _
 
 from local_document import env
-from active_document import enforce
-
-
-BUFSIZE = 1024 * 10
 
 
 def path(*args):
@@ -76,72 +69,3 @@ def rendezvous(server=False):
         fd = os.open(rendezvous_path, os.O_WRONLY)
         # No need in fd any more
         os.close(fd)
-
-
-class SocketFile(object):
-
-    def __init__(self, socket):
-        self._socket = socket
-        self._message_buffer = bytearray('\0' * BUFSIZE)
-
-    def write_message(self, message):
-        try:
-            message_str = json.dumps(message)
-        except Exception, error:
-            raise RuntimeError(_('Cannot encode %r message: %s') % \
-                    (message, error))
-        self._socket.send(message_str)
-        self._socket.send('\n')
-
-    def read_message(self):
-        pos = 0
-
-        chunk = None
-        while chunk != '\n':
-            chunk = self._recv(1)
-            if not chunk:
-                # Got disconnected
-                return None
-            self._message_buffer[pos] = chunk
-            pos += 1
-            enforce(pos < BUFSIZE, _('Too long message'))
-
-        message_str = buffer(self._message_buffer, 0, pos)
-        try:
-            # XXX Have to convert to str,
-            # json from Python-2.6 doesn't treat buffer as a string
-            message = json.loads(str(message_str))
-        except Exception, error:
-            raise RuntimeError(_('Cannot decode "%s" message: %s') % \
-                    (message_str, error))
-
-        return message
-
-    def write(self, data):
-        size_str = struct.pack('i', len(data))
-        self._socket.send(size_str)
-        self._socket.send(data)
-
-    def read(self):
-        size_str = self._recv(struct.calcsize('i'))
-        size, = struct.unpack('i', size_str)
-        # TODO Make sure that we got exactly `size` bytes
-        return self._recv(size)
-
-    def close(self):
-        if self._socket is not None:
-            self._socket.close()
-            self._socket = None
-
-    def _recv(self, size):
-        while True:
-            try:
-                chunk = self._socket.recv(size)
-            except OSError, error:
-                if error.errno == errno.EINTR:
-                    continue
-                raise
-            return chunk
-
-    def __repr__(self):
-        return str(self._socket.fileno())

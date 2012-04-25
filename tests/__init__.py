@@ -51,8 +51,6 @@ class Test(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=logfile)
 
-        sugar_network_server.resources.reset()
-
         self.forks = []
 
     def tearDown(self):

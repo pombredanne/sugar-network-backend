@@ -34,7 +34,6 @@ class OfflineCommandsProcessor(object):
         ad.principal.user = sugar.uid()
 
         for cls in resources:
-            cls.init(ad.IndexWriter)
             self._resources[cls.metadata.name] = cls
 
         for cls in self._resources.values():

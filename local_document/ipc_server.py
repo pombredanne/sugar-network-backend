@@ -22,6 +22,7 @@ import gevent
 from gevent import socket
 
 from local_document import ipc
+from local_document.socket import SocketFile
 from active_document import util, enforce
 
 
@@ -63,7 +64,7 @@ class Server(object):
             self._serve_client(conn)
 
     def _serve_client(self, conn):
-        conn_file = ipc.SocketFile(conn)
+        conn_file = SocketFile(conn)
 
         _logger.debug('Opened connection %r', conn_file)
 
