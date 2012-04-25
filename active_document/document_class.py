@@ -95,21 +95,14 @@ class DocumentClass(object):
         doc.post()
 
     @classmethod
-    def delete(cls, guid, raw=False):
+    def delete(cls, guid):
         """Delete document.
 
         :param guid:
             document GUID to delete
 
         """
-        if raw:
-            cls._index.delete(guid, lambda guid: cls._storage.delete(guid))
-        else:
-            self = cls(guid)
-            # TODO until implementing layers support
-            # pylint: disable-msg=E1101
-            self.set('layers', ['deleted'], raw=True)
-            self.post()
+        cls._index.delete(guid, lambda guid: cls._storage.delete(guid))
 
     @classmethod
     def find(cls, *args, **kwargs):
@@ -126,8 +119,6 @@ class DocumentClass(object):
 
         """
         query = env.Query(*args, **kwargs)
-        # TODO until implementing layers support
-        query.request['layers'] = 'public'
 
         for prop_name in query.reply:
             prop = cls.metadata[prop_name]
