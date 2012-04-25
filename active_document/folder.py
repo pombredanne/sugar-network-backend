@@ -58,7 +58,7 @@ class _Folder(dict):
 
     def __getitem__(self, name):
         enforce(name in self, _('Unknow %r document'), name)
-        return self[name]
+        return self.get(name)
 
     def close(self):
         """Close operations with the server."""

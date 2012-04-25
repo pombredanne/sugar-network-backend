@@ -20,7 +20,7 @@ from gettext import gettext as _
 from active_document import env, util
 from active_document.document_class import DocumentClass
 from active_document.metadata import BlobProperty, StoredProperty
-from active_document.metadata import active_method
+from active_document.metadata import BrowsableProperty, active_method
 from active_document.util import enforce
 
 
@@ -29,7 +29,7 @@ _logger = logging.getLogger('active_document.document')
 
 class Document(DocumentClass):
 
-    def __init__(self, guid=None, indexed_props=None, **kwargs):
+    def __init__(self, guid=None, raw=False, indexed_props=None, **kwargs):
         """
         :param guid:
             GUID of existing document; if omitted, newly created object
@@ -76,7 +76,7 @@ class Document(DocumentClass):
                     self._set(prop, None, prop.default)
 
         for prop_name, value in kwargs.items():
-            self[prop_name] = value
+            self.set(prop_name, value, raw=raw)
 
     @property
     def guid(self):
@@ -124,10 +124,16 @@ class Document(DocumentClass):
 
         return prop.decode(orig)
 
-    def properties(self, names):
+    def properties(self, names=None):
         result = {}
-        for prop_name in (names or ['guid']):
-            result[prop_name] = self[prop_name]
+        if names:
+            for prop_name in names:
+                result[prop_name] = self[prop_name]
+        else:
+            for prop_name, prop in self.metadata.items():
+                if isinstance(prop, BrowsableProperty) and \
+                        prop.permissions & env.ACCESS_READ:
+                    result[prop_name] = self[prop_name]
         return result
 
     def set(self, prop, value, raw=False):
