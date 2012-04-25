@@ -19,7 +19,7 @@ class FolderTest(tests.Test):
     def test_walk_classes(self):
         classes = folder._walk_classes(join(src_root, 'document_classes'))
         self.assertEqual(
-                ['Resource_1', 'Resource_3'],
+                ['resource_1', 'resource_3'],
                 sorted(dict(classes).keys()))
 
     def test_SingleFolder_Populate(self):

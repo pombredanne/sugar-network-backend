@@ -38,7 +38,7 @@ class _Folder(dict):
         if type(document_classes) is dict:
             self.update(document_classes)
         elif type(document_classes) in (tuple, list):
-            self.update([(i.__name__, i) for i in document_classes])
+            self.update([(i.__name__.lower(), i) for i in document_classes])
         else:
             self.update(_walk_classes(document_classes))
 
@@ -55,6 +55,10 @@ class _Folder(dict):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
+
+    def __getitem__(self, name):
+        enforce(name in self, _('Unknow %r document'), name)
+        return self[name]
 
     def close(self):
         """Close operations with the server."""
@@ -101,4 +105,4 @@ def _walk_classes(path):
         if [i for i in classes if i is not cls and issubclass(i, cls)]:
             classes = [i for i in classes if i.__name__ != cls.__name__]
 
-    return [(i.__name__, i) for i in classes]
+    return [(i.__name__.lower(), i) for i in classes]
