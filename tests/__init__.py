@@ -9,6 +9,7 @@ import unittest
 from os.path import dirname, join, exists, abspath
 
 import active_document as ad
+from restful_document.router import Router
 from local_document import env
 import sugar_network_server
 
@@ -23,6 +24,8 @@ def main():
 
 
 class Test(unittest.TestCase):
+
+    httpd_pids = {}
 
     def setUp(self):
         self._overriden = []
@@ -54,6 +57,8 @@ class Test(unittest.TestCase):
         self.forks = []
 
     def tearDown(self):
+        while Test.httpd_pids:
+            self.httpdown(Test.httpd_pids.keys()[0])
         while self.forks:
             pid = self.forks.pop()
             os.kill(pid, signal.SIGTERM)
@@ -107,3 +112,37 @@ class Test(unittest.TestCase):
             os._exit(0)
         else:
             self.forks.append(pid)
+
+    def httpd(self, port, classes):
+        if port in Test.httpd_pids:
+            self.httpdown(port)
+
+        self.httpd_seqno += 1
+
+        child_pid = os.fork()
+        if child_pid:
+            time.sleep(1)
+            Test.httpd_pids[port] = child_pid
+            return
+
+        for handler in logging.getLogger().handlers:
+            logging.getLogger().removeHandler(handler)
+        logging.basicConfig(level=logging.DEBUG, filename=tmpdir + '-%s.http.log' % self.httpd_seqno)
+
+        from gevent.wsgi import WSGIServer
+
+        folder = ad.SingleFolder(classes)
+        httpd = WSGIServer(('localhost', port), Router(folder))
+
+        try:
+            httpd.serve_forever()
+        finally:
+            httpd.stop()
+            folder.close()
+
+    def httpdown(self, port):
+        pid = Test.httpd_pids[port]
+        del Test.httpd_pids[port]
+        os.kill(pid, signal.SIGINT)
+        sys.stdout.flush()
+        os.waitpid(pid, 0)

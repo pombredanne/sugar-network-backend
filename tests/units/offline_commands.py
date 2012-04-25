@@ -11,22 +11,21 @@ from __init__ import tests
 
 from active_document import SingleFolder
 from sugar_network.ipc_client import OfflineClient
-from local_document.cp_offline import OfflineCommandsProcessor
+from local_document.commands import OfflineCommands
 from local_document.ipc_server import Server
 from sugar_network_server import resources
 
 
-class CPOfflineTest(tests.Test):
+class OfflineCommandsTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
 
-        folder = SingleFolder(resources.path)
-        self.cp = OfflineCommandsProcessor([folder['Context']])
-
         def server():
-            Server(None, self.cp).serve_forever()
+            cp = OfflineCommands({'context': self.folder['context']})
+            Server(None, cp).serve_forever()
 
+        self.folder = SingleFolder(resources.path)
         gevent.spawn(server)
         gevent.sleep()
 
@@ -34,7 +33,7 @@ class CPOfflineTest(tests.Test):
 
     def tearDown(self):
         self.client.close()
-        self.cp.close()
+        self.folder.close()
         tests.Test.tearDown(self)
 
     def create_context(self, title):

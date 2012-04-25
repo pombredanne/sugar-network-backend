@@ -3,7 +3,8 @@
 from __init__ import tests
 
 from ipc import *
-from cp_offline import *
+from offline_commands import *
+from online_commands import *
 
 
 tests.main()
