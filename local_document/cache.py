@@ -26,11 +26,11 @@ from local_document import sugar, env, http
 
 _CHUNK_SIZE = 1024 * 10
 
-_logger = logging.getLogger('local_document.storage')
+_logger = logging.getLogger('local_document.cache')
 _missed_blobs = set()
 
 
-def get_blob(resource, guid, prop):
+def get_cached_blob(resource, guid, prop):
     path = _path(resource, guid, prop)
     mime_path = path + '.mime'
 
@@ -41,6 +41,15 @@ def get_blob(resource, guid, prop):
 
     if guid in _missed_blobs:
         return None, None
+
+
+def get_blob(resource, guid, prop):
+    cache = get_cached_blob(resource, guid, prop)
+    if cache is not None:
+        return cache
+
+    path = _path(resource, guid, prop)
+    mime_path = path + '.mime'
 
     if isdir(path):
         shutil.rmtree(path)

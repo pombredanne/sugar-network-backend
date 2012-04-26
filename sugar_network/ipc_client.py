@@ -16,10 +16,14 @@
 import logging
 import collections
 from gevent import socket
+from contextlib import contextmanager
 from gettext import gettext as _
+
+from gevent.coros import Semaphore
 
 from local_document import ipc
 from local_document.socket import SocketFile
+from local_document.cache import get_cached_blob
 from active_document import util, enforce
 
 
@@ -43,14 +47,14 @@ class Client(object):
     """
 
     def __init__(self, online):
-        self._socket_file = None
+        self._conn = None
         self._online = online
 
     def close(self):
-        if self._socket_file is not None:
+        if self._conn is not None:
             _logger.debug('Close connection')
-            self._socket_file.close()
-            self._socket_file = None
+            self._conn.close()
+            self._conn = None
 
     def __getattr__(self, name):
         """Class-like object to access to a resource or call a method.
@@ -63,15 +67,11 @@ class Client(object):
             remote method that is not linked to specified resource
 
         """
-        if self._socket_file is None:
+        if self._conn is None:
             _logger.debug('Open connection')
-            ipc.rendezvous()
-            # pylint: disable-msg=E1101
-            socket_ = socket.socket(socket.AF_UNIX)
-            socket_.connect(ipc.path('accept'))
-            self._socket_file = SocketFile(socket_)
+            self._conn = _Connection()
 
-        request = _Request(self._socket_file, online=self._online)
+        request = _Request(self._conn, online=self._online)
 
         if name[0].isupper():
             return _Resource(request.dup(resource=name.lower()))
@@ -89,14 +89,39 @@ class Client(object):
         self.close()
 
 
+class _Connection(object):
+
+    def __init__(self):
+        self._socket_file = None
+        self._lock = Semaphore()
+
+    @contextmanager
+    def socket_file(self):
+        if self._socket_file is None:
+            ipc.rendezvous()
+            # pylint: disable-msg=E1101
+            conn = socket.socket(socket.AF_UNIX)
+            conn.connect(ipc.path('accept'))
+            self._socket_file = SocketFile(conn)
+
+        with self._lock:
+            yield self._socket_file
+
+    def close(self):
+        if self._socket_file is None:
+            return
+        self._socket_file.close()
+        self._socket_file = None
+
+
 class _Request(dict):
 
-    def __init__(self, socket_file, **kwargs):
+    def __init__(self, conn, **kwargs):
         dict.__init__(self, kwargs or {})
-        self._socket_file = socket_file
+        self._conn = conn
 
     def dup(self, **kwargs):
-        result = _Request(self._socket_file)
+        result = _Request(self._conn)
         result.update(self)
         result.update(kwargs)
         return result
@@ -106,15 +131,16 @@ class _Request(dict):
         request.update(kwargs)
         request['cmd'] = cmd
 
-        _logger.debug('Make a call: %r', request)
-        self._socket_file.write_message(request)
+        with self._conn.socket_file() as socket_file:
+            _logger.debug('Make a call: %r', request)
+            socket_file.write_message(request)
 
-        if data is not None:
-            self._socket_file.write(data)
-            _logger.debug('Sent %s bytes of payload', len(data))
+            if data is not None:
+                socket_file.write(data)
+                _logger.debug('Sent %s bytes of payload', len(data))
 
-        reply = self._socket_file.read_message()
-        _logger.debug('Got a reply: %r', reply)
+            reply = socket_file.read_message()
+            _logger.debug('Got a reply: %r', reply)
 
         if type(reply) is dict and 'error' in reply:
             raise ServerError(reply['error'])
@@ -392,7 +418,7 @@ class _Object(dict):
         if result is not None:
             return result
         enforce(not self._reply or prop in self._reply,
-                _('Property %r is not in allowed list'), prop)
+                _('Property %r is not in requested list'), prop)
         self.fetch()
         result = self.get(prop)
         enforce(result is not None, KeyError,
@@ -427,11 +453,17 @@ class _Blobs(object):
         self._request = request
 
     def __getitem__(self, prop):
-        reply = self._request('get_blob', prop=prop)
-        if not reply:
-            return None
+        cached = get_cached_blob(self._request['resource'],
+                self._request['guid'], prop)
+        if cached is not None:
+            path, mime_type = cached
         else:
-            return _Blob(reply['path'], reply['mime_type'])
+            reply = self._request('get_blob', prop=prop)
+            if not reply:
+                return None
+            path = reply['path']
+            mime_type = reply['mime_type']
+        return _Blob(path, mime_type)
 
     def __setitem__(self, prop, data):
         kwargs = {}
