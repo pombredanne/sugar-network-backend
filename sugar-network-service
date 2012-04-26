@@ -51,7 +51,7 @@ class Application(application.Application):
         self.server.serve_forever()
 
     def shutdown(self):
-        self.server.shutdown()
+        self.server.stop()
 
     def epilog(self):
         if self.folder is not None:

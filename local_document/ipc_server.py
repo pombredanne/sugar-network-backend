@@ -18,9 +18,8 @@ import logging
 from os.path import exists
 from gettext import gettext as _
 
-import gevent
 from gevent import socket
-from gevent.event import Event
+from gevent.server import StreamServer
 
 from local_document import ipc
 from local_document.socket import SocketFile
@@ -35,7 +34,7 @@ class Server(object):
     def __init__(self, online_cp, offline_cp):
         self._online_cp = online_cp
         self._offline_cp = offline_cp
-        self._cancel = Event()
+        self._server = None
 
     def serve_forever(self):
         accept_path = ipc.path('accept')
@@ -49,27 +48,22 @@ class Server(object):
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
         rendezvous = ipc.rendezvous(server=True)
-        job = gevent.spawn(self._accept_clients, accept)
+
+        self._server = StreamServer(accept, self._serve_client)
         try:
-            self._cancel.wait()
+            self._server.serve_forever()
         except KeyboardInterrupt:
             pass
         finally:
-            job.kill()
-            gevent.joinall([job])
             os.close(rendezvous)
-            accept.close()
             os.unlink(accept_path)
+            self._server = None
 
-    def shutdown(self):
-        self._cancel.set()
+    def stop(self):
+        if self._server is not None:
+            self._server.stop()
 
-    def _accept_clients(self, accept):
-        while True:
-            conn, __ = accept.accept()
-            self._serve_client(conn)
-
-    def _serve_client(self, conn):
+    def _serve_client(self, conn, address):
         conn_file = SocketFile(conn)
 
         _logger.debug('New client: connection=%r', conn_file)

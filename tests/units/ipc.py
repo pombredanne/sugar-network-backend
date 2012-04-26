@@ -171,6 +171,15 @@ class IPCTest(tests.Test):
         client = Client(False)
         self.assertRaises(ServerError, lambda: client.Resource('guid').fail())
 
+    def test_ConsecutiveRequests(self):
+        self.start_server()
+
+        client_1 = Client(False)
+        self.assertEqual('pong', client_1.ping())
+
+        client_2 = Client(False)
+        self.assertEqual('pong', client_2.ping())
+
 
 class CommandsProcessor(object):
 

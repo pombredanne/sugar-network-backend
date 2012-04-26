@@ -35,6 +35,7 @@ class OnlineCommandsTest(tests.Test):
 
     def test_GetKeeps(self):
         self.fork(self.restful_server)
+        gevent.sleep(1)
 
         ad.data_root.value = tests.tmpdir + '/local'
         env.api_url.value = 'http://localhost:8000'
@@ -66,6 +67,7 @@ class OnlineCommandsTest(tests.Test):
 
     def test_SetKeeps(self):
         self.fork(self.restful_server)
+        gevent.sleep(1)
 
         ad.data_root.value = tests.tmpdir + '/local'
         env.api_url.value = 'http://localhost:8000'
