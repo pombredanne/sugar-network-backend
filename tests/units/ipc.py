@@ -9,7 +9,7 @@ import gevent
 
 from __init__ import tests
 
-from sugar_network.ipc_client import OfflineClient as Client, ServerError
+from sugar_network.ipc_client import Client, ServerError
 from local_document.ipc_server import Server
 
 
@@ -34,9 +34,9 @@ class IPCTest(tests.Test):
             Server(None, CommandsProcessor()).serve_forever()
 
         ts = time.time()
-        fork = self.fork(server)
+        self.fork(server)
 
-        client = Client()
+        client = Client(False)
         reply = client.ping()
         self.assertEqual('pong', reply)
         assert time.time() - ts >= 1
@@ -44,7 +44,7 @@ class IPCTest(tests.Test):
     def test_delete(self):
         self.start_server()
 
-        client = Client()
+        client = Client(False)
         client.Context.delete('guid-1')
         client.Context('guid-2').delete()
 
@@ -56,7 +56,7 @@ class IPCTest(tests.Test):
 
     def test_find(self):
         self.start_server()
-        client = Client()
+        client = Client(False)
 
         query = client.Context.find()
         self.assertEqual(10, query.total)
@@ -72,7 +72,7 @@ class IPCTest(tests.Test):
 
     def test_create(self):
         self.start_server()
-        client = Client()
+        client = Client(False)
 
         res = client.Resource()
         assert 'guid' not in res
@@ -95,7 +95,7 @@ class IPCTest(tests.Test):
 
     def test_update(self):
         self.start_server()
-        client = Client()
+        client = Client(False)
 
         res = client.Resource('guid')
         res['prop'] = 'value'
@@ -107,7 +107,7 @@ class IPCTest(tests.Test):
 
     def test_get(self):
         self.start_server()
-        client = Client()
+        client = Client(False)
 
         res = client.Resource('guid')
         self.assertEqual('value', res['prop'])
@@ -123,7 +123,7 @@ class IPCTest(tests.Test):
 
     def test_get_blob(self):
         self.start_server()
-        client = Client()
+        client = Client(False)
 
         res = client.Resource('guid')
         blob = res.blobs['blob']
@@ -139,7 +139,7 @@ class IPCTest(tests.Test):
 
     def test_get_blob_EmptyBlob(self):
         self.start_server()
-        client = Client()
+        client = Client(False)
 
         res = client.Resource('guid')
         blob = res.blobs['empty']
@@ -153,7 +153,7 @@ class IPCTest(tests.Test):
 
     def test_set_blob(self):
         self.start_server()
-        client = Client()
+        client = Client(False)
 
         client.Resource('guid_1').blobs['blob_1'] = 'string'
         client.Resource('guid_2').blobs['blob_2'] = {'file': 'path'}
@@ -168,7 +168,7 @@ class IPCTest(tests.Test):
 
     def test_Exception(self):
         self.start_server()
-        client = Client()
+        client = Client(False)
         self.assertRaises(ServerError, lambda: client.Resource('guid').fail())
 
 

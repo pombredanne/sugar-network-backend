@@ -34,7 +34,7 @@ class ServerError(RuntimeError):
     pass
 
 
-class _Client(object):
+class Client(object):
     """IPC class to get access from a client side.
 
     See http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
@@ -48,6 +48,7 @@ class _Client(object):
 
     def close(self):
         if self._socket_file is not None:
+            _logger.debug('Close connection')
             self._socket_file.close()
             self._socket_file = None
 
@@ -63,6 +64,7 @@ class _Client(object):
 
         """
         if self._socket_file is None:
+            _logger.debug('Open connection')
             ipc.rendezvous()
             # pylint: disable-msg=E1101
             socket_ = socket.socket(socket.AF_UNIX)
@@ -85,18 +87,6 @@ class _Client(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-
-
-class OnlineClient(_Client):
-
-    def __init__(self):
-        _Client.__init__(self, True)
-
-
-class OfflineClient(_Client):
-
-    def __init__(self):
-        _Client.__init__(self, False)
 
 
 class _Request(dict):
@@ -367,6 +357,18 @@ class _Object(dict):
         enforce('guid' in self._request, _('Object needs to be posted first'))
         return self._blobs
 
+    def fetch(self):
+        enforce('guid' in self._request, _('Object needs to be posted first'))
+        if self._got:
+            return
+        kwargs = {}
+        if self._reply:
+            kwargs['reply'] = self._reply
+        properties = self._request('get', **kwargs)
+        self._got = True
+        properties.update(self)
+        self.update(properties)
+
     def post(self):
         if not self._dirty:
             return
@@ -389,18 +391,9 @@ class _Object(dict):
         result = self.get(prop)
         if result is not None:
             return result
-
-        if 'guid' in self._request and not self._got:
-            kwargs = {}
-            if self._reply and prop in self._reply:
-                kwargs['reply'] = self._reply
-
-            properties = self._request('get', **kwargs)
-
-            self._got = True
-            properties.update(self)
-            self.update(properties)
-
+        enforce(not self._reply or prop in self._reply,
+                _('Property %r is not in allowed list'), prop)
+        self.fetch()
         result = self.get(prop)
         enforce(result is not None, KeyError,
                 _('Property "%s" is absent in "%s" resource'),

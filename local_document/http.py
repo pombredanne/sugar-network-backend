@@ -76,11 +76,12 @@ def raw_request(method, path, data=None, headers=None, **kwargs):
             content = response.content
             try:
                 error = json.loads(content)
-                raise RuntimeError(error['error'])
-            except ValueError:
+            except Exception:
                 _logger.debug('Got %s HTTP error for "%s" request:\n%s',
                         response.status_code, path, content)
                 response.raise_for_status()
+            else:
+                raise RuntimeError(error['error'])
 
         return response
 

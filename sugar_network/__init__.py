@@ -15,8 +15,6 @@
 
 from active_document import optparse, util, enforce
 
-Option = optparse.Option
+from sugar_network.ipc_client import Client
 
-from sugar_network.ipc_client import OnlineClient, OfflineClient
-
-from local_document.sugar import profile_path
+from local_document import application, sugar

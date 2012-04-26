@@ -12,7 +12,6 @@ from __init__ import tests
 
 import active_document as ad
 import restful_document as rd
-from sugar_network.ipc_client import OfflineClient
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 

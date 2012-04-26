@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Data: 2012-04-25$
+$Data: 2012-04-26$
 
 """
 
@@ -53,11 +53,11 @@ rundir = optparse.Option(
 _LOGFILE_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
-def command(name, description):
+def command(description, name=None):
 
     def decorator(func):
         func._is_command = True
-        func.command = name
+        func.name = name
         func.description = description
         return func
 
@@ -75,7 +75,7 @@ class Application(object):
         for attr in dir(self):
             attr = getattr(self, attr)
             if hasattr(attr, '_is_command'):
-                self._commands[attr.command] = attr
+                self._commands[attr.name or attr.__name__] = attr
 
         if logdir.value is None:
             logdir.value = '/var/log/' + name
@@ -102,9 +102,9 @@ class Application(object):
             if self._commands:
                 print ''
                 print _('Commands') + ':'
-                for attr in sorted(self._commands.values(),
-                        lambda x, y: cmp(x.command, y.command)):
-                    print '  %-22s%s' % (attr.command, attr.description)
+                for name, attr in sorted(self._commands.items(),
+                        lambda x, y: cmp(x[0], y[0])):
+                    print '  %-22s%s' % (name, attr.description)
             if epilog:
                 print ''
                 print epilog
@@ -165,7 +165,7 @@ class Application(object):
         finally:
             printf.flush_hints()
 
-    @command('config', _('output current configuration'))
+    @command(_('output current configuration'), name='config')
     def _cmd_config(self):
         if self.args:
             opt = self.args.pop(0)
@@ -175,7 +175,7 @@ class Application(object):
         else:
             print '\n'.join(optparse.Option.export())
 
-    @command('start', _('start in daemon mode'))
+    @command(_('start in daemon mode'), name='start')
     def _cmd_start(self):
         pidfile, pid = self._check_for_instance()
         if pid:
@@ -196,7 +196,7 @@ class Application(object):
             self._daemonize(pidfile)
         return 0
 
-    @command('stop', _('stop daemon'))
+    @command(_('stop daemon'), name='stop')
     def _cmd_stop(self):
         __, pid = self._check_for_instance()
         if pid:
@@ -206,7 +206,7 @@ class Application(object):
             printf.info(_('%s is not run'), self.name)
             return 1
 
-    @command('status', _('check for launched daemon'))
+    @command(_('check for launched daemon'), name='status')
     def _cmd_status(self):
         __, pid = self._check_for_instance()
         if pid:
@@ -216,7 +216,7 @@ class Application(object):
             printf.info(_('%s stopped'), self.name)
             return 1
 
-    @command('reload', _('reopen log files in daemon mode'))
+    @command(_('reopen log files in daemon mode'), name='reload')
     def _cmd_reload(self):
         __, pid = self._check_for_instance()
         if not pid:

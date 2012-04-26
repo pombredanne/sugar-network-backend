@@ -23,8 +23,7 @@ import gevent
 import active_document
 from local_document import application, optparse, sugar, env
 from local_document.ipc_server import Server
-from local_document.cp_offline import OfflineCommandsProcessor
-from local_document.cp_online import OnlineCommandsProcessor
+from local_document.commands import OfflineCommands, OnlineCommands
 from sugar_network_server import resources
 
 
@@ -46,8 +45,8 @@ class Application(application.Application):
 
         self.folder = active_document.SingleFolder(resources.path)
         self.server = Server(
-                OnlineCommandsProcessor(self.folder.values()),
-                OfflineCommandsProcessor(self.folder.values()))
+                OnlineCommands(self.folder),
+                OfflineCommands(self.folder))
 
         self.server.serve_forever()
 
@@ -60,6 +59,7 @@ class Application(application.Application):
 
 
 # New defaults
+application.debug.value = sugar.logger_level()
 application.logdir.value = sugar.profile_path('logs')
 application.rundir.value = sugar.profile_path('run')
 active_document.data_root.value = sugar.profile_path('network')
@@ -70,7 +70,7 @@ optparse.Option.seek('active-document', active_document)
 
 app = Application(
         name='sugar-network-service',
-        description=_('Sugar Network client utility'),
+        description=_('Sugar Network service'),
         epilog=_('See http://wiki.sugarlabs.org/go/Sugar_Network ' \
                  'for details.'),
         version=VERSION,

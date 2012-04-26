@@ -72,10 +72,10 @@ class Server(object):
     def _serve_client(self, conn):
         conn_file = SocketFile(conn)
 
-        _logger.debug('Opened connection %r', conn_file)
+        _logger.debug('New client: connection=%r', conn_file)
 
         def process_message(message):
-            _logger.debug('Got a call: %r', message)
+            _logger.debug('Got a call: connection=%r %r', conn_file, message)
 
             if 'online' in message:
                 if message.pop('online'):
@@ -92,7 +92,7 @@ class Server(object):
             reply = getattr(cp, cmd)(conn_file, **message)
             conn_file.write_message(reply)
 
-            _logger.debug('Send reply: %r', reply)
+            _logger.debug('Send reply: connection=%r %r', conn_file, reply)
 
         try:
             while True:
@@ -105,5 +105,5 @@ class Server(object):
                     util.exception(_('Fail to process message: %s'), error)
                     conn_file.write_message({'error': str(error)})
         finally:
-            _logger.debug('Closed connection %r', conn_file)
+            _logger.debug('Quit client: connection=%r', conn_file)
             conn_file.close()

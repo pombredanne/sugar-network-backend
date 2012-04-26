@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/socket.py$
-$Data: 2012-04-24$
+$Data: 2012-04-26$
 
 """
 
@@ -103,7 +103,7 @@ class SocketFile(object):
             return chunk
 
     def __repr__(self):
-        return str(self._socket.fileno())
+        return repr(self._socket)
 
     def __enter__(self):
         return self

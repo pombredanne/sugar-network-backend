@@ -36,9 +36,9 @@ class Test(unittest.TestCase):
         os.makedirs(tmpdir)
         os.chdir(tmpdir)
 
-        logfile = tmpdir + '.log'
-        if exists(logfile):
-            os.unlink(logfile)
+        self.logfile = tmpdir + '.log'
+        if exists(self.logfile):
+            os.unlink(self.logfile)
 
         ad.data_root.value = tmpdir
         ad.index_flush_timeout.value = 0
@@ -47,14 +47,20 @@ class Test(unittest.TestCase):
         ad.index_write_queue.value = 10
         env.ipc_root.value = join(tmpdir, 'ipc')
 
-        self._logfile = file(logfile + '.out', 'a')
+        self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile
 
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG, filename=logfile)
+        logging.basicConfig(level=logging.DEBUG, filename=self.logfile)
 
         self.forks = []
+
+    def waitpid(self, pid):
+        if pid in self.forks:
+            self.forks.remove(pid)
+        __, status = os.waitpid(pid, 0)
+        return os.WEXITSTATUS(status)
 
     def tearDown(self):
         while Test.httpd_pids:
@@ -62,8 +68,7 @@ class Test(unittest.TestCase):
         while self.forks:
             pid = self.forks.pop()
             os.kill(pid, signal.SIGTERM)
-            __, status = os.waitpid(pid, 0)
-            self.assertEqual(0, os.WEXITSTATUS(status))
+            self.assertEqual(0, self.waitpid(pid))
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
@@ -109,9 +114,10 @@ class Test(unittest.TestCase):
                 result = 1
             sys.stdout.flush()
             sys.stderr.flush()
-            os._exit(0)
+            os._exit(result)
         else:
             self.forks.append(pid)
+            return pid
 
     def httpd(self, port, classes):
         if port in Test.httpd_pids:

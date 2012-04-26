@@ -10,7 +10,7 @@ import gevent
 from __init__ import tests
 
 from active_document import SingleFolder
-from sugar_network.ipc_client import OfflineClient
+from sugar_network.ipc_client import Client
 from local_document.commands import OfflineCommands
 from local_document.ipc_server import Server
 from sugar_network_server import resources
@@ -29,7 +29,7 @@ class OfflineCommandsTest(tests.Test):
         gevent.spawn(server)
         gevent.sleep()
 
-        self.client = OfflineClient()
+        self.client = Client(False)
 
     def tearDown(self):
         self.client.close()

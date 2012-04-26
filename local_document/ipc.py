@@ -15,25 +15,24 @@
 
 import os
 import errno
-from os.path import dirname, exists, join
+from os.path import exists, join
 
-from local_document import env
+from local_document import env, sugar
 
 
-def path(*args):
+def path(suffix):
     """Make sure that directory, starting from `ipc_root`, exists.
 
-    :param args:
-        arguments with path parts
+    :param suffix:
+        filename suffix
     :returns:
         the final path, prefixed with `ipc_root` value, in one string
 
     """
-    result = join(env.ipc_root.value, *args)
-    if result.endswith(os.sep):
-        path_dir = result
-    else:
-        path_dir = dirname(result)
+    path_dir = env.ipc_root.value
+    if not path_dir:
+        path_dir = sugar.profile_path('run')
+
     if not exists(path_dir):
         try:
             os.makedirs(path_dir)
@@ -41,7 +40,8 @@ def path(*args):
             # Different process might create directory
             if error.errno != errno.EEXIST:
                 raise
-    return result
+
+    return join(path_dir, 'sugar-network.' + suffix)
 
 
 def rendezvous(server=False):

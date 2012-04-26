@@ -13,15 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from os.path import expanduser
 from gettext import gettext as _
 
 from active_document import optparse
 
 
 ipc_root = optparse.Option(
-        _('path to a directory with IPC sockets'),
-        default=expanduser('~/.local/var/sugar-network'))
+        _('path to a directory with IPC sockets'))
 
 api_url = optparse.Option(
         _('url to connect to Sugar Network server API'),

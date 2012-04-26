@@ -32,6 +32,19 @@ _NICKNAME_GCONF = '/desktop/sugar/user/nick'
 _COLOR_GCONF = '/desktop/sugar/user/color'
 
 
+def logger_level():
+    """Current Sugar logger level as --debug value."""
+    _LEVELS = {
+            'error': 0,
+            'warning': 0,
+            'info': 1,
+            'debug': 2,
+            'all': 2,
+            }
+    level = os.environ.get('SUGAR_LOGGER_LEVEL')
+    return _LEVELS.get(level, 0)
+
+
 def profile_path(*args):
     """Path within sugar profile directory.
 
