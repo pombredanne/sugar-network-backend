@@ -18,7 +18,7 @@ from gettext import gettext as _
 
 from active_document import util, principal
 
-from local_document import storage, sugar, http
+from local_document import cache, sugar, http
 
 
 _logger = logging.getLogger('local_document.commands')
@@ -30,7 +30,7 @@ class _Commands(object):
         return 'pong: %s' % hello
 
     def get_blob(self, socket, resource, guid, prop):
-        path, mime_type = storage.get_blob(resource, guid, prop)
+        path, mime_type = cache.get_blob(resource, guid, prop)
         if path is None:
             return None
         else:
@@ -55,10 +55,14 @@ class OfflineCommands(_Commands):
         self._resources[resource].update(guid, props)
 
     def get(self, socket, resource, guid, reply=None):
+        if reply and 'keep' in reply:
+            reply.remove('keep')
         obj = self._resources[resource](guid)
         return obj.properties(reply)
 
     def find(self, socket, resource, reply=None, **params):
+        if reply and 'keep' in reply:
+            reply.remove('keep')
         result, total = self._resources[resource].find(reply=reply, **params)
         return {'total': total.value,
                 'result': [i.properties(reply) for i in result],
@@ -124,6 +128,8 @@ class OnlineCommands(_Commands):
     def get(self, socket, resource, guid, reply=None):
         params = {}
         if reply:
+            if 'keep' in reply:
+                reply.remove('keep')
             params['reply'] = ','.join(reply)
         response = http.request('GET', [resource, guid], params=params)
         response['keep'] = self._resources[resource](guid).exists
@@ -131,6 +137,8 @@ class OnlineCommands(_Commands):
 
     def find(self, socket, resource, reply=None, **params):
         if reply:
+            if 'keep' in reply:
+                reply.remove('keep')
             params['reply'] = ','.join(reply)
         try:
             response = http.request('GET', [resource], params=params)
