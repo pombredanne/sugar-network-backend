@@ -17,6 +17,7 @@ requires  = base/requests; base/m2crypto; sweets-recipe
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
             cp -r sugar_network %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
             install -m 0755 -D sugar-network %(DESTDIR)s/%(BINDIR)s/sugar-network &&
+            install -m 0755 -D sugar-network-service %(DESTDIR)s/%(BINDIR)s/sugar-network-service &&
             install -m 0755 -d %(DESTDIR)s/%(DATADIR)s/doc/%(name)s &&
             cp -r examples %(DESTDIR)s/%(DATADIR)s/doc/%(name)s/ &&
             true

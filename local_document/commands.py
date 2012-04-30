@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import urllib2
 from gettext import gettext as _
 
 from active_document import util, principal
@@ -73,7 +74,16 @@ class OfflineCommands(_Commands):
 
     def set_blob(self, socket, resource, guid, prop, files=None,
             url=None):
-        raise RuntimeError('Not supported')
+        if url:
+            stream = urllib2.urlopen(url)
+            try:
+                cache.set_blob(resource, guid, prop, stream)
+            finally:
+                stream.close()
+        elif files:
+            raise RuntimeError('Not supported')
+        else:
+            cache.set_blob(resource, guid, prop, socket)
 
 
 class OnlineCommands(_Commands):

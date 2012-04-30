@@ -22,9 +22,8 @@ from os.path import isdir, exists, dirname, join
 from sweets_recipe import Bundle
 
 from local_document import sugar, env, http
+from local_document.socket import BUFFER_SIZE
 
-
-_CHUNK_SIZE = 1024 * 10
 
 _logger = logging.getLogger('local_document.cache')
 _missed_blobs = set()
@@ -68,8 +67,8 @@ def get_blob(resource, guid, prop):
     def download(f):
         _logger.debug('Download "%s" BLOB', path)
 
-        length = int(response.headers.get('Content-Length', _CHUNK_SIZE))
-        chunk_size = min(length, _CHUNK_SIZE)
+        length = int(response.headers.get('Content-Length', BUFFER_SIZE))
+        chunk_size = min(length, BUFFER_SIZE)
         empty = True
 
         for chunk in response.iter_content(chunk_size=chunk_size):
@@ -99,6 +98,27 @@ def get_blob(resource, guid, prop):
                 return None, None
 
     return path, mime_type
+
+
+def set_blob(resource, guid, prop, stream,
+        mime_type='application/octet-stream'):
+    path = _path(resource, guid, prop)
+    mime_path = path + '.mime'
+
+    with file(mime_path, 'w') as f:
+        f.write(mime_type)
+
+    empty = True
+    with file(path, 'wb') as f:
+        while True:
+            chunk = stream.read(BUFFER_SIZE)
+            if not chunk:
+                break
+            f.write(chunk)
+            empty = False
+        if empty:
+            _missed_blobs.add(guid)
+            os.unlink(f.name)
 
 
 def _path(resource, guid, *args):

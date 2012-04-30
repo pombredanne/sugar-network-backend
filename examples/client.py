@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 
 import time
-import urllib2
-from cStringIO import StringIO
 
 import sugar_network
 
 
 def main():
-    client = sugar_network.Client()
+    client = sugar_network.Client(False)
 
     guids = [None] * 3
     titles = ['Title1', 'Title2', 'Title3']
@@ -54,19 +52,13 @@ def main():
     client.Context(guids[1]).blobs['icon'] = 'string'
 
     print '-- Set BLOB properties by url'
-    client.Context(guids[2]).blobs['icon'].url = image_url
+    client.Context(guids[2]).blobs.set_by_url('icon', image_url)
 
-    print '-- Get BLOB property by portions'
-    stream = StringIO()
-    for chunk in client.Context(guids[2]).blobs['icon'].iter_content():
-        stream.write(chunk)
-    assert stream.getvalue() == urllib2.urlopen(image_url).read()
-
-    print '-- Get BLOB property by string'
-    assert client.Context(guids[1]).blobs['icon'].content == 'string'
+    print '-- Get BLOB property'
+    assert client.Context(guids[1]).blobs['icon'].read() == 'string'
 
     print '-- Query by property value'
-    for obj in client.Context.find(title='Title2'):
+    for obj in client.Context.find(title='Title2', reply=['guid', 'title']):
         assert obj['guid'] == guids[1]
         assert obj['title'] == titles[1]
 
@@ -75,7 +67,7 @@ def main():
     time.sleep(3)
 
     print '-- Full text search query'
-    query = client.Context.find(query='Title1 OR Title3')
+    query = client.Context.find('Title1 OR Title3', reply=['guid', 'title'])
     assert query.total == 2
 
     assert sorted([(guids[0], titles[0]), (guids[2], titles[2])]) == \
@@ -83,21 +75,32 @@ def main():
 
 
 if __name__ == '__main__':
+    import os
+    import signal
     import logging
-    import gevent
-    from local_document import env, ipc_server, cp
 
-    logging.basicConfig(level=logging.DEBUG, filename='log')
+    import active_document
+    from local_document import env, ipc_server, commands
+    from sugar_network_server import resources
 
+    if not os.path.exists('tmp'):
+        os.makedirs('tmp')
+    logging.basicConfig(level=logging.DEBUG, filename='tmp/log')
+
+    active_document.data_root.value = 'tmp/db'
     env.ipc_root.value = 'tmp/ipc'
     env.api_url.value = 'http://localhost:8000'
     env.local_data_root.value = 'tmp/db'
 
-    def server():
-        srv = ipc_server.Server(cp.CommandsProcessor())
-        srv.serve_forever()
+    pid = os.fork()
+    if not pid:
+        folder = active_document.SingleFolder(resources.path)
+        server = ipc_server.Server(None, commands.OfflineCommands(folder))
+        server.serve_forever()
+        exit(0)
 
-    gevent.spawn(server)
-    gevent.sleep()
-
-    main()
+    try:
+        main()
+    finally:
+        os.kill(pid, signal.SIGTERM)
+        os.waitpid(pid, 0)

@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/socket.py$
-$Data: 2012-04-26$
+$Data: 2012-04-30$
 
 """
 
@@ -38,6 +38,7 @@ class SocketFile(object):
     def __init__(self, socket):
         self._socket = socket
         self._message_buffer = bytearray('\0' * BUFFER_SIZE)
+        self._read_size = None
 
     @property
     def socket(self):
@@ -81,11 +82,34 @@ class SocketFile(object):
         self._socket.send(size_str)
         self._socket.send(data)
 
-    def read(self):
-        size_str = self._recv(struct.calcsize('i'))
-        size, = struct.unpack('i', size_str)
-        # TODO Make sure that we got exactly `size` bytes
-        return self._recv(size)
+    def read(self, size=None):
+
+        def read_size():
+            size_str = self._recv(struct.calcsize('i'))
+            return struct.unpack('i', size_str)[0]
+
+        if size is None:
+            chunks = []
+            size = read_size()
+            while size:
+                chunk = self._recv(min(size, BUFFER_SIZE))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                size -= len(chunk)
+            return ''.join(chunks)
+        else:
+            if self._read_size is None:
+                self._read_size = read_size()
+            if self._read_size:
+                chunk = self._recv(min(self._read_size, BUFFER_SIZE, size))
+            else:
+                chunk = ''
+            if not chunk:
+                self._read_size = None
+            else:
+                self._read_size -= len(chunk)
+            return chunk
 
     def close(self):
         if self._socket is not None:
