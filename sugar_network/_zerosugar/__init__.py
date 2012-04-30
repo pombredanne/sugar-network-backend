@@ -18,12 +18,13 @@ from os.path import join, abspath, dirname
 sys.path.insert(0, join(abspath(dirname(__file__)), 'lib'))
 
 from sugar_network._zerosugar.injector import launch
+from sugar_network._zerosugar.config import config
 
 
-def _inject_zerosugar():
+def init(client):
     from zeroinstall.injector import reader, model
     from sugar_network._zerosugar import feeds
-    from local_document import enforce
+    from sugar_network import enforce
 
     def Interface_init(self, url):
         enforce(url)
@@ -35,5 +36,4 @@ def _inject_zerosugar():
             lambda url, * args, ** kwargs: feeds.read(url)
     reader.check_readable = lambda * args, ** kwargs: True
 
-
-_inject_zerosugar()
+    config.client = client

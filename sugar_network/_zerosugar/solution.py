@@ -15,7 +15,7 @@
 
 from os.path import join
 
-from sugar_network.resources import Implementation
+from sugar_network._zerosugar.config import config
 
 
 DEEP = 2
@@ -127,8 +127,8 @@ class _Selection(object):
     def download(self):
         if not self.download_sources:
             return
-        impl = Implementation(self.id)
-        self._value.impl.local_path = join(impl.blobs['bundle'].path,
+        impl = config.client.Implementation(self.id)
+        self._value.impl.local_path = join(impl.blobs['bundle'],
                 self.download_sources[0].extract)
 
     def __getattr__(self, name):

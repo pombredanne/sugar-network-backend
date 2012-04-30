@@ -13,29 +13,30 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
 import logging
 from gettext import gettext as _
 
 from zeroinstall.injector import model
 
-from sugar_network import util, Context
+from sugar_network._zerosugar.config import config
+from sugar_network import util
 
 
 _logger = logging.getLogger('zerosugar')
 
 
-def read(guid):
+def read(context):
     try:
-        context = Context(guid)
         feed = _Feed(context)
-        feed_content = context.blobs['feed'].content
+        feed_content = json.load(config.client.Context(context).blobs['feed'])
     except Exception:
         util.exception(_logger,
-                _('Failed to fetch feed for "%s" context'), guid)
+                _('Failed to fetch feed for "%s" context'), context)
         return None
 
     if not feed_content:
-        _logger.warning(_('No feed for "%s" context'), guid)
+        _logger.warning(_('No feed for "%s" context'), context)
         return None
 
     for version, version_data in feed_content.items():
@@ -79,15 +80,15 @@ class _Feed(model.ZeroInstallFeed):
 
     @property
     def url(self):
-        return self.context['guid']
+        return self.context
 
     @property
     def feed_for(self):
-        return set([self.context['guid']])
+        return set([self.context])
 
     @property
     def name(self):
-        return self.context['title']
+        return self.context
 
     @property
     def summaries(self):
@@ -96,7 +97,7 @@ class _Feed(model.ZeroInstallFeed):
 
     @property
     def first_summary(self):
-        return self.context['summary']
+        return self.context
 
     @property
     def descriptions(self):
@@ -105,7 +106,7 @@ class _Feed(model.ZeroInstallFeed):
 
     @property
     def first_description(self):
-        return self.context['description']
+        return self.context
 
 
 class _Dependency(model.InterfaceDependency):

@@ -124,5 +124,5 @@ def set_blob(resource, guid, prop, stream,
 def _path(resource, guid, *args):
     path = env.local_data_root.value
     if not path:
-        path = sugar.profile_path('sugar-network')
+        path = sugar.profile_path('network', 'cache')
     return join(path, resource, guid[:2], guid, *args)

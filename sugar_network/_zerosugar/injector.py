@@ -26,9 +26,8 @@ import dbus
 from zeroinstall.injector import model
 from zeroinstall.injector.requirements import Requirements
 
-from sugar_network import sugar, util, Context
 from sugar_network._zerosugar import solver
-from sugar_network.util import enforce
+from sugar_network import sugar, util, enforce
 
 
 _logger = logging.getLogger('zerosugar')
@@ -49,7 +48,7 @@ def launch(context, command, args):
         try:
             if not _optparse(args, '-a', '--activity-id'):
                 args.extend(['-a', str(activity_id)])
-            args.extend(['-b', Context(context)['guid']])
+            args.extend(['-b', context])
 
             feedback_cb = lambda op, * args: \
                     getattr(launcher, op)(activity_id, *args)
@@ -173,7 +172,7 @@ def _activity_env(selection, env):
             os.makedirs(path)
 
     env['SUGAR_BUNDLE_PATH'] = selection.local_path
-    env['SUGAR_BUNDLE_ID'] = selection.feed.context['guid']
+    env['SUGAR_BUNDLE_ID'] = selection.feed.context
     env['SUGAR_BUNDLE_NAME'] = selection.feed.name
     env['SUGAR_BUNDLE_VERSION'] = model.format_version(selection.version)
     env['SUGAR_ACTIVITY_ROOT'] = root

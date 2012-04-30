@@ -32,7 +32,7 @@ VERSION = '0.1'
 SUGAR_REGISTRATION_TIMEOUT = 5
 
 
-class Application(application.Application):
+class Application(application.Daemon):
 
     server = None
     folder = None
@@ -62,9 +62,8 @@ class Application(application.Application):
 application.debug.value = sugar.logger_level()
 application.logdir.value = sugar.profile_path('logs')
 application.rundir.value = sugar.profile_path('run')
-active_document.data_root.value = sugar.profile_path('network')
+active_document.data_root.value = sugar.profile_path('network', 'db')
 
-optparse.Option.seek('main', application)
 optparse.Option.seek('local-document', env)
 optparse.Option.seek('active-document', active_document)
 

@@ -15,9 +15,13 @@
 
 import os
 import errno
+import logging
 from os.path import exists, join
 
 from local_document import env, sugar
+
+
+_logger = logging.getLogger('local_document.ipc')
 
 
 def path(suffix):
@@ -63,9 +67,12 @@ def rendezvous(server=False):
             raise
 
     if server:
+        _logger.debug('Start accepting clients')
         return os.open(rendezvous_path, os.O_RDONLY | os.O_NONBLOCK)
     else:
+        _logger.debug('Connecting to the server')
         # Will be blocked until server will call `rendezvous(server=True)`
         fd = os.open(rendezvous_path, os.O_WRONLY)
+        _logger.debug('Connected successfully')
         # No need in fd any more
         os.close(fd)

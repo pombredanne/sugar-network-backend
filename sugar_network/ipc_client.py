@@ -17,6 +17,7 @@ import logging
 import collections
 from gevent import socket
 from contextlib import contextmanager
+from os.path import isdir
 from gettext import gettext as _
 
 from gevent.coros import Semaphore
@@ -55,6 +56,42 @@ class Client(object):
             _logger.debug('Close connection')
             self._conn.close()
             self._conn = None
+
+    def launch(self, context, command='activity', args=None):
+        """Launch context implementation.
+
+        Function will call fork at the beginning. In forked process,
+        it will try to choose proper implementation to execute and launch it.
+
+        Execution log will be stored in `~/.sugar/PROFILE/logs` directory.
+
+        :param context:
+            context GUID to launch
+        :param command:
+            command that selected implementation should support
+        :param args:
+            optional list of arguments to pass to launching implementation
+        :returns:
+            child process pid
+
+        """
+        import os
+        from os.path import join, dirname, exists
+
+        pid = os.fork()
+        if pid:
+            return pid
+
+        cmd = ['sugar-network', '-C', command, 'launch', context] + \
+                (args or [])
+
+        cmd_path = join(dirname(__file__), '..', 'sugar-network')
+        if exists(cmd_path):
+            os.execv(cmd_path, cmd)
+        else:
+            os.execvp(cmd[0], cmd)
+
+        exit(1)
 
     def __getattr__(self, name):
         """Class-like object to access to a resource or call a method.
@@ -463,7 +500,10 @@ class _Blobs(object):
                 return None
             path = reply['path']
             mime_type = reply['mime_type']
-        return _Blob(path, mime_type)
+        if isdir(path):
+            return path
+        else:
+            return _Blob(path, mime_type)
 
     def __setitem__(self, prop, data):
         kwargs = {}

@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Data: 2012-04-26$
+$Data: 2012-04-30$
 
 """
 
@@ -26,6 +26,7 @@ import sys
 import signal
 import atexit
 import logging
+import textwrap
 from optparse import OptionParser
 from os.path import join, abspath, exists, basename
 from gettext import gettext as _
@@ -66,10 +67,13 @@ def command(description, name=None):
 
 class Application(object):
 
+    debug = None
+
     def __init__(self, name, description=None, version=None, epilog=None,
-            config_files=None):
+            where=None, config_files=None):
         self.args = None
         self.name = name
+        self.debug = debug
 
         self._commands = {}
         for attr in dir(self):
@@ -95,19 +99,25 @@ class Application(object):
                 help=_('show this help message and exit'),
                 action='store_true')
 
+        optparse.Option.seek(name, self)
         options, self.args = optparse.Option.parse_args(parser,
                 config_files=config_files)
 
-        def print_epilog():
-            if self._commands:
-                print ''
-                print _('Commands') + ':'
-                for name, attr in sorted(self._commands.items(),
-                        lambda x, y: cmp(x[0], y[0])):
-                    print '  %-22s%s' % (name, attr.description)
-            if epilog:
-                print ''
-                print epilog
+        def print_desc(term, desc):
+            text = []
+            for line in desc.split('\n'):
+                text.extend(textwrap.wrap(line, 54))
+            text = ('\n' + ' ' * 24).join(text)
+            print '  %-22s%s' % (term, text)
+
+        def print_commands():
+            if not self._commands:
+                return
+            print ''
+            print _('Commands') + ':'
+            for name, attr in sorted(self._commands.items(),
+                    lambda x, y: cmp(x[0], y[0])):
+                print_desc(name, attr.description)
 
         if not self.args and not options.help:
             prog = basename(sys.argv[0])
@@ -115,22 +125,24 @@ class Application(object):
             print '       %s -h|--help' % prog
             print
             print description
-            print_epilog()
+            print_commands()
+            if epilog:
+                print ''
+                print epilog
             exit(0)
 
         if options.help:
             parser.print_help()
-            print_epilog()
+            print_commands()
+            if where:
+                print ''
+                print _('Where') + ':'
+                for term in sorted(where):
+                    print_desc(term, where[term])
+            if epilog:
+                print ''
+                print epilog
             exit(0)
-
-    def run(self):
-        raise NotImplementedError()
-
-    def shutdown(self):
-        pass
-
-    def epilog(self):
-        pass
 
     def start(self):
         cmd_name = self.args.pop(0)
@@ -142,8 +154,6 @@ class Application(object):
         else:
             logging_level = logging.DEBUG
         logging_format = _LOGFILE_FORMAT
-        if foreground.value or cmd_name not in ['start']:
-            logging_format = '-- %s' % logging_format
 
         root_logger = logging.getLogger('')
         for i in root_logger.handlers:
@@ -174,6 +184,29 @@ class Application(object):
             exit(0 if bool(optparse.Option.items[opt].value) else 1)
         else:
             print '\n'.join(optparse.Option.export())
+
+
+class Daemon(Application):
+
+    foreground = None
+    logdir = None
+    rundir = None
+
+    def __init__(self, *args, **kwargs):
+        self.foreground = foreground
+        self.logdir = logdir
+        self.rundir = rundir
+
+        Application.__init__(self, *args, **kwargs)
+
+    def run(self):
+        raise NotImplementedError()
+
+    def shutdown(self):
+        pass
+
+    def epilog(self):
+        pass
 
     @command(_('start in daemon mode'), name='start')
     def _cmd_start(self):
