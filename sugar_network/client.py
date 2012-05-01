@@ -22,7 +22,7 @@ from gettext import gettext as _
 
 from gevent.coros import Semaphore
 
-from local_document import ipc
+from local_document import ipc, env
 from local_document.socket import SocketFile
 from local_document.cache import get_cached_blob
 from active_document import util, enforce
@@ -138,7 +138,7 @@ class _Connection(object):
             ipc.rendezvous()
             # pylint: disable-msg=E1101
             conn = socket.socket(socket.AF_UNIX)
-            conn.connect(ipc.path('accept'))
+            conn.connect(env.ensure_path('run', 'accept'))
             self._socket_file = SocketFile(conn)
 
         with self._lock:

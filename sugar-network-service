@@ -16,11 +16,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+from os.path import join
 from gettext import gettext as _
 
 import gevent
 
-import active_document
+import active_document as ad
 from local_document import application, optparse, sugar, env
 from local_document.server import Server
 from local_document.commands import OfflineCommands, OnlineCommands
@@ -43,7 +44,7 @@ class Application(application.Daemon):
                     SUGAR_REGISTRATION_TIMEOUT)
             gevent.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        self.folder = active_document.SingleFolder(resources.path)
+        self.folder = ad.SingleFolder(resources.path)
         self.server = Server(
                 OnlineCommands(self.folder),
                 OfflineCommands(self.folder))
@@ -60,12 +61,12 @@ class Application(application.Daemon):
 
 # New defaults
 application.debug.value = sugar.logger_level()
-application.logdir.value = sugar.profile_path('logs')
-application.rundir.value = sugar.profile_path('run')
-active_document.data_root.value = sugar.profile_path('network', 'db')
+application.logdir.value = join(env.local_data_root.value, 'logs')
+application.rundir.value = join(env.local_data_root.value, 'run')
+ad.data_root.value = join(env.local_data_root.value, 'db')
 
 optparse.Option.seek('local-document', env)
-optparse.Option.seek('active-document', active_document)
+optparse.Option.seek('active-document', ad)
 
 app = Application(
         name='sugar-network-service',

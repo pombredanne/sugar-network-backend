@@ -21,7 +21,7 @@ from os.path import isdir, exists, dirname, join
 
 from sweets_recipe import Bundle
 
-from local_document import sugar, env, http
+from local_document import env, http
 from local_document.socket import BUFFER_SIZE
 
 
@@ -47,7 +47,7 @@ def get_blob(resource, guid, prop):
     if cache is not None:
         return cache
 
-    path = _path(resource, guid, prop)
+    path = _ensure_path(resource, guid, prop)
     mime_path = path + '.mime'
 
     if isdir(path):
@@ -102,7 +102,7 @@ def get_blob(resource, guid, prop):
 
 def set_blob(resource, guid, prop, stream,
         mime_type='application/octet-stream'):
-    path = _path(resource, guid, prop)
+    path = _ensure_path(resource, guid, prop)
     mime_path = path + '.mime'
 
     with file(mime_path, 'w') as f:
@@ -122,7 +122,9 @@ def set_blob(resource, guid, prop, stream,
 
 
 def _path(resource, guid, *args):
-    path = env.local_data_root.value
-    if not path:
-        path = sugar.profile_path('network', 'cache')
-    return join(path, resource, guid[:2], guid, *args)
+    return join(env.local_data_root.value, 'cache', resource, guid[:2], guid,
+            *args)
+
+
+def _ensure_path(resource, guid, *args):
+    return env.ensure_path('cache', resource, guid[:2], guid, *args)

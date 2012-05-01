@@ -16,36 +16,11 @@
 import os
 import errno
 import logging
-from os.path import exists, join
 
-from local_document import env, sugar
+from local_document import env
 
 
 _logger = logging.getLogger('local_document.ipc')
-
-
-def path(suffix):
-    """Make sure that directory, starting from `ipc_root`, exists.
-
-    :param suffix:
-        filename suffix
-    :returns:
-        the final path, prefixed with `ipc_root` value, in one string
-
-    """
-    path_dir = env.ipc_root.value
-    if not path_dir:
-        path_dir = sugar.profile_path('run')
-
-    if not exists(path_dir):
-        try:
-            os.makedirs(path_dir)
-        except OSError, error:
-            # Different process might create directory
-            if error.errno != errno.EEXIST:
-                raise
-
-    return join(path_dir, 'sugar-network.' + suffix)
 
 
 def rendezvous(server=False):
@@ -58,7 +33,7 @@ def rendezvous(server=False):
         on server shutting down
 
     """
-    rendezvous_path = path('rendezvous')
+    rendezvous_path = env.ensure_path('run', 'rendezvous')
 
     try:
         os.mkfifo(rendezvous_path)

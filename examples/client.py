@@ -89,9 +89,8 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, filename='tmp/log')
 
     active_document.data_root.value = 'tmp/db'
-    env.ipc_root.value = 'tmp/ipc'
     env.api_url.value = 'http://localhost:8000'
-    env.local_data_root.value = 'tmp/db'
+    env.local_data_root.value = 'tmp'
 
     pid = os.fork()
     if not pid:

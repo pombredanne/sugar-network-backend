@@ -45,7 +45,7 @@ class Test(unittest.TestCase):
         ad.index_flush_threshold.value = 1
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
-        env.ipc_root.value = join(tmpdir, 'ipc')
+        env.local_data_root.value = tmpdir
 
         self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile

@@ -14,14 +14,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-from os.path import join, exists, abspath, dirname
+import errno
+from os.path import join, exists, abspath, dirname, expanduser
 from gettext import gettext as _
 
 from active_document import optparse
+from local_document import sugar
 
-
-ipc_root = optparse.Option(
-        _('path to a directory with IPC sockets'))
 
 api_url = optparse.Option(
         _('url to connect to Sugar Network server API'),
@@ -37,11 +36,15 @@ no_check_certificate = optparse.Option(
         action='store_true')
 
 local_data_root = optparse.Option(
-        _('path to directory to keep local data; ' \
-                'if omited, ~/sugar/*/sugar-network directory will be used'))
+        _('path to the directory to keep all local data'),
+        default=sugar.profile_path('network'))
+
+activities_root = optparse.Option(
+        _('path to the default directory with Sugar activities'),
+        default=expanduser('~/Activities'))
 
 
-def ensure_path(path, *args):
+def ensure_path(*args):
     """Calculate a path from the root.
 
     If resulting directory path doesn't exists, it will be created.
@@ -53,11 +56,25 @@ def ensure_path(path, *args):
         absolute path
 
     """
-    result = join(path, *args)
+    if not args:
+        result = local_data_root.value
+    elif args[0].startswith(os.sep):
+        result = join(args)
+    else:
+        result = join(local_data_root.value, *args)
+    result = str(result)
+
     if result.endswith(os.sep):
         result_dir = result = result.rstrip(os.sep)
     else:
         result_dir = dirname(result)
+
     if not exists(result_dir):
-        os.makedirs(result_dir)
+        try:
+            os.makedirs(result_dir)
+        except OSError, error:
+            # In case if another process already create directory
+            if error.errno != errno.EEXIST:
+                raise
+
     return abspath(result)

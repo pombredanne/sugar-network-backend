@@ -21,7 +21,7 @@ from gettext import gettext as _
 from gevent import socket
 from gevent.server import StreamServer
 
-from local_document import ipc
+from local_document import ipc, env
 from local_document.socket import SocketFile
 from active_document import util, enforce
 
@@ -37,7 +37,7 @@ class Server(object):
         self._server = None
 
     def serve_forever(self):
-        accept_path = ipc.path('accept')
+        accept_path = env.ensure_path('run', 'accept')
         if exists(accept_path):
             os.unlink(accept_path)
         # pylint: disable-msg=E1101
