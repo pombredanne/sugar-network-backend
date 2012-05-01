@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+from os.path import join, exists, abspath, dirname
 from gettext import gettext as _
 
 from active_document import optparse
@@ -37,3 +39,25 @@ no_check_certificate = optparse.Option(
 local_data_root = optparse.Option(
         _('path to directory to keep local data; ' \
                 'if omited, ~/sugar/*/sugar-network directory will be used'))
+
+
+def ensure_path(path, *args):
+    """Calculate a path from the root.
+
+    If resulting directory path doesn't exists, it will be created.
+
+    :param args:
+        path parts to add to the root path; if ends with empty string,
+        the resulting path will be treated as a path to a directory
+    :returns:
+        absolute path
+
+    """
+    result = join(path, *args)
+    if result.endswith(os.sep):
+        result_dir = result = result.rstrip(os.sep)
+    else:
+        result_dir = dirname(result)
+    if not exists(result_dir):
+        os.makedirs(result_dir)
+    return abspath(result)
