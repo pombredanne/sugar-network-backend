@@ -34,7 +34,7 @@ class CrawlerTest(tests.Test):
         self.touch('activity-4/activity/activity.info')
         self.touch('activity-5/activity/activity.info')
 
-        crawler_ = crawler.Crawler('.')
+        crawler_job = gevent.spawn(crawler.dispatch, ['.'])
         gevent.sleep()
 
         self.assertEqual(
@@ -90,7 +90,8 @@ class CrawlerTest(tests.Test):
         self.assertEqual([tests.tmpdir + '/activity-4'], lost)
         del lost[:]
 
-        crawler_.close()
+        crawler_job.kill()
+        crawler_job.join()
 
 
 if __name__ == '__main__':

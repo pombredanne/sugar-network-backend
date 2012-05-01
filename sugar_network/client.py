@@ -47,9 +47,9 @@ class Client(object):
 
     """
 
-    def __init__(self, online):
+    def __init__(self, mountpoint):
         self._conn = None
-        self._online = online
+        self._mountpoint = mountpoint
 
     def close(self):
         if self._conn is not None:
@@ -108,7 +108,7 @@ class Client(object):
             _logger.debug('Open connection')
             self._conn = _Connection()
 
-        request = _Request(self._conn, online=self._online)
+        request = _Request(self._conn, mountpoint=self._mountpoint)
 
         if name[0].isupper():
             return _Resource(request.dup(resource=name.lower()))

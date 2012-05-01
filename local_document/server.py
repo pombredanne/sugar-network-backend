@@ -31,9 +31,8 @@ _logger = logging.getLogger('local_document.server')
 
 class Server(object):
 
-    def __init__(self, online_cp, offline_cp):
-        self._online_cp = online_cp
-        self._offline_cp = offline_cp
+    def __init__(self, mounts):
+        self._mounts = mounts
         self._server = None
 
     def serve_forever(self):
@@ -71,19 +70,11 @@ class Server(object):
         def process_message(message):
             _logger.debug('Got a call: connection=%r %r', conn_file, message)
 
-            if 'online' in message:
-                if message.pop('online'):
-                    cp = self._online_cp
-                else:
-                    cp = self._offline_cp
-            else:
-                cp = self._offline_cp
-
             enforce('cmd' in message, _('Argument "cmd" was not specified'))
             cmd = message.pop('cmd')
-            enforce(hasattr(cp, cmd), _('Unknown %r command'), cmd)
+            enforce(hasattr(self._mounts, cmd), _('Unknown %r command'), cmd)
 
-            reply = getattr(cp, cmd)(conn_file, **message)
+            reply = getattr(self._mounts, cmd)(conn_file, **message)
             conn_file.write_message(reply)
 
             _logger.debug('Send reply: connection=%r %r', conn_file, reply)

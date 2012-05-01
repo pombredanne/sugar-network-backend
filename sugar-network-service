@@ -23,8 +23,8 @@ import gevent
 
 import active_document as ad
 from local_document import application, optparse, sugar, env
+from local_document.mounts import Mounts
 from local_document.server import Server
-from local_document.commands import OfflineCommands, OnlineCommands
 from sugar_network_server import resources
 
 
@@ -36,7 +36,7 @@ SUGAR_REGISTRATION_TIMEOUT = 5
 class Application(application.Daemon):
 
     server = None
-    folder = None
+    mounts = None
 
     def run(self):
         while not sugar.has_pubkey():
@@ -44,10 +44,8 @@ class Application(application.Daemon):
                     SUGAR_REGISTRATION_TIMEOUT)
             gevent.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        self.folder = ad.SingleFolder(resources.path)
-        self.server = Server(
-                OnlineCommands(self.folder),
-                OfflineCommands(self.folder))
+        self.mounts = Mounts(resources.path)
+        self.server = Server(self.mounts)
 
         self.server.serve_forever()
 
@@ -55,8 +53,8 @@ class Application(application.Daemon):
         self.server.stop()
 
     def epilog(self):
-        if self.folder is not None:
-            self.folder.close()
+        if self.mounts is not None:
+            self.mounts.close()
 
 
 # New defaults
