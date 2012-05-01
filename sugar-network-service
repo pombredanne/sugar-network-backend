@@ -22,7 +22,7 @@ import gevent
 
 import active_document
 from local_document import application, optparse, sugar, env
-from local_document.ipc_server import Server
+from local_document.server import Server
 from local_document.commands import OfflineCommands, OnlineCommands
 from sugar_network_server import resources
 

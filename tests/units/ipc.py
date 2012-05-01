@@ -9,8 +9,8 @@ import gevent
 
 from __init__ import tests
 
-from sugar_network.ipc_client import Client, ServerError
-from local_document.ipc_server import Server
+from sugar_network.client import Client, ServerError
+from local_document.server import Server
 
 
 class IPCTest(tests.Test):

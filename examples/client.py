@@ -80,7 +80,8 @@ if __name__ == '__main__':
     import logging
 
     import active_document
-    from local_document import env, ipc_server, commands
+    from local_document import env, commands
+    from local_document.server import Server
     from sugar_network_server import resources
 
     if not os.path.exists('tmp'):
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     pid = os.fork()
     if not pid:
         folder = active_document.SingleFolder(resources.path)
-        server = ipc_server.Server(None, commands.OfflineCommands(folder))
+        server = Server(None, commands.OfflineCommands(folder))
         server.serve_forever()
         exit(0)
 

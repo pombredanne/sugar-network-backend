@@ -26,7 +26,7 @@ from local_document.socket import SocketFile
 from active_document import util, enforce
 
 
-_logger = logging.getLogger('local_document.ipc_server')
+_logger = logging.getLogger('local_document.server')
 
 
 class Server(object):

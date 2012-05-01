@@ -10,9 +10,9 @@ import gevent
 from __init__ import tests
 
 from active_document import SingleFolder
-from sugar_network.ipc_client import Client
+from sugar_network.client import Client
 from local_document.commands import OfflineCommands
-from local_document.ipc_server import Server
+from local_document.server import Server
 from sugar_network_server import resources
 
 

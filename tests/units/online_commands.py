@@ -17,7 +17,7 @@ from sugar_network_server.resources.context import Context
 
 from local_document import env
 from local_document.commands import OfflineCommands, OnlineCommands
-from local_document.ipc_server import Server
+from local_document.server import Server
 
 
 class OnlineCommandsTest(tests.Test):

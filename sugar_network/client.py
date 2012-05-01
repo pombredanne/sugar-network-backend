@@ -32,7 +32,7 @@ _QUERY_PAGE_SIZE = 16
 _QUERY_PAGES_NUMBER = 5
 
 
-_logger = logging.getLogger('local_document.ipc_client')
+_logger = logging.getLogger('local_document.client')
 
 
 class ServerError(RuntimeError):
