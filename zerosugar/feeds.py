@@ -15,11 +15,13 @@
 
 import json
 import logging
+from os.path import isabs
 from gettext import gettext as _
 
 from zeroinstall.injector import model
 
 from sugar_network import util
+from local_document import activities
 from zerosugar.config import config
 
 
@@ -27,13 +29,30 @@ _logger = logging.getLogger('zerosugar')
 
 
 def read(context):
-    try:
-        feed = _Feed(context)
-        feed_content = json.load(config.client.Context(context).blobs['feed'])
-    except Exception:
-        util.exception(_logger,
-                _('Failed to fetch feed for "%s" context'), context)
-        return None
+    feed = _Feed(context)
+    feed_content = {}
+
+    for spec in activities.checkouts(context):
+        feed_content[spec['version']] = {
+                '*-*': {
+                    'guid': spec.root,
+                    'stability': 'stable',
+                    'commands': {
+                        'activity': {
+                            'exec': spec['Activity', 'exec'],
+                            },
+                        },
+                    },
+                }
+
+    if not feed_content:
+        try:
+            with config.client.Context(context).blobs['feed'] as f:
+                feed_content = json.load(f)
+        except Exception:
+            util.exception(_logger,
+                    _('Failed to fetch feed for "%s" context'), context)
+            return None
 
     if not feed_content:
         _logger.warning(_('No feed for "%s" context'), context)
@@ -50,8 +69,12 @@ def read(context):
             impl.upstream_stability = \
                     model.stability_levels[impl_data['stability']]
             impl.requires.extend(_read_requires(impl_data.get('requires')))
-            impl.add_download_source(impl_id,
-                    impl_data['size'], impl_data['extract'])
+
+            if isabs(impl_id):
+                impl.local_path = impl_id
+            else:
+                impl.add_download_source(impl_id,
+                        impl_data['size'], impl_data['extract'])
 
             for name, command in impl_data['commands'].items():
                 impl.commands[name] = _Command(name, command)

@@ -112,6 +112,8 @@ def _launch(context, command, args, feedback_cb=None):
 
 def _download(solution):
     for sel, __, __ in solution.walk():
+        if sel.local_path:
+            continue
         enforce(sel.download_sources, \
                 _('No sources to download implementation for "%s" context'),
                 sel.interface)
