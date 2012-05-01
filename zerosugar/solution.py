@@ -15,7 +15,7 @@
 
 from os.path import join
 
-from sugar_network._zerosugar.config import config
+from zerosugar.config import config
 
 
 DEEP = 2

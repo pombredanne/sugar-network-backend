@@ -35,14 +35,14 @@ class Application(application.Application):
             'if context is associatad with software, launch one of its '
             'implementations')
     def launch(self):
-        from sugar_network import _zerosugar
+        import zerosugar
 
         enforce(self.args, _('Context is not specified'))
         context = self.args.pop(0)
 
         client = sugar_network.Client('/')
-        _zerosugar.init(client)
-        _zerosugar.launch(context, command.value, self.args)
+        zerosugar.init(client)
+        zerosugar.launch(context, command.value, self.args)
 
 
 # New defaults

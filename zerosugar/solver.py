@@ -19,8 +19,8 @@ from gettext import gettext as _
 from zeroinstall.injector import model
 from zeroinstall.injector.driver import Driver
 
-from sugar_network._zerosugar.config import config
-from sugar_network._zerosugar.solution import Solution
+from zerosugar.config import config
+from zerosugar.solution import Solution
 
 
 _logger = logging.getLogger('zerosugar')

@@ -26,7 +26,7 @@ import dbus
 from zeroinstall.injector import model
 from zeroinstall.injector.requirements import Requirements
 
-from sugar_network._zerosugar import solver
+from zerosugar import solver
 from sugar_network import sugar, util, enforce
 
 
