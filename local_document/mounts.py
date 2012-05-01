@@ -46,30 +46,26 @@ class Mounts(object):
     def ping(self, socket, mountpoint, hello=None):
         return 'pong: %s' % hello
 
-    def create(self, socket, mountpoint, **kwargs):
-        return self[mountpoint].create(**kwargs)
+    def __getattr__(self, name):
 
-    def update(self, socket, mountpoint, **kwargs):
-        self[mountpoint].update(**kwargs)
+        def functor(socket, mountpoint, **kwargs):
+            mount = self[mountpoint]
+            enforce(hasattr(mount, name), _('Unknown %r command'), name)
+            attr = getattr(mount, name)
+            enforce(hasattr(attr, 'is_command'), _('Unknown %r command'), name)
+            return attr(**kwargs)
 
-    def get(self, socket, mountpoint, **kwargs):
-        return self[mountpoint].get(**kwargs)
+        return functor
 
-    def find(self, socket, mountpoint, **kwargs):
-        return self[mountpoint].find(**kwargs)
 
-    def delete(self, socket, mountpoint, **kwargs):
-        self[mountpoint].delete(**kwargs)
-
-    def get_blob(self, socket, mountpoint, **kwargs):
-        return self[mountpoint].get_blob(**kwargs)
-
-    def set_blob(self, socket, mountpoint, **kwargs):
-        self[mountpoint].set_blob(socket, **kwargs)
+def _command(func):
+    func.is_command = True
+    return func
 
 
 class _Mount(object):
 
+    @_command
     def get_blob(self, resource, guid, prop):
         path, mime_type = cache.get_blob(resource, guid, prop)
         if path is None:
@@ -77,6 +73,7 @@ class _Mount(object):
         else:
             return {'path': path, 'mime_type': mime_type}
 
+    @_command
     def set_blob(self, socket, resource, guid, prop, files=None, url=None):
         raise NotImplementedError()
 
@@ -84,32 +81,45 @@ class _Mount(object):
 class _OfflineMount(_Mount):
 
     def __init__(self, resources):
-        self._resources = resources
+        self.resources = resources
 
+    @_command
     def create(self, resource, props):
-        obj = self._resources[resource].create(props)
+        obj = self.resources[resource].create(props)
         return {'guid': obj.guid}
 
+    @_command
     def update(self, resource, guid, props):
-        self._resources[resource].update(guid, props)
+        self.resources[resource].update(guid, props)
 
+    @_command
     def get(self, resource, guid, reply=None):
         if reply and 'keep' in reply:
             reply.remove('keep')
-        obj = self._resources[resource](guid)
-        return obj.properties(reply)
+        props = self.resources[resource](guid).properties(reply)
+        props['keep'] = True
+        return props
 
+    @_command
     def find(self, resource, reply=None, **params):
         if reply and 'keep' in reply:
             reply.remove('keep')
-        result, total = self._resources[resource].find(reply=reply, **params)
-        return {'total': total.value,
-                'result': [i.properties(reply) for i in result],
-                }
 
+        items, total = self.resources[resource].find(reply=reply, **params)
+
+        result = []
+        for obj in items:
+            props = obj.properties(reply)
+            props['keep'] = True
+            result.append(props)
+
+        return {'total': total.value, 'result': result}
+
+    @_command
     def delete(self, resource, guid):
-        self._resources[resource].delete(guid)
+        self.resources[resource].delete(guid)
 
+    @_command
     def set_blob(self, socket, resource, guid, prop, files=None, url=None):
         if url:
             stream = urllib2.urlopen(url)
@@ -126,8 +136,9 @@ class _OfflineMount(_Mount):
 class _OnlineMount(_Mount):
 
     def __init__(self, resources):
-        self._resources = resources
+        self.resources = resources
 
+    @_command
     def create(self, resource, props):
         keep = props.get('keep')
         if keep is not None:
@@ -138,13 +149,11 @@ class _OnlineMount(_Mount):
         guid = response['guid']
 
         if keep:
-            cls = self._resources[resource]
-            document = cls(**props)
-            document.set('guid', guid, raw=True)
-            document.post()
+            self.resources[resource].create_with_guid(guid, props)
 
         return {'guid': guid}
 
+    @_command
     def update(self, resource, guid, props):
         keep = props.get('keep')
         if keep is not None:
@@ -155,24 +164,24 @@ class _OnlineMount(_Mount):
                     headers={'Content-Type': 'application/json'})
 
         if keep is not None:
-            cls = self._resources[resource]
+            cls = self.resources[resource]
             if keep != cls(guid).exists:
                 if keep:
                     props = http.request('GET', [resource, guid])
                     props.pop('guid')
-                    document = cls(raw=True, **props)
-                    document.set('guid', guid, raw=True)
-                    document.post()
+                    cls.create_with_guid(guid, props)
                 else:
                     cls.delete(guid)
 
+    @_command
     def delete(self, resource, guid):
         http.request('DELETE', [resource, guid])
 
-        cls = self._resources[resource]
+        cls = self.resources[resource]
         if cls(guid).exists:
             cls.delete(guid)
 
+    @_command
     def get(self, resource, guid, reply=None):
         params = {}
         if reply:
@@ -180,9 +189,10 @@ class _OnlineMount(_Mount):
                 reply.remove('keep')
             params['reply'] = ','.join(reply)
         response = http.request('GET', [resource, guid], params=params)
-        response['keep'] = self._resources[resource](guid).exists
+        response['keep'] = self.resources[resource](guid).exists
         return response
 
+    @_command
     def find(self, resource, reply=None, **params):
         if reply:
             if 'keep' in reply:
@@ -191,12 +201,13 @@ class _OnlineMount(_Mount):
         try:
             response = http.request('GET', [resource], params=params)
             for props in response['result']:
-                props['keep'] = self._resources[resource](props['guid']).exists
+                props['keep'] = self.resources[resource](props['guid']).exists
             return response
         except Exception:
             util.exception(_('Failed to query resources'))
             return {'total': 0, 'result': []}
 
+    @_command
     def set_blob(self, socket, resource, guid, prop, files=None, url=None):
         url_path = [resource, guid, prop]
 

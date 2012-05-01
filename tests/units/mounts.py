@@ -6,12 +6,10 @@ import json
 from os.path import join
 
 import gevent
-from gevent.wsgi import WSGIServer
 
 from __init__ import tests
 
 import active_document as ad
-import restful_document as rd
 
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
@@ -79,6 +77,22 @@ class MountsTest(tests.Test):
         res_2 = self.client.Context(guid, reply=['title'])
         self.assertEqual('title_2', res_2['title'])
 
+    def test_OfflineMount_get(self):
+
+        def server():
+            Server(self.mounts).serve_forever()
+
+        gevent.spawn(server)
+        gevent.sleep()
+        self.client = Client('~')
+
+        guid = self.create_context('title')
+
+        context = self.client.Context(guid, reply=['guid', 'title', 'keep'])
+        self.assertEqual(guid, context['guid'])
+        self.assertEqual('title', context['title'])
+        self.assertEqual(True, context['keep'])
+
     def test_OfflineMount_find(self):
 
         def server():
@@ -96,22 +110,11 @@ class MountsTest(tests.Test):
         self.assertEqual(3, query.total)
         self.assertEqual(
                 sorted([
-                    (guid_1, 'title_1'),
-                    (guid_2, 'title_2'),
-                    (guid_3, 'title_3'),
+                    (guid_1, 'title_1', True),
+                    (guid_2, 'title_2', True),
+                    (guid_3, 'title_3', True),
                     ]),
-                sorted([(i['guid'], i['title']) for i in query]))
-
-    def restful_server(self):
-        ad.data_root.value = tests.tmpdir + '/remote'
-        ad.index_flush_timeout.value = 0
-        ad.index_flush_threshold.value = 1
-        ad.find_limit.value = 1024
-        ad.index_write_queue.value = 10
-
-        folder = ad.SingleFolder([User, Context])
-        httpd = WSGIServer(('localhost', 8000), rd.Router(folder))
-        httpd.serve_forever()
+                sorted([(i['guid'], i['title'], i['keep']) for i in query]))
 
     def test_OnlineMount_GetKeeps(self):
         self.fork(self.restful_server)

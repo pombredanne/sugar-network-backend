@@ -23,7 +23,8 @@ import gevent
 from gevent.select import select
 
 from local_document.inotify import Inotify, \
-        IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE
+        IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
+        IN_MOVED_TO, IN_MOVED_FROM
 from local_document import env, util
 
 
@@ -33,56 +34,42 @@ lost = blinker.Signal()
 _logger = logging.getLogger('local_document.crawler')
 
 
-class Crawler(object):
-
-    def __init__(self, path):
-        self._monitor = Inotify()
-        self._poll_job = gevent.spawn(self._poll, path)
-
-    def close(self):
-        if self._poll_job is None:
-            return
-        # XXX select() doesn't handle closing self._monitor.fd
-        self._poll_job.kill()
-        try:
-            self._poll_job.join()
-        finally:
-            self._monitor.close()
-            self._monitor = None
-            self._poll_job = None
-
-    def _poll(self, path):
-        # pylint: disable-msg=W0612
-        root = _Root(self._monitor, path)
+def dispatch(paths):
+    with Inotify() as monitor:
+        roots = []
+        for path in paths:
+            _logger.info(_('Start monitoring activities in %r'), path)
+            env.ensure_path(path, '')
+            roots.append(_Root(monitor, path))
 
         while True:
-            select([self._monitor.fd], [], [])
-            if self._monitor.closed:
+            select([monitor.fd], [], [])
+            if monitor.closed:
                 break
-            for filename, event, cb in self._monitor.dispatch():
+            for filename, event, cb in monitor.dispatch():
                 try:
                     cb(filename, event)
                 except Exception:
-                    util.exception(_('Cannot dispatch %X event of %s/%s ' \
-                            'directory'), event, path, filename)
+                    util.exception(_('Cannot dispatch 0x%X event for %r'),
+                            event, filename)
                 gevent.sleep()
-
-        root = None
 
 
 class _Root(object):
 
-    def __init__(self, monitor, root):
-        self._root = env.ensure_path(root, '')
+    def __init__(self, monitor, path):
+        self.path = env.ensure_path(path, '')
         self._monitor = monitor
         self._nodes = {}
 
-        for filename in os.listdir(self._root):
-            path = join(self._root, filename)
+        for filename in os.listdir(self.path):
+            path = join(self.path, filename)
             if isdir(path):
                 self._nodes[filename] = _Node(monitor, path)
 
-        monitor.add_watch(self._root, IN_DELETE_SELF | IN_CREATE | IN_DELETE,
+        monitor.add_watch(self.path,
+                IN_DELETE_SELF | IN_CREATE | IN_DELETE | \
+                        IN_MOVED_TO | IN_MOVED_FROM,
                 self.__watch_cb)
 
     def __watch_cb(self, filename, event):
@@ -91,14 +78,14 @@ class _Root(object):
             self._nodes.clear()
             return
 
-        path = join(self._root, filename)
-        if not isdir(path):
-            return
-
-        if event & IN_CREATE:
-            self._nodes[filename] = _Node(self._monitor, path)
-        elif event & IN_DELETE:
-            if filename in self._nodes:
+        if event & (IN_CREATE | IN_MOVED_TO):
+            path = join(self.path, filename)
+            if isdir(path):
+                self._nodes[filename] = _Node(self._monitor, path)
+        elif event & (IN_DELETE | IN_MOVED_FROM):
+            node = self._nodes.get(filename)
+            if node is not None:
+                node.unlink()
                 del self._nodes[filename]
 
 
@@ -107,50 +94,67 @@ class _Node(object):
     def __init__(self, monitor, path):
         self._monitor = monitor
         self._activity_path = join(path, 'activity')
-        self._activity = None
+        self._activity_dir = None
 
         if exists(self._activity_path):
-            self._activity = _ActivityDir(monitor, self._activity_path)
+            self._activity_dir = _ActivityDir(monitor, self._activity_path)
 
-        monitor.add_watch(path, IN_CREATE | IN_DELETE, self.__watch_cb)
+        self._wd = monitor.add_watch(path,
+                IN_CREATE | IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM,
+                self.__watch_cb)
+
+    def unlink(self):
+        if self._activity_dir is not None:
+            self._activity_dir.unlink()
+            self._activity_dir = None
+        self._monitor.rm_watch(self._wd)
 
     def __watch_cb(self, filename, event):
         if filename != 'activity':
             return
-        if event & IN_CREATE:
-            self._activity = _ActivityDir(self._monitor, self._activity_path)
-        elif event & IN_DELETE:
-            self._activity = None
+        if event & (IN_CREATE | IN_MOVED_TO):
+            self._activity_dir = \
+                    _ActivityDir(self._monitor, self._activity_path)
+        elif event & (IN_DELETE | IN_MOVED_FROM):
+            self._activity_dir.unlink()
+            self._activity_dir = None
 
 
 class _ActivityDir(object):
 
     def __init__(self, monitor, path):
-        self.__found = False
+        self._monitor = monitor
+        self._found = False
         self._node_path = dirname(path)
         self._info_path = join(path, 'activity.info')
 
         if exists(self._info_path):
-            self._found()
+            self.found()
 
-        monitor.add_watch(path, IN_CLOSE_WRITE | IN_DELETE, self.__watch_cb)
+        self._wd = monitor.add_watch(path,
+                IN_CLOSE_WRITE | IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM,
+                self.__watch_cb)
 
-    def _found(self):
-        if self.__found:
+    def unlink(self):
+        self.lost()
+        self._monitor.rm_watch(self._wd)
+
+    def found(self):
+        if self._found:
             return
+        self._found = True
         found.send(self._node_path)
-        self.__found = True
 
-    def _lost(self):
-        if not self.__found:
+    def lost(self):
+        if not self._found:
             return
+        self._found = False
         lost.send(self._node_path)
-        self.__found = False
 
     def __watch_cb(self, filename, event):
         if filename != 'activity.info':
             return
-        if event & IN_CLOSE_WRITE:
-            self._found()
-        elif event & IN_DELETE:
-            self._lost()
+        if event & (IN_CLOSE_WRITE | IN_MOVED_TO):
+            self.found()
+        elif event & (IN_DELETE | IN_MOVED_FROM):
+            self.lost()

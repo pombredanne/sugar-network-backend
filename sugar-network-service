@@ -22,7 +22,7 @@ from gettext import gettext as _
 import gevent
 
 import active_document as ad
-from local_document import application, optparse, sugar, env
+from local_document import application, optparse, sugar, env, activities
 from local_document.mounts import Mounts
 from local_document.server import Server
 from sugar_network_server import resources
@@ -37,6 +37,7 @@ class Application(application.Daemon):
 
     server = None
     mounts = None
+    monitor = None
 
     def run(self):
         while not sugar.has_pubkey():
@@ -46,6 +47,7 @@ class Application(application.Daemon):
 
         self.mounts = Mounts(resources.path)
         self.server = Server(self.mounts)
+        self.monitor = gevent.spawn(activities.monitor, self.mounts)
 
         self.server.serve_forever()
 
@@ -53,13 +55,16 @@ class Application(application.Daemon):
         self.server.stop()
 
     def epilog(self):
+        if self.monitor is not None:
+            self.monitor.kill()
+            self.monitor.join()
         if self.mounts is not None:
             self.mounts.close()
 
 
 # New defaults
 application.debug.value = sugar.logger_level()
-application.logdir.value = join(env.local_data_root.value, 'logs')
+application.logdir.value = sugar.profile_path('logs')
 application.rundir.value = join(env.local_data_root.value, 'run')
 ad.data_root.value = join(env.local_data_root.value, 'db')
 

@@ -156,7 +156,7 @@ class Inotify(object):
         _assert(wd >= 0, _('Cannot add watch for %r'), path)
 
         if wd not in self._wds:
-            _logger.debug('Added %r watch of %r with 0x%x mask',
+            _logger.debug('Added %r watch of %r with 0x%X mask',
                     wd, path, mask)
             self._wds[wd] = (path, data)
 
@@ -200,6 +200,8 @@ class Inotify(object):
                 filename = buf[pos:filename_end]
             pos += name_len
 
+            if wd not in self._wds:
+                continue
             path, data = self._wds[wd]
 
             _logger.debug('Got event: wd=%r mask=0x%X path=%r filename=\'%s\'',
@@ -223,6 +225,12 @@ class Inotify(object):
         self._libc.inotify_add_watch.restype = ctypes.c_int
         self._libc.inotify_rm_watch.argtypes = [ctypes.c_int, ctypes.c_int]
         self._libc.inotify_rm_watch.restype = ctypes.c_int
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
 
 def _assert(condition, message, *args):

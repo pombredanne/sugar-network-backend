@@ -9,6 +9,7 @@ import unittest
 from os.path import dirname, join, exists, abspath
 
 import active_document as ad
+import restful_document as rd
 from restful_document.router import Router
 from local_document import env
 import sugar_network_server
@@ -46,6 +47,8 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
         env.local_data_root.value = tmpdir
+        env.activities_root.value = tmpdir + '/Activities'
+        env.api_url.value = 'http://localhost:8000'
 
         self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile
@@ -152,3 +155,28 @@ class Test(unittest.TestCase):
         os.kill(pid, signal.SIGINT)
         sys.stdout.flush()
         os.waitpid(pid, 0)
+
+    def restful_server(self):
+        from gevent.wsgi import WSGIServer
+        from sugar_network_server.resources.user import User
+        from sugar_network_server.resources.context import Context
+
+        if not exists('remote'):
+            os.makedirs('remote')
+
+        logfile = file('remote/log', 'a')
+        sys.stdout = sys.stderr = logfile
+
+        for handler in logging.getLogger().handlers:
+            logging.getLogger().removeHandler(handler)
+        logging.basicConfig(level=logging.DEBUG)
+
+        ad.data_root.value = tmpdir + '/remote'
+        ad.index_flush_timeout.value = 0
+        ad.index_flush_threshold.value = 1
+        ad.find_limit.value = 1024
+        ad.index_write_queue.value = 10
+
+        folder = ad.SingleFolder([User, Context])
+        httpd = WSGIServer(('localhost', 8000), rd.Router(folder))
+        httpd.serve_forever()

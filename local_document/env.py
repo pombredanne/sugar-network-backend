@@ -44,6 +44,25 @@ activities_root = optparse.Option(
         default=expanduser('~/Activities'))
 
 
+def path(*args):
+    """Calculate a path from the root.
+
+    :param args:
+        path parts to add to the root path; if ends with empty string,
+        the resulting path will be treated as a path to a directory
+    :returns:
+        absolute path
+
+    """
+    if not args:
+        result = local_data_root.value
+    elif args[0].startswith(os.sep):
+        result = join(*args)
+    else:
+        result = join(local_data_root.value, *args)
+    return str(result)
+
+
 def ensure_path(*args):
     """Calculate a path from the root.
 
@@ -59,7 +78,7 @@ def ensure_path(*args):
     if not args:
         result = local_data_root.value
     elif args[0].startswith(os.sep):
-        result = join(args)
+        result = join(*args)
     else:
         result = join(local_data_root.value, *args)
     result = str(result)

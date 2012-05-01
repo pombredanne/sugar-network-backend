@@ -40,7 +40,7 @@ class Application(application.Application):
         enforce(self.args, _('Context is not specified'))
         context = self.args.pop(0)
 
-        client = sugar_network.Client(True)
+        client = sugar_network.Client('/')
         _zerosugar.init(client)
         _zerosugar.launch(context, command.value, self.args)
 
