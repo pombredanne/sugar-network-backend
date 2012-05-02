@@ -41,14 +41,14 @@ class Application(application.Application):
         context = self.args.pop(0)
 
         client = sugar_network.Client('/')
-        zerosugar.init(client)
-        zerosugar.launch(context, command.value, self.args)
+        zerosugar.launch(client, context, command.value, self.args)
 
 
 # New defaults
 application.debug.value = sugar.logger_level()
 
 optparse.Option.seek('sugar-network')
+optparse.Option.seek('sugar-network', [application.debug])
 
 app = Application(
         name='sugar-network',
@@ -69,5 +69,6 @@ app = Application(
             '/etc/sweets.conf',
             '~/.config/sweets/config',
             sugar.profile_path('sweets.conf'),
-            ])
+            ],
+        stop_args=['launch'])
 app.start()

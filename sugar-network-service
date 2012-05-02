@@ -49,7 +49,7 @@ class Application(application.Daemon):
         else:
             application.logdir.value = sugar.profile_path('logs')
         application.rundir.value = join(env.local_root.value, 'run')
-        active_document.data_root.value = join(env.local_root.value, 'db')
+        active_document.data_root.value = join(env.local_root.value, 'local')
 
         application.Daemon.start(self)
 

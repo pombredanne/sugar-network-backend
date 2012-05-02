@@ -176,23 +176,16 @@ class _OnlineMount(_Mount):
     @_command
     def get(self, resource, guid, reply=None):
         params = self._compose_params(resource, reply)
-        response = http.request('GET', [resource, guid], params=params)
-        if resource == 'context':
-            self._update_response(guid, response)
-        return response
+        return http.request('GET', [resource, guid], params=params)
 
     @_command
     def find(self, resource, reply=None, **params):
         params = self._compose_params(resource, reply)
         try:
-            response = http.request('GET', [resource], params=params)
+            return http.request('GET', [resource], params=params)
         except Exception:
             util.exception(_('Failed to query resources'))
             return {'total': 0, 'result': []}
-        if resource == 'context':
-            for props in response['result']:
-                self._update_response(props['guid'], props)
-        return response
 
     @_command
     @_socket_command
@@ -223,13 +216,3 @@ class _OnlineMount(_Mount):
                     reply.remove('keep_impl')
             params['reply'] = ','.join(reply)
         return params
-
-    def _update_response(self, guid, props):
-        home_obj = self.folder['context'](guid)
-
-        if home_obj.exists:
-            props['keep'] = home_obj['keep']
-            props['keep_impl'] = home_obj['keep_impl']
-        else:
-            props['keep'] = False
-            props['keep_impl'] = False

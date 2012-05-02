@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import json
 import shutil
 import logging
 import collections
@@ -98,21 +99,18 @@ class Client(object):
         solution = zerosugar.make(self, context)
 
         for sel, __, __ in solution.walk():
-            spec_path = join(sel.local_path, 'activity', 'activity.info')
             try:
-                spec = sweets_recipe.Spec(spec_path)
+                spec = sweets_recipe.Spec(root=sel.local_path)
             except Exception, error:
-                _logger.warning(_('Cannot checkin %r, ' \
-                        'failed to read spec file: %s'), self.interface, error)
+                util.exception(_logger,
+                        _('Cannot checkin %r, failed to read spec file: %s'),
+                        self.interface, error)
                 continue
 
             dst_path = util.unique_filename(
                     env.activities_root.value, spec['name'])
             _logger.info(_('Checkin %r implementation to %r'),
                     context, dst_path)
-
-            print context, sel.local_path, dst_path
-
             util.cptree(sel.local_path, dst_path)
 
     def checkout(self, context):
@@ -197,20 +195,18 @@ class _Request(dict):
         request['cmd'] = cmd
 
         with self._conn.socket_file() as socket_file:
-            _logger.debug('Make a call: %r', request)
             socket_file.write_message(request)
-
             if data is not None:
                 socket_file.write(data)
-                _logger.debug('Sent %s bytes of payload', len(data))
+            response = socket_file.read_message()
 
-            reply = socket_file.read_message()
-            _logger.debug('Got a reply: %r', reply)
+            _logger.debug('Made a call: request=%r response=%r',
+                    request, response)
 
-        if type(reply) is dict and 'error' in reply:
-            raise ServerError(reply['error'])
+        if type(response) is dict and 'error' in response:
+            raise ServerError(response['error'])
 
-        return reply
+        return response
 
 
 class _Resource(object):
@@ -239,16 +235,16 @@ class _Resource(object):
         """
         return self._request('delete', guid=guid)
 
-    def __call__(self, guid=None, reply=None, **filters):
+    def __call__(self, guid=None, **filters):
         if guid:
-            return _Object(self._request.dup(), {'guid': guid}, reply=reply)
+            return _Object(self._request, {'guid': guid})
         elif not filters:
-            return _Object(self._request.dup(), reply=reply)
+            return _Object(self._request)
         else:
             query = self.find(**filters)
             enforce(query.total, KeyError, _('No objects found'))
             enforce(query.total == 1, _('Found more than one object'))
-            return _Object(self._request.dup(), query[0], reply=reply)
+            return _Object(self._request, query[0])
 
 
 class _Query(object):
@@ -275,7 +271,10 @@ class _Query(object):
         self._request = request
         self._query = query
         self._order_by = order_by
-        self._reply = reply or ['guid']
+        if request['mountpoint'] == '/':
+            self._reply = reply
+        else:
+            self._reply = None
         self._filters = filters
         self._total = None
         self._page_access = collections.deque([], _QUERY_PAGES_NUMBER)
@@ -400,8 +399,8 @@ class _Query(object):
             params['reply'] = self._reply
 
         try:
-            reply = self._request('find', **params)
-            self._total = reply['total']
+            response = self._request('find', **params)
+            self._total = response['total']
         except Exception:
             util.exception(_logger,
                     _('Failed to fetch query result: resource=%r query=%r'),
@@ -409,10 +408,9 @@ class _Query(object):
             self._total = None
             return False
 
-        result = [None] * len(reply['result'])
-        for i, props in enumerate(reply['result']):
-            result[i] = _Object(self._request.dup(), props,
-                    offset + i, self._reply)
+        result = [None] * len(response['result'])
+        for i, props in enumerate(response['result']):
+            result[i] = _Object(self._request.dup(), props, offset + i)
 
         if not self._page_access or self._page_access[-1] != page:
             if len(self._page_access) == _QUERY_PAGES_NUMBER:
@@ -428,20 +426,18 @@ class _Query(object):
         self._total = None
 
 
-class _Object(dict):
+class _Object(object):
 
-    def __init__(self, request, props=None, offset=None, reply=None):
-        dict.__init__(self, props or {})
-
+    def __init__(self, request, props=None, offset=None):
+        self._props = props or {}
         self._request = request
-        if 'guid' in self:
-            self._request['guid'] = self['guid']
-        self._got = False
+        if 'guid' in self._props:
+            self._request['guid'] = props['guid']
+        self._got = (request['mountpoint'] != '/')
         self._dirty = set()
-        self._reply = reply
+        self._blobs = _Blobs(self._request)
 
         self.offset = offset
-        self._blobs = _Blobs(self._request)
 
     @property
     def blobs(self):
@@ -452,13 +448,18 @@ class _Object(dict):
         enforce('guid' in self._request, _('Object needs to be posted first'))
         if self._got:
             return
-        kwargs = {}
-        if self._reply:
-            kwargs['reply'] = self._reply
-        properties = self._request('get', **kwargs)
+
+        props = self._request('get')
+        props.update(self._props)
+        self._props = props
         self._got = True
-        properties.update(self)
-        self.update(properties)
+
+        if self._request['resource'] == 'context':
+            guid = self._request['guid']
+            self._props['keep'] = \
+                    _local_get('~', 'context', guid, 'keep') or False
+            self._props['keep_impl'] = \
+                    _local_get('~', 'context', guid, 'keep_impl') or False
 
     def post(self):
         if not self._dirty:
@@ -466,36 +467,62 @@ class _Object(dict):
 
         props = {}
         for i in self._dirty:
-            props[i] = self[i]
+            props[i] = self._props.get(i)
 
         if 'guid' in self._request:
             self._request('update', props=props)
         else:
-            reply = self._request('create', props=props)
-            guid = reply['guid']
-            dict.__setitem__(self, 'guid', guid)
-            self._request['guid'] = guid
+            response = self._request('create', props=props)
+            self._props['guid'] = self._request['guid'] = response['guid']
 
         self._dirty.clear()
 
-    def __getitem__(self, prop):
-        result = self.get(prop)
+    def get(self, prop):
+        result = self._props.get(prop)
         if result is not None:
             return result
-        enforce(not self._reply or prop in self._reply,
-                _('Property %r is not in requested list'), prop)
-        self.fetch()
+
+        enforce('guid' in self._request, _('Object needs to be posted first'))
+
+        if self._request['mountpoint'] != '/':
+            result = _local_get(prop=prop, **self._request)
+            if result is not None:
+                self._props[prop] = result
+        else:
+            self.fetch()
+            result = self._props.get(prop)
+
+        return result
+
+    @property
+    def checkins(self):
+        enforce(self._request['resource'] == 'context')
+        enforce('guid' in self._request, _('Object needs to be posted first'))
+
+        for path in  activities.checkins(self['guid']):
+            try:
+                spec = sweets_recipe.Spec(root=path)
+            except Exception, error:
+                util.exception(_logger, _('Failed to read %r spec file: %s'),
+                        path, error)
+                continue
+            yield spec
+
+    def __contains__(self, prop):
+        return prop in self._props
+
+    def __getitem__(self, prop):
         result = self.get(prop)
         enforce(result is not None, KeyError,
-                _('Property "%s" is absent in "%s" resource'),
-                prop, self._request['resource'])
+                _('Property %r is absent in %r resource in %r'),
+                prop, self._request['resource'], self._request['guid'])
         return result
 
     def __setitem__(self, prop, value):
         enforce(prop != 'guid', _('Property "guid" is read-only'))
-        if self.get(prop) != value:
+        if self._props.get(prop) != value:
             self._dirty.add(prop)
-        dict.__setitem__(self, prop, value)
+        self._props[prop] = value
 
     def __getattr__(self, command):
 
@@ -523,11 +550,11 @@ class _Blobs(object):
         if cached is not None:
             path, mime_type = cached
         else:
-            reply = self._request('get_blob', prop=prop)
-            if not reply:
+            response = self._request('get_blob', prop=prop)
+            if not response:
                 return None
-            path = reply['path']
-            mime_type = reply['mime_type']
+            path = response['path']
+            mime_type = response['mime_type']
         if isdir(path):
             return path
         else:
@@ -549,3 +576,12 @@ class _Blob(file):
     def __init__(self, path, mime_type):
         file.__init__(self, path)
         self.mime_type = mime_type
+
+
+def _local_get(mountpoint, resource, guid, prop):
+    enforce(mountpoint != '/', _('Remote mount is not directly accessible'))
+    # XXX Will be broken if `mountpoint` ~= '~'
+    path = join(env.local_root.value, 'local', resource, guid[:2], guid, prop)
+    if exists(path):
+        with file(path) as f:
+            return json.load(f)

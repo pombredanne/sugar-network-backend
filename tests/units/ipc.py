@@ -36,7 +36,7 @@ class IPCTest(tests.Test):
         ts = time.time()
         self.fork(server)
 
-        client = Client(False)
+        client = Client('/')
         reply = client.ping()
         self.assertEqual('pong', reply)
         assert time.time() - ts >= 1
@@ -44,7 +44,7 @@ class IPCTest(tests.Test):
     def test_delete(self):
         self.start_server()
 
-        client = Client(False)
+        client = Client('/')
         client.Context.delete('guid-1')
         client.Context('guid-2').delete()
 
@@ -56,12 +56,12 @@ class IPCTest(tests.Test):
 
     def test_find(self):
         self.start_server()
-        client = Client(False)
+        client = Client('/')
 
         query = client.Context.find()
         self.assertEqual(10, query.total)
         self.assertEqual(
-                [('find', 'context', 0, 16, None, None, ['guid'], {})],
+                [('find', 'context', 0, 16, None, None, None, {})],
                 CommandsProcessor.calls)
 
         query = client.Context.find('query', order_by='foo', reply=['f1', 'f2'], bar=-1)
@@ -72,7 +72,7 @@ class IPCTest(tests.Test):
 
     def test_create(self):
         self.start_server()
-        client = Client(False)
+        client = Client('/')
 
         res = client.Resource()
         assert 'guid' not in res
@@ -95,7 +95,7 @@ class IPCTest(tests.Test):
 
     def test_update(self):
         self.start_server()
-        client = Client(False)
+        client = Client('/')
 
         res = client.Resource('guid')
         res['prop'] = 'value'
@@ -107,23 +107,17 @@ class IPCTest(tests.Test):
 
     def test_get(self):
         self.start_server()
-        client = Client(False)
+        client = Client('/')
 
         res = client.Resource('guid')
         self.assertEqual('value', res['prop'])
         self.assertEqual(
-                [('get', 'resource', 'guid', None)],
+                [('get', 'resource', 'guid')],
                 CommandsProcessor.calls)
-
-        res = client.Resource('guid', reply=['prop'])
-        self.assertEqual('value', res['prop'])
-        self.assertEqual(
-                [('get', 'resource', 'guid', ['prop'])],
-                CommandsProcessor.calls[1:])
 
     def test_get_blob(self):
         self.start_server()
-        client = Client(False)
+        client = Client('/')
 
         res = client.Resource('guid')
         blob = res.blobs['blob']
@@ -139,7 +133,7 @@ class IPCTest(tests.Test):
 
     def test_get_blob_EmptyBlob(self):
         self.start_server()
-        client = Client(False)
+        client = Client('/')
 
         res = client.Resource('guid')
         blob = res.blobs['empty']
@@ -153,7 +147,7 @@ class IPCTest(tests.Test):
 
     def test_set_blob(self):
         self.start_server()
-        client = Client(False)
+        client = Client('/')
 
         client.Resource('guid_1').blobs['blob_1'] = 'string'
         client.Resource('guid_2').blobs['blob_2'] = {'file': 'path'}
@@ -168,16 +162,16 @@ class IPCTest(tests.Test):
 
     def test_Exception(self):
         self.start_server()
-        client = Client(False)
+        client = Client('/')
         self.assertRaises(ServerError, lambda: client.Resource('guid').fail())
 
     def test_ConsecutiveRequests(self):
         self.start_server()
 
-        client_1 = Client(False)
+        client_1 = Client('/')
         self.assertEqual('pong', client_1.ping())
 
-        client_2 = Client(False)
+        client_2 = Client('/')
         self.assertEqual('pong', client_2.ping())
 
 
@@ -197,8 +191,8 @@ class CommandsProcessor(object):
         reply = ('update', resource, guid, props)
         CommandsProcessor.calls.append(reply)
 
-    def get(self, socket, resource, guid, reply=None):
-        reply = ('get', resource, guid, reply)
+    def get(self, socket, resource, guid):
+        reply = ('get', resource, guid)
         CommandsProcessor.calls.append(reply)
         return {'guid': -1, 'prop': 'value'}
 

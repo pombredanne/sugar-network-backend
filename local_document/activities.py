@@ -63,11 +63,10 @@ class _Monitor(object):
 
         _logger.debug('Checking in activity from %r', impl_path)
 
-        spec_path = join(impl_path, 'activity', 'activity.info')
         try:
-            spec = sweets_recipe.Spec(spec_path)
+            spec = sweets_recipe.Spec(root=impl_path)
         except Exception, error:
-            _logger.warning(_('Cannot read %r spec: %s'), spec_path, error)
+            _logger.warning(_('Cannot read %r spec: %s'), impl_path, error)
             return
 
         context = spec['Activity', 'bundle_id']

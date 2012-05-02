@@ -126,6 +126,14 @@ class MountsTest(tests.Test):
                 sorted([(i['guid'], i['title'], i['keep'], i['keep_impl'], i['position']) for i in query]))
 
     def test_OnlineMount_GetKeep(self):
+
+        def server():
+            Server(self.mounts).serve_forever()
+
+        gevent.spawn(server)
+        gevent.sleep()
+        self.client = Client('/')
+
         self.fork(self.restful_server)
         gevent.sleep(1)
 
@@ -137,12 +145,12 @@ class MountsTest(tests.Test):
         online = self.mounts['/']
         guid = online.create('context', props)['guid']
 
-        context = online.get('context', guid)
+        context = self.client.Context(guid)
         self.assertEqual(False, context['keep'])
         self.assertEqual(False, context['keep_impl'])
         self.assertEqual(
                 [(guid, False, False)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in online.find('context')['result']])
+                [(i['guid'], i['keep'], i['keep_impl']) for i in self.client.Context.find()])
 
         self.mounts['~'].folder['context'].create_with_guid(guid, {
             'type': 'activity',
@@ -153,12 +161,12 @@ class MountsTest(tests.Test):
             'keep_impl': True,
             })
 
-        context = online.get('context', guid)
+        context = self.client.Context(guid)
         self.assertEqual(True, context['keep'])
         self.assertEqual(True, context['keep_impl'])
         self.assertEqual(
                 [(guid, True, True)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in online.find('context')['result']])
+                [(i['guid'], i['keep'], i['keep_impl']) for i in self.client.Context.find()])
 
     def test_OnlineMount_SetKeep(self):
         self.fork(self.restful_server)

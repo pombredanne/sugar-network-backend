@@ -71,7 +71,7 @@ def command(description, name=None):
 class Application(object):
 
     def __init__(self, name, description=None, version=None, epilog=None,
-            where=None, config_files=None):
+            where=None, **parse_args):
         self.args = None
         self.name = name
 
@@ -94,8 +94,7 @@ class Application(object):
                 help=_('show this help message and exit'),
                 action='store_true')
 
-        options, self.args = optparse.Option.parse_args(parser,
-                config_files=config_files)
+        options, self.args = optparse.Option.parse_args(parser, **parse_args)
 
         def print_desc(term, desc):
             text = []

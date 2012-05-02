@@ -20,6 +20,7 @@ from gettext import gettext as _
 
 from zeroinstall.injector import model
 
+import sweets_recipe
 from local_document import activities, util
 from zerosugar.config import config
 
@@ -31,7 +32,14 @@ def read(context):
     feed = _Feed(context)
     feed_content = {}
 
-    for spec in activities.checkins(context):
+    for path in activities.checkins(context):
+        try:
+            spec = sweets_recipe.Spec(root=path)
+        except Exception, error:
+            util.exception(_logger, _('Failed to read %r spec file: %s'),
+                    path, error)
+            continue
+
         feed_content[spec['version']] = {
                 '*-*': {
                     'guid': spec.root,
