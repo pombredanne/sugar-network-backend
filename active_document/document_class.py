@@ -260,7 +260,7 @@ class DocumentClass(object):
         return seqno
 
     @classmethod
-    def init(cls, index_class):
+    def init(cls, index_class, extra_props=None):
         """Initialize `DocumentClass` class usage.
 
         This method should be called before any usage of the `DocumentClass`
@@ -282,6 +282,8 @@ class DocumentClass(object):
             cls.metadata['guid'] = ActiveProperty('guid',
                     permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
                     prefix=env.GUID_PREFIX)
+            for prop in (extra_props or []):
+                cls.metadata[prop.name] = prop
         cls.metadata.ensure_path('')
 
         cls._storage = Storage(cls.metadata)

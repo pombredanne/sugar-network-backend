@@ -31,7 +31,7 @@ _logger = logging.getLogger('active_document.folder')
 
 class _Folder(dict):
 
-    def __init__(self, document_classes, index_class):
+    def __init__(self, document_classes, index_class, extra_props):
         enforce(env.data_root.value,
                 _('The active_document.data_root.value is not set'))
 
@@ -47,8 +47,10 @@ class _Folder(dict):
 
         _logger.info(_('Opening documents in %r'), env.data_root.value)
 
+        if extra_props is None:
+            extra_props = {}
         for cls in self.values():
-            cls.init(index_class)
+            cls.init(index_class, extra_props.get(cls.__name__.lower()))
 
     def __enter__(self):
         return self
@@ -71,11 +73,11 @@ class _Folder(dict):
 
 class SingleFolder(_Folder):
 
-    def __init__(self, document_classes):
+    def __init__(self, document_classes, extra_props=None):
         enforce(env.index_write_queue.value > 0,
                 _('The active_document.index_write_queue.value should be > 0'))
 
-        _Folder.__init__(self, document_classes, IndexWriter)
+        _Folder.__init__(self, document_classes, IndexWriter, extra_props)
 
         for cls in self.values():
             for __ in cls.populate():
