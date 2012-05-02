@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/optparse.py$
-$Data: 2012-04-26$
+$Data: 2012-05-02$
 
 """
 
@@ -48,7 +48,7 @@ class Option(object):
     _config_files_to_save = []
 
     def __init__(self, description=None, default=None, short_option=None,
-            type_cast=None, type_repr=None, action=None):
+            type_cast=None, type_repr=None, action=None, name=None):
         """
         :param description:
             description string
@@ -65,10 +65,13 @@ class Option(object):
             while converting option value to string
         :param action:
             value for `action` argument of `OptionParser.add_option()`
+        :param name:
+            specify option name instead of reusing variable name
 
         """
         if default is not None and type_cast is not None:
             default = type_cast(default)
+        self.default = default
         self._value = default
         self.description = description
         self.type_cast = type_cast
@@ -76,7 +79,7 @@ class Option(object):
         self.short_option = short_option or ''
         self.action = action
         self.section = None
-        self.name = None
+        self.name = name
         self.attr_name = None
 
     @property
@@ -125,8 +128,13 @@ class Option(object):
             mod_name = _get_frame(1).f_globals['__name__']
             mod = sys.modules[mod_name]
 
-        for name in sorted(dir(mod)):
-            attr = getattr(mod, name)
+        if type(mod) in (list, tuple):
+            options = dict([(i.name, i) for i in mod])
+        else:
+            options = dict([(i, getattr(mod, i)) for i in dir(mod)])
+
+        for name in sorted(options):
+            attr = options[name]
             # Options might be from different `optparse` modules
             if not (type(attr).__name__ == 'Option' and \
                     type(attr).__module__.split('.')[-1] == 'optparse'):
