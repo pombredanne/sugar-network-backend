@@ -41,7 +41,7 @@ class Test(unittest.TestCase):
         if exists(self.logfile):
             os.unlink(self.logfile)
 
-        ad.data_root.value = tmpdir
+        ad.data_root.value = tmpdir + '/local'
         ad.index_flush_timeout.value = 0
         ad.index_flush_threshold.value = 1
         ad.find_limit.value = 1024

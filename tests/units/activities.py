@@ -34,7 +34,7 @@ class ActivitiesTest(tests.Test):
         self.job = gevent.spawn(activities.monitor, self.mounts)
         gevent.sleep()
 
-        self.mounts['~'].resources['context'].create_with_guid(
+        self.mounts['~'].folder['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
                     'type': 'activity',
                     'title': 'title',
@@ -54,14 +54,14 @@ class ActivitiesTest(tests.Test):
         gevent.sleep(1)
 
         hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
-        assert exists('activities/checkouts/' + hashed_path)
+        assert exists('activities/checkins/' + hashed_path)
         self.assertEqual(
                 abspath('Activities/activity'),
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
 
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': True},
-                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title']))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': True},
+                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title', 'keep', 'keep_impl']))
 
     def test_OfflineCheckin(self):
         self.job = gevent.spawn(activities.monitor, self.mounts)
@@ -79,19 +79,19 @@ class ActivitiesTest(tests.Test):
         gevent.sleep(1)
 
         hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
-        assert exists('activities/checkouts/' + hashed_path)
+        assert exists('activities/checkins/' + hashed_path)
         self.assertEqual(
                 abspath('Activities/activity'),
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
 
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'HelloWorld', 'keep': True},
-                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title']))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'HelloWorld', 'keep': False, 'keep_impl': True},
+                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkout(self):
         self.job = gevent.spawn(activities.monitor, self.mounts)
 
-        self.mounts['~'].resources['context'].create_with_guid(
+        self.mounts['~'].folder['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
                     'type': 'activity',
                     'title': 'title',
@@ -111,16 +111,20 @@ class ActivitiesTest(tests.Test):
         gevent.sleep(1)
 
         hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
-        assert exists('activities/checkouts/' + hashed_path)
+        assert exists('activities/checkins/' + hashed_path)
+        assert exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
-                abspath('Activities/activity'),
-                os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': True},
+                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title', 'keep', 'keep_impl']))
 
         shutil.rmtree('Activities/activity')
         gevent.sleep(1)
 
-        assert not exists('activities/checkouts/' + hashed_path)
-        assert not lexists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
+        assert not exists('activities/checkins/' + hashed_path)
+        assert not exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
+        self.assertEqual(
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': False},
+                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title', 'keep', 'keep_impl']))
 
 
 if __name__ == '__main__':

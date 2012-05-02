@@ -16,7 +16,7 @@
 import os
 import hashlib
 import logging
-from os.path import join, exists, lexists, islink, relpath, dirname
+from os.path import join, exists, lexists, islink, relpath, dirname, basename
 from gettext import gettext as _
 
 import sweets_recipe
@@ -26,8 +26,8 @@ from local_document import crawler, env
 _logger = logging.getLogger('local_document.activities')
 
 
-def checkouts(context):
-    root = env.path('activities', 'context', context)
+def checkins(context):
+    root = _context_path(context, '')
     if not exists(root):
         return
 
@@ -77,18 +77,22 @@ class _Monitor(object):
             return
 
         context = spec['Activity', 'bundle_id']
-        OfflineContext = self._mounts['~'].resources['context']
 
-        if not OfflineContext(context).exists:
+        home_context = self._mounts['~'].folder['context'](context)
+        if home_context.exists:
+            home_context['keep_impl'] = True
+            home_context.post()
+        else:
             _logger.debug('Register unknown local activity, %r', context)
-            OfflineContext.create_with_guid(context, {
+            home_context.create_with_guid(context, {
                 'type': 'activity',
                 'title': spec['name'],
                 'summary': spec['summary'],
                 'description': spec['description'],
+                'keep_impl': True,
                 })
 
-        context_path = _context_path(context, hashed_path)
+        context_path = _ensure_context_path(context, hashed_path)
         if lexists(context_path):
             os.unlink(context_path)
         os.symlink(impl_path, context_path)
@@ -105,7 +109,17 @@ class _Monitor(object):
 
         _logger.debug('Checking out activity from %r', impl_path)
 
-        context_path = join(dirname(checkin_path), os.readlink(checkin_path))
+        context_path = _read_checkin_path(checkin_path)
+        context_dir = dirname(context_path)
+        impls = set(os.listdir(context_dir)) - set([basename(context_path)])
+
+        if not impls:
+            guid = basename(context_dir)
+            home_context = self._mounts['~'].folder['context'](guid)
+            if home_context.exists:
+                home_context['keep_impl'] = False
+                home_context.post()
+
         if lexists(context_path):
             os.unlink(context_path)
         os.unlink(checkin_path)
@@ -113,8 +127,16 @@ class _Monitor(object):
 
 def _checkin_path(impl_path):
     hashed_path = hashlib.sha1(impl_path).hexdigest()
-    return hashed_path, env.path('activities', 'checkouts', hashed_path)
+    return hashed_path, env.path('activities', 'checkins', hashed_path)
+
+
+def _read_checkin_path(checkin_path):
+    return join(dirname(checkin_path), os.readlink(checkin_path))
 
 
 def _context_path(context, hashed_path):
+    return env.path('activities', 'context', context, hashed_path)
+
+
+def _ensure_context_path(context, hashed_path):
     return env.ensure_path('activities', 'context', context, hashed_path)

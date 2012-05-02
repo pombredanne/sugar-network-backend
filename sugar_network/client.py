@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import shutil
 import logging
 import collections
 from gevent import socket
@@ -22,7 +23,7 @@ from gettext import gettext as _
 
 from gevent.coros import Semaphore
 
-from local_document import ipc, env
+from local_document import ipc, env, activities
 from local_document.socket import SocketFile
 from local_document.cache import get_cached_blob
 from active_document import util, enforce
@@ -449,6 +450,14 @@ class _Object(dict):
             self._request['guid'] = guid
 
         self._dirty.clear()
+
+    def checkin(self):
+        enforce('guid' in self._request, _('Object needs to be posted first'))
+
+    def checkout(self):
+        enforce('guid' in self._request, _('Object needs to be posted first'))
+        for spec in activities.checkins(self['guid']):
+            shutil.rmtree(spec.root)
 
     def __getitem__(self, prop):
         result = self.get(prop)

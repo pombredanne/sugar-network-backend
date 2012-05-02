@@ -72,9 +72,13 @@ class Server(object):
 
             enforce('cmd' in message, _('Argument "cmd" was not specified'))
             cmd = message.pop('cmd')
-            enforce(hasattr(self._mounts, cmd), _('Unknown %r command'), cmd)
 
-            reply = getattr(self._mounts, cmd)(conn_file, **message)
+            if 'mountpoint' in message:
+                mountpoint = message.pop('mountpoint')
+            else:
+                mountpoint = '/'
+
+            reply = self._mounts.call(conn_file, cmd, mountpoint, message)
             conn_file.write_message(reply)
 
             _logger.debug('Send reply: connection=%r %r', conn_file, reply)

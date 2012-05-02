@@ -32,7 +32,7 @@ def read(context):
     feed = _Feed(context)
     feed_content = {}
 
-    for spec in activities.checkouts(context):
+    for spec in activities.checkins(context):
         feed_content[spec['version']] = {
                 '*-*': {
                     'guid': spec.root,

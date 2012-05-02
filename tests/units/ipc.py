@@ -185,21 +185,24 @@ class CommandsProcessor(object):
 
     calls = []
 
-    def create(self, socket, mountpoint, resource, props):
+    def call(self, socket, cmd, mountpoint, params):
+        return getattr(self, cmd)(socket, **params)
+
+    def create(self, socket, resource, props):
         reply = ('create', resource, props)
         CommandsProcessor.calls.append(reply)
         return {'guid': -1}
 
-    def update(self, socket, mountpoint, resource, guid, props):
+    def update(self, socket, resource, guid, props):
         reply = ('update', resource, guid, props)
         CommandsProcessor.calls.append(reply)
 
-    def get(self, socket, mountpoint, resource, guid, reply=None):
+    def get(self, socket, resource, guid, reply=None):
         reply = ('get', resource, guid, reply)
         CommandsProcessor.calls.append(reply)
         return {'guid': -1, 'prop': 'value'}
 
-    def find(self, socket, mountpoint, resource, offset=None, limit=None,
+    def find(self, socket, resource, offset=None, limit=None,
             query=None, order_by=None, reply=None, **kwargs):
         reply = ('find', resource, offset, limit, query, order_by,
                 reply, kwargs)
@@ -207,11 +210,11 @@ class CommandsProcessor(object):
         result = [{'guid': i} for i in range(offset, offset + 3)]
         return {'total': 10, 'result': result}
 
-    def delete(self, socket, mountpoint, resource, guid):
+    def delete(self, socket, resource, guid):
         reply = ('delete', resource, guid)
         CommandsProcessor.calls.append(reply)
 
-    def get_blob(self, socket, mountpoint, resource, guid, prop):
+    def get_blob(self, socket, resource, guid, prop):
         reply = ('get_blob', resource, guid, prop)
         CommandsProcessor.calls.append(reply)
         if prop == 'empty':
@@ -220,7 +223,7 @@ class CommandsProcessor(object):
             f.write(json.dumps({'blob': -1}))
         return {'path': 'blob-path', 'mime_type': 'application/json'}
 
-    def set_blob(self, socket, mountpoint, resource, guid, prop, files=None,
+    def set_blob(self, socket, resource, guid, prop, files=None,
             url=None):
         if files is None and url is None:
             data = socket.read()
@@ -229,7 +232,7 @@ class CommandsProcessor(object):
         reply = ('set_blob', resource, guid, prop, files, url, data)
         CommandsProcessor.calls.append(reply)
 
-    def ping(self, socket, mountpoint):
+    def ping(self, socket):
         reply = 'pong'
         CommandsProcessor.calls.append(reply)
         return reply

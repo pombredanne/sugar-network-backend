@@ -17,6 +17,7 @@ import logging
 import urllib2
 from gettext import gettext as _
 
+import active_document as ad
 from active_document import util, principal, SingleFolder, enforce
 from local_document import cache, sugar, http
 
@@ -29,10 +30,20 @@ class Mounts(object):
     def __init__(self, resources_path):
         principal.user = sugar.uid()
 
-        self._folder = SingleFolder(resources_path)
+        self._home_folder = SingleFolder(resources_path, {
+            'context': [
+                ad.ActiveProperty('keep',
+                    prefix='LK', typecast=bool, default=False),
+                ad.ActiveProperty('keep_impl',
+                    prefix='LI', typecast=bool, default=False),
+                ad.StoredProperty('position',
+                    typecast=[int], default=(-1, -1)),
+                ],
+            })
+
         self._mounts = {
-                '/': _OnlineMount(self._folder),
-                '~': _OfflineMount(self._folder),
+                '/': _OnlineMount(self._home_folder),
+                '~': _OfflineMount(self._home_folder),
                 }
 
     def __getitem__(self, mountpoint):
@@ -40,22 +51,19 @@ class Mounts(object):
                 _('Unknown mountpoint %r'), mountpoint)
         return self._mounts[mountpoint]
 
+    def call(self, socket, cmd, mountpoint, params):
+        mount = self[mountpoint]
+
+        enforce(hasattr(mount, cmd), _('Unknown %r command'), cmd)
+        method = getattr(mount, cmd)
+        enforce(hasattr(method, 'is_command'), _('Unknown %r command'), cmd)
+
+        if hasattr(method, 'need_socket'):
+            params['socket'] = socket
+        return method(**params)
+
     def close(self):
-        self._folder.close()
-
-    def ping(self, socket, mountpoint, hello=None):
-        return 'pong: %s' % hello
-
-    def __getattr__(self, name):
-
-        def functor(socket, mountpoint, **kwargs):
-            mount = self[mountpoint]
-            enforce(hasattr(mount, name), _('Unknown %r command'), name)
-            attr = getattr(mount, name)
-            enforce(hasattr(attr, 'is_command'), _('Unknown %r command'), name)
-            return attr(**kwargs)
-
-        return functor
+        self._home_folder.close()
 
 
 def _command(func):
@@ -63,7 +71,19 @@ def _command(func):
     return func
 
 
+def _socket_command(func):
+    func.need_socket = True
+    return func
+
+
 class _Mount(object):
+
+    def __init__(self, folder):
+        self.folder = folder
+
+    @_command
+    def ping(self, hello=None):
+        return 'pong: %s' % hello
 
     @_command
     def get_blob(self, resource, guid, prop):
@@ -80,46 +100,32 @@ class _Mount(object):
 
 class _OfflineMount(_Mount):
 
-    def __init__(self, resources):
-        self.resources = resources
-
     @_command
     def create(self, resource, props):
-        obj = self.resources[resource].create(props)
+        obj = self.folder[resource].create(props)
         return {'guid': obj.guid}
 
     @_command
     def update(self, resource, guid, props):
-        self.resources[resource].update(guid, props)
+        self.folder[resource].update(guid, props)
 
     @_command
     def get(self, resource, guid, reply=None):
-        if reply and 'keep' in reply:
-            reply.remove('keep')
-        props = self.resources[resource](guid).properties(reply)
-        props['keep'] = True
-        return props
+        return self.folder[resource](guid).properties(reply)
 
     @_command
     def find(self, resource, reply=None, **params):
-        if reply and 'keep' in reply:
-            reply.remove('keep')
-
-        items, total = self.resources[resource].find(reply=reply, **params)
-
-        result = []
-        for obj in items:
-            props = obj.properties(reply)
-            props['keep'] = True
-            result.append(props)
-
-        return {'total': total.value, 'result': result}
+        result, total = self.folder[resource].find(reply=reply, **params)
+        return {'total': total.value,
+                'result': [i.properties(reply) for i in result],
+                }
 
     @_command
     def delete(self, resource, guid):
-        self.resources[resource].delete(guid)
+        self.folder[resource].delete(guid)
 
     @_command
+    @_socket_command
     def set_blob(self, socket, resource, guid, prop, files=None, url=None):
         if url:
             stream = urllib2.urlopen(url)
@@ -135,79 +141,61 @@ class _OfflineMount(_Mount):
 
 class _OnlineMount(_Mount):
 
-    def __init__(self, resources):
-        self.resources = resources
-
     @_command
     def create(self, resource, props):
-        keep = props.get('keep')
-        if keep is not None:
-            del props['keep']
-
         response = http.request('POST', [resource], data=props,
                 headers={'Content-Type': 'application/json'})
-        guid = response['guid']
-
-        if keep:
-            self.resources[resource].create_with_guid(guid, props)
-
-        return {'guid': guid}
+        return {'guid': response['guid']}
 
     @_command
     def update(self, resource, guid, props):
-        keep = props.get('keep')
-        if keep is not None:
-            del props['keep']
+        if resource == 'context':
+            keep = props.get('keep')
+            if keep is not None:
+                del props['keep']
 
         if props:
             http.request('PUT', [resource, guid], data=props,
                     headers={'Content-Type': 'application/json'})
 
         if keep is not None:
-            cls = self.resources[resource]
-            if keep != cls(guid).exists:
-                if keep:
-                    props = http.request('GET', [resource, guid])
-                    props.pop('guid')
-                    cls.create_with_guid(guid, props)
-                else:
-                    cls.delete(guid)
+            home_obj = self.folder[resource](guid)
+            if home_obj.exists:
+                home_obj['keep'] = keep
+                home_obj.post()
+            elif keep:
+                props = http.request('GET', [resource, guid])
+                props.pop('guid')
+                props['keep'] = keep
+                home_obj.create_with_guid(guid, props)
 
     @_command
     def delete(self, resource, guid):
         http.request('DELETE', [resource, guid])
 
-        cls = self.resources[resource]
-        if cls(guid).exists:
-            cls.delete(guid)
-
     @_command
     def get(self, resource, guid, reply=None):
-        params = {}
-        if reply:
-            if 'keep' in reply:
-                reply.remove('keep')
-            params['reply'] = ','.join(reply)
+        params = self._compose_params(resource, reply)
         response = http.request('GET', [resource, guid], params=params)
-        response['keep'] = self.resources[resource](guid).exists
+        if resource == 'context':
+            self._update_response(guid, response)
         return response
 
     @_command
     def find(self, resource, reply=None, **params):
-        if reply:
-            if 'keep' in reply:
-                reply.remove('keep')
-            params['reply'] = ','.join(reply)
+        params = self._compose_params(resource, reply)
         try:
             response = http.request('GET', [resource], params=params)
-            for props in response['result']:
-                props['keep'] = self.resources[resource](props['guid']).exists
-            return response
         except Exception:
             util.exception(_('Failed to query resources'))
             return {'total': 0, 'result': []}
+        if resource == 'context':
+            for props in response['result']:
+                self._update_response(props['guid'], props)
+        return response
 
     @_command
+    @_socket_command
     def set_blob(self, socket, resource, guid, prop, files=None, url=None):
         url_path = [resource, guid, prop]
 
@@ -224,3 +212,24 @@ class _OnlineMount(_Mount):
                     i.close()
         else:
             http.request('PUT', url_path, files={prop: socket})
+
+    def _compose_params(self, resource, reply):
+        params = {}
+        if reply:
+            if resource == 'context':
+                if 'keep' in reply:
+                    reply.remove('keep')
+                if 'keep_impl' in reply:
+                    reply.remove('keep_impl')
+            params['reply'] = ','.join(reply)
+        return params
+
+    def _update_response(self, guid, props):
+        home_obj = self.folder['context'](guid)
+
+        if home_obj.exists:
+            props['keep'] = home_obj['keep']
+            props['keep_impl'] = home_obj['keep_impl']
+        else:
+            props['keep'] = False
+            props['keep_impl'] = False
