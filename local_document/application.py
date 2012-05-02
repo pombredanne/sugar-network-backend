@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Data: 2012-04-30$
+$Data: 2012-05-02$
 
 """
 
@@ -37,18 +37,21 @@ enforce = util.enforce
 
 debug = optparse.Option(
         _('debug logging level; multiple argument'),
-        default=0, type_cast=int, short_option='-D', action='count')
+        default=0, type_cast=int, short_option='-D', action='count',
+        name='debug')
 
 foreground = optparse.Option(
         _('Do not send the application into the background'),
         default=False, type_cast=optparse.Option.bool_cast, short_option='-F',
-        action='store_true')
+        action='store_true', name='foreground')
 
 logdir = optparse.Option(
-        _('path to the directory to place log files'))
+        _('path to the directory to place log files'),
+        name='logdir')
 
 rundir = optparse.Option(
-        _('path to the directory to place pid files'))
+        _('path to the directory to place pid files'),
+        name='rundir')
 
 
 _LOGFILE_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
@@ -67,24 +70,16 @@ def command(description, name=None):
 
 class Application(object):
 
-    debug = None
-
     def __init__(self, name, description=None, version=None, epilog=None,
             where=None, config_files=None):
         self.args = None
         self.name = name
-        self.debug = debug
 
         self._commands = {}
         for attr in dir(self):
             attr = getattr(self, attr)
             if hasattr(attr, '_is_command'):
                 self._commands[attr.name or attr.__name__] = attr
-
-        if logdir.value is None:
-            logdir.value = '/var/log/' + name
-        if rundir.value is None:
-            rundir.value = '/var/run/' + name
 
         parser = OptionParser(usage='%prog [OPTIONS]', description=description,
                 add_help_option=False)
@@ -99,7 +94,6 @@ class Application(object):
                 help=_('show this help message and exit'),
                 action='store_true')
 
-        optparse.Option.seek(name, self)
         options, self.args = optparse.Option.parse_args(parser,
                 config_files=config_files)
 
@@ -188,16 +182,8 @@ class Application(object):
 
 class Daemon(Application):
 
-    foreground = None
-    logdir = None
-    rundir = None
-
-    def __init__(self, *args, **kwargs):
-        self.foreground = foreground
-        self.logdir = logdir
-        self.rundir = rundir
-
-        Application.__init__(self, *args, **kwargs)
+    _logdir = None
+    _rundir = None
 
     def run(self):
         raise NotImplementedError()
@@ -208,6 +194,11 @@ class Daemon(Application):
     def epilog(self):
         pass
 
+    def start(self):
+        self._logdir = logdir.value or '/var/log/' + self.name
+        self._rundir = rundir.value or '/var/run/' + self.name
+        Application.start(self)
+
     @command(_('start in daemon mode'), name='start')
     def _cmd_start(self):
         pidfile, pid = self._check_for_instance()
@@ -217,14 +208,14 @@ class Daemon(Application):
         if foreground.value:
             self._launch()
         else:
-            if not exists(logdir.value):
-                os.makedirs(logdir.value)
-            enforce(os.access(logdir.value, os.W_OK),
-                    _('No write access to %s'), logdir.value)
-            if not exists(rundir.value):
-                os.makedirs(rundir.value)
-            enforce(os.access(rundir.value, os.W_OK),
-                    _('No write access to %s'), rundir.value)
+            if not exists(self._logdir):
+                os.makedirs(self._logdir)
+            enforce(os.access(self._logdir, os.W_OK),
+                    _('No write access to %s'), self._logdir)
+            if not exists(self._rundir):
+                os.makedirs(self._rundir)
+            enforce(os.access(self._rundir, os.W_OK),
+                    _('No write access to %s'), self._rundir)
             self._forward_stdout()
             self._daemonize(pidfile)
         return 0
@@ -280,7 +271,7 @@ class Daemon(Application):
 
     def _check_for_instance(self):
         pid = None
-        pidfile = join(rundir.value, '%s.pid' % self.name)
+        pidfile = join(self._rundir, '%s.pid' % self.name)
         if exists(pidfile):
             try:
                 pid = int(file(pidfile).read().strip())
@@ -327,9 +318,7 @@ class Daemon(Application):
         exit(status)
 
     def _forward_stdout(self):
-        if not exists(logdir.value):
-            os.makedirs(logdir.value)
-        log_path = abspath(join(logdir.value, '%s.log' % self.name))
+        log_path = abspath(join(self._logdir, '%s.log' % self.name))
         sys.stdout.flush()
         sys.stderr.flush()
         logfile = file(log_path, 'a+')

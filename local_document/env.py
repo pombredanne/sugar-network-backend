@@ -35,7 +35,7 @@ no_check_certificate = optparse.Option(
         default=False, type_cast=optparse.Option.bool_cast,
         action='store_true')
 
-local_data_root = optparse.Option(
+local_root = optparse.Option(
         _('path to the directory to keep all local data'),
         default=sugar.profile_path('network'))
 
@@ -55,11 +55,11 @@ def path(*args):
 
     """
     if not args:
-        result = local_data_root.value
+        result = local_root.value
     elif args[0].startswith(os.sep):
         result = join(*args)
     else:
-        result = join(local_data_root.value, *args)
+        result = join(local_root.value, *args)
     return str(result)
 
 
@@ -76,11 +76,11 @@ def ensure_path(*args):
 
     """
     if not args:
-        result = local_data_root.value
+        result = local_root.value
     elif args[0].startswith(os.sep):
         result = join(*args)
     else:
-        result = join(local_data_root.value, *args)
+        result = join(local_root.value, *args)
     result = str(result)
 
     if result.endswith(os.sep):

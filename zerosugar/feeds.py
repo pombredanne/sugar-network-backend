@@ -20,8 +20,7 @@ from gettext import gettext as _
 
 from zeroinstall.injector import model
 
-from sugar_network import util
-from local_document import activities
+from local_document import activities, util
 from zerosugar.config import config
 
 

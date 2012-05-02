@@ -122,8 +122,7 @@ def set_blob(resource, guid, prop, stream,
 
 
 def _path(resource, guid, *args):
-    return join(env.local_data_root.value, 'cache', resource, guid[:2], guid,
-            *args)
+    return join(env.local_root.value, 'cache', resource, guid[:2], guid, *args)
 
 
 def _ensure_path(resource, guid, *args):

@@ -16,7 +16,7 @@
 import os
 import hashlib
 import logging
-from os.path import join, exists, lexists, islink, relpath, dirname, basename
+from os.path import join, exists, lexists, relpath, dirname, basename
 from gettext import gettext as _
 
 import sweets_recipe
@@ -33,14 +33,8 @@ def checkins(context):
 
     for filename in os.listdir(root):
         path = join(root, filename)
-        if not islink(path):
-            continue
-
-        spec_path = join(os.readlink(path), 'activity', 'activity.info')
-        try:
-            yield sweets_recipe.Spec(spec_path)
-        except Exception, error:
-            _logger.warning(_('Cannot read %r spec: %s'), spec_path, error)
+        if exists(path):
+            yield os.readlink(path)
 
 
 def monitor(mounts):

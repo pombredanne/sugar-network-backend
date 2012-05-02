@@ -16,12 +16,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-from os.path import join
+from os.path import join, abspath
 from gettext import gettext as _
 
 import gevent
 
-import active_document as ad
+import active_document
 from local_document import application, optparse, sugar, env, activities
 from local_document.mounts import Mounts
 from local_document.server import Server
@@ -38,6 +38,20 @@ class Application(application.Daemon):
     server = None
     mounts = None
     monitor = None
+
+    def start(self):
+        new_root = (env.local_root.value != env.local_root.default)
+        env.local_root.value = abspath(env.local_root.value)
+        env.activities_root.value = abspath(env.activities_root.value)
+
+        if new_root:
+            application.logdir.value = join(env.local_root.value, 'log')
+        else:
+            application.logdir.value = sugar.profile_path('logs')
+        application.rundir.value = join(env.local_root.value, 'run')
+        active_document.data_root.value = join(env.local_root.value, 'db')
+
+        application.Daemon.start(self)
 
     def run(self):
         while not sugar.has_pubkey():
@@ -64,12 +78,12 @@ class Application(application.Daemon):
 
 # New defaults
 application.debug.value = sugar.logger_level()
-application.logdir.value = sugar.profile_path('logs')
-application.rundir.value = join(env.local_data_root.value, 'run')
-ad.data_root.value = join(env.local_data_root.value, 'db')
+active_document.data_root.value = None
 
 optparse.Option.seek('local-document', env)
-optparse.Option.seek('active-document', ad)
+optparse.Option.seek('active-document', active_document)
+optparse.Option.seek('sugar-network-service',
+        [application.debug, application.foreground])
 
 app = Application(
         name='sugar-network-service',

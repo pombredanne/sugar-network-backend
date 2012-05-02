@@ -46,7 +46,7 @@ class Test(unittest.TestCase):
         ad.index_flush_threshold.value = 1
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
-        env.local_data_root.value = tmpdir
+        env.local_root.value = tmpdir
         env.activities_root.value = tmpdir + '/Activities'
         env.api_url.value = 'http://localhost:8000'
 

@@ -27,13 +27,19 @@ from zeroinstall.injector import model
 from zeroinstall.injector.requirements import Requirements
 
 from zerosugar import solver
-from sugar_network import sugar, util, enforce
+from zerosugar.config import config
+from local_document import sugar, util, enforce
 
 
 _logger = logging.getLogger('zerosugar')
 
 
-def launch(context, command, args):
+def launch(client, context, command='activity', args=None):
+    config.client = client
+
+    if not args:
+        args = []
+
     if command == 'activity':
         _setup_logging(context)
 
@@ -60,15 +66,15 @@ def launch(context, command, args):
         else:
             launcher.Stop(activity_id)
     else:
-        _launch(context, command, args)
+        _launch(context, command, args, lambda * args: None)
 
 
-def _launch(context, command, args, feedback_cb=None):
+def make(client, context, command='activity'):
+    config.client = client
+    return _make(context, command, lambda * args: None)
 
-    def feedback(*args):
-        if feedback_cb is not None:
-            feedback_cb(*args)
 
+def _make(context, command, feedback):
     requirement = Requirements(context)
     requirement.command = command
 
@@ -78,6 +84,12 @@ def _launch(context, command, args, feedback_cb=None):
 
     for __ in _download(solution):
         feedback('Progress', 'download', -1)
+
+    return solution
+
+
+def _launch(context, command, args, feedback):
+    solution = _make(context, command, feedback)
 
     command = solution.commands[0]
     args = command.path.split() + args

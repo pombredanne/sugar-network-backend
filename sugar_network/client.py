@@ -13,16 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import shutil
 import logging
 import collections
 from gevent import socket
 from contextlib import contextmanager
-from os.path import isdir
+from os.path import join, dirname, exists, isdir
 from gettext import gettext as _
 
 from gevent.coros import Semaphore
 
+import zerosugar
+import sweets_recipe
 from local_document import ipc, env, activities
 from local_document.socket import SocketFile
 from local_document.cache import get_cached_blob
@@ -76,9 +79,6 @@ class Client(object):
             child process pid
 
         """
-        import os
-        from os.path import join, dirname, exists
-
         pid = os.fork()
         if pid:
             return pid
@@ -93,6 +93,33 @@ class Client(object):
             os.execvp(cmd[0], cmd)
 
         exit(1)
+
+    def checkin(self, context):
+        solution = zerosugar.make(self, context)
+
+        for sel, __, __ in solution.walk():
+            spec_path = join(sel.local_path, 'activity', 'activity.info')
+            try:
+                spec = sweets_recipe.Spec(spec_path)
+            except Exception, error:
+                _logger.warning(_('Cannot checkin %r, ' \
+                        'failed to read spec file: %s'), self.interface, error)
+                continue
+
+            dst_path = util.unique_filename(
+                    env.activities_root.value, spec['name'])
+            _logger.info(_('Checkin %r implementation to %r'),
+                    context, dst_path)
+
+            print context, sel.local_path, dst_path
+
+            util.cptree(sel.local_path, dst_path)
+
+    def checkout(self, context):
+        for path in activities.checkins(context):
+            _logger.info(_('Checkout %r implementation from %r'),
+                    context, path)
+            shutil.rmtree(path)
 
     def __getattr__(self, name):
         """Class-like object to access to a resource or call a method.
@@ -450,14 +477,6 @@ class _Object(dict):
             self._request['guid'] = guid
 
         self._dirty.clear()
-
-    def checkin(self):
-        enforce('guid' in self._request, _('Object needs to be posted first'))
-
-    def checkout(self):
-        enforce('guid' in self._request, _('Object needs to be posted first'))
-        for spec in activities.checkins(self['guid']):
-            shutil.rmtree(spec.root)
 
     def __getitem__(self, prop):
         result = self.get(prop)

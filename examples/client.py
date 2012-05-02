@@ -6,7 +6,7 @@ import sugar_network
 
 
 def main():
-    client = sugar_network.Client(False)
+    client = sugar_network.Client('~')
 
     guids = [None] * 3
     titles = ['Title1', 'Title2', 'Title3']
@@ -76,31 +76,14 @@ def main():
 
 if __name__ == '__main__':
     import os
-    import signal
-    import logging
+    from local_document import env
 
-    import active_document
-    from local_document import env, commands
-    from local_document.server import Server
-    from sugar_network_server import resources
-
-    if not os.path.exists('tmp'):
-        os.makedirs('tmp')
-    logging.basicConfig(level=logging.DEBUG, filename='tmp/log')
-
-    active_document.data_root.value = 'tmp/db'
-    env.api_url.value = 'http://localhost:8000'
-    env.local_data_root.value = 'tmp'
-
-    pid = os.fork()
-    if not pid:
-        folder = active_document.SingleFolder(resources.path)
-        server = Server(None, commands.OfflineCommands(folder))
-        server.serve_forever()
-        exit(0)
-
+    os.system('sugar-network-service -DD start ' \
+              '--local-root=tmp ' \
+              '--activities-root=tmp/Activities ' \
+              '--api-url=http://localhost:8000')
     try:
+        env.local_root.value = 'tmp'
         main()
     finally:
-        os.kill(pid, signal.SIGTERM)
-        os.waitpid(pid, 0)
+        os.system('sugar-network-service --local-root=tmp stop')
