@@ -151,8 +151,7 @@ class _Dependency(model.InterfaceDependency):
 
         for not_before, before in data.get('restrictions') or []:
             restriction = model.VersionRangeRestriction(
-                    not_before=not_before and model.parse_version(not_before),
-                    before=before and model.parse_version(before))
+                    not_before=not_before, before=before)
             self.restrictions.append(restriction)
 
     @property
