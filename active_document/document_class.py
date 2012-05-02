@@ -77,7 +77,27 @@ class DocumentClass(object):
             created `Document` object
 
         """
+        enforce('guid' not in properties,
+                _('Cannot create new document if "guid" is specified'))
         doc = cls(**(properties or {}))
+        doc.post()
+        return doc
+
+    @classmethod
+    def create_with_guid(cls, guid, properties):
+        """Create new document for specified GUID.
+
+        :param guid:
+            GUID value to create document for
+        :param properties:
+            new document properties
+        :returns:
+            created `Document` object
+
+        """
+        doc = cls(raw=True, **(properties or {}))
+        # pylint: disable-msg=E1101
+        doc.set('guid', guid, raw=True)
         doc.post()
         return doc
 
