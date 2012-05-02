@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Data: 2012-04-19$
+$Data: 2012-05-02$
 
 """
 
@@ -237,6 +237,20 @@ def new_file(path, mode=0644):
     result.dst_path = path
     os.fchmod(result.fileno(), mode)
     return result
+
+
+def unique_filename(root, filename):
+    path = join(root, filename)
+    if exists(path):
+        name, suffix = os.path.splitext(filename)
+        for dup_num in xrange(1, 255):
+            path = join(root, name + '_' + str(dup_num) + suffix)
+            if not exists(path):
+                break
+        else:
+            raise RuntimeError(_('Cannot find unique filename for %r') % \
+                    join(root, filename))
+    return path
 
 
 class _NewFile(object):

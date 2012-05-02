@@ -192,7 +192,8 @@ class IndexReader(object):
                 else:
                     parser.add_prefix(name, prop.prefix)
                 parser.add_prefix('', prop.prefix)
-                if prop.typecast in [int, float, bool]:
+                if prop.slot is not None and \
+                        prop.typecast in [int, float, bool]:
                     value_range = xapian.NumberValueRangeProcessor(
                             prop.slot, name + ':')
                     parser.add_valuerangeprocessor(value_range)
