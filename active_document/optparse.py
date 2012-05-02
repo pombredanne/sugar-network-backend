@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/optparse.py$
-$Data: 2012-04-24$
+$Data: 2012-04-26$
 
 """
 
@@ -45,6 +45,7 @@ class Option(object):
     config_files = []
 
     _config = None
+    _config_files_to_save = []
 
     def __init__(self, description=None, default=None, short_option=None,
             type_cast=None, type_repr=None, action=None):
@@ -230,6 +231,15 @@ class Option(object):
         return lines
 
     @staticmethod
+    def save(path=None):
+        if not path:
+            if not Option._config_files_to_save:
+                raise RuntimeError(_('No configure files to save'))
+            path = Option._config_files_to_save[-1]
+        with file(path, 'w') as f:
+            f.write('\n'.join(Option.export()))
+
+    @staticmethod
     def bool_cast(x):
         if not x or str(x).strip().lower() in ['', 'false', 'none']:
             return False
@@ -306,6 +316,7 @@ class Option(object):
                 if exists(config):
                     Option.config_files.append(config)
                     configs[0].read(config)
+                Option._config_files_to_save.append(config)
 
         for prop in Option.items.values():
             if hasattr(options, prop.attr_name) and \
