@@ -175,12 +175,12 @@ class _OnlineMount(_Mount):
 
     @_command
     def get(self, resource, guid, reply=None):
-        params = self._compose_params(resource, reply)
+        params = self._compose_params(resource, reply, {})
         return http.request('GET', [resource, guid], params=params)
 
     @_command
     def find(self, resource, reply=None, **params):
-        params = self._compose_params(resource, reply)
+        params = self._compose_params(resource, reply, params)
         try:
             return http.request('GET', [resource], params=params)
         except Exception:
@@ -206,8 +206,7 @@ class _OnlineMount(_Mount):
         else:
             http.request('PUT', url_path, files={prop: socket})
 
-    def _compose_params(self, resource, reply):
-        params = {}
+    def _compose_params(self, resource, reply, params):
         if reply:
             if resource == 'context':
                 if 'keep' in reply:
