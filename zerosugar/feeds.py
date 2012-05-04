@@ -21,7 +21,7 @@ from gettext import gettext as _
 from zeroinstall.injector import model
 
 import sweets_recipe
-from local_document import activities, util
+from local_document import activities, util, enforce
 from zerosugar.config import config
 
 
@@ -54,15 +54,16 @@ def read(context):
 
     if not feed_content:
         try:
-            with config.client.Context(context).blobs['feed'] as f:
+            with config.client.Context(context).get_blob('feed') as f:
+                enforce(not f.closed, _('No feed for %r context'), context)
                 feed_content = json.load(f)
         except Exception:
             util.exception(_logger,
-                    _('Failed to fetch feed for "%s" context'), context)
+                    _('Failed to fetch feed for %r context'), context)
             return None
 
     if not feed_content:
-        _logger.warning(_('No feed for "%s" context'), context)
+        _logger.warning(_('No feed for %r context'), context)
         return None
 
     for version, version_data in feed_content.items():

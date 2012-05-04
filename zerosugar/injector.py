@@ -127,7 +127,7 @@ def _download(solution):
         if sel.local_path:
             continue
         enforce(sel.download_sources, \
-                _('No sources to download implementation for "%s" context'),
+                _('No sources to download implementation for %r context'),
                 sel.interface)
         yield
         sel.download()

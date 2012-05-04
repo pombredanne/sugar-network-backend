@@ -37,8 +37,7 @@ class IPCTest(tests.Test):
         self.fork(server)
 
         client = Client('/')
-        reply = client.ping()
-        self.assertEqual('pong', reply)
+        client.Context.delete('guid')
         assert time.time() - ts >= 1
 
     def test_delete(self):
@@ -46,11 +45,9 @@ class IPCTest(tests.Test):
 
         client = Client('/')
         client.Context.delete('guid-1')
-        client.Context('guid-2').delete()
 
         self.assertEqual([
             ('delete', 'context', 'guid-1'),
-            ('delete', 'context', 'guid-2'),
             ],
             CommandsProcessor.calls)
 
@@ -58,16 +55,16 @@ class IPCTest(tests.Test):
         self.start_server()
         client = Client('/')
 
-        query = client.Context.find()
-        self.assertEqual(10, query.total)
+        cursor = client.Context.cursor()
+        self.assertEqual(10, cursor.total)
         self.assertEqual(
-                [('find', 'context', 0, 16, None, None, None, {})],
+                [('find', 'context', 0, 18, None, None, None, {})],
                 CommandsProcessor.calls)
 
-        query = client.Context.find('query', order_by='foo', reply=['f1', 'f2'], bar=-1)
-        self.assertEqual(10, query.total)
+        cursor = client.Context.cursor('query', order_by='foo', reply=None, bar=-1)
+        self.assertEqual(10, cursor.total)
         self.assertEqual(
-                [('find', 'context', 0, 16, 'query', 'foo', ['f1', 'f2'], {'bar': -1})],
+                [('find', 'context', 0, 18, 'query', 'foo', None, {'bar': -1})],
                 CommandsProcessor.calls[1:])
 
     def test_create(self):
@@ -75,7 +72,7 @@ class IPCTest(tests.Test):
         client = Client('/')
 
         res = client.Resource()
-        assert 'guid' not in res
+        assert not res.guid
         res['prop_1'] = 'value_1'
         res['prop_2'] = 2
         res.post()
@@ -109,7 +106,7 @@ class IPCTest(tests.Test):
         self.start_server()
         client = Client('/')
 
-        res = client.Resource('guid')
+        res = client.Resource('guid', ['prop'])
         self.assertEqual('value', res['prop'])
         self.assertEqual(
                 [('get', 'resource', 'guid')],
@@ -120,13 +117,12 @@ class IPCTest(tests.Test):
         client = Client('/')
 
         res = client.Resource('guid')
-        blob = res.blobs['blob']
 
-        self.assertEqual('blob-path', blob.name)
-        self.assertEqual('{"blob": -1}', blob.read())
-        self.assertEqual('application/json', blob.mime_type)
+        self.assertEqual('blob-path', res.get_blob_path('blob'))
+        self.assertEqual('blob-value', res.get_blob('blob').read())
 
         self.assertEqual([
+            ('get_blob', 'resource', 'guid', 'blob'),
             ('get_blob', 'resource', 'guid', 'blob'),
             ],
             CommandsProcessor.calls)
@@ -136,11 +132,12 @@ class IPCTest(tests.Test):
         client = Client('/')
 
         res = client.Resource('guid')
-        blob = res.blobs['empty']
 
-        self.assertEqual(None, blob)
+        self.assertEqual(None, res.get_blob_path('empty'))
+        self.assertEqual('', res.get_blob('empty').read())
 
         self.assertEqual([
+            ('get_blob', 'resource', 'guid', 'empty'),
             ('get_blob', 'resource', 'guid', 'empty'),
             ],
             CommandsProcessor.calls)
@@ -149,9 +146,9 @@ class IPCTest(tests.Test):
         self.start_server()
         client = Client('/')
 
-        client.Resource('guid_1').blobs['blob_1'] = 'string'
-        client.Resource('guid_2').blobs['blob_2'] = {'file': 'path'}
-        client.Resource('guid_3').blobs.set_by_url('blob_3', 'url')
+        client.Resource('guid_1').set_blob('blob_1', 'string')
+        client.Resource('guid_2').set_blob('blob_2', {'file': 'path'})
+        client.Resource('guid_3').set_blob_by_url('blob_3', 'url')
 
         self.assertEqual([
             ('set_blob', 'resource', 'guid_1', 'blob_1', None, None, 'string'),
@@ -163,16 +160,23 @@ class IPCTest(tests.Test):
     def test_Exception(self):
         self.start_server()
         client = Client('/')
-        self.assertRaises(ServerError, lambda: client.Resource('guid').fail())
+        self.assertRaises(ServerError, client.Resource.delete, 'fake')
 
     def test_ConsecutiveRequests(self):
         self.start_server()
 
         client_1 = Client('/')
-        self.assertEqual('pong', client_1.ping())
+        client_1.Resource1.delete('guid-1')
 
         client_2 = Client('/')
-        self.assertEqual('pong', client_2.ping())
+        client_2.Resource2.delete('guid-2')
+
+        self.assertEqual([
+            ('delete', 'resource1', 'guid-1'),
+            ('delete', 'resource2', 'guid-2'),
+            ],
+            CommandsProcessor.calls)
+
 
 
 class CommandsProcessor(object):
@@ -185,13 +189,13 @@ class CommandsProcessor(object):
     def create(self, socket, resource, props):
         reply = ('create', resource, props)
         CommandsProcessor.calls.append(reply)
-        return {'guid': -1}
+        return -1
 
     def update(self, socket, resource, guid, props):
         reply = ('update', resource, guid, props)
         CommandsProcessor.calls.append(reply)
 
-    def get(self, socket, resource, guid):
+    def get(self, socket, resource, guid, reply):
         reply = ('get', resource, guid)
         CommandsProcessor.calls.append(reply)
         return {'guid': -1, 'prop': 'value'}
@@ -205,6 +209,8 @@ class CommandsProcessor(object):
         return {'total': 10, 'result': result}
 
     def delete(self, socket, resource, guid):
+        if guid == 'fake':
+            raise RuntimeError()
         reply = ('delete', resource, guid)
         CommandsProcessor.calls.append(reply)
 
@@ -214,7 +220,7 @@ class CommandsProcessor(object):
         if prop == 'empty':
             return None
         with file('blob-path', 'w') as f:
-            f.write(json.dumps({'blob': -1}))
+            f.write('blob-value')
         return {'path': 'blob-path', 'mime_type': 'application/json'}
 
     def set_blob(self, socket, resource, guid, prop, files=None,
@@ -225,14 +231,6 @@ class CommandsProcessor(object):
             data = None
         reply = ('set_blob', resource, guid, prop, files, url, data)
         CommandsProcessor.calls.append(reply)
-
-    def ping(self, socket):
-        reply = 'pong'
-        CommandsProcessor.calls.append(reply)
-        return reply
-
-    def fail(self, socket, resource, guid):
-        raise RuntimeError('fail')
 
 
 if __name__ == '__main__':

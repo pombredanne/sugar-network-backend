@@ -77,7 +77,7 @@ def raw_request(method, path, data=None, headers=None, **kwargs):
             try:
                 error = json.loads(content)
             except Exception:
-                _logger.debug('Got %s HTTP error for "%s" request:\n%s',
+                _logger.debug('Got %s HTTP error for %r request:\n%s',
                         response.status_code, path, content)
                 response.raise_for_status()
             else:

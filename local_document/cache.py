@@ -65,7 +65,8 @@ def get_blob(resource, guid, prop):
         f.write(mime_type)
 
     def download(f):
-        _logger.debug('Download "%s" BLOB', path)
+        _logger.debug('Download %s/%s/%s BLOB to %r file',
+                resource, guid, prop, path)
 
         length = int(response.headers.get('Content-Length', BUFFER_SIZE))
         chunk_size = min(length, BUFFER_SIZE)

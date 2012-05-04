@@ -55,7 +55,7 @@ class MountsTest(tests.Test):
         guid = self.create_context('title')['guid']
         self.assertNotEqual(None, guid)
 
-        res = self.client.Context(guid)
+        res = self.client.Context(guid, ['title', 'keep', 'keep_impl', 'position'])
         self.assertEqual(guid, res['guid'])
         self.assertEqual('title', res['title'])
         self.assertEqual(False, res['keep'])
@@ -79,7 +79,7 @@ class MountsTest(tests.Test):
         context['position'] = (2, 3)
         context.post()
 
-        context = self.client.Context(guid)
+        context = self.client.Context(guid, ['title', 'keep', 'position'])
         self.assertEqual('title_2', context['title'])
         self.assertEqual(True, context['keep'])
         self.assertEqual([2, 3], context['position'])
@@ -95,7 +95,7 @@ class MountsTest(tests.Test):
 
         guid = self.create_context('title')['guid']
 
-        context = self.client.Context(guid)
+        context = self.client.Context(guid, ['title', 'keep', 'keep_impl', 'position'])
         self.assertEqual(guid, context['guid'])
         self.assertEqual('title', context['title'])
         self.assertEqual(False, context['keep'])
@@ -115,15 +115,15 @@ class MountsTest(tests.Test):
         guid_2 = self.create_context('title_2')['guid']
         guid_3 = self.create_context('title_3')['guid']
 
-        query = self.client.Context.find(reply=['guid', 'title', 'keep', 'keep_impl', 'position'])
-        self.assertEqual(3, query.total)
+        cursor = self.client.Context.cursor(reply=['guid', 'title', 'keep', 'keep_impl', 'position'])
+        self.assertEqual(3, cursor.total)
         self.assertEqual(
                 sorted([
                     (guid_1, 'title_1', False, False, [-1, -1]),
                     (guid_2, 'title_2', False, False, [-1, -1]),
                     (guid_3, 'title_3', False, False, [-1, -1]),
                     ]),
-                sorted([(i['guid'], i['title'], i['keep'], i['keep_impl'], i['position']) for i in query]))
+                sorted([(i['guid'], i['title'], i['keep'], i['keep_impl'], i['position']) for i in cursor]))
 
     def test_OnlineMount_GetKeep(self):
 
@@ -143,14 +143,14 @@ class MountsTest(tests.Test):
                  'description': 'description',
                  }
         online = self.mounts['/']
-        guid = online.create('context', props)['guid']
+        guid = online.create('context', props)
 
-        context = self.client.Context(guid)
+        context = self.client.Context(guid, ['keep', 'keep_impl'])
         self.assertEqual(False, context['keep'])
         self.assertEqual(False, context['keep_impl'])
         self.assertEqual(
                 [(guid, False, False)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in self.client.Context.find()])
+                [(i['guid'], i['keep'], i['keep_impl']) for i in self.client.Context.cursor(reply=['keep', 'keep_impl'])])
 
         self.mounts['~'].folder['context'].create_with_guid(guid, {
             'type': 'activity',
@@ -161,12 +161,12 @@ class MountsTest(tests.Test):
             'keep_impl': True,
             })
 
-        context = self.client.Context(guid)
+        context = self.client.Context(guid, ['keep', 'keep_impl'])
         self.assertEqual(True, context['keep'])
         self.assertEqual(True, context['keep_impl'])
         self.assertEqual(
                 [(guid, True, True)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in self.client.Context.find()])
+                [(i['guid'], i['keep'], i['keep_impl']) for i in self.client.Context.cursor(reply=['keep', 'keep_impl'])])
 
     def test_OnlineMount_SetKeep(self):
         self.fork(self.restful_server)
@@ -178,7 +178,7 @@ class MountsTest(tests.Test):
                  'description': 'description',
                  }
         online = self.mounts['/']
-        guid = online.create('context', props)['guid']
+        guid = online.create('context', props)
 
         OfflineContext = self.mounts['~'].folder['context']
         assert not OfflineContext(guid).exists

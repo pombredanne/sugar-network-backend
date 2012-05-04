@@ -103,7 +103,7 @@ class _OfflineMount(_Mount):
     @_command
     def create(self, resource, props):
         obj = self.folder[resource].create(props)
-        return {'guid': obj.guid}
+        return obj.guid
 
     @_command
     def update(self, resource, guid, props):
@@ -145,7 +145,7 @@ class _OnlineMount(_Mount):
     def create(self, resource, props):
         response = http.request('POST', [resource], data=props,
                 headers={'Content-Type': 'application/json'})
-        return {'guid': response['guid']}
+        return response['guid']
 
     @_command
     def update(self, resource, guid, props):

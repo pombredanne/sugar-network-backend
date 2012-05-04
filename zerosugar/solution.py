@@ -14,8 +14,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from os.path import join
+from gettext import gettext as _
 
 from zerosugar.config import config
+from local_document import enforce
 
 
 DEEP = 2
@@ -128,8 +130,10 @@ class _Selection(object):
         if not self.download_sources:
             return
         impl = config.client.Implementation(self.id)
-        self._value.impl.local_path = join(impl.blobs['bundle'],
-                self.download_sources[0].extract)
+        impl_path = impl.get_blob_path('bundle')
+        enforce(impl_path, _('Cannot download bundle'))
+        self._value.impl.local_path = \
+                join(impl_path, self.download_sources[0].extract)
 
     def __getattr__(self, name):
         return getattr(self._value.impl, name)

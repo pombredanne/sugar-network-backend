@@ -66,7 +66,8 @@ class Application(application.Daemon):
         self.server.serve_forever()
 
     def shutdown(self):
-        self.server.stop()
+        if self.server is not None:
+            self.server.stop()
 
     def epilog(self):
         if self.monitor is not None:

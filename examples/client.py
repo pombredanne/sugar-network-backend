@@ -13,7 +13,7 @@ def main():
     image_url = 'http://sugarlabs.org/assets/logo_black_01.png'
 
     print '-- Delete objects'
-    for i in client.Context.find():
+    for i in client.Context.cursor():
         client.Context.delete(i['guid'])
 
     def context_new(title):
@@ -34,31 +34,31 @@ def main():
     assert guids[2] and guids[2] != guids[1] and guids[2] != guids[0]
 
     print '-- Browse using iterators'
-    for i, obj in enumerate(client.Context.find()):
+    for i, obj in enumerate(client.Context.cursor()):
         assert i == obj.offset
         assert obj['guid'] == guids[i]
 
     print '-- Browse by offset'
-    query = client.Context.find()
+    query = client.Context.cursor()
     for i in range(query.total):
         assert query[i]['guid'] == guids[i]
 
     print '-- Get objects directly'
-    assert client.Context(guids[0])['title'] == titles[0]
-    assert client.Context(guids[1])['title'] == titles[1]
-    assert client.Context(guids[2])['title'] == titles[2]
+    assert client.Context(guids[0], reply=['title'])['title'] == titles[0]
+    assert client.Context(guids[1], reply=['title'])['title'] == titles[1]
+    assert client.Context(guids[2], reply=['title'])['title'] == titles[2]
 
     print '-- Set BLOB property by string'
-    client.Context(guids[1]).blobs['icon'] = 'string'
+    client.Context(guids[1]).set_blob('icon', 'string')
 
     print '-- Set BLOB properties by url'
-    client.Context(guids[2]).blobs.set_by_url('icon', image_url)
+    client.Context(guids[2]).set_blob_by_url('icon', image_url)
 
     print '-- Get BLOB property'
-    assert client.Context(guids[1]).blobs['icon'].read() == 'string'
+    assert client.Context(guids[1]).get_blob('icon').read() == 'string'
 
     print '-- Query by property value'
-    for obj in client.Context.find(title='Title2', reply=['guid', 'title']):
+    for obj in client.Context.cursor(title='Title2', reply=['guid', 'title']):
         assert obj['guid'] == guids[1]
         assert obj['title'] == titles[1]
 
@@ -67,7 +67,7 @@ def main():
     time.sleep(3)
 
     print '-- Full text search query'
-    query = client.Context.find('Title1 OR Title3', reply=['guid', 'title'])
+    query = client.Context.cursor('Title1 OR Title3', reply=['guid', 'title'])
     assert query.total == 2
 
     assert sorted([(guids[0], titles[0]), (guids[2], titles[2])]) == \
