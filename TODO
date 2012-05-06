@@ -6,4 +6,3 @@
 - empty stub for not accessible SN server should be replaced by local SN db
 - synchronize local "keep" resources
 - optimize getting/setting(?) StoredProperty values for home folder
-- (?) concurent access to IPC server

@@ -22,7 +22,7 @@ from contextlib import contextmanager
 from os.path import join, exists, dirname
 from gettext import gettext as _
 
-from gevent.coros import Semaphore
+from gevent.queue import Queue
 
 import zerosugar
 import sweets_recipe
@@ -33,6 +33,8 @@ from sugar_network.objects import Object, Context
 from sugar_network.cursor import Cursor
 from active_document import util
 
+
+_CONNECTION_POOL = 6
 
 _logger = logging.getLogger('sugar_network')
 
@@ -51,7 +53,7 @@ class Client(object):
 
     def __init__(self, mountpoint):
         self._mountpoint = mountpoint
-        self._conn = None
+        self._conn = _Connection()
         self._resources = {}
 
     def close(self):
@@ -123,10 +125,6 @@ class Client(object):
             a class-like resource object
 
         """
-        if self._conn is None:
-            _logger.debug('Open connection')
-            self._conn = _Connection()
-
         resource = self._resources.get(name)
         if resource is None:
             request = _Request(self._conn, self._mountpoint, name.lower())
@@ -146,26 +144,33 @@ class Client(object):
 class _Connection(object):
 
     def __init__(self):
-        self._socket_file = None
-        self._lock = Semaphore()
+        self._pool = Queue(maxsize=_CONNECTION_POOL)
+        self._pool_size = 0
 
     @contextmanager
     def socket_file(self):
-        if self._socket_file is None:
+        if self._pool_size >= self._pool.maxsize:
+            conn = self._pool.get()
+        else:
+            _logger.debug('Open new IPC connection')
+            self._pool_size += 1
             ipc.rendezvous()
             # pylint: disable-msg=E1101
             conn = socket.socket(socket.AF_UNIX)
             conn.connect(env.ensure_path('run', 'accept'))
-            self._socket_file = SocketFile(conn)
 
-        with self._lock:
-            yield self._socket_file
+        try:
+            yield SocketFile(conn)
+        finally:
+            self._pool.put(conn)
 
     def close(self):
-        if self._socket_file is None:
-            return
-        self._socket_file.close()
-        self._socket_file = None
+        while not self._pool.empty():
+            conn = self._pool.get_nowait()
+            try:
+                conn.close()
+            except Exception:
+                util.exception(_logger, _('Cannot close IPC connection'))
 
 
 class _Request(object):

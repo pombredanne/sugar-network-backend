@@ -9,6 +9,7 @@ import gevent
 
 from __init__ import tests
 
+from sugar_network import client as client_
 from sugar_network.client import Client, ServerError
 from local_document.server import Server
 
@@ -165,18 +166,28 @@ class IPCTest(tests.Test):
     def test_ConsecutiveRequests(self):
         self.start_server()
 
-        client_1 = Client('/')
-        client_1.Resource1.delete('guid-1')
+        client_._CONNECTION_POOL = 3
 
-        client_2 = Client('/')
-        client_2.Resource2.delete('guid-2')
+        def call(client, i, n):
+            getattr(client, 'Resource%s' % i).delete('wait%s%s' % (i, n))
 
-        self.assertEqual([
-            ('delete', 'resource1', 'guid-1'),
-            ('delete', 'resource2', 'guid-2'),
-            ],
-            CommandsProcessor.calls)
+        ts = time.time()
+        clients = [Client('/'), Client('/'), Client('/')]
+        calls = []
+        for i, client in enumerate(clients):
+            for n in range(9):
+                calls.append(gevent.spawn(call, client, i, n))
 
+        gevent.joinall(calls)
+        assert time.time() - ts < 4
+
+        standard = []
+        for i, client in enumerate(clients):
+            for n in range(9):
+                standard.append(('delete', 'resource%s' % i, 'wait%s%s' % (i, n)))
+        self.assertEqual(
+                sorted(standard),
+                sorted(CommandsProcessor.calls))
 
 
 class CommandsProcessor(object):
@@ -211,6 +222,8 @@ class CommandsProcessor(object):
     def delete(self, socket, resource, guid):
         if guid == 'fake':
             raise RuntimeError()
+        if guid.startswith('wait'):
+            gevent.sleep(1)
         reply = ('delete', resource, guid)
         CommandsProcessor.calls.append(reply)
 
