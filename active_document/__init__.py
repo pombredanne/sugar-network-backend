@@ -32,4 +32,4 @@ from active_document.metadata import Metadata, Property, \
 
 from active_document.index import connect
 
-from active_document.folder import SingleFolder
+from active_document.volume import SingleVolume

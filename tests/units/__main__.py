@@ -11,6 +11,6 @@ from index_proxy import *
 from sneakernet import *
 from metadata import *
 from sync import *
-from folder import *
+from volume import *
 
 tests.main()

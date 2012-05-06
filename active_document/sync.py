@@ -38,7 +38,7 @@ class _Node(object):
         for cls in document_classes:
             self._synchronizers[cls.metadata.name] = sync_class(cls)
 
-        _logger.info(_('Open %r documents folder in %r'),
+        _logger.info(_('Open %r documents volume in %r'),
                 self.node_id, env.data_root.value)
 
     @property
@@ -55,7 +55,7 @@ class _Node(object):
 
     def close(self):
         """Close operations with the server."""
-        _logger.info(_('Closing %r documents folder'), self.node_id)
+        _logger.info(_('Closing %r documents volume'), self.node_id)
         while self._synchronizers:
             __, sync = self._synchronizers.popitem()
             sync.cls.close()

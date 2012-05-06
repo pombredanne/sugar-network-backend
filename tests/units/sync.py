@@ -18,7 +18,7 @@ from active_document.document_class import active_property
 from active_document.metadata import BlobProperty
 
 
-class FolderTest(tests.Test):
+class SyncTest(tests.Test):
 
     def test_sync_Walkthrough(self):
         with Sync(sync.Node, 'node') as node:
@@ -171,12 +171,12 @@ class FolderTest(tests.Test):
                     json.load(file('more_node/document/receive.range')))
 
     def test_id(self):
-        node_folder = sync.Node([])
+        node = sync.Node([])
         assert exists('id')
         self.assertNotEqual('', file('id').read().strip())
 
         self.touch(('id', 'foo'))
-        node_folder = sync.Node([])
+        node = sync.Node([])
         self.assertEqual('foo', file('id').read())
 
 

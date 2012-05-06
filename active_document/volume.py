@@ -26,10 +26,10 @@ from active_document.index import IndexWriter
 from active_document.util import enforce
 
 
-_logger = logging.getLogger('active_document.folder')
+_logger = logging.getLogger('active_document.volume')
 
 
-class _Folder(dict):
+class _Volume(dict):
 
     def __init__(self, document_classes, index_class, extra_props):
         enforce(env.data_root.value,
@@ -71,13 +71,13 @@ class _Folder(dict):
             cls.close()
 
 
-class SingleFolder(_Folder):
+class SingleVolume(_Volume):
 
     def __init__(self, document_classes, extra_props=None):
         enforce(env.index_write_queue.value > 0,
                 _('The active_document.index_write_queue.value should be > 0'))
 
-        _Folder.__init__(self, document_classes, IndexWriter, extra_props)
+        _Volume.__init__(self, document_classes, IndexWriter, extra_props)
 
         for cls in self.values():
             for __ in cls.populate():

@@ -11,18 +11,18 @@ src_root = abspath(dirname(__file__))
 
 from __init__ import tests
 
-from active_document import folder, document, SingleFolder
+from active_document import volume, document, SingleVolume
 
 
-class FolderTest(tests.Test):
+class VolumeTest(tests.Test):
 
     def test_walk_classes(self):
-        classes = folder._walk_classes(join(src_root, 'document_classes'))
+        classes = volume._walk_classes(join(src_root, 'document_classes'))
         self.assertEqual(
                 ['resource_1', 'resource_3'],
                 sorted(dict(classes).keys()))
 
-    def test_SingleFolder_Populate(self):
+    def test_SingleVolut_Populate(self):
         self.touch(
                 ('document/1/1/.seqno', ''),
                 ('document/1/1/guid', '1'),
@@ -42,7 +42,7 @@ class FolderTest(tests.Test):
         class Document(document.Document):
             pass
 
-        with SingleFolder([Document]):
+        with SingleVolume([Document]):
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in Document.find()[0]]))
@@ -52,7 +52,7 @@ class FolderTest(tests.Test):
         class Document(document.Document):
             pass
 
-        with SingleFolder([Document]):
+        with SingleVolume([Document]):
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in Document.find()[0]]))
