@@ -10,7 +10,7 @@ from storage import *
 from index_proxy import *
 from sneakernet import *
 from metadata import *
-from sync import *
+#from sync import *
 from volume import *
 
 tests.main()

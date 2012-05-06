@@ -39,12 +39,8 @@ _logger = logging.getLogger('active_document.storage')
 class Storage(object):
     """Get access to documents' data storage."""
 
-    def __init__(self, metadata):
-        """
-        :param name:
-            document name
-
-        """
+    def __init__(self, root, metadata):
+        self._root = root
         self.metadata = metadata
 
     def exists(self, guid):
@@ -117,12 +113,11 @@ class Storage(object):
             `StoredProperty` properties
 
         """
-        root = self.metadata.path()
-        if not exists(root):
+        if not exists(self._root):
             return
 
-        for guids_dirname in os.listdir(root):
-            guids_dir = join(root, guids_dirname)
+        for guids_dirname in os.listdir(self._root):
+            guids_dir = join(self._root, guids_dirname)
             if not isdir(guids_dir) or \
                     mtime and os.stat(guids_dir).st_mtime < mtime:
                 continue
@@ -259,7 +254,7 @@ class Storage(object):
         return applied and _is_document(self._path(guid))
 
     def _path(self, guid, *args):
-        return self.metadata.path(guid[:2], guid, *args)
+        return join(self._root, guid[:2], guid, *args)
 
     def _ensure_path(self, create_stamp, guid, *args):
 

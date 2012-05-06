@@ -34,7 +34,7 @@ _write_thread = None
 _logger = logging.getLogger('active_document.index_queue')
 
 
-def start(document_classes):
+def start(root, document_classes):
     """Initialize the queue.
 
     Function will start index writing thread.
@@ -50,7 +50,7 @@ def start(document_classes):
         return
 
     _queue = _Queue()
-    _write_thread = _WriteThread(document_classes)
+    _write_thread = _WriteThread(root, document_classes)
     _write_thread.start()
 
 
@@ -113,8 +113,9 @@ def stop():
 
 class _WriteThread(threading.Thread):
 
-    def __init__(self, document_classes):
+    def __init__(self, root, document_classes):
         threading.Thread.__init__(self)
+        self._root = root
         self.daemon = True
         self._document_classes = document_classes
         self._writers = {}
@@ -137,7 +138,8 @@ class _WriteThread(threading.Thread):
     def _run(self):
         for cls in self._document_classes:
             _logger.info(_('Open %r index'), cls.metadata.name)
-            self._writers[cls.metadata.name] = IndexWriter(cls.metadata)
+            self._writers[cls.metadata.name] = \
+                    IndexWriter(self._root, cls.metadata)
 
         closing = False
 

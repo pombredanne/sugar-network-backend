@@ -30,8 +30,9 @@ _logger = logging.getLogger('active_document.index_proxy')
 
 class IndexProxy(IndexReader):
 
-    def __init__(self, metadata):
-        IndexReader.__init__(self, metadata)
+    def __init__(self, root, metadata):
+        IndexReader.__init__(self, root, metadata)
+
         self._commit_seqno = 0
         self._cache_seqno = 1
         self._term_props = {}
@@ -66,7 +67,7 @@ class IndexProxy(IndexReader):
             else:
                 orig = self.get_cached(guid)
                 try:
-                    record = Storage(self.metadata).get(guid)
+                    record = Storage(self._root, self.metadata).get(guid)
                     for prop in self._term_props.values():
                         if prop.name not in orig:
                             orig[prop.name] = record.get(prop.name)
@@ -111,10 +112,8 @@ class IndexProxy(IndexReader):
         return [self._pages[i] for i in sorted(self._pages.keys())]
 
     def _reopen(self):
-        db_path = self.metadata.path('index')
-
         if self._db is None:
-            if exists(db_path):
+            if exists(self._path):
                 self._drop_pages()
             else:
                 return
@@ -123,7 +122,7 @@ class IndexProxy(IndexReader):
 
         try:
             if self._db is None:
-                self._db = xapian.Database(db_path)
+                self._db = xapian.Database(self._path)
                 _logger.debug('Opened %r RO index', self.metadata.name)
             else:
                 self._db.reopen()

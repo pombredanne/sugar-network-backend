@@ -22,7 +22,7 @@ class VolumeTest(tests.Test):
                 ['resource_1', 'resource_3'],
                 sorted(dict(classes).keys()))
 
-    def test_SingleVolut_Populate(self):
+    def test_SingleVolume_Populate(self):
         self.touch(
                 ('document/1/1/.seqno', ''),
                 ('document/1/1/guid', '1'),
@@ -42,7 +42,7 @@ class VolumeTest(tests.Test):
         class Document(document.Document):
             pass
 
-        with SingleVolume([Document]):
+        with SingleVolume(tests.tmpdir, [Document]):
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in Document.find()[0]]))
@@ -52,7 +52,7 @@ class VolumeTest(tests.Test):
         class Document(document.Document):
             pass
 
-        with SingleVolume([Document]):
+        with SingleVolume(tests.tmpdir, [Document]):
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in Document.find()[0]]))

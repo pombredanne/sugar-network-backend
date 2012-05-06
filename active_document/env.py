@@ -55,11 +55,6 @@ ACCESS_NAMES = {
 LAYERS = ['public', 'deleted']
 
 
-data_root = optparse.Option(
-        _('path to the root directory for placing documents\' '
-            'data and indexes'),
-        default='/var/lib/sugar-network/db')
-
 index_flush_timeout = optparse.Option(
         _('flush index index after specified seconds since the last change'),
         default=5, type_cast=int)
@@ -112,7 +107,7 @@ class Range(list):
 
     """
 
-    def __init__(self, name=None, init_value=None):
+    def __init__(self, root, name=None, init_value=None):
         """
         :param name:
             if set, `Range` value will be restored on creation and
@@ -124,7 +119,7 @@ class Range(list):
         if not name:
             self._path = None
         else:
-            self._path = join(data_root.value, name + '.range')
+            self._path = join(root, name + '.range')
         if init_value is None:
             self._init_value = []
         else:

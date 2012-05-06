@@ -13,12 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import types
-from os.path import join, exists, abspath, dirname
 from gettext import gettext as _
 
-from active_document import env, util
+from active_document import env
 from active_document.util import enforce
 
 
@@ -75,7 +73,6 @@ class Metadata(dict):
 
         """
         self._name = cls.__name__.lower()
-        self._seqno = 0
         self.class_methods = {}
         self.object_methods = {}
 
@@ -121,65 +118,10 @@ class Metadata(dict):
             elif hasattr(attr, '_is_active_method'):
                 register_method(attr)
 
-        seqno_path = self.path('seqno')
-        if exists(seqno_path):
-            with file(seqno_path) as f:
-                self._seqno = int(f.read().strip())
-
     @property
     def name(self):
         """Document type name."""
         return self._name
-
-    @property
-    def last_seqno(self):
-        return self._seqno
-
-    def next_seqno(self):
-        self._seqno += 1
-        return self._seqno
-
-    def commit_seqno(self):
-        with util.new_file(self.path('seqno')) as f:
-            f.write(str(self._seqno))
-            f.flush()
-            os.fsync(f.fileno())
-
-    def path(self, *args):
-        """Calculate a path from the root.
-
-        If resulting directory path doesn't exists, it will be created.
-
-        :param args:
-            path parts to add to the root path; if ends with empty string,
-            the resulting path will be treated as a path to a directory
-        :returns:
-            absolute path
-
-        """
-        result = join(env.data_root.value, self.name, *args)
-        return abspath(result)
-
-    def ensure_path(self, *args):
-        """Calculate a path from the root.
-
-        If resulting directory path doesn't exists, it will be created.
-
-        :param args:
-            path parts to add to the root path; if ends with empty string,
-            the resulting path will be treated as a path to a directory
-        :returns:
-            absolute path
-
-        """
-        result = join(env.data_root.value, self.name, *args)
-        if result.endswith(os.sep):
-            result_dir = result = result.rstrip(os.sep)
-        else:
-            result_dir = dirname(result)
-        if not exists(result_dir):
-            os.makedirs(result_dir)
-        return abspath(result)
 
     def __getitem__(self, prop_name):
         enforce(prop_name in self, _('There is no %r property in %r'),
@@ -266,6 +208,21 @@ class Property(object):
             result.append(value)
 
         return result
+
+    def assert_access(self, mode):
+        """Is access to the property permitted.
+
+        If there are no permissions, function should raise
+        `active_document.Forbidden` exception.
+
+        :param mode:
+            one of `active_document.ACCESS_*` constants
+            to specify the access mode
+
+        """
+        enforce(mode & self.permissions, env.Forbidden,
+                _('%s access is disabled for %r property'),
+                env.ACCESS_NAMES[mode], self.name)
 
 
 class BrowsableProperty(object):

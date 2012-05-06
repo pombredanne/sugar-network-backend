@@ -104,7 +104,7 @@ class Document(DocumentClass):
         prop = self.metadata[prop]
 
         if not raw:
-            self.assert_access(env.ACCESS_READ, prop)
+            prop.assert_access(env.ACCESS_READ)
 
         orig, new = self._cache.get(prop.name, (None, None))
         if new is not None:
@@ -155,9 +155,9 @@ class Document(DocumentClass):
 
         if not raw:
             if self._is_new:
-                self.assert_access(env.ACCESS_CREATE, prop)
+                prop.assert_access(env.ACCESS_CREATE)
             else:
-                self.assert_access(env.ACCESS_WRITE, prop)
+                prop.assert_access(env.ACCESS_WRITE)
 
         enforce(isinstance(prop, StoredProperty),
                 _('Property %r in %r cannot be set'),
@@ -203,7 +203,7 @@ class Document(DocumentClass):
         """
         prop = self.metadata[prop]
         if not raw:
-            self.assert_access(env.ACCESS_READ, prop)
+            prop.assert_access(env.ACCESS_READ)
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
@@ -228,11 +228,11 @@ class Document(DocumentClass):
         """
         prop = self.metadata[prop]
         if not raw:
-            self.assert_access(env.ACCESS_WRITE, prop)
+            prop.assert_access(env.ACCESS_WRITE)
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
-        seqno = self.metadata.next_seqno()
+        seqno = self.next_seqno()
         if self._storage.set_blob(seqno, self.guid, prop.name, stream, size):
             self._index.store(self.guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
@@ -252,7 +252,7 @@ class Document(DocumentClass):
         """
         prop = self.metadata[prop]
         if not raw:
-            self.assert_access(env.ACCESS_READ, prop)
+            prop.assert_access(env.ACCESS_READ)
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
@@ -302,23 +302,6 @@ class Document(DocumentClass):
 
         """
         pass
-
-    def assert_access(self, mode, prop):
-        """Is access to the property permitted.
-
-        If there are no permissions, function should raise
-        `active_document.Forbidden` exception.
-
-        :param mode:
-            one of `active_document.ACCESS_*` constants
-            to specify the access mode
-        :param prop:
-            property to check access for
-
-        """
-        enforce(mode & prop.permissions, env.Forbidden,
-                _('%s access is disabled for %r property in %r'),
-                env.ACCESS_NAMES[mode], prop.name, self.metadata.name)
 
     def __getitem__(self, prop):
         return self.get(prop)

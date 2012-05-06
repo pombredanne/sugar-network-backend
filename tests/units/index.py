@@ -400,17 +400,17 @@ class IndexTest(tests.Test):
 
     def test_LayoutVersion(self):
         db = Index({})
-        assert exists('index/index/layout')
-        os.utime('index/index/layout', (0, 0))
+        assert exists('index/layout')
+        os.utime('index/layout', (0, 0))
         db.close()
 
         db = Index({})
-        self.assertEqual(0, os.stat('index/index/layout').st_mtime)
+        self.assertEqual(0, os.stat('index/layout').st_mtime)
         db.close()
 
         env.LAYOUT_VERSION += 1
         db = Index({})
-        self.assertNotEqual(0, os.stat('index/index/layout').st_mtime)
+        self.assertNotEqual(0, os.stat('index/layout').st_mtime)
         db.close()
 
     def test_Callbacks(self):
@@ -636,9 +636,8 @@ class Index(index.IndexWriter):
         metadata['guid'] = ActiveProperty('guid',
                 permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
                 prefix=env.GUID_PREFIX)
-        metadata.ensure_path('')
 
-        index.IndexWriter.__init__(self, metadata)
+        index.IndexWriter.__init__(self, tests.tmpdir, metadata)
 
     def _find(self, *args, **kwargs):
         if 'reply' not in kwargs:

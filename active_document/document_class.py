@@ -13,14 +13,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import logging
+from os.path import exists, join
 from gettext import gettext as _
 
-from active_document import env
+from active_document import env, util
 from active_document.storage import Storage
 from active_document.metadata import Metadata, active_property
 from active_document.metadata import ActiveProperty, StoredProperty
 from active_document.metadata import BrowsableProperty
+from active_document.index import connect
 from active_document.util import enforce
 
 
@@ -37,6 +40,8 @@ class DocumentClass(object):
     _initated = False
     _storage = None
     _index = None
+    _seqno = 0
+    _root = None
 
     @active_property(slot=1000, prefix='IC', typecast=int,
             permissions=env.ACCESS_READ, default=0)
@@ -252,7 +257,7 @@ class DocumentClass(object):
 
         """
         if touch:
-            seqno = cls.metadata.next_seqno()
+            seqno = cls.next_seqno()
         else:
             seqno = None
         if cls._storage.merge(seqno, guid, diff):
@@ -260,7 +265,7 @@ class DocumentClass(object):
         return seqno
 
     @classmethod
-    def init(cls, index_class, extra_props=None):
+    def init(cls, root, index_class, extra_props=None):
         """Initialize `DocumentClass` class usage.
 
         This method should be called before any usage of the `DocumentClass`
@@ -276,6 +281,9 @@ class DocumentClass(object):
         if cls._initated:
             return
 
+        if not exists(root):
+            os.makedirs(root)
+
         if cls.metadata is None:
             # Metadata cannot be recreated
             cls.metadata = Metadata(cls)
@@ -284,13 +292,32 @@ class DocumentClass(object):
                     prefix=env.GUID_PREFIX)
             for prop in (extra_props or []):
                 cls.metadata[prop.name] = prop
-        cls.metadata.ensure_path('')
 
-        cls._storage = Storage(cls.metadata)
-        cls._index = index_class(cls.metadata)
+        cls._storage = Storage(root, cls.metadata)
+        cls._index = index_class(root, cls.metadata)
         cls._initated = True
+        cls._root = root
+
+        seqno_path = join(root, 'seqno')
+        if exists(seqno_path):
+            with file(seqno_path) as f:
+                cls._seqno = int(f.read().strip())
+
+        connect('committed', cls.__committed_cb, cls.metadata.name)
 
         _logger.debug('Initiated %r document', cls)
+
+    @classmethod
+    def next_seqno(cls):
+        cls._seqno += 1
+        return cls._seqno
+
+    @classmethod
+    def __committed_cb(cls, sender):
+        with util.new_file(join(cls._root, 'seqno')) as f:
+            f.write(str(cls._seqno))
+            f.flush()
+            os.fsync(f.fileno())
 
     @classmethod
     def _pre_store(cls, guid, changes, is_new):
@@ -304,7 +331,7 @@ class DocumentClass(object):
                     changes[prop_name] = record.get(prop_name)
 
         if is_new is not None:
-            changes['seqno'] = cls.metadata.next_seqno()
+            changes['seqno'] = cls.next_seqno()
 
     @classmethod
     def _post_store(cls, guid, changes, is_new):

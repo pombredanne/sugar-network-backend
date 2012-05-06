@@ -17,7 +17,7 @@ import os
 import imp
 import inspect
 import logging
-from os.path import exists, basename
+from os.path import exists, basename, join
 from gettext import gettext as _
 
 from active_document import env, gthread
@@ -31,9 +31,8 @@ _logger = logging.getLogger('active_document.volume')
 
 class _Volume(dict):
 
-    def __init__(self, document_classes, index_class, extra_props):
-        enforce(env.data_root.value,
-                _('The active_document.data_root.value is not set'))
+    def __init__(self, root, document_classes, index_class, extra_props):
+        self._root = root
 
         if type(document_classes) is dict:
             self.update(document_classes)
@@ -42,15 +41,16 @@ class _Volume(dict):
         else:
             self.update(_walk_classes(document_classes))
 
-        if not exists(env.data_root.value):
-            os.makedirs(env.data_root.value)
+        if not exists(root):
+            os.makedirs(root)
 
-        _logger.info(_('Opening documents in %r'), env.data_root.value)
+        _logger.info(_('Opening documents in %r'), root)
 
         if extra_props is None:
             extra_props = {}
         for cls in self.values():
-            cls.init(index_class, extra_props.get(cls.__name__.lower()))
+            name = cls.__name__.lower()
+            cls.init(join(root, name), index_class, extra_props.get(name))
 
     def __enter__(self):
         return self
@@ -64,7 +64,7 @@ class _Volume(dict):
 
     def close(self):
         """Close operations with the server."""
-        _logger.info(_('Closing documents in %r'), env.data_root.value)
+        _logger.info(_('Closing documents in %r'), self._root)
 
         while self:
             __, cls = self.popitem()
@@ -73,11 +73,12 @@ class _Volume(dict):
 
 class SingleVolume(_Volume):
 
-    def __init__(self, document_classes, extra_props=None):
+    def __init__(self, root, document_classes, extra_props=None):
         enforce(env.index_write_queue.value > 0,
                 _('The active_document.index_write_queue.value should be > 0'))
 
-        _Volume.__init__(self, document_classes, IndexWriter, extra_props)
+        _Volume.__init__(self, root, document_classes, IndexWriter,
+                extra_props)
 
         for cls in self.values():
             for __ in cls.populate():

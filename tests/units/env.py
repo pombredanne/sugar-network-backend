@@ -11,7 +11,7 @@ from active_document import env
 class EnvTest(tests.Test):
 
     def test_Range_empty(self):
-        scale = env.Range(init_value=[1, None])
+        scale = env.Range(tests.tmpdir, init_value=[1, None])
         self.assertEqual(
                 [[1, None]],
                 scale)
@@ -19,7 +19,7 @@ class EnvTest(tests.Test):
         scale.exclude(1, 1)
         assert not scale.empty
 
-        scale = env.Range()
+        scale = env.Range(tests.tmpdir)
         self.assertEqual(
                 [],
                 scale)
@@ -28,26 +28,26 @@ class EnvTest(tests.Test):
         assert not scale.empty
 
     def test_Range_commit(self):
-        scale = env.Range('scale')
+        scale = env.Range(tests.tmpdir, 'scale')
         self.assertEqual(
                 [],
                 scale)
         scale.append([2, 3])
         scale.commit()
 
-        scale = env.Range('scale')
+        scale = env.Range(tests.tmpdir, 'scale')
         self.assertEqual(
                 [[2, 3]],
                 scale)
 
     def test_Range_exclude(self):
-        scale = env.Range('1', [1, None])
+        scale = env.Range(tests.tmpdir, '1', [1, None])
         scale.exclude(1, 10)
         self.assertEqual(
                 [[11, None]],
                 scale)
 
-        scale = env.Range('2', [1, None])
+        scale = env.Range(tests.tmpdir, '2', [1, None])
         scale.exclude(5, 10)
         self.assertEqual(
                 [[1, 4], [11, None]],
@@ -79,7 +79,7 @@ class EnvTest(tests.Test):
                 scale)
 
     def test_Range_include_JoinExistingItems(self):
-        scale = env.Range()
+        scale = env.Range(tests.tmpdir)
 
         scale.include(1, None)
         self.assertEqual(
@@ -138,7 +138,7 @@ class EnvTest(tests.Test):
                 scale)
 
     def test_Range_include_InsertNewItems(self):
-        scale = env.Range()
+        scale = env.Range(tests.tmpdir)
 
         scale.include(8, 10)
         scale.include(3, 3)
@@ -185,7 +185,7 @@ class EnvTest(tests.Test):
                 scale)
 
     def test_Range_Invert(self):
-        scale_1 = env.Range(init_value=[1, None])
+        scale_1 = env.Range(tests.tmpdir, init_value=[1, None])
         scale_1.exclude(2, 2)
         scale_1.exclude(5, 10)
 
@@ -205,7 +205,7 @@ class EnvTest(tests.Test):
                 scale_1)
 
     def test_Range_contains(self):
-        scale = env.Range(init_value=[1, None])
+        scale = env.Range(tests.tmpdir, init_value=[1, None])
         scale.exclude(2, 2)
         scale.exclude(5, 10)
 
@@ -217,16 +217,16 @@ class EnvTest(tests.Test):
         assert 11 in scale
 
     def test_Range_first(self):
-        scale = env.Range()
+        scale = env.Range(tests.tmpdir)
         self.assertEqual(0, scale.first)
 
-        scale = env.Range(init_value=[1, None])
+        scale = env.Range(tests.tmpdir, init_value=[1, None])
         self.assertEqual(1, scale.first)
         scale.exclude(1, 3)
         self.assertEqual(4, scale.first)
 
     def test_Range_include(self):
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, 2)
         self.assertEqual(
                 [[2, 2]],
@@ -252,7 +252,7 @@ class EnvTest(tests.Test):
                 [[2, 5], [7, None]],
                 rng)
 
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(10, None)
         self.assertEqual(
                 [[10, None]],
@@ -267,46 +267,46 @@ class EnvTest(tests.Test):
                 rng)
 
     def test_Range_floor(self):
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, None)
         rng.floor(1)
         self.assertEqual([], rng)
 
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, None)
         rng.floor(2)
         self.assertEqual([[2, 2]], rng)
 
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, None)
         rng.floor(10)
         self.assertEqual([[2, 10]], rng)
 
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(7)
         self.assertEqual([[2, 5]], rng)
 
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(5)
         self.assertEqual([[2, 5]], rng)
 
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(3)
         self.assertEqual([[2, 3]], rng)
 
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(2)
         self.assertEqual([[2, 2]], rng)
 
-        rng = env.Range()
+        rng = env.Range(tests.tmpdir)
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(1)

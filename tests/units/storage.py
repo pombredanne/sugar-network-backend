@@ -25,7 +25,7 @@ class StorageTest(tests.Test):
         metadata = Metadata(Test)
         for i in props:
             metadata[i.name] = i
-        return Storage(metadata)
+        return Storage(tests.tmpdir, metadata)
 
     def test_get(self):
         storage = self.storage([ActiveProperty('prop', slot=1)])
@@ -91,10 +91,10 @@ class StorageTest(tests.Test):
 
         stream = StringIO('12345')
         self.assertEqual(False, storage.set_blob(3, 'guid', 'blob', stream, 1))
-        self.assertEqual('1', file('test/gu/guid/blob').read())
+        self.assertEqual('1', file('gu/guid/blob').read())
 
         self.assertEqual(False, storage.set_blob(4, 'guid', 'blob', stream, 2))
-        self.assertEqual('23', file('test/gu/guid/blob').read())
+        self.assertEqual('23', file('gu/guid/blob').read())
 
         storage.put('guid', {'seqno': 5, 'guid': 'guid'})
         self.assertEqual(True, storage.set_blob(6, 'guid', 'blob', stream))
@@ -108,8 +108,8 @@ class StorageTest(tests.Test):
         storage.put('guid', {'seqno': 1, 'prop_1': 'value'})
         storage.set_blob(2, 'guid', 'prop_3', StringIO('blob'))
 
-        os.utime('test/gu/guid/prop_1', (1, 1))
-        os.utime('test/gu/guid/prop_3', (2, 2))
+        os.utime('gu/guid/prop_1', (1, 1))
+        os.utime('gu/guid/prop_3', (2, 2))
 
         traits, blobs = storage.diff('guid', [1, 2, 3, 4])
         self.assertEqual(
@@ -119,7 +119,7 @@ class StorageTest(tests.Test):
                 traits)
         self.assertEqual(
                 {
-                    'prop_3': (tests.tmpdir + '/test/gu/guid/prop_3', 2),
+                    'prop_3': (tests.tmpdir + '/gu/guid/prop_3', 2),
                     },
                 blobs)
 
@@ -129,7 +129,7 @@ class StorageTest(tests.Test):
                 traits)
         self.assertEqual(
                 {
-                    'prop_3': (tests.tmpdir + '/test/gu/guid/prop_3', 2),
+                    'prop_3': (tests.tmpdir + '/gu/guid/prop_3', 2),
                     },
                 blobs)
 
@@ -154,21 +154,21 @@ class StorageTest(tests.Test):
                 }
 
         self.assertEqual(False, storage.merge(1, 'guid_1', diff))
-        assert exists('test/gu/guid_1/.seqno')
-        assert not exists('test/gu/guid_1/guid')
-        assert os.stat('test/gu/guid_1/prop_1').st_mtime == 1
-        self.assertEqual('"value"', file('test/gu/guid_1/prop_1').read())
-        assert os.stat('test/gu/guid_1/prop_3').st_mtime == 4
-        self.assertEqual('blob', file('test/gu/guid_1/prop_3').read())
+        assert exists('gu/guid_1/.seqno')
+        assert not exists('gu/guid_1/guid')
+        assert os.stat('gu/guid_1/prop_1').st_mtime == 1
+        self.assertEqual('"value"', file('gu/guid_1/prop_1').read())
+        assert os.stat('gu/guid_1/prop_3').st_mtime == 4
+        self.assertEqual('blob', file('gu/guid_1/prop_3').read())
 
         diff['guid'] = ('fake', 5)
         self.assertRaises(RuntimeError, storage.merge, 2, 'guid_2', diff)
 
         diff['guid'] = ('guid_2', 5)
         self.assertEqual(True, storage.merge(2, 'guid_2', diff))
-        assert exists('test/gu/guid_2/.seqno')
-        assert os.stat('test/gu/guid_2/guid').st_mtime == 5
-        self.assertEqual('"guid_2"', file('test/gu/guid_2/guid').read())
+        assert exists('gu/guid_2/.seqno')
+        assert os.stat('gu/guid_2/guid').st_mtime == 5
+        self.assertEqual('"guid_2"', file('gu/guid_2/guid').read())
 
         ts = int(time.time())
         storage.put('guid_3', {'seqno': 3, 'prop_1': 'value_2'})
@@ -176,10 +176,10 @@ class StorageTest(tests.Test):
 
         diff.pop('guid')
         self.assertEqual(False, storage.merge(4, 'guid_3', diff))
-        assert os.stat('test/gu/guid_3/prop_1').st_mtime >= ts
-        self.assertEqual('"value_2"', file('test/gu/guid_3/prop_1').read())
-        assert os.stat('test/gu/guid_3/prop_3').st_mtime >= ts
-        self.assertEqual('blob_2', file('test/gu/guid_3/prop_3').read())
+        assert os.stat('gu/guid_3/prop_1').st_mtime >= ts
+        self.assertEqual('"value_2"', file('gu/guid_3/prop_1').read())
+        assert os.stat('gu/guid_3/prop_3').st_mtime >= ts
+        self.assertEqual('blob_2', file('gu/guid_3/prop_3').read())
 
     def test_put_Times(self):
         storage = self.storage([
@@ -192,12 +192,12 @@ class StorageTest(tests.Test):
         storage.put('guid', {'seqno': 1, 'prop_1': 'value'})
         self.assertEqual(1, storage.get('guid').get('seqno'))
         self.assertEqual(
-                int(os.stat('test/gu/guid/prop_1.seqno').st_mtime),
+                int(os.stat('gu/guid/prop_1.seqno').st_mtime),
                 storage.get('guid').get('seqno'))
-        assert ts <= os.stat('test/gu/guid/prop_1').st_mtime
+        assert ts <= os.stat('gu/guid/prop_1').st_mtime
 
         self.assertEqual(
-                int(os.stat('test/gu/guid/.seqno').st_mtime),
+                int(os.stat('gu/guid/.seqno').st_mtime),
                 storage.get('guid').get('seqno'))
 
         time.sleep(1)
@@ -205,11 +205,11 @@ class StorageTest(tests.Test):
         storage.put('guid', {'seqno': 3, 'prop_1': 'value'})
         self.assertEqual(3, storage.get('guid').get('seqno'))
         self.assertEqual(
-                int(os.stat('test/gu/guid/prop_1.seqno').st_mtime),
+                int(os.stat('gu/guid/prop_1.seqno').st_mtime),
                 storage.get('guid').get('seqno'))
-        assert ts <= os.stat('test/gu/guid/prop_1').st_mtime
+        assert ts <= os.stat('gu/guid/prop_1').st_mtime
         self.assertEqual(
-                int(os.stat('test/gu/guid/.seqno').st_mtime),
+                int(os.stat('gu/guid/.seqno').st_mtime),
                 storage.get('guid').get('seqno'))
 
     def test_walk(self):

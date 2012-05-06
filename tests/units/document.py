@@ -273,25 +273,25 @@ class DocumentTest(tests.Test):
                 return value
 
         self.touch(
-                ('document/1/1/.seqno', ''),
+                ('1/1/.seqno', ''),
 
-                ('document/1/1/guid', '1'),
-                ('document/1/1/ctime', '1'),
-                ('document/1/1/mtime', '1'),
-                ('document/1/1/prop', '"prop-1"'),
-                ('document/1/1/layers', '["public"]'),
-                ('document/1/1/author', '["me"]'),
+                ('1/1/guid', '1'),
+                ('1/1/ctime', '1'),
+                ('1/1/mtime', '1'),
+                ('1/1/prop', '"prop-1"'),
+                ('1/1/layers', '["public"]'),
+                ('1/1/author', '["me"]'),
 
-                ('document/2/2/.seqno', ''),
-                ('document/2/2/guid', '2'),
-                ('document/2/2/ctime', '2'),
-                ('document/2/2/mtime', '2'),
-                ('document/2/2/prop', '"prop-2"'),
-                ('document/2/2/layers', '["public"]'),
-                ('document/2/2/author', '["me"]'),
+                ('2/2/.seqno', ''),
+                ('2/2/guid', '2'),
+                ('2/2/ctime', '2'),
+                ('2/2/mtime', '2'),
+                ('2/2/prop', '"prop-2"'),
+                ('2/2/layers', '["public"]'),
+                ('2/2/author', '["me"]'),
                 )
 
-        Document.init(IndexWriter)
+        Document.init(tests.tmpdir, IndexWriter)
         for i in Document.populate():
             pass
 
@@ -538,19 +538,19 @@ class DocumentTest(tests.Test):
         class Document(TestDocument):
             pass
 
-        Document.init(IndexWriter)
+        Document.init(tests.tmpdir, IndexWriter)
 
         doc_1 = Document()
         doc_1.post()
         self.assertEqual(
-                os.stat('document/%s/%s/.seqno' % (doc_1.guid[:2], doc_1.guid)).st_mtime,
+                os.stat('%s/%s/.seqno' % (doc_1.guid[:2], doc_1.guid)).st_mtime,
                 Document(doc_1.guid).get('seqno', raw=True))
         self.assertEqual(1, Document(doc_1.guid).get('seqno', raw=True))
 
         doc_2 = Document()
         doc_2.post()
         self.assertEqual(
-                os.stat('document/%s/%s/.seqno' % (doc_2.guid[:2], doc_2.guid)).st_mtime,
+                os.stat('%s/%s/.seqno' % (doc_2.guid[:2], doc_2.guid)).st_mtime,
                 Document(doc_2.guid).get('seqno', raw=True))
         self.assertEqual(2, Document(doc_2.guid).get('seqno', raw=True))
 
@@ -613,7 +613,7 @@ class DocumentTest(tests.Test):
 class TestDocument(document.Document):
 
     def __init__(self, guid=None, indexed_props=None, **kwargs):
-        self.init(IndexWriter)
+        self.init(tests.tmpdir, IndexWriter)
         document.Document.__init__(self, guid, indexed_props, **kwargs)
 
 

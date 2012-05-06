@@ -26,8 +26,8 @@ class IndexQueueTest(tests.Test):
         class Document(document.Document):
             pass
 
-        Document.init(IndexProxy)
-        index_queue.start([Document])
+        Document.init(tests.tmpdir, IndexProxy)
+        index_queue.start(tests.tmpdir, [Document])
         self.Document = Document
 
     def tearDown(self):

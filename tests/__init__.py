@@ -50,7 +50,6 @@ class Test(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=logfile)
 
-        _env.data_root.value = tmpdir
         _env.index_flush_timeout.value = 0
         _env.index_flush_threshold.value = 1
         _env.find_limit.value = 1024

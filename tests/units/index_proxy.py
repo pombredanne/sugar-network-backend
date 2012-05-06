@@ -34,7 +34,7 @@ class IndexProxyTest(tests.Test):
             def not_term(self, value):
                 return value
 
-        Document.init(TestIndexProxy)
+        Document.init(tests.tmpdir, TestIndexProxy)
         self.metadata = Document.metadata
 
         self.override(index_queue, 'put', lambda *args: 1)
@@ -45,14 +45,14 @@ class IndexProxyTest(tests.Test):
         env.index_flush_timeout.value = 0
 
     def test_Create(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
         existing = ([
             ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
             ('2', {'guid': '2', 'term': 'a', 'not_term': 's', 'layers': ['public'], 'author': ['me']}),
             ], Total(2))
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         self.override(IndexReader, 'find', lambda *args: existing)
         self.assertEqual(
@@ -124,7 +124,7 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
 
     def test_Create_FindForNotCreatedDB(self):
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
         proxy.store('1', {'guid': '1', 'term': 'a', 'not_term': 's'}, True)
 
         self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
@@ -135,7 +135,7 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
 
     def test_Update(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
@@ -143,11 +143,11 @@ class IndexProxyTest(tests.Test):
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
-        storage = Storage(self.metadata)
+        storage = Storage(tests.tmpdir, self.metadata)
         storage.put(*existing[0][0])
         storage.put(*existing[0][1])
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         proxy.store('1', {'guid': '1', 'term': 'qq', 'not_term': 'ww'}, False)
         proxy.store('2', {'guid': '2', 'term': 'aa', 'not_term': 'ss'}, False)
@@ -160,7 +160,7 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
 
     def test_Update_Adds(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
@@ -168,11 +168,11 @@ class IndexProxyTest(tests.Test):
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
 
-        storage = Storage(self.metadata)
+        storage = Storage(tests.tmpdir, self.metadata)
         storage.put(*existing[0][0])
         storage.put(*existing[0][1])
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         self.assertEqual(
                 sorted([
@@ -197,7 +197,7 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(term='foo'))
 
     def test_Update_Deletes(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': '', 'layers': ['public'], 'author': ['me']}),
@@ -205,11 +205,11 @@ class IndexProxyTest(tests.Test):
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
-        storage = Storage(self.metadata)
+        storage = Storage(tests.tmpdir, self.metadata)
         storage.put(*existing[0][0])
         storage.put(*existing[0][1])
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         self.assertEqual(
                 sorted([
@@ -240,11 +240,11 @@ class IndexProxyTest(tests.Test):
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
-        storage = Storage(self.metadata)
+        storage = Storage(tests.tmpdir, self.metadata)
         storage.put(*existing[0][0])
         storage.put(*existing[0][1])
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
         self.assertEqual({}, proxy.get_cached('1'))
 
         proxy.store('1', {'guid': '1', 'term': 'new', 'not_term': 'new'}, False)
@@ -261,8 +261,8 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(TestIndexProxy)
-        proxy = TestIndexProxy(Document.metadata)
+        Document.init(tests.tmpdir, TestIndexProxy)
+        proxy = TestIndexProxy(tests.tmpdir, Document.metadata)
 
         proxy.store('1', {'guid': '1', 'prop': ('a',)}, True)
         proxy.store('2', {'guid': '2', 'prop': ('a', 'aa')}, True)
@@ -287,14 +287,14 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(prop='aaa'))
 
     def test_Update_AddsByListProps(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'prop': (), 'layers': ['public'], 'author': ['me']}),
             ('2', {'seqno': 2, 'guid': '2', 'prop': (), 'layers': ['public'], 'author': ['me']}),
             ], Total(2))
 
-        storage = Storage(self.metadata)
+        storage = Storage(tests.tmpdir, self.metadata)
         storage.put(*existing[0][0])
         storage.put(*existing[0][1])
 
@@ -304,8 +304,8 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(TestIndexProxy)
-        proxy = TestIndexProxy(Document.metadata)
+        Document.init(tests.tmpdir, TestIndexProxy)
+        proxy = TestIndexProxy(tests.tmpdir, Document.metadata)
 
         self.assertEqual(
                 sorted([
@@ -330,7 +330,7 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(prop='a'))
 
     def test_Update_DeletesByListProps(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'prop': ('a',), 'layers': ['public'], 'author': ['me']}),
@@ -339,7 +339,7 @@ class IndexProxyTest(tests.Test):
             ], Total(3))
         self.override(IndexReader, 'find', lambda *args: existing)
 
-        storage = Storage(self.metadata)
+        storage = Storage(tests.tmpdir, self.metadata)
         storage.put(*existing[0][0])
         storage.put(*existing[0][1])
         storage.put(*existing[0][2])
@@ -350,8 +350,8 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(TestIndexProxy)
-        proxy = TestIndexProxy(Document.metadata)
+        Document.init(tests.tmpdir, TestIndexProxy)
+        proxy = TestIndexProxy(tests.tmpdir, Document.metadata)
 
         self.assertEqual(
                 sorted([
@@ -386,15 +386,15 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(prop='a'))
 
     def test_SeamlessCache_Create(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': 'a', 'layers': ['public'], 'author': ['me']}),
             ], Total(1))
-        storage = Storage(self.metadata)
+        storage = Storage(tests.tmpdir, self.metadata)
         storage.put(*existing[0][0])
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         self.override(index_queue, 'put', lambda *args: 2)
         proxy.store('2', {'guid': '2', 'term': 'orig', 'not_term': 'b'}, True)
@@ -508,15 +508,15 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(TestIndexProxy)
-        IndexWriter(Document.metadata).close()
+        Document.init(tests.tmpdir, TestIndexProxy)
+        IndexWriter(tests.tmpdir, Document.metadata).close()
 
-        storage = Storage(Document.metadata)
+        storage = Storage(tests.tmpdir, Document.metadata)
         storage.put(*existing[0][0])
         storage.put(*existing[0][1])
         storage.put(*existing[0][2])
 
-        proxy = TestIndexProxy(Document.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, Document.metadata)
 
         self.override(index_queue, 'put', lambda *args: 2)
         proxy.store('1', {'guid': '1', 'prop': ('aa',)}, False)
@@ -551,9 +551,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(prop=('a',)))
 
     def test_DropPages(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         self.override(index_queue, 'put', lambda *args: 2)
         proxy.store('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}, True)
@@ -609,13 +609,13 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(0, len(proxy._pages))
 
     def test_NoCache(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
         existing = ([
             ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
             ], Total(1))
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         proxy.store('2', {'guid': '2', 'term': ' ', 'not_term': ' '}, True)
 
@@ -638,9 +638,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(no_cache=True))
 
     def test_SetSeqnoOnInitialOpen(self):
-        IndexWriter(self.metadata).close()
+        IndexWriter(tests.tmpdir, self.metadata).close()
 
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         self.assertEqual(0, proxy._commit_seqno)
         self.override(index_queue, 'commit_seqno', lambda *args: 5)
@@ -650,8 +650,8 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(5, proxy._commit_seqno)
 
     def test_NotFailOnEmptyCache(self):
-        IndexWriter(self.metadata).close()
-        proxy = TestIndexProxy(self.metadata)
+        IndexWriter(tests.tmpdir, self.metadata).close()
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
         self.assertEqual(0, len(proxy._pages))
 
         self.override(index_queue, 'commit_seqno', lambda *args: 10)
@@ -663,7 +663,7 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(1, len(proxy._pages))
 
     def test_get_cached_DropPages(self):
-        proxy = TestIndexProxy(self.metadata)
+        proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
         proxy.store('1', {'guid': '1', 'term': 'z', 'not_term': 'x'}, True)
         self.assertEqual(1, len(proxy._pages))

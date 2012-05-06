@@ -18,7 +18,7 @@ import re
 import time
 import shutil
 import logging
-from os.path import exists
+from os.path import exists, join
 from gettext import gettext as _
 
 import gevent
@@ -59,13 +59,14 @@ def connect(signal, cb, document=None):
 class IndexReader(object):
     """Read-only access to an index."""
 
-    def __init__(self, metadata):
+    def __init__(self, root, metadata):
         self.metadata = metadata
         self._db = None
         self._props = {}
-        self._path = self.metadata.path('index')
-        self._layout_path = self.metadata.path('index/layout')
-        self._mtime_path = self.metadata.path('index/mtime')
+        self._root = root
+        self._path = join(root, 'index')
+        self._layout_path = join(self._path, 'layout')
+        self._mtime_path = join(self._path, 'mtime')
 
         for name, prop in self.metadata.items():
             if isinstance(prop, ActiveProperty):
@@ -290,8 +291,8 @@ class IndexReader(object):
 class IndexWriter(IndexReader):
     """Write access to Xapian databases."""
 
-    def __init__(self, metadata):
-        IndexReader.__init__(self, metadata)
+    def __init__(self, root, metadata):
+        IndexReader.__init__(self, root, metadata)
 
         self._pending_updates = 0
         self._commit_cond = gthread.Condition()
@@ -408,7 +409,6 @@ class IndexWriter(IndexReader):
             self._db.flush()
         with file(self._mtime_path, 'w'):
             pass
-        self.metadata.commit_seqno()
         self._pending_updates = 0
 
         _logger.debug('Commit %r changes took %s seconds',
