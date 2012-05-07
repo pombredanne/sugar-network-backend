@@ -360,6 +360,22 @@ class DocumentTest(tests.Test):
                 ['foo', 'foo'],
                 [i.prop for i in directory.find(0, 1024)[0]])
 
+    def test_on_create_ReplaceGuid(self):
+
+        class Document(document.Document):
+
+            @classmethod
+            def on_create(cls, props):
+                props['guid'] = props.pop('uid')
+                super(Document, cls).on_create(props)
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        directory.create({'uid': 'guid'})
+        self.assertEqual(
+                ['guid'],
+                [i.guid for i in directory.find(0, 1024)[0]])
+
     def test_on_update(self):
 
         class Document(document.Document):

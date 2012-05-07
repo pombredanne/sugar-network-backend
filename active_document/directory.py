@@ -99,8 +99,11 @@ class Directory(object):
             new document properties
 
         """
-        props['guid'] = guid
         self._document_class.on_create(props)
+        if 'guid' in props:
+            guid = props['guid']
+        else:
+            props['guid'] = guid
 
         for prop_name, prop in self.metadata.items():
             if isinstance(prop, StoredProperty):
