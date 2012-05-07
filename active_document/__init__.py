@@ -26,12 +26,11 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         NotFound, Forbidden, NoCommand, Unauthorized, principal
 
 from active_document.metadata import Metadata, Property, \
-        StoredProperty, ActiveProperty, \
-        BlobProperty, BrowsableProperty, \
-        active_property
+        StoredProperty, ActiveProperty, BlobProperty, BrowsableProperty, \
+        active_property, active_command
 
-from active_document.commands import active_command, directory_command, \
-        volume_command, Command
+from active_document.commands import document_command, directory_command, \
+        volume_command, Command, Request, call
 
 from active_document.index import connect
 

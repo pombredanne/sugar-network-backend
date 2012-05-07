@@ -16,7 +16,8 @@
 import types
 from gettext import gettext as _
 
-from active_document import env, commands
+from active_document import env
+from active_document.commands import Commands
 from active_document.util import enforce
 
 
@@ -49,6 +50,16 @@ def active_property(property_class=None, *args, **kwargs):
     return decorate_getter
 
 
+def active_command(**kwargs):
+
+    def decorate(func):
+        func._is_active_command = True
+        func.kwargs = kwargs
+        return func
+
+    return decorate
+
+
 class Metadata(dict):
     """Structure to describe the document.
 
@@ -63,6 +74,8 @@ class Metadata(dict):
 
         """
         self._name = cls.__name__.lower()
+        self.directory_commands = Commands()
+        self.document_commands = Commands()
 
         slots = {}
         prefixes = {}
@@ -91,10 +104,10 @@ class Metadata(dict):
             enforce(isinstance(attr, types.MethodType),
                     _('Incorrect active_command, %r'), attr)
             if attr.im_self is None:
-                cmds = commands.documents
+                commands = self.document_commands
             else:
-                cmds = commands.directories
-            cmds.register(attr, document=self.name, **attr.kwargs)
+                commands = self.directory_commands
+            commands.add(attr, document=self.name, **attr.kwargs)
 
         for attr in [getattr(cls, i) for i in dir(cls)]:
             if hasattr(attr, '_is_active_property'):

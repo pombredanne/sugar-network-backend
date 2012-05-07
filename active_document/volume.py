@@ -15,17 +15,22 @@
 
 import os
 import imp
+import urllib2
 import inspect
 import logging
 from os.path import exists, basename, join
 from gettext import gettext as _
 
-from active_document import env, gthread, commands
+from active_document import env, gthread
 from active_document.document import Document
 from active_document.directory import Directory
 from active_document.index import IndexWriter
+from active_document.commands import document_command, directory_command
+from active_document.metadata import BlobProperty
 from active_document.util import enforce
 
+
+_PAGE_SIZE = 1024 * 10
 
 _logger = logging.getLogger('active_document.volume')
 
@@ -58,45 +63,6 @@ class _Volume(dict):
             __, cls = self.popitem()
             cls.close()
 
-    def call(self, cmd, document=None, guid=None, prop=None, **kwargs):
-        args = []
-
-        if document is None:
-            command = commands.volumes.get(cmd)
-        else:
-            directory = self[document]
-            cmds = [cmd, cmd + (document,) if type(cmd) is tuple else \
-                    (cmd, document)]
-            if guid is None:
-                command = commands.directories.find(cmds)
-                args[:] = [directory]
-            else:
-                doc = directory.get(guid)
-                command = commands.documents.find(cmds)
-                if command is not None:
-                    if command.callback.im_self is None:
-                        args[:] = [doc, directory]
-                    else:
-                        args[:] = [directory, doc]
-                    if prop is not None:
-                        kwargs['prop'] = prop
-
-        enforce(command is not None, env.NoCommand, _('Unsupported command'))
-
-        if command.permissions & env.ACCESS_AUTH:
-            enforce(env.principal.user is not None, env.Unauthorized,
-                    _('User is not authenticated'))
-        if command.permissions & env.ACCESS_AUTHOR:
-            enforce(env.principal.user in doc['author'], env.Forbidden,
-                    _('Operation is permitted only for authors'))
-
-        response = command.callback(*args, **kwargs)
-
-        _logger.debug('Call %r: request=%r,%r response=%r',
-                command, args, kwargs, response)
-
-        return response, command.mime_type
-
     def __enter__(self):
         return self
 
@@ -120,6 +86,109 @@ class SingleVolume(_Volume):
         for cls in self.values():
             for __ in cls.populate():
                 gthread.dispatch()
+
+
+@directory_command(method='POST',
+        permissions=env.ACCESS_AUTH)
+def _create(directory, request):
+    return directory.create(request.content)
+
+
+@directory_command(method='GET')
+def _find(directory, offset=None, limit=None, query=None, reply=None,
+        order_by=None, **kwargs):
+    offset = _to_int('offset', offset)
+    limit = _to_int('limit', limit)
+    reply = _to_list(reply)
+
+    # TODO until implementing layers support
+    kwargs['layers'] = 'public'
+
+    documents, total = directory.find(offset=offset, limit=limit,
+            query=query, reply=reply, order_by=order_by, **kwargs)
+    result = [i.properties(reply or ['guid']) for i in documents]
+
+    return {'total': total.value, 'result': result}
+
+
+@document_command(method='PUT',
+        permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
+def _update(directory, document, request, prop=None, url=None):
+    if prop is None:
+        directory.update(document.guid, request.content)
+        return
+
+    if not isinstance(directory.metadata[prop], BlobProperty):
+        directory.update(document.guid, {prop: request.content})
+        return
+
+    if url is not None:
+        _logger.info(_('Download BLOB for %r from %r'), prop, url)
+        stream = urllib2.urlopen(url)
+        try:
+            directory.set_blob(document.guid, prop, stream)
+        finally:
+            stream.close()
+    else:
+        directory.set_blob(document.guid, prop, request.content_stream,
+                request.content_length)
+
+
+@document_command(method='DELETE',
+        permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
+def _delete(directory, document, prop=None):
+    enforce(prop is None, _('Properties cannot be deleted'))
+    # TODO until implementing layers support
+    directory.update(document.guid, {'layers': ['deleted']})
+
+
+@document_command(method='GET')
+def _get(directory, document, prop=None, reply=None):
+    if not prop:
+        reply = _to_list(reply)
+        return document.properties(reply)
+
+    if not isinstance(directory.metadata[prop], BlobProperty):
+        return document[prop]
+
+    stream = directory.get_blob(document.guid, prop)
+
+    content_length = 0
+    if stream is not None:
+        stat = directory.stat_blob(document.guid, prop)
+        if stat and stat['size']:
+            content_length = stat['size']
+    content_type = directory.metadata[prop].mime_type
+
+    def send(stream):
+        while True:
+            chunk = stream.read(_PAGE_SIZE)
+            if not chunk:
+                break
+            yield chunk
+
+    if stream is not None:
+        return send(stream), content_length, content_type
+
+
+@document_command(method='GET', cmd='stat-blob')
+def _stat_blob(directory, document, prop=None):
+    enforce(prop is not None, _('No BLOB property specified'))
+    return directory.stat_blob(document.guid, prop)
+
+
+def _to_int(name, value):
+    if type(value) in (str, unicode):
+        enforce(value.isdigit(),
+                _('Argument %r should be an integer value'), name)
+        value = int(value)
+    return value
+
+
+def _to_list(value):
+    if type(value) in (str, unicode):
+        value = value.split(',')
+    return value
 
 
 def _walk_classes(path):
