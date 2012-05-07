@@ -13,12 +13,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import time
 import logging
 from gettext import gettext as _
 
 from active_document import env
 from active_document.metadata import BrowsableProperty, StoredProperty
 from active_document.metadata import active_property
+from active_document.util import enforce
 
 
 _logger = logging.getLogger('active_document.document')
@@ -106,6 +108,46 @@ class Document(object):
                         prop.permissions & env.ACCESS_READ:
                     result[prop_name] = self[prop_name]
         return result
+
+    @classmethod
+    def on_create(cls, props):
+        """Callback to call on document creation.
+
+        Function needs to be re-implemented in child classes.
+
+        :param props:
+            dictionary with new document properties values
+
+        """
+        for prop_name in props.keys():
+            prop = cls.metadata[prop_name]
+            prop.assert_access(env.ACCESS_CREATE)
+
+        ts = int(time.time())
+        props['ctime'] = ts
+        props['mtime'] = ts
+
+        # TODO until implementing layers support
+        props['layers'] = ['public']
+
+        enforce(env.principal.user)
+        props['author'] = [env.principal.user]
+
+    @classmethod
+    def on_update(cls, props):
+        """Callback to call on existing document modification.
+
+        Function needs to be re-implemented in child classes.
+
+        :param props:
+            dictionary with document properties updates
+
+        """
+        for prop_name in props.keys():
+            prop = cls.metadata[prop_name]
+            prop.assert_access(env.ACCESS_WRITE)
+
+        props['mtime'] = int(time.time())
 
     def __getitem__(self, prop):
         return self.get(prop)

@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import time
 import logging
 from os.path import exists, join
 from gettext import gettext as _
@@ -100,31 +99,21 @@ class Directory(object):
             new document properties
 
         """
-        ts = int(time.time())
-        internal_props = {
-                'guid': guid,
-                'ctime': ts,
-                'mtime': ts,
-                }
-
-        # TODO until implementing layers support
-        internal_props['layers'] = ['public']
-
-        enforce(env.principal.user)
-        internal_props['author'] = [env.principal.user]
+        props['guid'] = guid
+        self._document_class.on_create(props)
 
         for prop_name, prop in self.metadata.items():
             if isinstance(prop, StoredProperty):
-                if prop_name in internal_props or prop_name in props:
+                if prop_name in props:
                     continue
                 enforce(prop.default is not None,
                         _('Property %r should be passed for ' \
                                 'new %r document'),
                         prop_name, self.metadata.name)
             if prop.default is not None:
-                internal_props[prop_name] = prop.default
+                props[prop_name] = prop.default
 
-        self._post(guid, internal_props, props, True)
+        self._post(guid, props, True)
         return guid
 
     def update(self, guid, props):
@@ -136,8 +125,10 @@ class Directory(object):
             properties to store, not necessary all document's properties
 
         """
-        if props:
-            self._post(guid, {'mtime': int(time.time())}, props, False)
+        if not props:
+            return
+        self._document_class.on_update(props)
+        self._post(guid, props, False)
 
     def delete(self, guid):
         """Delete document.
@@ -366,39 +357,24 @@ class Directory(object):
         self._seqno += 1
         return self._seqno
 
-    def _post(self, guid, internal_props, props, new):
-        doc = None
-        for prop_name, value in props.items():
-            if value is None:
-                continue
+    def _post(self, guid, props, new):
+        if not props:
+            return
 
+        for prop_name, value in props.items():
             prop = self.metadata[prop_name]
-            if new:
-                prop.assert_access(env.ACCESS_CREATE)
-            else:
-                prop.assert_access(env.ACCESS_WRITE)
             enforce(isinstance(prop, StoredProperty),
                     _('Property %r in %r cannot be set'),
                     prop_name, self.metadata.name)
-
-            if prop.converter is not None:
-                if doc is None:
-                    doc = self._document_class(guid, props)
-                value = prop.converter(doc, value)
-
             try:
-                internal_props[prop_name] = prop.decode(value)
+                props[prop_name] = prop.decode(value)
             except Exception:
                 error = _('Value %r for %r property for %r is invalid') % \
                         (value, prop_name, self.metadata.name)
                 util.exception(error)
                 raise RuntimeError(error)
 
-        if not internal_props:
-            return
-
-        self._index.store(guid, internal_props, new,
-                self._pre_store, self._post_store)
+        self._index.store(guid, props, new, self._pre_store, self._post_store)
 
     def __committed_cb(self, sender):
         with util.new_file(join(self._root, 'seqno')) as f:

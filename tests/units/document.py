@@ -335,6 +335,56 @@ class DocumentTest(tests.Test):
                 [('guid', 'probe')],
                 [(i.guid, i.prop) for i in directory.find(0, 1024)[0]])
 
+    def test_on_create(self):
+
+        class Document(document.Document):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+            @classmethod
+            def on_create(cls, props):
+                super(Document, cls).on_create(props)
+                props['prop'] = 'foo'
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        directory.create({})
+        self.assertEqual(
+                ['foo'],
+                [i.prop for i in directory.find(0, 1024)[0]])
+
+        directory.create({'prop': 'bar'})
+        self.assertEqual(
+                ['foo', 'foo'],
+                [i.prop for i in directory.find(0, 1024)[0]])
+
+    def test_on_update(self):
+
+        class Document(document.Document):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+            @classmethod
+            def on_update(cls, props):
+                super(Document, cls).on_update(props)
+                props['prop'] = 'foo'
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        guid = directory.create({'prop': 'bar'})
+        self.assertEqual(
+                ['bar'],
+                [i.prop for i in directory.find(0, 1024)[0]])
+
+        directory.update(guid, {'prop': 'probe'})
+        self.assertEqual(
+                ['foo'],
+                [i.prop for i in directory.find(0, 1024)[0]])
+
     def test_AssertPermissions(self):
 
         class Document(document.Document):

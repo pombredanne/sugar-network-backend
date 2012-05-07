@@ -73,8 +73,8 @@ class Metadata(dict):
 
         """
         self._name = cls.__name__.lower()
-        self.class_methods = {}
-        self.object_methods = {}
+        self.directory_methods = {}
+        self.document_methods = {}
 
         slots = {}
         prefixes = {}
@@ -101,9 +101,9 @@ class Metadata(dict):
 
         def register_method(attr):
             if isinstance(attr, types.FunctionType):
-                methods = self.class_methods
+                methods = self.directory_methods
             elif isinstance(attr, types.MethodType):
-                methods = self.object_methods
+                methods = self.document_methods
             else:
                 raise RuntimeError(_('Incorrect active_method for %r') % attr)
 
