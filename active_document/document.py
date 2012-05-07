@@ -66,22 +66,16 @@ class Document(object):
         """Document GUID."""
         return self._guid
 
-    def get(self, prop, raw=False):
+    def get(self, prop):
         """Get document's property value.
 
         :param prop:
             property name to get value
-        :param raw:
-            if `True`, avoid any checks for users' visible properties;
-            only for server local use
         :returns:
             `prop` value
 
         """
         prop = self.metadata[prop]
-
-        if not raw:
-            prop.assert_access(env.ACCESS_READ)
 
         value = self._props.get(prop.name)
         if value is not None:
@@ -119,10 +113,6 @@ class Document(object):
             dictionary with new document properties values
 
         """
-        for prop_name in props.keys():
-            prop = cls.metadata[prop_name]
-            prop.assert_access(env.ACCESS_CREATE)
-
         ts = int(time.time())
         props['ctime'] = ts
         props['mtime'] = ts
@@ -143,10 +133,6 @@ class Document(object):
             dictionary with document properties updates
 
         """
-        for prop_name in props.keys():
-            prop = cls.metadata[prop_name]
-            prop.assert_access(env.ACCESS_WRITE)
-
         props['mtime'] = int(time.time())
 
     def __getitem__(self, prop):

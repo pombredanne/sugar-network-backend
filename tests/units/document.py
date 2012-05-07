@@ -401,75 +401,6 @@ class DocumentTest(tests.Test):
                 ['foo'],
                 [i.prop for i in directory.find(0, 1024)[0]])
 
-    def test_AssertPermissions(self):
-
-        class Document(document.Document):
-
-            @active_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        directory.metadata['prop']._permissions = 0
-        guid = directory.create({})
-        doc = directory.get(guid)
-
-        directory.metadata['prop']._permissions = 0
-        self.assertRaises(env.Forbidden, lambda: doc['prop'])
-        directory.metadata['prop']._permissions = env.ACCESS_READ
-        doc['prop']
-
-        directory.metadata['prop']._permissions = 0
-        documents, total = directory.find(0, 100, reply=['guid', 'prop'])
-        self.assertRaises(env.Forbidden, lambda: documents.next().prop)
-        directory.metadata['prop']._permissions = env.ACCESS_READ
-        documents, total = directory.find(0, 100, reply=['guid', 'prop'])
-        documents.next().prop
-
-        directory.metadata['prop']._permissions = 0
-        self.assertRaises(env.Forbidden, directory.create, {'prop': '1'})
-        directory.metadata['prop']._permissions = env.ACCESS_WRITE
-        self.assertRaises(env.Forbidden, directory.create, {'prop': '1'})
-        directory.metadata['prop']._permissions = env.ACCESS_CREATE
-        directory.create({'prop': '1'})
-
-        directory.metadata['prop']._permissions = 0
-        self.assertRaises(env.Forbidden, directory.create, {'prop': '1'})
-        directory.metadata['prop']._permissions = env.ACCESS_WRITE
-        self.assertRaises(env.Forbidden, directory.create, {'prop': '1'})
-        directory.metadata['prop']._permissions = env.ACCESS_CREATE
-        directory.create({'prop': '1'})
-
-        directory.metadata['prop']._permissions = 0
-        self.assertRaises(env.Forbidden, directory.update, guid, {'prop': '1'})
-        directory.metadata['prop']._permissions = env.ACCESS_CREATE
-        self.assertRaises(env.Forbidden, directory.update, guid, {'prop': '1'})
-        directory.metadata['prop']._permissions = env.ACCESS_WRITE
-        directory.update(guid, {'prop': '1'})
-
-    def test_authorize_property_Blobs(self):
-
-        class Document(document.Document):
-
-            @active_property(BlobProperty)
-            def blob(self, value):
-                return value
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        guid = directory.create({})
-
-        directory.metadata['blob']._permissions = 0
-        self.assertRaises(env.Forbidden, directory.get_blob, guid, 'blob')
-        directory.metadata['blob']._permissions = env.ACCESS_READ
-        directory.get_blob(guid, 'blob')
-
-        directory.metadata['blob']._permissions = 0
-        self.assertRaises(env.Forbidden, directory.set_blob, guid, 'blob', StringIO('data'))
-        directory.metadata['blob']._permissions = env.ACCESS_WRITE
-        directory.set_blob(guid, 'blob', StringIO('data'))
-
     def test_times(self):
 
         class Document(document.Document):
@@ -500,16 +431,6 @@ class DocumentTest(tests.Test):
         doc = directory.get(guid)
         assert doc['ctime'] < doc['mtime']
 
-    def test_UpdateInternalProps(self):
-
-        class Document(document.Document):
-            pass
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        self.assertRaises(env.Forbidden, directory.create, {'ctime': 1})
-        self.assertRaises(env.Forbidden, directory.create, {'mtime': 1})
-
     def test_seqno(self):
 
         class Document(document.Document):
@@ -520,14 +441,14 @@ class DocumentTest(tests.Test):
         guid = directory.create({})
         self.assertEqual(
                 os.stat('%s/%s/.seqno' % (guid[:2], guid)).st_mtime,
-                directory.get(guid).get('seqno', raw=True))
-        self.assertEqual(1, directory.get(guid).get('seqno', raw=True))
+                directory.get(guid).get('seqno'))
+        self.assertEqual(1, directory.get(guid).get('seqno'))
 
         guid_2 = directory.create({})
         self.assertEqual(
                 os.stat('%s/%s/.seqno' % (guid_2[:2], guid_2)).st_mtime,
-                directory.get(guid_2).get('seqno', raw=True))
-        self.assertEqual(2, directory.get(guid_2).get('seqno', raw=True))
+                directory.get(guid_2).get('seqno'))
+        self.assertEqual(2, directory.get(guid_2).get('seqno'))
 
     def test_merge_New(self):
 

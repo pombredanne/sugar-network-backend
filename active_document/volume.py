@@ -91,7 +91,10 @@ class SingleVolume(_Volume):
 @directory_command(method='POST',
         permissions=env.ACCESS_AUTH)
 def _create(directory, request):
-    return directory.create(request.content)
+    props = request.content
+    for i in props.keys():
+        directory.metadata[i].assert_access(env.ACCESS_CREATE)
+    return directory.create(props)
 
 
 @directory_command(method='GET')
@@ -99,7 +102,10 @@ def _find(directory, offset=None, limit=None, query=None, reply=None,
         order_by=None, **kwargs):
     offset = _to_int('offset', offset)
     limit = _to_int('limit', limit)
-    reply = _to_list(reply)
+    reply = _to_list(reply) or ['guid']
+
+    for i in reply:
+        directory.metadata[i].assert_access(env.ACCESS_READ)
 
     # TODO until implementing layers support
     kwargs['layers'] = 'public'
@@ -115,8 +121,13 @@ def _find(directory, offset=None, limit=None, query=None, reply=None,
         permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
 def _update(directory, document, request, prop=None, url=None):
     if prop is None:
-        directory.update(document.guid, request.content)
+        props = request.content
+        for i in props.keys():
+            directory.metadata[i].assert_access(env.ACCESS_WRITE)
+        directory.update(document.guid, props)
         return
+
+    directory.metadata[prop].assert_access(env.ACCESS_WRITE)
 
     if not isinstance(directory.metadata[prop], BlobProperty):
         directory.update(document.guid, {prop: request.content})
@@ -145,8 +156,12 @@ def _delete(directory, document, prop=None):
 @document_command(method='GET')
 def _get(directory, document, prop=None, reply=None):
     if not prop:
-        reply = _to_list(reply)
+        reply = _to_list(reply) or ['guid']
+        for i in reply:
+            directory.metadata[i].assert_access(env.ACCESS_READ)
         return document.properties(reply)
+
+    directory.metadata[prop].assert_access(env.ACCESS_READ)
 
     if not isinstance(directory.metadata[prop], BlobProperty):
         return document[prop]
@@ -174,6 +189,7 @@ def _get(directory, document, prop=None, reply=None):
 @document_command(method='GET', cmd='stat-blob')
 def _stat_blob(directory, document, prop=None):
     enforce(prop is not None, _('No BLOB property specified'))
+    directory.metadata[prop].assert_access(env.ACCESS_READ)
     return directory.stat_blob(document.guid, prop)
 
 

@@ -180,29 +180,24 @@ class Directory(object):
 
         return iterate(), total
 
-    def get_blob(self, guid, prop, raw=False):
+    def get_blob(self, guid, prop):
         """Read the content of document's BLOB property.
 
         This function works in parallel to getting non-BLOB properties values.
 
         :param prop:
             BLOB property name
-        :param raw:
-            if `True`, avoid any checks for users' visible properties;
-            only for server local use
         :returns:
             file-like object or `None`
 
         """
         prop = self.metadata[prop]
-        if not raw:
-            prop.assert_access(env.ACCESS_READ)
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
         return self._storage.get_blob(guid, prop.name)
 
-    def set_blob(self, guid, prop, stream, size=None, raw=False):
+    def set_blob(self, guid, prop, stream, size=None):
         """Receive BLOB property from a stream.
 
         This function works in parallel to setting non-BLOB properties values
@@ -214,14 +209,9 @@ class Directory(object):
             stream to receive property value from
         :param size:
             read only specified number of bytes; otherwise, read until the EOF
-        :param raw:
-            if `True`, avoid any checks for users' visible properties;
-            only for server local use
 
         """
         prop = self.metadata[prop]
-        if not raw:
-            prop.assert_access(env.ACCESS_WRITE)
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
@@ -230,21 +220,16 @@ class Directory(object):
             self._index.store(guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
 
-    def stat_blob(self, guid, prop, raw=False):
+    def stat_blob(self, guid, prop):
         """Receive BLOB property information.
 
         :param prop:
             BLOB property name
-        :param raw:
-            if `True`, avoid any checks for users' visible properties;
-            only for server local use
         :returns:
             a dictionary of `size`, `sha1sum` keys
 
         """
         prop = self.metadata[prop]
-        if not raw:
-            prop.assert_access(env.ACCESS_READ)
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
@@ -300,11 +285,11 @@ class Directory(object):
                     break
                 seqno = None
                 for i in documents:
-                    start = max(start, i.get('seqno', raw=True))
+                    start = max(start, i.get('seqno'))
                     diff, __ = self._storage.diff(i.guid, accept_range)
                     if not diff:
                         continue
-                    seqno = max(seqno, i.get('seqno', raw=True))
+                    seqno = max(seqno, i.get('seqno'))
                     if result[0] is None:
                         result[0] = seqno
                     yield i.guid, diff
