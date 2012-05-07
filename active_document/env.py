@@ -99,6 +99,14 @@ class Forbidden(Exception):
     pass
 
 
+class Unauthorized(Exception):
+    pass
+
+
+class NoCommand(Exception):
+    pass
+
+
 class Range(list):
     """List of sorted, non-overlapping ranges on the same scale.
 

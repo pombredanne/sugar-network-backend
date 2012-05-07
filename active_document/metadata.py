@@ -16,7 +16,7 @@
 import types
 from gettext import gettext as _
 
-from active_document import env
+from active_document import env, commands
 from active_document.util import enforce
 
 
@@ -49,16 +49,6 @@ def active_property(property_class=None, *args, **kwargs):
     return decorate_getter
 
 
-def active_method(**kwargs):
-
-    def decorate(func):
-        func._is_active_method = True
-        func.kwargs = kwargs
-        return func
-
-    return decorate
-
-
 class Metadata(dict):
     """Structure to describe the document.
 
@@ -73,8 +63,6 @@ class Metadata(dict):
 
         """
         self._name = cls.__name__.lower()
-        self.directory_methods = {}
-        self.document_methods = {}
 
         slots = {}
         prefixes = {}
@@ -99,24 +87,20 @@ class Metadata(dict):
                 setattr(cls, attr.name, property(attr))
             self[prop.name] = prop
 
-        def register_method(attr):
-            if isinstance(attr, types.FunctionType):
-                methods = self.directory_methods
-            elif isinstance(attr, types.MethodType):
-                methods = self.document_methods
+        def register_command(attr):
+            enforce(isinstance(attr, types.MethodType),
+                    _('Incorrect active_command, %r'), attr)
+            if attr.im_self is None:
+                cmds = commands.documents
             else:
-                raise RuntimeError(_('Incorrect active_method for %r') % attr)
-
-            meth = Method(attr, **attr.kwargs)
-            enforce(meth.name not in methods,
-                    _('Method %r already exists'), meth.name)
-            methods[meth.name] = meth
+                cmds = commands.directories
+            cmds.register(attr, document=self.name, **attr.kwargs)
 
         for attr in [getattr(cls, i) for i in dir(cls)]:
             if hasattr(attr, '_is_active_property'):
                 register_property(attr)
-            elif hasattr(attr, '_is_active_method'):
-                register_method(attr)
+            elif hasattr(attr, '_is_active_command'):
+                register_command(attr)
 
     @property
     def name(self):
@@ -300,27 +284,6 @@ class BlobProperty(Property):
 
         """
         return self._mime_type
-
-
-class Method(object):
-
-    def __init__(self, cb=None, cmd=None, http_method='GET',
-            mime_type='application/json', permissions=0):
-        self._cb = cb
-        self.cmd = cmd
-        self.http_method = http_method
-        self.mime_type = mime_type
-        self.permissions = permissions
-
-    @property
-    def name(self):
-        return self.cmd or self.http_method
-
-    def __str__(self):
-        return '%s: %s' % (self.name, self._cb)
-
-    def __call__(self, *args, **kwargs):
-        return self._cb(*args, **kwargs)
 
 
 def _is_composite(typecast):

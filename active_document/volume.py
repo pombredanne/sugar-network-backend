@@ -20,7 +20,7 @@ import logging
 from os.path import exists, basename, join
 from gettext import gettext as _
 
-from active_document import env, gthread
+from active_document import env, gthread, commands
 from active_document.document import Document
 from active_document.directory import Directory
 from active_document.index import IndexWriter
@@ -57,6 +57,45 @@ class _Volume(dict):
         while self:
             __, cls = self.popitem()
             cls.close()
+
+    def call(self, cmd, document=None, guid=None, prop=None, **kwargs):
+        args = []
+
+        if document is None:
+            command = commands.volumes.get(cmd)
+        else:
+            directory = self[document]
+            cmds = [cmd, cmd + (document,) if type(cmd) is tuple else \
+                    (cmd, document)]
+            if guid is None:
+                command = commands.directories.find(cmds)
+                args[:] = [directory]
+            else:
+                doc = directory.get(guid)
+                command = commands.documents.find(cmds)
+                if command is not None:
+                    if command.callback.im_self is None:
+                        args[:] = [doc, directory]
+                    else:
+                        args[:] = [directory, doc]
+                    if prop is not None:
+                        kwargs['prop'] = prop
+
+        enforce(command is not None, env.NoCommand, _('Unsupported command'))
+
+        if command.permissions & env.ACCESS_AUTH:
+            enforce(env.principal.user is not None, env.Unauthorized,
+                    _('User is not authenticated'))
+        if command.permissions & env.ACCESS_AUTHOR:
+            enforce(env.principal.user in doc['author'], env.Forbidden,
+                    _('Operation is permitted only for authors'))
+
+        response = command.callback(*args, **kwargs)
+
+        _logger.debug('Call %r: request=%r,%r response=%r',
+                command, args, kwargs, response)
+
+        return response, command.mime_type
 
     def __enter__(self):
         return self
