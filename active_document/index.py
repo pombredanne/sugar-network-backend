@@ -331,7 +331,7 @@ class IndexWriter(IndexReader):
                 document.add_value(prop.slot, add_value)
 
             if prop.prefix or prop.full_text:
-                for value in prop.reprcast(value):
+                for value in prop.to_string(value):
                     if prop.prefix:
                         if prop.boolean:
                             document.add_boolean_term(

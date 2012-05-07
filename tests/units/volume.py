@@ -42,20 +42,20 @@ class VolumeTest(tests.Test):
         class Document(document.Document):
             pass
 
-        with SingleVolume(tests.tmpdir, [Document]):
+        with SingleVolume(tests.tmpdir, [Document]) as volume:
             self.assertEqual(
                     sorted(['1', '2']),
-                    sorted([i.guid for i in Document.find()[0]]))
+                    sorted([i.guid for i in volume['document'].find()[0]]))
 
         shutil.rmtree('document/index')
 
         class Document(document.Document):
             pass
 
-        with SingleVolume(tests.tmpdir, [Document]):
+        with SingleVolume(tests.tmpdir, [Document]) as volume:
             self.assertEqual(
                     sorted(['1', '2']),
-                    sorted([i.guid for i in Document.find()[0]]))
+                    sorted([i.guid for i in volume['document'].find()[0]]))
 
 
 if __name__ == '__main__':

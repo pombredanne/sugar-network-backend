@@ -183,15 +183,11 @@ class Property(object):
         """Default property value or None."""
         return self._default
 
-    def encode(self, value):
-        """Convert property value to internal representation."""
-        return _encode(self.typecast, value)
-
     def decode(self, value):
-        """Convert property value from internal representation."""
-        return value
+        """Convert property value according to its `typecast`."""
+        return _decode(self.typecast, value)
 
-    def reprcast(self, value):
+    def to_string(self, value):
         """Convert value to list of strings ready to index."""
         result = []
 
@@ -338,7 +334,7 @@ def _is_composite(typecast):
     return False, False
 
 
-def _encode(typecast, value):
+def _decode(typecast, value):
     enforce(value is not None, ValueError, _('Property value cannot be None'))
 
     is_composite, is_enum = _is_composite(typecast)
@@ -349,7 +345,7 @@ def _encode(typecast, value):
         if type(value) not in _LIST_TYPES:
             value = (value,)
         typecast, = typecast or [str]
-        value = tuple([_encode(typecast, i) for i in value])
+        value = tuple([_decode(typecast, i) for i in value])
     elif is_enum:
         enforce(value in typecast, ValueError,
                 _("Value %r is not in '%s' list"),

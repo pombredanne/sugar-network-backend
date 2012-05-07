@@ -13,7 +13,7 @@ from gevent.event import Event
 from __init__ import tests
 
 from active_document import env, index_queue, document
-from active_document.document_class import active_property
+from active_document.metadata import active_property, Metadata
 from active_document.index_proxy import IndexProxy
 from active_document.index import IndexWriter
 
@@ -26,7 +26,7 @@ class IndexQueueTest(tests.Test):
         class Document(document.Document):
             pass
 
-        Document.init(tests.tmpdir, IndexProxy)
+        Document.metadata = Metadata(Document)
         index_queue.start(tests.tmpdir, [Document])
         self.Document = Document
 

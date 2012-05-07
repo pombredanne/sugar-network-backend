@@ -12,10 +12,10 @@ from __init__ import tests
 
 from active_document import env
 from active_document import index_queue, document
-from active_document.document_class import active_property
 from active_document.index_proxy import IndexProxy
 from active_document.index import IndexReader, Total, IndexWriter
 from active_document.storage import Storage
+from active_document.metadata import active_property, Metadata
 
 
 class IndexProxyTest(tests.Test):
@@ -34,7 +34,7 @@ class IndexProxyTest(tests.Test):
             def not_term(self, value):
                 return value
 
-        Document.init(tests.tmpdir, TestIndexProxy)
+        Document.metadata = Metadata(Document)
         self.metadata = Document.metadata
 
         self.override(index_queue, 'put', lambda *args: 1)
@@ -261,7 +261,7 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(tests.tmpdir, TestIndexProxy)
+        Document.metadata = Metadata(Document)
         proxy = TestIndexProxy(tests.tmpdir, Document.metadata)
 
         proxy.store('1', {'guid': '1', 'prop': ('a',)}, True)
@@ -304,7 +304,7 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(tests.tmpdir, TestIndexProxy)
+        Document.metadata = Metadata(Document)
         proxy = TestIndexProxy(tests.tmpdir, Document.metadata)
 
         self.assertEqual(
@@ -350,7 +350,7 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(tests.tmpdir, TestIndexProxy)
+        Document.metadata = Metadata(Document)
         proxy = TestIndexProxy(tests.tmpdir, Document.metadata)
 
         self.assertEqual(
@@ -508,7 +508,7 @@ class IndexProxyTest(tests.Test):
             def prop(self, value):
                 return value
 
-        Document.init(tests.tmpdir, TestIndexProxy)
+        Document.metadata = Metadata(Document)
         IndexWriter(tests.tmpdir, Document.metadata).close()
 
         storage = Storage(tests.tmpdir, Document.metadata)

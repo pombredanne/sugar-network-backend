@@ -231,7 +231,7 @@ class _CachedPage(dict):
             if prop is None:
                 continue
             try:
-                value = prop.encode(value)
+                value = prop.decode(value)
             except ValueError, error:
                 _logger.debug('Wrong request property value %r for %r ' \
                         'property, thus the whole request is empty: %s',

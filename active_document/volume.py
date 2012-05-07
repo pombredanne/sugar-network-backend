@@ -22,6 +22,7 @@ from gettext import gettext as _
 
 from active_document import env, gthread
 from active_document.document import Document
+from active_document.directory import Directory
 from active_document.index import IndexWriter
 from active_document.util import enforce
 
@@ -33,24 +34,29 @@ class _Volume(dict):
 
     def __init__(self, root, document_classes, index_class, extra_props):
         self._root = root
-
-        if type(document_classes) is dict:
-            self.update(document_classes)
-        elif type(document_classes) in (tuple, list):
-            self.update([(i.__name__.lower(), i) for i in document_classes])
-        else:
-            self.update(_walk_classes(document_classes))
-
         if not exists(root):
             os.makedirs(root)
 
         _logger.info(_('Opening documents in %r'), root)
 
+        if type(document_classes) not in (tuple, list):
+            document_classes = _walk_classes(document_classes)
+
         if extra_props is None:
             extra_props = {}
-        for cls in self.values():
+
+        for cls in document_classes:
             name = cls.__name__.lower()
-            cls.init(join(root, name), index_class, extra_props.get(name))
+            self[name] = Directory(join(root, name), cls, index_class,
+                    extra_props.get(name))
+
+    def close(self):
+        """Close operations with the server."""
+        _logger.info(_('Closing documents in %r'), self._root)
+
+        while self:
+            __, cls = self.popitem()
+            cls.close()
 
     def __enter__(self):
         return self
@@ -61,14 +67,6 @@ class _Volume(dict):
     def __getitem__(self, name):
         enforce(name in self, _('Unknow %r document'), name)
         return self.get(name)
-
-    def close(self):
-        """Close operations with the server."""
-        _logger.info(_('Closing documents in %r'), self._root)
-
-        while self:
-            __, cls = self.popitem()
-            cls.close()
 
 
 class SingleVolume(_Volume):

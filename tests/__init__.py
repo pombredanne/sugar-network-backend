@@ -13,7 +13,7 @@ import dbus.mainloop.glib
 from active_document import env as _env, index_queue as _index_queue
 from active_document import sneakernet as _sneakernet
 from active_document import storage as _storage
-from active_document import document_class as _document_class
+from active_document import directory as _directory
 
 
 root = abspath(dirname(__file__))
@@ -56,7 +56,7 @@ class Test(unittest.TestCase):
         _env.LAYOUT_VERSION = 1
         _env.principal.user = 'me'
         _sneakernet.next_volume_cb = None
-        _document_class._DIFF_PAGE_SIZE = 256
+        _directory._DIFF_PAGE_SIZE = 256
 
         _index_queue.errnum = 0
 

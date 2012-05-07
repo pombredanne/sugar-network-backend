@@ -13,81 +13,56 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
 import logging
 from gettext import gettext as _
 
-from active_document import env, util
-from active_document.document_class import DocumentClass
-from active_document.metadata import BlobProperty, StoredProperty
-from active_document.metadata import BrowsableProperty, active_method
-from active_document.util import enforce
+from active_document import env
+from active_document.metadata import BrowsableProperty, StoredProperty
+from active_document.metadata import active_property
 
 
 _logger = logging.getLogger('active_document.document')
 
 
-class Document(DocumentClass):
+class Document(object):
 
-    def __init__(self, guid=None, raw=False, indexed_props=None, **kwargs):
-        """
-        :param guid:
-            GUID of existing document; if omitted, newly created object
-            will be associated with new document; new document will be saved
-            only after calling `post`
-        :param indexed_props:
-            property values got from index to populate the cache
-        :param kwargs:
-            optional key arguments with new property values; specifing these
-            arguments will mean the same as setting properties after `Document`
-            object creation
+    #: `Metadata` object that describes the document
+    metadata = None
 
-        """
-        enforce(self._initated)
+    def __init__(self, guid, indexed_props=None, record=None):
+        self._guid = guid
+        self._props = indexed_props or {}
+        self._record = record
 
-        self._is_new = False
-        self._cache = {}
-        self._record = None
+    @active_property(slot=1000, prefix='IC', typecast=int,
+            permissions=env.ACCESS_READ, default=0)
+    def ctime(self, value):
+        return value
 
-        if guid:
-            self._guid = guid
-            if not indexed_props:
-                indexed_props = self._index.get_cached(guid)
-            for prop_name, value in (indexed_props or {}).items():
-                self._set(self.metadata[prop_name], value, None)
-        else:
-            self._is_new = True
+    @active_property(slot=1001, prefix='IM', typecast=int,
+            permissions=env.ACCESS_READ, default=0)
+    def mtime(self, value):
+        return value
 
-            cache = {}
-            self.on_create(kwargs, cache)
-            for name, value in cache.items():
-                self._set(self.metadata[name], None, value)
-            self._guid = cache['guid']
+    @active_property(slot=1002, prefix='IS', typecast=int,
+            permissions=0, default=0)
+    def seqno(self, value):
+        return value
 
-            for name, prop in self.metadata.items():
-                if isinstance(prop, StoredProperty):
-                    if name in kwargs or name in self._cache:
-                        continue
-                    enforce(prop.default is not None,
-                            _('Property %r should be passed for ' \
-                                    'new %r document'),
-                            name, self.metadata.name)
-                if prop.default is not None:
-                    self._set(prop, None, prop.default)
+    @active_property(prefix='IL', typecast=[env.LAYERS],
+            permissions=env.ACCESS_READ)
+    def layers(self, value):
+        return value
 
-        for prop_name, value in kwargs.items():
-            self.set(prop_name, value, raw=raw)
+    @active_property(prefix='IA', typecast=[],
+            permissions=env.ACCESS_READ)
+    def author(self, value):
+        return value
 
     @property
     def guid(self):
         """Document GUID."""
         return self._guid
-
-    @property
-    def exists(self):
-        if self._is_new:
-            return False
-        return self._storage.exists(self.guid)
 
     def get(self, prop, raw=False):
         """Get document's property value.
@@ -106,23 +81,19 @@ class Document(DocumentClass):
         if not raw:
             prop.assert_access(env.ACCESS_READ)
 
-        orig, new = self._cache.get(prop.name, (None, None))
-        if new is not None:
-            return new
-        if orig is not None:
-            return orig
+        value = self._props.get(prop.name)
+        if value is not None:
+            return value
 
-        if isinstance(prop, StoredProperty):
-            if self._record is None:
-                self._record = self._storage.get(self.guid)
-            orig = self._record.get(prop.name)
+        if self._record is not None and isinstance(prop, StoredProperty):
+            value = self._record.get(prop.name)
         else:
             raise RuntimeError(_('Property %r in %r cannot be get') % \
                     (prop.name, self.metadata.name))
 
-        self._cache[prop.name] = (orig, new)
+        self._props[prop.name] = value
 
-        return prop.decode(orig)
+        return value
 
     def properties(self, names=None):
         result = {}
@@ -136,195 +107,5 @@ class Document(DocumentClass):
                     result[prop_name] = self[prop_name]
         return result
 
-    def set(self, prop, value, raw=False):
-        """set document's property value.
-
-        :param prop:
-            property name to set
-        :param raw:
-            if `True`, avoid any checks for users' visible properties;
-            only for server local use
-        :param value:
-            property value to set
-
-        """
-        if prop == 'guid':
-            enforce(self._is_new, _('GUID can be set only for new documents'))
-
-        prop = self.metadata[prop]
-
-        if not raw:
-            if self._is_new:
-                prop.assert_access(env.ACCESS_CREATE)
-            else:
-                prop.assert_access(env.ACCESS_WRITE)
-
-        enforce(isinstance(prop, StoredProperty),
-                _('Property %r in %r cannot be set'),
-                prop.name, self.metadata.name)
-
-        self._set(prop, None, value)
-
-        if prop.name == 'guid':
-            self._guid = value
-
-    def post(self):
-        changes = {}
-        for prop_name, (__, new) in self._cache.items():
-            if new is not None:
-                changes[prop_name] = new
-        if not changes:
-            return
-
-        if not self._is_new:
-            self.on_modify(changes)
-        self.on_post(changes)
-
-        if self._is_new:
-            _logger.debug('Create new document %r', self.guid)
-
-        self._index.store(self.guid, changes, self._is_new,
-                self._pre_store, self._post_store)
-        self._is_new = False
-
-    def get_blob(self, prop, raw=False):
-        """Read the content of document's BLOB property.
-
-        This function works in parallel to getting non-BLOB properties values.
-
-        :param prop:
-            BLOB property name
-        :param raw:
-            if `True`, avoid any checks for users' visible properties;
-            only for server local use
-        :returns:
-            file-like object or `None`
-
-        """
-        prop = self.metadata[prop]
-        if not raw:
-            prop.assert_access(env.ACCESS_READ)
-        enforce(isinstance(prop, BlobProperty),
-                _('Property %r in %r is not a BLOB'),
-                prop.name, self.metadata.name)
-        return self._storage.get_blob(self.guid, prop.name)
-
-    def set_blob(self, prop, stream, size=None, raw=False):
-        """Receive BLOB property from a stream.
-
-        This function works in parallel to setting non-BLOB properties values
-        and `post()` function.
-
-        :param prop:
-            BLOB property name
-        :param stream:
-            stream to receive property value from
-        :param size:
-            read only specified number of bytes; otherwise, read until the EOF
-        :param raw:
-            if `True`, avoid any checks for users' visible properties;
-            only for server local use
-
-        """
-        prop = self.metadata[prop]
-        if not raw:
-            prop.assert_access(env.ACCESS_WRITE)
-        enforce(isinstance(prop, BlobProperty),
-                _('Property %r in %r is not a BLOB'),
-                prop.name, self.metadata.name)
-        seqno = self.next_seqno()
-        if self._storage.set_blob(seqno, self.guid, prop.name, stream, size):
-            self._index.store(self.guid, {'seqno': seqno}, None,
-                    self._pre_store, self._post_store)
-
-    @active_method(cmd='stat-blob')
-    def stat_blob(self, prop, raw=False):
-        """Receive BLOB property information.
-
-        :param prop:
-            BLOB property name
-        :param raw:
-            if `True`, avoid any checks for users' visible properties;
-            only for server local use
-        :returns:
-            a dictionary of `size`, `sha1sum` keys
-
-        """
-        prop = self.metadata[prop]
-        if not raw:
-            prop.assert_access(env.ACCESS_READ)
-        enforce(isinstance(prop, BlobProperty),
-                _('Property %r in %r is not a BLOB'),
-                prop.name, self.metadata.name)
-        return self._storage.stat_blob(self.guid, prop.name)
-
-    def on_create(self, properties, cache):
-        """Call back to call on document creation.
-
-        Function needs to be re-implemented in child classes.
-
-        :param properties:
-            dictionary with new document properties values
-        :param cache:
-            properties to use as predefined values
-
-        """
-        cache['guid'] = env.uuid()
-        ts = int(time.time())
-        cache['ctime'] = ts
-        cache['mtime'] = ts
-
-        # TODO until implementing layers support
-        cache['layers'] = ['public']
-
-        enforce(env.principal.user)
-        cache['author'] = [env.principal.user]
-
-    def on_modify(self, properties):
-        """Call back to call on existing document modification.
-
-        Function needs to be re-implemented in child classes.
-
-        :param properties:
-            dictionary with document properties updates
-
-        """
-        ts = int(time.time())
-        properties['mtime'] = ts
-
-    def on_post(self, properties):
-        """Call back to call on exery `post()` call.
-
-        Function needs to be re-implemented in child classes.
-
-        :param properties:
-            dictionary with document properties updates
-
-        """
-        pass
-
     def __getitem__(self, prop):
         return self.get(prop)
-
-    def __setitem__(self, prop, value):
-        self.set(prop, value)
-
-    def _set(self, prop, orig, new):
-
-        def cast(value):
-            if value is None:
-                return None
-            if prop.converter is not None:
-                value = prop.converter(self, value)
-            try:
-                value = prop.encode(value)
-            except Exception:
-                error = _('Value %r for %r property for %r is invalid') % \
-                        (value, prop.name, self.metadata.name)
-                util.exception(error)
-                raise RuntimeError(error)
-            return value
-
-        if orig is None:
-            orig, __ = self._cache.get(prop.name, (None, None))
-        self._cache[prop.name] = cast(orig), cast(new)
