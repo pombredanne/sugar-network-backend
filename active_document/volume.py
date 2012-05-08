@@ -233,4 +233,4 @@ def _walk_classes(path):
         if [i for i in classes if i is not cls and issubclass(i, cls)]:
             classes = [i for i in classes if i.__name__ != cls.__name__]
 
-    return [(i.__name__.lower(), i) for i in classes]
+    return classes
