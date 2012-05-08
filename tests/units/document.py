@@ -178,9 +178,35 @@ class DocumentTest(tests.Test):
 
         directory.set_blob(guid, 'blob', StringIO(data))
         self.assertEqual(data, directory.get_blob(guid, 'blob').read())
-        self.assertEqual(
-                {'size': len(data), 'sha1sum': hashlib.sha1(data).hexdigest()},
-                directory.stat_blob(guid, 'blob'))
+        self.assertEqual({
+            'size': len(data),
+            'sha1sum': hashlib.sha1(data).hexdigest(),
+            'mime_type': 'application/octet-stream',
+            'path': join(tests.tmpdir, guid[:2], guid, 'blob'),
+            },
+            directory.stat_blob(guid, 'blob'))
+
+    def test_properties_Override(self):
+
+        class Document(document.Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return 'new-prop'
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return 'new-blob'
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+        guid = directory.create({})
+
+        self.assertEqual('new-prop', directory.get(guid).prop)
+
+        self.touch(('new-blob', 'new-blob'))
+        self.assertEqual('new-blob', directory.get_blob(guid, 'blob').read())
+        directory.set_blob(guid, 'blob', StringIO('old-blob'))
+        self.assertEqual('new-blob', directory.get_blob(guid, 'blob').read())
 
     def test_find_MaxLimit(self):
 

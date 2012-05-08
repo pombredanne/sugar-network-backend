@@ -195,7 +195,12 @@ class Directory(object):
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
-        return self._storage.get_blob(guid, prop.name)
+        document = self.get(guid)
+        path = self._storage.get_blob(guid, prop.name)
+        path = prop.on_get(document, path)
+        if not path:
+            return None
+        return file(path)
 
     def set_blob(self, guid, prop, stream, size=None):
         """Receive BLOB property from a stream.

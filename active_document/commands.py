@@ -16,7 +16,7 @@
 import logging
 from gettext import gettext as _
 
-from active_document import env, util
+from active_document import env
 from active_document.util import enforce
 
 
@@ -70,15 +70,9 @@ def call(volume, request, response):
     if command.accept_response:
         request['response'] = response
 
-    try:
-        result = command.callback(*args, **request)
-    except Exception:
-        util.exception(_logger, _('Failed to call %r command: request=%r'),
-                command, request)
-        raise RuntimeError(_('Failed to call %r command') % command)
-    else:
-        _logger.debug('Called %r: request=%r result=%r',
-                command, request, result)
+    result = command.callback(*args, **request)
+
+    _logger.debug('Called %r: request=%r result=%r', command, request, result)
 
     if not response.content_type:
         response.content_type = command.mime_type

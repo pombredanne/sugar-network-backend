@@ -31,7 +31,6 @@ def active_property(property_class=None, *args, **kwargs):
         return func(self, value)
 
     def decorate_setter(func, attr):
-        attr.prop.converter = lambda self, value: func(self, value)
         attr.prop.setter = lambda self, value: \
                 self.set(attr.name, func(self, value))
         return attr
@@ -39,12 +38,13 @@ def active_property(property_class=None, *args, **kwargs):
     def decorate_getter(func):
         enforce(func.__name__ != 'guid',
                 _("Active property should not have 'guid' name"))
-        attr = lambda self, * args: getter(func, self)
+        attr = lambda self: getter(func, self)
         attr.setter = lambda func: decorate_setter(func, attr)
         attr._is_active_property = True
         attr.name = func.__name__
         attr.prop = (property_class or ActiveProperty)(
                 attr.name, *args, **kwargs)
+        attr.prop.on_get = func
         return attr
 
     return decorate_getter
@@ -132,7 +132,7 @@ class Property(object):
     def __init__(self, name, permissions=env.ACCESS_FULL, typecast=None,
             reprcast=None, default=None):
         self.setter = None
-        self.converter = None
+        self.on_get = None
         self._name = name
         self._permissions = permissions
         self._typecast = typecast

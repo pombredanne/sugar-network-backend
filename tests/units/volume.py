@@ -12,7 +12,7 @@ from __init__ import tests
 
 from active_document import volume, document, SingleVolume, \
         call, Request, Response, Document, active_property, \
-        BlobProperty
+        BlobProperty, NotFound
 
 
 class VolumeTest(tests.Test):
@@ -116,7 +116,7 @@ class VolumeTest(tests.Test):
                     ]),
                 sorted(self.call('GET', 'testdocument', reply=['guid', 'prop'])['result']))
 
-        self.assertRaises(RuntimeError, self.call, 'GET', 'testdocument', guid_2)
+        self.assertRaises(NotFound, self.call, 'GET', 'testdocument', guid_2)
 
         self.assertEqual(
                 {'guid': guid_1, 'prop': 'value_3'},

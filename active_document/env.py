@@ -103,6 +103,13 @@ class Unauthorized(Exception):
     pass
 
 
+class Redirect(Exception):
+
+    def __init__(self, location, *args, **kwargs):
+        self.location = location
+        Exception.__init__(self, *args, **kwargs)
+
+
 class Range(list):
     """List of sorted, non-overlapping ranges on the same scale.
 

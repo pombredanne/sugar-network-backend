@@ -148,15 +148,12 @@ class Storage(object):
         :param name:
             BLOB property name
         :returns:
-            file-like object or `None`
+            path to BLOB fil or `None`
 
         """
         path = self._path(guid, name)
-        if not exists(path):
-            return
-        _logger.debug('Read %r BLOB property from %r document in %r',
-                name, guid, self.metadata.name)
-        return file(path)
+        if exists(path):
+            return path
 
     def set_blob(self, seqno, guid, name, stream, size=None):
         """Write the content of document's BLOB property.

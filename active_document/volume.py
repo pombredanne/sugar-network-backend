@@ -194,6 +194,8 @@ def _stat_blob(directory, document, prop=None):
     enforce(prop is not None, _('No BLOB property specified'))
     directory.metadata[prop].assert_access(env.ACCESS_READ)
     stat = directory.stat_blob(document.guid, prop)
+    if not stat:
+        return None
     return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
 
 
