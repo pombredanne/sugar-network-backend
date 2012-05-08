@@ -121,6 +121,11 @@ class Commands(dict):
 class Request(dict):
 
     command = None
+    content = None
+
+    def __getitem__(self, key):
+        enforce(key in self, _('Cannot find %r request argument'), key)
+        return self.get(key)
 
 
 class Response(dict):
