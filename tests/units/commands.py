@@ -115,9 +115,9 @@ class CommandsTest(tests.Test):
             request.content_stream = request.pop('content_stream')
             request.content_length = len(request.content_stream.getvalue())
 
-        response = Response()
+        self.response = Response()
 
-        return call(self.volume, request, response)
+        return call(self.volume, request, self.response)
 
     def test_Commands(self):
         self.call('PROBE', 'testdocument', 'guid')
@@ -238,6 +238,8 @@ class CommandsTest(tests.Test):
 
         stream = self.call('GET', 'testdocument', guid_1, 'blob')
         self.assertEqual('blob-value', ''.join([i for i in stream]))
+        self.assertEqual('application/octet-stream', self.response.content_type)
+        self.assertEqual(len('blob-value'), self.response.content_length)
 
     def _test_AssertPermissions(self):
 

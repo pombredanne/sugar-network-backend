@@ -80,7 +80,9 @@ def call(volume, request, response):
         _logger.debug('Called %r: request=%r result=%r',
                 command, request, result)
 
-    response.content_type = command.mime_type
+    if not response.content_type:
+        response.content_type = command.mime_type
+
     return result
 
 
