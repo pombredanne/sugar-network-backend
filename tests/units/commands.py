@@ -119,7 +119,7 @@ class CommandsTest(tests.Test):
 
         return call(self.volume, request, self.response)
 
-    def test_Commands(self):
+    def test_ScanForCommands(self):
         self.call('PROBE', 'testdocument', 'guid')
         self.assertRaises(env.NotFound, self.call, ('PROBE', 'command_1'), 'testdocument', 'guid')
         self.call(('PROBE', 'command_2'), 'testdocument', 'guid')
@@ -174,72 +174,6 @@ class CommandsTest(tests.Test):
             'command_13',
             ],
             calls)
-
-    def test_VolumeCommands(self):
-        self.assertEqual({
-            'total': 1,
-            'result': [
-                {'guid': 'guid', 'prop': ''},
-                ],
-            },
-            self.call('GET', 'testdocument', reply=['guid', 'prop']))
-
-        guid_1 = self.call('POST', 'testdocument', content={'prop': 'value_1'})
-        assert guid_1
-        guid_2 = self.call('POST', 'testdocument', content={'prop': 'value_2'})
-        assert guid_2
-
-        self.assertEqual(
-                sorted([
-                    {'guid': 'guid', 'prop': ''},
-                    {'guid': guid_1, 'prop': 'value_1'},
-                    {'guid': guid_2, 'prop': 'value_2'},
-                    ]),
-                sorted(self.call('GET', 'testdocument', reply=['guid', 'prop'])['result']))
-
-        self.call('PUT', 'testdocument', guid_1, content={'prop': 'value_3'})
-
-        self.assertEqual(
-                sorted([
-                    {'guid': 'guid', 'prop': ''},
-                    {'guid': guid_1, 'prop': 'value_3'},
-                    {'guid': guid_2, 'prop': 'value_2'},
-                    ]),
-                sorted(self.call('GET', 'testdocument', reply=['guid', 'prop'])['result']))
-
-        self.call('DELETE', 'testdocument', guid_2)
-
-        self.assertEqual(
-                sorted([
-                    {'guid': 'guid', 'prop': ''},
-                    {'guid': guid_1, 'prop': 'value_3'},
-                    ]),
-                sorted(self.call('GET', 'testdocument', reply=['guid', 'prop'])['result']))
-
-        self.assertRaises(RuntimeError, self.call, 'GET', 'testdocument', guid_2)
-
-        self.assertEqual(
-                {'guid': guid_1, 'prop': 'value_3'},
-                self.call('GET', 'testdocument', guid_1, reply=['guid', 'prop']))
-
-        self.assertEqual(
-                'value_3',
-                self.call('GET', 'testdocument', guid_1, 'prop'))
-
-        self.assertEqual(
-                None,
-                self.call(('GET', 'stat-blob'), 'testdocument', guid_1, 'blob'))
-
-        self.call('PUT', 'testdocument', guid_1, 'blob', content_stream=StringIO('blob-value'))
-
-        self.assertEqual(
-                len('blob-value'),
-                self.call(('GET', 'stat-blob'), 'testdocument', guid_1, 'blob')['size'])
-
-        stream = self.call('GET', 'testdocument', guid_1, 'blob')
-        self.assertEqual('blob-value', ''.join([i for i in stream]))
-        self.assertEqual('application/octet-stream', self.response.content_type)
-        self.assertEqual(len('blob-value'), self.response.content_length)
 
     def _test_AssertPermissions(self):
 
