@@ -23,14 +23,14 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         ACCESS_DELETE, ACCESS_AUTHOR, ACCESS_FULL, ACCESS_AUTH, \
         index_flush_timeout, index_flush_threshold, \
         index_write_queue, find_limit, \
-        NotFound, Forbidden, NoCommand, Unauthorized, principal
+        NotFound, Forbidden, Unauthorized, principal
 
 from active_document.metadata import Metadata, Property, \
         StoredProperty, ActiveProperty, BlobProperty, BrowsableProperty, \
         active_property, active_command
 
 from active_document.commands import document_command, directory_command, \
-        volume_command, Command, Request, call
+        volume_command, Command, Request, Response, call
 
 from active_document.index import connect
 

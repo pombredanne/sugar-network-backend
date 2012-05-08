@@ -50,7 +50,7 @@ def volume_command(**kwargs):
     return decorate
 
 
-def call(request, volume):
+def call(volume, request, response):
     enforce('cmd' in request, _('Command is not specified'))
     cmd = request.pop('cmd')
 
@@ -59,7 +59,7 @@ def call(request, volume):
         directory = volume[request.pop('document')]
 
     command, args, document = _resolve(cmd, directory, request)
-    enforce(command is not None, env.NoCommand, _('Unsupported command'))
+    enforce(command is not None, env.NotFound, _('Unsupported command'))
 
     if command.permissions & env.ACCESS_AUTH:
         enforce(env.principal.user is not None, env.Unauthorized,
@@ -70,18 +70,21 @@ def call(request, volume):
 
     if command.accept_request:
         request['request'] = request
+    if command.accept_response:
+        request['response'] = response
 
     try:
-        response = command.callback(*args, **request)
+        result = command.callback(*args, **request)
     except Exception:
         util.exception(_logger, _('Failed to call %r command: request=%r'),
                 command, request)
         raise RuntimeError(_('Failed to call %r command') % command)
     else:
-        _logger.debug('Called %r: request=%r response=%r',
-                command, request, response)
+        _logger.debug('Called %r: request=%r result=%r',
+                command, request, result)
 
-    return response
+    response.content_type = command.mime_type
+    return result
 
 
 class Command(object):
@@ -92,6 +95,7 @@ class Command(object):
         self.mime_type = mime_type
         self.permissions = permissions
         self.accept_request = 'request' in _function_arg_names(callback)
+        self.accept_response = 'response' in _function_arg_names(callback)
 
         key = [method]
         if cmd:
@@ -117,6 +121,12 @@ class Commands(dict):
 
 class Request(dict):
     pass
+
+
+class Response(dict):
+
+    content_length = None
+    content_type = None
 
 
 def _resolve(cmd, directory, request):

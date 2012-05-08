@@ -7,7 +7,7 @@ from __init__ import tests
 
 from active_document import env, volume, SingleVolume, Document, \
         active_command, directory_command, volume_command, call, \
-        active_property, Request, BlobProperty
+        active_property, Request, BlobProperty, Response
 
 
 calls = []
@@ -115,11 +115,13 @@ class CommandsTest(tests.Test):
             request.content_stream = request.pop('content_stream')
             request.content_length = len(request.content_stream.getvalue())
 
-        return call(request, self.volume)
+        response = Response()
+
+        return call(self.volume, request, response)
 
     def test_Commands(self):
         self.call('PROBE', 'testdocument', 'guid')
-        self.assertRaises(env.NoCommand, self.call, ('PROBE', 'command_1'), 'testdocument', 'guid')
+        self.assertRaises(env.NotFound, self.call, ('PROBE', 'command_1'), 'testdocument', 'guid')
         self.call(('PROBE', 'command_2'), 'testdocument', 'guid')
         env.principal.user = None
         self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_3'), 'testdocument', 'guid')
@@ -131,7 +133,7 @@ class CommandsTest(tests.Test):
         self.call(('PROBE', 'command_4'), 'testdocument', 'guid')
 
         self.call('PROBE', 'testdocument')
-        self.assertRaises(env.NoCommand, self.call, ('PROBE', 'command_5'), 'testdocument')
+        self.assertRaises(env.NotFound, self.call, ('PROBE', 'command_5'), 'testdocument')
         self.call(('PROBE', 'command_6'), 'testdocument')
         env.principal.user = None
         self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_7'), 'testdocument')
@@ -146,7 +148,7 @@ class CommandsTest(tests.Test):
         self.call(('PROBE', 'command_10'), 'testdocument')
 
         self.call('PROBE')
-        self.assertRaises(env.NoCommand, self.call, ('PROBE', 'command_11'))
+        self.assertRaises(env.NotFound, self.call, ('PROBE', 'command_11'))
         self.call(('PROBE', 'command_12'))
         env.principal.user = None
         self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_13'))
@@ -232,8 +234,7 @@ class CommandsTest(tests.Test):
                 len('blob-value'),
                 self.call(('GET', 'stat-blob'), 'testdocument', guid_1, 'blob')['size'])
 
-        stream, size, mime_type = self.call('GET', 'testdocument', guid_1, 'blob')
-        self.assertEqual(len('blob-value'), size)
+        stream = self.call('GET', 'testdocument', guid_1, 'blob')
         self.assertEqual('blob-value', ''.join([i for i in stream]))
 
     def _test_AssertPermissions(self):

@@ -154,7 +154,7 @@ def _delete(directory, document, prop=None):
 
 
 @document_command(method='GET')
-def _get(directory, document, prop=None, reply=None):
+def _get(directory, document, response, prop=None, reply=None):
     if not prop:
         reply = _to_list(reply) or ['guid']
         for i in reply:
@@ -168,12 +168,12 @@ def _get(directory, document, prop=None, reply=None):
 
     stream = directory.get_blob(document.guid, prop)
 
-    content_length = 0
+    response.content_length = 0
     if stream is not None:
         stat = directory.stat_blob(document.guid, prop)
         if stat and stat['size']:
-            content_length = stat['size']
-    content_type = directory.metadata[prop].mime_type
+            response.content_length = stat['size']
+    response.content_type = directory.metadata[prop].mime_type
 
     def send(stream):
         while True:
@@ -183,7 +183,7 @@ def _get(directory, document, prop=None, reply=None):
             yield chunk
 
     if stream is not None:
-        return send(stream), content_length, content_type
+        return send(stream)
 
 
 @document_command(method='GET', cmd='stat-blob')

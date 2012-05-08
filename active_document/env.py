@@ -90,7 +90,7 @@ def uuid():
 
 
 class NotFound(Exception):
-    """Document was not found."""
+    """Resource was not found."""
     pass
 
 
@@ -100,10 +100,6 @@ class Forbidden(Exception):
 
 
 class Unauthorized(Exception):
-    pass
-
-
-class NoCommand(Exception):
     pass
 
 
