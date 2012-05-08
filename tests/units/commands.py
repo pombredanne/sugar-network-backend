@@ -216,6 +216,8 @@ class CommandsTest(tests.Test):
                     ]),
                 sorted(self.call('GET', 'testdocument', reply=['guid', 'prop'])['result']))
 
+        self.assertRaises(RuntimeError, self.call, 'GET', 'testdocument', guid_2)
+
         self.assertEqual(
                 {'guid': guid_1, 'prop': 'value_3'},
                 self.call('GET', 'testdocument', guid_1, reply=['guid', 'prop']))

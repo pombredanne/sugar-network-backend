@@ -159,6 +159,8 @@ def _get(directory, document, response, prop=None, reply=None):
         reply = _to_list(reply) or ['guid']
         for i in reply:
             directory.metadata[i].assert_access(env.ACCESS_READ)
+        enforce('deleted' not in document['layers'], env.NotFound,
+                _('Document is not found'))
         return document.properties(reply)
 
     directory.metadata[prop].assert_access(env.ACCESS_READ)
