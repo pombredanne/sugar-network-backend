@@ -51,14 +51,11 @@ def volume_command(**kwargs):
 
 
 def call(volume, request, response):
-    enforce('cmd' in request, _('Command is not specified'))
-    cmd = request.pop('cmd')
-
     directory = None
     if 'document' in request:
         directory = volume[request.pop('document')]
 
-    command, args, document = _resolve(cmd, directory, request)
+    command, args, document = _resolve(request.command, directory, request)
     enforce(command is not None, env.NotFound, _('Unsupported command'))
 
     if command.permissions & env.ACCESS_AUTH:
@@ -120,7 +117,8 @@ class Commands(dict):
 
 
 class Request(dict):
-    pass
+
+    command = None
 
 
 class Response(dict):

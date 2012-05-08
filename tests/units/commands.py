@@ -102,7 +102,7 @@ class CommandsTest(tests.Test):
             content_length = 0
 
         request = TestRequest(kwargs)
-        request['cmd'] = cmd
+        request.command = cmd
         if document:
             request['document'] = document
         if guid:
