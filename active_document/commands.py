@@ -122,6 +122,8 @@ class Request(dict):
 
     command = None
     content = None
+    content_stream = None
+    content_length = None
 
     def __getitem__(self, key):
         enforce(key in self, _('Cannot find %r request argument'), key)

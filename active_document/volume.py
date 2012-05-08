@@ -193,7 +193,8 @@ def _get(directory, document, response, prop=None, reply=None):
 def _stat_blob(directory, document, prop=None):
     enforce(prop is not None, _('No BLOB property specified'))
     directory.metadata[prop].assert_access(env.ACCESS_READ)
-    return directory.stat_blob(document.guid, prop)
+    stat = directory.stat_blob(document.guid, prop)
+    return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
 
 
 def _to_int(name, value):

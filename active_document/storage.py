@@ -184,8 +184,10 @@ class Storage(object):
             return
         with file(path + '.sha1') as f:
             sha1sum = f.read().strip()
-        return {'size': os.stat(path).st_size,
+        return {'path': path,
+                'size': os.stat(path).st_size,
                 'sha1sum': sha1sum,
+                'mime_type': self.metadata[name].mime_type,
                 }
 
     def diff(self, guid, accept_range):
