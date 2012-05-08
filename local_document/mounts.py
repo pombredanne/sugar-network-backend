@@ -65,6 +65,9 @@ class Mounts(object):
     def close(self):
         self._home_folder.close()
 
+    def connect(self, callback):
+        pass
+
 
 def _command(func):
     func.is_command = True

@@ -18,6 +18,7 @@ import logging
 from os.path import exists
 from gettext import gettext as _
 
+import gevent
 from gevent import socket
 from gevent.server import StreamServer
 
@@ -33,66 +34,89 @@ class Server(object):
 
     def __init__(self, mounts):
         self._mounts = mounts
-        self._server = None
+        self._acceptor = _start_server('accept', self._serve_client)
+        self._subscriber = _start_server('subscribe', self._serve_subscription)
+        self._subscriptions = []
+
+        for mount in self._mounts:
+            mount.connect(self.__event_cb)
 
     def serve_forever(self):
-        accept_path = env.ensure_path('run', 'accept')
-        if exists(accept_path):
-            os.unlink(accept_path)
-        # pylint: disable-msg=E1101
-        accept = socket.socket(socket.AF_UNIX)
-        accept.bind(accept_path)
-        accept.listen(5)
-
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
         rendezvous = ipc.rendezvous(server=True)
-
-        self._server = StreamServer(accept, self._serve_client)
         try:
-            self._server.serve_forever()
+            gevent.joinall([
+                gevent.spawn(self._acceptor.serve_forever),
+                gevent.spawn(self._subscriber.serve_forever),
+                ])
         except KeyboardInterrupt:
             pass
         finally:
             os.close(rendezvous)
-            os.unlink(accept_path)
-            self._server = None
 
     def stop(self):
-        if self._server is not None:
-            self._server.stop()
+        while self._subscriptions:
+            self._subscriptions.pop().close()
+        self._acceptor.stop()
+        self._subscriber.stop()
 
-    def _serve_client(self, conn, address):
-        conn_file = SocketFile(conn)
+    def _serve_client(self, conn_file):
+        while True:
+            message = conn_file.read_message()
+            if message is None:
+                break
 
-        _logger.debug('New client: connection=%r', conn_file)
+            try:
+                enforce('cmd' in message,
+                        _('Argument "cmd" was not specified'))
+                cmd = message.pop('cmd')
 
-        def process_message(message):
-            _logger.debug('Got a call: connection=%r %r', conn_file, message)
+                if 'mountpoint' in message:
+                    mountpoint = message.pop('mountpoint')
+                else:
+                    mountpoint = '/'
 
-            enforce('cmd' in message, _('Argument "cmd" was not specified'))
-            cmd = message.pop('cmd')
+                reply = self._mounts.call(conn_file, cmd, mountpoint, message)
 
-            if 'mountpoint' in message:
-                mountpoint = message.pop('mountpoint')
+            except Exception, error:
+                util.exception(_('Failed to process %r for %r connection: %s'),
+                        message, conn_file, error)
+                conn_file.write_message({'error': str(error)})
             else:
-                mountpoint = '/'
+                _logger.debug('Processed %r for %r connection: %r',
+                        message, conn_file, reply)
+                conn_file.write_message(reply)
 
-            reply = self._mounts.call(conn_file, cmd, mountpoint, message)
-            conn_file.write_message(reply)
+    def _serve_subscription(self, conn_file):
+        self._subscriptions.append(conn_file)
+        return True
 
-            _logger.debug('Send reply: connection=%r %r', conn_file, reply)
+    def __event_cb(self, mount, event, **message):
+        message['event'] = event
+        for socket_file in self._subscriptions:
+            socket_file.write_message(message)
 
+
+def _start_server(name, serve_cb):
+    accept_path = env.ensure_path('run', name)
+    if exists(accept_path):
+        os.unlink(accept_path)
+
+    # pylint: disable-msg=E1101
+    accept = socket.socket(socket.AF_UNIX)
+    accept.bind(accept_path)
+    accept.listen(5)
+
+    def connection_cb(conn, address):
+        conn_file = SocketFile(conn)
+        _logger.debug('New %s connection: %r', name, conn_file)
+        do_not_close = False
         try:
-            while True:
-                try:
-                    message = conn_file.read_message()
-                    if message is None:
-                        break
-                    process_message(message)
-                except Exception, error:
-                    util.exception(_('Fail to process message: %s'), error)
-                    conn_file.write_message({'error': str(error)})
+            do_not_close = serve_cb(conn_file)
         finally:
-            _logger.debug('Quit client: connection=%r', conn_file)
-            conn_file.close()
+            _logger.debug('Quit %s connection: %r', name, conn_file)
+            if not do_not_close:
+                conn_file.close()
+
+    return StreamServer(accept, connection_cb)
