@@ -28,7 +28,6 @@ import zerosugar
 import sweets_recipe
 from local_document import ipc, env, activities
 from local_document.socket import SocketFile
-from local_document.cache import get_cached_blob
 from sugar_network.objects import Object, Context
 from sugar_network.cursor import Cursor
 from active_document import util
@@ -178,28 +177,30 @@ class _Request(object):
     def __init__(self, conn, mountpoint, resource):
         self._conn = conn
         self._mountpoint = mountpoint
-        self._resource = resource
+        self.document = resource
 
     @property
     def online(self):
         return self._mountpoint == '/'
 
     def local_get(self, guid, prop):
-        path = join(env.local_root.value, 'local', self._resource,
+        path = join(env.local_root.value, 'local', self.document,
                 guid[:2], guid, prop)
         if exists(path):
             with file(path) as f:
                 return json.load(f)
 
-    def send(self, cmd, data=None, **request):
+    def send(self, cmd, content=None, content_type=None, **request):
         request['mountpoint'] = self._mountpoint
-        request['resource'] = self._resource
+        request['document'] = self.document
         request['cmd'] = cmd
+        request['content_type'] = content_type
 
         with self._conn.socket_file() as socket_file:
             socket_file.write_message(request)
-            if data is not None:
-                socket_file.write(data)
+            if content_type == 'application/json':
+                content = json.dumps(content)
+            socket_file.write(content)
             response = socket_file.read_message()
 
             _logger.debug('Made a call: request=%r response=%r',
@@ -210,27 +211,8 @@ class _Request(object):
 
         return response
 
-    def get_properties(self, guid, reply):
-        if self.online:
-            result = self.send('get', guid=guid, reply=reply)
-        else:
-            result = {}
-            for prop in reply:
-                result[prop] = self.local_get(guid, prop)
-        return result
-
-    def get_blob(self, guid, prop):
-        cached = get_cached_blob(self._resource, guid, prop)
-        if cached is not None:
-            return cached
-        else:
-            response = self.send('get_blob', guid=guid, prop=prop)
-            if not response:
-                return None
-            return response['path'], response['mime_type']
-
     def __repr__(self):
-        return self._resource
+        return self.document
 
 
 class _Resource(object):
@@ -260,9 +242,6 @@ class _Resource(object):
             a dictionary of properties to filter resulting list
 
         """
-        if not self._request.online:
-            # Offline properties will be gotten directly
-            reply = None
         return Cursor(self._request, self._object_class, query, order_by,
                 reply, page_size, **filters)
 
@@ -273,7 +252,7 @@ class _Resource(object):
             resource object's GUID
 
         """
-        return self._request.send('delete', guid=guid)
+        return self._request.send('DELETE', guid=guid)
 
-    def __call__(self, guid=None, reply=None):
-        return self._object_class(self._request, reply or [], guid)
+    def __call__(self, guid=None, reply=None, **kwargs):
+        return self._object_class(self._request, reply or [], guid, **kwargs)

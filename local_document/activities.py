@@ -70,14 +70,12 @@ class _Monitor(object):
             return
 
         context = spec['Activity', 'bundle_id']
-
-        home_context = self._mounts['~'].folder['context'](context)
-        if home_context.exists:
-            home_context['keep_impl'] = True
-            home_context.post()
+        directory = self._mounts['~'].volume['context']
+        if directory.exists(context):
+            directory.update(context, {'keep_impl': True})
         else:
             _logger.debug('Register unknown local activity, %r', context)
-            home_context.create_with_guid(context, {
+            directory.create_with_guid(context, {
                 'type': 'activity',
                 'title': spec['name'],
                 'summary': spec['summary'],
@@ -107,11 +105,10 @@ class _Monitor(object):
         impls = set(os.listdir(context_dir)) - set([basename(context_path)])
 
         if not impls:
-            guid = basename(context_dir)
-            home_context = self._mounts['~'].folder['context'](guid)
-            if home_context.exists:
-                home_context['keep_impl'] = False
-                home_context.post()
+            context = basename(context_dir)
+            directory = self._mounts['~'].volume['context']
+            if directory.exists(context):
+                directory.update(context, {'keep_impl': False})
 
         if lexists(context_path):
             os.unlink(context_path)

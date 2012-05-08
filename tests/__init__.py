@@ -42,7 +42,6 @@ class Test(unittest.TestCase):
         if exists(self.logfile):
             os.unlink(self.logfile)
 
-        ad.data_root.value = tmpdir + '/local'
         ad.index_flush_timeout.value = 0
         ad.index_flush_threshold.value = 1
         ad.find_limit.value = 1024
@@ -174,12 +173,11 @@ class Test(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG)
 
-        ad.data_root.value = tmpdir + '/remote'
         ad.index_flush_timeout.value = 0
         ad.index_flush_threshold.value = 1
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
-        folder = ad.SingleFolder([User, Context])
+        folder = ad.SingleVolume('remote', [User, Context])
         httpd = WSGIServer(('localhost', 8000), rd.Router(folder))
         httpd.serve_forever()

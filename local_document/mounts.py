@@ -14,23 +14,22 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import urllib2
 from gettext import gettext as _
 
 import active_document as ad
-from active_document import util, principal, SingleFolder, enforce
+from active_document import principal, SingleVolume, enforce
 from local_document import cache, sugar, http
 
 
-_logger = logging.getLogger('local_document.commands')
+_logger = logging.getLogger('local_document.mounts')
 
 
-class Mounts(object):
+class Mounts(dict):
 
-    def __init__(self, resources_path):
+    def __init__(self, root, resources_path):
         principal.user = sugar.uid()
 
-        self._home_folder = SingleFolder(resources_path, {
+        self._home_volume = SingleVolume(root, resources_path, {
             'context': [
                 ad.ActiveProperty('keep',
                     prefix='LK', typecast=bool, default=False),
@@ -41,180 +40,75 @@ class Mounts(object):
                 ],
             })
 
-        self._mounts = {
-                '/': _OnlineMount(self._home_folder),
-                '~': _OfflineMount(self._home_folder),
-                }
+        self['/'] = _RemoteMount(self._home_volume)
+        self['~'] = _LocalMount(self._home_volume)
 
     def __getitem__(self, mountpoint):
-        enforce(mountpoint in self._mounts,
-                _('Unknown mountpoint %r'), mountpoint)
-        return self._mounts[mountpoint]
+        enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
+        return self.get(mountpoint)
 
-    def call(self, socket, cmd, mountpoint, params):
-        mount = self[mountpoint]
-
-        enforce(hasattr(mount, cmd), _('Unknown %r command'), cmd)
-        method = getattr(mount, cmd)
-        enforce(hasattr(method, 'is_command'), _('Unknown %r command'), cmd)
-
-        if hasattr(method, 'need_socket'):
-            params['socket'] = socket
-        return method(**params)
+    def call(self, request, response):
+        mount = self[request.pop('mountpoint')]
+        return mount.call(request, response)
 
     def close(self):
-        self._home_folder.close()
+        self._home_volume.close()
+
+
+class _LocalMount(object):
+
+    def __init__(self, volume):
+        self.volume = volume
+
+    def call(self, request, response):
+        if request.command == 'get_blob':
+            return self._get_blob(**request)
+        return ad.call(self.volume, request, response)
 
     def connect(self, callback):
         pass
 
-
-def _command(func):
-    func.is_command = True
-    return func
-
-
-def _socket_command(func):
-    func.need_socket = True
-    return func
+    def _get_blob(self, document, guid, prop):
+        stat = self.volume[document].stat_blob(guid, prop)
+        if stat is None:
+            return None
+        return {'path': stat['path'], 'mime_type': stat['mime_type']}
 
 
-class _Mount(object):
+class _RemoteMount(_LocalMount):
 
-    def __init__(self, folder):
-        self.folder = folder
+    def call(self, request, response):
+        if request.command == 'set_keep':
+            return self._set_keep(request['guid'], request['keep'])
+        elif request.command == 'get_blob':
+            return self._get_blob(**request)
 
-    @_command
-    def ping(self, hello=None):
-        return 'pong: %s' % hello
+        if type(request.command) is list:
+            method, request['cmd'] = request.command
+        else:
+            method = request.command
 
-    @_command
-    def get_blob(self, resource, guid, prop):
-        path, mime_type = cache.get_blob(resource, guid, prop)
+        path = [request.pop('document')]
+        if 'guid' in request:
+            path.append(request.pop('guid'))
+        if 'prop' in request:
+            path.append(request.pop('prop'))
+
+        return http.request(method, path, data=request.content,
+                params=request, headers={'Content-Type': 'application/json'})
+
+    def _set_keep(self, guid, keep):
+        context = self.volume['context']
+        if context.exists(guid):
+            context.update(guid, {'keep': keep})
+        elif keep:
+            props = http.request('GET', ['context', guid])
+            props['keep'] = keep
+            context.create_with_guid(guid, props)
+
+    def _get_blob(self, document, guid, prop):
+        path, mime_type = cache.get_blob(document, guid, prop)
         if path is None:
             return None
         else:
             return {'path': path, 'mime_type': mime_type}
-
-    @_command
-    def set_blob(self, socket, resource, guid, prop, files=None, url=None):
-        raise NotImplementedError()
-
-
-class _OfflineMount(_Mount):
-
-    @_command
-    def create(self, resource, props):
-        obj = self.folder[resource].create(props)
-        return obj.guid
-
-    @_command
-    def update(self, resource, guid, props):
-        self.folder[resource].update(guid, props)
-
-    @_command
-    def get(self, resource, guid, reply=None):
-        return self.folder[resource](guid).properties(reply)
-
-    @_command
-    def find(self, resource, reply=None, **params):
-        result, total = self.folder[resource].find(reply=reply, **params)
-        return {'total': total.value,
-                'result': [i.properties(reply) for i in result],
-                }
-
-    @_command
-    def delete(self, resource, guid):
-        self.folder[resource].delete(guid)
-
-    @_command
-    @_socket_command
-    def set_blob(self, socket, resource, guid, prop, files=None, url=None):
-        if url:
-            stream = urllib2.urlopen(url)
-            try:
-                cache.set_blob(resource, guid, prop, stream)
-            finally:
-                stream.close()
-        elif files:
-            raise RuntimeError('Not supported')
-        else:
-            cache.set_blob(resource, guid, prop, socket)
-
-
-class _OnlineMount(_Mount):
-
-    @_command
-    def create(self, resource, props):
-        response = http.request('POST', [resource], data=props,
-                headers={'Content-Type': 'application/json'})
-        return response['guid']
-
-    @_command
-    def update(self, resource, guid, props):
-        if resource == 'context':
-            keep = props.get('keep')
-            if keep is not None:
-                del props['keep']
-
-        if props:
-            http.request('PUT', [resource, guid], data=props,
-                    headers={'Content-Type': 'application/json'})
-
-        if keep is not None:
-            home_obj = self.folder[resource](guid)
-            if home_obj.exists:
-                home_obj['keep'] = keep
-                home_obj.post()
-            elif keep:
-                props = http.request('GET', [resource, guid])
-                props.pop('guid')
-                props['keep'] = keep
-                home_obj.create_with_guid(guid, props)
-
-    @_command
-    def delete(self, resource, guid):
-        http.request('DELETE', [resource, guid])
-
-    @_command
-    def get(self, resource, guid, reply=None):
-        params = self._compose_params(resource, reply, {})
-        return http.request('GET', [resource, guid], params=params)
-
-    @_command
-    def find(self, resource, reply=None, **params):
-        params = self._compose_params(resource, reply, params)
-        try:
-            return http.request('GET', [resource], params=params)
-        except Exception:
-            util.exception(_('Failed to query resources'))
-            return {'total': 0, 'result': []}
-
-    @_command
-    @_socket_command
-    def set_blob(self, socket, resource, guid, prop, files=None, url=None):
-        url_path = [resource, guid, prop]
-
-        if url:
-            http.request('PUT', url_path, params={'url': url})
-        elif files:
-            file_objects = {}
-            try:
-                for filename, path in files.items():
-                    file_objects[filename] = file(path)
-                http.request('PUT', url_path, files=file_objects)
-            finally:
-                for i in file_objects.values():
-                    i.close()
-        else:
-            http.request('PUT', url_path, files={prop: socket})
-
-    def _compose_params(self, resource, reply, params):
-        if reply:
-            if resource == 'context':
-                if 'keep' in reply:
-                    reply.remove('keep')
-                if 'keep_impl' in reply:
-                    reply.remove('keep_impl')
-            params['reply'] = ','.join(reply)
-        return params

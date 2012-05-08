@@ -21,7 +21,7 @@ class ActivitiesTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.mounts = Mounts([User, Context])
+        self.mounts = Mounts('local', [User, Context])
         self.job = None
 
     def tearDown(self):
@@ -34,7 +34,7 @@ class ActivitiesTest(tests.Test):
         self.job = gevent.spawn(activities.monitor, self.mounts)
         gevent.sleep()
 
-        self.mounts['~'].folder['context'].create_with_guid(
+        self.mounts['~'].volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
                     'type': 'activity',
                     'title': 'title',
@@ -61,7 +61,7 @@ class ActivitiesTest(tests.Test):
 
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': True},
-                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts['~'].volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_OfflineCheckin(self):
         self.job = gevent.spawn(activities.monitor, self.mounts)
@@ -86,12 +86,12 @@ class ActivitiesTest(tests.Test):
 
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': 'HelloWorld', 'keep': False, 'keep_impl': True},
-                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts['~'].volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkout(self):
         self.job = gevent.spawn(activities.monitor, self.mounts)
 
-        self.mounts['~'].folder['context'].create_with_guid(
+        self.mounts['~'].volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
                     'type': 'activity',
                     'title': 'title',
@@ -115,7 +115,7 @@ class ActivitiesTest(tests.Test):
         assert exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': True},
-                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts['~'].volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
         shutil.rmtree('Activities/activity')
         gevent.sleep(1)
@@ -124,7 +124,7 @@ class ActivitiesTest(tests.Test):
         assert not exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': False},
-                self.mounts['~'].get('context', 'org.sugarlabs.HelloWorld', reply=['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts['~'].volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
 
 if __name__ == '__main__':

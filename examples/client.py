@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import time
-
 import sugar_network
 
 
@@ -10,7 +8,6 @@ def main():
 
     guids = [None] * 3
     titles = ['Title1', 'Title2', 'Title3']
-    image_url = 'http://sugarlabs.org/assets/logo_black_01.png'
 
     print '-- Delete objects'
     for i in client.Context.cursor():
@@ -48,11 +45,8 @@ def main():
     assert client.Context(guids[1], reply=['title'])['title'] == titles[1]
     assert client.Context(guids[2], reply=['title'])['title'] == titles[2]
 
-    print '-- Set BLOB property by string'
+    print '-- Set BLOB property'
     client.Context(guids[1]).set_blob('icon', 'string')
-
-    print '-- Set BLOB properties by url'
-    client.Context(guids[2]).set_blob_by_url('icon', image_url)
 
     print '-- Get BLOB property'
     assert client.Context(guids[1]).get_blob('icon').read() == 'string'
@@ -61,10 +55,6 @@ def main():
     for obj in client.Context.cursor(title='Title2', reply=['guid', 'title']):
         assert obj['guid'] == guids[1]
         assert obj['title'] == titles[1]
-
-    # Wait until server will update index,
-    # fulltext search does not work for cahced changes
-    time.sleep(3)
 
     print '-- Full text search query'
     query = client.Context.cursor('Title1 OR Title3', reply=['guid', 'title'])

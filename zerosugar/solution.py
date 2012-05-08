@@ -130,7 +130,7 @@ class _Selection(object):
         if not self.download_sources:
             return
         impl = config.client.Implementation(self.id)
-        impl_path = impl.get_blob_path('bundle')
+        impl_path, __ = impl.get_blob_path('bundle')
         enforce(impl_path, _('Cannot download bundle'))
         self._value.impl.local_path = \
                 join(impl_path, self.download_sources[0].extract)

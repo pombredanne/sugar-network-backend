@@ -49,7 +49,6 @@ class Application(application.Daemon):
         else:
             application.logdir.value = sugar.profile_path('logs')
         application.rundir.value = join(env.local_root.value, 'run')
-        active_document.data_root.value = join(env.local_root.value, 'local')
 
         application.Daemon.start(self)
 
@@ -59,7 +58,8 @@ class Application(application.Daemon):
                     SUGAR_REGISTRATION_TIMEOUT)
             gevent.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        self.mounts = Mounts(resources.path)
+        self.mounts = Mounts(join(env.local_root.value, 'local'),
+                resources.path)
         self.server = Server(self.mounts)
         self.monitor = gevent.spawn(activities.monitor, self.mounts)
 
@@ -79,7 +79,6 @@ class Application(application.Daemon):
 
 # New defaults
 application.debug.value = sugar.logger_level()
-active_document.data_root.value = None
 
 optparse.Option.seek('local-document', env)
 optparse.Option.seek('active-document', active_document)

@@ -29,8 +29,8 @@ _logger = logging.getLogger('local_document.cache')
 _missed_blobs = set()
 
 
-def get_cached_blob(resource, guid, prop):
-    path = _path(resource, guid, prop)
+def get_cached_blob(document, guid, prop):
+    path = _path(document, guid, prop)
     mime_path = path + '.mime'
 
     if exists(path) and exists(mime_path):
@@ -42,18 +42,18 @@ def get_cached_blob(resource, guid, prop):
         return None, None
 
 
-def get_blob(resource, guid, prop):
-    cache = get_cached_blob(resource, guid, prop)
+def get_blob(document, guid, prop):
+    cache = get_cached_blob(document, guid, prop)
     if cache is not None:
         return cache
 
-    path = _ensure_path(resource, guid, prop)
+    path = _ensure_path(document, guid, prop)
     mime_path = path + '.mime'
 
     if isdir(path):
         shutil.rmtree(path)
 
-    response = http.raw_request('GET', [resource, guid, prop],
+    response = http.raw_request('GET', [document, guid, prop],
             allow_redirects=True)
 
     if not exists(dirname(path)):
@@ -66,7 +66,7 @@ def get_blob(resource, guid, prop):
 
     def download(f):
         _logger.debug('Download %s/%s/%s BLOB to %r file',
-                resource, guid, prop, path)
+                document, guid, prop, path)
 
         length = int(response.headers.get('Content-Length', BUFFER_SIZE))
         chunk_size = min(length, BUFFER_SIZE)
@@ -82,7 +82,7 @@ def get_blob(resource, guid, prop):
         else:
             return True
 
-    if resource == 'implementation' and prop == 'bundle':
+    if document == 'implementation' and prop == 'bundle':
         tmp_file = tempfile.NamedTemporaryFile(delete=False)
         try:
             if download(tmp_file):
@@ -92,7 +92,8 @@ def get_blob(resource, guid, prop):
             else:
                 return None, None
         finally:
-            os.unlink(tmp_file.name)
+            if exists(tmp_file.name):
+                os.unlink(tmp_file.name)
     else:
         with file(path, 'w') as f:
             if not download(f):
@@ -101,9 +102,9 @@ def get_blob(resource, guid, prop):
     return path, mime_type
 
 
-def set_blob(resource, guid, prop, stream,
+def set_blob(document, guid, prop, stream,
         mime_type='application/octet-stream'):
-    path = _ensure_path(resource, guid, prop)
+    path = _ensure_path(document, guid, prop)
     mime_path = path + '.mime'
 
     with file(mime_path, 'w') as f:
@@ -122,9 +123,9 @@ def set_blob(resource, guid, prop, stream,
             os.unlink(f.name)
 
 
-def _path(resource, guid, *args):
-    return join(env.local_root.value, 'cache', resource, guid[:2], guid, *args)
+def _path(document, guid, *args):
+    return join(env.local_root.value, 'cache', document, guid[:2], guid, *args)
 
 
-def _ensure_path(resource, guid, *args):
-    return env.ensure_path('cache', resource, guid[:2], guid, *args)
+def _ensure_path(document, guid, *args):
+    return env.ensure_path('cache', document, guid[:2], guid, *args)

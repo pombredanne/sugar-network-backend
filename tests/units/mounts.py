@@ -14,7 +14,6 @@ import active_document as ad
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
-from active_document import SingleFolder
 from sugar_network.client import Client
 from local_document.mounts import Mounts
 from local_document.server import Server
@@ -25,7 +24,7 @@ class MountsTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.mounts = Mounts([User, Context])
+        self.mounts = Mounts('local', [User, Context])
         self.client = None
 
     def tearDown(self):
@@ -69,17 +68,21 @@ class MountsTest(tests.Test):
 
         gevent.spawn(server)
         gevent.sleep()
-        self.client = Client('~')
+        local = Client('~')
 
-        guid = self.create_context('title')['guid']
+        guid = local.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
 
-        context = self.client.Context(guid)
+        context = local.Context(guid)
         context['title'] = 'title_2'
         context['keep'] = True
         context['position'] = (2, 3)
         context.post()
 
-        context = self.client.Context(guid, ['title', 'keep', 'position'])
+        context = local.Context(guid, ['title', 'keep', 'position'])
         self.assertEqual('title_2', context['title'])
         self.assertEqual(True, context['keep'])
         self.assertEqual([2, 3], context['position'])
@@ -132,27 +135,25 @@ class MountsTest(tests.Test):
 
         gevent.spawn(server)
         gevent.sleep()
-        self.client = Client('/')
+        remote = Client('/')
 
         self.fork(self.restful_server)
         gevent.sleep(1)
 
-        props = {'type': 'activity',
-                 'title': 'remote',
-                 'summary': 'summary',
-                 'description': 'description',
-                 }
-        online = self.mounts['/']
-        guid = online.create('context', props)
+        guid = remote.Context(
+                type='activity',
+                title='remote',
+                summary='summary',
+                description='description').post()
 
-        context = self.client.Context(guid, ['keep', 'keep_impl'])
+        context = remote.Context(guid, ['keep', 'keep_impl'])
         self.assertEqual(False, context['keep'])
         self.assertEqual(False, context['keep_impl'])
         self.assertEqual(
                 [(guid, False, False)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in self.client.Context.cursor(reply=['keep', 'keep_impl'])])
+                [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
-        self.mounts['~'].folder['context'].create_with_guid(guid, {
+        self.mounts['~'].volume['context'].create_with_guid(guid, {
             'type': 'activity',
             'title': 'local',
             'summary': 'summary',
@@ -161,69 +162,74 @@ class MountsTest(tests.Test):
             'keep_impl': True,
             })
 
-        context = self.client.Context(guid, ['keep', 'keep_impl'])
+        context = remote.Context(guid, ['keep', 'keep_impl'])
         self.assertEqual(True, context['keep'])
         self.assertEqual(True, context['keep_impl'])
         self.assertEqual(
                 [(guid, True, True)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in self.client.Context.cursor(reply=['keep', 'keep_impl'])])
+                [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
     def test_OnlineMount_SetKeep(self):
         self.fork(self.restful_server)
         gevent.sleep(1)
 
-        props = {'type': ['activity'],
-                 'title': 'remote',
-                 'summary': 'summary',
-                 'description': 'description',
-                 }
-        online = self.mounts['/']
-        guid = online.create('context', props)
+        def server():
+            Server(self.mounts).serve_forever()
 
-        OfflineContext = self.mounts['~'].folder['context']
-        assert not OfflineContext(guid).exists
+        gevent.spawn(server)
+        gevent.sleep()
+        remote = Client('/')
+        local = Client('~')
 
-        online.update('context', guid, {'keep': True})
+        guid = remote.Context(
+                type=['activity'],
+                title='remote',
+                summary='summary',
+                description='description').post()
 
-        local = OfflineContext(guid)
-        assert local.exists
-        self.assertEqual(True, local['keep'])
-        self.assertEqual(False, local['keep_impl'])
-        self.assertEqual('remote', local['title'])
+        self.assertRaises(KeyError, lambda: local.Context(guid, reply=['title'])['title'])
 
-        remote = OfflineContext(guid)
-        self.assertEqual(True, remote['keep'])
-        self.assertEqual(False, remote['keep_impl'])
+        remote.Context(guid, keep=True).post()
 
-        online.update('context', guid, {'keep': False})
+        context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(True, context['keep'])
+        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual('remote', context['title'])
 
-        local = OfflineContext(guid)
-        assert local.exists
-        self.assertEqual(False, local['keep'])
-        self.assertEqual(False, local['keep_impl'])
-        self.assertEqual('remote', local['title'])
+        context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(True, context['keep'])
+        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual('remote', context['title'])
 
-        remote = OfflineContext(guid)
-        self.assertEqual(False, remote['keep'])
-        self.assertEqual(False, remote['keep_impl'])
+        remote.Context(guid, keep=False).post()
 
-        local = OfflineContext(guid)
-        local['title'] = 'local'
-        local.post()
-        local = OfflineContext(guid)
-        self.assertEqual('local', local['title'])
+        context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(False, context['keep'])
+        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual('remote', context['title'])
 
-        online.update('context', guid, {'keep': True})
+        context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(False, context['keep'])
+        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual('remote', context['title'])
 
-        local = OfflineContext(guid)
-        assert local.exists
-        self.assertEqual(True, local['keep'])
-        self.assertEqual(False, local['keep_impl'])
-        self.assertEqual('local', local['title'])
+        context = local.Context(guid)
+        context['title'] = 'local'
+        context.post()
+        context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual('local', context['title'])
 
-        remote = OfflineContext(guid)
-        self.assertEqual(True, remote['keep'])
-        self.assertEqual(False, remote['keep_impl'])
+        remote.Context(guid, keep=True).post()
+
+        context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(True, context['keep'])
+        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual('local', context['title'])
+
+        context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(True, context['keep'])
+        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual('remote', context['title'])
 
 
 if __name__ == '__main__':

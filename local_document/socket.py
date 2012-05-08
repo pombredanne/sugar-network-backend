@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/socket.py$
-$Data: 2012-04-30$
+$Data: 2012-05-08$
 
 """
 
@@ -50,34 +50,20 @@ class SocketFile(object):
         except Exception, error:
             raise RuntimeError(_('Cannot encode %r message: %s') % \
                     (message, error))
-        self._socket.send(message_str)
-        self._socket.send('\n')
+        self.write(message_str)
 
     def read_message(self):
-        pos = 0
-
-        chunk = None
-        while chunk != '\n':
-            chunk = self._recv(1)
-            if not chunk:
-                # Got disconnected
-                return None
-            self._message_buffer[pos] = chunk
-            pos += 1
-            enforce(pos < BUFFER_SIZE, _('Too long message'))
-
-        message_str = buffer(self._message_buffer, 0, pos)
+        message_str = self.read()
         try:
-            # XXX Have to convert to str,
-            # json from Python-2.6 doesn't treat buffer as a string
-            message = json.loads(str(message_str))
+            message = json.loads(message_str)
         except Exception, error:
             raise RuntimeError(_('Cannot decode "%s" message: %s') % \
                     (message_str, error))
-
         return message
 
     def write(self, data):
+        if data is None:
+            data = ''
         size_str = struct.pack('i', len(data))
         self._socket.send(size_str)
         self._socket.send(data)

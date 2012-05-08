@@ -34,7 +34,14 @@ class Cursor(object):
         self._object_class = object_class
         self._query = query
         self._order_by = order_by
-        self._reply = reply
+        self._reply = reply or ['guid']
+        if 'guid' not in self._reply:
+            self._reply.append('guid')
+        if self._request.online:
+            if 'keep' in self._reply:
+                self._reply.remove('keep')
+            if 'keep_impl' in self._reply:
+                self._reply.remove('keep_impl')
         self._page_size = page_size
         self._filters = filters
         self._total = None
@@ -160,7 +167,7 @@ class Cursor(object):
             params['reply'] = self._reply
 
         try:
-            response = self._request.send('find', **params)
+            response = self._request.send('GET', **params)
             self._total = response['total']
         except Exception:
             util.exception(_logger,

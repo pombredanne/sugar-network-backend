@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import json
 import logging
 from os.path import exists
 from gettext import gettext as _
@@ -24,7 +25,7 @@ from gevent.server import StreamServer
 
 from local_document import ipc, env
 from local_document.socket import SocketFile
-from active_document import util, enforce
+from active_document import Request, Response, util
 
 
 _logger = logging.getLogger('local_document.server')
@@ -38,7 +39,7 @@ class Server(object):
         self._subscriber = _start_server('subscribe', self._serve_subscription)
         self._subscriptions = []
 
-        for mount in self._mounts:
+        for mount in self._mounts.values():
             mount.connect(self.__event_cb)
 
     def serve_forever(self):
@@ -66,27 +67,29 @@ class Server(object):
             message = conn_file.read_message()
             if message is None:
                 break
-
             try:
-                enforce('cmd' in message,
-                        _('Argument "cmd" was not specified'))
-                cmd = message.pop('cmd')
+                request = Request(message)
+                request.command = request.pop('cmd')
 
-                if 'mountpoint' in message:
-                    mountpoint = message.pop('mountpoint')
+                content_type = request.pop('content_type')
+                if content_type == 'application/json':
+                    request.content = json.loads(conn_file.read())
+                elif content_type:
+                    request.content_stream = conn_file
                 else:
-                    mountpoint = '/'
+                    request.content = conn_file.read() or None
 
-                reply = self._mounts.call(conn_file, cmd, mountpoint, message)
+                response = Response()
+                result = self._mounts.call(request, response)
 
             except Exception, error:
                 util.exception(_('Failed to process %r for %r connection: %s'),
-                        message, conn_file, error)
+                        request, conn_file, error)
                 conn_file.write_message({'error': str(error)})
             else:
                 _logger.debug('Processed %r for %r connection: %r',
-                        message, conn_file, reply)
-                conn_file.write_message(reply)
+                        request, conn_file, result)
+                conn_file.write_message(result)
 
     def _serve_subscription(self, conn_file):
         self._subscriptions.append(conn_file)
