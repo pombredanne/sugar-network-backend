@@ -38,7 +38,7 @@ _logger = logging.getLogger('active_document.volume')
 class _Volume(dict):
 
     def __init__(self, root, document_classes, index_class, extra_props):
-        self.signal = lambda event: None
+        self._signal = None
 
         self._root = root
         if not exists(root):
@@ -67,6 +67,11 @@ class _Volume(dict):
             __, cls = self.popitem()
             cls.close()
 
+    def connect(self, callback):
+        # TODO Replace by regular events handler
+        enforce(self._signal is None)
+        self._signal = callback
+
     def _notification_cb(self, document, event):
         if env.only_commits_notification.value and event['event'] != 'commit':
             return
@@ -79,8 +84,9 @@ class _Volume(dict):
         if 'props' in event:
             del event['props']
 
-        signal = self.signal
-        signal(event)
+        signal = self._signal
+        if signal is not None:
+            signal(event)
 
     def __enter__(self):
         return self

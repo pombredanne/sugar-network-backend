@@ -164,7 +164,7 @@ class VolumeTest(tests.Test):
         only_commits_notification.value = False
 
         signals = []
-        self.volume.signal = lambda event: signals.append(event['event'])
+        self.volume.connect(lambda event: signals.append(event['event']))
 
         guid = self.call('POST', 'testdocument', content={'prop': 'value'})
         self.call('DELETE', 'testdocument', guid=guid)
