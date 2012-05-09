@@ -22,7 +22,7 @@ from active_document.document import Document
 from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         ACCESS_DELETE, ACCESS_AUTHOR, ACCESS_FULL, ACCESS_AUTH, \
         index_flush_timeout, index_flush_threshold, \
-        index_write_queue, find_limit, \
+        index_write_queue, find_limit, only_commits_notification, \
         NotFound, Forbidden, Unauthorized, Redirect, principal
 
 from active_document.metadata import Metadata, Property, \
@@ -31,7 +31,5 @@ from active_document.metadata import Metadata, Property, \
 
 from active_document.commands import document_command, directory_command, \
         volume_command, Command, Request, Response, call
-
-from active_document.index import connect
 
 from active_document.volume import SingleVolume

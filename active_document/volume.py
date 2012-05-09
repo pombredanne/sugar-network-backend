@@ -38,6 +38,8 @@ _logger = logging.getLogger('active_document.volume')
 class _Volume(dict):
 
     def __init__(self, root, document_classes, index_class, extra_props):
+        self.signal = lambda event: None
+
         self._root = root
         if not exists(root):
             os.makedirs(root)
@@ -52,8 +54,10 @@ class _Volume(dict):
 
         for cls in document_classes:
             name = cls.__name__.lower()
-            self[name] = Directory(join(root, name), cls, index_class,
-                    extra_props.get(name))
+            directory = Directory(join(root, name), cls, index_class,
+                    extra_props.get(name),
+                    lambda event: self._notification_cb(name, event))
+            self[name] = directory
 
     def close(self):
         """Close operations with the server."""
@@ -62,6 +66,21 @@ class _Volume(dict):
         while self:
             __, cls = self.popitem()
             cls.close()
+
+    def _notification_cb(self, document, event):
+        if env.only_commits_notification.value and event['event'] != 'commit':
+            return
+
+        event['document'] = document
+        if event['event'] == 'update':
+            if 'deleted' in event['props'].get('layers', []):
+                event['event'] = 'delete'
+                del event['props']
+        if 'props' in event:
+            del event['props']
+
+        signal = self.signal
+        signal(event)
 
     def __enter__(self):
         return self

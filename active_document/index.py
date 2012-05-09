@@ -24,7 +24,6 @@ from gettext import gettext as _
 import gevent
 import gevent.event
 import xapian
-import blinker
 
 from active_document import util, env, gthread
 from active_document.metadata import ActiveProperty
@@ -37,29 +36,13 @@ _EXACT_QUERY_RE = re.compile('([a-zA-Z0-9_]+):=(")?((?(2)[^"]+|\S+))(?(2)")')
 # How many times to call Xapian database reopen() before fail
 _REOPEN_LIMIT = 10
 
-_signals = {
-        'index.created': blinker.Signal(),
-        'index.updated': blinker.Signal(),
-        'index.deleted': blinker.Signal(),
-        'index.committed': blinker.Signal(),
-        }
-
 _logger = logging.getLogger('active_document.index')
-
-
-def connect(signal, cb, document=None):
-    signal_name = 'index.%s' % signal
-    enforce(signal_name in _signals, _('Unknow index signal, %r'), signal)
-    kwargs = {}
-    if document is not None:
-        kwargs['sender'] = document
-    _signals[signal_name].connect(cb, **kwargs)
 
 
 class IndexReader(object):
     """Read-only access to an index."""
 
-    def __init__(self, root, metadata):
+    def __init__(self, root, metadata, commit_cb=None):
         self.metadata = metadata
         self._db = None
         self._props = {}
@@ -67,6 +50,7 @@ class IndexReader(object):
         self._path = join(root, 'index')
         self._layout_path = join(self._path, 'layout')
         self._mtime_path = join(self._path, 'mtime')
+        self._commit_cb = commit_cb
 
         for name, prop in self.metadata.items():
             if isinstance(prop, ActiveProperty):
@@ -93,7 +77,7 @@ class IndexReader(object):
         """
         pass
 
-    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
+    def store(self, guid, properties, new, pre_cb=None, post_cb=None, *args):
         """Store new document in the index.
 
         :param guid:
@@ -113,7 +97,7 @@ class IndexReader(object):
         """
         raise NotImplementedError()
 
-    def delete(self, guid, post_cb=None):
+    def delete(self, guid, post_cb=None, *args):
         """Delete a document from the index.
 
         :param guid:
@@ -291,8 +275,8 @@ class IndexReader(object):
 class IndexWriter(IndexReader):
     """Write access to Xapian databases."""
 
-    def __init__(self, root, metadata):
-        IndexReader.__init__(self, root, metadata)
+    def __init__(self, root, metadata, commit_cb=None):
+        IndexReader.__init__(self, root, metadata, commit_cb)
 
         self._pending_updates = 0
         self._commit_cond = gthread.Condition()
@@ -310,7 +294,7 @@ class IndexWriter(IndexReader):
         self._commit_job = None
         self._db = None
 
-    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
+    def store(self, guid, properties, new, pre_cb=None, post_cb=None, *args):
         if pre_cb is not None:
             pre_cb(guid, properties, new)
 
@@ -346,14 +330,11 @@ class IndexWriter(IndexReader):
         self._pending_updates += 1
 
         if post_cb is not None:
-            post_cb(guid, properties, new)
-
-        signal = 'index.created' if new else 'index.updated'
-        _signals[signal].send(self.metadata.name, guid=guid)
+            post_cb(guid, properties, new, *args)
 
         self._check_for_commit()
 
-    def delete(self, guid, post_cb=None):
+    def delete(self, guid, post_cb=None, *args):
         _logger.debug('Delete %r document from %r',
                 guid, self.metadata.name)
 
@@ -361,9 +342,7 @@ class IndexWriter(IndexReader):
         self._pending_updates += 1
 
         if post_cb is not None:
-            post_cb(guid)
-
-        _signals['index.deleted'].send(self.metadata.name, guid=guid)
+            post_cb(guid, *args)
 
         self._check_for_commit()
 
@@ -414,7 +393,8 @@ class IndexWriter(IndexReader):
         _logger.debug('Commit %r changes took %s seconds',
                 self.metadata.name, time.time() - ts)
 
-        _signals['index.committed'].send(self.metadata.name)
+        if self._commit_cb is not None:
+            self._commit_cb()
 
     def _is_layout_stale(self):
         if not exists(self._layout_path):

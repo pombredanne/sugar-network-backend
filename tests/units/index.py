@@ -507,12 +507,7 @@ class IndexTest(tests.Test):
     def test_FlushThreshold(self):
         commits = []
 
-        def cb(sender):
-            commits.append(sender)
-
-        index.connect('committed', cb)
-
-        db = Index({})
+        db = Index({}, lambda: commits.append(True))
         gevent.sleep()
         env.index_flush_threshold.value = 1
         db.store('1', {}, True)
@@ -521,10 +516,10 @@ class IndexTest(tests.Test):
         gevent.sleep()
         db.store('3', {}, True)
         gevent.sleep()
-        self.assertEqual(['index'] * 3, commits)
+        self.assertEqual(3, len(commits))
 
         del commits[:]
-        db = Index({})
+        db = Index({}, lambda: commits.append(True))
         gevent.sleep()
         env.index_flush_threshold.value = 2
         db.store('4', {}, True)
@@ -537,7 +532,7 @@ class IndexTest(tests.Test):
         gevent.sleep()
         db.store('8', {}, True)
         gevent.sleep()
-        self.assertEqual(['index'] * 2, commits)
+        self.assertEqual(2, len(commits))
 
     def test_FlushTimeout(self):
         env.index_flush_threshold.value = 0
@@ -545,88 +540,36 @@ class IndexTest(tests.Test):
 
         commits = []
 
-        def cb(sender):
-            commits.append(sender)
-
-        index.connect('committed', cb)
-
-        db = Index({})
+        db = Index({}, lambda: commits.append(True))
         gevent.sleep()
 
         db.store('1', {}, True)
         gevent.sleep()
-        self.assertEqual(['index'] * 0, commits)
+        self.assertEqual(0, len(commits))
         db.store('2', {}, True)
         gevent.sleep()
-        self.assertEqual(['index'] * 0, commits)
+        self.assertEqual(0, len(commits))
 
         gevent.sleep(1.5)
-        self.assertEqual(['index'] * 1, commits)
+        self.assertEqual(1, len(commits))
 
         db.store('1', {}, True)
         gevent.sleep()
-        self.assertEqual(['index'] * 1, commits)
+        self.assertEqual(1, len(commits))
         db.store('2', {}, True)
         gevent.sleep()
-        self.assertEqual(['index'] * 1, commits)
+        self.assertEqual(1, len(commits))
 
         gevent.sleep(1.5)
-        self.assertEqual(['index'] * 2, commits)
+        self.assertEqual(2, len(commits))
 
         gevent.sleep(1.5)
-        self.assertEqual(['index'] * 2, commits)
-
-    def test_Events(self):
-        env.index_flush_threshold.value = 0
-        env.index_flush_timeout.value = 0
-
-        commits = []
-
-        def created_cb(sender, guid):
-            commits.append(('index', 'created', guid))
-
-        index.connect('created', created_cb)
-
-        def updated_cb(sender, guid):
-            commits.append(('index', 'updated', guid))
-
-        index.connect('updated', updated_cb)
-
-        def deleted_cb(sender, guid):
-            commits.append(('index', 'deleted', guid))
-
-        index.connect('deleted', deleted_cb)
-
-        db = Index({})
-        gevent.sleep()
-
-        db.store('1', {}, True)
-        gevent.sleep()
-        db.store('1', {}, False)
-        gevent.sleep()
-        db.store('2', {}, True)
-        gevent.sleep()
-        db.store('2', {}, False)
-        gevent.sleep()
-        db.delete('1')
-        gevent.sleep()
-        db.delete('2')
-        gevent.sleep()
-
-        self.assertEqual([
-            ('index', 'created', '1'),
-            ('index', 'updated', '1'),
-            ('index', 'created', '2'),
-            ('index', 'updated', '2'),
-            ('index', 'deleted', '1'),
-            ('index', 'deleted', '2'),
-            ],
-            commits)
+        self.assertEqual(2, len(commits))
 
 
 class Index(index.IndexWriter):
 
-    def __init__(self, props):
+    def __init__(self, props, *args):
 
         class Index(object):
             pass
@@ -637,7 +580,7 @@ class Index(index.IndexWriter):
                 permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
                 prefix=env.GUID_PREFIX)
 
-        index.IndexWriter.__init__(self, tests.tmpdir, metadata)
+        index.IndexWriter.__init__(self, tests.tmpdir, metadata, *args)
 
     def _find(self, *args, **kwargs):
         if 'reply' not in kwargs:

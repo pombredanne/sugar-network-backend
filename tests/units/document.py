@@ -534,6 +534,67 @@ class DocumentTest(tests.Test):
                 [diff.get('prop')[0] for guid, diff in docs])
         self.assertEqual([1, 4], diff_rage)
 
+    def test_Events(self):
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 0
+
+        class Document(document.Document):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+        self.touch(
+                ('1/1/.seqno', ''),
+                ('1/1/guid', '1'),
+                ('1/1/ctime', '1'),
+                ('1/1/mtime', '1'),
+                ('1/1/prop', '"prop-1"'),
+                ('1/1/layers', '["public"]'),
+                ('1/1/author', '["me"]'),
+                )
+
+        def notification_cb(event):
+            if 'props' in event:
+                props = event['props']
+                if 'mtime' in props:
+                    del props['mtime']
+                if 'ctime' in props:
+                    del props['ctime']
+                if 'seqno' in props:
+                    del props['seqno']
+            events.append(event)
+
+        events = []
+        directory = Directory(tests.tmpdir, Document, IndexWriter,
+                notification_cb=notification_cb)
+
+        for i in directory.populate():
+            pass
+
+        directory.create_with_guid('guid', {'prop': 'prop'})
+        directory.set_blob('guid', 'blob', StringIO('blob'))
+        directory.update('guid', {'prop': 'prop2'})
+        directory.delete('guid')
+        directory.commit()
+
+        self.assertEqual([
+            {'event': 'commit'},
+            {'event': 'populate'},
+            {'guid': 'guid', 'event': 'create', 'props':
+                {'layers': ('public',), 'guid': 'guid', 'author': ('me',), 'prop': 'prop'}},
+            {'guid': 'guid', 'event': 'update_blob', 'prop': 'blob'},
+            {'guid': 'guid', 'event': 'update', 'props':
+                {'prop': 'prop2'}},
+            {'guid': 'guid', 'event': 'delete'},
+            {'event': 'commit'},
+            ],
+            events)
+
 
 if __name__ == '__main__':
     tests.main()

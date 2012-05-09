@@ -60,7 +60,7 @@ class IndexProxy(IndexReader):
                 result.update(cached.properties)
         return result
 
-    def store(self, guid, properties, new, pre_cb=None, post_cb=None):
+    def store(self, guid, properties, new, pre_cb=None, post_cb=None, *args):
         if properties and new is not None:
             if new:
                 orig = None
@@ -84,10 +84,11 @@ class IndexProxy(IndexReader):
                         guid)
             page.update(guid, properties, orig)
 
-        self._put(IndexWriter.store, guid, properties, new, pre_cb, post_cb)
+        self._put(IndexWriter.store, guid, properties, new, pre_cb, post_cb,
+                *args)
 
-    def delete(self, guid, post_cb=None):
-        self._put(IndexWriter.delete, guid, post_cb)
+    def delete(self, guid, post_cb=None, *args):
+        self._put(IndexWriter.delete, guid, post_cb, *args)
 
     def find(self, query):
         self._reopen()

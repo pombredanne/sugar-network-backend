@@ -11,7 +11,7 @@ homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
 version   = 0.1
 stability = developer
 
-requires  = gevent; blinker
+requires  = gevent
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&

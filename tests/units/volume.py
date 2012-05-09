@@ -12,7 +12,7 @@ from __init__ import tests
 
 from active_document import volume, document, SingleVolume, \
         call, Request, Response, Document, active_property, \
-        BlobProperty, NotFound
+        BlobProperty, NotFound, only_commits_notification
 
 
 class VolumeTest(tests.Test):
@@ -159,6 +159,21 @@ class VolumeTest(tests.Test):
         self.assertEqual(
                 sorted(['guid', 'prop']),
                 sorted(self.call('GET', 'testdocument', reply=['prop', 'guid'])['result'][0].keys()))
+
+    def test_PseudoDelete(self):
+        only_commits_notification.value = False
+
+        signals = []
+        self.volume.signal = lambda event: signals.append(event['event'])
+
+        guid = self.call('POST', 'testdocument', content={'prop': 'value'})
+        self.call('DELETE', 'testdocument', guid=guid)
+
+        self.assertEqual(
+                ['create', 'delete'],
+                signals)
+
+        assert self.volume['testdocument'].exists(guid)
 
     def call(self, cmd, document=None, guid=None, prop=None, **kwargs):
 

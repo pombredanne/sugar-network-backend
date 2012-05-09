@@ -22,7 +22,6 @@ from active_document import env, util
 from active_document.storage import Storage
 from active_document.metadata import Metadata, BlobProperty, BrowsableProperty
 from active_document.metadata import ActiveProperty, StoredProperty
-from active_document.index import connect
 from active_document.util import enforce
 
 
@@ -33,7 +32,8 @@ _logger = logging.getLogger('active_document.document')
 
 class Directory(object):
 
-    def __init__(self, root, document_class, index_class, extra_props=None):
+    def __init__(self, root, document_class, index_class, extra_props=None,
+            notification_cb=None):
         """
         :param index_class:
             what class to use to access to indexes, for regular casses
@@ -56,16 +56,15 @@ class Directory(object):
 
         self._document_class = document_class
         self._storage = Storage(root, self.metadata)
-        self._index = index_class(root, self.metadata)
+        self._index = index_class(root, self.metadata, self._post_commit)
         self._root = root
         self._seqno = 0
+        self._notification_cb = notification_cb
 
         seqno_path = join(root, 'seqno')
         if exists(seqno_path):
             with file(seqno_path) as f:
                 self._seqno = int(f.read().strip())
-
-        connect('committed', self.__committed_cb, self.metadata.name)
 
         _logger.debug('Initiated %r document', document_class)
 
@@ -140,7 +139,8 @@ class Directory(object):
             document GUID to delete
 
         """
-        self._index.delete(guid, lambda guid: self._storage.delete(guid))
+        event = {'event': 'delete', 'guid': guid}
+        self._index.delete(guid, self._post_delete, event)
 
     def exists(self, guid):
         return self._storage.exists(guid)
@@ -224,6 +224,11 @@ class Directory(object):
         if self._storage.set_blob(seqno, guid, prop.name, stream, size):
             self._index.store(guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
+            event = {'event': 'update_blob',
+                     'guid': guid,
+                     'prop': prop.name,
+                     }
+            self._notify(event)
 
     def stat_blob(self, guid, prop):
         """Receive BLOB property information.
@@ -252,14 +257,19 @@ class Directory(object):
             every object to let the caller execute urgent tasks
 
         """
-        first_population = True
+        found = False
+
         for guid, props in self._storage.walk(self._index.mtime):
-            if first_population:
+            if not found:
                 _logger.info(_('Start populating %r index'),
                         self.metadata.name)
-                first_population = False
+                found = True
             self._index.store(guid, props, None, self._pre_store, None)
             yield
+
+        if found:
+            self.commit()
+            self._notify({'event': 'populate'})
 
     def diff(self, accept_range):
         """Return documents' properties for specified times range.
@@ -328,6 +338,7 @@ class Directory(object):
         if self._storage.merge(seqno, guid, diff):
             self._index.store(guid, {}, None,
                     self._pre_store, self._post_store)
+        # TODO Send "populate" event
         return seqno
 
     def _pre_store(self, guid, changes, is_new):
@@ -343,8 +354,21 @@ class Directory(object):
         if is_new is not None:
             changes['seqno'] = self._next_seqno()
 
-    def _post_store(self, guid, changes, is_new):
+    def _post_store(self, guid, changes, is_new, event=None):
         self._storage.put(guid, changes)
+        if event:
+            self._notify(event)
+
+    def _post_delete(self, guid, event):
+        self._storage.delete(guid)
+        self._notify(event)
+
+    def _post_commit(self):
+        with util.new_file(join(self._root, 'seqno')) as f:
+            f.write(str(self._seqno))
+            f.flush()
+            os.fsync(f.fileno())
+        self._notify({'event': 'commit'})
 
     def _next_seqno(self):
         self._seqno += 1
@@ -367,10 +391,13 @@ class Directory(object):
                 util.exception(error)
                 raise RuntimeError(error)
 
-        self._index.store(guid, props, new, self._pre_store, self._post_store)
+        event = {'event': 'create' if new else 'update',
+                 'guid': guid,
+                 'props': props.copy(),
+                 }
+        self._index.store(guid, props, new,
+                self._pre_store, self._post_store, event)
 
-    def __committed_cb(self, sender):
-        with util.new_file(join(self._root, 'seqno')) as f:
-            f.write(str(self._seqno))
-            f.flush()
-            os.fsync(f.fileno())
+    def _notify(self, even):
+        if self._notification_cb is not None:
+            self._notification_cb(even)
