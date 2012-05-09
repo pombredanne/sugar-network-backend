@@ -11,6 +11,7 @@ from os.path import dirname, join, exists, abspath
 import active_document as ad
 import restful_document as rd
 from restful_document.router import Router
+from restful_document.subscribe_socket import SubscribeSocket
 from local_document import env
 import sugar_network_server
 from sugar_network import client
@@ -142,14 +143,14 @@ class Test(unittest.TestCase):
 
         from gevent.wsgi import WSGIServer
 
-        folder = ad.SingleFolder(classes)
-        httpd = WSGIServer(('localhost', port), Router(folder))
+        volume = ad.SingleFolder(classes)
+        httpd = WSGIServer(('localhost', port), Router(volume))
 
         try:
             httpd.serve_forever()
         finally:
             httpd.stop()
-            folder.close()
+            volume.close()
 
     def httpdown(self, port):
         pid = Test.httpd_pids[port]
@@ -162,6 +163,7 @@ class Test(unittest.TestCase):
         from gevent.wsgi import WSGIServer
         from sugar_network_server.resources.user import User
         from sugar_network_server.resources.context import Context
+        from restful_document import env as _env
 
         if not exists('remote'):
             os.makedirs('remote')
@@ -178,6 +180,7 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
-        folder = ad.SingleVolume('remote', [User, Context])
-        httpd = WSGIServer(('localhost', 8000), rd.Router(folder))
+        volume = ad.SingleVolume('remote', [User, Context])
+        httpd = WSGIServer(('localhost', 8000), rd.Router(volume))
+        _env.subscriber = SubscribeSocket(volume)
         httpd.serve_forever()

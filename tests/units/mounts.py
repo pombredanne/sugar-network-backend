@@ -6,6 +6,7 @@ import json
 from os.path import join
 
 import gevent
+from gevent import socket
 
 from __init__ import tests
 
@@ -17,6 +18,7 @@ from sugar_network_server.resources.context import Context
 from sugar_network.client import Client
 from local_document.mounts import Mounts
 from local_document.server import Server
+from local_document.socket import SocketFile
 from local_document import env
 
 
@@ -25,22 +27,10 @@ class MountsTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         self.mounts = Mounts('local', [User, Context])
-        self.client = None
 
     def tearDown(self):
-        if self.client is not None:
-            self.client.close()
         self.mounts.close()
         tests.Test.tearDown(self)
-
-    def create_context(self, title):
-        res = self.client.Context()
-        res['type'] = 'activity'
-        res['title'] = title
-        res['summary'] = 'summary'
-        res['description'] = 'description'
-        res.post()
-        return res
 
     def test_OfflineMount_create(self):
 
@@ -49,12 +39,16 @@ class MountsTest(tests.Test):
 
         gevent.spawn(server)
         gevent.sleep()
-        self.client = Client('~')
+        local = Client('~')
 
-        guid = self.create_context('title')['guid']
+        guid = local.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
         self.assertNotEqual(None, guid)
 
-        res = self.client.Context(guid, ['title', 'keep', 'keep_impl', 'position'])
+        res = local.Context(guid, ['title', 'keep', 'keep_impl', 'position'])
         self.assertEqual(guid, res['guid'])
         self.assertEqual('title', res['title'])
         self.assertEqual(False, res['keep'])
@@ -94,11 +88,15 @@ class MountsTest(tests.Test):
 
         gevent.spawn(server)
         gevent.sleep()
-        self.client = Client('~')
+        local = Client('~')
 
-        guid = self.create_context('title')['guid']
+        guid = local.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
 
-        context = self.client.Context(guid, ['title', 'keep', 'keep_impl', 'position'])
+        context = local.Context(guid, ['title', 'keep', 'keep_impl', 'position'])
         self.assertEqual(guid, context['guid'])
         self.assertEqual('title', context['title'])
         self.assertEqual(False, context['keep'])
@@ -112,13 +110,25 @@ class MountsTest(tests.Test):
 
         gevent.spawn(server)
         gevent.sleep()
-        self.client = Client('~')
+        local = Client('~')
 
-        guid_1 = self.create_context('title_1')['guid']
-        guid_2 = self.create_context('title_2')['guid']
-        guid_3 = self.create_context('title_3')['guid']
+        guid_1 = local.Context(
+                type='activity',
+                title='title_1',
+                summary='summary',
+                description='description').post()
+        guid_2 = local.Context(
+                type='activity',
+                title='title_2',
+                summary='summary',
+                description='description').post()
+        guid_3 = local.Context(
+                type='activity',
+                title='title_3',
+                summary='summary',
+                description='description').post()
 
-        cursor = self.client.Context.cursor(reply=['guid', 'title', 'keep', 'keep_impl', 'position'])
+        cursor = local.Context.cursor(reply=['guid', 'title', 'keep', 'keep_impl', 'position'])
         self.assertEqual(3, cursor.total)
         self.assertEqual(
                 sorted([
@@ -153,7 +163,7 @@ class MountsTest(tests.Test):
                 [(guid, False, False)],
                 [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
-        self.mounts['~'].volume['context'].create_with_guid(guid, {
+        self.mounts.home_volume['context'].create_with_guid(guid, {
             'type': 'activity',
             'title': 'local',
             'summary': 'summary',
@@ -230,6 +240,111 @@ class MountsTest(tests.Test):
         self.assertEqual(True, context['keep'])
         self.assertEqual(False, context['keep_impl'])
         self.assertEqual('remote', context['title'])
+
+    def test_OfflineSubscription(self):
+        ad.only_commits_notification.value = False
+
+        def server():
+            Server(self.mounts).serve_forever()
+
+        gevent.spawn(server)
+        gevent.sleep()
+        client = Client('~')
+
+        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription.connect('run/subscribe')
+        gevent.sleep()
+
+        guid = client.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'create', 'guid': guid},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
+                subscription.read_message())
+
+        client.Context(guid, title='new-title').post()
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
+                subscription.read_message())
+
+        client.Context.delete(guid)
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'delete', 'guid': guid},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
+                subscription.read_message())
+
+    def test_OnlineSubscription(self):
+        ad.only_commits_notification.value = False
+
+        self.fork(self.restful_server)
+        gevent.sleep(1)
+
+        def server():
+            Server(self.mounts).serve_forever()
+
+        gevent.spawn(server)
+        gevent.sleep()
+        client = Client('/')
+
+        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription.connect('run/subscribe')
+        gevent.sleep(1)
+
+        guid = client.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'create', 'guid': guid},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'commit'},
+                subscription.read_message())
+
+        client.Context(guid, title='new-title').post()
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'commit'},
+                subscription.read_message())
+
+        client.Context.delete(guid)
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'delete', 'guid': guid},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'commit'},
+                subscription.read_message())
 
 
 if __name__ == '__main__':

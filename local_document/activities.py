@@ -70,7 +70,7 @@ class _Monitor(object):
             return
 
         context = spec['Activity', 'bundle_id']
-        directory = self._mounts['~'].volume['context']
+        directory = self._mounts.home_volume['context']
         if directory.exists(context):
             directory.update(context, {'keep_impl': True})
         else:
@@ -106,7 +106,7 @@ class _Monitor(object):
 
         if not impls:
             context = basename(context_dir)
-            directory = self._mounts['~'].volume['context']
+            directory = self._mounts.home_volume['context']
             if directory.exists(context):
                 directory.update(context, {'keep_impl': False})
 

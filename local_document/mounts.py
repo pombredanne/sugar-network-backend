@@ -16,9 +16,13 @@
 import logging
 from gettext import gettext as _
 
+import gevent
+from gevent import socket
+
 import active_document as ad
 from active_document import principal, SingleVolume, enforce
 from local_document import cache, sugar, http
+from local_document.socket import SocketFile
 
 
 _logger = logging.getLogger('local_document.mounts')
@@ -29,7 +33,7 @@ class Mounts(dict):
     def __init__(self, root, resources_path):
         principal.user = sugar.uid()
 
-        self._home_volume = SingleVolume(root, resources_path, {
+        self.home_volume = SingleVolume(root, resources_path, {
             'context': [
                 ad.ActiveProperty('keep',
                     prefix='LK', typecast=bool, default=False),
@@ -40,8 +44,8 @@ class Mounts(dict):
                 ],
             })
 
-        self['/'] = _RemoteMount(self._home_volume)
-        self['~'] = _LocalMount(self._home_volume)
+        self['/'] = _RemoteMount('/', self.home_volume)
+        self['~'] = _LocalMount('~', self.home_volume)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
@@ -52,30 +56,53 @@ class Mounts(dict):
         return mount.call(request, response)
 
     def close(self):
-        self._home_volume.close()
+        while self:
+            __, mount = self.popitem()
+            mount.close()
+        self.home_volume.close()
 
 
 class _LocalMount(object):
 
-    def __init__(self, volume):
-        self.volume = volume
+    def __init__(self, mountpoint, volume):
+        self.mountpoint = mountpoint
+        self._volume = volume
+
+    def close(self):
+        pass
 
     def call(self, request, response):
         if request.command == 'get_blob':
             return self._get_blob(**request)
-        return ad.call(self.volume, request, response)
+        return ad.call(self._volume, request, response)
 
     def connect(self, callback):
-        pass
+
+        def signal_cb(event):
+            event['mountpoint'] = self.mountpoint
+            callback(self, event)
+
+        self._volume.signal = signal_cb
 
     def _get_blob(self, document, guid, prop):
-        stat = self.volume[document].stat_blob(guid, prop)
+        stat = self._volume[document].stat_blob(guid, prop)
         if stat is None:
             return None
         return {'path': stat['path'], 'mime_type': stat['mime_type']}
 
 
-class _RemoteMount(_LocalMount):
+class _RemoteMount(object):
+
+    def __init__(self, mountpoint, volume):
+        self.mountpoint = mountpoint
+        self._home_volume = volume
+        self._signal_job = None
+        self._signal = None
+
+    def close(self):
+        if self._signal_job is not None:
+            self._signal_job.kill()
+            self._signal_job = None
 
     def call(self, request, response):
         if request.command == 'set_keep':
@@ -97,8 +124,29 @@ class _RemoteMount(_LocalMount):
         return http.request(method, path, data=request.content,
                 params=request, headers={'Content-Type': 'application/json'})
 
+    def connect(self, callback):
+        if self._signal_job is None:
+            self._signal_job = gevent.spawn(self._signal_listerner)
+        self._signal = callback
+
+    def _signal_listerner(self):
+        subscription = http.request('POST', [''], params={'cmd': 'subscribe'},
+                headers={'Content-Type': 'application/json'})
+
+        conn = SocketFile(socket.socket())
+        conn.connect((subscription['host'], subscription['port']))
+        conn = SocketFile(conn)
+        conn.write_message({'ticket': subscription['ticket']})
+
+        while True:
+            socket.wait_read(conn.fileno())
+            event = conn.read_message()
+            event['mountpoint'] = self.mountpoint
+            signal = self._signal
+            signal(self, event)
+
     def _set_keep(self, guid, keep):
-        context = self.volume['context']
+        context = self._home_volume['context']
         if context.exists(guid):
             context.update(guid, {'keep': keep})
         elif keep:

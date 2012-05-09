@@ -11,8 +11,7 @@ homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
 version   = 0.1
 stability = developer
 
-requires  = base/requests; base/m2crypto; sweets-recipe; blinker
-            sugar-network-server
+requires  = base/requests; base/m2crypto; sweets-recipe; sugar-network-server
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&

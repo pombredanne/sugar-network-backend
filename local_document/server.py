@@ -95,10 +95,10 @@ class Server(object):
         self._subscriptions.append(conn_file)
         return True
 
-    def __event_cb(self, mount, event, **message):
-        message['event'] = event
+    def __event_cb(self, mount, event):
         for socket_file in self._subscriptions:
-            socket_file.write_message(message)
+            _logger.debug('Send notification: %r', event)
+            socket_file.write_message(event)
 
 
 def _start_server(name, serve_cb):
@@ -113,12 +113,12 @@ def _start_server(name, serve_cb):
 
     def connection_cb(conn, address):
         conn_file = SocketFile(conn)
-        _logger.debug('New %s connection: %r', name, conn_file)
+        _logger.debug('New %r connection: %r', name, conn_file)
         do_not_close = False
         try:
             do_not_close = serve_cb(conn_file)
         finally:
-            _logger.debug('Quit %s connection: %r', name, conn_file)
+            _logger.debug('Quit %r connection: %r', name, conn_file)
             if not do_not_close:
                 conn_file.close()
 
