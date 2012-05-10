@@ -82,7 +82,7 @@ class _LocalMount(object):
             event['mountpoint'] = self.mountpoint
             callback(self, event)
 
-        self._volume.signal = signal_cb
+        self._volume.connect(signal_cb)
 
     def _get_blob(self, document, guid, prop):
         stat = self._volume[document].stat_blob(guid, prop)
@@ -125,6 +125,8 @@ class _RemoteMount(object):
                 params=request, headers={'Content-Type': 'application/json'})
 
     def connect(self, callback):
+        # TODO Replace by regular events handler
+        enforce(self._signal is None)
         if self._signal_job is None:
             self._signal_job = gevent.spawn(self._signal_listerner)
         self._signal = callback
@@ -143,7 +145,8 @@ class _RemoteMount(object):
             event = conn.read_message()
             event['mountpoint'] = self.mountpoint
             signal = self._signal
-            signal(self, event)
+            if signal is not None:
+                signal(self, event)
 
     def _set_keep(self, guid, keep):
         context = self._home_volume['context']

@@ -48,6 +48,7 @@ class Cursor(object):
         self._page_access = collections.deque([], _QUERY_PAGES_NUMBER)
         self._pages = {}
         self._offset = -1
+        self._callback = None
 
         self._reset()
 
@@ -88,6 +89,17 @@ class Cursor(object):
         self._order_by = value
         self._reset()
 
+    def __del__(self):
+        if self._callback is not None:
+            self._request.disconnect(self.__signal_cb)
+            self._callback = None
+
+    def connect(self, callback):
+        # TODO Replace by regular events handler
+        enforce(callback is not None and self._callback is None)
+        self._callback = callback
+        self._request.connect(self.__signal_cb)
+
     def __iter__(self):
         while self.offset + 1 < self.total:
             self.offset += 1
@@ -95,6 +107,7 @@ class Cursor(object):
             if obj is None:
                 break
             yield obj
+        self.offset = -1
 
     def filter(self, query=None, **filters):
         """Change query parameters.
@@ -193,3 +206,8 @@ class Cursor(object):
         self._page_access.clear()
         self._pages.clear()
         self._total = None
+
+    def __signal_cb(self, event):
+        self._reset()
+        callback = self._callback
+        callback()

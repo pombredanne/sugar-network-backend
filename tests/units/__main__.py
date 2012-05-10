@@ -6,6 +6,7 @@ from ipc import *
 from mounts import *
 from crawler import*
 from activities import*
+from client import*
 
 
 tests.main()

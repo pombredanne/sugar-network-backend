@@ -17,11 +17,12 @@ import os
 import json
 import shutil
 import logging
-from gevent import socket
 from contextlib import contextmanager
 from os.path import join, exists, dirname
 from gettext import gettext as _
 
+import gevent
+from gevent import socket
 from gevent.queue import Queue
 
 import zerosugar
@@ -145,9 +146,11 @@ class _Connection(object):
     def __init__(self):
         self._pool = Queue(maxsize=_CONNECTION_POOL)
         self._pool_size = 0
+        self._subscribe_job = None
+        self._subscriptions = {}
 
     @contextmanager
-    def socket_file(self):
+    def conn_file(self):
         if self._pool_size >= self._pool.maxsize:
             conn = self._pool.get()
         else:
@@ -157,13 +160,22 @@ class _Connection(object):
             # pylint: disable-msg=E1101
             conn = socket.socket(socket.AF_UNIX)
             conn.connect(env.ensure_path('run', 'accept'))
-
         try:
             yield SocketFile(conn)
         finally:
             self._pool.put(conn)
 
+    @property
+    def subscriptions(self):
+        if self._subscribe_job is None:
+            self._subscribe_job = gevent.spawn(self._subscribe)
+        return self._subscriptions
+
     def close(self):
+        if self._subscribe_job is not None:
+            self._subscribe_job.kill()
+            self._subscribe_job = None
+
         while not self._pool.empty():
             conn = self._pool.get_nowait()
             try:
@@ -171,17 +183,43 @@ class _Connection(object):
             except Exception:
                 util.exception(_logger, _('Cannot close IPC connection'))
 
+    def _subscribe(self):
+        # pylint: disable-msg=E1101
+        conn = SocketFile(socket.socket(socket.AF_UNIX))
+        conn.connect(env.ensure_path('run', 'subscribe'))
+        try:
+            while True:
+                socket.wait_read(conn.fileno())
+                event = conn.read_message()
+                for (mountpoint, document), callback in \
+                        self._subscriptions.items():
+                    if event['mountpoint'] == mountpoint and \
+                            event['document'] == document:
+                        callback(event)
+        finally:
+            conn.close()
+
 
 class _Request(object):
 
-    def __init__(self, conn, mountpoint, resource):
+    def __init__(self, conn, mountpoint, document):
         self._conn = conn
-        self._mountpoint = mountpoint
-        self.document = resource
+        self.mountpoint = mountpoint
+        self.document = document
 
     @property
     def online(self):
-        return self._mountpoint == '/'
+        return self.mountpoint == '/'
+
+    def connect(self, callback):
+        key = (self.mountpoint, self.document)
+        self._conn.subscriptions[key] = callback
+
+    def disconnect(self, callback):
+        key = (self.mountpoint, self.document)
+        subscription = self._conn.subscriptions.get(key)
+        if subscription is not None and subscription is callback:
+            del self._conn.subscriptions[key]
 
     def local_get(self, guid, prop):
         path = join(env.local_root.value, 'local', self.document,
@@ -191,17 +229,17 @@ class _Request(object):
                 return json.load(f)
 
     def send(self, cmd, content=None, content_type=None, **request):
-        request['mountpoint'] = self._mountpoint
+        request['mountpoint'] = self.mountpoint
         request['document'] = self.document
         request['cmd'] = cmd
         request['content_type'] = content_type
 
-        with self._conn.socket_file() as socket_file:
-            socket_file.write_message(request)
+        with self._conn.conn_file() as conn_file:
+            conn_file.write_message(request)
             if content_type == 'application/json':
                 content = json.dumps(content)
-            socket_file.write(content)
-            response = socket_file.read_message()
+            conn_file.write(content)
+            response = conn_file.read_message()
 
             _logger.debug('Made a call: request=%r response=%r',
                     request, response)
