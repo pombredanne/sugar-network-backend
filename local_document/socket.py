@@ -54,6 +54,8 @@ class SocketFile(object):
 
     def read_message(self):
         message_str = self.read()
+        if not message_str:
+            return None
         try:
             message = json.loads(message_str)
         except Exception, error:
