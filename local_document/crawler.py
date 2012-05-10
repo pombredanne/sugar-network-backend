@@ -18,7 +18,6 @@ import logging
 from os.path import join, exists, isdir, dirname
 from gettext import gettext as _
 
-import blinker
 import gevent
 from gevent.select import select
 
@@ -28,14 +27,11 @@ from local_document.inotify import Inotify, \
 from local_document import env, util
 
 
-found = blinker.Signal()
-lost = blinker.Signal()
-
 _logger = logging.getLogger('local_document.crawler')
 
 
-def dispatch(paths):
-    with Inotify() as monitor:
+def dispatch(paths, found_cb, lost_cb):
+    with _Inotify(found_cb, lost_cb) as monitor:
         roots = []
         for path in paths:
             _logger.info(_('Start monitoring activities in %r'), path)
@@ -53,6 +49,14 @@ def dispatch(paths):
                     util.exception(_('Cannot dispatch 0x%X event for %r'),
                             event, filename)
                 gevent.sleep()
+
+
+class _Inotify(Inotify):
+
+    def __init__(self, found_cb, lost_cb):
+        Inotify.__init__(self)
+        self.found_cb = found_cb
+        self.lost_cb = lost_cb
 
 
 class _Root(object):
@@ -143,13 +147,13 @@ class _ActivityDir(object):
         if self._found:
             return
         self._found = True
-        found.send(self._node_path)
+        self._monitor.found_cb(self._node_path)
 
     def lost(self):
         if not self._found:
             return
         self._found = False
-        lost.send(self._node_path)
+        self._monitor.lost_cb(self._node_path)
 
     def __watch_cb(self, filename, event):
         if filename != 'activity.info':

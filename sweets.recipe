@@ -8,7 +8,7 @@ summary   = Client side library to access to Sugar Network server
 license   = GPLv3+
 homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
 
-version   = 0.1
+version   = 0.2
 stability = developer
 
 requires  = base/requests; base/m2crypto; sweets-recipe; sugar-network-server

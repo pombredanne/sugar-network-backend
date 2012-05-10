@@ -20,9 +20,6 @@ class CrawlerTest(tests.Test):
         self.found = []
         self.lost = []
 
-        crawler.found.connect(self.found_cb)
-        crawler.lost.connect(self.lost_cb)
-
     def tearDown(self):
         if self.job is not None:
             self.job.kill()
@@ -42,7 +39,8 @@ class CrawlerTest(tests.Test):
         self.touch('activity-4/activity/activity.info')
         self.touch('activity-5/activity/activity.info')
 
-        self.job = gevent.spawn(crawler.dispatch, ['.'])
+        self.job = gevent.spawn(crawler.dispatch, ['.'],
+                self.found_cb, self.lost_cb)
         gevent.sleep(1)
 
         self.assertEqual(
@@ -101,7 +99,8 @@ class CrawlerTest(tests.Test):
     def test_Moves(self):
         self.touch('Activities/activity/activity/activity.info')
 
-        self.job = gevent.spawn(crawler.dispatch, ['Activities'])
+        self.job = gevent.spawn(crawler.dispatch, ['Activities'],
+                self.found_cb, self.lost_cb)
         gevent.sleep()
         del self.found[:]
         del self.lost[:]

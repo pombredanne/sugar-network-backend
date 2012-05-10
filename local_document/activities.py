@@ -38,25 +38,8 @@ def checkins(context):
 
 
 def monitor(mounts):
-    with _Monitor(mounts):
-        crawler.dispatch([env.activities_root.value])
 
-
-class _Monitor(object):
-
-    def __init__(self, mounts):
-        self._mounts = mounts
-
-    def __enter__(self):
-        crawler.found.connect(self.__found_cb)
-        crawler.lost.connect(self.__lost_cb)
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        crawler.found.disconnect(self.__found_cb)
-        crawler.lost.disconnect(self.__lost_cb)
-
-    def __found_cb(self, impl_path):
+    def found_cb(impl_path):
         hashed_path, checkin_path = _checkin_path(impl_path)
         if exists(checkin_path):
             return
@@ -70,7 +53,7 @@ class _Monitor(object):
             return
 
         context = spec['Activity', 'bundle_id']
-        directory = self._mounts.home_volume['context']
+        directory = mounts.home_volume['context']
         if directory.exists(context):
             directory.update(context, {'keep_impl': True})
         else:
@@ -93,7 +76,7 @@ class _Monitor(object):
         env.ensure_path(checkin_path)
         os.symlink(relpath(context_path, dirname(checkin_path)), checkin_path)
 
-    def __lost_cb(self, impl_path):
+    def lost_cb(impl_path):
         __, checkin_path = _checkin_path(impl_path)
         if not lexists(checkin_path):
             return
@@ -106,13 +89,15 @@ class _Monitor(object):
 
         if not impls:
             context = basename(context_dir)
-            directory = self._mounts.home_volume['context']
+            directory = mounts.home_volume['context']
             if directory.exists(context):
                 directory.update(context, {'keep_impl': False})
 
         if lexists(context_path):
             os.unlink(context_path)
         os.unlink(checkin_path)
+
+    crawler.dispatch([env.activities_root.value], found_cb, lost_cb)
 
 
 def _checkin_path(impl_path):
