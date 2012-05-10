@@ -8,6 +8,8 @@ import logging
 import unittest
 from os.path import dirname, join, exists, abspath
 
+import gevent
+
 import active_document as ad
 import restful_document as rd
 from restful_document.router import Router
@@ -182,5 +184,13 @@ class Test(unittest.TestCase):
 
         volume = ad.SingleVolume('remote', [User, Context])
         httpd = WSGIServer(('localhost', 8000), rd.Router(volume))
-        _env.subscriber = SubscribeSocket(volume)
-        httpd.serve_forever()
+        subscriber = SubscribeSocket(volume)
+        try:
+            gevent.joinall([
+                gevent.spawn(httpd.serve_forever),
+                gevent.spawn(subscriber.serve_forever),
+                ])
+        finally:
+            httpd.stop()
+            subscriber.stop()
+            volume.close()
