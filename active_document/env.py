@@ -77,7 +77,7 @@ only_commits_notification = optparse.Option(
         _('subscribers can be notified only with commits events; ' \
                 'that is useful to minimize interactions between ' \
                 'server and clients'),
-        default=True, type_cast=optparse.Option.bool_cast,
+        default=False, type_cast=optparse.Option.bool_cast,
         action='store_true')
 
 

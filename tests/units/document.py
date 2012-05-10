@@ -560,13 +560,7 @@ class DocumentTest(tests.Test):
 
         def notification_cb(event):
             if 'props' in event:
-                props = event['props']
-                if 'mtime' in props:
-                    del props['mtime']
-                if 'ctime' in props:
-                    del props['ctime']
-                if 'seqno' in props:
-                    del props['seqno']
+                del event['props']
             events.append(event)
 
         events = []
@@ -584,13 +578,11 @@ class DocumentTest(tests.Test):
 
         self.assertEqual([
             {'event': 'commit'},
-            {'event': 'populate'},
-            {'guid': 'guid', 'event': 'create', 'props':
-                {'layers': ('public',), 'guid': 'guid', 'author': ('me',), 'prop': 'prop'}},
+            {'event': 'update'},
+            {'event': 'update'},
             {'guid': 'guid', 'event': 'update_blob', 'prop': 'blob'},
-            {'guid': 'guid', 'event': 'update', 'props':
-                {'prop': 'prop2'}},
-            {'guid': 'guid', 'event': 'delete'},
+            {'guid': 'guid', 'event': 'update'},
+            {'event': 'update'},
             {'event': 'commit'},
             ],
             events)

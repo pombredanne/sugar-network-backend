@@ -73,20 +73,26 @@ class _Volume(dict):
         self._signal = callback
 
     def _notification_cb(self, document, event):
-        if env.only_commits_notification.value and event['event'] != 'commit':
+        signal = self._signal
+        if signal is None:
             return
 
-        event['document'] = document
-        if event['event'] == 'update':
-            if 'deleted' in event['props'].get('layers', []):
-                event['event'] = 'delete'
-                del event['props']
-        if 'props' in event:
-            del event['props']
+        if env.only_commits_notification.value:
+            if event['event'] != 'commit':
+                # Subscribers will get informed by later "commit" notifications
+                return
+        else:
+            if event['event'] == 'commit':
+                # Subscribers already got "update" notifications
+                return
 
-        signal = self._signal
-        if signal is not None:
-            signal(event)
+        if 'props' in event:
+            if 'deleted' in event['props'].get('layers', []):
+                del event['guid']
+            del event['props']
+        event['document'] = document
+
+        signal(event)
 
     def __enter__(self):
         return self

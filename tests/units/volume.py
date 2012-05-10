@@ -164,16 +164,41 @@ class VolumeTest(tests.Test):
         only_commits_notification.value = False
 
         signals = []
-        self.volume.connect(lambda event: signals.append(event['event']))
+        self.volume.connect(lambda event: signals.append(event))
 
         guid = self.call('POST', 'testdocument', content={'prop': 'value'})
         self.call('DELETE', 'testdocument', guid=guid)
 
-        self.assertEqual(
-                ['create', 'delete'],
-                signals)
+        self.assertEqual([
+            {'event': 'update', 'document': 'testdocument'},
+            {'event': 'update', 'document': 'testdocument'},
+            ],
+            signals)
 
         assert self.volume['testdocument'].exists(guid)
+
+    def test_CommitEvents(self):
+        signals = []
+        self.volume.connect(lambda event: signals.append(event))
+
+        only_commits_notification.value = False
+        guid = self.call('POST', 'testdocument', content={'prop': 'value'})
+        self.call('PUT', 'testdocument', guid, content={'prop': 'value'})
+        self.assertEqual([
+            {'event': 'update', 'document': 'testdocument'},
+            {'event': 'update', 'document': 'testdocument', 'guid': guid},
+            ],
+            signals)
+        del signals[:]
+
+        only_commits_notification.value = True
+        guid = self.call('POST', 'testdocument', content={'prop': 'value'})
+        self.call('PUT', 'testdocument', guid, content={'prop': 'value'})
+        self.volume.close()
+        self.assertEqual([
+            {'event': 'commit', 'document': 'testdocument'},
+            ],
+            signals)
 
     def call(self, cmd, document=None, guid=None, prop=None, **kwargs):
 
