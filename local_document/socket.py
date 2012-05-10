@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/socket.py$
-$Data: 2012-05-08$
+$Data: 2012-05-10$
 
 """
 
@@ -72,6 +72,8 @@ class SocketFile(object):
 
         def read_size():
             size_str = self._recv(struct.calcsize('i'))
+            if not size_str:
+                return 0
             return struct.unpack('i', size_str)[0]
 
         if size is None:
