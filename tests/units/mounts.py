@@ -263,11 +263,7 @@ class MountsTest(tests.Test):
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'create', 'guid': guid},
-                subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
+                {'mountpoint': '~', 'document': 'context', 'event': 'update'},
                 subscription.read_message())
 
         client.Context(guid, title='new-title').post()
@@ -276,20 +272,12 @@ class MountsTest(tests.Test):
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
                 subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
-                subscription.read_message())
 
         client.Context.delete(guid)
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'delete', 'guid': guid},
-                subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
+                {'mountpoint': '~', 'document': 'context', 'event': 'update'},
                 subscription.read_message())
 
     def test_OnlineSubscription(self):
@@ -317,11 +305,7 @@ class MountsTest(tests.Test):
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'create', 'guid': guid},
-                subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'commit'},
+                {'mountpoint': '/', 'document': 'context', 'event': 'update'},
                 subscription.read_message())
 
         client.Context(guid, title='new-title').post()
@@ -330,20 +314,12 @@ class MountsTest(tests.Test):
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
                 subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'commit'},
-                subscription.read_message())
 
         client.Context.delete(guid)
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'delete', 'guid': guid},
-                subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'commit'},
+                {'mountpoint': '/', 'document': 'context', 'event': 'update'},
                 subscription.read_message())
 
 
