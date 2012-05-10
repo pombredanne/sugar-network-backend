@@ -191,7 +191,7 @@ class _Connection(object):
             while True:
                 socket.wait_read(conn.fileno())
                 event = conn.read_message()
-                for (mountpoint, document), callback in \
+                for callback, (mountpoint, document) in \
                         self._subscriptions.items():
                     if event['mountpoint'] == mountpoint and \
                             event['document'] == document:
@@ -212,14 +212,11 @@ class _Request(object):
         return self.mountpoint == '/'
 
     def connect(self, callback):
-        key = (self.mountpoint, self.document)
-        self._conn.subscriptions[key] = callback
+        self._conn.subscriptions[callback] = (self.mountpoint, self.document)
 
     def disconnect(self, callback):
-        key = (self.mountpoint, self.document)
-        subscription = self._conn.subscriptions.get(key)
-        if subscription is not None and subscription is callback:
-            del self._conn.subscriptions[key]
+        if callback in self._conn.subscriptions:
+            del self._conn.subscriptions[callback]
 
     def local_get(self, guid, prop):
         path = join(env.local_root.value, 'local', self.document,
@@ -250,7 +247,7 @@ class _Request(object):
         return response
 
     def __repr__(self):
-        return self.document
+        return str((self.mountpoint, self.document))
 
 
 class _Resource(object):

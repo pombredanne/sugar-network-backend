@@ -17,6 +17,7 @@ import logging
 import collections
 from gettext import gettext as _
 
+from gevent.event import Event
 from active_document import util, enforce
 
 
@@ -48,7 +49,7 @@ class Cursor(object):
         self._page_access = collections.deque([], _QUERY_PAGES_NUMBER)
         self._pages = {}
         self._offset = -1
-        self._callback = None
+        self._subscription = None
 
         self._reset()
 
@@ -89,16 +90,16 @@ class Cursor(object):
         self._order_by = value
         self._reset()
 
-    def __del__(self):
-        if self._callback is not None:
-            self._request.disconnect(self.__signal_cb)
-            self._callback = None
+    def read_events(self):
+        if self._subscription is None:
+            self._subscription = _Subscription(self._request)
 
-    def connect(self, callback):
-        # TODO Replace by regular events handler
-        enforce(callback is not None and self._callback is None)
-        self._callback = callback
-        self._request.connect(self.__signal_cb)
+        with self._subscription as subscription:
+            while subscription.wait():
+                for __ in subscription.events():
+                    self._reset()
+                    # TODO Replace by changed offset
+                    yield None
 
     def __iter__(self):
         while self.offset + 1 < self.total:
@@ -207,7 +208,47 @@ class Cursor(object):
         self._pages.clear()
         self._total = None
 
-    def __signal_cb(self, event):
-        self._reset()
-        callback = self._callback
-        callback()
+
+class _Subscription(object):
+
+    def __init__(self, request):
+        self._request = request
+        self._signal = Event()
+        self._users = 0
+        self._queue = collections.deque()
+
+    def __enter__(self):
+        if not self._users:
+            _logger.debug('Start listening notifications for %r',
+                    self._request)
+            self._request.connect(self.__event_cb)
+        self._users += 1
+        self._replace()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._users -= 1
+        if not self._users:
+            _logger.debug('Stop listening notifications for %r',
+                    self._request)
+            self._request.disconnect(self.__event_cb)
+
+    def wait(self):
+        self._queue.clear()
+        self._signal.wait()
+        return bool(self._queue)
+
+    def events(self):
+        return iter(self._queue)
+
+    def _replace(self):
+        if self._users <= 1:
+            return
+        self._queue.clear()
+        self._signal.set()
+        self._signal.clear()
+
+    def __event_cb(self, event):
+        self._queue.append(event)
+        self._signal.set()
+        self._signal.clear()
