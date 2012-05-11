@@ -71,7 +71,7 @@ def read(context):
             impl_id = impl_data['guid']
 
             impl = model.ZeroInstallImplementation(feed, impl_id, None)
-            impl.version = model.parse_version(version)
+            impl.version = sweets_recipe.parse_version(version)
             impl.released = 0
             impl.arch = arch
             impl.upstream_stability = \
@@ -152,7 +152,8 @@ class _Dependency(model.InterfaceDependency):
 
         for not_before, before in data.get('restrictions') or []:
             restriction = model.VersionRangeRestriction(
-                    not_before=not_before, before=before)
+                    not_before=sweets_recipe.parse_version(not_before),
+                    before=sweets_recipe.parse_version(before))
             self.restrictions.append(restriction)
 
     @property
