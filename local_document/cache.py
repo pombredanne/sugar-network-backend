@@ -26,20 +26,22 @@ from local_document.socket import BUFFER_SIZE
 
 
 _logger = logging.getLogger('local_document.cache')
-_missed_blobs = set()
 
 
 def get_cached_blob(document, guid, prop):
     path = _path(document, guid, prop)
     mime_path = path + '.mime'
 
-    if exists(path) and exists(mime_path):
-        with file(mime_path) as f:
-            mime_type = f.read().strip()
-        return path, mime_type
+    if not exists(path) or not exists(mime_path):
+        return None
 
-    if guid in _missed_blobs:
-        return None, None
+    with file(mime_path) as f:
+        mime_type = f.read().strip()
+
+    if not os.stat(path).st_size:
+        path = None
+
+    return path, mime_type
 
 
 def get_blob(document, guid, prop):
@@ -76,11 +78,7 @@ def get_blob(document, guid, prop):
             empty = False
             f.write(chunk)
 
-        if empty:
-            _missed_blobs.add(guid)
-            os.unlink(f.name)
-        else:
-            return True
+        return not empty
 
     if document == 'implementation' and prop == 'bundle':
         tmp_file = tempfile.NamedTemporaryFile(delete=False)
@@ -90,14 +88,14 @@ def get_blob(document, guid, prop):
                 with Bundle(tmp_file.name, 'application/zip') as bundle:
                     bundle.extractall(path)
             else:
-                return None, None
+                path = None
         finally:
             if exists(tmp_file.name):
                 os.unlink(tmp_file.name)
     else:
         with file(path, 'w') as f:
             if not download(f):
-                return None, None
+                path = None
 
     return path, mime_type
 
@@ -110,17 +108,12 @@ def set_blob(document, guid, prop, stream,
     with file(mime_path, 'w') as f:
         f.write(mime_type)
 
-    empty = True
     with file(path, 'wb') as f:
         while True:
             chunk = stream.read(BUFFER_SIZE)
             if not chunk:
                 break
             f.write(chunk)
-            empty = False
-        if empty:
-            _missed_blobs.add(guid)
-            os.unlink(f.name)
 
 
 def _path(document, guid, *args):
