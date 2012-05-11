@@ -15,7 +15,6 @@
 
 import os
 import json
-import shutil
 import logging
 from contextlib import contextmanager
 from os.path import join, exists, dirname
@@ -25,11 +24,9 @@ import gevent
 from gevent import socket
 from gevent.queue import Queue
 
-import zerosugar
-import sweets_recipe
-from local_document import ipc, env, activities
+from local_document import ipc, env
 from local_document.socket import SocketFile
-from sugar_network.objects import Object, Context
+from sugar_network.objects import Object
 from sugar_network.cursor import Cursor
 from active_document import util
 
@@ -61,29 +58,6 @@ class Client(object):
             _logger.debug('Close connection')
             self._conn.close()
             self._conn = None
-
-    def checkin(self, context):
-        solution = zerosugar.make(self, context)
-        for sel, __, __ in solution.walk():
-            try:
-                spec = sweets_recipe.Spec(root=sel.local_path)
-            except Exception, error:
-                util.exception(_logger,
-                        _('Cannot checkin %r, failed to read spec file: %s'),
-                        sel.interface, error)
-                continue
-
-            dst_path = util.unique_filename(
-                    env.activities_root.value, spec['name'])
-            _logger.info(_('Checkin %r implementation to %r'),
-                    context, dst_path)
-            util.cptree(sel.local_path, dst_path)
-
-    def checkout(self, context):
-        for path in activities.checkins(context):
-            _logger.info(_('Checkout %r implementation from %r'),
-                    context, path)
-            shutil.rmtree(path)
 
     def launch(self, context, command='activity', args=None):
         """Launch context implementation.
@@ -128,8 +102,7 @@ class Client(object):
         resource = self._resources.get(name)
         if resource is None:
             request = _Request(self._conn, self._mountpoint, name.lower())
-            object_class = Context if name == 'Context' else Object
-            resource = _Resource(request, object_class)
+            resource = _Resource(request)
             self._resources[name] = resource
 
         return resource
@@ -252,9 +225,8 @@ class _Request(object):
 
 class _Resource(object):
 
-    def __init__(self, request, object_class):
+    def __init__(self, request):
         self._request = request
-        self._object_class = object_class
 
     def cursor(self, query=None, order_by=None, reply=None, page_size=18,
             **filters):
@@ -277,8 +249,8 @@ class _Resource(object):
             a dictionary of properties to filter resulting list
 
         """
-        return Cursor(self._request, self._object_class, query, order_by,
-                reply, page_size, **filters)
+        return Cursor(self._request, query, order_by, reply, page_size,
+                **filters)
 
     def delete(self, guid):
         """Delete resource object.
@@ -290,4 +262,4 @@ class _Resource(object):
         return self._request.send('DELETE', guid=guid)
 
     def __call__(self, guid=None, reply=None, **kwargs):
-        return self._object_class(self._request, reply or [], guid, **kwargs)
+        return Object(self._request, reply or [], guid, **kwargs)

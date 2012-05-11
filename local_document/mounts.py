@@ -13,7 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import logging
+from os.path import join, dirname, exists
 from gettext import gettext as _
 
 import gevent
@@ -25,6 +27,23 @@ from local_document import cache, sugar, http
 from local_document.socket import SocketFile
 
 
+_HOME_PROPS = {
+        'context': [
+            ad.ActiveProperty('keep',
+                prefix='LK', typecast=bool, default=False),
+            ad.ActiveProperty('keep_impl',
+                prefix='LI', typecast=[0, 1, 2], default=0),
+            ad.StoredProperty('position',
+                typecast=[int], default=(-1, -1)),
+            ],
+        }
+
+_COMMON_PROPS = {
+        # prop_name: (default_value, handler)
+        'keep': (False, None),
+        'keep_impl': (0, lambda guid, value: _set_keep_impl(guid, value)),
+        }
+
 _logger = logging.getLogger('local_document.mounts')
 
 
@@ -32,18 +51,7 @@ class Mounts(dict):
 
     def __init__(self, root, resources_path):
         principal.user = sugar.uid()
-
-        self.home_volume = SingleVolume(root, resources_path, {
-            'context': [
-                ad.ActiveProperty('keep',
-                    prefix='LK', typecast=bool, default=False),
-                ad.ActiveProperty('keep_impl',
-                    prefix='LI', typecast=bool, default=False),
-                ad.StoredProperty('position',
-                    typecast=[int], default=(-1, -1)),
-                ],
-            })
-
+        self.home_volume = SingleVolume(root, resources_path, _HOME_PROPS)
         self['/'] = _RemoteMount('/', self.home_volume)
         self['~'] = _LocalMount('~', self.home_volume)
 
@@ -79,20 +87,30 @@ class _LocalMount(object):
     def connect(self, callback):
 
         def signal_cb(event):
+            props = None
             if 'props' in event:
                 # For now, events are simply for notification
                 # that some changes happened
                 props = event.pop('props')
-            else:
-                props = {}
 
             event['mountpoint'] = self.mountpoint
             callback(self, event)
 
-            if 'keep' in props or 'keep_impl' in props:
-                if 'guid' not in event:
-                    # Creation event will contain GUID in `props`
-                    event['guid'] = props['guid']
+            if props is None:
+                return
+
+            if 'guid' not in event:
+                # Creation event will contain GUID in `props`
+                event['guid'] = props['guid']
+
+            found_commons = False
+            for prop, (__, handler) in _COMMON_PROPS.items():
+                if prop in props:
+                    found_commons = True
+                    if handler is not None:
+                        handler(event['guid'], props[prop])
+
+            if found_commons:
                 # These local properties exposed from "/" mount as well
                 event['mountpoint'] = '/'
                 callback(self, event)
@@ -138,23 +156,19 @@ class _RemoteMount(object):
             path.append(request.pop('prop'))
 
         result = None
-        patch_keep = None
-        patch_keep_impl = None
+        patch = {}
 
         if document == 'context':
             if request.command == 'GET':
                 reply = request.get('reply', [])
-                if 'keep' in reply:
-                    patch_keep = True
-                    reply.remove('keep')
-                if 'keep_impl' in reply:
-                    patch_keep_impl = True
-                    reply.remove('keep_impl')
+                for prop, (default, __) in _COMMON_PROPS.items():
+                    if prop in reply:
+                        patch[prop] = default
+                        reply.remove(prop)
             elif request.command in ('POST', 'PUT'):
-                if 'keep' in request.content:
-                    patch_keep = request.content.pop('keep')
-                if 'keep_impl' in request.content:
-                    patch_keep_impl = request.content.pop('keep_impl')
+                for prop in _COMMON_PROPS.keys():
+                    if prop in request.content:
+                        patch[prop] = request.content.pop(prop)
                 if not request.content:
                     result = guid
 
@@ -163,42 +177,28 @@ class _RemoteMount(object):
                     data=request.content, params=request,
                     headers={'Content-Type': 'application/json'})
 
-        if document == 'context' and \
-                (patch_keep is not None or patch_keep_impl is not None):
+        if document == 'context' and patch:
             directory = self._home_volume['context']
             if request.command == 'GET':
                 if guid:
                     if directory.exists(guid):
-                        props = directory.get(guid)
-                    else:
-                        props = {}
-                    if patch_keep:
-                        result['keep'] = props.get('keep') or False
-                    if patch_keep_impl:
-                        result['keep_impl'] = props.get('keep_impl') or False
+                        patch = directory.get(guid).properties(patch.keys())
+                    result.update(patch)
                 else:
                     for props in result['result']:
                         if directory.exists(props['guid']):
-                            context = directory.get(props['guid'])
-                        else:
-                            context = {}
-                        if patch_keep:
-                            props['keep'] = context.get('keep') or False
-                        if patch_keep_impl:
-                            props['keep_impl'] = context.get('keep_impl') or \
-                                    False
-            elif request.command in ('POST', 'PUT'):
+                            patch = directory.get(props['guid']).properties(
+                                    patch.keys())
+                        props.update(patch)
+            else:
                 if request.command == 'POST':
                     guid = result
-                if patch_keep is not None:
-                    if directory.exists(guid):
-                        directory.update(guid, {'keep': patch_keep})
-                    elif patch_keep:
-                        props = http.request('GET', ['context', guid])
-                        props['keep'] = patch_keep
-                        directory.create_with_guid(guid, props)
-                if patch_keep_impl is not None:
-                    pass
+                if directory.exists(guid):
+                    directory.update(guid, patch)
+                elif [True for prop, value in patch.items() if value]:
+                    props = http.request('GET', ['context', guid])
+                    props.update(patch)
+                    directory.create_with_guid(guid, props)
 
         return result
 
@@ -232,3 +232,26 @@ class _RemoteMount(object):
             return None
         else:
             return {'path': path, 'mime_type': mime_type}
+
+
+def _set_keep_impl(guid, value):
+    if value == 0:
+        _logger.debug('Checkout %r', guid)
+        command = 'checkout'
+    elif value == 1:
+        _logger.debug('Checkin %r', guid)
+        command = 'checkin'
+    else:
+        return
+
+    pid = os.fork()
+    if pid:
+        return
+
+    cmd = ['sugar-network', command, guid]
+
+    cmd_path = join(dirname(__file__), '..', 'sugar-network')
+    if exists(cmd_path):
+        os.execv(cmd_path, cmd)
+    else:
+        os.execvp(cmd[0], cmd)

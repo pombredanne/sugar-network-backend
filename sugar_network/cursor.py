@@ -18,6 +18,8 @@ import collections
 from gettext import gettext as _
 
 from gevent.event import Event
+
+from sugar_network.objects import Object
 from active_document import util, enforce
 
 
@@ -29,10 +31,8 @@ _logger = logging.getLogger('sugar_network')
 
 class Cursor(object):
 
-    def __init__(self, request, object_class, query, order_by, reply,
-            page_size, **filters):
+    def __init__(self, request, query, order_by, reply, page_size, **filters):
         self._request = request
-        self._object_class = object_class
         self._query = query
         self._order_by = order_by
         self._reply = reply or ['guid']
@@ -137,7 +137,7 @@ class Cursor(object):
                 for obj in page:
                     if obj is not None and obj.guid == key:
                         return obj
-            return self._object_class(self._request, self._reply, key)
+            return Object(self._request, self._reply, key)
         else:
             offset = key
 
@@ -202,7 +202,7 @@ class Cursor(object):
 
         result = [None] * len(response['result'])
         for i, props in enumerate(response['result']):
-            result[i] = self._object_class(self._request, self._reply,
+            result[i] = Object(self._request, self._reply,
                     props['guid'], props, offset + i)
 
         if not self._page_access or self._page_access[-1] != page:

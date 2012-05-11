@@ -17,9 +17,7 @@ import logging
 from os.path import isdir
 from gettext import gettext as _
 
-import sweets_recipe
-from local_document import activities
-from active_document import util, enforce
+from active_document import enforce
 
 
 _logger = logging.getLogger('sugar_network')
@@ -136,22 +134,6 @@ class Object(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.post()
-
-
-class Context(Object):
-
-    @property
-    def checkins(self):
-        enforce(self._guid, _('Object needs to be posted first'))
-
-        for path in activities.checkins(self._guid):
-            try:
-                spec = sweets_recipe.Spec(root=path)
-            except Exception, error:
-                util.exception(_logger, _('Failed to read %r spec file: %s'),
-                        path, error)
-                continue
-            yield spec
 
 
 class _Blob(file):

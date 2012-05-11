@@ -55,7 +55,7 @@ def monitor(mounts):
         context = spec['Activity', 'bundle_id']
         directory = mounts.home_volume['context']
         if directory.exists(context):
-            directory.update(context, {'keep_impl': True})
+            directory.update(context, {'keep_impl': 2})
         else:
             _logger.debug('Register unknown local activity, %r', context)
             directory.create_with_guid(context, {
@@ -63,7 +63,7 @@ def monitor(mounts):
                 'title': spec['name'],
                 'summary': spec['summary'],
                 'description': spec['description'],
-                'keep_impl': True,
+                'keep_impl': 2,
                 })
 
         context_path = _ensure_context_path(context, hashed_path)
@@ -91,7 +91,7 @@ def monitor(mounts):
             context = basename(context_dir)
             directory = mounts.home_volume['context']
             if directory.exists(context):
-                directory.update(context, {'keep_impl': False})
+                directory.update(context, {'keep_impl': 0})
 
         if lexists(context_path):
             os.unlink(context_path)

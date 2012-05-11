@@ -60,7 +60,7 @@ class ActivitiesTest(tests.Test):
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
 
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': True},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_OfflineCheckin(self):
@@ -85,7 +85,7 @@ class ActivitiesTest(tests.Test):
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
 
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'HelloWorld', 'keep': False, 'keep_impl': True},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'HelloWorld', 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkout(self):
@@ -114,7 +114,7 @@ class ActivitiesTest(tests.Test):
         assert exists('activities/checkins/' + hashed_path)
         assert exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': True},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
         shutil.rmtree('Activities/activity')
@@ -123,7 +123,7 @@ class ActivitiesTest(tests.Test):
         assert not exists('activities/checkins/' + hashed_path)
         assert not exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': False},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 0},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
 
