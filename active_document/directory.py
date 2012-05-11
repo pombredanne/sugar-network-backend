@@ -391,7 +391,7 @@ class Directory(object):
                 raise RuntimeError(error)
 
         event = {'event': 'update',
-                 'props': props,
+                 'props': props.copy(),
                  }
         if not new:
             event['guid'] = guid

@@ -86,9 +86,9 @@ class _Volume(dict):
                 # Subscribers already got "update" notifications
                 return
 
-        if 'props' in event:
-            if 'deleted' in event['props'].get('layers', []):
-                del event['guid']
+        if 'props' in event and 'deleted' in event['props'].get('layers', []):
+            del event['props']
+            del event['guid']
         event['document'] = document
 
         signal(event)
