@@ -105,9 +105,7 @@ class _RemoteMount(object):
             self._signal_job = None
 
     def call(self, request, response):
-        if request.command == 'set_keep':
-            return self._set_keep(request['guid'], request['keep'])
-        elif request.command == 'get_blob':
+        if request.command == 'get_blob':
             return self._get_blob(**request)
 
         if type(request.command) is list:
@@ -115,14 +113,79 @@ class _RemoteMount(object):
         else:
             method = request.command
 
-        path = [request.pop('document')]
+        document = request.pop('document')
+        guid = None
+        path = [document]
         if 'guid' in request:
-            path.append(request.pop('guid'))
+            guid = request.pop('guid')
+            path.append(guid)
         if 'prop' in request:
             path.append(request.pop('prop'))
 
-        return http.request(method, path, data=request.content,
-                params=request, headers={'Content-Type': 'application/json'})
+        result = None
+        patch_keep = None
+        patch_keep_impl = None
+
+        if document == 'context':
+            if request.command == 'GET':
+                reply = request.get('reply', [])
+                if 'keep' in reply:
+                    patch_keep = True
+                    reply.remove('keep')
+                if 'keep_impl' in reply:
+                    patch_keep_impl = True
+                    reply.remove('keep_impl')
+            elif request.command in ('POST', 'PUT'):
+                if 'keep' in request.content:
+                    patch_keep = request.content.pop('keep')
+                if 'keep_impl' in request.content:
+                    patch_keep_impl = request.content.pop('keep_impl')
+                if not request.content:
+                    result = guid
+
+        if result is None:
+            result = http.request(method, path,
+                    data=request.content, params=request,
+                    headers={'Content-Type': 'application/json'})
+
+        if document == 'context' and \
+                (patch_keep is not None or patch_keep_impl is not None):
+            directory = self._home_volume['context']
+            if request.command == 'GET':
+                if guid:
+                    if directory.exists(guid):
+                        props = directory.get(guid)
+                    else:
+                        props = {}
+                    if patch_keep:
+                        result['keep'] = props.get('keep') or False
+                    if patch_keep_impl:
+                        result['keep_impl'] = props.get('keep_impl') or False
+                else:
+                    for props in result['result']:
+                        if directory.exists(props['guid']):
+                            context = directory.get(props['guid'])
+                        else:
+                            context = {}
+                        if patch_keep:
+                            props['keep'] = context.get('keep') or False
+                        if patch_keep_impl:
+                            props['keep_impl'] = context.get('keep_impl') or \
+                                    False
+            elif request.command in ('POST', 'PUT'):
+                if request.command == 'POST':
+                    guid = result
+                if patch_keep is not None:
+                    if directory.exists(guid):
+                        directory.update(guid, {'keep': patch_keep})
+                    elif patch_keep:
+                        props = http.request('GET', ['context', guid])
+                        props['keep'] = patch_keep
+                        directory.create_with_guid(guid, props)
+                if patch_keep_impl is not None:
+                    pass
+
+        return result
 
     def connect(self, callback):
         # TODO Replace by regular events handler
@@ -147,15 +210,6 @@ class _RemoteMount(object):
             signal = self._signal
             if signal is not None:
                 signal(self, event)
-
-    def _set_keep(self, guid, keep):
-        context = self._home_volume['context']
-        if context.exists(guid):
-            context.update(guid, {'keep': keep})
-        elif keep:
-            props = http.request('GET', ['context', guid])
-            props['keep'] = keep
-            context.create_with_guid(guid, props)
 
     def _get_blob(self, document, guid, prop):
         path, mime_type = cache.get_blob(document, guid, prop)

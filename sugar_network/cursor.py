@@ -38,11 +38,6 @@ class Cursor(object):
         self._reply = reply or ['guid']
         if 'guid' not in self._reply:
             self._reply.append('guid')
-        if self._request.online:
-            if 'keep' in self._reply:
-                self._reply.remove('keep')
-            if 'keep_impl' in self._reply:
-                self._reply.remove('keep_impl')
         self._page_size = page_size
         self._filters = filters
         self._total = None

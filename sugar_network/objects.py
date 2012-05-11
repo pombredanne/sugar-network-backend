@@ -19,7 +19,6 @@ from gettext import gettext as _
 
 import sweets_recipe
 from local_document import activities
-from local_document.cache import get_cached_blob
 from active_document import util, enforce
 
 
@@ -34,6 +33,7 @@ class Object(object):
         self._reply = reply or []
         self._guid = guid
         self._props = props or {}
+        self._blobs = {}
         self._dirty = set()
         self.offset = offset
 
@@ -66,36 +66,40 @@ class Object(object):
         if not to_fetch:
             return
 
-        if self._request.online:
-            response = self._request.send('GET', guid=self._guid,
-                    reply=to_fetch)
-        else:
-            response = {}
-            for prop in to_fetch:
-                response[prop] = self._request.local_get(self._guid, prop)
-
+        response = self._request.send('GET', guid=self._guid,
+                reply=to_fetch)
         response.update(self._props)
         self._props = response
 
     def post(self):
         if not self._dirty:
             return
+
         props = {}
         for i in self._dirty:
             props[i] = self._props.get(i)
-        self._do_post(props)
+
+        if self._guid:
+            self._request.send('PUT', guid=self._guid, content=props,
+                    content_type='application/json')
+        else:
+            self._guid = self._request.send('POST', content=props,
+                    content_type='application/json')
+
         self._dirty.clear()
         return self._guid
 
     def get_blob_path(self, prop):
-        enforce(self._guid, _('Object needs to be posted first'))
-        cached = get_cached_blob(self._request.document, self._guid, prop)
-        if cached is not None:
-            return cached
+        blob = self._blobs.get(prop)
+        if blob is not None:
+            return blob
         response = self._request.send('get_blob', guid=self._guid, prop=prop)
-        if not response:
-            return None, None
-        return response['path'], response['mime_type']
+        if response:
+            blob = response['path'], response['mime_type']
+        else:
+            blob = None, None
+        self._blobs[prop] = blob
+        return blob
 
     def get_blob(self, prop):
         path, mime_type = self.get_blob_path(prop)
@@ -112,14 +116,6 @@ class Object(object):
     def set_blob_by_url(self, prop, url):
         enforce(self._guid, _('Object needs to be posted first'))
         self._request.send('PUT', guid=self._guid, prop=prop, url=url)
-
-    def _do_post(self, props):
-        if self._guid:
-            self._request.send('PUT', guid=self._guid, content=props,
-                    content_type='application/json')
-        else:
-            self._guid = self._request.send('POST', content=props,
-                    content_type='application/json')
 
     def __getitem__(self, prop):
         result = self.get(prop)
@@ -144,17 +140,6 @@ class Object(object):
 
 class Context(Object):
 
-    def get(self, prop):
-        if self._request.online:
-            if prop == 'keep' and prop not in self._props:
-                self._props['keep'] = \
-                        self._request.local_get(self._guid, 'keep') or False
-            elif prop == 'keep_impl' and prop not in self._props:
-                self._props['keep_impl'] = \
-                        self._request.local_get(self._guid, 'keep_impl') or \
-                        False
-        return Object.get(self, prop)
-
     @property
     def checkins(self):
         enforce(self._guid, _('Object needs to be posted first'))
@@ -167,15 +152,6 @@ class Context(Object):
                         path, error)
                 continue
             yield spec
-
-    def _do_post(self, props):
-        if self._request.online and 'keep' in props:
-            enforce(self._guid, _('Object needs to be posted first'))
-            self._request.send('set_keep', guid=self._guid,
-                    keep=props.pop('keep'))
-            if not props:
-                return
-        Object._do_post(self, props)
 
 
 class _Blob(file):

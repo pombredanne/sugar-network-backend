@@ -15,7 +15,7 @@ import active_document as ad
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
-from sugar_network.client import Client
+from sugar_network.client import Client, ServerError
 from local_document.mounts import Mounts
 from local_document.server import Server
 from local_document.socket import SocketFile
@@ -197,7 +197,7 @@ class MountsTest(tests.Test):
                 summary='summary',
                 description='description').post()
 
-        self.assertRaises(KeyError, lambda: local.Context(guid, reply=['title'])['title'])
+        self.assertRaises(ServerError, lambda: local.Context(guid, reply=['title'])['title'])
 
         remote.Context(guid, keep=True).post()
 
