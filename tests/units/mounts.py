@@ -265,6 +265,10 @@ class MountsTest(tests.Test):
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'update'},
                 subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
+                subscription.read_message())
 
         client.Context(guid, title='new-title').post()
 
@@ -320,6 +324,56 @@ class MountsTest(tests.Test):
         socket.wait_read(subscription.fileno())
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update'},
+                subscription.read_message())
+
+    def test_OfflineSubscription_NotifyOnline(self):
+        ad.only_commits_notification.value = False
+
+        self.fork(self.restful_server)
+        gevent.sleep(1)
+
+        def server():
+            Server(self.mounts).serve_forever()
+
+        gevent.spawn(server)
+        gevent.sleep()
+        local = Client('~')
+        remote = Client('/')
+
+        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription.connect('run/subscribe')
+        gevent.sleep(1)
+
+        guid = remote.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description',
+                keep=True).post()
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'update'},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'update'},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
+                subscription.read_message())
+
+        local.Context(guid, keep=False).post()
+        gevent.sleep(1)
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
+                subscription.read_message())
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
                 subscription.read_message())
 
 

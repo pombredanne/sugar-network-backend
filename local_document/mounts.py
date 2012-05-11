@@ -79,8 +79,23 @@ class _LocalMount(object):
     def connect(self, callback):
 
         def signal_cb(event):
+            if 'props' in event:
+                # For now, events are simply for notification
+                # that some changes happened
+                props = event.pop('props')
+            else:
+                props = {}
+
             event['mountpoint'] = self.mountpoint
             callback(self, event)
+
+            if 'keep' in props or 'keep_impl' in props:
+                if 'guid' not in event:
+                    # Creation event will contain GUID in `props`
+                    event['guid'] = props['guid']
+                # These local properties exposed from "/" mount as well
+                event['mountpoint'] = '/'
+                callback(self, event)
 
         self._volume.connect(signal_cb)
 
