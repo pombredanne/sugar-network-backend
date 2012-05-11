@@ -166,9 +166,14 @@ class VolumeTest(tests.Test):
 
     def test_PseudoDelete(self):
         only_commits_notification.value = False
-
         signals = []
-        self.volume.connect(lambda event: signals.append(event))
+
+        def signal_cb(event):
+            if 'props' in event:
+                del event['props']
+            signals.append(event)
+
+        self.volume.connect(signal_cb)
 
         guid = self.call('POST', 'testdocument', content={'prop': 'value'})
         self.call('DELETE', 'testdocument', guid=guid)
@@ -183,7 +188,13 @@ class VolumeTest(tests.Test):
 
     def test_CommitEvents(self):
         signals = []
-        self.volume.connect(lambda event: signals.append(event))
+
+        def signal_cb(event):
+            if 'props' in event:
+                del event['props']
+            signals.append(event)
+
+        self.volume.connect(signal_cb)
 
         only_commits_notification.value = False
         guid = self.call('POST', 'testdocument', content={'prop': 'value'})

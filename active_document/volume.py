@@ -89,7 +89,6 @@ class _Volume(dict):
         if 'props' in event:
             if 'deleted' in event['props'].get('layers', []):
                 del event['guid']
-            del event['props']
         event['document'] = document
 
         signal(event)
