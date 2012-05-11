@@ -125,44 +125,59 @@ class Cursor(object):
         self._filters = filters
         self._reset()
 
-    def get(self, offset, default=None):
-        """Get either object by offset or default value.
+    def get(self, key, default=None):
+        """Get either object by key or default value.
 
-        :param offset:
-            offset to get object for
+        :param key:
+            `key` value might be an `int` value (offset within the cursor),
+            or a string to treat it as GUID
         :param default:
-            value to return if offset if not found
+            value to return if key if not found
         :returns:
             `Object` value or `default`
 
         """
+        if type(key) is not int:
+            for page in self._pages.values():
+                for obj in page:
+                    if obj is not None and obj.guid == key:
+                        return obj
+            return self._object_class(self._request, self._reply, key)
+        else:
+            offset = key
+
         if offset < 0 or self._total is not None and \
                 (offset >= self._total):
             return default
+
         page = offset / self._page_size
         offset -= page * self._page_size
+
         if page not in self._pages:
             if not self._fetch_page(page):
                 return default
+
         if offset >= len(self._pages[page]):
             total = page + len(self._pages[page])
             _logger.warning('Miscalculated total number, %s instead of %s',
                     total, self._total)
             self._total = total
             return default
+
         return self._pages[page][offset]
 
-    def __getitem__(self, offset):
-        """Get object by offset.
+    def __getitem__(self, key):
+        """Get object by key.
 
-        :param offset:
-            offset to get object for
+        :param key:
+            `key` value might be an `int` value (offset within the cursor),
+            or a string to treat it as GUID
         :returns:
-            `Object` value or raise `KeyError` exception if offset is invalid
+            `Object` value or raise `KeyError` exception if key is not found
 
         """
-        result = self.get(offset)
-        enforce(result is not None, KeyError, _('Offset is out of range'))
+        result = self.get(key)
+        enforce(result is not None, KeyError, _('Key is out of range'))
         return result
 
     def _fetch_page(self, page):

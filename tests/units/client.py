@@ -192,6 +192,45 @@ class ClientTest(tests.Test):
         self.assertEqual([None], events_2)
         self.assertEqual([None], events_3)
 
+    def test_Cursor_Gets(self):
+
+        def server():
+            Server(self.mounts).serve_forever()
+
+        gevent.spawn(server)
+        gevent.sleep()
+        client = Client('~')
+
+        guid_1 = client.Context(
+                type='activity',
+                title='title-1',
+                summary='summary',
+                description='description').post()
+        guid_2 = client.Context(
+                type='activity',
+                title='title-2',
+                summary='summary',
+                description='description').post()
+        guid_3 = client.Context(
+                type='activity',
+                title='title-3',
+                summary='summary',
+                description='description').post()
+
+        cursor = client.Context.cursor(reply=['guid', 'title'])
+        self.assertEqual('title-1', cursor[0]['title'])
+        self.assertEqual('title-2', cursor[1]['title'])
+        self.assertEqual('title-3', cursor[2]['title'])
+        self.assertEqual('title-1', cursor[guid_1]['title'])
+        self.assertEqual('title-2', cursor[guid_2]['title'])
+        self.assertEqual('title-3', cursor[guid_3]['title'])
+
+        cursor = client.Context.cursor('FOO', reply=['guid', 'title'])
+        self.assertEqual(0, cursor.total)
+        self.assertEqual('title-1', cursor[guid_1]['title'])
+        self.assertEqual('title-2', cursor[guid_2]['title'])
+        self.assertEqual('title-3', cursor[guid_3]['title'])
+
 
 if __name__ == '__main__':
     tests.main()
