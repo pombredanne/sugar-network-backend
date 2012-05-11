@@ -133,7 +133,8 @@ def _find(directory, offset=None, limit=None, query=None, reply=None,
         order_by=None, **kwargs):
     offset = _to_int('offset', offset)
     limit = _to_int('limit', limit)
-    reply = _to_list(reply) or ['guid']
+    reply = _to_list(reply) or []
+    reply.append('guid')
 
     for i in reply:
         directory.metadata[i].assert_access(env.ACCESS_READ)
@@ -143,7 +144,7 @@ def _find(directory, offset=None, limit=None, query=None, reply=None,
 
     documents, total = directory.find(offset=offset, limit=limit,
             query=query, reply=reply, order_by=order_by, **kwargs)
-    result = [i.properties(reply or ['guid']) for i in documents]
+    result = [i.properties(reply) for i in documents]
 
     return {'total': total.value, 'result': result}
 

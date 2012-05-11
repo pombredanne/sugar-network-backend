@@ -160,6 +160,10 @@ class VolumeTest(tests.Test):
                 sorted(['guid', 'prop']),
                 sorted(self.call('GET', 'testdocument', reply=['prop', 'guid'])['result'][0].keys()))
 
+        self.assertEqual(
+                sorted(['guid', 'prop']),
+                sorted(self.call('GET', 'testdocument', reply=['prop'])['result'][0].keys()))
+
     def test_PseudoDelete(self):
         only_commits_notification.value = False
 
