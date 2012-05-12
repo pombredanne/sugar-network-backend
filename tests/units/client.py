@@ -8,6 +8,8 @@ from __init__ import tests
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
+import active_document as ad
+
 from sugar_network.client import Client
 from local_document.server import Server
 from local_document.mounts import Mounts
@@ -17,19 +19,27 @@ class ClientTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.mounts = Mounts('local', [User, Context])
+        self.server = None
+        self.mounts = None
+        ad.only_commits_notification.value = False
 
     def tearDown(self):
-        self.mounts.close()
+        if self.server is not None:
+            self.server.stop()
         tests.Test.tearDown(self)
 
-    def test_RealtimeUpdates(self):
+    def start_server(self):
 
         def server():
-            Server(self.mounts).serve_forever()
+            self.server.serve_forever()
 
+        self.server = Server('local', [User, Context])
         gevent.spawn(server)
         gevent.sleep()
+        self.mounts = self.server._mounts
+
+    def test_RealtimeUpdates(self):
+        self.start_server()
 
         client_1 = Client('~')
         client_2 = Client('~')
@@ -150,12 +160,8 @@ class ClientTest(tests.Test):
                 sorted([(i['guid'], i['title']) for i in cursor_2]))
 
     def test_ReplaceReadEventsCalls(self):
+        self.start_server()
 
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
         client = Client('~')
         cursor = client.Context.cursor(reply=['guid', 'title'])
 
@@ -193,12 +199,8 @@ class ClientTest(tests.Test):
         self.assertEqual([None], events_3)
 
     def test_Cursor_Gets(self):
+        self.start_server()
 
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
         client = Client('~')
 
         guid_1 = client.Context(

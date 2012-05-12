@@ -12,19 +12,27 @@ from __init__ import tests
 from sugar_network import client as client_
 from sugar_network.client import Client, ServerError
 from local_document.server import Server
+from sugar_network_server.resources.context import Context
 
 
 class IPCTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        Mounts.calls = []
+        self.calls = []
 
     def start_server(self):
 
         def server():
-            Server(Mounts()).serve_forever()
+            self.server.serve_forever()
 
+        def call(request, response):
+            if request.command == 'DELETE' and request.get('guid') == 'fake':
+                raise RuntimeError()
+            self.calls.append(dict(request))
+
+        self.server = Server('local', [])
+        self.server._mounts.call = call
         gevent.spawn(server)
         gevent.sleep()
 
@@ -32,7 +40,9 @@ class IPCTest(tests.Test):
 
         def server():
             time.sleep(1)
-            Server(Mounts()).serve_forever()
+            server = Server('local', [])
+            server._mounts.call = lambda *args: None
+            server.serve_forever()
 
         ts = time.time()
         self.fork(server)
@@ -70,17 +80,7 @@ class IPCTest(tests.Test):
                 standard.append({'mountpoint': '/', 'guid': 'wait%s%s' % (i, n), 'document': 'resource%s' % i})
         self.assertEqual(
                 sorted(standard),
-                sorted(Mounts.calls))
-
-
-class Mounts(dict):
-
-    calls = []
-
-    def call(self, request, response):
-        if request.command == 'DELETE' and request.get('guid') == 'fake':
-            raise RuntimeError()
-        Mounts.calls.append(dict(request))
+                sorted(self.calls))
 
 
 if __name__ == '__main__':

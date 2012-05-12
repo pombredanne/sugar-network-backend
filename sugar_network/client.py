@@ -53,6 +53,11 @@ class Client(object):
         self._conn = _Connection()
         self._resources = {}
 
+    @property
+    def connected(self):
+        request = _Request(self._conn, self._mountpoint, None)
+        return request.send('is_connected')
+
     def close(self):
         if self._conn is not None:
             _logger.debug('Close connection')
@@ -200,7 +205,8 @@ class _Request(object):
 
     def send(self, cmd, content=None, content_type=None, **request):
         request['mountpoint'] = self.mountpoint
-        request['document'] = self.document
+        if self.document:
+            request['document'] = self.document
         request['cmd'] = cmd
         request['content_type'] = content_type
 

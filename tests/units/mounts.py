@@ -19,26 +19,35 @@ from sugar_network.client import Client, ServerError
 from local_document.mounts import Mounts
 from local_document.server import Server
 from local_document.socket import SocketFile
-from local_document import env
+from local_document import env, mounts
 
 
 class MountsTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.mounts = Mounts('local', [User, Context])
+        self.server = None
+        self.mounts = None
+        ad.only_commits_notification.value = False
+        mounts._RECONNECTION_TIMEOUT = 1
 
     def tearDown(self):
-        self.mounts.close()
+        if self.server is not None:
+            self.server.stop()
         tests.Test.tearDown(self)
 
-    def test_OfflineMount_create(self):
+    def start_server(self):
 
         def server():
-            Server(self.mounts).serve_forever()
+            self.server.serve_forever()
 
+        self.server = Server('local', [User, Context])
         gevent.spawn(server)
         gevent.sleep()
+        self.mounts = self.server._mounts
+
+    def test_OfflineMount_create(self):
+        self.start_server()
         local = Client('~')
 
         guid = local.Context(
@@ -56,12 +65,7 @@ class MountsTest(tests.Test):
         self.assertEqual([-1, -1], res['position'])
 
     def test_OfflineMount_update(self):
-
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
+        self.start_server()
         local = Client('~')
 
         guid = local.Context(
@@ -82,12 +86,7 @@ class MountsTest(tests.Test):
         self.assertEqual([2, 3], context['position'])
 
     def test_OfflineMount_get(self):
-
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
+        self.start_server()
         local = Client('~')
 
         guid = local.Context(
@@ -104,12 +103,7 @@ class MountsTest(tests.Test):
         self.assertEqual([-1, -1], context['position'])
 
     def test_OfflineMount_find(self):
-
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
+        self.start_server()
         local = Client('~')
 
         guid_1 = local.Context(
@@ -139,16 +133,11 @@ class MountsTest(tests.Test):
                 sorted([(i['guid'], i['title'], i['keep'], i['keep_impl'], i['position']) for i in cursor]))
 
     def test_OnlineMount_GetKeep(self):
-
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
-        remote = Client('/')
-
         self.fork(self.restful_server)
         gevent.sleep(1)
+
+        self.start_server()
+        remote = Client('/')
 
         guid = remote.Context(
                 type='activity',
@@ -183,11 +172,7 @@ class MountsTest(tests.Test):
         self.fork(self.restful_server)
         gevent.sleep(1)
 
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
+        self.start_server()
         remote = Client('/')
         local = Client('~')
 
@@ -242,13 +227,7 @@ class MountsTest(tests.Test):
         self.assertEqual('remote', context['title'])
 
     def test_OfflineSubscription(self):
-        ad.only_commits_notification.value = False
-
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
+        self.start_server()
         client = Client('~')
 
         subscription = SocketFile(socket.socket(socket.AF_UNIX))
@@ -285,16 +264,10 @@ class MountsTest(tests.Test):
                 subscription.read_message())
 
     def test_OnlineSubscription(self):
-        ad.only_commits_notification.value = False
-
         self.fork(self.restful_server)
         gevent.sleep(1)
 
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
+        self.start_server()
         client = Client('/')
 
         subscription = SocketFile(socket.socket(socket.AF_UNIX))
@@ -307,6 +280,9 @@ class MountsTest(tests.Test):
                 summary='summary',
                 description='description').post()
 
+        self.assertEqual(
+                {'mountpoint': '/', 'event': 'connect'},
+                subscription.read_message())
         socket.wait_read(subscription.fileno())
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update'},
@@ -327,16 +303,10 @@ class MountsTest(tests.Test):
                 subscription.read_message())
 
     def test_OfflineSubscription_NotifyOnline(self):
-        ad.only_commits_notification.value = False
-
         self.fork(self.restful_server)
         gevent.sleep(1)
 
-        def server():
-            Server(self.mounts).serve_forever()
-
-        gevent.spawn(server)
-        gevent.sleep()
+        self.start_server()
         local = Client('~')
         remote = Client('/')
 
@@ -351,6 +321,10 @@ class MountsTest(tests.Test):
                 description='description',
                 keep=True).post()
 
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'event': 'connect'},
+                subscription.read_message())
         socket.wait_read(subscription.fileno())
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update'},
@@ -375,6 +349,54 @@ class MountsTest(tests.Test):
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
                 subscription.read_message())
+
+    def test_OfflineConnect(self):
+        self.start_server()
+        client = Client('~')
+
+        self.assertEqual(True, client.connected)
+
+    def test_OnlineConnect(self):
+        pid = self.fork(self.restful_server)
+        gevent.sleep(1)
+
+        self.start_server()
+        client = Client('/')
+
+        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription.connect('run/subscribe')
+        gevent.sleep(1)
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'event': 'connect'},
+                subscription.read_message())
+        self.assertEqual(True, client.connected)
+
+        self.waitpid(pid)
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'event': 'disconnect'},
+                subscription.read_message())
+        self.assertEqual(False, client.connected)
+
+        pid = self.fork(self.restful_server)
+        gevent.sleep(1)
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'event': 'connect'},
+                subscription.read_message())
+        self.assertEqual(True, client.connected)
+
+        self.waitpid(pid)
+
+        socket.wait_read(subscription.fileno())
+        self.assertEqual(
+                {'mountpoint': '/', 'event': 'disconnect'},
+                subscription.read_message())
+        self.assertEqual(False, client.connected)
 
 
 if __name__ == '__main__':

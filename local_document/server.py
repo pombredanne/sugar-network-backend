@@ -23,8 +23,9 @@ import gevent
 from gevent import socket
 from gevent.server import StreamServer
 
-from local_document import ipc, env
+from local_document import ipc, env, activities
 from local_document.socket import SocketFile
+from local_document.mounts import Mounts
 from active_document import Request, Response, util
 
 
@@ -33,14 +34,12 @@ _logger = logging.getLogger('local_document.server')
 
 class Server(object):
 
-    def __init__(self, mounts):
-        self._mounts = mounts
+    def __init__(self, root, resources):
+        self._subscriptions = []
+        self._mounts = Mounts(root, resources, self.__event_cb)
         self._acceptor = _start_server('accept', self._serve_client)
         self._subscriber = _start_server('subscribe', self._serve_subscription)
-        self._subscriptions = []
-
-        for mount in self._mounts.values():
-            mount.connect(self.__event_cb)
+        self._monitor = gevent.spawn(activities.monitor, self._mounts)
 
     def serve_forever(self):
         # Clients write to rendezvous named pipe, in block mode,
@@ -55,6 +54,8 @@ class Server(object):
             pass
         finally:
             os.close(rendezvous)
+            self._mounts.close()
+            self._monitor.kill()
 
     def stop(self):
         while self._subscriptions:

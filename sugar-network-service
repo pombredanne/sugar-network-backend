@@ -22,8 +22,7 @@ from gettext import gettext as _
 import gevent
 
 import active_document
-from local_document import application, optparse, sugar, env, activities
-from local_document.mounts import Mounts
+from local_document import application, optparse, sugar, env
 from local_document.server import Server
 from sugar_network_server import resources
 
@@ -36,8 +35,6 @@ SUGAR_REGISTRATION_TIMEOUT = 5
 class Application(application.Daemon):
 
     server = None
-    mounts = None
-    monitor = None
 
     def start(self):
         new_root = (env.local_root.value != env.local_root.default)
@@ -58,23 +55,13 @@ class Application(application.Daemon):
                     SUGAR_REGISTRATION_TIMEOUT)
             gevent.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        self.mounts = Mounts(join(env.local_root.value, 'local'),
+        self.server = Server(join(env.local_root.value, 'local'),
                 resources.path)
-        self.server = Server(self.mounts)
-        self.monitor = gevent.spawn(activities.monitor, self.mounts)
-
         self.server.serve_forever()
 
     def shutdown(self):
         if self.server is not None:
             self.server.stop()
-
-    def epilog(self):
-        if self.monitor is not None:
-            self.monitor.kill()
-            self.monitor.join()
-        if self.mounts is not None:
-            self.mounts.close()
 
 
 # New defaults

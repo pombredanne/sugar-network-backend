@@ -67,6 +67,10 @@ class Test(unittest.TestCase):
     def waitpid(self, pid):
         if pid in self.forks:
             self.forks.remove(pid)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except Exception:
+            pass
         __, status = os.waitpid(pid, 0)
         return os.WEXITSTATUS(status)
 
@@ -75,7 +79,6 @@ class Test(unittest.TestCase):
             self.httpdown(Test.httpd_pids.keys()[0])
         while self.forks:
             pid = self.forks.pop()
-            os.kill(pid, signal.SIGTERM)
             self.assertEqual(0, self.waitpid(pid))
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()

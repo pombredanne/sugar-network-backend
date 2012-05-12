@@ -20,9 +20,10 @@ from gettext import gettext as _
 
 import gevent
 from gevent import socket
+from requests import ConnectionError
 
 import active_document as ad
-from active_document import principal, SingleVolume, enforce
+from active_document import principal, SingleVolume, util, enforce
 from local_document import cache, sugar, http
 from local_document.socket import SocketFile
 
@@ -44,16 +45,18 @@ _COMMON_PROPS = {
         'keep_impl': (0, lambda guid, value: _set_keep_impl(guid, value)),
         }
 
+_RECONNECTION_TIMEOUT = 60
+
 _logger = logging.getLogger('local_document.mounts')
 
 
 class Mounts(dict):
 
-    def __init__(self, root, resources_path):
+    def __init__(self, root, resources_path, events_callback=None):
         principal.user = sugar.uid()
         self.home_volume = SingleVolume(root, resources_path, _HOME_PROPS)
-        self['/'] = _RemoteMount('/', self.home_volume)
-        self['~'] = _LocalMount('~', self.home_volume)
+        self['/'] = _RemoteMount('/', self.home_volume, events_callback)
+        self['~'] = _LocalMount('~', self.home_volume, events_callback)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
@@ -61,7 +64,10 @@ class Mounts(dict):
 
     def call(self, request, response):
         mount = self[request.pop('mountpoint')]
-        return mount.call(request, response)
+        if request.command == 'is_connected':
+            return mount.connected
+        else:
+            return mount.call(request, response)
 
     def close(self):
         while self:
@@ -70,11 +76,31 @@ class Mounts(dict):
         self.home_volume.close()
 
 
-class _LocalMount(object):
+class _Mount(object):
 
-    def __init__(self, mountpoint, volume):
+    def __init__(self, mountpoint, events_callback):
         self.mountpoint = mountpoint
+        self._events_callback = events_callback
+
+    def emit(self, event):
+        callback = self._events_callback
+        if callback is None:
+            return
+        if 'mountpoint' not in event:
+            event['mountpoint'] = self.mountpoint
+        callback(self, event)
+
+
+class _LocalMount(_Mount):
+
+    def __init__(self, mountpoint, volume, events_callback):
+        _Mount.__init__(self, mountpoint, events_callback)
         self._volume = volume
+        self._volume.connect(self.__events_cb)
+
+    @property
+    def connected(self):
+        return True
 
     def close(self):
         pass
@@ -84,38 +110,33 @@ class _LocalMount(object):
             return self._get_blob(**request)
         return ad.call(self._volume, request, response)
 
-    def connect(self, callback):
+    def __events_cb(self, event):
+        props = None
+        if 'props' in event:
+            # For now, events are simply for notification
+            # that some changes happened
+            props = event.pop('props')
 
-        def signal_cb(event):
-            props = None
-            if 'props' in event:
-                # For now, events are simply for notification
-                # that some changes happened
-                props = event.pop('props')
+        self.emit(event)
 
-            event['mountpoint'] = self.mountpoint
-            callback(self, event)
+        if props is None:
+            return
 
-            if props is None:
-                return
+        if 'guid' not in event:
+            # Creation event will contain GUID in `props`
+            event['guid'] = props['guid']
 
-            if 'guid' not in event:
-                # Creation event will contain GUID in `props`
-                event['guid'] = props['guid']
+        found_commons = False
+        for prop, (__, handler) in _COMMON_PROPS.items():
+            if prop in props:
+                found_commons = True
+                if handler is not None:
+                    handler(event['guid'], props[prop])
 
-            found_commons = False
-            for prop, (__, handler) in _COMMON_PROPS.items():
-                if prop in props:
-                    found_commons = True
-                    if handler is not None:
-                        handler(event['guid'], props[prop])
-
-            if found_commons:
-                # These local properties exposed from "/" mount as well
-                event['mountpoint'] = '/'
-                callback(self, event)
-
-        self._volume.connect(signal_cb)
+        if found_commons:
+            # These local properties exposed from "/" mount as well
+            event['mountpoint'] = '/'
+            self.emit(event)
 
     def _get_blob(self, document, guid, prop):
         stat = self._volume[document].stat_blob(guid, prop)
@@ -124,18 +145,22 @@ class _LocalMount(object):
         return {'path': stat['path'], 'mime_type': stat['mime_type']}
 
 
-class _RemoteMount(object):
+class _RemoteMount(_Mount):
 
-    def __init__(self, mountpoint, volume):
-        self.mountpoint = mountpoint
+    def __init__(self, mountpoint, volume, events_callback):
+        _Mount.__init__(self, mountpoint, events_callback)
         self._home_volume = volume
-        self._signal_job = None
-        self._signal = None
+        self._events_job = gevent.spawn(self._events_listerner)
+        self._connected = False
+
+    @property
+    def connected(self):
+        return self._connected
 
     def close(self):
-        if self._signal_job is not None:
-            self._signal_job.kill()
-            self._signal_job = None
+        if self._events_job is not None:
+            self._events_job.kill()
+            self._events_job = None
 
     def call(self, request, response):
         if request.command == 'get_blob':
@@ -202,36 +227,56 @@ class _RemoteMount(object):
 
         return result
 
-    def connect(self, callback):
-        # TODO Replace by regular events handler
-        enforce(self._signal is None)
-        if self._signal_job is None:
-            self._signal_job = gevent.spawn(self._signal_listerner)
-        self._signal = callback
-
-    def _signal_listerner(self):
-        subscription = http.request('POST', [''], params={'cmd': 'subscribe'},
-                headers={'Content-Type': 'application/json'})
-
-        conn = SocketFile(socket.socket())
-        conn.connect((subscription['host'], subscription['port']))
-        conn = SocketFile(conn)
-        conn.write_message({'ticket': subscription['ticket']})
-
-        while True:
-            socket.wait_read(conn.fileno())
-            event = conn.read_message()
-            event['mountpoint'] = self.mountpoint
-            signal = self._signal
-            if signal is not None:
-                signal(self, event)
-
     def _get_blob(self, document, guid, prop):
         path, mime_type = cache.get_blob(document, guid, prop)
         if path is None:
             return None
         else:
             return {'path': path, 'mime_type': mime_type}
+
+    def _events_listerner(self):
+
+        def connect():
+            subscription = http.request('POST', [''],
+                    params={'cmd': 'subscribe'},
+                    headers={'Content-Type': 'application/json'})
+            conn = SocketFile(socket.socket())
+            conn.connect((subscription['host'], subscription['port']))
+            conn = SocketFile(conn)
+            conn.write_message({'ticket': subscription['ticket']})
+            return conn
+
+        def dispatch(conn):
+            socket.wait_read(conn.fileno())
+            event = conn.read_message()
+            if event is None:
+                return False
+            self.emit(event)
+            return True
+
+        while True:
+            try:
+                conn = connect()
+            except ConnectionError, error:
+                _logger.debug('Cannot connect to remote server, ' \
+                        'wait for %r seconds: %s',
+                        error, _RECONNECTION_TIMEOUT)
+                gevent.sleep(_RECONNECTION_TIMEOUT)
+                continue
+
+            _logger.info(_('Connected to remote server'))
+            self._connected = True
+            self.emit({'event': 'connect'})
+
+            try:
+                while dispatch(conn):
+                    pass
+            except Exception:
+                util.exception(_logger, _('Failed to dispatch remote event'))
+            finally:
+                _logger.info(_('Got disconnected from remote server'))
+                self._connected = False
+                self.emit({'event': 'disconnect'})
 
 
 def _set_keep_impl(guid, value):
