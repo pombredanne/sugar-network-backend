@@ -114,6 +114,38 @@ class Client(object):
         self.close()
 
 
+class GlibSubscription(object):
+
+    def __init__(self, callback):
+        self._callback = callback
+        self._subscription = None
+        self._conn = _Connection.get()
+
+        self._subscription = self._conn.subscribe()
+
+        import gobject
+
+        def init():
+            gobject.io_add_watch(self._subscription.fileno(),
+                    gobject.IO_IN | gobject.IO_HUP, self.__subscription_cb)
+
+        gobject.idle_add(init)
+
+    def __del__(self):
+        if self._subscription is not None:
+            self._subscription.close()
+
+    def __subscription_cb(self, source, cb_condition):
+        event = self._subscription.read_message()
+        if event is None:
+            return False
+        try:
+            self._callback(event)
+        except Exception:
+            util.exception(_logger, _('Failed to process %r event'), event)
+        return True
+
+
 class _Connection(object):
 
     _instance = None
@@ -170,12 +202,17 @@ class _Connection(object):
             self._subscribe_job = gevent.spawn(self._subscribe)
         return self._subscriptions
 
-    def _subscribe(self):
-        _logger.debug('Start waiting for events')
-
+    def subscribe(self):
+        ipc.rendezvous()
         # pylint: disable-msg=E1101
         conn = SocketFile(socket.socket(socket.AF_UNIX))
         conn.connect(env.ensure_path('run', 'subscribe'))
+        return conn
+
+    def _subscribe(self):
+        _logger.debug('Start waiting for events')
+
+        conn = self.subscribe()
         try:
             while True:
                 socket.wait_read(conn.fileno())

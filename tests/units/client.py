@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import gevent
+import gobject
 
 from __init__ import tests
 
@@ -10,7 +11,7 @@ from sugar_network_server.resources.context import Context
 
 import active_document as ad
 
-from sugar_network.client import Client
+from sugar_network.client import Client, GlibSubscription
 from local_document.server import Server
 from local_document.mounts import Mounts
 
@@ -232,6 +233,34 @@ class ClientTest(tests.Test):
         self.assertEqual('title-1', cursor[guid_1]['title'])
         self.assertEqual('title-2', cursor[guid_2]['title'])
         self.assertEqual('title-3', cursor[guid_3]['title'])
+
+    def test_GlibSubscription(self):
+        self.start_server()
+        client = Client('~')
+
+        events = []
+        subscription = GlibSubscription(lambda event: events.append(event))
+        gevent.sleep(1)
+
+        guid = client.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+        client.Context(guid, title='title-2').post()
+        client.Context.delete(guid)
+
+        mainloop = gobject.MainLoop()
+        gobject.timeout_add(1000, mainloop.quit)
+        mainloop.run()
+
+        self.assertEqual([
+            {'mountpoint': '~', 'document': 'context', 'event': 'update'},
+            {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
+            {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
+            {'mountpoint': '~', 'document': 'context', 'event': 'update'},
+            ],
+            events)
 
 
 if __name__ == '__main__':
