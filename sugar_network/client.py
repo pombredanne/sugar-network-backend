@@ -25,7 +25,7 @@ import gevent
 from gevent import socket
 from gevent.queue import Queue
 
-from local_document import ipc, env
+from local_document import ipc, env, activities
 from local_document.socket import SocketFile
 from sugar_network.objects import Object
 from sugar_network.cursor import Cursor
@@ -89,6 +89,10 @@ class Client(object):
             os.execvp(cmd[0], cmd)
 
         exit(1)
+
+    def checkins(self, context):
+        """Iterate paths of checked in implementations."""
+        return activities.checkins(context)
 
     def __getattr__(self, name):
         """Class-like object to access to a resource or call a method.
