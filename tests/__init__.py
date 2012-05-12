@@ -57,6 +57,7 @@ class Test(unittest.TestCase):
         sys.stdout = sys.stderr = self._logfile
 
         client._CONNECTION_POOL = 1
+        client._Connection._instance = None
 
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)

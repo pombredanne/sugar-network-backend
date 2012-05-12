@@ -15,6 +15,7 @@
 
 import os
 import json
+import weakref
 import logging
 from contextlib import contextmanager
 from os.path import join, exists, dirname
@@ -50,19 +51,13 @@ class Client(object):
 
     def __init__(self, mountpoint):
         self._mountpoint = mountpoint
-        self._conn = _Connection()
+        self._conn = _Connection.get()
         self._resources = {}
 
     @property
     def connected(self):
         request = _Request(self._conn, self._mountpoint, None)
         return request.send('is_connected')
-
-    def close(self):
-        if self._conn is not None:
-            _logger.debug('Close connection')
-            self._conn.close()
-            self._conn = None
 
     def launch(self, context, command='activity', args=None):
         """Launch context implementation.
@@ -121,23 +116,49 @@ class Client(object):
 
 class _Connection(object):
 
+    _instance = None
+
     def __init__(self):
         self._pool = Queue(maxsize=_CONNECTION_POOL)
         self._pool_size = 0
         self._subscribe_job = None
         self._subscriptions = {}
 
+    def __del__(self):
+        if self._subscribe_job is not None:
+            _logger.debug('Stop waiting for events')
+            self._subscribe_job.kill()
+            self._subscribe_job = None
+
+        while not self._pool.empty():
+            conn = self._pool.get_nowait()
+            try:
+                _logger.debug('Close IPC connection: %r', conn)
+                conn.close()
+            except Exception:
+                util.exception(_logger, _('Cannot close IPC connection'))
+
+    @classmethod
+    def get(cls):
+        result = None
+        if cls._instance is not None:
+            result = cls._instance()
+        if result is None:
+            result = _Connection()
+            cls._instance = weakref.ref(result)
+        return result
+
     @contextmanager
     def conn_file(self):
-        if self._pool_size >= self._pool.maxsize:
+        if self._pool.qsize() or self._pool_size >= self._pool.maxsize:
             conn = self._pool.get()
         else:
-            _logger.debug('Open new IPC connection')
             self._pool_size += 1
             ipc.rendezvous()
             # pylint: disable-msg=E1101
             conn = socket.socket(socket.AF_UNIX)
             conn.connect(env.ensure_path('run', 'accept'))
+            _logger.debug('Open new IPC connection: %r', conn)
         try:
             yield SocketFile(conn)
         finally:
@@ -149,19 +170,9 @@ class _Connection(object):
             self._subscribe_job = gevent.spawn(self._subscribe)
         return self._subscriptions
 
-    def close(self):
-        if self._subscribe_job is not None:
-            self._subscribe_job.kill()
-            self._subscribe_job = None
-
-        while not self._pool.empty():
-            conn = self._pool.get_nowait()
-            try:
-                conn.close()
-            except Exception:
-                util.exception(_logger, _('Cannot close IPC connection'))
-
     def _subscribe(self):
+        _logger.debug('Start waiting for events')
+
         # pylint: disable-msg=E1101
         conn = SocketFile(socket.socket(socket.AF_UNIX))
         conn.connect(env.ensure_path('run', 'subscribe'))

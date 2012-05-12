@@ -260,7 +260,7 @@ class _RemoteMount(_Mount):
             except ConnectionError, error:
                 _logger.debug('Cannot connect to remote server, ' \
                         'wait for %r seconds: %s',
-                        error, _RECONNECTION_TIMEOUT)
+                        _RECONNECTION_TIMEOUT, error)
                 gevent.sleep(_RECONNECTION_TIMEOUT)
                 continue
 
