@@ -65,7 +65,7 @@ class Application(application.Application):
                 continue
 
             dst_path = util.unique_filename(
-                    env.activities_root.value, spec['name'])
+                    env.activities_root.value, spec['name'] + '.activity')
             printf.info(_('Checkin %r implementation to %r'),
                     context, dst_path)
             util.cptree(sel.local_path, dst_path)

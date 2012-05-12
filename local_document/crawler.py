@@ -34,7 +34,6 @@ def dispatch(paths, found_cb, lost_cb):
     with _Inotify(found_cb, lost_cb) as monitor:
         roots = []
         for path in paths:
-            _logger.info(_('Start monitoring activities in %r'), path)
             env.ensure_path(path, '')
             roots.append(_Root(monitor, path))
 
@@ -66,15 +65,17 @@ class _Root(object):
         self._monitor = monitor
         self._nodes = {}
 
-        for filename in os.listdir(self.path):
-            path = join(self.path, filename)
-            if isdir(path):
-                self._nodes[filename] = _Node(monitor, path)
+        _logger.info('Start monitoring %r activities root', self. path)
 
         monitor.add_watch(self.path,
                 IN_DELETE_SELF | IN_CREATE | IN_DELETE | \
                         IN_MOVED_TO | IN_MOVED_FROM,
                 self.__watch_cb)
+
+        for filename in os.listdir(self.path):
+            path = join(self.path, filename)
+            if isdir(path):
+                self._nodes[filename] = _Node(monitor, path)
 
     def __watch_cb(self, filename, event):
         if event & IN_DELETE_SELF:
@@ -96,21 +97,25 @@ class _Root(object):
 class _Node(object):
 
     def __init__(self, monitor, path):
+        self._path = path
         self._monitor = monitor
         self._activity_path = join(path, 'activity')
         self._activity_dir = None
 
-        if exists(self._activity_path):
-            self._activity_dir = _ActivityDir(monitor, self._activity_path)
+        _logger.debug('Start monitoring %r root activity directory', path)
 
         self._wd = monitor.add_watch(path,
                 IN_CREATE | IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM,
                 self.__watch_cb)
 
+        if exists(self._activity_path):
+            self._activity_dir = _ActivityDir(monitor, self._activity_path)
+
     def unlink(self):
         if self._activity_dir is not None:
             self._activity_dir.unlink()
             self._activity_dir = None
+        _logger.debug('Stop monitoring %r root activity directory', self._path)
         self._monitor.rm_watch(self._wd)
 
     def __watch_cb(self, filename, event):
@@ -127,38 +132,45 @@ class _Node(object):
 class _ActivityDir(object):
 
     def __init__(self, monitor, path):
+        self._path = path
         self._monitor = monitor
         self._found = False
         self._node_path = dirname(path)
         self._info_path = join(path, 'activity.info')
 
+        _logger.debug('Start monitoring %r activity directory', path)
+
+        self._wd = monitor.add_watch(path,
+                IN_CREATE | IN_CLOSE_WRITE | IN_DELETE | IN_MOVED_TO | \
+                        IN_MOVED_FROM,
+                self.__watch_cb)
+
         if exists(self._info_path):
             self.found()
 
-        self._wd = monitor.add_watch(path,
-                IN_CLOSE_WRITE | IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM,
-                self.__watch_cb)
-
     def unlink(self):
         self.lost()
+        _logger.debug('Stop monitoring %r activity directory', self._path)
         self._monitor.rm_watch(self._wd)
 
     def found(self):
         if self._found:
             return
+        _logger.debug('Found %r', self._node_path)
         self._found = True
         self._monitor.found_cb(self._node_path)
 
     def lost(self):
         if not self._found:
             return
+        _logger.debug('Lost %r', self._node_path)
         self._found = False
         self._monitor.lost_cb(self._node_path)
 
     def __watch_cb(self, filename, event):
         if filename != 'activity.info':
             return
-        if event & (IN_CLOSE_WRITE | IN_MOVED_TO):
+        if event & (IN_CREATE | IN_CLOSE_WRITE | IN_MOVED_TO):
             self.found()
         elif event & (IN_DELETE | IN_MOVED_FROM):
             self.lost()

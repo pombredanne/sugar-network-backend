@@ -20,7 +20,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/inotify.py$
-$Data: 2012-05-01$
+$Data: 2012-05-12$
 
 """
 import os
@@ -184,7 +184,6 @@ class Inotify(object):
             return
         queue_size = queue_size[0]
 
-        _logger.debug('Read %s bytes queue', queue_size)
         buf = os.read(self.fd, queue_size)
 
         pos = 0
@@ -202,10 +201,7 @@ class Inotify(object):
 
             if wd not in self._wds:
                 continue
-            path, data = self._wds[wd]
-
-            _logger.debug('Got event: wd=%r mask=0x%X path=%r filename=\'%s\'',
-                    wd, mask, path, filename)
+            __, data = self._wds[wd]
 
             yield filename, mask, data
 

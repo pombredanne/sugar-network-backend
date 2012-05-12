@@ -237,9 +237,12 @@ class ClientTest(tests.Test):
     def test_GlibSubscription(self):
         self.start_server()
         client = Client('~')
+        mainloop = gobject.MainLoop()
 
         events = []
         subscription = GlibSubscription(lambda event: events.append(event))
+        gobject.idle_add(mainloop.quit)
+        mainloop.run()
         gevent.sleep(1)
 
         guid = client.Context(
@@ -250,7 +253,6 @@ class ClientTest(tests.Test):
         client.Context(guid, title='title-2').post()
         client.Context.delete(guid)
 
-        mainloop = gobject.MainLoop()
         gobject.timeout_add(1000, mainloop.quit)
         mainloop.run()
 
