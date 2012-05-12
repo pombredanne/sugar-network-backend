@@ -15,7 +15,6 @@
 
 import os
 import json
-import weakref
 import logging
 from contextlib import contextmanager
 from os.path import join, exists, dirname
@@ -125,12 +124,10 @@ class GlibSubscription(object):
         self._subscription = None
         self._conn = _Connection.get()
 
-
         import gobject
 
         def init():
             self._subscription = self._conn.subscribe()
-
             gobject.io_add_watch(self._subscription.fileno(),
                     gobject.IO_IN | gobject.IO_HUP, self.__subscription_cb)
 
@@ -177,13 +174,9 @@ class _Connection(object):
 
     @classmethod
     def get(cls):
-        result = None
-        if cls._instance is not None:
-            result = cls._instance()
-        if result is None:
-            result = _Connection()
-            cls._instance = weakref.ref(result)
-        return result
+        if cls._instance is None:
+            cls._instance = _Connection()
+        return cls._instance
 
     @contextmanager
     def conn_file(self):
@@ -222,6 +215,8 @@ class _Connection(object):
             while True:
                 socket.wait_read(conn.fileno())
                 event = conn.read_message()
+                if event is None:
+                    break
                 for callback, (mountpoint, document) in \
                         self._subscriptions.items():
                     if event['mountpoint'] == mountpoint and \
