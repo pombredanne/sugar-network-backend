@@ -125,11 +125,12 @@ class GlibSubscription(object):
         self._subscription = None
         self._conn = _Connection.get()
 
-        self._subscription = self._conn.subscribe()
 
         import gobject
 
         def init():
+            self._subscription = self._conn.subscribe()
+
             gobject.io_add_watch(self._subscription.fileno(),
                     gobject.IO_IN | gobject.IO_HUP, self.__subscription_cb)
 
