@@ -8,3 +8,4 @@
 - optimize getting/setting(?) StoredProperty values for home folder
 - handle reconnects for regular remote connections and subscriptions
 - (?) delete local document on unsetting keep/keep_impl
+- track /usr and /opt activities

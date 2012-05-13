@@ -99,10 +99,13 @@ class Client(gobject.GObject):
             if event_type in ('create', 'update'):
                 bundle_id = event['guid']
                 props = event['props']
-                if 'keep' in props:
-                    self.emit('keep', bundle_id, props['keep'])
                 if props.get('keep_impl') in (0, 2):
                     self.emit('keep_impl', bundle_id, bool(props['keep_impl']))
+                    if 'keep' not in props:
+                        props.update(self.get(event['mountpoint'],
+                            'context', bundle_id, ['keep']))
+                if 'keep' in props:
+                    self.emit('keep', bundle_id, props['keep'])
             elif event_type == 'delete':
                 bundle_id = event['guid']
                 self.emit('keep_impl', bundle_id, False)
