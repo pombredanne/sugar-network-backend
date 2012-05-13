@@ -18,6 +18,7 @@ import imp
 import urllib2
 import inspect
 import logging
+from functools import partial
 from os.path import exists, basename, join
 from gettext import gettext as _
 
@@ -56,7 +57,7 @@ class _Volume(dict):
             name = cls.__name__.lower()
             directory = Directory(join(root, name), cls, index_class,
                     extra_props.get(name),
-                    lambda event: self._notification_cb(name, event))
+                    partial(self._notification_cb, document=name))
             self[name] = directory
 
     def close(self):
@@ -72,7 +73,7 @@ class _Volume(dict):
         enforce(self._signal is None)
         self._signal = callback
 
-    def _notification_cb(self, document, event):
+    def _notification_cb(self, event, document):
         signal = self._signal
         if signal is None:
             return
