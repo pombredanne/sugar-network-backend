@@ -135,10 +135,8 @@ class MountsTest(tests.Test):
                 sorted([(i['guid'], i['title'], i['keep'], i['keep_impl'], i['position']) for i in cursor]))
 
     def test_OnlineMount_GetKeep(self):
-        self.fork(self.restful_server)
-        gevent.sleep(1)
+        self.start_ipc_and_restful_server()
 
-        self.start_server()
         remote = Client('/')
 
         guid = remote.Context(
@@ -171,10 +169,8 @@ class MountsTest(tests.Test):
                 [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
     def test_OnlineMount_SetKeep(self):
-        self.fork(self.restful_server)
-        gevent.sleep(1)
+        self.start_ipc_and_restful_server()
 
-        self.start_server()
         remote = Client('/')
         local = Client('~')
 
@@ -322,10 +318,8 @@ class MountsTest(tests.Test):
                 subscription.read_message())
 
     def test_OfflineSubscription_NotifyOnline(self):
-        self.fork(self.restful_server)
-        gevent.sleep(1)
+        self.start_ipc_and_restful_server()
 
-        self.start_server()
         local = Client('~')
         remote = Client('/')
 

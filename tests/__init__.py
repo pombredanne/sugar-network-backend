@@ -9,6 +9,7 @@ import unittest
 from os.path import dirname, join, exists, abspath
 
 import gevent
+from gevent.event import Event
 
 import active_document as ad
 import restful_document as rd
@@ -72,8 +73,11 @@ class Test(unittest.TestCase):
             os.kill(pid, signal.SIGTERM)
         except Exception:
             pass
-        __, status = os.waitpid(pid, 0)
-        return os.WEXITSTATUS(status)
+        try:
+            __, status = os.waitpid(pid, 0)
+            return os.WEXITSTATUS(status)
+        except OSError:
+            return 0
 
     def tearDown(self):
         while Test.httpd_pids:
@@ -163,7 +167,25 @@ class Test(unittest.TestCase):
         del Test.httpd_pids[port]
         os.kill(pid, signal.SIGINT)
         sys.stdout.flush()
-        os.waitpid(pid, 0)
+        try:
+            os.waitpid(pid, 0)
+        except OSError:
+            pass
+
+    def start_ipc_and_restful_server(self):
+        pid = self.fork(self.restful_server)
+
+        self.start_server()
+
+        def wait_connect(event):
+            if event['event'] == 'connect':
+                connected.set()
+
+        connected = Event()
+        connection.Connection('/').connect(wait_connect)
+        connected.wait()
+
+        return pid
 
     def restful_server(self):
         from gevent.wsgi import WSGIServer

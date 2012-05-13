@@ -14,6 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import errno
+import signal
 import logging
 from os.path import join, dirname, exists
 from gettext import gettext as _
@@ -40,9 +42,9 @@ _HOME_PROPS = {
         }
 
 _COMMON_PROPS = {
-        # prop_name: (default_value, handler)
-        'keep': (False, None),
-        'keep_impl': (0, lambda guid, value: _set_keep_impl(guid, value)),
+        # prop_name: default_value
+        'keep': False,
+        'keep_impl': 0,
         }
 
 # TODO Incremental timeout
@@ -96,6 +98,10 @@ class _LocalMount(_Mount):
 
     def __init__(self, mountpoint, volume, events_callback):
         _Mount.__init__(self, mountpoint, events_callback)
+
+        self._calls = set()
+        signal.signal(signal.SIGCHLD, self.__SIGCHLD_cb)
+
         self._volume = volume
         self._volume.connect(self.__events_cb)
 
@@ -104,7 +110,13 @@ class _LocalMount(_Mount):
         return True
 
     def close(self):
-        pass
+        while self._calls:
+            pid = self._calls.pop()
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError, error:
+                if error.errno != errno.ESRCH:
+                    util.exception(_logger, _('Cannot kill %r child'), pid)
 
     def call(self, request, response):
         if request.command == 'get_blob':
@@ -119,11 +131,12 @@ class _LocalMount(_Mount):
         props = event.pop('props')
 
         found_commons = False
-        for prop, (__, handler) in _COMMON_PROPS.items():
-            if prop in props:
-                found_commons = True
-                if handler is not None:
-                    handler(event['guid'], props[prop])
+        for prop in _COMMON_PROPS.keys():
+            if prop not in props:
+                continue
+            found_commons = True
+            if prop == 'keep_impl':
+                self._set_keep_impl(event['guid'], props[prop])
 
         if found_commons:
             # These local properties exposed from "/" mount as well
@@ -136,6 +149,41 @@ class _LocalMount(_Mount):
         if stat is None:
             return None
         return {'path': stat['path'], 'mime_type': stat['mime_type']}
+
+    def _set_keep_impl(self, guid, value):
+        if value == 0:
+            _logger.debug('Checkout %r', guid)
+            command = 'checkout'
+        elif value == 1:
+            _logger.debug('Checkin %r', guid)
+            command = 'checkin'
+        else:
+            return
+
+        pid = os.fork()
+        if pid:
+            self._calls.add(pid)
+            return
+
+        cmd = ['sugar-network', command, guid]
+
+        cmd_path = join(dirname(__file__), '..', 'sugar-network')
+        if exists(cmd_path):
+            os.execv(cmd_path, cmd)
+        else:
+            os.execvp(cmd[0], cmd)
+
+    def __SIGCHLD_cb(self, signum, frame):
+        try:
+            while True:
+                pid, __ = os.waitpid(-1, os.WNOHANG)
+                if pid == 0:
+                    break
+                if pid in self._calls:
+                    self._calls.remove(pid)
+        except OSError, error:
+            if error.errno != errno.ECHILD:
+                raise
 
 
 class _RemoteMount(_Mount):
@@ -181,7 +229,7 @@ class _RemoteMount(_Mount):
         if document == 'context':
             if request.command == 'GET':
                 reply = request.get('reply', [])
-                for prop, (default, __) in _COMMON_PROPS.items():
+                for prop, default in _COMMON_PROPS.items():
                     if prop in reply:
                         patch[prop] = default
                         reply.remove(prop)
@@ -272,26 +320,3 @@ class _RemoteMount(_Mount):
                 _logger.info(_('Got disconnected from remote server'))
                 self._connected = False
                 self.emit({'event': 'disconnect'})
-
-
-def _set_keep_impl(guid, value):
-    if value == 0:
-        _logger.debug('Checkout %r', guid)
-        command = 'checkout'
-    elif value == 1:
-        _logger.debug('Checkin %r', guid)
-        command = 'checkin'
-    else:
-        return
-
-    pid = os.fork()
-    if pid:
-        return
-
-    cmd = ['sugar-network', command, guid]
-
-    cmd_path = join(dirname(__file__), '..', 'sugar-network')
-    if exists(cmd_path):
-        os.execv(cmd_path, cmd)
-    else:
-        os.execvp(cmd[0], cmd)
