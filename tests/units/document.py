@@ -578,12 +578,12 @@ class DocumentTest(tests.Test):
 
         self.assertEqual([
             {'event': 'commit'},
-            {'event': 'update'},
-            {'event': 'update'},
+            {'event': 'sync'},
+            {'guid': 'guid', 'event': 'create'},
             {'guid': 'guid', 'event': 'update_blob', 'prop': 'blob'},
             {'guid': 'guid', 'event': 'update'},
-            {'event': 'update'},
-            {'event': 'commit'},
+            {'guid': 'guid', 'event': 'delete'},
+            {'event': 'commit'}
             ],
             events)
 

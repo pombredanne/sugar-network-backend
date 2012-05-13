@@ -139,7 +139,8 @@ class Directory(object):
             document GUID to delete
 
         """
-        self._index.delete(guid, self._post_delete, {'event': 'update'})
+        event = {'event': 'delete', 'guid': guid}
+        self._index.delete(guid, self._post_delete, event)
 
     def exists(self, guid):
         return self._storage.exists(guid)
@@ -268,7 +269,7 @@ class Directory(object):
 
         if found:
             self.commit()
-            self._notify({'event': 'update'})
+            self._notify({'event': 'sync'})
 
     def diff(self, accept_range):
         """Return documents' properties for specified times range.
@@ -390,11 +391,10 @@ class Directory(object):
                 util.exception(error)
                 raise RuntimeError(error)
 
-        event = {'event': 'update',
+        event = {'event': 'create' if new else 'update',
                  'props': props.copy(),
+                 'guid': guid,
                  }
-        if not new:
-            event['guid'] = guid
         self._index.store(guid, props, new,
                 self._pre_store, self._post_store, event)
 

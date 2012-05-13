@@ -12,7 +12,7 @@ from __init__ import tests
 
 from active_document import volume, document, SingleVolume, \
         call, Request, Response, Document, active_property, \
-        BlobProperty, NotFound, only_commits_notification
+        BlobProperty, NotFound
 
 
 class VolumeTest(tests.Test):
@@ -165,7 +165,6 @@ class VolumeTest(tests.Test):
                 sorted(self.call('GET', 'testdocument', reply=['prop'])['result'][0].keys()))
 
     def test_PseudoDelete(self):
-        only_commits_notification.value = False
         signals = []
 
         def signal_cb(event):
@@ -179,41 +178,12 @@ class VolumeTest(tests.Test):
         self.call('DELETE', 'testdocument', guid=guid)
 
         self.assertEqual([
-            {'event': 'update', 'document': 'testdocument'},
-            {'event': 'update', 'document': 'testdocument'},
+            {'event': 'create', 'guid': guid, 'document': 'testdocument'},
+            {'event': 'delete', 'guid': guid, 'document': 'testdocument'},
             ],
             signals)
 
         assert self.volume['testdocument'].exists(guid)
-
-    def test_CommitEvents(self):
-        signals = []
-
-        def signal_cb(event):
-            if 'props' in event:
-                del event['props']
-            signals.append(event)
-
-        self.volume.connect(signal_cb)
-
-        only_commits_notification.value = False
-        guid = self.call('POST', 'testdocument', content={'prop': 'value'})
-        self.call('PUT', 'testdocument', guid, content={'prop': 'value'})
-        self.assertEqual([
-            {'event': 'update', 'document': 'testdocument'},
-            {'event': 'update', 'document': 'testdocument', 'guid': guid},
-            ],
-            signals)
-        del signals[:]
-
-        only_commits_notification.value = True
-        guid = self.call('POST', 'testdocument', content={'prop': 'value'})
-        self.call('PUT', 'testdocument', guid, content={'prop': 'value'})
-        self.volume.close()
-        self.assertEqual([
-            {'event': 'commit', 'document': 'testdocument'},
-            ],
-            signals)
 
     def call(self, cmd, document=None, guid=None, prop=None, **kwargs):
 

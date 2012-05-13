@@ -76,21 +76,11 @@ class _Volume(dict):
         signal = self._signal
         if signal is None:
             return
-
-        if env.only_commits_notification.value:
-            if event['event'] != 'commit':
-                # Subscribers will get informed by later "commit" notifications
-                return
-        else:
-            if event['event'] == 'commit':
-                # Subscribers already got "update" notifications
-                return
-
-        if 'props' in event and 'deleted' in event['props'].get('layers', []):
+        if event['event'] == 'update' and \
+                'deleted' in event['props'].get('layers', []):
+            event['event'] = 'delete'
             del event['props']
-            del event['guid']
         event['document'] = document
-
         signal(event)
 
     def __enter__(self):

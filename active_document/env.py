@@ -73,13 +73,6 @@ find_limit = optparse.Option(
         _('limit the resulting list for search requests'),
         default=32, type_cast=int)
 
-only_commits_notification = optparse.Option(
-        _('subscribers can be notified only with commits events; ' \
-                'that is useful to minimize interactions between ' \
-                'server and clients'),
-        default=False, type_cast=optparse.Option.bool_cast,
-        action='store_true')
-
 
 def uuid():
     """Generate GUID value.
