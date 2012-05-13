@@ -25,9 +25,9 @@ _logger = logging.getLogger('sugar_network')
 
 class Object(object):
 
-    def __init__(self, request, reply, guid=None, props=None, offset=None,
+    def __init__(self, conn, reply, guid=None, props=None, offset=None,
             **kwargs):
-        self._request = request
+        self._conn = conn
         self._reply = reply or []
         self._guid = guid
         self._props = props or {}
@@ -49,7 +49,7 @@ class Object(object):
         if result is None:
             enforce(prop in self._reply,
                     _('Access to not requested %r property in \'%s\''),
-                    prop, self._request)
+                    prop, self._conn)
             self.fetch()
             result = self._props.get(prop)
         return result
@@ -64,7 +64,7 @@ class Object(object):
         if not to_fetch:
             return
 
-        response = self._request.send('GET', guid=self._guid,
+        response = self._conn.send('GET', guid=self._guid,
                 reply=to_fetch)
         response.update(self._props)
         self._props = response
@@ -78,10 +78,10 @@ class Object(object):
             props[i] = self._props.get(i)
 
         if self._guid:
-            self._request.send('PUT', guid=self._guid, content=props,
+            self._conn.send('PUT', guid=self._guid, content=props,
                     content_type='application/json')
         else:
-            self._guid = self._request.send('POST', content=props,
+            self._guid = self._conn.send('POST', content=props,
                     content_type='application/json')
 
         self._dirty.clear()
@@ -91,7 +91,7 @@ class Object(object):
         blob = self._blobs.get(prop)
         if blob is not None:
             return blob
-        response = self._request.send('get_blob', guid=self._guid, prop=prop)
+        response = self._conn.send('get_blob', guid=self._guid, prop=prop)
         if response:
             blob = response['path'], response['mime_type']
         else:
@@ -108,18 +108,18 @@ class Object(object):
 
     def set_blob(self, prop, data):
         enforce(self._guid, _('Object needs to be posted first'))
-        self._request.send('PUT', guid=self._guid, prop=prop, content=data,
+        self._conn.send('PUT', guid=self._guid, prop=prop, content=data,
                 content_type='application/octet-stream')
 
     def set_blob_by_url(self, prop, url):
         enforce(self._guid, _('Object needs to be posted first'))
-        self._request.send('PUT', guid=self._guid, prop=prop, url=url)
+        self._conn.send('PUT', guid=self._guid, prop=prop, url=url)
 
     def __getitem__(self, prop):
         result = self.get(prop)
         enforce(result is not None, KeyError,
                 _('Property %r is absent in \'%s\' resource'),
-                prop, self._request)
+                prop, self._conn)
         return result
 
     def __setitem__(self, prop, value):

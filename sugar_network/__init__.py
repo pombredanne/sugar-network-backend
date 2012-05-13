@@ -15,6 +15,6 @@
 
 from active_document import optparse, util, enforce
 
-from sugar_network.client import Client, GlibSubscription
+from sugar_network.client import Client, checkins, launch
 
 from local_document import application, sugar

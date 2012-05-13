@@ -111,20 +111,11 @@ class _LocalMount(_Mount):
         return ad.call(self._volume, request, response)
 
     def __events_cb(self, event):
-        props = None
-        if 'props' in event:
-            # For now, events are simply for notification
-            # that some changes happened
-            props = event.pop('props')
-
         self.emit(event)
 
-        if props is None:
+        if 'props' not in event:
             return
-
-        if 'guid' not in event:
-            # Creation event will contain GUID in `props`
-            event['guid'] = props['guid']
+        props = event.pop('props')
 
         found_commons = False
         for prop, (__, handler) in _COMMON_PROPS.items():
@@ -136,6 +127,7 @@ class _LocalMount(_Mount):
         if found_commons:
             # These local properties exposed from "/" mount as well
             event['mountpoint'] = '/'
+            event['event'] = 'update'
             self.emit(event)
 
     def _get_blob(self, document, guid, prop):

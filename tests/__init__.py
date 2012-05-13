@@ -16,7 +16,7 @@ from restful_document.router import Router
 from restful_document.subscribe_socket import SubscribeSocket
 from local_document import env
 import sugar_network_server
-from sugar_network import client
+from sugar_network import client, connection
 
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
@@ -57,7 +57,7 @@ class Test(unittest.TestCase):
         sys.stdout = sys.stderr = self._logfile
 
         client._CONNECTION_POOL = 1
-        client._Connection._instance = None
+        connection._Connection._instance = None
 
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)

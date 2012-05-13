@@ -31,8 +31,8 @@ _logger = logging.getLogger('sugar_network')
 
 class Cursor(object):
 
-    def __init__(self, request, query, order_by, reply, page_size, **filters):
-        self._request = request
+    def __init__(self, conn, query, order_by, reply, page_size, **filters):
+        self._conn = conn
         self._query = query
         self._order_by = order_by
         self._reply = reply or ['guid']
@@ -87,13 +87,17 @@ class Cursor(object):
 
     def read_events(self):
         if self._subscription is None:
-            self._subscription = _Subscription(self._request)
+            self._subscription = _Subscription(self._conn)
 
         with self._subscription as subscription:
             while subscription.wait():
-                for __ in subscription.events():
-                    self._reset()
+                for event in subscription.events():
+                    if event['event'] == 'commit':
+                        # TODO If cursor formed by fulltext query,
+                        # it should refreshed as well
+                        continue
                     # TODO Replace by changed offset
+                    self._reset()
                     yield None
 
     def __iter__(self):
@@ -137,7 +141,7 @@ class Cursor(object):
                 for obj in page:
                     if obj is not None and obj.guid == key:
                         return obj
-            return Object(self._request, self._reply, key)
+            return Object(self._conn, self._reply, key)
         else:
             offset = key
 
@@ -191,18 +195,18 @@ class Cursor(object):
             params['reply'] = self._reply
 
         try:
-            response = self._request.send('GET', **params)
+            response = self._conn.send('GET', **params)
             self._total = response['total']
         except Exception:
             util.exception(_logger,
                     _('Failed to fetch query result: resource=%r query=%r'),
-                    self._request, params)
+                    self._conn, params)
             self._total = None
             return False
 
         result = [None] * len(response['result'])
         for i, props in enumerate(response['result']):
-            result[i] = Object(self._request, self._reply,
+            result[i] = Object(self._conn, self._reply,
                     props['guid'], props, offset + i)
 
         if not self._page_access or self._page_access[-1] != page:
@@ -221,8 +225,8 @@ class Cursor(object):
 
 class _Subscription(object):
 
-    def __init__(self, request):
-        self._request = request
+    def __init__(self, conn):
+        self._conn = conn
         self._signal = Event()
         self._users = 0
         self._queue = collections.deque()
@@ -230,8 +234,8 @@ class _Subscription(object):
     def __enter__(self):
         if not self._users:
             _logger.debug('Start listening notifications for %r',
-                    self._request)
-            self._request.connect(self.__event_cb)
+                    self._conn)
+            self._conn.connect(self.__event_cb)
         self._users += 1
         self._replace()
         return self
@@ -240,8 +244,8 @@ class _Subscription(object):
         self._users -= 1
         if not self._users:
             _logger.debug('Stop listening notifications for %r',
-                    self._request)
-            self._request.disconnect(self.__event_cb)
+                    self._conn)
+            self._conn.disconnect(self.__event_cb)
 
     def wait(self):
         self._queue.clear()

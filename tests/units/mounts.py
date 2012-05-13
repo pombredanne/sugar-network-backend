@@ -10,12 +10,14 @@ from gevent import socket
 
 from __init__ import tests
 
+import restful_document as rd
 import active_document as ad
 
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
-from sugar_network.client import Client, ServerError
+from sugar_network.client import Client
+from sugar_network.connection import ServerError
 from local_document.mounts import Mounts
 from local_document.server import Server
 from local_document.socket import SocketFile
@@ -28,7 +30,7 @@ class MountsTest(tests.Test):
         tests.Test.setUp(self)
         self.server = None
         self.mounts = None
-        ad.only_commits_notification.value = False
+        rd.only_sync_notification.value = False
         mounts._RECONNECTION_TIMEOUT = 1
 
     def tearDown(self):
@@ -241,26 +243,39 @@ class MountsTest(tests.Test):
                 description='description').post()
 
         socket.wait_read(subscription.fileno())
+        event = subscription.read_message()
+        event.pop('props')
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'update'},
-                subscription.read_message())
+                {'mountpoint': '~', 'document': 'context', 'event': 'create', 'guid': guid},
+                event)
         socket.wait_read(subscription.fileno())
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
+                subscription.read_message())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
                 subscription.read_message())
 
         client.Context(guid, title='new-title').post()
 
         socket.wait_read(subscription.fileno())
+        event = subscription.read_message()
+        event.pop('props')
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
+                event)
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
                 subscription.read_message())
 
         client.Context.delete(guid)
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'update'},
+                {'mountpoint': '~', 'document': 'context', 'event': 'delete', 'guid': guid},
+                subscription.read_message())
+        self.assertEqual(
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
                 subscription.read_message())
 
     def test_OnlineSubscription(self):
@@ -284,22 +299,26 @@ class MountsTest(tests.Test):
                 {'mountpoint': '/', 'event': 'connect'},
                 subscription.read_message())
         socket.wait_read(subscription.fileno())
+        event = subscription.read_message()
+        event.pop('props')
         self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'update'},
-                subscription.read_message())
+                {'mountpoint': '/', 'document': 'context', 'event': 'create', 'guid': guid},
+                event)
 
         client.Context(guid, title='new-title').post()
 
         socket.wait_read(subscription.fileno())
+        event = subscription.read_message()
+        event.pop('props')
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
-                subscription.read_message())
+                event)
 
         client.Context.delete(guid)
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'update'},
+                {'mountpoint': '/', 'document': 'context', 'event': 'delete', 'guid': guid},
                 subscription.read_message())
 
     def test_OfflineSubscription_NotifyOnline(self):
@@ -310,10 +329,6 @@ class MountsTest(tests.Test):
         local = Client('~')
         remote = Client('/')
 
-        subscription = SocketFile(socket.socket(socket.AF_UNIX))
-        subscription.connect('run/subscribe')
-        gevent.sleep(1)
-
         guid = remote.Context(
                 type='activity',
                 title='title',
@@ -321,30 +336,19 @@ class MountsTest(tests.Test):
                 description='description',
                 keep=True).post()
 
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '/', 'event': 'connect'},
-                subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'update'},
-                subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'update'},
-                subscription.read_message())
-        socket.wait_read(subscription.fileno())
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
-                subscription.read_message())
+        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription.connect('run/subscribe')
+        gevent.sleep(1)
 
         local.Context(guid, keep=False).post()
         gevent.sleep(1)
 
         socket.wait_read(subscription.fileno())
+        event = subscription.read_message()
+        event.pop('props')
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
-                subscription.read_message())
+                event)
         socket.wait_read(subscription.fileno())
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
