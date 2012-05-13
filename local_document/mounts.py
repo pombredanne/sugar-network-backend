@@ -24,7 +24,7 @@ from requests import ConnectionError
 
 import active_document as ad
 from active_document import principal, SingleVolume, util, enforce
-from local_document import cache, sugar, http
+from local_document import cache, sugar, http, env
 from local_document.socket import SocketFile
 
 
@@ -158,6 +158,8 @@ class _RemoteMount(_Mount):
     def call(self, request, response):
         if request.command == 'get_blob':
             return self._get_blob(**request)
+
+        enforce(self.connected, env.Offline, _('No connection to server'))
 
         if type(request.command) is list:
             method, request['cmd'] = request.command

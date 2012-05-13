@@ -97,3 +97,7 @@ def ensure_path(*args):
                 raise
 
     return abspath(result)
+
+
+class Offline(Exception):
+    pass

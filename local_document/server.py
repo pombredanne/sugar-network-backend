@@ -84,8 +84,12 @@ class Server(object):
                 result = self._mounts.call(request, response)
 
             except Exception, error:
-                util.exception(_('Failed to process %r for %r connection: %s'),
-                        request, conn_file, error)
+                if isinstance(error, env.Offline):
+                    _logger.debug('Ignore %r request: %s', request, error)
+                else:
+                    util.exception(_logger,
+                            _('Failed to process %r for %r connection: %s'),
+                            request, conn_file, error)
                 conn_file.write_message({'error': str(error)})
             else:
                 _logger.debug('Processed %r for %r connection: %r',
