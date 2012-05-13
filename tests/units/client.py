@@ -13,6 +13,7 @@ import active_document as ad
 from sugar_network.client import Client
 from local_document.server import Server
 from local_document.mounts import Mounts
+from local_document import mounts
 
 
 class ClientTest(tests.Test):
@@ -231,6 +232,44 @@ class ClientTest(tests.Test):
         self.assertEqual('title-1', cursor[guid_1]['title'])
         self.assertEqual('title-2', cursor[guid_2]['title'])
         self.assertEqual('title-3', cursor[guid_3]['title'])
+
+    def test_ConnectEventsInCursor(self):
+        mounts._RECONNECTION_TIMEOUT = .1
+
+        def remote_server():
+            gevent.sleep(1)
+            self.restful_server()
+
+        pid = self.fork(self.restful_server)
+
+        self.start_server()
+        client = Client('/')
+
+        events = []
+        cursor = client.Context.cursor(reply=['guid', 'title'])
+
+        def waiter():
+            for i in cursor.read_events():
+                events.append(i)
+
+        gevent.spawn(waiter)
+        gevent.sleep(.5)
+
+        self.assertEqual([], events)
+
+        gevent.sleep(1)
+
+        self.assertEqual([None], events)
+
+        self.waitpid(pid)
+        gevent.sleep(1)
+
+        self.assertEqual([None, None], events)
+
+
+
+
+
 
 
 if __name__ == '__main__':

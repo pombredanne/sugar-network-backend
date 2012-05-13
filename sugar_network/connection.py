@@ -165,7 +165,8 @@ class _Connection(object):
                 for callback, (mountpoint, document) in \
                         self._subscriptions.items():
                     if event['mountpoint'] == mountpoint and \
-                            event['document'] == document:
+                            ('document' not in event or \
+                            event['document'] == document):
                         callback(event)
         finally:
             conn.close()

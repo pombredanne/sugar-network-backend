@@ -45,7 +45,8 @@ _COMMON_PROPS = {
         'keep_impl': (0, lambda guid, value: _set_keep_impl(guid, value)),
         }
 
-_RECONNECTION_TIMEOUT = 60
+# TODO Incremental timeout
+_RECONNECTION_TIMEOUT = 3
 
 _logger = logging.getLogger('local_document.mounts')
 

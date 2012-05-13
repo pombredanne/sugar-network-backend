@@ -44,9 +44,12 @@ class Cursor(object):
         self._page_access = collections.deque([], _QUERY_PAGES_NUMBER)
         self._pages = {}
         self._offset = -1
-        self._subscription = None
+        self._wait_session = None
 
-        self._reset()
+        self._conn.connect(self.__event_cb)
+
+    def __del__(self):
+        self._conn.disconnect(self.__event_cb)
 
     # pylint: disable-msg=E1101,E0102,E0202
     @property
@@ -86,12 +89,12 @@ class Cursor(object):
         self._reset()
 
     def read_events(self):
-        if self._subscription is None:
-            self._subscription = _Subscription(self._conn)
+        if self._wait_session is None:
+            self._wait_session = _WaitSession(self._conn)
 
-        with self._subscription as subscription:
-            while subscription.wait():
-                for event in subscription.events():
+        with self._wait_session as session:
+            while session.wait():
+                for event in session:
                     if event['event'] == 'commit':
                         # TODO If cursor formed by fulltext query,
                         # it should refreshed as well
@@ -222,8 +225,15 @@ class Cursor(object):
         self._pages.clear()
         self._total = None
 
+    def __event_cb(self, event):
+        # TODO More optimal resetting
+        self._reset()
 
-class _Subscription(object):
+        if self._wait_session is not None:
+            self._wait_session.push(event)
+
+
+class _WaitSession(object):
 
     def __init__(self, conn):
         self._conn = conn
@@ -232,37 +242,25 @@ class _Subscription(object):
         self._queue = collections.deque()
 
     def __enter__(self):
-        if not self._users:
-            _logger.debug('Start listening notifications for %r',
-                    self._conn)
-            self._conn.connect(self.__event_cb)
+        if self._users:
+            self._signal.set()
+            self._signal.clear()
         self._users += 1
-        self._replace()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._users -= 1
-        if not self._users:
-            _logger.debug('Stop listening notifications for %r',
-                    self._conn)
-            self._conn.disconnect(self.__event_cb)
+
+    def push(self, event):
+        if self._users > 0:
+            self._queue.append(event)
+            self._signal.set()
+            self._signal.clear()
 
     def wait(self):
         self._queue.clear()
         self._signal.wait()
         return bool(self._queue)
 
-    def events(self):
+    def __iter__(self):
         return iter(self._queue)
-
-    def _replace(self):
-        if self._users <= 1:
-            return
-        self._queue.clear()
-        self._signal.set()
-        self._signal.clear()
-
-    def __event_cb(self, event):
-        self._queue.append(event)
-        self._signal.set()
-        self._signal.clear()
