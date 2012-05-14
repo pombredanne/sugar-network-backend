@@ -127,6 +127,13 @@ class Request(dict):
         enforce(key in self, _('Cannot find %r request argument'), key)
         return self.get(key)
 
+    def __repr__(self):
+        args = []
+        for key, value in self.items():
+            if value is not self:
+                args.append('%s=%r' % (key, value))
+        return '%s(%s)' % (self.command, ', '.join(args))
+
 
 class Response(dict):
 

@@ -56,7 +56,7 @@ class Document(object):
         return value
 
     @active_property(prefix='IA', typecast=[],
-            permissions=env.ACCESS_READ)
+            permissions=env.ACCESS_CREATE | env.ACCESS_READ)
     def author(self, value):
         return value
 
