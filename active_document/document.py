@@ -20,7 +20,6 @@ from gettext import gettext as _
 from active_document import env
 from active_document.metadata import BrowsableProperty, StoredProperty
 from active_document.metadata import active_property
-from active_document.util import enforce
 
 
 _logger = logging.getLogger('active_document.document')
@@ -119,9 +118,6 @@ class Document(object):
 
         # TODO until implementing layers support
         props['layers'] = ['public']
-
-        enforce(env.principal.user)
-        props['author'] = [env.principal.user]
 
     @classmethod
     def on_update(cls, props):

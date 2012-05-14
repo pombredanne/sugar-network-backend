@@ -91,18 +91,21 @@ class CommandsTest(tests.Test):
         tests.Test.setUp(self)
         del calls[:]
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
-        self.volume['testdocument'].create_with_guid('guid', {})
+        self.volume['testdocument'].create_with_guid('guid', {'author': ['me']})
 
-    def call(self, cmd, document=None, guid=None, prop=None, **kwargs):
+    def call(self, cmd, document=None, guid=None, prop=None, principal=None,
+            **kwargs):
 
         class TestRequest(Request):
 
             content = None
             content_stream = None
             content_length = 0
+            principal = None
 
         request = TestRequest(kwargs)
         request.command = cmd
+        request.principal = principal
         if document:
             request['document'] = document
         if guid:
@@ -123,37 +126,27 @@ class CommandsTest(tests.Test):
         self.call('PROBE', 'testdocument', 'guid')
         self.assertRaises(env.NotFound, self.call, ('PROBE', 'command_1'), 'testdocument', 'guid')
         self.call(('PROBE', 'command_2'), 'testdocument', 'guid')
-        env.principal.user = None
-        self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_3'), 'testdocument', 'guid')
-        env.principal.user = 'me'
-        self.call(('PROBE', 'command_3'), 'testdocument', 'guid')
-        env.principal.user = 'fake'
-        self.assertRaises(env.Forbidden, self.call, ('PROBE', 'command_4'), 'testdocument', 'guid')
-        env.principal.user = 'me'
-        self.call(('PROBE', 'command_4'), 'testdocument', 'guid')
+        self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_3'), 'testdocument', 'guid', principal=Request.ANONYMOUS)
+        self.call(('PROBE', 'command_3'), 'testdocument', 'guid', principal='me')
+        self.assertRaises(env.Forbidden, self.call, ('PROBE', 'command_4'), 'testdocument', 'guid', principal='fake')
+        self.call(('PROBE', 'command_4'), 'testdocument', 'guid', principal='me')
 
         self.call('PROBE', 'testdocument')
         self.assertRaises(env.NotFound, self.call, ('PROBE', 'command_5'), 'testdocument')
         self.call(('PROBE', 'command_6'), 'testdocument')
-        env.principal.user = None
-        self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_7'), 'testdocument')
-        env.principal.user = 'me'
-        self.call(('PROBE', 'command_7'), 'testdocument')
+        self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_7'), 'testdocument', principal=Request.ANONYMOUS)
+        self.call(('PROBE', 'command_7'), 'testdocument', principal='me')
 
         self.call('PROBE', 'testdocument')
         self.call(('PROBE', 'command_9'), 'testdocument')
-        env.principal.user = None
-        self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_10'), 'testdocument')
-        env.principal.user = 'me'
-        self.call(('PROBE', 'command_10'), 'testdocument')
+        self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_10'), 'testdocument', principal=Request.ANONYMOUS)
+        self.call(('PROBE', 'command_10'), 'testdocument', principal='me')
 
         self.call('PROBE')
         self.assertRaises(env.NotFound, self.call, ('PROBE', 'command_11'))
         self.call(('PROBE', 'command_12'))
-        env.principal.user = None
-        self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_13'))
-        env.principal.user = 'me'
-        self.call(('PROBE', 'command_13'))
+        self.assertRaises(env.Unauthorized, self.call, ('PROBE', 'command_13'), principal=Request.ANONYMOUS)
+        self.call(('PROBE', 'command_13'), principal='me')
 
         self.assertEqual([
             ('command_1', 'guid'),

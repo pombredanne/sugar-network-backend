@@ -23,7 +23,7 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         ACCESS_DELETE, ACCESS_AUTHOR, ACCESS_FULL, ACCESS_AUTH, \
         index_flush_timeout, index_flush_threshold, \
         index_write_queue, find_limit, \
-        NotFound, Forbidden, Unauthorized, Redirect, principal
+        NotFound, Forbidden, Unauthorized, Redirect
 
 from active_document.metadata import Metadata, Property, \
         StoredProperty, ActiveProperty, BlobProperty, BrowsableProperty, \

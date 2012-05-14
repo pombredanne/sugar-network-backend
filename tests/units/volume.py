@@ -74,7 +74,7 @@ class VolumeTest(tests.Test):
                     sorted([i.guid for i in volume['document'].find()[0]]))
 
     def test_Commands(self):
-        self.volume['testdocument'].create_with_guid('guid', {})
+        self.volume['testdocument'].create_with_guid('guid', {'author': []})
 
         self.assertEqual({
             'total': 1,
@@ -164,27 +164,6 @@ class VolumeTest(tests.Test):
                 sorted(['guid', 'prop']),
                 sorted(self.call('GET', 'testdocument', reply=['prop'])['result'][0].keys()))
 
-    def test_PseudoDelete(self):
-        signals = []
-
-        def signal_cb(event):
-            if 'props' in event:
-                del event['props']
-            signals.append(event)
-
-        self.volume.connect(signal_cb)
-
-        guid = self.call('POST', 'testdocument', content={'prop': 'value'})
-        self.call('DELETE', 'testdocument', guid=guid)
-
-        self.assertEqual([
-            {'event': 'create', 'guid': guid, 'document': 'testdocument'},
-            {'event': 'delete', 'guid': guid, 'document': 'testdocument'},
-            ],
-            signals)
-
-        assert self.volume['testdocument'].exists(guid)
-
     def call(self, cmd, document=None, guid=None, prop=None, **kwargs):
 
         class TestRequest(Request):
@@ -192,6 +171,7 @@ class VolumeTest(tests.Test):
             content = None
             content_stream = None
             content_length = 0
+            principal = 'me'
 
         request = TestRequest(kwargs)
         request.command = cmd

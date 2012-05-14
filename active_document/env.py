@@ -341,12 +341,3 @@ class Query(object):
         return 'offset=%s limit=%s request=%r query=%r order_by=%s' % \
                 (self.offset, self.limit, self.request, self.query,
                         self.order_by)
-
-
-class Principal(object):
-    """Authenticated user."""
-
-    user = None
-
-
-principal = Principal()

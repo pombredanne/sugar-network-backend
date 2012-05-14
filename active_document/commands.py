@@ -58,12 +58,13 @@ def call(volume, request, response):
     command, args, document = _resolve(request.command, directory, request)
     enforce(command is not None, env.NotFound, _('Unsupported command'))
 
-    if command.permissions & env.ACCESS_AUTH:
-        enforce(env.principal.user is not None, env.Unauthorized,
-                _('User is not authenticated'))
-    if command.permissions & env.ACCESS_AUTHOR:
-        enforce(env.principal.user in document['author'], env.Forbidden,
-                _('Operation is permitted only for authors'))
+    if request.principal is not None:
+        if command.permissions & env.ACCESS_AUTH:
+            enforce(request.principal is not Request.ANONYMOUS,
+                    env.Unauthorized, _('User is not authenticated'))
+        if command.permissions & env.ACCESS_AUTHOR:
+            enforce(request.principal in document['author'], env.Forbidden,
+                    _('Operation is permitted only for authors'))
 
     if command.accept_request:
         request['request'] = request
@@ -114,10 +115,13 @@ class Commands(dict):
 
 class Request(dict):
 
+    ANONYMOUS = object()
+
     command = None
     content = None
     content_stream = None
     content_length = None
+    principal = ANONYMOUS
 
     def __getitem__(self, key):
         enforce(key in self, _('Cannot find %r request argument'), key)

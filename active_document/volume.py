@@ -115,6 +115,7 @@ def _create(directory, request):
     props = request.content
     for i in props.keys():
         directory.metadata[i].assert_access(env.ACCESS_CREATE)
+    props['author'] = [request.principal] if request.principal else []
     return directory.create(props)
 
 
@@ -171,8 +172,7 @@ def _update(directory, document, request, prop=None, url=None):
         permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
 def _delete(directory, document, prop=None):
     enforce(prop is None, _('Properties cannot be deleted'))
-    # TODO until implementing layers support
-    directory.update(document.guid, {'layers': ['deleted']})
+    directory.delete(document.guid)
 
 
 @document_command(method='GET')
