@@ -16,7 +16,6 @@
 import json
 import logging
 from contextlib import contextmanager
-from os.path import join, exists
 from gettext import gettext as _
 
 import gevent
@@ -30,29 +29,34 @@ from active_document import util
 
 _CONNECTION_POOL = 6
 
-_logger = logging.getLogger('sugar_network')
+_logger = logging.getLogger('sugar_network.bus')
 
 
 class ServerError(RuntimeError):
     pass
 
 
-class Connection(object):
+class Bus(object):
+
+    connection = None
 
     def __init__(self, mountpoint, document=None):
         self.mountpoint = mountpoint
         self.document = document
+
+        if Bus.connection is None:
+            Bus.connection = _Connection()
 
     @property
     def online(self):
         return self.mountpoint == '/'
 
     def connect(self, callback):
-        conn = _Connection.get()
+        conn = Bus.connection
         conn.subscriptions[callback] = (self.mountpoint, self.document)
 
     def disconnect(self, callback):
-        conn = _Connection.get()
+        conn = Bus.connection
         if callback in conn.subscriptions:
             del conn.subscriptions[callback]
 
@@ -66,13 +70,6 @@ class Connection(object):
         """
         return _subscribe()
 
-    def local_get(self, guid, prop):
-        path = join(env.local_root.value, 'local', self.document,
-                guid[:2], guid, prop)
-        if exists(path):
-            with file(path) as f:
-                return json.load(f)
-
     def send(self, cmd, content=None, content_type=None, **request):
         request['mountpoint'] = self.mountpoint
         if self.document:
@@ -80,13 +77,12 @@ class Connection(object):
         request['cmd'] = cmd
         request['content_type'] = content_type
 
-        conn = _Connection.get()
-        with conn.socket_file() as socket_file:
-            socket_file.write_message(request)
+        with Bus.connection.pipe() as pipe:
+            pipe.write_message(request)
             if content_type == 'application/json':
                 content = json.dumps(content)
-            socket_file.write(content)
-            response = socket_file.read_message()
+            pipe.write(content)
+            response = pipe.read_message()
 
             _logger.debug('Made a call: request=%r response=%r',
                     request, response)
@@ -101,8 +97,6 @@ class Connection(object):
 
 
 class _Connection(object):
-
-    _instance = None
 
     def __init__(self):
         self._pool = Queue(maxsize=_CONNECTION_POOL)
@@ -124,14 +118,8 @@ class _Connection(object):
             except Exception:
                 util.exception(_logger, _('Cannot close IPC connection'))
 
-    @classmethod
-    def get(cls):
-        if cls._instance is None:
-            cls._instance = _Connection()
-        return cls._instance
-
     @contextmanager
-    def socket_file(self):
+    def pipe(self):
         if self._pool.qsize() or self._pool_size >= self._pool.maxsize:
             conn = self._pool.get()
         else:

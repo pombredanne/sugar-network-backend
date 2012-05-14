@@ -22,9 +22,9 @@ from gettext import gettext as _
 import gevent
 
 import active_document
-from local_document import application, optparse, sugar, env
-from local_document.server import Server
 from sugar_network_server import resources
+from local_document import application, optparse, sugar, env
+from local_document.bus import Server
 
 
 VERSION = '0.1'

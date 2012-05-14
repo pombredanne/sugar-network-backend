@@ -17,7 +17,7 @@ import logging
 
 import gobject
 
-from sugar_network.connection import Connection
+from sugar_network.bus import Bus
 
 
 _logger = logging.getLogger('sugar_network')
@@ -43,7 +43,7 @@ class Client(gobject.GObject):
         self._subscription = None
 
         def init():
-            self._subscription = Connection.subscribe()
+            self._subscription = Bus.subscribe()
             gobject.io_add_watch(self._subscription.fileno(),
                     gobject.IO_IN | gobject.IO_HUP, self.__subscription_cb)
 
@@ -54,18 +54,18 @@ class Client(gobject.GObject):
             self._subscription.close()
 
     def get(self, mountpoint, document, guid, reply):
-        conn = Connection(mountpoint, document)
-        return conn.send('GET', guid=guid, reply=reply)
+        bus = Bus(mountpoint, document)
+        return bus.send('GET', guid=guid, reply=reply)
 
     def find(self, mountpoint, document, offset, limit, reply):
         params = {'limit': limit,
                   'reply': reply,
                   }
-        conn = Connection(mountpoint, document)
+        bus = Bus(mountpoint, document)
 
         def fetch_chunk(offset):
             params['offset'] = offset
-            response = conn.send('GET', **params)
+            response = bus.send('GET', **params)
             return response['result'], response['total']
 
         items, total = fetch_chunk(offset)
@@ -78,8 +78,8 @@ class Client(gobject.GObject):
             items, total = fetch_chunk(offset)
 
     def update(self, mountpoint, document, guid, **props):
-        conn = Connection(mountpoint, document)
-        conn.send('PUT', guid=guid, content=props,
+        bus = Bus(mountpoint, document)
+        bus.send('PUT', guid=guid, content=props,
                     content_type='application/json')
 
     def __subscription_cb(self, source, cb_condition):
@@ -101,9 +101,6 @@ class Client(gobject.GObject):
                 props = event['props']
                 if props.get('keep_impl') in (0, 2):
                     self.emit('keep_impl', bundle_id, bool(props['keep_impl']))
-                    if 'keep' not in props:
-                        props.update(self.get(event['mountpoint'],
-                            'context', bundle_id, ['keep']))
                 if 'keep' in props:
                     self.emit('keep', bundle_id, props['keep'])
             elif event_type == 'delete':

@@ -20,7 +20,7 @@ from os.path import join, exists, lexists, relpath, dirname, basename
 from gettext import gettext as _
 
 import sweets_recipe
-from local_document import crawler, env
+from local_document import crawler, env, sugar
 
 
 _logger = logging.getLogger('local_document.activities')
@@ -64,6 +64,7 @@ def monitor(mounts):
                 'summary': spec['summary'],
                 'description': spec['description'],
                 'keep_impl': 2,
+                'author': [sugar.uid()],
                 })
 
         context_path = _ensure_context_path(context, hashed_path)

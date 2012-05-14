@@ -25,7 +25,7 @@ from gevent import socket
 from requests import ConnectionError
 
 import active_document as ad
-from active_document import principal, SingleVolume, util, enforce
+from active_document import SingleVolume, util, enforce
 from local_document import cache, sugar, http, env
 from local_document.socket import SocketFile
 
@@ -56,7 +56,6 @@ _logger = logging.getLogger('local_document.mounts')
 class Mounts(dict):
 
     def __init__(self, root, resources_path, events_callback=None):
-        principal.user = sugar.uid()
         self.home_volume = SingleVolume(root, resources_path, _HOME_PROPS)
         self['/'] = _RemoteMount('/', self.home_volume, events_callback)
         self['~'] = _LocalMount('~', self.home_volume, events_callback)
@@ -91,7 +90,7 @@ class _Mount(object):
             return
         if 'mountpoint' not in event:
             event['mountpoint'] = self.mountpoint
-        callback(self, event)
+        callback(event)
 
 
 class _LocalMount(_Mount):
@@ -121,6 +120,7 @@ class _LocalMount(_Mount):
     def call(self, request, response):
         if request.command == 'get_blob':
             return self._get_blob(**request)
+        request.principal = None
         return ad.call(self._volume, request, response)
 
     def __events_cb(self, event):
@@ -266,6 +266,7 @@ class _RemoteMount(_Mount):
                 elif [True for prop, value in patch.items() if value]:
                     props = http.request('GET', ['context', guid])
                     props.update(patch)
+                    props['author'] = [sugar.uid()]
                     directory.create_with_guid(guid, props)
 
         return result

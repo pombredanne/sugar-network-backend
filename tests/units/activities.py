@@ -14,7 +14,7 @@ from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
 from local_document.mounts import Mounts
-from local_document import activities
+from local_document import activities, sugar
 
 
 class ActivitiesTest(tests.Test):
@@ -40,6 +40,7 @@ class ActivitiesTest(tests.Test):
                     'title': 'title',
                     'summary': 'summary',
                     'description': 'description',
+                    'author': [sugar.uid()],
                     })
 
         self.touch(('Activities/activity/activity/activity.info', [
@@ -97,6 +98,7 @@ class ActivitiesTest(tests.Test):
                     'title': 'title',
                     'summary': 'summary',
                     'description': 'description',
+                    'author': [sugar.uid()],
                     })
 
         self.touch(('Activities/activity/activity/activity.info', [

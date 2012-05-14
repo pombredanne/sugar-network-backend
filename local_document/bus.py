@@ -36,7 +36,7 @@ class Server(object):
 
     def __init__(self, root, resources):
         self._subscriptions = []
-        self._mounts = Mounts(root, resources, self.__event_cb)
+        self._mounts = Mounts(root, resources, self._publish_event)
         self._acceptor = _start_server('accept', self._serve_client)
         self._subscriber = _start_server('subscribe', self._serve_subscription)
         self._monitor = gevent.spawn(activities.monitor, self._mounts)
@@ -54,8 +54,8 @@ class Server(object):
             pass
         finally:
             os.close(rendezvous)
-            self._mounts.close()
             self._monitor.kill()
+            self._mounts.close()
 
     def stop(self):
         while self._subscriptions:
@@ -100,7 +100,7 @@ class Server(object):
         self._subscriptions.append(conn_file)
         return True
 
-    def __event_cb(self, mount, event):
+    def _publish_event(self, event):
         for socket_file in self._subscriptions:
             _logger.debug('Send notification: %r', event)
             socket_file.write_message(event)

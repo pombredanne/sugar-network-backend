@@ -11,7 +11,7 @@ from sugar_network_server.resources.context import Context
 import active_document as ad
 
 from sugar_network.client import Client
-from local_document.server import Server
+from local_document.bus import Server
 from local_document.mounts import Mounts
 from local_document import mounts
 

@@ -20,7 +20,7 @@ from os.path import join, exists, dirname
 from local_document import activities
 from sugar_network.objects import Object
 from sugar_network.cursor import Cursor
-from sugar_network.connection import Connection
+from sugar_network.bus import Bus
 
 
 _logger = logging.getLogger('sugar_network')
@@ -77,8 +77,8 @@ class Client(object):
 
     @property
     def connected(self):
-        conn = Connection(self._mountpoint, None)
-        return conn.send('is_connected')
+        bus = Bus(self._mountpoint)
+        return bus.send('is_connected')
 
     def launch(self, *args, **kwargs):
         # TODO Make a diference in launching from "~" and "/" mounts
@@ -109,7 +109,7 @@ class Client(object):
 class _Resource(object):
 
     def __init__(self, mountpoint, name):
-        self._conn = Connection(mountpoint, name)
+        self._bus = Bus(mountpoint, name)
 
     def cursor(self, query=None, order_by=None, reply=None, page_size=18,
             **filters):
@@ -132,7 +132,7 @@ class _Resource(object):
             a dictionary of properties to filter resulting list
 
         """
-        return Cursor(self._conn, query, order_by, reply, page_size, **filters)
+        return Cursor(self._bus, query, order_by, reply, page_size, **filters)
 
     def delete(self, guid):
         """Delete resource object.
@@ -141,7 +141,7 @@ class _Resource(object):
             resource object's GUID
 
         """
-        return self._conn.send('DELETE', guid=guid)
+        return self._bus.send('DELETE', guid=guid)
 
     def __call__(self, guid=None, reply=None, **kwargs):
-        return Object(self._conn, reply or [], guid, **kwargs)
+        return Object(self._bus, reply or [], guid, **kwargs)

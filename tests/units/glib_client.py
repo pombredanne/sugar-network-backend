@@ -13,7 +13,7 @@ import active_document as ad
 
 from sugar_network.client import Client
 from sugar_network.glib_client import Client as GlibClient
-from local_document.server import Server
+from local_document.bus import Server
 from local_document.mounts import Mounts
 
 
@@ -103,6 +103,7 @@ class GlibClientTest(tests.Test):
                 description='description').post()
         client.Context(guid, keep=True).post()
         client.Context(guid, keep=False).post()
+        client.Context(guid, keep=True).post()
         client.Context(guid, keep_impl=1).post()
         client.Context(guid, keep_impl=2).post()
         client.Context(guid, keep_impl=0).post()
@@ -113,10 +114,11 @@ class GlibClientTest(tests.Test):
 
         self.assertEqual([
             ('connect', '/', True),
-            ('keep', guid, False),
             ('keep_impl', guid, False),
+            ('keep', guid, False),
             ('keep', guid, True),
             ('keep', guid, False),
+            ('keep', guid, True),
             ('keep_impl', guid, True),
             ('keep_impl', guid, False),
             ('keep_impl', guid, False),

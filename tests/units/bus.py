@@ -11,8 +11,8 @@ from __init__ import tests
 
 from sugar_network import client as client_
 from sugar_network.client import Client
-from sugar_network.connection import ServerError
-from local_document.server import Server
+from sugar_network.bus import ServerError
+from local_document.bus import Server
 from sugar_network_server.resources.context import Context
 
 

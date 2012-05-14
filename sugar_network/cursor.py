@@ -26,13 +26,13 @@ from active_document import util, enforce
 _QUERY_PAGES_NUMBER = 2
 
 
-_logger = logging.getLogger('sugar_network')
+_logger = logging.getLogger('sugar_network.cursor')
 
 
 class Cursor(object):
 
-    def __init__(self, conn, query, order_by, reply, page_size, **filters):
-        self._conn = conn
+    def __init__(self, bus, query, order_by, reply, page_size, **filters):
+        self._bus = bus
         self._query = query
         self._order_by = order_by
         self._reply = reply or ['guid']
@@ -46,10 +46,10 @@ class Cursor(object):
         self._offset = -1
         self._wait_session = None
 
-        self._conn.connect(self.__event_cb)
+        self._bus.connect(self.__event_cb)
 
     def __del__(self):
-        self._conn.disconnect(self.__event_cb)
+        self._bus.disconnect(self.__event_cb)
 
     # pylint: disable-msg=E1101,E0102,E0202
     @property
@@ -90,7 +90,7 @@ class Cursor(object):
 
     def read_events(self):
         if self._wait_session is None:
-            self._wait_session = _WaitSession(self._conn)
+            self._wait_session = _WaitSession()
 
         with self._wait_session as session:
             while session.wait():
@@ -144,7 +144,7 @@ class Cursor(object):
                 for obj in page:
                     if obj is not None and obj.guid == key:
                         return obj
-            return Object(self._conn, self._reply, key)
+            return Object(self._bus, self._reply, key)
         else:
             offset = key
 
@@ -198,18 +198,18 @@ class Cursor(object):
             params['reply'] = self._reply
 
         try:
-            response = self._conn.send('GET', **params)
+            response = self._bus.send('GET', **params)
             self._total = response['total']
         except Exception:
             util.exception(_logger,
                     _('Failed to fetch query result: resource=%r query=%r'),
-                    self._conn, params)
+                    self._bus, params)
             self._total = None
             return False
 
         result = [None] * len(response['result'])
         for i, props in enumerate(response['result']):
-            result[i] = Object(self._conn, self._reply,
+            result[i] = Object(self._bus, self._reply,
                     props['guid'], props, offset + i)
 
         if not self._page_access or self._page_access[-1] != page:
@@ -235,8 +235,7 @@ class Cursor(object):
 
 class _WaitSession(object):
 
-    def __init__(self, conn):
-        self._conn = conn
+    def __init__(self):
         self._signal = Event()
         self._users = 0
         self._queue = collections.deque()

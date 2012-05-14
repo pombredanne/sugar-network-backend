@@ -17,11 +17,11 @@ from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
 from sugar_network.client import Client
-from sugar_network.connection import ServerError
+from sugar_network.bus import ServerError
 from local_document.mounts import Mounts
-from local_document.server import Server
+from local_document.bus import Server
 from local_document.socket import SocketFile
-from local_document import env, mounts
+from local_document import env, mounts, sugar
 
 
 class MountsTest(tests.Test):
@@ -159,6 +159,7 @@ class MountsTest(tests.Test):
             'description': 'description',
             'keep': True,
             'keep_impl': True,
+            'author': [sugar.uid()],
             })
 
         context = remote.Context(guid, ['keep', 'keep_impl'])
