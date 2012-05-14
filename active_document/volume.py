@@ -175,6 +175,13 @@ def _delete(directory, document, prop=None):
     directory.delete(document.guid)
 
 
+@document_command(method='PUT', cmd='delete',
+        permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
+def _hide(directory, document, prop=None):
+    enforce(prop is None, _('Properties cannot be deleted'))
+    directory.update(document.guid, {'layers': ['deleted']})
+
+
 @document_command(method='GET')
 def _get(directory, document, response, prop=None, reply=None):
     if not prop:
