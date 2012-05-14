@@ -40,7 +40,7 @@ class Bus(object):
 
     connection = None
 
-    def __init__(self, mountpoint, document=None):
+    def __init__(self, mountpoint=None, document=None):
         self.mountpoint = mountpoint
         self.document = document
 
@@ -74,6 +74,13 @@ class Bus(object):
         request['mountpoint'] = self.mountpoint
         if self.document:
             request['document'] = self.document
+        return self._send(cmd, request, content, content_type)
+
+    def publish(self, event, **kwargs):
+        kwargs['event'] = event
+        self._send('publish', {}, kwargs, 'application/json')
+
+    def _send(self, cmd, request, content, content_type):
         request['cmd'] = cmd
         request['content_type'] = content_type
 
@@ -150,11 +157,9 @@ class _Connection(object):
                 event = conn.read_message()
                 if event is None:
                     break
-                for callback, (mountpoint, document) in \
-                        self._subscriptions.items():
-                    if event['mountpoint'] == mountpoint and \
-                            ('document' not in event or \
-                            event['document'] == document):
+                for callback, (mount, document) in self._subscriptions.items():
+                    if event.get('mountpoint') in ('*', mount) and \
+                            event.get('document') in ('*', document):
                         callback(event)
         finally:
             conn.close()

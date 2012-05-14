@@ -293,7 +293,7 @@ class MountsTest(tests.Test):
                 description='description').post()
 
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'connect'},
+                {'mountpoint': '/', 'event': 'connect', 'document': '*'},
                 subscription.read_message())
         socket.wait_read(subscription.fileno())
         event = subscription.read_message()
@@ -368,7 +368,7 @@ class MountsTest(tests.Test):
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'connect'},
+                {'mountpoint': '/', 'event': 'connect', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(True, client.connected)
 
@@ -376,7 +376,7 @@ class MountsTest(tests.Test):
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'disconnect'},
+                {'mountpoint': '/', 'event': 'disconnect', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 
@@ -385,7 +385,7 @@ class MountsTest(tests.Test):
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'connect'},
+                {'mountpoint': '/', 'event': 'connect', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(True, client.connected)
 
@@ -393,7 +393,7 @@ class MountsTest(tests.Test):
 
         socket.wait_read(subscription.fileno())
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'disconnect'},
+                {'mountpoint': '/', 'event': 'disconnect', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 

@@ -310,7 +310,7 @@ class _RemoteMount(_Mount):
 
             _logger.info(_('Connected to remote server'))
             self._connected = True
-            self.emit({'event': 'connect'})
+            self.emit({'event': 'connect', 'document': '*'})
 
             try:
                 while dispatch(conn):
@@ -320,4 +320,4 @@ class _RemoteMount(_Mount):
             finally:
                 _logger.info(_('Got disconnected from remote server'))
                 self._connected = False
-                self.emit({'event': 'disconnect'})
+                self.emit({'event': 'disconnect', 'document': '*'})

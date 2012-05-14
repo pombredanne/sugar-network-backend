@@ -11,6 +11,7 @@ from sugar_network_server.resources.context import Context
 import active_document as ad
 
 from sugar_network.client import Client
+from sugar_network.bus import Bus
 from local_document.bus import Server
 from local_document.mounts import Mounts
 from local_document import mounts
@@ -266,10 +267,24 @@ class ClientTest(tests.Test):
 
         self.assertEqual([None, None], events)
 
+    def test_PublishEvents(self):
+        self.start_server()
+        bus = Bus(None)
 
+        events = []
+        bus.connect(lambda event: events.append(event))
 
+        bus.publish('probe', payload=1)
+        bus.publish('probe', payload=2)
+        bus.publish('probe', payload=3)
+        gevent.sleep()
 
-
+        self.assertEqual([
+            {'payload': 1, 'event': 'probe'},
+            {'payload': 2, 'event': 'probe'},
+            {'payload': 3, 'event': 'probe'},
+            ],
+            events)
 
 
 if __name__ == '__main__':

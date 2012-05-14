@@ -80,8 +80,13 @@ class Server(object):
                 else:
                     request.content = conn_file.read() or None
 
-                response = Response()
-                result = self._mounts.call(request, response)
+                if request.command == 'publish':
+                    message['event'] = 'publish'
+                    self._publish_event(request.content)
+                    result = None
+                else:
+                    response = Response()
+                    result = self._mounts.call(request, response)
 
             except Exception, error:
                 if isinstance(error, env.Offline):
