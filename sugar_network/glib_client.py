@@ -35,6 +35,10 @@ class Client(gobject.GObject):
         'keep_impl': (
             # (bundle_id, value)
             gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, [str, bool]),
+        'launch': (
+            # (bundle_id, command, object_id, uri, args)
+            gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE,
+            [str, str, object, object, object]),
         }
 
     def __init__(self):
@@ -95,7 +99,7 @@ class Client(gobject.GObject):
         elif event_type == 'disconnect':
             self.emit('connect', event['mountpoint'], False)
 
-        elif event['mountpoint'] == '~' and event['document'] == 'context':
+        elif event.get('mountpoint') == '~' and event['document'] == 'context':
             if event_type in ('create', 'update'):
                 bundle_id = event['guid']
                 props = event['props']
@@ -106,5 +110,10 @@ class Client(gobject.GObject):
             elif event_type == 'delete':
                 bundle_id = event['guid']
                 self.emit('keep_impl', bundle_id, False)
+
+        elif event_type == 'launch':
+            self.emit('launch', event['context'], event['command'],
+                    event.get('object_id'), event.get('uri'),
+                    event.get('args'))
 
         return True

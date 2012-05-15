@@ -15,14 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import shutil
 from gettext import gettext as _
 
-import zerosugar
-import sweets_recipe
-import sugar_network
-from local_document import application, sugar, activities, env, printf
-from active_document import util, optparse, enforce
+from local_document import application, sugar
+from active_document import optparse, enforce
 
 
 command = optparse.Option(
@@ -39,10 +35,8 @@ class Application(application.Application):
             'implementations')
     def launch(self):
         enforce(self.args, _('Context is not specified'))
-        context = self.args.pop(0)
-
-        client = sugar_network.Client('/')
-        zerosugar.launch(client, context, command.value, self.args)
+        #context = self.args.pop(0)
+        raise NotImplementedError()
 
     @application.command(
             'CONTEXT\n'
@@ -50,37 +44,17 @@ class Application(application.Application):
             'implementations and place it to ~/Activities')
     def checkin(self):
         enforce(self.args, _('Context is not specified'))
-        context = self.args.pop(0)
-
-        client = sugar_network.Client('/')
-
-        solution = zerosugar.make(client, context)
-        for sel, __, __ in solution.walk():
-            try:
-                spec = sweets_recipe.Spec(root=sel.local_path)
-            except Exception, error:
-                printf.exception(
-                        _('Cannot checkin %r, failed to read spec file: %s'),
-                        sel.interface, error)
-                continue
-
-            dst_path = util.unique_filename(
-                    env.activities_root.value, spec['name'] + '.activity')
-            printf.info(_('Checkin %r implementation to %r'),
-                    context, dst_path)
-            util.cptree(sel.local_path, dst_path)
+        #context = self.args.pop(0)
+        raise NotImplementedError()
 
     @application.command(
             'CONTEXT\n'
             'delete all implementations downloaded by "checkin" command')
     def checkout(self):
         enforce(self.args, _('Context is not specified'))
-        context = self.args.pop(0)
+        #context = self.args.pop(0)
+        raise NotImplementedError()
 
-        for path in activities.checkins(context):
-            printf.info(_('Checkout %r implementation from %r'),
-                    context, path)
-            shutil.rmtree(path)
 
 # New defaults
 application.debug.value = sugar.logger_level()

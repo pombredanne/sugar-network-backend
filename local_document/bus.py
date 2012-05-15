@@ -68,6 +68,7 @@ class Server(object):
             try:
                 request = Request(message)
                 request.command = request.pop('cmd')
+                request_repr = str(request)
 
                 content_type = request.pop('content_type')
                 if content_type == 'application/json':
@@ -78,7 +79,6 @@ class Server(object):
                     request.content = conn_file.read() or None
 
                 if request.command == 'publish':
-                    message['event'] = 'publish'
                     self._publish_event(request.content)
                     result = None
                 else:
@@ -90,12 +90,12 @@ class Server(object):
                     _logger.debug('Ignore %r request: %s', request, error)
                 else:
                     util.exception(_logger,
-                            _('Failed to process %r for %r connection: %s'),
-                            request, conn_file, error)
+                            _('Failed to process %s for %r connection: %s'),
+                            request_repr, conn_file, error)
                 conn_file.write_message({'error': str(error)})
             else:
-                _logger.debug('Processed %r for %r connection: %r',
-                        request, conn_file, result)
+                _logger.debug('Processed %s for %r connection: %r',
+                        request_repr, conn_file, result)
                 conn_file.write_message(result)
 
     def _serve_subscription(self, conn_file):
@@ -103,8 +103,8 @@ class Server(object):
         return True
 
     def _publish_event(self, event):
+        _logger.debug('Send notification: %r', event)
         for socket_file in self._subscriptions:
-            _logger.debug('Send notification: %r', event)
             socket_file.write_message(event)
 
 

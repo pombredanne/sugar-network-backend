@@ -13,17 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import errno
-import signal
+import shutil
 import logging
-from os.path import join, dirname, exists
 from gettext import gettext as _
 
 from requests import ConnectionError
 
+import zerosugar
 import active_document as ad
-from local_document import cache, sugar, http, env
+from local_document import activities, cache, sugar, http, env
 from local_document.sockets import SocketFile
 from active_document import SingleVolume, util, coroutine, enforce
 
@@ -95,10 +93,6 @@ class _LocalMount(_Mount):
 
     def __init__(self, mountpoint, volume, events_callback):
         _Mount.__init__(self, mountpoint, events_callback)
-
-        self._calls = set()
-        signal.signal(signal.SIGCHLD, self.__SIGCHLD_cb)
-
         self._volume = volume
         self._volume.connect(self.__events_cb)
 
@@ -107,13 +101,7 @@ class _LocalMount(_Mount):
         return True
 
     def close(self):
-        while self._calls:
-            pid = self._calls.pop()
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except OSError, error:
-                if error.errno != errno.ESRCH:
-                    util.exception(_logger, _('Cannot kill %r child'), pid)
+        pass
 
     def call(self, request, response):
         if request.command == 'get_blob':
@@ -132,9 +120,12 @@ class _LocalMount(_Mount):
         for prop in _COMMON_PROPS.keys():
             if prop not in props:
                 continue
-            found_commons = True
             if prop == 'keep_impl':
-                self._set_keep_impl(event['guid'], props[prop])
+                if props[prop] == 0:
+                    self._checkout(event['guid'])
+                elif props[prop] == 1:
+                    self._checkin(event['guid'])
+            found_commons = True
 
         if found_commons:
             # These local properties exposed from "/" mount as well
@@ -148,40 +139,15 @@ class _LocalMount(_Mount):
             return None
         return {'path': stat['path'], 'mime_type': stat['mime_type']}
 
-    def _set_keep_impl(self, guid, value):
-        if value == 0:
-            _logger.debug('Checkout %r', guid)
-            command = 'checkout'
-        elif value == 1:
-            _logger.debug('Checkin %r', guid)
-            command = 'checkin'
-        else:
-            return
+    def _checkout(self, guid):
+        for path in activities.checkins(guid):
+            _logger.info(_('Checkout %r implementation from %r'), guid, path)
+            shutil.rmtree(path)
 
-        pid = os.fork()
-        if pid:
-            self._calls.add(pid)
-            return
-
-        cmd = ['sugar-network', command, guid]
-
-        cmd_path = join(dirname(__file__), '..', 'sugar-network')
-        if exists(cmd_path):
-            os.execv(cmd_path, cmd)
-        else:
-            os.execvp(cmd[0], cmd)
-
-    def __SIGCHLD_cb(self, signum, frame):
-        try:
-            while True:
-                pid, __ = os.waitpid(-1, os.WNOHANG)
-                if pid == 0:
-                    break
-                if pid in self._calls:
-                    self._calls.remove(pid)
-        except OSError, error:
-            if error.errno != errno.ECHILD:
-                raise
+    def _checkin(self, guid):
+        for __ in zerosugar.checkin('/', guid, 'activity'):
+            # TODO Publish checkin progress
+            pass
 
 
 class _RemoteMount(_Mount):

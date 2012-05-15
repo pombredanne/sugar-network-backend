@@ -5,10 +5,9 @@ import time
 import json
 from os.path import join
 
-import gevent
-
 from __init__ import tests
 
+from active_document import coroutine
 from sugar_network import client as client_
 from sugar_network.client import Client
 from sugar_network.bus import ServerError
@@ -59,9 +58,9 @@ class IPCTest(tests.Test):
         call_jobs = []
         for i, client in enumerate(clients):
             for n in range(9):
-                call_jobs.append(gevent.spawn(caller, client, i, n))
+                call_jobs.append(coroutine.spawn(caller, client, i, n))
 
-        gevent.joinall(call_jobs)
+        coroutine.joinall(call_jobs)
         assert time.time() - ts < 4
 
         standard = []

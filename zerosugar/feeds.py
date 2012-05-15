@@ -82,7 +82,7 @@ def read(context):
                 impl.local_path = impl_id
             else:
                 impl.add_download_source(impl_id,
-                        impl_data['size'], impl_data['extract'])
+                        impl_data['size'], impl_data.get('extract'))
 
             for name, command in impl_data['commands'].items():
                 impl.commands[name] = _Command(name, command)

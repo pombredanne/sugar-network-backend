@@ -10,8 +10,8 @@ def main():
     titles = ['Title1', 'Title2', 'Title3']
 
     print '-- Delete objects'
-    for i in client.Context.cursor():
-        client.Context.delete(i['guid'])
+    for guid in [i['guid'] for i in client.Context.cursor()]:
+        client.Context.delete(guid)
 
     def context_new(title):
         context = client.Context()

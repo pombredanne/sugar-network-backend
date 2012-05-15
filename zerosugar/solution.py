@@ -13,11 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from os.path import join
-from gettext import gettext as _
-
-from zerosugar.config import config
-from local_document import enforce
+# pylint: disable-msg=E1101,E0102
 
 
 DEEP = 2
@@ -38,11 +34,11 @@ class Solution(object):
     def __getitem__(self, url):
         selection = self.selections.get(url)
         if selection is not None:
-            return _Selection(selection)
+            return _SelectedImpl(selection)
 
     def __iter__(self):
         for i in self.selections.values():
-            yield _Selection(i)
+            yield _SelectedImpl(i)
 
     def __hash__(self):
         return hash(self.id)
@@ -76,7 +72,7 @@ class Solution(object):
 
             sel = self[interface]
             if sel is None:
-                yield _Selection(None, interface), parent_dep, path
+                yield _SelectedImpl(None, interface), parent_dep, path
                 return
 
             if reverse:
@@ -100,7 +96,7 @@ class Solution(object):
         return process_node(self.interface, None, extra_deps, [])
 
 
-class _Selection(object):
+class _SelectedImpl(object):
 
     def __init__(self, orig, interface=None):
         self._value = orig
@@ -126,14 +122,13 @@ class _Selection(object):
     def dependencies(self):
         return self._value.dependencies
 
-    def download(self):
-        if not self.download_sources:
-            return
-        impl = config.client.Implementation(self.id)
-        impl_path, __ = impl.get_blob_path('bundle')
-        enforce(impl_path, _('Cannot download bundle'))
-        self._value.impl.local_path = \
-                join(impl_path, self.download_sources[0].extract)
+    @property
+    def local_path(self):
+        return self._value.impl.local_path
+
+    @local_path.setter
+    def local_path(self, value):
+        self._value.impl.local_path = value
 
     def __getattr__(self, name):
         return getattr(self._value.impl, name)
