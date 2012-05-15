@@ -22,7 +22,7 @@ from functools import partial
 from os.path import exists, basename, join
 from gettext import gettext as _
 
-from active_document import env, greenlet
+from active_document import env, coroutine
 from active_document.document import Document
 from active_document.directory import Directory
 from active_document.index import IndexWriter
@@ -106,7 +106,7 @@ class SingleVolume(_Volume):
 
         for cls in self.values():
             for __ in cls.populate():
-                greenlet.dispatch()
+                coroutine.dispatch()
 
 
 @directory_command(method='POST',

@@ -20,7 +20,7 @@ import threading
 import collections
 from gettext import gettext as _
 
-from active_document import env, util, greenlet
+from active_document import env, util, coroutine
 from active_document.index import IndexWriter
 
 
@@ -193,7 +193,7 @@ class _Queue(object):
         self._mutex = threading.Lock()
         self._push_cond = threading.Condition(self._mutex)
         self._done_cond = threading.Condition(self._mutex)
-        self._done_async = greenlet.AsyncCondition()
+        self._done_async = coroutine.AsyncCondition()
         self._endtime = time.time() + env.index_flush_timeout.value
         self._seqno = {}
 
@@ -204,7 +204,7 @@ class _Queue(object):
                 self._mutex.release()
                 try:
                     # This is potential race but we need it to avoid hanging
-                    # in condition wait to let other greenlets work.
+                    # in condition wait to let other coroutines work.
                     # The race might be avoided by using big enough
                     # `active_document.index_write_queue.value`
                     _logger.debug('Postpone %r for %r index', op, document)

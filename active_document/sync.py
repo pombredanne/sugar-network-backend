@@ -18,7 +18,7 @@ import logging
 from os.path import join, exists
 from gettext import gettext as _
 
-from active_document import env, util, sneakernet, greenlet
+from active_document import env, util, sneakernet, coroutine
 
 
 _logger = logging.getLogger('active_document.sync')
@@ -55,7 +55,7 @@ class _Node(object):
             sync.cls.close()
 
     def _merge(self, packet, row, *args):
-        greenlet.dispatch()
+        coroutine.dispatch()
 
         sync = self._synchronizers.get(row['document'])
         if sync is None:
@@ -82,7 +82,7 @@ class _Node(object):
 
             diff_range, patch = sync.cls.diff(to_diff)
             for guid, diff in patch:
-                greenlet.dispatch()
+                coroutine.dispatch()
                 yield None, {
                         'type': 'diff',
                         'document': document,
@@ -92,7 +92,7 @@ class _Node(object):
 
             if diff_range[1]:
                 to_diff.floor(diff_range[1])
-                greenlet.dispatch()
+                coroutine.dispatch()
                 yield None, {
                         'type': 'syn',
                         'document': document,

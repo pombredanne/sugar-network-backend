@@ -23,7 +23,7 @@ from gettext import gettext as _
 
 import xapian
 
-from active_document import util, env, greenlet
+from active_document import util, env, coroutine
 from active_document.metadata import ActiveProperty
 from active_document.util import enforce
 
@@ -277,11 +277,11 @@ class IndexWriter(IndexReader):
         IndexReader.__init__(self, root, metadata, commit_cb)
 
         self._pending_updates = 0
-        self._commit_cond = greenlet.Condition()
+        self._commit_cond = coroutine.Condition()
         self._commit_job = None
 
         self._open(False)
-        self._commit_job = greenlet.spawn(self._commit_handler)
+        self._commit_job = coroutine.spawn(self._commit_handler)
 
     def close(self):
         """Flush index write pending queue and close the index."""
@@ -408,7 +408,7 @@ class IndexWriter(IndexReader):
     def _check_for_commit(self):
         if env.index_flush_threshold.value > 0 and \
                 self._pending_updates >= env.index_flush_threshold.value:
-            # Avoid processing heavy commits in the same greenlet
+            # Avoid processing heavy commits in the same coroutine
             self._commit_cond.notify(True)
 
     def _commit_handler(self):

@@ -22,7 +22,7 @@ import gevent.pool
 #: Process one events loop round.
 dispatch = gevent.sleep
 
-#: Put the current greenlet to sleep for at least `seconds`.
+#: Put the current coroutine to sleep for at least `seconds`.
 sleep = gevent.sleep
 
 #: Wait for the spawned events to finish.
