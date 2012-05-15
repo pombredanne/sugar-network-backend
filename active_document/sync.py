@@ -18,15 +18,10 @@ import logging
 from os.path import join, exists
 from gettext import gettext as _
 
-import gevent
-
-from active_document import env, util, sneakernet, gthread
+from active_document import env, util, sneakernet, greenlet
 
 
 _logger = logging.getLogger('active_document.sync')
-
-# Process events loop during long running operations, e.g., synchronization
-_dispatch = gevent.sleep
 
 
 class _Node(object):
@@ -38,8 +33,7 @@ class _Node(object):
         for cls in document_classes:
             self._synchronizers[cls.metadata.name] = sync_class(cls)
 
-        _logger.info(_('Open %r documents volume in %r'),
-                self.node_id, env.data_root.value)
+        _logger.info(_('Open %r documents volume'), self.node_id)
 
     @property
     def node_id(self):
@@ -61,7 +55,7 @@ class _Node(object):
             sync.cls.close()
 
     def _merge(self, packet, row, *args):
-        gthread.dispatch()
+        greenlet.dispatch()
 
         sync = self._synchronizers.get(row['document'])
         if sync is None:
@@ -88,7 +82,7 @@ class _Node(object):
 
             diff_range, patch = sync.cls.diff(to_diff)
             for guid, diff in patch:
-                gthread.dispatch()
+                greenlet.dispatch()
                 yield None, {
                         'type': 'diff',
                         'document': document,
@@ -98,7 +92,7 @@ class _Node(object):
 
             if diff_range[1]:
                 to_diff.floor(diff_range[1])
-                gthread.dispatch()
+                greenlet.dispatch()
                 yield None, {
                         'type': 'syn',
                         'document': document,
@@ -118,7 +112,8 @@ class Node(_Node):
             server should provide
 
         """
-        id_path = join(env.data_root.value, 'id')
+        # XXX
+        id_path = join('env.data_root.value', 'id')
         if exists(id_path):
             with file(id_path) as f:
                 node_id = f.read().strip()

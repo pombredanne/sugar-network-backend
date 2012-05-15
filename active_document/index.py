@@ -21,11 +21,9 @@ import logging
 from os.path import exists, join
 from gettext import gettext as _
 
-import gevent
-import gevent.event
 import xapian
 
-from active_document import util, env, gthread
+from active_document import util, env, greenlet
 from active_document.metadata import ActiveProperty
 from active_document.util import enforce
 
@@ -279,11 +277,11 @@ class IndexWriter(IndexReader):
         IndexReader.__init__(self, root, metadata, commit_cb)
 
         self._pending_updates = 0
-        self._commit_cond = gthread.Condition()
+        self._commit_cond = greenlet.Condition()
         self._commit_job = None
 
         self._open(False)
-        self._commit_job = gevent.spawn(self._commit_handler)
+        self._commit_job = greenlet.spawn(self._commit_handler)
 
     def close(self):
         """Flush index write pending queue and close the index."""

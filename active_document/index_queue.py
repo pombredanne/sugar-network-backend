@@ -20,9 +20,7 @@ import threading
 import collections
 from gettext import gettext as _
 
-import gevent
-
-from active_document import env, util
+from active_document import env, util, greenlet
 from active_document.index import IndexWriter
 
 
@@ -195,7 +193,7 @@ class _Queue(object):
         self._mutex = threading.Lock()
         self._push_cond = threading.Condition(self._mutex)
         self._done_cond = threading.Condition(self._mutex)
-        self._done_async = gevent.get_hub().loop.async()
+        self._done_async = greenlet.AsyncCondition()
         self._endtime = time.time() + env.index_flush_timeout.value
         self._seqno = {}
 
@@ -210,7 +208,7 @@ class _Queue(object):
                     # The race might be avoided by using big enough
                     # `active_document.index_write_queue.value`
                     _logger.debug('Postpone %r for %r index', op, document)
-                    gevent.get_hub().wait(self._done_async)
+                    self._done_async.wait()
                 finally:
                     self._mutex.acquire()
             return self._push(to_commit, document, op, args)
@@ -249,7 +247,7 @@ class _Queue(object):
             self._done_cond.notify()
         finally:
             self._mutex.release()
-        self._done_async.send()
+        self._done_async.notify()
 
     def wait(self):
         self._mutex.acquire()
