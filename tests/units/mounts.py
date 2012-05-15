@@ -3,24 +3,19 @@
 
 import time
 import json
+import socket
 from os.path import join
-
-import gevent
-from gevent import socket
 
 from __init__ import tests
 
 import restful_document as rd
 import active_document as ad
-
-from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
-
+from active_document import coroutine
 from sugar_network.client import Client
 from sugar_network.bus import ServerError
 from local_document.mounts import Mounts
 from local_document.bus import Server
-from local_document.socket import SocketFile
+from local_document.sockets import SocketFile
 from local_document import env, mounts, sugar
 
 
@@ -28,25 +23,8 @@ class MountsTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.server = None
-        self.mounts = None
         rd.only_sync_notification.value = False
         mounts._RECONNECTION_TIMEOUT = 1
-
-    def tearDown(self):
-        if self.server is not None:
-            self.server.stop()
-        tests.Test.tearDown(self)
-
-    def start_server(self):
-
-        def server():
-            self.server.serve_forever()
-
-        self.server = Server('local', [User, Context])
-        gevent.spawn(server)
-        gevent.sleep()
-        self.mounts = self.server._mounts
 
     def test_OfflineMount_create(self):
         self.start_server()
@@ -229,9 +207,9 @@ class MountsTest(tests.Test):
         self.start_server()
         client = Client('~')
 
-        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription = SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
-        gevent.sleep()
+        coroutine.sleep()
 
         guid = client.Context(
                 type='activity',
@@ -239,13 +217,13 @@ class MountsTest(tests.Test):
                 summary='summary',
                 description='description').post()
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'create', 'guid': guid},
                 event)
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
                 subscription.read_message())
@@ -255,7 +233,7 @@ class MountsTest(tests.Test):
 
         client.Context(guid, title='new-title').post()
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
@@ -267,7 +245,7 @@ class MountsTest(tests.Test):
 
         client.Context.delete(guid)
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'delete', 'guid': guid},
                 subscription.read_message())
@@ -277,14 +255,14 @@ class MountsTest(tests.Test):
 
     def test_OnlineSubscription(self):
         self.fork(self.restful_server)
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         self.start_server()
         client = Client('/')
 
-        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription = SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         guid = client.Context(
                 type='activity',
@@ -295,7 +273,7 @@ class MountsTest(tests.Test):
         self.assertEqual(
                 {'mountpoint': '/', 'event': 'connect', 'document': '*'},
                 subscription.read_message())
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
@@ -304,7 +282,7 @@ class MountsTest(tests.Test):
 
         client.Context(guid, title='new-title').post()
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
@@ -313,7 +291,7 @@ class MountsTest(tests.Test):
 
         client.Context.delete(guid)
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'delete', 'guid': guid},
                 subscription.read_message())
@@ -331,20 +309,20 @@ class MountsTest(tests.Test):
                 description='description',
                 keep=True).post()
 
-        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription = SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         local.Context(guid, keep=False).post()
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
                 event)
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
                 {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
                 subscription.read_message())
@@ -357,16 +335,16 @@ class MountsTest(tests.Test):
 
     def test_OnlineConnect(self):
         pid = self.fork(self.restful_server)
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         self.start_server()
         client = Client('/')
 
-        subscription = SocketFile(socket.socket(socket.AF_UNIX))
+        subscription = SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
                 {'mountpoint': '/', 'event': 'connect', 'document': '*'},
                 subscription.read_message())
@@ -374,16 +352,16 @@ class MountsTest(tests.Test):
 
         self.waitpid(pid)
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
                 {'mountpoint': '/', 'event': 'disconnect', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 
         pid = self.fork(self.restful_server)
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
                 {'mountpoint': '/', 'event': 'connect', 'document': '*'},
                 subscription.read_message())
@@ -391,7 +369,7 @@ class MountsTest(tests.Test):
 
         self.waitpid(pid)
 
-        socket.wait_read(subscription.fileno())
+        coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
                 {'mountpoint': '/', 'event': 'disconnect', 'document': '*'},
                 subscription.read_message())

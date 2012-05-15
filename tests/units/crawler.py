@@ -4,10 +4,9 @@
 import os
 import shutil
 
-import gevent
-
 from __init__ import tests
 
+from active_document import coroutine
 from local_document import crawler, env
 
 
@@ -39,9 +38,9 @@ class CrawlerTest(tests.Test):
         self.touch('activity-4/activity/activity.info')
         self.touch('activity-5/activity/activity.info')
 
-        self.job = gevent.spawn(crawler.dispatch, ['.'],
+        self.job = coroutine.spawn(crawler.dispatch, ['.'],
                 self.found_cb, self.lost_cb)
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         self.assertEqual(
                 sorted([
@@ -55,43 +54,43 @@ class CrawlerTest(tests.Test):
 
         with file('activity-4/activity/activity.info', 'w') as f:
             f.close()
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([], self.found)
         self.assertEqual([], self.lost)
 
         with file('activity-2/activity/activity.info', 'w') as f:
             f.close()
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([tests.tmpdir + '/activity-2'], self.found)
         self.assertEqual([], self.lost)
         del self.found[:]
 
         os.makedirs('activity-6/activity')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([], self.found)
         self.assertEqual([], self.lost)
 
         with file('activity-6/activity/activity.info', 'w') as f:
             f.close()
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([tests.tmpdir + '/activity-6'], self.found)
         self.assertEqual([], self.lost)
         del self.found[:]
 
         os.unlink('activity-5/activity/activity.info')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([], self.found)
         self.assertEqual([tests.tmpdir + '/activity-5'], self.lost)
         del self.lost[:]
 
         shutil.rmtree('activity-5')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([], self.found)
         self.assertEqual([], self.lost)
 
         shutil.rmtree('activity-4')
-        gevent.sleep(.1)
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([], self.found)
         self.assertEqual([tests.tmpdir + '/activity-4'], self.lost)
         del self.lost[:]
@@ -99,46 +98,46 @@ class CrawlerTest(tests.Test):
     def test_Moves(self):
         self.touch('Activities/activity/activity/activity.info')
 
-        self.job = gevent.spawn(crawler.dispatch, ['Activities'],
+        self.job = coroutine.spawn(crawler.dispatch, ['Activities'],
                 self.found_cb, self.lost_cb)
-        gevent.sleep()
+        coroutine.sleep()
         del self.found[:]
         del self.lost[:]
 
         shutil.move('Activities/activity', '.')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([], self.found)
         self.assertEqual([tests.tmpdir + '/Activities/activity'], self.lost)
         del self.found[:]
         del self.lost[:]
         shutil.move('activity', 'Activities/')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([tests.tmpdir + '/Activities/activity'], self.found)
         self.assertEqual([], self.lost)
         del self.found[:]
         del self.lost[:]
 
         shutil.move('Activities/activity/activity', 'Activities/activity/activity2')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([], self.found)
         self.assertEqual([tests.tmpdir + '/Activities/activity'], self.lost)
         del self.found[:]
         del self.lost[:]
         shutil.move('Activities/activity/activity2', 'Activities/activity/activity')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([tests.tmpdir + '/Activities/activity'], self.found)
         self.assertEqual([], self.lost)
         del self.found[:]
         del self.lost[:]
 
         shutil.move('Activities/activity/activity/activity.info', 'Activities/activity/activity/activity.info2')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([], self.found)
         self.assertEqual([tests.tmpdir + '/Activities/activity'], self.lost)
         del self.found[:]
         del self.lost[:]
         shutil.move('Activities/activity/activity/activity.info2', 'Activities/activity/activity/activity.info')
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([tests.tmpdir + '/Activities/activity'], self.found)
         self.assertEqual([], self.lost)
         del self.found[:]

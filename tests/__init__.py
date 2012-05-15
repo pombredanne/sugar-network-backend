@@ -8,15 +8,16 @@ import logging
 import unittest
 from os.path import dirname, join, exists, abspath
 
-import gevent
-from gevent.event import Event
-
 import active_document as ad
 import restful_document as rd
+import sugar_network_server
+from active_document import coroutine
+from sugar_network_server.resources.user import User
+from sugar_network_server.resources.context import Context
 from restful_document.router import Router
 from restful_document.subscribe_socket import SubscribeSocket
 from local_document import env
-import sugar_network_server
+from local_document.bus import Server
 from sugar_network import client
 from sugar_network.bus import Bus
 
@@ -47,6 +48,13 @@ class Test(unittest.TestCase):
         if exists(self.logfile):
             os.unlink(self.logfile)
 
+        os.environ['SUGAR_LOGGER_LEVEL'] = 'all'
+        os.environ['HOME'] = tmpdir
+        profile_dir = join(tmpdir, '.sugar', 'default')
+        os.makedirs(profile_dir)
+        shutil.copy(join(root, 'data', 'owner.key'), profile_dir)
+        shutil.copy(join(root, 'data', 'owner.key.pub'), profile_dir)
+
         ad.index_flush_timeout.value = 0
         ad.index_flush_threshold.value = 1
         ad.find_limit.value = 1024
@@ -65,7 +73,23 @@ class Test(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=self.logfile)
 
+        self.server = None
+        self.mounts = None
+
         self.forks = []
+
+    def tearDown(self):
+        if self.server is not None:
+            self.server.stop()
+        while Test.httpd_pids:
+            self.httpdown(Test.httpd_pids.keys()[0])
+        while self.forks:
+            pid = self.forks.pop()
+            self.assertEqual(0, self.waitpid(pid))
+        while self._overriden:
+            mod, name, old_handler = self._overriden.pop()
+            setattr(mod, name, old_handler)
+        sys.stdout.flush()
 
     def waitpid(self, pid):
         if pid in self.forks:
@@ -79,17 +103,6 @@ class Test(unittest.TestCase):
             return os.WEXITSTATUS(status)
         except OSError:
             return 0
-
-    def tearDown(self):
-        while Test.httpd_pids:
-            self.httpdown(Test.httpd_pids.keys()[0])
-        while self.forks:
-            pid = self.forks.pop()
-            self.assertEqual(0, self.waitpid(pid))
-        while self._overriden:
-            mod, name, old_handler = self._overriden.pop()
-            setattr(mod, name, old_handler)
-        sys.stdout.flush()
 
     def override(self, mod, name, new_handler):
         self._overriden.append((mod, name, getattr(mod, name)))
@@ -152,10 +165,8 @@ class Test(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=tmpdir + '-%s.http.log' % self.httpd_seqno)
 
-        from gevent.wsgi import WSGIServer
-
         volume = ad.SingleFolder(classes)
-        httpd = WSGIServer(('localhost', port), Router(volume))
+        httpd = coroutine.WSGIServer(('localhost', port), Router(volume))
 
         try:
             httpd.serve_forever()
@@ -173,6 +184,18 @@ class Test(unittest.TestCase):
         except OSError:
             pass
 
+    def start_server(self, classes=None):
+
+        def server():
+            self.server.serve_forever()
+
+        if classes is None:
+            classes = [User, Context]
+        self.server = Server('local', classes)
+        coroutine.spawn(server)
+        coroutine.dispatch()
+        self.mounts = self.server._mounts
+
     def start_ipc_and_restful_server(self):
         pid = self.fork(self.restful_server)
 
@@ -182,16 +205,13 @@ class Test(unittest.TestCase):
             if event['event'] == 'connect':
                 connected.set()
 
-        connected = Event()
+        connected = coroutine.Event()
         Bus('/').connect(wait_connect)
         connected.wait()
 
         return pid
 
     def restful_server(self):
-        from gevent.wsgi import WSGIServer
-        from sugar_network_server.resources.user import User
-        from sugar_network_server.resources.context import Context
         from restful_document import env as _env
 
         if not exists('remote'):
@@ -210,12 +230,12 @@ class Test(unittest.TestCase):
         ad.index_write_queue.value = 10
 
         volume = ad.SingleVolume('remote', [User, Context])
-        httpd = WSGIServer(('localhost', 8000), rd.Router(volume))
+        httpd = coroutine.WSGIServer(('localhost', 8000), rd.Router(volume))
         subscriber = SubscribeSocket(volume)
         try:
-            gevent.joinall([
-                gevent.spawn(httpd.serve_forever),
-                gevent.spawn(subscriber.serve_forever),
+            coroutine.joinall([
+                coroutine.spawn(httpd.serve_forever),
+                coroutine.spawn(subscriber.serve_forever),
                 ])
         finally:
             httpd.stop()

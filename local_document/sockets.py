@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/socket.py$
-$Data: 2012-05-10$
+$Data: 2012-05-15$
 
 """
 

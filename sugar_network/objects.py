@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
 import logging
 from os.path import isdir
 from gettext import gettext as _
@@ -108,10 +109,12 @@ class Object(object):
         enforce(not isdir(path), _('Requested BLOB is a dictionary'))
         return _Blob(path, mime_type)
 
-    def set_blob(self, prop, data):
+    def set_blob(self, prop, data, mime_type='application/octet-stream'):
         enforce(self._guid, _('Object needs to be posted first'))
+        if mime_type == 'application/json':
+            data = json.dumps(data)
         self._bus.send('PUT', guid=self._guid, prop=prop, content=data,
-                content_type='application/octet-stream')
+                content_type=mime_type)
 
     def set_blob_by_url(self, prop, url):
         enforce(self._guid, _('Object needs to be posted first'))

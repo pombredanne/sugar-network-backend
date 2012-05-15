@@ -8,6 +8,7 @@ from crawler import *
 from activities import *
 from client import *
 from glib_client import *
+from injector import *
 
 
 tests.main()

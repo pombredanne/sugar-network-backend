@@ -19,9 +19,8 @@ import logging
 from os.path import join, abspath
 from gettext import gettext as _
 
-import gevent
-
 import active_document
+from active_document import greenlet
 from sugar_network_server import resources
 from local_document import application, optparse, sugar, env
 from local_document.bus import Server
@@ -53,7 +52,7 @@ class Application(application.Daemon):
         while not sugar.has_pubkey():
             logging.info(_('No Sugar SSH key, will start in %s seconds'),
                     SUGAR_REGISTRATION_TIMEOUT)
-            gevent.sleep(SUGAR_REGISTRATION_TIMEOUT)
+            greenlet.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
         self.server = Server(join(env.local_root.value, 'local'),
                 resources.path)

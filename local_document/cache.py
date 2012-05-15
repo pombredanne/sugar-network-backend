@@ -22,7 +22,7 @@ from os.path import isdir, exists, dirname, join
 from sweets_recipe import Bundle
 
 from local_document import env, http
-from local_document.socket import BUFFER_SIZE
+from local_document.sockets import BUFFER_SIZE
 
 
 _logger = logging.getLogger('local_document.cache')

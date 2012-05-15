@@ -6,13 +6,11 @@ import shutil
 import hashlib
 from os.path import abspath, lexists, exists
 
-import gevent
-
 from __init__ import tests
 
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
-
+from active_document import coroutine
 from local_document.mounts import Mounts
 from local_document import activities, sugar
 
@@ -31,8 +29,8 @@ class ActivitiesTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_Checkin(self):
-        self.job = gevent.spawn(activities.monitor, self.mounts)
-        gevent.sleep()
+        self.job = coroutine.spawn(activities.monitor, self.mounts)
+        coroutine.sleep()
 
         self.mounts.home_volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
@@ -52,7 +50,7 @@ class ActivitiesTest(tests.Test):
             'icon = activity-helloworld',
             'license = GPLv2+',
             ]))
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
         assert exists('activities/checkins/' + hashed_path)
@@ -65,8 +63,8 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_OfflineCheckin(self):
-        self.job = gevent.spawn(activities.monitor, self.mounts)
-        gevent.sleep()
+        self.job = coroutine.spawn(activities.monitor, self.mounts)
+        coroutine.sleep()
 
         self.touch(('Activities/activity/activity/activity.info', [
             '[Activity]',
@@ -77,7 +75,7 @@ class ActivitiesTest(tests.Test):
             'icon = activity-helloworld',
             'license = GPLv2+',
             ]))
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
         assert exists('activities/checkins/' + hashed_path)
@@ -90,7 +88,7 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkout(self):
-        self.job = gevent.spawn(activities.monitor, self.mounts)
+        self.job = coroutine.spawn(activities.monitor, self.mounts)
 
         self.mounts.home_volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
@@ -110,7 +108,7 @@ class ActivitiesTest(tests.Test):
             'icon = activity-helloworld',
             'license = GPLv2+',
             ]))
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
         assert exists('activities/checkins/' + hashed_path)
@@ -120,7 +118,7 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
         shutil.rmtree('Activities/activity')
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         assert not exists('activities/checkins/' + hashed_path)
         assert not exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)

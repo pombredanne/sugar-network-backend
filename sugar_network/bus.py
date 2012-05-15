@@ -14,17 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import json
+import socket
 import logging
 from contextlib import contextmanager
 from gettext import gettext as _
 
-import gevent
-from gevent import socket
-from gevent.queue import Queue
-
 from local_document import ipc, env
-from local_document.socket import SocketFile
-from active_document import util
+from local_document.sockets import SocketFile
+from active_document import util, coroutine
 
 
 _CONNECTION_POOL = 6
@@ -57,7 +54,7 @@ class Bus(object):
 
     def disconnect(self, callback):
         conn = Bus.connection
-        if callback in conn.subscriptions:
+        if conn is not None and callback in conn.subscriptions:
             del conn.subscriptions[callback]
 
     @staticmethod
@@ -106,7 +103,7 @@ class Bus(object):
 class _Connection(object):
 
     def __init__(self):
-        self._pool = Queue(maxsize=_CONNECTION_POOL)
+        self._pool = coroutine.Queue(maxsize=_CONNECTION_POOL)
         self._pool_size = 0
         self._subscribe_job = None
         self._subscriptions = {}
@@ -133,7 +130,7 @@ class _Connection(object):
             self._pool_size += 1
             ipc.rendezvous()
             # pylint: disable-msg=E1101
-            conn = socket.socket(socket.AF_UNIX)
+            conn = coroutine.socket(socket.AF_UNIX)
             conn.connect(env.ensure_path('run', 'accept'))
             _logger.debug('Open new IPC connection: %r', conn)
         try:
@@ -144,7 +141,7 @@ class _Connection(object):
     @property
     def subscriptions(self):
         if self._subscribe_job is None:
-            self._subscribe_job = gevent.spawn(self._subscribe)
+            self._subscribe_job = coroutine.spawn(self._subscribe)
         return self._subscriptions
 
     def _subscribe(self):
@@ -153,7 +150,7 @@ class _Connection(object):
         conn = _subscribe()
         try:
             while True:
-                socket.wait_read(conn.fileno())
+                coroutine.select([conn.fileno()], [], [])
                 event = conn.read_message()
                 if event is None:
                     break
@@ -168,6 +165,6 @@ class _Connection(object):
 def _subscribe():
     ipc.rendezvous()
     # pylint: disable-msg=E1101
-    conn = SocketFile(socket.socket(socket.AF_UNIX))
+    conn = SocketFile(coroutine.socket(socket.AF_UNIX))
     conn.connect(env.ensure_path('run', 'subscribe'))
     return conn

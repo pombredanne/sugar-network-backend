@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
-import gevent
 import gobject
 
 from __init__ import tests
@@ -10,7 +9,7 @@ from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
 import active_document as ad
-
+from active_document import coroutine
 from sugar_network.client import Client
 from sugar_network.glib_client import Client as GlibClient
 from local_document.bus import Server
@@ -18,26 +17,6 @@ from local_document.mounts import Mounts
 
 
 class GlibClientTest(tests.Test):
-
-    def setUp(self):
-        tests.Test.setUp(self)
-        self.server = None
-        self.mounts = None
-
-    def tearDown(self):
-        if self.server is not None:
-            self.server.stop()
-        tests.Test.tearDown(self)
-
-    def start_server(self):
-
-        def server():
-            self.server.serve_forever()
-
-        self.server = Server('local', [User, Context])
-        gevent.spawn(server)
-        gevent.sleep()
-        self.mounts = self.server._mounts
 
     def test_Find(self):
         self.start_server()
@@ -78,7 +57,7 @@ class GlibClientTest(tests.Test):
 
     def test_Events(self):
         self.fork(self.restful_server)
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         self.start_server()
         client = Client('~')
@@ -94,7 +73,7 @@ class GlibClientTest(tests.Test):
                 lambda sender, *args: events.append(('keep_impl',) + args))
         gobject.idle_add(mainloop.quit)
         mainloop.run()
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         guid = client.Context(
                 type='activity',

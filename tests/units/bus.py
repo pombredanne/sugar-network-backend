@@ -18,25 +18,6 @@ from sugar_network_server.resources.context import Context
 
 class IPCTest(tests.Test):
 
-    def setUp(self):
-        tests.Test.setUp(self)
-        self.calls = []
-
-    def start_server(self):
-
-        def server():
-            self.server.serve_forever()
-
-        def call(request, response):
-            if request.command == 'DELETE' and request.get('guid') == 'fake':
-                raise RuntimeError()
-            self.calls.append(dict(request))
-
-        self.server = Server('local', [])
-        self.server._mounts.call = call
-        gevent.spawn(server)
-        gevent.sleep()
-
     def test_Rendezvous(self):
 
         def server():
@@ -54,25 +35,33 @@ class IPCTest(tests.Test):
 
     def test_Exception(self):
         self.start_server()
+
+        def call_handle(request, response):
+            raise RuntimeError()
+
+        self.mounts.call = call_handle
+
         client = Client('/')
         self.assertRaises(ServerError, client.Resource.delete, 'fake')
 
     def test_ConsecutiveRequests(self):
         self.start_server()
+        calls = []
+        self.mounts.call = lambda request, response: calls.append(dict(request))
 
         client_._CONNECTION_POOL = 3
 
-        def call(client, i, n):
+        def caller(client, i, n):
             getattr(client, 'Resource%s' % i).delete('wait%s%s' % (i, n))
 
         ts = time.time()
         clients = [Client('/'), Client('/'), Client('/')]
-        calls = []
+        call_jobs = []
         for i, client in enumerate(clients):
             for n in range(9):
-                calls.append(gevent.spawn(call, client, i, n))
+                call_jobs.append(gevent.spawn(caller, client, i, n))
 
-        gevent.joinall(calls)
+        gevent.joinall(call_jobs)
         assert time.time() - ts < 4
 
         standard = []
@@ -81,7 +70,7 @@ class IPCTest(tests.Test):
                 standard.append({'mountpoint': '/', 'guid': 'wait%s%s' % (i, n), 'document': 'resource%s' % i})
         self.assertEqual(
                 sorted(standard),
-                sorted(self.calls))
+                sorted(calls))
 
 
 if __name__ == '__main__':

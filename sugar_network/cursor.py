@@ -17,10 +17,8 @@ import logging
 import collections
 from gettext import gettext as _
 
-from gevent.event import Event
-
 from sugar_network.objects import Object
-from active_document import util, enforce
+from active_document import coroutine, util, enforce
 
 
 _QUERY_PAGES_NUMBER = 2
@@ -236,7 +234,7 @@ class Cursor(object):
 class _WaitSession(object):
 
     def __init__(self):
-        self._signal = Event()
+        self._signal = coroutine.Event()
         self._users = 0
         self._queue = collections.deque()
 

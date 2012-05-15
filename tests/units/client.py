@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
-import gevent
-
 from __init__ import tests
 
 from sugar_network_server.resources.user import User
@@ -10,6 +8,7 @@ from sugar_network_server.resources.context import Context
 
 import active_document as ad
 
+from active_document import coroutine
 from sugar_network.client import Client
 from sugar_network.bus import Bus
 from local_document.bus import Server
@@ -18,26 +17,6 @@ from local_document import mounts
 
 
 class ClientTest(tests.Test):
-
-    def setUp(self):
-        tests.Test.setUp(self)
-        self.server = None
-        self.mounts = None
-
-    def tearDown(self):
-        if self.server is not None:
-            self.server.stop()
-        tests.Test.tearDown(self)
-
-    def start_server(self):
-
-        def server():
-            self.server.serve_forever()
-
-        self.server = Server('local', [User, Context])
-        gevent.spawn(server)
-        gevent.sleep()
-        self.mounts = self.server._mounts
 
     def test_RealtimeUpdates(self):
         self.start_server()
@@ -54,18 +33,18 @@ class ClientTest(tests.Test):
 
         cursor_1 = client_1.Context.cursor(reply=['guid', 'title'])
         self.assertEqual(0, cursor_1.total)
-        gevent.spawn(waiter, cursor_1, events_1)
+        coroutine.spawn(waiter, cursor_1, events_1)
 
         cursor_2 = client_2.Context.cursor(reply=['guid', 'title'])
         self.assertEqual(0, cursor_2.total)
-        gevent.spawn(waiter, cursor_2, events_2)
+        coroutine.spawn(waiter, cursor_2, events_2)
 
         guid_1 = client_1.Context(
                 type='activity',
                 title='title',
                 summary='summary',
                 description='description').post()
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([None], events_1)
         self.assertEqual([None], events_2)
         self.assertEqual(
@@ -80,7 +59,7 @@ class ClientTest(tests.Test):
                 sorted([(i['guid'], i['title']) for i in cursor_2]))
 
         client_1.Context(guid_1, title='title-2').post()
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([None], events_1[1:])
         self.assertEqual([None], events_2[1:])
         self.assertEqual(
@@ -99,7 +78,7 @@ class ClientTest(tests.Test):
                 title='title-3',
                 summary='summary',
                 description='description').post()
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([None], events_1[2:])
         self.assertEqual([None], events_2[2:])
         self.assertEqual(
@@ -116,7 +95,7 @@ class ClientTest(tests.Test):
                 sorted([(i['guid'], i['title']) for i in cursor_2]))
 
         client_2.Context(guid_2, title='title-4').post()
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([None], events_1[3:])
         self.assertEqual([None], events_2[3:])
         self.assertEqual(
@@ -133,7 +112,7 @@ class ClientTest(tests.Test):
                 sorted([(i['guid'], i['title']) for i in cursor_2]))
 
         client_1.Context.delete(guid_1)
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([None], events_1[4:])
         self.assertEqual([None], events_2[4:])
         self.assertEqual(
@@ -148,7 +127,7 @@ class ClientTest(tests.Test):
                 sorted([(i['guid'], i['title']) for i in cursor_2]))
 
         client_2.Context.delete(guid_2)
-        gevent.sleep(.1)
+        coroutine.sleep(.1)
         self.assertEqual([None], events_1[5:])
         self.assertEqual([None], events_2[5:])
         self.assertEqual(
@@ -171,29 +150,29 @@ class ClientTest(tests.Test):
                 events.append(i)
 
         events_1 = []
-        gevent.spawn(waiter, cursor, events_1)
-        gevent.sleep()
+        coroutine.spawn(waiter, cursor, events_1)
+        coroutine.sleep()
 
         events_2 = []
-        gevent.spawn(waiter, cursor, events_2)
-        gevent.sleep()
+        coroutine.spawn(waiter, cursor, events_2)
+        coroutine.sleep()
 
         guid = client.Context(
                 type='activity',
                 title='title',
                 summary='summary',
                 description='description').post()
-        gevent.sleep()
+        coroutine.sleep()
 
         self.assertEqual([], events_1)
         self.assertEqual([None], events_2)
 
         events_3 = []
-        gevent.spawn(waiter, cursor, events_3)
-        gevent.sleep()
+        coroutine.spawn(waiter, cursor, events_3)
+        coroutine.sleep()
 
         client.Context(guid, title='title-1').post()
-        gevent.sleep()
+        coroutine.sleep()
 
         self.assertEqual([], events_1)
         self.assertEqual([None], events_2)
@@ -238,7 +217,7 @@ class ClientTest(tests.Test):
         mounts._RECONNECTION_TIMEOUT = .1
 
         def remote_server():
-            gevent.sleep(1)
+            coroutine.sleep(1)
             self.restful_server()
 
         pid = self.fork(self.restful_server)
@@ -253,17 +232,17 @@ class ClientTest(tests.Test):
             for i in cursor.read_events():
                 events.append(i)
 
-        gevent.spawn(waiter)
-        gevent.sleep(.5)
+        coroutine.spawn(waiter)
+        coroutine.sleep(.5)
 
         self.assertEqual([], events)
 
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         self.assertEqual([None], events)
 
         self.waitpid(pid)
-        gevent.sleep(1)
+        coroutine.sleep(1)
 
         self.assertEqual([None, None], events)
 
@@ -277,7 +256,7 @@ class ClientTest(tests.Test):
         bus.publish('probe', payload=1)
         bus.publish('probe', payload=2)
         bus.publish('probe', payload=3)
-        gevent.sleep()
+        coroutine.sleep()
 
         self.assertEqual([
             {'payload': 1, 'event': 'probe'},

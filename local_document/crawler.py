@@ -18,9 +18,7 @@ import logging
 from os.path import join, exists, isdir, dirname
 from gettext import gettext as _
 
-import gevent
-from gevent.select import select
-
+from active_document import coroutine
 from local_document.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
         IN_MOVED_TO, IN_MOVED_FROM
@@ -38,7 +36,7 @@ def dispatch(paths, found_cb, lost_cb):
             roots.append(_Root(monitor, path))
 
         while True:
-            select([monitor.fd], [], [])
+            coroutine.select([monitor.fd], [], [])
             if monitor.closed:
                 break
             for filename, event, cb in monitor.dispatch():
@@ -47,7 +45,7 @@ def dispatch(paths, found_cb, lost_cb):
                 except Exception:
                     util.exception(_('Cannot dispatch 0x%X event for %r'),
                             event, filename)
-                gevent.sleep()
+                coroutine.dispatch()
 
 
 class _Inotify(Inotify):

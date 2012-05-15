@@ -20,14 +20,12 @@ import logging
 from os.path import join, dirname, exists
 from gettext import gettext as _
 
-import gevent
-from gevent import socket
 from requests import ConnectionError
 
 import active_document as ad
-from active_document import SingleVolume, util, enforce
 from local_document import cache, sugar, http, env
-from local_document.socket import SocketFile
+from local_document.sockets import SocketFile
+from active_document import SingleVolume, util, coroutine, enforce
 
 
 _HOME_PROPS = {
@@ -191,7 +189,7 @@ class _RemoteMount(_Mount):
     def __init__(self, mountpoint, volume, events_callback):
         _Mount.__init__(self, mountpoint, events_callback)
         self._home_volume = volume
-        self._events_job = gevent.spawn(self._events_listerner)
+        self._events_job = coroutine.spawn(self._events_listerner)
         self._connected = False
 
     @property
@@ -284,14 +282,14 @@ class _RemoteMount(_Mount):
             subscription = http.request('POST', [''],
                     params={'cmd': 'subscribe'},
                     headers={'Content-Type': 'application/json'})
-            conn = SocketFile(socket.socket())
+            conn = SocketFile(coroutine.socket())
             conn.connect((subscription['host'], subscription['port']))
             conn = SocketFile(conn)
             conn.write_message({'ticket': subscription['ticket']})
             return conn
 
         def dispatch(conn):
-            socket.wait_read(conn.fileno())
+            coroutine.select([conn.fileno()], [], [])
             event = conn.read_message()
             if event is None:
                 return False
@@ -305,7 +303,7 @@ class _RemoteMount(_Mount):
                 _logger.debug('Cannot connect to remote server, ' \
                         'wait for %r seconds: %s',
                         _RECONNECTION_TIMEOUT, error)
-                gevent.sleep(_RECONNECTION_TIMEOUT)
+                coroutine.sleep(_RECONNECTION_TIMEOUT)
                 continue
 
             _logger.info(_('Connected to remote server'))

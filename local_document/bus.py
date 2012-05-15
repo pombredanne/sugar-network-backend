@@ -15,18 +15,15 @@
 
 import os
 import json
+import socket
 import logging
 from os.path import exists
 from gettext import gettext as _
 
-import gevent
-from gevent import socket
-from gevent.server import StreamServer
-
 from local_document import ipc, env, activities
-from local_document.socket import SocketFile
+from local_document.sockets import SocketFile
 from local_document.mounts import Mounts
-from active_document import Request, Response, util
+from active_document import Request, Response, util, coroutine
 
 
 _logger = logging.getLogger('local_document.server')
@@ -39,16 +36,16 @@ class Server(object):
         self._mounts = Mounts(root, resources, self._publish_event)
         self._acceptor = _start_server('accept', self._serve_client)
         self._subscriber = _start_server('subscribe', self._serve_subscription)
-        self._monitor = gevent.spawn(activities.monitor, self._mounts)
+        self._monitor = coroutine.spawn(activities.monitor, self._mounts)
 
     def serve_forever(self):
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
         rendezvous = ipc.rendezvous(server=True)
         try:
-            gevent.joinall([
-                gevent.spawn(self._acceptor.serve_forever),
-                gevent.spawn(self._subscriber.serve_forever),
+            coroutine.joinall([
+                coroutine.spawn(self._acceptor.serve_forever),
+                coroutine.spawn(self._subscriber.serve_forever),
                 ])
         except KeyboardInterrupt:
             pass
@@ -117,7 +114,7 @@ def _start_server(name, serve_cb):
         os.unlink(accept_path)
 
     # pylint: disable-msg=E1101
-    accept = socket.socket(socket.AF_UNIX)
+    accept = coroutine.socket(socket.AF_UNIX)
     accept.bind(accept_path)
     accept.listen(5)
 
@@ -132,4 +129,4 @@ def _start_server(name, serve_cb):
             if not do_not_close:
                 conn_file.close()
 
-    return StreamServer(accept, connection_cb)
+    return coroutine.Server(accept, connection_cb)
