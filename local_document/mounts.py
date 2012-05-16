@@ -19,8 +19,6 @@ import logging
 from os.path import isabs, exists
 from gettext import gettext as _
 
-from requests import ConnectionError
-
 import zerosugar
 import active_document as ad
 from local_document import activities, cache, sugar, http, env
@@ -290,7 +288,7 @@ class _RemoteMount(_Mount):
         while True:
             try:
                 conn = connect()
-            except ConnectionError, error:
+            except Exception, error:
                 _logger.debug('Cannot connect to remote server, ' \
                         'wait for %r seconds: %s',
                         _RECONNECTION_TIMEOUT, error)
