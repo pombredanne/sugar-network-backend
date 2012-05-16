@@ -22,7 +22,7 @@ import signal
 import shutil
 import logging
 import threading
-from os.path import join, exists, basename
+from os.path import join, exists, basename, isabs
 from gettext import gettext as _
 
 from zeroinstall.injector import model
@@ -216,7 +216,8 @@ def _make(context, command):
             impl_path = join(impl_path, dl.extract)
         sel.local_path = impl_path
 
-    _progress('stat', implementation=solution.top.id)
+    if not isabs(solution.top.id):
+        _progress('stat', implementation=solution.top.id)
 
     return solution
 
