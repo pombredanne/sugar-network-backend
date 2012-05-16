@@ -99,6 +99,21 @@ class StorageTest(tests.Test):
         storage.put('guid', {'seqno': 5, 'guid': 'guid'})
         self.assertEqual(True, storage.set_blob(6, 'guid', 'blob', stream))
 
+    def test_BLOBsByPaths(self):
+        storage = self.storage([])
+
+        self.touch(('file1', 'data1'))
+        storage.set_blob(1, 'guid', 'blob', 'file1')
+
+        path = storage.get_blob('guid', 'blob')
+        self.assertEqual('data1', file(path).read())
+
+        self.touch(('file1', 'data2'))
+        storage.set_blob(1, 'guid', 'blob', 'file1')
+
+        path = storage.get_blob('guid', 'blob')
+        self.assertEqual('data2', file(path).read())
+
     def test_diff(self):
         storage = self.storage([
             ActiveProperty('prop_1', slot=1),

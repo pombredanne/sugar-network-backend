@@ -155,7 +155,7 @@ class Storage(object):
         if exists(path):
             return path
 
-    def set_blob(self, seqno, guid, name, stream, size=None):
+    def set_blob(self, seqno, guid, name, data, size=None):
         """Write the content of document's BLOB property.
 
         :param seqno:
@@ -164,15 +164,15 @@ class Storage(object):
             document's GUID to receive
         :param name:
             BLOB property name
-        :param stream:
-            stream to read BLOB property content from
+        :param data:
+            stream to read BLOB content or path to file to copy
         :param size:
             read only specified number of bytes; otherwise, read until the EOF
         :returns:
             `True` if document existed before
 
         """
-        self._set_blob(guid, name, stream, size, seqno)
+        self._set_blob(guid, name, data, size, seqno)
         return _is_document(self._path(guid))
 
     def stat_blob(self, guid, name):
@@ -287,37 +287,41 @@ class Storage(object):
 
         return path
 
-    def _set_blob(self, guid, name, stream, size, seqno, mtime=None):
-        if size is None:
-            size = sys.maxint
-        final_size = 0
-        digest = hashlib.sha1()
+    def _set_blob(self, guid, name, data, size, seqno, mtime=None):
         path = self._ensure_path(False, guid, name)
+        digest = hashlib.sha1()
 
-        try:
+        def read_from_stream(stream, size):
+            if size is None:
+                size = sys.maxint
             with util.new_file(path) as f:
                 while size > 0:
                     chunk = stream.read(min(size, _PAGE_SIZE))
                     if len(chunk) == 0:
                         break
                     f.write(chunk)
-                    final_size += len(chunk)
                     size -= len(chunk)
                     digest.update(chunk)
-            if mtime:
-                os.utime(path, (mtime, mtime))
-            with util.new_file(path + '.sha1') as f:
-                f.write(digest.hexdigest())
-            _touch_seqno(path, seqno)
+
+        try:
+            if hasattr(data, 'read'):
+                read_from_stream(data, size)
+            else:
+                util.cptree(data, path)
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Cannot receive BLOB %r property ' \
                     'of %r in %r: %s') % \
                     (name, guid, self.metadata.name, error))
 
+        if mtime:
+            os.utime(path, (mtime, mtime))
+        with util.new_file(path + '.sha1') as f:
+            f.write(digest.hexdigest())
+        _touch_seqno(path, seqno)
+
         _logger.debug('Received %r BLOB property from %r document in %r',
                 name, guid, self.metadata.name)
-        return final_size
 
     def _write_property(self, guid, name, value, seqno=None, mtime=None):
         if name == 'seqno':
