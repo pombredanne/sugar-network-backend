@@ -31,6 +31,8 @@ class InjectorTest(tests.Test):
             ('failure', {
                 'log_path': tests.tmpdir +  '/.sugar/default/logs/%s.log' % context,
                 'error': "Interface '%s' has no usable implementations" % context,
+                'mountpoint': '~',
+                'context': context,
                 }),
             ],
             [i for i in pipe])
@@ -69,6 +71,8 @@ class InjectorTest(tests.Test):
             ('failure', {
                 'log_path': tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context,
                 'error': 'Cannot download bundle',
+                'mountpoint': '~',
+                'context': context,
                 }),
             ],
             [i for i in pipe])
@@ -105,6 +109,8 @@ class InjectorTest(tests.Test):
             ('failure', {
                 'log_path': tests.tmpdir +  '/.sugar/default/logs/%s.log' % context,
                 'error': "Interface '%s' has no usable implementations" % context,
+                'mountpoint': '~',
+                'context': context,
                 }),
             ],
             [i for i in pipe])
@@ -143,6 +149,8 @@ class InjectorTest(tests.Test):
             ('failure', {
                 'log_path': tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context,
                 'error': 'Cannot download bundle',
+                'mountpoint': '~',
+                'context': context,
                 }),
             ],
             [i for i in pipe])
@@ -162,6 +170,8 @@ class InjectorTest(tests.Test):
                 'implementation': impl,
                 'log_path': tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context,
                 'error': 'Exited with status 1',
+                'mountpoint': '~',
+                'context': context,
                 }),
             ],
             [i for i in pipe])

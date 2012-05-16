@@ -127,9 +127,11 @@ def _fork(callback, mountpoint, context, *args):
     Bus.connection = None
 
     def thread_func():
-        _setup_logging(context)
-        config.client = Client(mountpoint)
+        log_path = _setup_logging(context)
+        _progress('stat', log_path=log_path, mountpoint=mountpoint,
+                context=context)
 
+        config.client = Client(mountpoint)
         try:
             callback(mountpoint, context, *args)
         except Exception, error:
@@ -246,7 +248,6 @@ def _setup_logging(context):
     if not exists(log_dir):
         os.makedirs(log_dir)
     path = util.unique_filename(log_dir, context + '.log')
-    _progress('stat', log_path=path)
 
     def stdfd(stream):
         if hasattr(stream, 'fileno'):
@@ -273,6 +274,8 @@ def _setup_logging(context):
         root_logger.removeHandler(handler)
     logging.basicConfig(level=level,
             format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+
+    return path
 
 
 def _decode_exit_failure(status):
