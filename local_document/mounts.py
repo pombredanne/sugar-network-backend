@@ -13,8 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import shutil
 import logging
+from os.path import isabs, exists
 from gettext import gettext as _
 
 from requests import ConnectionError
@@ -104,10 +106,29 @@ class _LocalMount(_Mount):
         pass
 
     def call(self, request, response):
-        if request.command == 'get_blob':
-            return self._get_blob(**request)
+        request.remote = False
         request.principal = None
+
+        if request.command == 'upload_blob':
+            return self._upload_blob(request, response)
+
+        if request.command == 'get_blob':
+            request.command = ('GET', 'stat-blob')
+
         return ad.call(self._volume, request, response)
+
+    def _upload_blob(self, request, response):
+        path = request.pop('path')
+        pass_ownership = request.pop('pass_ownership')
+        enforce(isabs(path), _('Path is not absolute'))
+
+        try:
+            request.command = 'PUT'
+            request.content_stream = path
+            return ad.call(self._volume, request, response)
+        finally:
+            if pass_ownership and exists(path):
+                os.unlink(path)
 
     def __events_cb(self, event):
         self.emit(event)
@@ -132,12 +153,6 @@ class _LocalMount(_Mount):
             event['mountpoint'] = '/'
             event['event'] = 'update'
             self.emit(event)
-
-    def _get_blob(self, document, guid, prop):
-        stat = self._volume[document].stat_blob(guid, prop)
-        if stat is None:
-            return None
-        return {'path': stat['path'], 'mime_type': stat['mime_type']}
 
     def _checkout(self, guid):
         for path in activities.checkins(guid):
@@ -170,6 +185,8 @@ class _RemoteMount(_Mount):
     def call(self, request, response):
         if request.command == 'get_blob':
             return self._get_blob(**request)
+        elif request.command == 'upload_blob':
+            return self._upload_blob(**request)
 
         enforce(self.connected, env.Offline, _('No connection to server'))
 
@@ -241,6 +258,14 @@ class _RemoteMount(_Mount):
             return None
         else:
             return {'path': path, 'mime_type': mime_type}
+
+    def _upload_blob(self, document, guid, prop, path, pass_ownership=False):
+        try:
+            with file(path, 'rb') as f:
+                http.request('PUT', [document, guid, prop], files={'file': f})
+        finally:
+            if pass_ownership and exists(path):
+                os.unlink(path)
 
     def _events_listerner(self):
 

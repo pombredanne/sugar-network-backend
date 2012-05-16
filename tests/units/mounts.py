@@ -4,7 +4,7 @@
 import time
 import json
 import socket
-from os.path import join
+from os.path import join, exists
 
 from __init__ import tests
 
@@ -111,6 +111,25 @@ class MountsTest(tests.Test):
                     (guid_3, 'title_3', False, False, [-1, -1]),
                     ]),
                 sorted([(i['guid'], i['title'], i['keep'], i['keep_impl'], i['position']) for i in cursor]))
+
+    def test_OfflineMount_upload_blob(self):
+        self.start_server()
+        local = Client('~')
+
+        guid = local.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+
+        self.touch(('file', 'blob'))
+        local.Context(guid).upload_blob('preview', 'file')
+        self.assertEqual('blob', local.Context(guid).get_blob('preview').read())
+
+        self.touch(('file2', 'blob2'))
+        local.Context(guid).upload_blob('preview', 'file2', pass_ownership=True)
+        self.assertEqual('blob2', local.Context(guid).get_blob('preview').read())
+        assert not exists('file2')
 
     def test_OnlineMount_GetKeep(self):
         self.start_ipc_and_restful_server()
@@ -374,6 +393,26 @@ class MountsTest(tests.Test):
                 {'mountpoint': '/', 'event': 'disconnect', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
+
+    def test_OnlineMount_upload_blob(self):
+        self.start_ipc_and_restful_server()
+        remote = Client('/')
+
+        guid = remote.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+
+        self.touch(('file', 'blob'))
+        remote.Context(guid).upload_blob('preview', 'file')
+        self.assertEqual('blob', remote.Context(guid).get_blob('preview').read())
+
+        self.touch(('file2', 'blob2'))
+        remote.Context(guid).upload_blob('preview', 'file2', pass_ownership=True)
+        # TODO Enable after implementing feature to stale BLOB's cache
+        #self.assertEqual('blob2', remote.Context(guid).get_blob('preview').read())
+        assert not exists('file2')
 
 
 if __name__ == '__main__':

@@ -15,7 +15,7 @@
 
 import json
 import logging
-from os.path import isdir
+from os.path import isdir, abspath
 from gettext import gettext as _
 
 from local_document import sugar
@@ -119,6 +119,11 @@ class Object(object):
     def set_blob_by_url(self, prop, url):
         enforce(self._guid, _('Object needs to be posted first'))
         self._bus.send('PUT', guid=self._guid, prop=prop, url=url)
+
+    def upload_blob(self, prop, path, pass_ownership=False):
+        enforce(self._guid, _('Object needs to be posted first'))
+        self._bus.send('upload_blob', guid=self._guid, prop=prop,
+                path=abspath(path), pass_ownership=pass_ownership)
 
     def __getitem__(self, prop):
         result = self.get(prop)
