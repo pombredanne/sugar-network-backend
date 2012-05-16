@@ -11,6 +11,7 @@
 - aslo_sync server errors
 - do not sync objects that were created and deleted before syncing
 - direct access to layers=deleted should be failed
+- escape fs paths in GUIDs, at least for storage.py
 
 0.3
 ===

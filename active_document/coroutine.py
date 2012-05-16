@@ -17,6 +17,7 @@
 
 import gevent
 import gevent.pool
+import gevent.hub
 
 
 #: Process one events loop round.
@@ -28,6 +29,10 @@ sleep = gevent.sleep
 #: Wait for the spawned events to finish.
 joinall = gevent.joinall
 
+# Avoid using async DNS resolver, c-ares fails on XO-1 on Fedora-14
+# with ARES_ECONNREFUSED error; in any case, resolving is not an issue
+# for Sugar Network workflow
+gevent.hub.Hub.resolver_class = ['gevent.socket.BlockingResolver']
 
 _group = gevent.pool.Group()
 
