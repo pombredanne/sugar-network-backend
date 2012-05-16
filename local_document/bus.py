@@ -26,7 +26,7 @@ from local_document.mounts import Mounts
 from active_document import Request, Response, util, coroutine
 
 
-_logger = logging.getLogger('local_document.server')
+_logger = logging.getLogger('local_document.bus')
 
 
 class Server(object):

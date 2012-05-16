@@ -38,7 +38,7 @@ def get_cached_blob(document, guid, prop):
     with file(mime_path) as f:
         mime_type = f.read().strip()
 
-    if not os.stat(path).st_size:
+    if not isdir(path) and os.stat(path).st_size == 0:
         path = None
 
     return path, mime_type
