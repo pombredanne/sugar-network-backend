@@ -86,7 +86,10 @@ class _Mount(object):
             return
         if 'mountpoint' not in event:
             event['mountpoint'] = self.mountpoint
-        callback(event)
+        try:
+            callback(event)
+        except Exception:
+            util.exception(_logger, _('Failed to dispatch %r event'), event)
 
 
 class _LocalMount(_Mount):
