@@ -122,6 +122,7 @@ class Request(dict):
     content_stream = None
     content_length = None
     principal = ANONYMOUS
+    remote = True
 
     def __getitem__(self, key):
         enforce(key in self, _('Cannot find %r request argument'), key)

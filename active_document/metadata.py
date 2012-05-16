@@ -129,7 +129,7 @@ class Metadata(dict):
 class Property(object):
     """Bacis class to collect information about document property."""
 
-    def __init__(self, name, permissions=env.ACCESS_FULL, typecast=None,
+    def __init__(self, name, permissions=env.ACCESS_PUBLIC, typecast=None,
             reprcast=None, default=None):
         self.setter = None
         self.on_get = None
@@ -284,7 +284,7 @@ class BlobProperty(Property):
 
     """
 
-    def __init__(self, name, permissions=env.ACCESS_FULL,
+    def __init__(self, name, permissions=env.ACCESS_PUBLIC,
             mime_type='application/octet-stream'):
         Property.__init__(self, name, permissions=permissions)
         self._mime_type = mime_type

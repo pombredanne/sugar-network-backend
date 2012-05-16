@@ -19,7 +19,7 @@ import urllib2
 import inspect
 import logging
 from functools import partial
-from os.path import exists, basename, join
+from os.path import exists, basename, join, abspath
 from gettext import gettext as _
 
 from active_document import env, coroutine
@@ -41,11 +41,11 @@ class _Volume(dict):
     def __init__(self, root, document_classes, index_class, extra_props):
         self._signal = None
 
-        self._root = root
+        self._root = abspath(root)
         if not exists(root):
             os.makedirs(root)
 
-        _logger.info(_('Opening documents in %r'), root)
+        _logger.info(_('Opening documents in %r'), self._root)
 
         if type(document_classes) not in (tuple, list):
             document_classes = _walk_classes(document_classes)
@@ -55,7 +55,7 @@ class _Volume(dict):
 
         for cls in document_classes:
             name = cls.__name__.lower()
-            directory = Directory(join(root, name), cls, index_class,
+            directory = Directory(join(self._root, name), cls, index_class,
                     extra_props.get(name),
                     partial(self._notification_cb, document=name))
             self[name] = directory
@@ -219,13 +219,16 @@ def _get(directory, document, response, prop=None, reply=None):
 
 
 @document_command(method='GET', cmd='stat-blob')
-def _stat_blob(directory, document, prop=None):
+def _stat_blob(directory, document, request, prop=None):
     enforce(prop is not None, _('No BLOB property specified'))
     directory.metadata[prop].assert_access(env.ACCESS_READ)
     stat = directory.stat_blob(document.guid, prop)
     if not stat:
         return None
-    return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
+    if request.remote:
+        return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
+    else:
+        return stat
 
 
 def _to_int(name, value):

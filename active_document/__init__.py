@@ -20,7 +20,7 @@ from active_document.util import enforce
 from active_document.document import Document
 
 from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
-        ACCESS_DELETE, ACCESS_AUTHOR, ACCESS_FULL, ACCESS_AUTH, \
+        ACCESS_DELETE, ACCESS_AUTHOR, ACCESS_AUTH, ACCESS_PUBLIC, \
         index_flush_timeout, index_flush_threshold, \
         index_write_queue, find_limit, \
         NotFound, Forbidden, Unauthorized, Redirect
