@@ -41,10 +41,10 @@ _pipe = None
 
 class Pipe(object):
 
-    def __init__(self, pid, fd, log_path):
+    def __init__(self, pid, fd):
         self._pid = pid
         self._file = os.fdopen(fd)
-        self.log_path = log_path
+        self._stat = {}
 
     def fileno(self):
         return self._file.fileno()
@@ -54,7 +54,10 @@ class Pipe(object):
         if event:
             event = json.loads(event)
             phase = event.pop('phase')
-            return phase, event
+            if not self._process_inernals(phase, event):
+                return phase, event
+            else:
+                return None, None
 
         fin = self._finalize()
         if fin is not None:
@@ -72,13 +75,21 @@ class Pipe(object):
                     break
                 event = json.loads(event)
                 phase = event.pop('phase')
-                yield phase, event
+                if not self._process_inernals(phase, event):
+                    yield phase, event
                 if phase == 'exec':
                     break
 
             fin = self._finalize()
             if fin is not None:
                 yield fin
+
+    def _process_inernals(self, phase, props):
+        if phase == 'stat':
+            self._stat.update(props)
+            return True
+        elif phase == 'failure':
+            props.update(self._stat)
 
     def _finalize(self):
         try:
@@ -88,7 +99,8 @@ class Pipe(object):
 
         failure = _decode_exit_failure(status)
         if failure:
-            return 'failure', {'error': failure}
+            self._stat['error'] = failure
+            return 'failure', self._stat
 
 
 def launch(mountpoint, context, command='activity', args=None):
@@ -100,17 +112,12 @@ def checkin(mountpoint, context, command='activity'):
 
 
 def _fork(callback, mountpoint, context, *args):
-    log_dir = sugar.profile_path('logs')
-    if not exists(log_dir):
-        os.makedirs(log_dir)
-    log_path = util.unique_filename(log_dir, context + '.log')
-
     fd_r, fd_w = os.pipe()
 
     pid = os.fork()
     if pid:
         os.close(fd_w)
-        return Pipe(pid, fd_r, log_path)
+        return Pipe(pid, fd_r)
 
     os.close(fd_r)
     global _pipe
@@ -120,7 +127,7 @@ def _fork(callback, mountpoint, context, *args):
     Bus.connection = None
 
     def thread_func():
-        _setup_logging(log_path)
+        _setup_logging(context)
         config.client = Client(mountpoint)
 
         try:
@@ -207,6 +214,8 @@ def _make(context, command):
             impl_path = join(impl_path, dl.extract)
         sel.local_path = impl_path
 
+    _progress('stat', implementation=solution.top.id)
+
     return solution
 
 
@@ -232,7 +241,12 @@ def _activity_env(selection, environ):
     os.chdir(selection.local_path)
 
 
-def _setup_logging(path):
+def _setup_logging(context):
+    log_dir = sugar.profile_path('logs')
+    if not exists(log_dir):
+        os.makedirs(log_dir)
+    path = util.unique_filename(log_dir, context + '.log')
+    _progress('stat', log_path=path)
 
     def stdfd(stream):
         if hasattr(stream, 'fileno'):
