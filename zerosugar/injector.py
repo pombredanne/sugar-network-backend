@@ -41,21 +41,27 @@ _pipe = None
 
 class Pipe(object):
 
-    def __init__(self, pid, fd):
+    def __init__(self, pid, fd, log_path):
         self._pid = pid
         self._file = os.fdopen(fd)
+        self.log_path = log_path
 
     def fileno(self):
         return self._file.fileno()
 
     def read(self):
         event = self._file.readline()
-        if not event:
-            self._file.close()
-            return None
-        event = json.loads(event)
-        phase = event.pop('phase')
-        return phase, event
+        if event:
+            event = json.loads(event)
+            phase = event.pop('phase')
+            return phase, event
+
+        fin = self._finalize()
+        if fin is not None:
+            return fin
+
+        self._file.close()
+        return None
 
     def __iter__(self):
         with self._file as f:
@@ -70,13 +76,19 @@ class Pipe(object):
                 if phase == 'exec':
                     break
 
-            try:
-                __, status = os.waitpid(self._pid, 0)
-                failure = _decode_exit_failure(status)
-                if failure:
-                    yield 'failure', {'error': failure}
-            except OSError:
-                pass
+            fin = self._finalize()
+            if fin is not None:
+                yield fin
+
+    def _finalize(self):
+        try:
+            __, status = os.waitpid(self._pid, 0)
+        except OSError:
+            return None
+
+        failure = _decode_exit_failure(status)
+        if failure:
+            return 'failure', {'error': failure}
 
 
 def launch(mountpoint, context, command='activity', args=None):
@@ -87,13 +99,18 @@ def checkin(mountpoint, context, command='activity'):
     return _fork(_checkin, mountpoint, context, command)
 
 
-def _fork(callback, *args):
+def _fork(callback, mountpoint, context, *args):
+    log_dir = sugar.profile_path('logs')
+    if not exists(log_dir):
+        os.makedirs(log_dir)
+    log_path = util.unique_filename(log_dir, context + '.log')
+
     fd_r, fd_w = os.pipe()
 
     pid = os.fork()
     if pid:
         os.close(fd_w)
-        return Pipe(pid, fd_r)
+        return Pipe(pid, fd_r, log_path)
 
     os.close(fd_r)
     global _pipe
@@ -102,8 +119,18 @@ def _fork(callback, *args):
     from sugar_network.bus import Bus
     Bus.connection = None
 
+    def thread_func():
+        _setup_logging(log_path)
+        config.client = Client(mountpoint)
+
+        try:
+            callback(mountpoint, context, *args)
+        except Exception, error:
+            util.exception(_logger)
+            _progress('failure', error=str(error))
+
     # To avoid execution current thread coroutine
-    thread = threading.Thread(target=callback, args=args)
+    thread = threading.Thread(target=thread_func)
     thread.start()
     thread.join()
 
@@ -114,51 +141,36 @@ def _fork(callback, *args):
 
 
 def _launch(mountpoint, context, command, args):
-    _setup_logging(context)
-    config.client = Client(mountpoint)
-
     if args is None:
         args = []
 
-    try:
-        solution = _make(context, command)
-        cmd = solution.commands[0]
-        args = cmd.path.split() + args
+    solution = _make(context, command)
+    cmd = solution.commands[0]
+    args = cmd.path.split() + args
 
-        _logger.info(_('Executing %s: %s'), solution.interface, args)
-        _progress('exec')
+    _logger.info(_('Executing %s: %s'), solution.interface, args)
+    _progress('exec')
 
-        if command == 'activity':
-            _activity_env(solution.top, os.environ)
-        os.execvpe(args[0], args, os.environ)
-
-    except Exception, error:
-        util.exception(_logger)
-        _progress('failure', error=str(error))
-    finally:
-        os._exit(0)
+    if command == 'activity':
+        _activity_env(solution.top, os.environ)
+    os.execvpe(args[0], args, os.environ)
 
 
 def _checkin(mountpoint, context, command):
-    _setup_logging(context)
-    config.client = Client(mountpoint)
+    solution = _make(context, command)
 
     checkedin = []
     try:
-        solution = _make(context, command)
         for sel, __, __ in solution.walk():
             dst_path = util.unique_filename(
                     env.activities_root.value, basename(sel.local_path))
             checkedin.append(dst_path)
             _logger.info(_('Checkin implementation to %r'), dst_path)
             util.cptree(sel.local_path, dst_path)
-    except Exception, error:
+    except Exception:
         while checkedin:
             shutil.rmtree(checkedin.pop(), ignore_errors=True)
-        util.exception(_logger)
-        _progress('failure', error=str(error))
-    finally:
-        os._exit(0)
+        raise
 
 
 def _progress(phase, **kwargs):
@@ -220,11 +232,7 @@ def _activity_env(selection, environ):
     os.chdir(selection.local_path)
 
 
-def _setup_logging(context):
-    logs_dir = sugar.profile_path('logs')
-    if not exists(logs_dir):
-        os.makedirs(logs_dir)
-    path = util.unique_filename(logs_dir, context + '.log')
+def _setup_logging(path):
 
     def stdfd(stream):
         if hasattr(stream, 'fileno'):
