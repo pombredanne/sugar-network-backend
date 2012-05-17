@@ -161,9 +161,21 @@ class _LocalMount(_Mount):
             shutil.rmtree(path)
 
     def _checkin(self, guid):
-        for __ in zerosugar.checkin('/', guid, 'activity'):
+        for phase, __ in zerosugar.checkin('/', guid, 'activity'):
             # TODO Publish checkin progress
-            pass
+            if phase == 'failure':
+                self.emit({
+                    'event': 'alert',
+                    'severity': 'error',
+                    'message': _("Cannot check-in '%s' implementation") % guid,
+                    })
+                for __ in activities.checkins(guid):
+                    keep_impl = 2
+                    break
+                else:
+                    keep_impl = 0
+                self._volume['context'].update(guid, {'keep_impl': keep_impl})
+                break
 
 
 class _RemoteMount(_Mount):
@@ -290,6 +302,8 @@ class _RemoteMount(_Mount):
 
         while True:
             try:
+                _logger.debug('Connecting to %r remote server',
+                        env.api_url.value)
                 conn = connect()
             except Exception, error:
                 _logger.debug('Cannot connect to remote server, ' \

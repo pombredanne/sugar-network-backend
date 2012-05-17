@@ -41,7 +41,7 @@ class MountsTest(tests.Test):
         self.assertEqual(guid, res['guid'])
         self.assertEqual('title', res['title'])
         self.assertEqual(False, res['keep'])
-        self.assertEqual(False, res['keep_impl'])
+        self.assertEqual(0, res['keep_impl'])
         self.assertEqual([-1, -1], res['position'])
 
     def test_OfflineMount_update(self):
@@ -79,7 +79,7 @@ class MountsTest(tests.Test):
         self.assertEqual(guid, context['guid'])
         self.assertEqual('title', context['title'])
         self.assertEqual(False, context['keep'])
-        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual(0, context['keep_impl'])
         self.assertEqual([-1, -1], context['position'])
 
     def test_OfflineMount_find(self):
@@ -106,9 +106,9 @@ class MountsTest(tests.Test):
         self.assertEqual(3, cursor.total)
         self.assertEqual(
                 sorted([
-                    (guid_1, 'title_1', False, False, [-1, -1]),
-                    (guid_2, 'title_2', False, False, [-1, -1]),
-                    (guid_3, 'title_3', False, False, [-1, -1]),
+                    (guid_1, 'title_1', False, 0, [-1, -1]),
+                    (guid_2, 'title_2', False, 0, [-1, -1]),
+                    (guid_3, 'title_3', False, 0, [-1, -1]),
                     ]),
                 sorted([(i['guid'], i['title'], i['keep'], i['keep_impl'], i['position']) for i in cursor]))
 
@@ -144,7 +144,7 @@ class MountsTest(tests.Test):
 
         context = remote.Context(guid, ['keep', 'keep_impl'])
         self.assertEqual(False, context['keep'])
-        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual(0, context['keep_impl'])
         self.assertEqual(
                 [(guid, False, False)],
                 [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
@@ -155,15 +155,15 @@ class MountsTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'keep': True,
-            'keep_impl': True,
+            'keep_impl': 2,
             'author': [sugar.uid()],
             })
 
         context = remote.Context(guid, ['keep', 'keep_impl'])
         self.assertEqual(True, context['keep'])
-        self.assertEqual(True, context['keep_impl'])
+        self.assertEqual(2, context['keep_impl'])
         self.assertEqual(
-                [(guid, True, True)],
+                [(guid, True, 2)],
                 [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
     def test_OnlineMount_SetKeep(self):
@@ -184,24 +184,24 @@ class MountsTest(tests.Test):
 
         context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(True, context['keep'])
-        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual(0, context['keep_impl'])
         self.assertEqual('remote', context['title'])
 
         context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(True, context['keep'])
-        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual(0, context['keep_impl'])
         self.assertEqual('remote', context['title'])
 
         remote.Context(guid, keep=False).post()
 
         context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(False, context['keep'])
-        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual(0, context['keep_impl'])
         self.assertEqual('remote', context['title'])
 
         context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(False, context['keep'])
-        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual(0, context['keep_impl'])
         self.assertEqual('remote', context['title'])
 
         context = local.Context(guid)
@@ -214,12 +214,12 @@ class MountsTest(tests.Test):
 
         context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(True, context['keep'])
-        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual(0, context['keep_impl'])
         self.assertEqual('local', context['title'])
 
         context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(True, context['keep'])
-        self.assertEqual(False, context['keep_impl'])
+        self.assertEqual(0, context['keep_impl'])
         self.assertEqual('remote', context['title'])
 
     def test_OfflineSubscription(self):
