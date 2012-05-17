@@ -184,8 +184,9 @@ class Cursor(object):
         offset = page * self._page_size
 
         params = {}
-        if self._filters:
-            params.update(self._filters)
+        for key, value in (self._filters or {}).items():
+            if value is not None:
+                params[key] = value
         params['offset'] = offset
         params['limit'] = self._page_size
         if self._query:
