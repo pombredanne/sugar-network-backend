@@ -47,9 +47,12 @@ class Pipe(object):
         self._stat = {}
 
     def fileno(self):
-        return self._file.fileno()
+        return None if self._file is None else self._file.fileno()
 
     def read(self):
+        if self._file is None:
+            return None
+
         event = self._file.readline()
         if event:
             event = json.loads(event)
@@ -59,20 +62,19 @@ class Pipe(object):
             else:
                 return None, None
 
-        fin = self._finalize()
-        if fin is not None:
-            return fin
-
-        self._file.close()
-        return None
+        return self._finalize()
 
     def __iter__(self):
-        with self._file as f:
+        if self._file is None:
+            return
+
+        try:
             while True:
-                coroutine.select([f.fileno()], [], [])
-                event = f.readline()
+                coroutine.select([self._file.fileno()], [], [])
+                event = self._file.readline()
                 if not event:
                     break
+
                 event = json.loads(event)
                 phase = event.pop('phase')
                 if not self._process_inernals(phase, event):
@@ -83,6 +85,8 @@ class Pipe(object):
             fin = self._finalize()
             if fin is not None:
                 yield fin
+        finally:
+            self._finalize()
 
     def _process_inernals(self, phase, props):
         if phase == 'stat':
@@ -92,10 +96,16 @@ class Pipe(object):
             props.update(self._stat)
 
     def _finalize(self):
+        if self._file is None:
+            return
+
         try:
             __, status = os.waitpid(self._pid, 0)
         except OSError:
             return None
+        finally:
+            self._file.close()
+            self._file = None
 
         failure = _decode_exit_failure(status)
         if failure:
