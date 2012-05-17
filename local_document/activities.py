@@ -16,6 +16,7 @@
 import os
 import hashlib
 import logging
+import tempfile
 from os.path import join, exists, lexists, relpath, dirname, basename
 from gettext import gettext as _
 
@@ -58,6 +59,7 @@ def monitor(mounts):
             directory.update(context, {'keep_impl': 2})
         else:
             _logger.debug('Register unknown local activity, %r', context)
+
             directory.create_with_guid(context, {
                 'type': 'activity',
                 'title': spec['name'],
@@ -66,6 +68,13 @@ def monitor(mounts):
                 'keep_impl': 2,
                 'author': [sugar.uid()],
                 })
+
+            icon_path = join(spec.root, spec['icon'])
+            if exists(icon_path):
+                directory.set_blob(context, 'artifact_icon', icon_path)
+                with tempfile.NamedTemporaryFile() as f:
+                    _svg_to_png(icon_path, f.name, 32, 32)
+                    directory.set_blob(context, 'icon', f.name)
 
         context_path = _ensure_context_path(context, hashed_path)
         if lexists(context_path):
@@ -116,3 +125,18 @@ def _context_path(context, hashed_path):
 
 def _ensure_context_path(context, hashed_path):
     return env.ensure_path('activities', 'context', context, hashed_path)
+
+
+def _svg_to_png(src_path, dst_path, w, h):
+    import rsvg
+    import cairo
+
+    svg = rsvg.Handle(src_path)
+
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    context = cairo.Context(surface)
+    scale = min(float(w) / svg.props.width, float(h) / svg.props.height)
+    context.scale(scale, scale)
+    svg.render_cairo(context)
+
+    surface.write_to_png(dst_path)
