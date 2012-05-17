@@ -262,6 +262,10 @@ class _RemoteMount(_Mount):
                     props.update(patch)
                     props['author'] = [sugar.uid()]
                     directory.create_with_guid(guid, props)
+                    for prop in ('icon', 'artifact_icon', 'preview'):
+                        blob = self._get_blob('context', guid, prop)
+                        if blob:
+                            directory.set_blob(guid, prop, blob['path'])
 
         return result
 
