@@ -46,7 +46,7 @@ class Cursor(object):
 
         self._bus.connect(self.__event_cb)
 
-    def __del__(self):
+    def close(self):
         self._bus.disconnect(self.__event_cb)
 
     # pylint: disable-msg=E1101,E0102,E0202
@@ -230,6 +230,12 @@ class Cursor(object):
 
         if self._wait_session is not None:
             self._wait_session.push(event)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
 
 class _WaitSession(object):

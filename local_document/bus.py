@@ -21,9 +21,8 @@ from os.path import exists
 from gettext import gettext as _
 
 from local_document import ipc, env, activities
-from local_document.sockets import SocketFile
 from local_document.mounts import Mounts
-from active_document import Request, Response, util, coroutine
+from active_document import Request, Response, util, coroutine, sockets
 
 
 _logger = logging.getLogger('local_document.bus')
@@ -119,7 +118,7 @@ def _start_server(name, serve_cb):
     accept.listen(5)
 
     def connection_cb(conn, address):
-        conn_file = SocketFile(conn)
+        conn_file = sockets.SocketFile(conn)
         _logger.debug('New %r connection: %r', name, conn_file)
         do_not_close = False
         try:

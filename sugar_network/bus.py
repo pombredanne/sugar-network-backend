@@ -20,8 +20,7 @@ from contextlib import contextmanager
 from gettext import gettext as _
 
 from local_document import ipc, env
-from local_document.sockets import SocketFile
-from active_document import util, coroutine
+from active_document import util, coroutine, sockets
 
 
 _CONNECTION_POOL = 6
@@ -108,11 +107,6 @@ class _Connection(object):
         self._subscribe_job = None
         self._subscriptions = {}
 
-    """
-    def __del__(self):
-        self.close()
-    """
-
     def close(self):
         if self._subscribe_job is not None:
             _logger.debug('Stop waiting for events')
@@ -139,7 +133,7 @@ class _Connection(object):
             conn.connect(env.ensure_path('run', 'accept'))
             _logger.debug('Open new IPC connection: %r', conn)
         try:
-            yield SocketFile(conn)
+            yield sockets.SocketFile(conn)
         finally:
             self._pool.put(conn)
 
@@ -170,6 +164,6 @@ class _Connection(object):
 def _subscribe():
     ipc.rendezvous()
     # pylint: disable-msg=E1101
-    conn = SocketFile(coroutine.socket(socket.AF_UNIX))
+    conn = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
     conn.connect(env.ensure_path('run', 'subscribe'))
     return conn

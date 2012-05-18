@@ -10,12 +10,11 @@ from __init__ import tests
 
 import restful_document as rd
 import active_document as ad
-from active_document import coroutine
+from active_document import sockets, coroutine
 from sugar_network.client import Client
 from sugar_network.bus import ServerError
 from local_document.mounts import Mounts
 from local_document.bus import Server
-from local_document.sockets import SocketFile
 from local_document import env, mounts, sugar
 
 
@@ -226,7 +225,7 @@ class MountsTest(tests.Test):
         self.start_server()
         client = Client('~')
 
-        subscription = SocketFile(coroutine.socket(socket.AF_UNIX))
+        subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
         coroutine.sleep()
 
@@ -279,7 +278,7 @@ class MountsTest(tests.Test):
         self.start_server()
         client = Client('/')
 
-        subscription = SocketFile(coroutine.socket(socket.AF_UNIX))
+        subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
         coroutine.sleep(1)
 
@@ -328,7 +327,7 @@ class MountsTest(tests.Test):
                 description='description',
                 keep=True).post()
 
-        subscription = SocketFile(coroutine.socket(socket.AF_UNIX))
+        subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
         coroutine.sleep(1)
 
@@ -359,7 +358,7 @@ class MountsTest(tests.Test):
         self.start_server()
         client = Client('/')
 
-        subscription = SocketFile(coroutine.socket(socket.AF_UNIX))
+        subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
         coroutine.sleep(1)
 

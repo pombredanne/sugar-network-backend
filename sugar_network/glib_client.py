@@ -56,9 +56,10 @@ class Client(gobject.GObject):
 
         gobject.idle_add(init)
 
-    def __del__(self):
+    def close(self):
         if self._subscription is not None:
             self._subscription.close()
+            self._subscription = None
 
     def get(self, mountpoint, document, guid, reply):
         bus = Bus(mountpoint, document)
@@ -124,3 +125,9 @@ class Client(gobject.GObject):
                 self.emit('keep_impl', bundle_id, False)
 
         return True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()

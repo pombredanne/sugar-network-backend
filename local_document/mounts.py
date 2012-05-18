@@ -24,8 +24,7 @@ import zerosugar
 import sweets_recipe
 import active_document as ad
 from local_document import activities, cache, sugar, http, env
-from local_document.sockets import SocketFile
-from active_document import SingleVolume, util, coroutine, enforce
+from active_document import sockets, SingleVolume, util, coroutine, enforce
 
 
 _HOME_PROPS = {
@@ -323,9 +322,9 @@ class _RemoteMount(_Mount):
             subscription = http.request('POST', [''],
                     params={'cmd': 'subscribe'},
                     headers={'Content-Type': 'application/json'})
-            conn = SocketFile(coroutine.socket())
+            conn = sockets.SocketFile(coroutine.socket())
             conn.connect((subscription['host'], subscription['port']))
-            conn = SocketFile(conn)
+            conn = sockets.SocketFile(conn)
             conn.write_message({'ticket': subscription['ticket']})
             return conn
 
