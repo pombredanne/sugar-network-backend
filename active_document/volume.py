@@ -19,10 +19,10 @@ import urllib2
 import inspect
 import logging
 from functools import partial
-from os.path import exists, basename, join, abspath
+from os.path import exists, basename, join, abspath, isdir
 from gettext import gettext as _
 
-from active_document import env, coroutine
+from active_document import env, coroutine, sockets
 from active_document.document import Document
 from active_document.directory import Directory
 from active_document.index import IndexWriter
@@ -30,8 +30,6 @@ from active_document.commands import document_command, directory_command
 from active_document.metadata import BlobProperty
 from active_document.util import enforce
 
-
-_PAGE_SIZE = 1024 * 10
 
 _logger = logging.getLogger('active_document.volume')
 
@@ -198,24 +196,29 @@ def _get(directory, document, response, prop=None, reply=None):
     if not isinstance(directory.metadata[prop], BlobProperty):
         return document[prop]
 
-    stream = directory.get_blob(document.guid, prop)
-
-    response.content_length = 0
-    if stream is not None:
-        stat = directory.stat_blob(document.guid, prop)
-        if stat and stat['size']:
-            response.content_length = stat['size']
+    stat = directory.stat_blob(document.guid, prop)
+    response.content_length = stat.get('size') or 0
     response.content_type = directory.metadata[prop].mime_type
 
-    def send(stream):
-        while True:
-            chunk = stream.read(_PAGE_SIZE)
-            if not chunk:
-                break
-            yield chunk
+    path = stat.get('path')
+    if not path:
+        return
 
-    if stream is not None:
-        return send(stream)
+    if isdir(path):
+        dir_info, dir_reader = sockets.encode_directory(path)
+        response.content_length = dir_info.content_length
+        response.content_type = dir_info.content_type
+        return dir_reader
+
+    def file_reader(path):
+        with file(path, 'rb') as f:
+            while True:
+                chunk = f.read(sockets.BUFFER_SIZE)
+                if not chunk:
+                    break
+                yield chunk
+
+    return file_reader(path)
 
 
 @document_command(method='GET', cmd='stat-blob')

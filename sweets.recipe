@@ -11,7 +11,7 @@ homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
 version   = 0.2
 stability = developer
 
-requires  = gevent
+requires  = gevent; werkzeug
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&

@@ -4,6 +4,7 @@
 import os
 import shutil
 from cStringIO import StringIO
+from email.message import Message
 from os.path import dirname, join, abspath
 
 src_root = abspath(dirname(__file__))
@@ -12,7 +13,7 @@ from __init__ import tests
 
 from active_document import volume, document, SingleVolume, \
         call, Request, Response, Document, active_property, \
-        BlobProperty, NotFound
+        BlobProperty, NotFound, sockets
 
 
 class VolumeTest(tests.Test):
@@ -140,6 +141,33 @@ class VolumeTest(tests.Test):
         self.assertEqual('blob-value', ''.join([i for i in stream]))
         self.assertEqual('application/octet-stream', self.response.content_type)
         self.assertEqual(len('blob-value'), self.response.content_length)
+
+    def test_CommandsGetBlobDirectory(self):
+        guid = self.call('POST', 'testdocument', content={})
+
+        blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
+        self.touch(blob_path + '.sha1')
+        self.touch((blob_path + '/1/2/3', 'a'))
+        self.touch((blob_path + '/4/5', 'b'))
+        self.touch((blob_path + '/6', 'c'))
+
+        stream = StringIO()
+        for chunk in self.call('GET', 'testdocument', guid, 'blob'):
+            stream.write(chunk)
+        stream.seek(0)
+
+        msg = Message()
+        msg['content-type'] = self.response.content_type
+
+        files = sockets.decode_multipart(stream, self.response.content_length,
+                msg.get_boundary())
+        self.assertEqual(
+                sorted([
+                    ('1/2/3', 'a'),
+                    ('4/5', 'b'),
+                    ('6', 'c'),
+                    ]),
+                sorted([(name, content.read()) for name, content in files]))
 
     def test_Command_ReplyForGET(self):
         guid = self.call('POST', 'testdocument', content={'prop': 'value'})

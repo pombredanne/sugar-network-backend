@@ -177,7 +177,6 @@ class DocumentTest(tests.Test):
         data = 'payload'
 
         directory.set_blob(guid, 'blob', StringIO(data))
-        self.assertEqual(data, directory.get_blob(guid, 'blob').read())
         self.assertEqual({
             'size': len(data),
             'sha1sum': hashlib.sha1(data).hexdigest(),
@@ -195,8 +194,9 @@ class DocumentTest(tests.Test):
                 return 'new-prop'
 
             @active_property(BlobProperty)
-            def blob(self, value):
-                return 'new-blob'
+            def blob(self, stat):
+                stat['path'] = 'new-blob'
+                return stat
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
         guid = directory.create({'author': []})
@@ -204,9 +204,9 @@ class DocumentTest(tests.Test):
         self.assertEqual('new-prop', directory.get(guid).prop)
 
         self.touch(('new-blob', 'new-blob'))
-        self.assertEqual('new-blob', directory.get_blob(guid, 'blob').read())
+        self.assertEqual('new-blob', file(directory.stat_blob(guid, 'blob')['path']).read())
         directory.set_blob(guid, 'blob', StringIO('old-blob'))
-        self.assertEqual('new-blob', directory.get_blob(guid, 'blob').read())
+        self.assertEqual('new-blob', file(directory.stat_blob(guid, 'blob')['path']).read())
 
     def test_find_MaxLimit(self):
 

@@ -180,38 +180,16 @@ class Directory(object):
 
         return iterate(), total
 
-    def get_blob(self, guid, prop):
-        """Read the content of document's BLOB property.
-
-        This function works in parallel to getting non-BLOB properties values.
-
-        :param prop:
-            BLOB property name
-        :returns:
-            file-like object or `None`
-
-        """
-        prop = self.metadata[prop]
-        enforce(isinstance(prop, BlobProperty),
-                _('Property %r in %r is not a BLOB'),
-                prop.name, self.metadata.name)
-        document = self.get(guid)
-        path = self._storage.get_blob(guid, prop.name)
-        path = prop.on_get(document, path)
-        if not path:
-            return None
-        return file(path)
-
-    def set_blob(self, guid, prop, stream, size=None):
-        """Receive BLOB property from a stream.
+    def set_blob(self, guid, prop, data, size=None):
+        """Receive BLOB property.
 
         This function works in parallel to setting non-BLOB properties values
         and `post()` function.
 
         :param prop:
             BLOB property name
-        :param stream:
-            stream to receive property value from
+        :param data:
+            stream to read BLOB content or path to file to copy
         :param size:
             read only specified number of bytes; otherwise, read until the EOF
 
@@ -221,7 +199,7 @@ class Directory(object):
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
         seqno = self._next_seqno()
-        if self._storage.set_blob(seqno, guid, prop.name, stream, size):
+        if self._storage.set_blob(seqno, guid, prop.name, data, size):
             self._index.store(guid, {'seqno': seqno}, None,
                     self._pre_store, self._post_store)
             event = {'event': 'update_blob',
@@ -243,7 +221,9 @@ class Directory(object):
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
-        return self._storage.stat_blob(guid, prop.name)
+        document = self.get(guid)
+        stat = self._storage.stat_blob(guid, prop.name)
+        return prop.on_get(document, stat or {})
 
     def populate(self):
         """Populate the index.

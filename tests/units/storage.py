@@ -74,19 +74,19 @@ class StorageTest(tests.Test):
                 sorted([guid for guid, props in storage.walk(0)]))
 
     def test_BLOBs(self):
-        storage = self.storage([])
+        storage = self.storage([BlobProperty('blob')])
 
         stream = StringIO('foo')
         self.assertEqual(False, storage.set_blob(1, 'guid', 'blob', stream))
 
-        path = storage.get_blob('guid', 'blob')
+        path = storage.stat_blob('guid', 'blob')['path']
         self.assertEqual('foo', file(path).read())
 
         data = '!' * _PAGE_SIZE * 2
         stream = StringIO(data)
         self.assertEqual(False, storage.set_blob(2, 'guid', 'blob', stream))
 
-        path = storage.get_blob('guid', 'blob')
+        path = storage.stat_blob('guid', 'blob')['path']
         self.assertEqual(data, file(path).read())
 
         stream = StringIO('12345')
@@ -100,18 +100,18 @@ class StorageTest(tests.Test):
         self.assertEqual(True, storage.set_blob(6, 'guid', 'blob', stream))
 
     def test_BLOBsByPaths(self):
-        storage = self.storage([])
+        storage = self.storage([BlobProperty('blob')])
 
         self.touch(('file1', 'data1'))
         storage.set_blob(1, 'guid', 'blob', 'file1')
 
-        path = storage.get_blob('guid', 'blob')
+        path = storage.stat_blob('guid', 'blob')['path']
         self.assertEqual('data1', file(path).read())
 
         self.touch(('file1', 'data2'))
         storage.set_blob(1, 'guid', 'blob', 'file1')
 
-        path = storage.get_blob('guid', 'blob')
+        path = storage.stat_blob('guid', 'blob')['path']
         self.assertEqual('data2', file(path).read())
 
     def test_diff(self):

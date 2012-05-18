@@ -140,21 +140,6 @@ class Storage(object):
 
                 yield guid, properties
 
-    def get_blob(self, guid, name):
-        """Read the content of document's BLOB property.
-
-        :param guid:
-            document GUID to send
-        :param name:
-            BLOB property name
-        :returns:
-            path to BLOB fil or `None`
-
-        """
-        path = self._path(guid, name)
-        if exists(path):
-            return path
-
     def set_blob(self, seqno, guid, name, data, size=None):
         """Write the content of document's BLOB property.
 
@@ -178,7 +163,7 @@ class Storage(object):
     def stat_blob(self, guid, name):
         path = self._path(guid, name)
         if not exists(path):
-            return
+            return None
         with file(path + '.sha1') as f:
             sha1sum = f.read().strip()
         return {'path': path,
