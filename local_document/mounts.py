@@ -1,4 +1,4 @@
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,12 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import json
 import shutil
 import logging
 from os.path import isabs, exists
 from gettext import gettext as _
 
 import zerosugar
+import sweets_recipe
 import active_document as ad
 from local_document import activities, cache, sugar, http, env
 from local_document.sockets import SocketFile
@@ -53,8 +55,12 @@ class Mounts(dict):
 
     def __init__(self, root, resources_path, events_callback=None):
         self.home_volume = SingleVolume(root, resources_path, _HOME_PROPS)
-        self['/'] = _RemoteMount('/', self.home_volume, events_callback)
+
         self['~'] = _LocalMount('~', self.home_volume, events_callback)
+        if env.server_mode.value:
+            self['/'] = self['~']
+        else:
+            self['/'] = _RemoteMount('/', self.home_volume, events_callback)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
@@ -114,7 +120,10 @@ class _LocalMount(_Mount):
             return self._upload_blob(request, response)
 
         if request.command == 'get_blob':
-            request.command = ('GET', 'stat-blob')
+            if request['document'] == 'context' and request['prop'] == 'feed':
+                return self._get_feed(request, response)
+            else:
+                request.command = ('GET', 'stat-blob')
 
         return ad.call(self._volume, request, response)
 
@@ -130,6 +139,30 @@ class _LocalMount(_Mount):
         finally:
             if pass_ownership and exists(path):
                 os.unlink(path)
+
+    def _get_feed(self, request, response):
+        feed = {}
+
+        for path in activities.checkins(request['guid']):
+            try:
+                spec = sweets_recipe.Spec(root=path)
+            except Exception:
+                util.exception(_logger, _('Failed to read %r spec file'), path)
+                continue
+
+            feed[spec['version']] = {
+                    '*-*': {
+                        'guid': spec.root,
+                        'stability': 'stable',
+                        'commands': {
+                            'activity': {
+                                'exec': spec['Activity', 'exec'],
+                                },
+                            },
+                        },
+                    }
+
+        return json.dumps(feed)
 
     def __events_cb(self, event):
         self.emit(event)

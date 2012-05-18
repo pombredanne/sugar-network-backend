@@ -79,6 +79,8 @@ class Test(unittest.TestCase):
         self.forks = []
 
     def tearDown(self):
+        if Bus.connection is not None:
+            Bus.connection.close()
         if self.server is not None:
             self.server.stop()
         while Test.httpd_pids:
@@ -196,7 +198,7 @@ class Test(unittest.TestCase):
         coroutine.dispatch()
         self.mounts = self.server._mounts
 
-    def start_ipc_and_restful_server(self, classes):
+    def start_ipc_and_restful_server(self, classes=None):
         pid = self.fork(self.restful_server, classes)
 
         self.start_server(classes)

@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012, Aleksey Lim
+# Copyright (C) 2011-2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ from gettext import gettext as _
 from zeroinstall.injector import model
 
 import sweets_recipe
-from local_document import activities, util, enforce
+from local_document import util, enforce
 from zerosugar.config import config
 
 
@@ -30,39 +30,21 @@ _logger = logging.getLogger('zerosugar')
 
 def read(context):
     feed = _Feed(context)
-    feed_content = {}
 
-    for path in activities.checkins(context):
+    feed_content = None
+    client = None
+    for client in config.clients:
         try:
-            spec = sweets_recipe.Spec(root=path)
-        except Exception, error:
-            util.exception(_logger, _('Failed to read %r spec file: %s'),
-                    path, error)
-            continue
-
-        feed_content[spec['version']] = {
-                '*-*': {
-                    'guid': spec.root,
-                    'stability': 'stable',
-                    'commands': {
-                        'activity': {
-                            'exec': spec['Activity', 'exec'],
-                            },
-                        },
-                    },
-                }
-
-    if not feed_content:
-        try:
-            with config.client.Context(context).get_blob('feed') as f:
+            with client.Context(context).get_blob('feed') as f:
                 enforce(not f.closed, _('No feed for %r context'), context)
                 feed_content = json.load(f)
+            if feed_content:
+                break
         except Exception:
             util.exception(_logger,
                     _('Failed to fetch feed for %r context'), context)
-            return None
 
-    if not feed_content:
+    if feed_content is None:
         _logger.warning(_('No feed for %r context'), context)
         return None
 
@@ -70,7 +52,8 @@ def read(context):
         for arch, impl_data in version_data.items():
             impl_id = impl_data['guid']
 
-            impl = model.ZeroInstallImplementation(feed, impl_id, None)
+            impl = _Implementation(feed, impl_id, None)
+            impl.client = client
             impl.version = sweets_recipe.parse_version(version)
             impl.released = 0
             impl.arch = arch
@@ -138,6 +121,11 @@ class _Feed(model.ZeroInstallFeed):
     @property
     def first_description(self):
         return self.context
+
+
+class _Implementation(model.ZeroInstallImplementation):
+
+    client = None
 
 
 class _Dependency(model.InterfaceDependency):

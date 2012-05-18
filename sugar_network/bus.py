@@ -1,4 +1,4 @@
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -108,7 +108,12 @@ class _Connection(object):
         self._subscribe_job = None
         self._subscriptions = {}
 
+    """
     def __del__(self):
+        self.close()
+    """
+
+    def close(self):
         if self._subscribe_job is not None:
             _logger.debug('Stop waiting for events')
             self._subscribe_job.kill()

@@ -18,7 +18,7 @@ from zeroinstall.injector import config as injector_config
 
 class Config(injector_config.Config):
 
-    client = None
+    clients = []
 
 
 config = Config()
