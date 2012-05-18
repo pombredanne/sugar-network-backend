@@ -15,9 +15,11 @@
 
 import os
 import imp
+import json
 import urllib2
 import inspect
 import logging
+from cStringIO import StringIO
 from functools import partial
 from os.path import exists, basename, join, abspath, isdir
 from gettext import gettext as _
@@ -161,6 +163,12 @@ def _update(directory, document, request, prop=None, url=None):
             directory.set_blob(document.guid, prop, stream)
         finally:
             stream.close()
+    elif request.content is not None:
+        # TODO Avoid double JSON processins
+        content_stream = StringIO()
+        json.dump(request.content, content_stream)
+        content_stream.seek(0)
+        directory.set_blob(document.guid, prop, content_stream, None)
     else:
         directory.set_blob(document.guid, prop, request.content_stream,
                 request.content_length)
@@ -202,7 +210,8 @@ def _get(directory, document, response, prop=None, reply=None):
 
     path = stat.get('path')
     if not path:
-        return
+        # TODO Empty BLOBs should raise `NotFound`
+        return None
 
     if isdir(path):
         dir_info, dir_reader = sockets.encode_directory(path)
