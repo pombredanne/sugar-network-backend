@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
+from os.path import isdir
+
 from __init__ import tests
 
 from sugar_network_server.resources.user import User
@@ -12,7 +15,6 @@ from active_document import coroutine
 from sugar_network.client import Client
 from sugar_network.bus import Bus
 from local_document.bus import Server
-from local_document.mounts import Mounts
 from local_document import mounts
 
 
@@ -264,6 +266,44 @@ class ClientTest(tests.Test):
             {'payload': 3, 'event': 'probe'},
             ],
             events)
+
+    def test_GetBLOBs(self):
+
+        class Mounts(object):
+
+            def call(self_, request, response):
+                if not (request.command == 'get_blob' and \
+                        request['document'] == 'document' and \
+                        'guid' in request):
+                    return
+                if request['prop'] == 'directory':
+                    os.makedirs('directory')
+                    return {'path': tests.tmpdir + '/directory', 'mime_type': 'fake'}
+                elif request['prop'] == 'file':
+                    self.touch(('file', 'file'))
+                    return {'path': tests.tmpdir + '/file', 'mime_type': 'fake'}
+                elif request['prop'] == 'value':
+                    return 'value'
+
+            def close(self):
+                pass
+
+        self.start_server([])
+        self.server._mounts = Mounts()
+        client = Client('~')
+
+        blob = client.Document('guid').get_blob_path('directory')
+        self.assertEqual(tests.tmpdir + '/directory', blob[0])
+        self.assertEqual('fake', blob[1])
+        assert isdir('directory')
+
+        blob = client.Document('guid').get_blob('file')
+        self.assertEqual(tests.tmpdir + '/file', blob.name)
+        self.assertEqual('fake', blob.mime_type)
+        self.assertEqual('file', blob.read())
+
+        blob = client.Document('guid').get_blob('value')
+        self.assertEqual('value', blob.read())
 
 
 if __name__ == '__main__':

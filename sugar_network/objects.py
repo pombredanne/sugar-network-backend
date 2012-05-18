@@ -15,6 +15,7 @@
 
 import json
 import logging
+from cStringIO import StringIO
 from os.path import isdir, abspath
 from gettext import gettext as _
 
@@ -91,23 +92,20 @@ class Object(object):
         return self._guid
 
     def get_blob_path(self, prop):
-        blob = self._blobs.get(prop)
-        if blob is not None:
-            return blob
-        response = self._bus.send('get_blob', guid=self._guid, prop=prop)
-        if response:
-            blob = response['path'], response['mime_type']
-        else:
-            blob = None, None
-        self._blobs[prop] = blob
-        return blob
+        blob, is_path = self._get_blob(prop)
+        if is_path:
+            return blob['path'], blob['mime_type']
 
     def get_blob(self, prop):
-        path, mime_type = self.get_blob_path(prop)
-        if path is None:
-            return _empty_blob
-        enforce(not isdir(path), _('Requested BLOB is a dictionary'))
-        return _Blob(path, mime_type)
+        blob, is_path = self._get_blob(prop)
+        if is_path:
+            path = blob['path']
+            if path is None:
+                return _empty_blob
+            enforce(not isdir(path), _('Requested BLOB is a dictionary'))
+            return _Blob(path, blob['mime_type'])
+        elif blob is not None:
+            return StringIO(blob.encode('utf8'))
 
     def set_blob(self, prop, data, mime_type='application/octet-stream'):
         enforce(self._guid, _('Object needs to be posted first'))
@@ -124,6 +122,13 @@ class Object(object):
         enforce(self._guid, _('Object needs to be posted first'))
         self._bus.send('upload_blob', guid=self._guid, prop=prop,
                 path=abspath(path), pass_ownership=pass_ownership)
+
+    def _get_blob(self, prop):
+        blob = self._blobs.get(prop)
+        if blob is None:
+            blob = self._bus.send('get_blob', guid=self._guid, prop=prop)
+            self._blobs[prop] = blob
+        return blob, type(blob) is dict and 'path' in blob
 
     def __getitem__(self, prop):
         result = self.get(prop)
