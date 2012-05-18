@@ -141,7 +141,10 @@ def _fork(callback, mountpoint, context, *args):
         _progress('stat', log_path=log_path, mountpoint=mountpoint,
                 context=context)
 
-        config.client = Client(mountpoint)
+        config.clients = [Client('~')]
+        if mountpoint != '~':
+            config.clients.append(Client(mountpoint))
+
         try:
             callback(mountpoint, context, *args)
         except Exception, error:
@@ -217,7 +220,7 @@ def _make(context, command):
         # TODO Per download progress
         _progress('download', progress=-1)
 
-        impl = config.client.Implementation(sel.id)
+        impl = sel.client.Implementation(sel.id)
         impl_path, __ = impl.get_blob_path('bundle')
         enforce(impl_path, _('Cannot download bundle'))
 

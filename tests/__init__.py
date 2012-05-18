@@ -133,11 +133,11 @@ class Test(unittest.TestCase):
             f.write(str(content))
             f.close()
 
-    def fork(self, cb):
+    def fork(self, cb, *args):
         pid = os.fork()
         if not pid:
             try:
-                cb()
+                cb(*args)
                 result = 0
             except Exception:
                 logging.exception('Child failed')
@@ -196,10 +196,10 @@ class Test(unittest.TestCase):
         coroutine.dispatch()
         self.mounts = self.server._mounts
 
-    def start_ipc_and_restful_server(self):
-        pid = self.fork(self.restful_server)
+    def start_ipc_and_restful_server(self, classes):
+        pid = self.fork(self.restful_server, classes)
 
-        self.start_server()
+        self.start_server(classes)
 
         def wait_connect(event):
             if event['event'] == 'connect':
@@ -211,7 +211,7 @@ class Test(unittest.TestCase):
 
         return pid
 
-    def restful_server(self):
+    def restful_server(self, classes=None):
         from restful_document import env as _env
 
         if not exists('remote'):
@@ -229,7 +229,7 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
-        volume = ad.SingleVolume('remote', [User, Context])
+        volume = ad.SingleVolume('remote', classes or [User, Context])
         httpd = coroutine.WSGIServer(('localhost', 8000), rd.Router(volume))
         subscriber = SubscribeSocket(volume)
         try:

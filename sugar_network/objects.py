@@ -95,6 +95,8 @@ class Object(object):
         blob, is_path = self._get_blob(prop)
         if is_path:
             return blob['path'], blob['mime_type']
+        else:
+            return None, None
 
     def get_blob(self, prop):
         blob, is_path = self._get_blob(prop)
@@ -105,7 +107,9 @@ class Object(object):
             enforce(not isdir(path), _('Requested BLOB is a dictionary'))
             return _Blob(path, blob['mime_type'])
         elif blob is not None:
-            return StringIO(blob.encode('utf8'))
+            return _StringIO(blob.encode('utf8'))
+        else:
+            return _empty_blob
 
     def set_blob(self, prop, data, mime_type='application/octet-stream'):
         enforce(self._guid, _('Object needs to be posted first'))
@@ -174,6 +178,21 @@ class _EmptyBlob(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
+
+
+class _StringIO(object):
+
+    def __init__(self, *args, **kwargs):
+        self._stream = StringIO(*args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
 
 _empty_blob = _EmptyBlob()

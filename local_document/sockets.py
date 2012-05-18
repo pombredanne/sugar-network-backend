@@ -63,12 +63,26 @@ class SocketFile(object):
                     (message_str, error))
         return message
 
-    def write(self, data):
+    def write(self, data, size=None):
         if data is None:
             data = ''
-        size_str = struct.pack('i', len(data))
+
+        if hasattr(data, 'read'):
+            enforce(size)
+        else:
+            size = len(data)
+
+        size_str = struct.pack('i', size)
         self._socket.send(size_str)
-        self._socket.send(data)
+
+        if hasattr(data, 'read'):
+            while size:
+                chunk_size = min(size, BUFFER_SIZE)
+                # pylint: disable-msg=E1103
+                self._socket.send(data.read(chunk_size))
+                size -= chunk_size
+        else:
+            self._socket.send(data)
 
     def read(self, size=None):
 
@@ -101,6 +115,12 @@ class SocketFile(object):
                 self._read_size -= len(chunk)
             return chunk
 
+    def write_packet(self):
+        return _OutPacket(self)
+
+    def read_packet(self):
+        return _InPacket(self)
+
     def close(self):
         if self._socket is not None:
             self._socket.close()
@@ -125,5 +145,41 @@ class SocketFile(object):
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
+    def __iter__(self):
+        while True:
+            chunk = self.read(BUFFER_SIZE)
+            if not chunk:
+                break
+            yield chunk
+
     def __getattr__(self, name):
         return getattr(self._socket, name)
+
+
+class _OutPacket(object):
+
+    def __init__(self, socket):
+        self._socket = socket
+
+    def write(self, metadata=None, *args, **kwargs):
+        self._socket.write_message({'metadata': metadata})
+        self._socket.write(*args, **kwargs)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._socket.write_message({'EOP': True})
+
+
+class _InPacket(object):
+
+    def __init__(self, socket):
+        self._socket = socket
+
+    def __iter__(self):
+        while True:
+            term = self._socket.read_message()
+            if term.get('EOP'):
+                break
+            yield term.get('metadata'), self._socket

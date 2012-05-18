@@ -43,6 +43,11 @@ activities_root = optparse.Option(
         _('path to the default directory with Sugar activities'),
         default=expanduser('~/Activities'))
 
+server_mode = optparse.Option(
+        _('start server to share local documents'),
+        default=False, type_cast=optparse.Option.bool_cast,
+        action='store_true')
+
 
 def path(*args):
     """Calculate a path from the root.

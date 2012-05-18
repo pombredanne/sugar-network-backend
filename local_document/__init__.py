@@ -15,4 +15,4 @@
 
 from active_document import util, optparse, enforce
 
-from local_document.env import api_url
+from local_document.env import api_url, server_mode
