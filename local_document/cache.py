@@ -14,13 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import cgi
 import shutil
 import logging
 import tempfile
 from os.path import isdir, exists, dirname, join
 
 from sweets_recipe import Bundle
-from active_document.sockets import BUFFER_SIZE
+from active_document.sockets import decode_multipart, BUFFER_SIZE
 from local_document import env, http
 
 
@@ -79,7 +80,24 @@ def get_blob(document, guid, prop):
 
         return not empty
 
-    if document == 'implementation' and prop == 'bundle':
+    def download_multipart(stream, size, boundary):
+        stream.readline = None
+        for filename, content in decode_multipart(stream, size, boundary):
+            dst_path = join(path, filename)
+            if not exists(dirname(dst_path)):
+                os.makedirs(dirname(dst_path))
+            shutil.move(content.name, dst_path)
+
+    content_type, params = cgi.parse_header(mime_type)
+    if content_type.split('/', 1)[0] == 'multipart':
+        try:
+            download_multipart(response.raw,
+                    int(response.headers['content-length']),
+                    params['boundary'])
+        except Exception:
+            shutil.rmtree(path, ignore_errors=True)
+            raise
+    elif document == 'implementation' and prop == 'bundle':
         tmp_file = tempfile.NamedTemporaryFile(delete=False)
         try:
             if download(tmp_file):

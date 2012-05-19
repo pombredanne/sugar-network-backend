@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import cgi
 import time
 import json
 import socket
 import hashlib
+import subprocess
 from email.message import Message
 from cStringIO import StringIO
 from os.path import join, exists
@@ -18,7 +20,7 @@ from sugar_network.client import Client
 from sugar_network.bus import ServerError
 from local_document.mounts import Mounts
 from local_document.bus import Server
-from local_document import env, mounts, sugar, http
+from local_document import env, mounts, sugar, http, cache
 
 
 class MountsTest(tests.Test):
@@ -468,7 +470,7 @@ class MountsTest(tests.Test):
         self.assertEqual(
                 feed,
                 json.loads(remote.Context(guid).get_blob('feed').read()))
-        feed['1']['*-*']['guid'] = \
+        impl_id = feed['1']['*-*']['guid'] = \
                 hashlib.sha1(feed['1']['*-*']['guid']).hexdigest()
         self.assertEqual(
                 feed,
@@ -478,22 +480,10 @@ class MountsTest(tests.Test):
                    'Activities/activity/4/5',
                    'Activities/activity/6')
 
-        response = http.request('GET',
-                ['implementation', feed['1']['*-*']['guid'], 'bundle'])
-        msg = Message()
-        msg['content-type'] = response.headers['content-type']
-        boundary = msg.get_boundary()
-        stream = StringIO(response.content)
-        files = [(name, f.read()) for name, f in \
-                sockets.decode_multipart(stream, len(response.content), boundary)]
-        self.assertEqual(
-                sorted([
-                    ('activity/activity.info', file('Activities/activity/activity/activity.info').read()),
-                    ('1/2/3', 'Activities/activity/1/2/3'),
-                    ('4/5', 'Activities/activity/4/5'),
-                    ('6', 'Activities/activity/6'),
-                    ]),
-                sorted(files))
+        path, mime_type = cache.get_blob('implementation', impl_id, 'bundle')
+        content_type, params = cgi.parse_header(mime_type)
+        self.assertEqual('multipart/mixed', content_type)
+        subprocess.check_call('diff -r %s Activities/activity/' % path, shell=True)
 
 
 if __name__ == '__main__':
