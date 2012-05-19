@@ -31,6 +31,12 @@ def path_to_guid(path):
     return hashlib.sha1(path).hexdigest()
 
 
+def guid_to_path(impl_id):
+    path = env.path('activities', 'checkins', impl_id)
+    if lexists(path):
+        return _read_checkin_path(path)
+
+
 def checkins(context):
     root = _context_path(context, '')
     if not exists(root):

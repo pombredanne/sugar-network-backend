@@ -31,9 +31,7 @@ _headers = {}
 
 def request(method, path, data=None, headers=None, **kwargs):
     response = raw_request(method, path, data, headers, **kwargs)
-    _logger.error('> %r', response.headers)
     if response.headers.get('Content-Type') == 'application/json':
-        _logger.error('>> %r', response.content)
         return json.loads(response.content)
     else:
         return response

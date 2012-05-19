@@ -5,6 +5,8 @@ import time
 import json
 import socket
 import hashlib
+from email.message import Message
+from cStringIO import StringIO
 from os.path import join, exists
 
 from __init__ import tests
@@ -472,8 +474,26 @@ class MountsTest(tests.Test):
                 feed,
                 http.request('GET', ['context', guid, 'feed']))
 
+        self.touch('Activities/activity/1/2/3',
+                   'Activities/activity/4/5',
+                   'Activities/activity/6')
 
-
+        response = http.request('GET',
+                ['implementation', feed['1']['*-*']['guid'], 'bundle'])
+        msg = Message()
+        msg['content-type'] = response.headers['content-type']
+        boundary = msg.get_boundary()
+        stream = StringIO(response.content)
+        files = [(name, f.read()) for name, f in \
+                sockets.decode_multipart(stream, len(response.content), boundary)]
+        self.assertEqual(
+                sorted([
+                    ('activity/activity.info', file('Activities/activity/activity/activity.info').read()),
+                    ('1/2/3', 'Activities/activity/1/2/3'),
+                    ('4/5', 'Activities/activity/4/5'),
+                    ('6', 'Activities/activity/6'),
+                    ]),
+                sorted(files))
 
 
 if __name__ == '__main__':

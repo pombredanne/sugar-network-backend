@@ -122,14 +122,35 @@ class _LocalMount(ad.ProxyCommands, _Mount):
         else:
             return directory.stat_blob(guid, prop)
 
+    @ad.document_command(method='GET')
+    def get(self, document, guid, request, response, reply=None):
+        enforce(document == 'implementation', ad.CommandNotFound)
+        return {'guid': guid,
+                'context': '',
+                'license': '',
+                'version': '',
+                'date': 0,
+                'stability': 'stable',
+                'notes': '',
+                'url': '',
+                }
+
     @ad.property_command(method='GET')
-    def get_prop(self, document, guid, prop, request):
-        enforce(document == 'context' and prop == 'feed', ad.CommandNotFound)
-
-        directory = self.volume[document]
-        directory.metadata[prop].assert_access(ad.ACCESS_READ)
-
-        return self._get_feed(request)
+    def get_prop(self, document, guid, prop, request, response):
+        if document == 'context' and prop == 'feed':
+            directory = self.volume[document]
+            directory.metadata[prop].assert_access(ad.ACCESS_READ)
+            return self._get_feed(request)
+        elif document == 'implementation' and prop == 'bundle':
+            path = activities.guid_to_path(guid)
+            if not exists(path):
+                return None
+            dir_info, dir_reader = sockets.encode_directory(path)
+            response.content_length = dir_info.content_length
+            response.content_type = dir_info.content_type
+            return dir_reader
+        else:
+            raise ad.CommandNotFound()
 
     @ad.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
