@@ -20,7 +20,8 @@ import logging
 from os.path import exists
 from gettext import gettext as _
 
-from local_document import ipc, env, activities
+import restful_document as rd
+from local_document import ipc, env, activities, sugar
 from local_document.mounts import Mounts
 from active_document import Request, Response, util, coroutine, sockets
 
@@ -36,16 +37,39 @@ class Server(object):
         self._acceptor = _start_server('accept', self._serve_client)
         self._subscriber = _start_server('subscribe', self._serve_subscription)
         self._monitor = coroutine.spawn(activities.monitor, self._mounts)
+        self._http_server = None
+        self._remote_subscriber = None
+
+        if env.server_mode.value:
+            logging.info(_('Listening for remote requests on %s:%s'),
+                    rd.host.value, rd.port.value)
+
+            ssl_args = {}
+            if rd.keyfile.value:
+                ssl_args['keyfile'] = rd.keyfile.value
+            if rd.certfile.value:
+                ssl_args['certfile'] = rd.certfile.value
+            self._http_server = coroutine.WSGIServer(
+                    (rd.host.value, rd.port.value),
+                    rd.Router(self._mounts['~']), **ssl_args)
+
+            self._remote_subscriber = rd.SubscribeSocket(
+                    self._mounts.home_volume)
 
     def serve_forever(self):
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
         rendezvous = ipc.rendezvous(server=True)
+
+        jobs = [coroutine.spawn(self._acceptor.serve_forever),
+                coroutine.spawn(self._subscriber.serve_forever)]
+        if self._http_server is not None:
+            jobs.append(coroutine.spawn(self._http_server.serve_forever))
+        if self._remote_subscriber is not None:
+            jobs.append(coroutine.spawn(self._remote_subscriber.serve_forever))
+
         try:
-            coroutine.joinall([
-                coroutine.spawn(self._acceptor.serve_forever),
-                coroutine.spawn(self._subscriber.serve_forever),
-                ])
+            coroutine.joinall(jobs)
         except KeyboardInterrupt:
             pass
         finally:
@@ -54,6 +78,10 @@ class Server(object):
             self._mounts.close()
 
     def stop(self):
+        if self._http_server is not None:
+            self._http_server.stop()
+        if self._remote_subscriber is not None:
+            self._remote_subscriber.stop()
         while self._subscriptions:
             self._subscriptions.pop().close()
         self._acceptor.stop()
@@ -66,7 +94,9 @@ class Server(object):
                 break
             try:
                 request = Request(message)
-                request.command = request.pop('cmd')
+                request.principal = sugar.uid()
+                request.access_level = Request.ACCESS_LOCAL
+
                 request_repr = str(request)
 
                 content_type = request.pop('content_type')
@@ -77,7 +107,7 @@ class Server(object):
                 else:
                     request.content = conn_file.read() or None
 
-                if request.command == 'publish':
+                if request.get('cmd') == 'publish':
                     self._publish_event(request.content)
                     result = None
                 else:

@@ -24,7 +24,7 @@ import zerosugar
 import sweets_recipe
 import active_document as ad
 from local_document import activities, cache, sugar, http, env
-from active_document import sockets, SingleVolume, util, coroutine, enforce
+from active_document import sockets, util, coroutine, enforce
 
 
 _HOME_PROPS = {
@@ -53,7 +53,7 @@ _logger = logging.getLogger('local_document.mounts')
 class Mounts(dict):
 
     def __init__(self, root, resources_path, events_callback=None):
-        self.home_volume = SingleVolume(root, resources_path, _HOME_PROPS)
+        self.home_volume = ad.SingleVolume(root, resources_path, _HOME_PROPS)
 
         self['~'] = _LocalMount('~', self.home_volume, events_callback)
         if env.server_mode.value:
@@ -66,8 +66,9 @@ class Mounts(dict):
         return self.get(mountpoint)
 
     def call(self, request, response):
-        mount = self[request.pop('mountpoint')]
-        if request.command == 'is_connected':
+        mountpoint = request.pop('mountpoint')
+        mount = self[mountpoint]
+        if request.get('cmd') == 'is_connected':
             return mount.connected
         else:
             return mount.call(request, response)
@@ -97,12 +98,12 @@ class _Mount(object):
             util.exception(_logger, _('Failed to dispatch %r event'), event)
 
 
-class _LocalMount(_Mount):
+class _LocalMount(ad.ProxyCommands, _Mount):
 
     def __init__(self, mountpoint, volume, events_callback):
+        ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
         _Mount.__init__(self, mountpoint, events_callback)
-        self._volume = volume
-        self._volume.connect(self.__events_cb)
+        volume.connect(self.__events_cb)
 
     @property
     def connected(self):
@@ -111,35 +112,39 @@ class _LocalMount(_Mount):
     def close(self):
         pass
 
-    def call(self, request, response):
-        request.remote = False
-        request.principal = None
+    @ad.property_command(method='GET', cmd='get_blob')
+    def get_blob(self, document, guid, prop, request):
+        directory = self.volume[document]
+        directory.metadata[prop].assert_access(ad.ACCESS_READ)
 
-        if request.command == 'upload_blob':
-            return self._upload_blob(request, response)
+        if document == 'context' and prop == 'feed':
+            return json.dumps(self._get_feed(request))
+        else:
+            return directory.stat_blob(guid, prop)
 
-        if request.command == 'get_blob':
-            if request['document'] == 'context' and request['prop'] == 'feed':
-                return self._get_feed(request, response)
-            else:
-                request.command = ('GET', 'stat-blob')
+    @ad.property_command(method='GET')
+    def get_prop(self, document, guid, prop, request):
+        enforce(document == 'context' and prop == 'feed', ad.CommandNotFound)
 
-        return ad.call(self._volume, request, response)
+        directory = self.volume[document]
+        directory.metadata[prop].assert_access(ad.ACCESS_READ)
 
-    def _upload_blob(self, request, response):
-        path = request.pop('path')
-        pass_ownership = request.pop('pass_ownership')
+        return self._get_feed(request)
+
+    @ad.property_command(method='PUT', cmd='upload_blob')
+    def upload_blob(self, document, guid, prop, path, pass_ownership=False):
+        directory = self.volume[document]
+        directory.metadata[prop].assert_access(ad.ACCESS_WRITE)
+
         enforce(isabs(path), _('Path is not absolute'))
 
         try:
-            request.command = 'PUT'
-            request.content_stream = path
-            return ad.call(self._volume, request, response)
+            directory.set_blob(guid, prop, path)
         finally:
             if pass_ownership and exists(path):
                 os.unlink(path)
 
-    def _get_feed(self, request, response):
+    def _get_feed(self, request):
         feed = {}
 
         for path in activities.checkins(request['guid']):
@@ -149,9 +154,14 @@ class _LocalMount(_Mount):
                 util.exception(_logger, _('Failed to read %r spec file'), path)
                 continue
 
+            if request.access_level == ad.Request.ACCESS_LOCAL:
+                impl_id = spec.root
+            else:
+                impl_id = activities.path_to_guid(spec.root)
+
             feed[spec['version']] = {
                     '*-*': {
-                        'guid': spec.root,
+                        'guid': impl_id,
                         'stability': 'stable',
                         'commands': {
                             'activity': {
@@ -161,7 +171,7 @@ class _LocalMount(_Mount):
                         },
                     }
 
-        return json.dumps(feed)
+        return feed
 
     def __events_cb(self, event):
         self.emit(event)
@@ -206,13 +216,14 @@ class _LocalMount(_Mount):
                     break
                 else:
                     keep_impl = 0
-                self._volume['context'].update(guid, {'keep_impl': keep_impl})
+                self.volume['context'].update(guid, {'keep_impl': keep_impl})
                 break
 
 
-class _RemoteMount(_Mount):
+class _RemoteMount(ad.CommandsProcessor, _Mount):
 
     def __init__(self, mountpoint, volume, events_callback):
+        ad.CommandsProcessor.__init__(self)
         _Mount.__init__(self, mountpoint, events_callback)
         self._home_volume = volume
         self._events_job = coroutine.spawn(self._events_listerner)
@@ -228,38 +239,36 @@ class _RemoteMount(_Mount):
             self._events_job = None
 
     def call(self, request, response):
-        if request.command == 'get_blob':
-            return self._get_blob(**request)
-        elif request.command == 'upload_blob':
-            return self._upload_blob(**request)
-
         enforce(self.connected, env.Offline, _('No connection to server'))
 
-        if type(request.command) is list:
-            method, request['cmd'] = request.command
-        else:
-            method = request.command
+        try:
+            return ad.CommandsProcessor.call(self, request, response)
+        except ad.CommandNotFound:
+            pass
 
+        method = request.pop('method')
         document = request.pop('document')
-        guid = None
-        path = [document]
-        if 'guid' in request:
-            guid = request.pop('guid')
-            path.append(guid)
-        if 'prop' in request:
-            path.append(request.pop('prop'))
+        guid = request.pop('guid') if 'guid' in request else None
+        prop = request.pop('prop') if 'prop' in request else None
 
-        result = None
+        path = [document]
+        if guid:
+            path.append(guid)
+        if prop:
+            path.append(prop)
+
         patch = {}
+        result = None
+        command = method, request.get('cmd')
 
         if document == 'context':
-            if request.command == 'GET':
+            if command == ('GET', None):
                 reply = request.get('reply', [])
                 for prop, default in _COMMON_PROPS.items():
                     if prop in reply:
                         patch[prop] = default
                         reply.remove(prop)
-            elif request.command in ('POST', 'PUT'):
+            elif command in (('POST', None), ('PUT', None)):
                 for prop in _COMMON_PROPS.keys():
                     if prop in request.content:
                         patch[prop] = request.content.pop(prop)
@@ -273,7 +282,7 @@ class _RemoteMount(_Mount):
 
         if document == 'context' and patch:
             directory = self._home_volume['context']
-            if request.command == 'GET':
+            if command == ('GET', None):
                 if guid:
                     if directory.exists(guid):
                         patch = directory.get(guid).properties(patch.keys())
@@ -285,7 +294,7 @@ class _RemoteMount(_Mount):
                                     patch.keys())
                         props.update(patch)
             else:
-                if request.command == 'POST':
+                if command == ('POST', None):
                     guid = result
                 if directory.exists(guid):
                     directory.update(guid, patch)
@@ -295,20 +304,23 @@ class _RemoteMount(_Mount):
                     props['author'] = [sugar.uid()]
                     directory.create_with_guid(guid, props)
                     for prop in ('icon', 'artifact_icon', 'preview'):
-                        blob = self._get_blob('context', guid, prop)
+                        blob = self.get_blob('context', guid, prop)
                         if blob:
                             directory.set_blob(guid, prop, blob['path'])
 
         return result
 
-    def _get_blob(self, document, guid, prop):
+    @ad.property_command(method='GET', cmd='get_blob')
+    def get_blob(self, document, guid, prop):
         path, mime_type = cache.get_blob(document, guid, prop)
         if path is None:
             return None
-        else:
-            return {'path': path, 'mime_type': mime_type}
+        return {'path': path, 'mime_type': mime_type}
 
-    def _upload_blob(self, document, guid, prop, path, pass_ownership=False):
+    @ad.property_command(method='PUT', cmd='upload_blob')
+    def upload_blob(self, document, guid, prop, path, pass_ownership=False):
+        enforce(isabs(path), _('Path is not absolute'))
+
         try:
             with file(path, 'rb') as f:
                 http.request('PUT', [document, guid, prop], files={'file': f})

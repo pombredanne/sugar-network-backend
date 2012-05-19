@@ -66,7 +66,7 @@ class IPCTest(tests.Test):
         standard = []
         for i, client in enumerate(clients):
             for n in range(9):
-                standard.append({'mountpoint': '/', 'guid': 'wait%s%s' % (i, n), 'document': 'resource%s' % i})
+                standard.append({'method': 'DELETE', 'mountpoint': '/', 'guid': 'wait%s%s' % (i, n), 'document': 'resource%s' % i})
         self.assertEqual(
                 sorted(standard),
                 sorted(calls))

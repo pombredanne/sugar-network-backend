@@ -44,7 +44,7 @@ class Client(object):
     @property
     def connected(self):
         bus = Bus(self._mountpoint)
-        return bus.send('is_connected')
+        return bus.send('GET', 'is_connected')
 
     def launch(self, context, command='activity', object_id=None, uri=None,
             args=None):

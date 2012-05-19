@@ -62,6 +62,9 @@ class Test(unittest.TestCase):
         env.local_root.value = tmpdir
         env.activities_root.value = tmpdir + '/Activities'
         env.api_url.value = 'http://localhost:8000'
+        env.server_mode.value = False
+        rd.host.value = 'localhost'
+        rd.port.value = 8000
 
         self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile
@@ -232,7 +235,8 @@ class Test(unittest.TestCase):
         ad.index_write_queue.value = 10
 
         volume = ad.SingleVolume('remote', classes or [User, Context])
-        httpd = coroutine.WSGIServer(('localhost', 8000), rd.Router(volume))
+        cp = ad.VolumeCommands(volume)
+        httpd = coroutine.WSGIServer(('localhost', 8000), rd.Router(cp))
         subscriber = SubscribeSocket(volume)
         try:
             coroutine.joinall([

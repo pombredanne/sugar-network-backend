@@ -20,6 +20,7 @@ from os.path import join, abspath
 from gettext import gettext as _
 
 import active_document
+import restful_document
 from active_document import coroutine
 from sugar_network_server import resources
 from local_document import application, optparse, sugar, env
@@ -65,8 +66,10 @@ class Application(application.Daemon):
 
 # New defaults
 application.debug.value = sugar.logger_level()
+restful_document.only_sync_notification.value = False
 
 optparse.Option.seek('local-document', env)
+optparse.Option.seek('restful-document', restful_document)
 optparse.Option.seek('active-document', active_document)
 optparse.Option.seek('sugar-network-service',
         [application.debug, application.foreground])

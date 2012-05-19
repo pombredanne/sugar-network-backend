@@ -124,13 +124,14 @@ class Object(object):
 
     def upload_blob(self, prop, path, pass_ownership=False):
         enforce(self._guid, _('Object needs to be posted first'))
-        self._bus.send('upload_blob', guid=self._guid, prop=prop,
+        self._bus.send('PUT', 'upload_blob', guid=self._guid, prop=prop,
                 path=abspath(path), pass_ownership=pass_ownership)
 
     def _get_blob(self, prop):
         blob = self._blobs.get(prop)
         if blob is None:
-            blob = self._bus.send('get_blob', guid=self._guid, prop=prop)
+            blob = self._bus.send('GET', 'get_blob', guid=self._guid,
+                    prop=prop)
             self._blobs[prop] = blob
         return blob, type(blob) is dict and 'path' in blob
 

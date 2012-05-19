@@ -66,18 +66,21 @@ class Bus(object):
         """
         return _subscribe()
 
-    def send(self, cmd, content=None, content_type=None, **request):
+    def send(self, method, cmd=None, content=None, content_type=None,
+            **request):
+        request['method'] = method
+        if cmd:
+            request['cmd'] = cmd
         request['mountpoint'] = self.mountpoint
         if self.document:
             request['document'] = self.document
-        return self._send(cmd, request, content, content_type)
+        return self._send(request, content, content_type)
 
     def publish(self, event, **kwargs):
         kwargs['event'] = event
-        self._send('publish', {}, kwargs, 'application/json')
+        self._send({'cmd': 'publish'}, kwargs, 'application/json')
 
-    def _send(self, cmd, request, content, content_type):
-        request['cmd'] = cmd
+    def _send(self, request, content, content_type):
         request['content_type'] = content_type
 
         with Bus.connection.pipe() as pipe:

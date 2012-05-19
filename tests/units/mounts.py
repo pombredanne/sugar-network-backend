@@ -4,6 +4,7 @@
 import time
 import json
 import socket
+import hashlib
 from os.path import join, exists
 
 from __init__ import tests
@@ -15,7 +16,7 @@ from sugar_network.client import Client
 from sugar_network.bus import ServerError
 from local_document.mounts import Mounts
 from local_document.bus import Server
-from local_document import env, mounts, sugar
+from local_document import env, mounts, sugar, http
 
 
 class MountsTest(tests.Test):
@@ -412,6 +413,67 @@ class MountsTest(tests.Test):
         # TODO Enable after implementing feature to stale BLOB's cache
         #self.assertEqual('blob2', remote.Context(guid).get_blob('preview').read())
         assert not exists('file2')
+
+    def test_ServerMode(self):
+        env.server_mode.value = True
+
+        self.start_server()
+        local = Client('~')
+        remote = Client('/')
+
+        guid = local.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+        self.assertEqual(
+                'title',
+                remote.Context(guid, reply=['title'])['title'])
+        self.assertEqual(
+                'title',
+                http.request('GET', ['context', guid])['title'])
+
+        self.touch(('Activities/activity/activity/activity.info', [
+            '[Activity]',
+            'name = HelloWorld',
+            'activity_version = 1',
+            'bundle_id = %s' % guid,
+            'exec = true',
+            'icon = icon',
+            'license = GPLv2+',
+            ]))
+        coroutine.sleep(1)
+
+        self.assertEqual(2, local.Context(guid, reply=['keep_impl'])['keep_impl'])
+        self.assertEqual(2, remote.Context(guid, reply=['keep_impl'])['keep_impl'])
+
+        feed = {
+                '1': {
+                    '*-*': {
+                        'guid': tests.tmpdir + '/Activities/activity',
+                        'stability': 'stable',
+                        'commands': {
+                            'activity': {
+                                'exec': 'true',
+                                },
+                            },
+                        },
+                    },
+                }
+        self.assertEqual(
+                feed,
+                json.loads(local.Context(guid).get_blob('feed').read()))
+        self.assertEqual(
+                feed,
+                json.loads(remote.Context(guid).get_blob('feed').read()))
+        feed['1']['*-*']['guid'] = \
+                hashlib.sha1(feed['1']['*-*']['guid']).hexdigest()
+        self.assertEqual(
+                feed,
+                http.request('GET', ['context', guid, 'feed']))
+
+
+
 
 
 if __name__ == '__main__':

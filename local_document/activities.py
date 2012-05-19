@@ -27,6 +27,10 @@ from local_document import crawler, env, sugar
 _logger = logging.getLogger('local_document.activities')
 
 
+def path_to_guid(path):
+    return hashlib.sha1(path).hexdigest()
+
+
 def checkins(context):
     root = _context_path(context, '')
     if not exists(root):
@@ -111,7 +115,7 @@ def monitor(mounts):
 
 
 def _checkin_path(impl_path):
-    hashed_path = hashlib.sha1(impl_path).hexdigest()
+    hashed_path = path_to_guid(impl_path)
     return hashed_path, env.path('activities', 'checkins', hashed_path)
 
 

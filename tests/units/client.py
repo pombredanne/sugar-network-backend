@@ -272,7 +272,7 @@ class ClientTest(tests.Test):
         class Mounts(object):
 
             def call(self_, request, response):
-                if not (request.command == 'get_blob' and \
+                if not (request['cmd'] == 'get_blob' and \
                         request['document'] == 'document' and \
                         'guid' in request):
                     return
