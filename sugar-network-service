@@ -67,6 +67,8 @@ class Application(application.Daemon):
 # New defaults
 application.debug.value = sugar.logger_level()
 restful_document.only_sync_notification.value = False
+# It seems to be that most of users (on XO at least) don't have recent SSH
+restful_document.trust_users.value = True
 
 optparse.Option.seek('local-document', env)
 optparse.Option.seek('restful-document', restful_document)

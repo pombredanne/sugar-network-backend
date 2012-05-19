@@ -17,13 +17,14 @@ import os
 import json
 import shutil
 import logging
+from urlparse import urlparse
 from os.path import isabs, exists
 from gettext import gettext as _
 
 import zerosugar
 import sweets_recipe
 import active_document as ad
-from local_document import activities, cache, sugar, http, env
+from local_document import activities, cache, sugar, http, env, zeroconf
 from active_document import sockets, util, coroutine, enforce
 
 
@@ -351,12 +352,12 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
 
     def _events_listerner(self):
 
-        def connect():
+        def connect(host):
             subscription = http.request('POST', [''],
                     params={'cmd': 'subscribe'},
                     headers={'Content-Type': 'application/json'})
             conn = sockets.SocketFile(coroutine.socket())
-            conn.connect((subscription['host'], subscription['port']))
+            conn.connect((host, subscription['port']))
             conn = sockets.SocketFile(conn)
             conn.write_message({'ticket': subscription['ticket']})
             return conn
@@ -369,15 +370,26 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             self.emit(event)
             return True
 
+        if env.api_url.value:
+            url = urlparse(env.api_url.value)
+            servers = lambda: [(url.hostname, env.api_url.value)]
+        else:
+            servers = lambda: [(i, 'http://%s:8000' % i) \
+                    for i in zeroconf.browse_workstation()]
+
         while True:
-            try:
-                _logger.debug('Connecting to %r remote server',
-                        env.api_url.value)
-                conn = connect()
-            except Exception, error:
-                _logger.debug('Cannot connect to remote server, ' \
-                        'wait for %r seconds: %s',
-                        _RECONNECTION_TIMEOUT, error)
+            for host, url in servers():
+                env.api_url.value = url
+                try:
+                    _logger.debug('Connecting to %r remote server', url)
+                    conn = connect(host)
+                except Exception:
+                    _logger.debug('Cannot connect to %r remote server', url)
+                else:
+                    break
+            else:
+                _logger.debug('Wait for %r seconds before trying to connect',
+                        _RECONNECTION_TIMEOUT)
                 coroutine.sleep(_RECONNECTION_TIMEOUT)
                 continue
 
