@@ -54,7 +54,7 @@ class Directory(object):
                 document_class.metadata[prop.name] = prop
         self.metadata = document_class.metadata
 
-        self._document_class = document_class
+        self.document_class = document_class
         self._storage = Storage(root, self.metadata)
         self._index = index_class(root, self.metadata, self._post_commit)
         self._root = root
@@ -98,7 +98,7 @@ class Directory(object):
             new document properties
 
         """
-        self._document_class.on_create(props)
+        self.document_class.on_create(props)
         if 'guid' in props:
             guid = props['guid']
         else:
@@ -129,7 +129,7 @@ class Directory(object):
         """
         if not props:
             return
-        self._document_class.on_update(props)
+        self.document_class.on_update(props)
         self._post(guid, props, False)
 
     def delete(self, guid):
@@ -148,7 +148,7 @@ class Directory(object):
     def get(self, guid):
         cached_props = self._index.get_cached(guid)
         record = self._storage.get(guid)
-        return self._document_class(guid, cached_props, record)
+        return self.document_class(guid, cached_props, record)
 
     def find(self, *args, **kwargs):
         """Search documents.
@@ -176,7 +176,7 @@ class Directory(object):
         def iterate():
             for guid, props in documents:
                 record = self._storage.get(guid)
-                yield self._document_class(guid, props, record)
+                yield self.document_class(guid, props, record)
 
         return iterate(), total
 

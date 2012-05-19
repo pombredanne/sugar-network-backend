@@ -12,7 +12,7 @@ src_root = abspath(dirname(__file__))
 from __init__ import tests
 
 from active_document import volume, document, SingleVolume, \
-        call, Request, Response, Document, active_property, \
+        Request, Response, Document, active_property, \
         BlobProperty, NotFound, sockets
 
 
@@ -83,11 +83,11 @@ class VolumeTest(tests.Test):
                 {'guid': 'guid', 'prop': ''},
                 ],
             },
-            self.call('GET', 'testdocument', reply=['guid', 'prop']))
+            self.call('GET', document='testdocument', reply=['guid', 'prop']))
 
-        guid_1 = self.call('POST', 'testdocument', content={'prop': 'value_1'})
+        guid_1 = self.call('POST', document='testdocument', content={'prop': 'value_1'})
         assert guid_1
-        guid_2 = self.call('POST', 'testdocument', content={'prop': 'value_2'})
+        guid_2 = self.call('POST', document='testdocument', content={'prop': 'value_2'})
         assert guid_2
 
         self.assertEqual(
@@ -96,9 +96,9 @@ class VolumeTest(tests.Test):
                     {'guid': guid_1, 'prop': 'value_1'},
                     {'guid': guid_2, 'prop': 'value_2'},
                     ]),
-                sorted(self.call('GET', 'testdocument', reply=['guid', 'prop'])['result']))
+                sorted(self.call('GET', document='testdocument', reply=['guid', 'prop'])['result']))
 
-        self.call('PUT', 'testdocument', guid_1, content={'prop': 'value_3'})
+        self.call('PUT', document='testdocument', guid=guid_1, content={'prop': 'value_3'})
 
         self.assertEqual(
                 sorted([
@@ -106,44 +106,44 @@ class VolumeTest(tests.Test):
                     {'guid': guid_1, 'prop': 'value_3'},
                     {'guid': guid_2, 'prop': 'value_2'},
                     ]),
-                sorted(self.call('GET', 'testdocument', reply=['guid', 'prop'])['result']))
+                sorted(self.call('GET', document='testdocument', reply=['guid', 'prop'])['result']))
 
-        self.call('DELETE', 'testdocument', guid_2)
+        self.call('DELETE', document='testdocument', guid=guid_2)
 
         self.assertEqual(
                 sorted([
                     {'guid': 'guid', 'prop': ''},
                     {'guid': guid_1, 'prop': 'value_3'},
                     ]),
-                sorted(self.call('GET', 'testdocument', reply=['guid', 'prop'])['result']))
+                sorted(self.call('GET', document='testdocument', reply=['guid', 'prop'])['result']))
 
-        self.assertRaises(NotFound, self.call, 'GET', 'testdocument', guid_2)
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid_2)
 
         self.assertEqual(
                 {'guid': guid_1, 'prop': 'value_3'},
-                self.call('GET', 'testdocument', guid_1, reply=['guid', 'prop']))
+                self.call('GET', document='testdocument', guid=guid_1, reply=['guid', 'prop']))
 
         self.assertEqual(
                 'value_3',
-                self.call('GET', 'testdocument', guid_1, 'prop'))
+                self.call('GET', document='testdocument', guid=guid_1, prop='prop'))
 
         self.assertEqual(
                 None,
-                self.call(('GET', 'stat-blob'), 'testdocument', guid_1, 'blob'))
+                self.call('GET', cmd='stat-blob', document='testdocument', guid=guid_1, prop='blob'))
 
-        self.call('PUT', 'testdocument', guid_1, 'blob', content_stream=StringIO('blob-value'))
+        self.call('PUT', document='testdocument', guid=guid_1, prop='blob', content_stream=StringIO('blob-value'))
 
         self.assertEqual(
                 len('blob-value'),
-                self.call(('GET', 'stat-blob'), 'testdocument', guid_1, 'blob')['size'])
+                self.call('GET', cmd='stat-blob', document='testdocument', guid=guid_1, prop='blob')['size'])
 
-        stream = self.call('GET', 'testdocument', guid_1, 'blob')
+        stream = self.call('GET', document='testdocument', guid=guid_1, prop='blob')
         self.assertEqual('blob-value', ''.join([i for i in stream]))
         self.assertEqual('application/octet-stream', self.response.content_type)
         self.assertEqual(len('blob-value'), self.response.content_length)
 
     def test_CommandsGetBlobDirectory(self):
-        guid = self.call('POST', 'testdocument', content={})
+        guid = self.call('POST', document='testdocument', content={})
 
         blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
         self.touch(blob_path + '.sha1')
@@ -152,7 +152,7 @@ class VolumeTest(tests.Test):
         self.touch((blob_path + '/6', 'c'))
 
         stream = StringIO()
-        for chunk in self.call('GET', 'testdocument', guid, 'blob'):
+        for chunk in self.call('GET', document='testdocument', guid=guid, prop='blob'):
             stream.write(chunk)
         stream.seek(0)
 
@@ -170,54 +170,55 @@ class VolumeTest(tests.Test):
                 sorted([(name, content.read()) for name, content in files]))
 
     def test_Command_ReplyForGET(self):
-        guid = self.call('POST', 'testdocument', content={'prop': 'value'})
+        guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
                 sorted(['layers', 'ctime', 'author', 'prop', 'mtime', 'guid']),
-                sorted(self.call('GET', 'testdocument', guid).keys()))
+                sorted(self.call('GET', document='testdocument', guid=guid).keys()))
 
         self.assertEqual(
                 ['guid', 'prop'],
-                self.call('GET', 'testdocument', guid, reply=['guid', 'prop']).keys())
+                self.call('GET', document='testdocument', guid=guid, reply=['guid', 'prop']).keys())
 
         self.assertEqual(
                 ['guid'],
-                self.call('GET', 'testdocument')['result'][0].keys())
+                self.call('GET', document='testdocument')['result'][0].keys())
 
         self.assertEqual(
                 sorted(['guid', 'prop']),
-                sorted(self.call('GET', 'testdocument', reply=['prop', 'guid'])['result'][0].keys()))
+                sorted(self.call('GET', document='testdocument', reply=['prop', 'guid'])['result'][0].keys()))
 
         self.assertEqual(
                 sorted(['guid', 'prop']),
-                sorted(self.call('GET', 'testdocument', reply=['prop'])['result'][0].keys()))
+                sorted(self.call('GET', document='testdocument', reply=['prop'])['result'][0].keys()))
 
-    def call(self, cmd, document=None, guid=None, prop=None, **kwargs):
+    def call(self, method, document=None, guid=None, prop=None,
+            principal=None, **kwargs):
 
         class TestRequest(Request):
 
-            content = None
             content_stream = None
             content_length = 0
-            principal = 'me'
+            principal = None
 
         request = TestRequest(kwargs)
-        request.command = cmd
+        request['method'] = method
+        request.principal = principal
+        if 'content' in kwargs:
+            request.content = request.pop('content')
         if document:
             request['document'] = document
         if guid:
             request['guid'] = guid
         if prop:
             request['prop'] = prop
-        if 'content' in request:
-            request.content = request.pop('content')
         if 'content_stream' in request:
             request.content_stream = request.pop('content_stream')
             request.content_length = len(request.content_stream.getvalue())
 
         self.response = Response()
-
-        return call(self.volume, request, self.response)
+        cp = volume.VolumeCommands(self.volume)
+        return cp.call(request, self.response)
 
 
 if __name__ == '__main__':

@@ -17,7 +17,6 @@ import types
 from gettext import gettext as _
 
 from active_document import env
-from active_document.commands import Commands
 from active_document.util import enforce
 
 
@@ -74,46 +73,36 @@ class Metadata(dict):
 
         """
         self._name = cls.__name__.lower()
-        self.directory_commands = Commands()
-        self.document_commands = Commands()
 
         slots = {}
         prefixes = {}
 
-        def register_property(attr):
+        for attr in [getattr(cls, i) for i in dir(cls)]:
+            if not hasattr(attr, '_is_active_property'):
+                continue
+
             prop = attr.prop
+
             if hasattr(prop, 'slot'):
                 enforce(prop.slot is None or prop.slot not in slots,
                         _('Property %r has a slot already defined ' \
                                 'for %r in %r'),
                         prop.name, slots.get(prop.slot), self.name)
                 slots[prop.slot] = prop.name
+
             if hasattr(prop, 'prefix'):
                 enforce(not prop.prefix or prop.prefix not in prefixes,
                         _('Property %r has a prefix already defined ' \
                                 'for %r'),
                         prop.name, prefixes.get(prop.prefix))
                 prefixes[prop.prefix] = prop.name
+
             if prop.setter is not None:
                 setattr(cls, attr.name, property(attr, prop.setter))
             else:
                 setattr(cls, attr.name, property(attr))
+
             self[prop.name] = prop
-
-        def register_command(attr):
-            enforce(isinstance(attr, types.MethodType),
-                    _('Incorrect active_command, %r'), attr)
-            if attr.im_self is None:
-                commands = self.document_commands
-            else:
-                commands = self.directory_commands
-            commands.add(attr, document=self.name, **attr.kwargs)
-
-        for attr in [getattr(cls, i) for i in dir(cls)]:
-            if hasattr(attr, '_is_active_property'):
-                register_property(attr)
-            elif hasattr(attr, '_is_active_command'):
-                register_command(attr)
 
     @property
     def name(self):

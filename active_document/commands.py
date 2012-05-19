@@ -1,4 +1,4 @@
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,117 +23,52 @@ from active_document.util import enforce
 _logger = logging.getLogger('active_document.commands')
 
 
-def document_command(**kwargs):
+def command(scope, **kwargs):
 
     def decorate(func):
-        _document_commands.add(func, **kwargs)
+        func.commands_scope = scope
+        func.kwargs = kwargs
         return func
 
     return decorate
 
 
-def directory_command(**kwargs):
-
-    def decorate(func):
-        _directory_commands.add(func, **kwargs)
-        return func
-
-    return decorate
+volume_command = lambda ** kwargs: command('volume', **kwargs)
+directory_command = lambda ** kwargs: command('directory', **kwargs)
+document_command = lambda ** kwargs: command('document', **kwargs)
+property_command = lambda ** kwargs: command('property', **kwargs)
 
 
-def volume_command(**kwargs):
-
-    def decorate(func):
-        _volume_commands.add(func, **kwargs)
-        return func
-
-    return decorate
-
-
-def call(volume, request, response):
-    directory = None
-    if 'document' in request:
-        directory = volume[request.pop('document')]
-
-    command, args, document = _resolve(request.command, directory, request)
-    enforce(command is not None, env.NotFound, _('Unsupported command'))
-
-    if request.principal is not None:
-        if command.permissions & env.ACCESS_AUTH:
-            enforce(request.principal is not Request.ANONYMOUS,
-                    env.Unauthorized, _('User is not authenticated'))
-        if command.permissions & env.ACCESS_AUTHOR:
-            enforce(request.principal in document['author'], env.Forbidden,
-                    _('Operation is permitted only for authors'))
-
-    if command.accept_request:
-        request['request'] = request
-    if command.accept_response:
-        request['response'] = response
-
-    result = command.callback(*args, **request)
-
-    _logger.debug('Called %r: request=%r result=%r', command, request, result)
-
-    if not response.content_type:
-        response.content_type = command.mime_type
-
-    return result
-
-
-class Command(object):
-
-    def __init__(self, callback=None, method='GET', document=None, cmd=None,
-            mime_type='application/json', permissions=0):
-        self.callback = callback
-        self.mime_type = mime_type
-        self.permissions = permissions
-        self.accept_request = 'request' in _function_arg_names(callback)
-        self.accept_response = 'response' in _function_arg_names(callback)
-
-        key = [method]
-        if cmd:
-            key.append(cmd)
-        if document:
-            key.append(document)
-        if len(key) > 1:
-            self.key = tuple(key)
-        else:
-            self.key = key[0]
-
-    def __repr__(self):
-        return str(self.key)
-
-
-class Commands(dict):
-
-    def add(self, callback, **kwargs):
-        cmd = Command(callback, **kwargs)
-        enforce(cmd.key not in self, _('Command %r already exists'), cmd)
-        self[cmd.key] = cmd
+class CommandNotFound(env.NotFound):
+    pass
 
 
 class Request(dict):
 
     ANONYMOUS = object()
 
-    command = None
+    ACCESS_SYSTEM = 0
+    ACCESS_LOCAL = 1
+    ACCESS_REMOTE = 2
+
     content = None
     content_stream = None
     content_length = None
     principal = ANONYMOUS
-    remote = True
+    access_level = ACCESS_REMOTE
+
+    def copy(self):
+        result = Request(self)
+        result.content = self.content
+        result.content_stream = self.content_stream
+        result.content_length = self.content_length
+        result.principal = self.principal
+        result.access_level = self.access_level
+        return result
 
     def __getitem__(self, key):
         enforce(key in self, _('Cannot find %r request argument'), key)
         return self.get(key)
-
-    def __repr__(self):
-        args = []
-        for key, value in self.items():
-            if value is not self:
-                args.append('%s=%r' % (key, value))
-        return '%s(%s)' % (self.command, ', '.join(args))
 
 
 class Response(dict):
@@ -142,32 +77,177 @@ class Response(dict):
     content_type = None
 
 
-def _resolve(cmd, directory, request):
-    if directory is None:
-        return _volume_commands.get(cmd), [], None
+class CommandsProcessor(object):
 
-    metadata = directory.metadata
-    active_cmd = cmd + (metadata.name,) if type(cmd) is tuple \
-            else (cmd, metadata.name)
+    def __init__(self, volume=None):
+        self._commands = {
+                'volume': _Commands(),
+                'directory': _Commands(),
+                'document': _Commands(),
+                'property': _Commands(),
+                }
+        self.volume = volume
 
-    if 'guid' not in request:
-        command = _directory_commands.get(cmd) or \
-                metadata.directory_commands.get(active_cmd)
-        return command, [directory], None
+        for scope, cb, attr in _scan_class_for_commands(self.__class__):
+            cmd = _Command(cb, [self], **attr.kwargs)
+            self._commands[scope].add(cmd)
 
-    command = _document_commands.get(cmd) or \
-            metadata.document_commands.get(active_cmd)
-    if command is None:
-        return None, None, None
+        if volume is not None:
+            for directory in volume.values():
+                for scope, cb, attr in \
+                        _scan_class_for_commands(directory.document_class):
+                    if scope == 'directory':
+                        enforce(attr.im_self is not None,
+                                _('Command should be a @classmethod'))
+                        cmd = _ClassCommand(directory, cb, **attr.kwargs)
+                        self._commands[scope].add(cmd)
+                    elif scope in ('document', 'property'):
+                        enforce(attr.im_self is None,
+                                _('Command should not be a @classmethod'))
+                        cmd = _ObjectCommand(directory, cb, **attr.kwargs)
+                        self._commands[scope].add(cmd)
 
-    document = directory.get(request.pop('guid'))
-    if hasattr(command.callback, 'im_self') and \
-            command.callback.im_self is None:
-        args = [document, directory]
-    else:
-        args = [directory, document]
+    def call(self, request, response):
+        cmd = self._resolve(request)
+        enforce(cmd is not None, CommandNotFound, _('Unsupported command'))
 
-    return command, args, document
+        if request.principal is not None:
+            if cmd.permissions & env.ACCESS_AUTH:
+                enforce(request.principal is not Request.ANONYMOUS,
+                        env.Unauthorized, _('User is not authenticated'))
+            if cmd.permissions & env.ACCESS_AUTHOR:
+                enforce(self.volume is not None)
+                doc = self.volume[request['document']].get(request['guid'])
+                enforce(request.principal in doc['author'], env.Forbidden,
+                        _('Operation is permitted only for authors'))
+
+        if cmd.accept_request:
+            request['request'] = request
+        if cmd.accept_response:
+            request['response'] = response
+
+        result = cmd(request)
+
+        _logger.debug('Called %r: request=%r result=%r', cmd, request, result)
+
+        if not response.content_type:
+            response.content_type = cmd.mime_type
+
+        return result
+
+    def _resolve(self, request):
+        key = (request.get('method', 'GET'), request.get('cmd'), None)
+
+        if 'document' not in request:
+            return self._commands['volume'].get(key)
+
+        document_key = key[:2] + (request['document'],)
+
+        if 'guid' not in request:
+            commands = self._commands['directory']
+            return commands.get(key) or commands.get(document_key)
+
+        if 'prop' not in request:
+            commands = self._commands['document']
+            return commands.get(key) or commands.get(document_key)
+
+        commands = self._commands['property']
+        return commands.get(key) or commands.get(document_key)
+
+
+class ProxyCommands(CommandsProcessor):
+
+    def __init__(self, parent):
+        CommandsProcessor.__init__(self)
+        self.parent = parent
+        self.volume = parent.volume
+
+    def call(self, request, response):
+        orig_request = request.copy()
+        try:
+            return CommandsProcessor.call(self, request, response)
+        except CommandNotFound:
+            return self.parent.call(orig_request, response)
+
+    def super_call(self, method, cmd=None, content=None,
+            access_level=Request.ACCESS_REMOTE, principal=Request.ANONYMOUS,
+            response=None, **kwargs):
+        request = Request(kwargs)
+        request['method'] = method
+        if cmd:
+            request['cmd'] = cmd
+        request.content = content
+        request.access_level = access_level
+        request.principal = principal
+
+        if response is None:
+            response = Response()
+
+        return self.parent.call(request, response)
+
+
+class _Command(object):
+
+    def __init__(self, callback, args, method='GET', document=None, cmd=None,
+            mime_type='application/json', permissions=0):
+        self.callback = callback
+        self.args = args
+        self.mime_type = mime_type
+        self.permissions = permissions
+        self.accept_request = 'request' in _function_arg_names(callback)
+        self.accept_response = 'response' in _function_arg_names(callback)
+        self.key = (method, cmd, document)
+
+    def __call__(self, request):
+        if 'method' in request:
+            request.pop('method')
+        if 'cmd' in request:
+            request.pop('cmd')
+        return self.callback(*self.args, **request)
+
+    def __repr__(self):
+        return '%s(method=%s, cmd=%s, document=%s)' % \
+                ((self.callback.__name__,) + self.key)
+
+
+class _ClassCommand(_Command):
+
+    def __init__(self, directory, callback, **kwargs):
+        _Command.__init__(self, callback, [], document=directory.metadata.name,
+                **kwargs)
+        self._directory = directory
+
+    def __call__(self, request):
+        if 'method' in request:
+            request.pop('method')
+        if 'cmd' in request:
+            request.pop('cmd')
+        request.pop('document')
+        return self.callback(directory=self._directory, **request)
+
+
+class _ObjectCommand(_Command):
+
+    def __init__(self, directory, callback, **kwargs):
+        _Command.__init__(self, callback, [], document=directory.metadata.name,
+                **kwargs)
+        self._directory = directory
+
+    def __call__(self, request):
+        if 'method' in request:
+            request.pop('method')
+        if 'cmd' in request:
+            request.pop('cmd')
+        request.pop('document')
+        document = self._directory.get(request.pop('guid'))
+        return self.callback(document, **request)
+
+
+class _Commands(dict):
+
+    def add(self, cmd):
+        enforce(cmd.key not in self, _('Command %r already exists'), cmd)
+        self[cmd.key] = cmd
 
 
 def _function_arg_names(func):
@@ -179,6 +259,11 @@ def _function_arg_names(func):
     return code.co_varnames[:code.co_argcount]
 
 
-_volume_commands = Commands()
-_directory_commands = Commands()
-_document_commands = Commands()
+def _scan_class_for_commands(root_cls):
+    cls = root_cls
+    while cls is not None:
+        for attr in [getattr(cls, i) for i in dir(cls)]:
+            if hasattr(attr, 'commands_scope'):
+                callback = getattr(root_cls, attr.__name__)
+                yield attr.commands_scope, callback, attr
+        cls = cls.__base__

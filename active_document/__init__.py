@@ -30,6 +30,7 @@ from active_document.metadata import Metadata, Property, \
         active_property, active_command
 
 from active_document.commands import document_command, directory_command, \
-        volume_command, Command, Request, Response, call
+        volume_command, property_command, Request, Response, \
+        CommandsProcessor, ProxyCommands, CommandNotFound
 
-from active_document.volume import SingleVolume
+from active_document.volume import SingleVolume, VolumeCommands

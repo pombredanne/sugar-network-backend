@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012, Aleksey Lim
+# Copyright (C) 2011-2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,6 +29,8 @@ from active_document.document import Document
 from active_document.directory import Directory
 from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
+from active_document.commands import CommandsProcessor, property_command
+from active_document.commands import Request
 from active_document.metadata import BlobProperty
 from active_document.util import enforce
 
@@ -39,7 +41,7 @@ _logger = logging.getLogger('active_document.volume')
 class _Volume(dict):
 
     def __init__(self, root, document_classes, index_class, extra_props):
-        self._signal = None
+        self._subscriptions = set()
 
         self._root = abspath(root)
         if not exists(root):
@@ -69,20 +71,17 @@ class _Volume(dict):
             cls.close()
 
     def connect(self, callback):
-        # TODO Replace by regular events handler
-        enforce(self._signal is None)
-        self._signal = callback
+        self._subscriptions.add(callback)
 
     def _notification_cb(self, event, document):
-        signal = self._signal
-        if signal is None:
-            return
-        if event['event'] == 'update' and \
-                'deleted' in event['props'].get('layers', []):
-            event['event'] = 'delete'
-            del event['props']
-        event['document'] = document
-        signal(event)
+        for callback in self._subscriptions:
+            if event['event'] == 'update' and \
+                    'props' in event and \
+                    'deleted' in event['props'].get('layers', []):
+                event['event'] = 'delete'
+                del event['props']
+            event['document'] = document
+            callback(event)
 
     def __enter__(self):
         return self
@@ -109,138 +108,161 @@ class SingleVolume(_Volume):
                 coroutine.dispatch()
 
 
-@directory_command(method='POST',
-        permissions=env.ACCESS_AUTH)
-def _create(directory, request):
-    props = request.content
-    for i in props.keys():
-        directory.metadata[i].assert_access(env.ACCESS_CREATE)
-    props['author'] = [request.principal] if request.principal else []
-    return directory.create(props)
+class VolumeCommands(CommandsProcessor):
 
+    def __init__(self, volume):
+        CommandsProcessor.__init__(self, volume)
+        self.volume = volume
 
-@directory_command(method='GET')
-def _find(directory, offset=None, limit=None, query=None, reply=None,
-        order_by=None, **kwargs):
-    offset = _to_int('offset', offset)
-    limit = _to_int('limit', limit)
-    reply = _to_list(reply) or []
-    reply.append('guid')
+    @directory_command(method='POST',
+            permissions=env.ACCESS_AUTH)
+    def create(self, document, request):
+        directory = self.volume[document]
+        props = request.content
+        for i in props.keys():
+            directory.metadata[i].assert_access(env.ACCESS_CREATE)
+        props['author'] = [request.principal] if request.principal else []
+        return directory.create(props)
 
-    for i in reply:
-        directory.metadata[i].assert_access(env.ACCESS_READ)
+    @directory_command(method='GET')
+    def find(self, document, offset=None, limit=None, query=None, reply=None,
+            order_by=None, **kwargs):
+        directory = self.volume[document]
+        offset = _to_int('offset', offset)
+        limit = _to_int('limit', limit)
+        reply = _to_list(reply) or []
+        reply.append('guid')
 
-    # TODO until implementing layers support
-    kwargs['layers'] = 'public'
+        for i in reply:
+            directory.metadata[i].assert_access(env.ACCESS_READ)
 
-    documents, total = directory.find(offset=offset, limit=limit,
-            query=query, reply=reply, order_by=order_by, **kwargs)
-    result = [i.properties(reply) for i in documents]
+        # TODO until implementing layers support
+        kwargs['layers'] = 'public'
 
-    return {'total': total.value, 'result': result}
+        documents, total = directory.find(offset=offset, limit=limit,
+                query=query, reply=reply, order_by=order_by, **kwargs)
+        result = [i.properties(reply) for i in documents]
 
+        return {'total': total.value, 'result': result}
 
-@document_command(method='PUT',
-        permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
-def _update(directory, document, request, prop=None, url=None):
-    if prop is None:
+    @document_command(method='GET', cmd='exists')
+    def exists(self, document, guid):
+        directory = self.volume[document]
+        return directory.exists(guid)
+
+    @document_command(method='PUT',
+            permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
+    def update(self, document, guid, request):
+        directory = self.volume[document]
         props = request.content
         for i in props.keys():
             directory.metadata[i].assert_access(env.ACCESS_WRITE)
-        directory.update(document.guid, props)
-        return
+        directory.update(guid, props)
 
-    directory.metadata[prop].assert_access(env.ACCESS_WRITE)
+    @property_command(method='PUT',
+            permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
+    def update_prop(self, document, guid, prop, request, url=None):
+        directory = self.volume[document]
 
-    if not isinstance(directory.metadata[prop], BlobProperty):
-        directory.update(document.guid, {prop: request.content})
-        return
+        directory.metadata[prop].assert_access(env.ACCESS_WRITE)
 
-    if url is not None:
-        _logger.info(_('Download BLOB for %r from %r'), prop, url)
-        stream = urllib2.urlopen(url)
-        try:
-            directory.set_blob(document.guid, prop, stream)
-        finally:
-            stream.close()
-    elif request.content is not None:
-        # TODO Avoid double JSON processins
-        content_stream = StringIO()
-        json.dump(request.content, content_stream)
-        content_stream.seek(0)
-        directory.set_blob(document.guid, prop, content_stream, None)
-    else:
-        directory.set_blob(document.guid, prop, request.content_stream,
-                request.content_length)
+        if not isinstance(directory.metadata[prop], BlobProperty):
+            directory.update(guid, {prop: request.content})
+            return
 
+        if url is not None:
+            _logger.info(_('Download BLOB for %r from %r'), prop, url)
+            stream = urllib2.urlopen(url)
+            try:
+                directory.set_blob(guid, prop, stream)
+            finally:
+                stream.close()
+        elif request.content is not None:
+            # TODO Avoid double JSON processins
+            content_stream = StringIO()
+            json.dump(request.content, content_stream)
+            content_stream.seek(0)
+            directory.set_blob(guid, prop, content_stream, None)
+        else:
+            directory.set_blob(guid, prop, request.content_stream,
+                    request.content_length)
 
-@document_command(method='DELETE',
-        permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
-def _delete(directory, document, prop=None):
-    enforce(prop is None, _('Properties cannot be deleted'))
-    directory.delete(document.guid)
+    @document_command(method='DELETE',
+            permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
+    def delete(self, document, guid):
+        directory = self.volume[document]
+        directory.delete(guid)
 
+    @document_command(method='PUT', cmd='hide',
+            permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
+    def hide(self, document, guid):
+        directory = self.volume[document]
+        directory.update(guid, {'layers': ['deleted']})
 
-@document_command(method='PUT', cmd='delete',
-        permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
-def _hide(directory, document, prop=None):
-    enforce(prop is None, _('Properties cannot be deleted'))
-    directory.update(document.guid, {'layers': ['deleted']})
+    @document_command(method='GET')
+    def get(self, document, guid, reply=None):
+        directory = self.volume[document]
+        doc = directory.get(guid)
 
-
-@document_command(method='GET')
-def _get(directory, document, response, prop=None, reply=None):
-    if not prop:
         reply = _to_list(reply)
         if reply:
             for i in reply:
                 directory.metadata[i].assert_access(env.ACCESS_READ)
-        enforce('deleted' not in document['layers'], env.NotFound,
+
+        enforce('deleted' not in doc['layers'], env.NotFound,
                 _('Document is not found'))
-        return document.properties(reply)
 
-    directory.metadata[prop].assert_access(env.ACCESS_READ)
+        return doc.properties(reply)
 
-    if not isinstance(directory.metadata[prop], BlobProperty):
-        return document[prop]
+    @property_command(method='GET')
+    def get_prop(self, document, guid, prop, response):
+        directory = self.volume[document]
+        doc = directory.get(guid)
 
-    stat = directory.stat_blob(document.guid, prop)
-    response.content_length = stat.get('size') or 0
-    response.content_type = directory.metadata[prop].mime_type
+        directory.metadata[prop].assert_access(env.ACCESS_READ)
 
-    path = stat.get('path')
-    if not path:
-        # TODO Empty BLOBs should raise `NotFound`
-        return None
+        if not isinstance(directory.metadata[prop], BlobProperty):
+            return doc[prop]
 
-    if isdir(path):
-        dir_info, dir_reader = sockets.encode_directory(path)
-        response.content_length = dir_info.content_length
-        response.content_type = dir_info.content_type
-        return dir_reader
+        stat = directory.stat_blob(guid, prop)
+        response.content_length = stat.get('size') or 0
+        response.content_type = directory.metadata[prop].mime_type
 
-    def file_reader(path):
-        with file(path, 'rb') as f:
-            while True:
-                chunk = f.read(sockets.BUFFER_SIZE)
-                if not chunk:
-                    break
-                yield chunk
+        path = stat.get('path')
+        if not path:
+            # TODO Empty BLOBs should raise `NotFound`
+            return None
 
-    return file_reader(path)
+        if isdir(path):
+            dir_info, dir_reader = sockets.encode_directory(path)
+            response.content_length = dir_info.content_length
+            response.content_type = dir_info.content_type
+            return dir_reader
 
+        def file_reader(path):
+            with file(path, 'rb') as f:
+                while True:
+                    chunk = f.read(sockets.BUFFER_SIZE)
+                    if not chunk:
+                        break
+                    yield chunk
 
-@document_command(method='GET', cmd='stat-blob')
-def _stat_blob(directory, document, request, prop=None):
-    enforce(prop is not None, _('No BLOB property specified'))
-    directory.metadata[prop].assert_access(env.ACCESS_READ)
-    stat = directory.stat_blob(document.guid, prop)
-    if not stat:
-        return None
-    if request.remote:
-        return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
-    else:
-        return stat
+        return file_reader(path)
+
+    @property_command(method='GET', cmd='stat-blob')
+    def stat_blob(self, document, guid, prop, request):
+        directory = self.volume[document]
+
+        directory.metadata[prop].assert_access(env.ACCESS_READ)
+
+        stat = directory.stat_blob(guid, prop)
+        if not stat:
+            return None
+
+        if request.access_level < Request.ACCESS_REMOTE:
+            return stat
+        else:
+            return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
 
 
 def _to_int(name, value):
