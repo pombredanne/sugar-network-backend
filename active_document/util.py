@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Data: 2012-05-02$
+$Data: 2012-05-20$
 
 """
 
@@ -186,6 +186,8 @@ def cptree(src, dst):
         return
 
     do_copy = []
+    src = abspath(src)
+    dst = abspath(dst)
 
     def link(src, dst):
         if not exists(dirname(dst)):
@@ -196,15 +198,17 @@ def cptree(src, dst):
             os.symlink(link_to, dst)
         elif isdir(src):
             cptree(src, dst)
+        elif do_copy:
+            # The first hard link was not set, do regular copying for the rest
+            shutil.copy(src, dst)
         else:
-            if do_copy:
+            if exists(dst) and os.stat(src).st_ino == os.stat(dst).st_ino:
+                return
+            try:
+                os.link(src, dst)
+            except OSError:
+                do_copy.append(True)
                 shutil.copy(src, dst)
-            else:
-                try:
-                    os.link(src, dst)
-                except OSError:
-                    do_copy.append(True)
-                    shutil.copy(src, dst)
             shutil.copystat(src, dst)
 
     if isdir(src):
