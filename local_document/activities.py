@@ -117,7 +117,12 @@ def monitor(mounts):
             os.unlink(context_path)
         os.unlink(checkin_path)
 
-    crawler.dispatch([env.activities_root.value], found_cb, lost_cb)
+    activity_paths = [
+            env.activities_root.value,
+            '/usr/share/sugar/activities',
+            '/opt/sweets',
+            ]
+    crawler.dispatch(activity_paths, found_cb, lost_cb)
 
 
 def _checkin_path(impl_path):
