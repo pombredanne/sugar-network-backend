@@ -204,12 +204,16 @@ def cptree(src, dst):
         else:
             if exists(dst) and os.stat(src).st_ino == os.stat(dst).st_ino:
                 return
-            try:
-                os.link(src, dst)
-            except OSError:
-                do_copy.append(True)
+            if os.access(src, os.W_OK):
+                try:
+                    os.link(src, dst)
+                except OSError:
+                    do_copy.append(True)
+                    shutil.copy(src, dst)
+                shutil.copystat(src, dst)
+            else:
+                # Avoid copystat from not current users
                 shutil.copy(src, dst)
-            shutil.copystat(src, dst)
 
     if isdir(src):
         for root, __, files in os.walk(src):
