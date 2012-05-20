@@ -370,15 +370,17 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             self.emit(event)
             return True
 
-        if env.api_url.value:
+        def configured_host():
             url = urlparse(env.api_url.value)
-            servers = lambda: [(url.hostname, env.api_url.value)]
-        else:
-            servers = lambda: [(i, 'http://%s:8000' % i) \
-                    for i in zeroconf.browse_workstation()]
+            yield url.hostname, env.api_url.value
 
+        def discover_hosts():
+            for host in zeroconf.browse_workstation():
+                yield host, 'http://%s:8000' % host
+
+        get_hosts = configured_host if env.api_url.value else discover_hosts
         while True:
-            for host, url in servers():
+            for host, url in get_hosts():
                 env.api_url.value = url
                 try:
                     _logger.debug('Connecting to %r remote server', url)
