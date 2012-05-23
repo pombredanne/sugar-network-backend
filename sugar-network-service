@@ -27,7 +27,7 @@ from local_document import application, optparse, sugar, env
 from local_document.bus import Server
 
 
-VERSION = '0.1'
+VERSION = '0.2'
 
 SUGAR_REGISTRATION_TIMEOUT = 5
 

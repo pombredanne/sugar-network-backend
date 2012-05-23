@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Data: 2012-05-08$
+$Data: 2012-05-23$
 
 """
 
@@ -275,6 +275,8 @@ class Daemon(Application):
             try:
                 pid = int(file(pidfile).read().strip())
                 os.getpgid(pid)
+                if basename(sys.argv[0]) not in _get_cmdline(pid):
+                    pid = None
             except (ValueError, OSError):
                 pid = None
         return pidfile, pid
@@ -324,3 +326,8 @@ class Daemon(Application):
         os.dup2(logfile.fileno(), sys.stdout.fileno())
         os.dup2(logfile.fileno(), sys.stderr.fileno())
         logfile.close()
+
+
+def _get_cmdline(pid):
+    with file('/proc/%s/cmdline' % pid) as f:
+        return f.read()
