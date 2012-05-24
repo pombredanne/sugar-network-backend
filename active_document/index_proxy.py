@@ -19,7 +19,8 @@ from os.path import exists
 
 import xapian
 
-from active_document import util, index_queue, env
+from active_toolkit import util
+from active_document import index_queue, env
 from active_document.storage import Storage
 from active_document.index import IndexReader, IndexWriter, Total
 from active_document.metadata import StoredProperty

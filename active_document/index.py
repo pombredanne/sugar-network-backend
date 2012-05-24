@@ -23,9 +23,9 @@ from gettext import gettext as _
 
 import xapian
 
-from active_document import util, env, coroutine
+from active_document import env
 from active_document.metadata import ActiveProperty
-from active_document.util import enforce
+from active_toolkit import util, coroutine, enforce
 
 
 # The regexp to extract exact search terms from a query string

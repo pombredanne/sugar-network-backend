@@ -18,11 +18,11 @@ import logging
 from os.path import exists, join
 from gettext import gettext as _
 
-from active_document import env, util
+from active_document import env
 from active_document.storage import Storage
 from active_document.metadata import Metadata, BlobProperty, BrowsableProperty
 from active_document.metadata import ActiveProperty, StoredProperty
-from active_document.util import enforce
+from active_toolkit import util, enforce
 
 
 _DIFF_PAGE_SIZE = 256

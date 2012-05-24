@@ -24,10 +24,10 @@ import logging
 from os.path import exists, join, isdir, dirname, basename
 from gettext import gettext as _
 
-from active_document import util, env
+from active_document import env
 from active_document.metadata import StoredProperty
 from active_document.metadata import BlobProperty
-from active_document.util import enforce
+from active_toolkit import util, enforce
 
 
 _PAGE_SIZE = 4096

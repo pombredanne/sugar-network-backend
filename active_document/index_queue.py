@@ -20,8 +20,9 @@ import threading
 import collections
 from gettext import gettext as _
 
-from active_document import env, util, coroutine
+from active_document import env
 from active_document.index import IndexWriter
+from active_toolkit import util, coroutine
 
 
 errnum = 0

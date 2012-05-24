@@ -13,7 +13,8 @@ from __init__ import tests
 
 from active_document import volume, document, SingleVolume, \
         Request, Response, Document, active_property, \
-        BlobProperty, NotFound, sockets
+        BlobProperty, NotFound
+from active_toolkit import sockets
 
 
 class VolumeTest(tests.Test):

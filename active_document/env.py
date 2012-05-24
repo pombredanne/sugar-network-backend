@@ -21,8 +21,7 @@ from uuid import uuid1
 from os.path import exists, join
 from gettext import gettext as _
 
-from active_document import util, optparse
-from active_document.util import enforce
+from active_toolkit import util, optparse, enforce
 
 
 _logger = logging.getLogger('active_document')

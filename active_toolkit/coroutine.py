@@ -1,4 +1,4 @@
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,6 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Wrap coroutine related procedures.
+
+$Repo: git://git.sugarlabs.org/alsroot/codelets.git$
+$File: src/coroutine.py$
+$Data: 2012-05-24$
+
+"""
 # pylint: disable-msg=W0621
 
 import gevent

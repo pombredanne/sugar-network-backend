@@ -18,7 +18,8 @@ import logging
 from os.path import join, exists
 from gettext import gettext as _
 
-from active_document import env, util, sneakernet, coroutine
+from active_toolkit import util, coroutine
+from active_document import env, sneakernet
 
 
 _logger = logging.getLogger('active_document.sync')

@@ -24,7 +24,7 @@ from functools import partial
 from os.path import exists, basename, join, abspath, isdir
 from gettext import gettext as _
 
-from active_document import env, coroutine, sockets
+from active_document import env
 from active_document.document import Document
 from active_document.directory import Directory
 from active_document.index import IndexWriter
@@ -32,7 +32,7 @@ from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
 from active_document.commands import Request
 from active_document.metadata import BlobProperty
-from active_document.util import enforce
+from active_toolkit import coroutine, sockets, enforce
 
 
 _logger = logging.getLogger('active_document.volume')
