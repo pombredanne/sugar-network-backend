@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from gettext import gettext as _
 
 from local_document import ipc, env
-from active_document import util, coroutine, sockets
+from active_toolkit import util, coroutine, sockets
 
 
 _CONNECTION_POOL = 6

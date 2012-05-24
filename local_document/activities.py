@@ -48,7 +48,7 @@ def checkins(context):
             yield os.readlink(path)
 
 
-def monitor(mounts):
+def monitor(mounts, paths):
 
     def found_cb(impl_path):
         hashed_path, checkin_path = _checkin_path(impl_path)
@@ -117,12 +117,7 @@ def monitor(mounts):
             os.unlink(context_path)
         os.unlink(checkin_path)
 
-    activity_paths = [
-            env.activities_root.value,
-            '/usr/share/sugar/activities',
-            '/opt/sweets',
-            ]
-    crawler.dispatch(activity_paths, found_cb, lost_cb)
+    crawler.dispatch(paths, found_cb, lost_cb)
 
 
 def _checkin_path(impl_path):

@@ -11,11 +11,12 @@ from os.path import exists
 from __init__ import tests
 
 import zerosugar
-from active_document import coroutine
+from active_toolkit import coroutine
 from sugar_network.client import Client
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 from sugar_network_server.resources.implementation import Implementation
+from local_document import activities
 
 
 class InjectorTest(tests.Test):
@@ -257,6 +258,9 @@ class InjectorTest(tests.Test):
 
         self.start_server()
         client = Client('~')
+
+        monitor = coroutine.spawn(activities.monitor, self.mounts, ['Activities'])
+        coroutine.sleep()
 
         self.assertEqual(
                 json.dumps({

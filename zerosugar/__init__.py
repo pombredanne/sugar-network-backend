@@ -23,7 +23,7 @@ from zerosugar.injector import launch, checkin
 def _init():
     from zeroinstall.injector import reader, model
     from zerosugar import feeds
-    from sugar_network import enforce
+    from active_toolkit import enforce
 
     def Interface_init(self, url):
         enforce(url)

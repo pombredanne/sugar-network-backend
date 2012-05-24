@@ -21,7 +21,7 @@ import tempfile
 from os.path import isdir, exists, dirname, join
 
 from sweets_recipe import Bundle
-from active_document.sockets import decode_multipart, BUFFER_SIZE
+from active_toolkit.sockets import decode_multipart, BUFFER_SIZE
 from local_document import env, http
 
 

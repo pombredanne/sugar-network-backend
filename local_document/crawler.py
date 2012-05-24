@@ -18,11 +18,11 @@ import logging
 from os.path import join, exists, isdir, dirname
 from gettext import gettext as _
 
-from active_document import coroutine
+from active_toolkit import coroutine, util
 from local_document.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
         IN_MOVED_TO, IN_MOVED_FROM
-from local_document import env, util
+from local_document import env
 
 
 _logger = logging.getLogger('local_document.crawler')

@@ -7,12 +7,13 @@ from os.path import join
 
 from __init__ import tests
 
-from active_document import coroutine
+from active_toolkit import coroutine
 from sugar_network import client as client_
 from sugar_network.client import Client
 from sugar_network.bus import ServerError
 from local_document.bus import Server
 from sugar_network_server.resources.context import Context
+from local_document.mounts import Mounts
 
 
 class IPCTest(tests.Test):
@@ -21,8 +22,9 @@ class IPCTest(tests.Test):
 
         def server():
             time.sleep(1)
-            server = Server('local', [])
-            server._mounts.call = lambda *args: None
+            mounts = Mounts('local', [])
+            server = Server(mounts)
+            mounts.call = lambda *args: None
             server.serve_forever()
 
         ts = time.time()

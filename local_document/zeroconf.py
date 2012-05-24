@@ -18,7 +18,7 @@ import threading
 from Queue import Queue, Empty
 from gettext import gettext as _
 
-from active_document import coroutine
+from active_toolkit import coroutine
 
 
 _LOOKUP_RESULT_LOCAL = 8

@@ -15,12 +15,14 @@ from __init__ import tests
 
 import restful_document as rd
 import active_document as ad
-from active_document import sockets, coroutine
+from active_toolkit import sockets, coroutine
 from sugar_network.client import Client
 from sugar_network.bus import ServerError
 from local_document.mounts import Mounts
 from local_document.bus import Server
-from local_document import env, mounts, sugar, http, cache
+from local_document import env, mounts, sugar, http, cache, activities
+from sugar_network_server.resources.user import User
+from sugar_network_server.resources.context import Context
 
 
 class MountsTest(tests.Test):
@@ -356,7 +358,7 @@ class MountsTest(tests.Test):
 
         self.assertEqual(True, client.connected)
 
-    def ______test_OnlineConnect(self):
+    def test_OnlineConnect(self):
         pid = self.fork(self.restful_server)
         coroutine.sleep(1)
 
@@ -419,9 +421,22 @@ class MountsTest(tests.Test):
         assert not exists('file2')
 
     def test_ServerMode(self):
-        env.server_mode.value = True
+        env.api_url.value = 'http://localhost:8881'
+        self.mounts = Mounts('local', [User, Context],
+                lambda event: self.server.emit(event))
 
-        self.start_server()
+        http_server = coroutine.WSGIServer(
+                ('localhost', 8881), rd.Router(self.mounts['~']))
+        coroutine.spawn(http_server.serve_forever)
+        http_subscriber = rd.SubscribeSocket(self.mounts.home_volume, 'localhost', 8882)
+        coroutine.spawn(http_subscriber.serve_forever)
+
+        monitor = coroutine.spawn(activities.monitor, self.mounts, ['Activities'])
+
+        self.server = Server(self.mounts)
+        coroutine.spawn(self.server.serve_forever)
+
+        coroutine.sleep(1)
         local = Client('~')
         remote = Client('/')
 
@@ -467,14 +482,11 @@ class MountsTest(tests.Test):
         self.assertEqual(
                 feed,
                 json.loads(local.Context(guid).get_blob('feed').read()))
-        self.assertEqual(
-                feed,
-                json.loads(remote.Context(guid).get_blob('feed').read()))
         impl_id = feed['1']['*-*']['guid'] = \
                 hashlib.sha1(feed['1']['*-*']['guid']).hexdigest()
         self.assertEqual(
                 feed,
-                http.request('GET', ['context', guid, 'feed']))
+                json.loads(remote.Context(guid).get_blob('feed').read()))
 
         self.touch('Activities/activity/1/2/3',
                    'Activities/activity/4/5',

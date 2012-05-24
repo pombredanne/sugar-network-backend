@@ -6,7 +6,7 @@ import shutil
 
 from __init__ import tests
 
-from active_document import coroutine
+from active_toolkit import coroutine
 from local_document import crawler, env
 
 

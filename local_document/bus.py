@@ -20,10 +20,10 @@ import logging
 from os.path import exists
 from gettext import gettext as _
 
-import restful_document as rd
-from local_document import ipc, env, activities, sugar
-from local_document.mounts import Mounts
-from active_document import Request, Response, util, coroutine, sockets
+from local_document import ipc, env, sugar
+from local_document.mounts import Offline
+from active_document import Request, Response
+from active_toolkit import util, coroutine, sockets
 
 
 _logger = logging.getLogger('local_document.bus')
@@ -31,57 +31,27 @@ _logger = logging.getLogger('local_document.bus')
 
 class Server(object):
 
-    def __init__(self, root, resources):
+    def __init__(self, mounts):
         self._subscriptions = []
-        self._mounts = Mounts(root, resources, self._publish_event)
+        self._mounts = mounts
         self._acceptor = _start_server('accept', self._serve_client)
         self._subscriber = _start_server('subscribe', self._serve_subscription)
-        self._monitor = coroutine.spawn(activities.monitor, self._mounts)
-        self._http_server = None
-        self._remote_subscriber = None
-
-        if env.server_mode.value:
-            logging.info(_('Listening for remote requests on %s:%s'),
-                    rd.host.value, rd.port.value)
-
-            ssl_args = {}
-            if rd.keyfile.value:
-                ssl_args['keyfile'] = rd.keyfile.value
-            if rd.certfile.value:
-                ssl_args['certfile'] = rd.certfile.value
-            self._http_server = coroutine.WSGIServer(
-                    (rd.host.value, rd.port.value),
-                    rd.Router(self._mounts['~']), **ssl_args)
-
-            self._remote_subscriber = rd.SubscribeSocket(
-                    self._mounts.home_volume)
 
     def serve_forever(self):
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
         rendezvous = ipc.rendezvous(server=True)
-
-        jobs = [coroutine.spawn(self._acceptor.serve_forever),
-                coroutine.spawn(self._subscriber.serve_forever)]
-        if self._http_server is not None:
-            jobs.append(coroutine.spawn(self._http_server.serve_forever))
-        if self._remote_subscriber is not None:
-            jobs.append(coroutine.spawn(self._remote_subscriber.serve_forever))
-
         try:
-            coroutine.joinall(jobs)
+            coroutine.joinall([
+                coroutine.spawn(self._acceptor.serve_forever),
+                coroutine.spawn(self._subscriber.serve_forever),
+                ])
         except KeyboardInterrupt:
             pass
         finally:
             os.close(rendezvous)
-            self._monitor.kill()
-            self._mounts.close()
 
     def stop(self):
-        if self._http_server is not None:
-            self._http_server.stop()
-        if self._remote_subscriber is not None:
-            self._remote_subscriber.stop()
         while self._subscriptions:
             self._subscriptions.pop().close()
         self._acceptor.stop()
@@ -108,14 +78,14 @@ class Server(object):
                     request.content = conn_file.read() or None
 
                 if request.get('cmd') == 'publish':
-                    self._publish_event(request.content)
+                    self.emit(request.content)
                     result = None
                 else:
                     response = Response()
                     result = self._mounts.call(request, response)
 
             except Exception, error:
-                if isinstance(error, env.Offline):
+                if isinstance(error, Offline):
                     _logger.debug('Ignore %r request: %s', request, error)
                 else:
                     util.exception(_logger,
@@ -131,7 +101,7 @@ class Server(object):
         self._subscriptions.append(conn_file)
         return True
 
-    def _publish_event(self, event):
+    def emit(self, event):
         _logger.debug('Send notification: %r', event)
         for socket_file in self._subscriptions:
             socket_file.write_message(event)

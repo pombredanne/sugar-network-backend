@@ -25,7 +25,7 @@ import zerosugar
 import sweets_recipe
 import active_document as ad
 from local_document import activities, cache, sugar, http, env, zeroconf
-from active_document import sockets, util, coroutine, enforce
+from active_toolkit import sockets, util, coroutine, enforce
 
 
 _HOME_PROPS = {
@@ -49,6 +49,10 @@ _COMMON_PROPS = {
 _RECONNECTION_TIMEOUT = 3
 
 _logger = logging.getLogger('local_document.mounts')
+
+
+class Offline(Exception):
+    pass
 
 
 class Mounts(dict):
@@ -261,7 +265,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             self._events_job = None
 
     def call(self, request, response):
-        enforce(self.connected, env.Offline, _('No connection to server'))
+        enforce(self.connected, Offline, _('No connection to server'))
 
         try:
             return ad.CommandsProcessor.call(self, request, response)

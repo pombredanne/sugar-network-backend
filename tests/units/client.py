@@ -11,7 +11,7 @@ from sugar_network_server.resources.context import Context
 
 import active_document as ad
 
-from active_document import coroutine
+from active_toolkit import coroutine
 from sugar_network.client import Client
 from sugar_network.bus import Bus
 from local_document.bus import Server
@@ -235,7 +235,7 @@ class ClientTest(tests.Test):
                 events.append(i)
 
         coroutine.spawn(waiter)
-        coroutine.sleep(.5)
+        coroutine.sleep(.1)
 
         self.assertEqual([], events)
 

@@ -18,7 +18,7 @@ import errno
 from os.path import join, exists, abspath, dirname, expanduser
 from gettext import gettext as _
 
-from active_document import optparse
+from active_toolkit import optparse
 from local_document import sugar
 
 
@@ -102,7 +102,3 @@ def ensure_path(*args):
                 raise
 
     return abspath(result)
-
-
-class Offline(Exception):
-    pass

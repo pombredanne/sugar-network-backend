@@ -18,7 +18,7 @@ import collections
 from gettext import gettext as _
 
 from sugar_network.objects import Object
-from active_document import coroutine, util, enforce
+from active_toolkit import coroutine, util, enforce
 
 
 _QUERY_PAGES_NUMBER = 2

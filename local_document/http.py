@@ -71,6 +71,8 @@ def raw_request(method, path, data=None, headers=None, **kwargs):
 
         if response.status_code != 200:
             if response.status_code == 401:
+                _logger.info(_('User is not registered on the server, ' \
+                        'registering'))
                 _register()
                 continue
             content = response.content

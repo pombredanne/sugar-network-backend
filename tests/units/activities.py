@@ -10,7 +10,7 @@ from __init__ import tests
 
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
-from active_document import coroutine
+from active_toolkit import coroutine
 from local_document.mounts import Mounts
 from local_document import activities, sugar
 
@@ -29,7 +29,7 @@ class ActivitiesTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_Checkin(self):
-        self.job = coroutine.spawn(activities.monitor, self.mounts)
+        self.job = coroutine.spawn(activities.monitor, self.mounts, ['Activities'])
         coroutine.sleep()
 
         self.mounts.home_volume['context'].create_with_guid(
@@ -63,7 +63,7 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_OfflineCheckin(self):
-        self.job = coroutine.spawn(activities.monitor, self.mounts)
+        self.job = coroutine.spawn(activities.monitor, self.mounts, ['Activities'])
         coroutine.sleep()
 
         self.touch(('Activities/activity/activity/activity.info', [
@@ -88,7 +88,7 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkout(self):
-        self.job = coroutine.spawn(activities.monitor, self.mounts)
+        self.job = coroutine.spawn(activities.monitor, self.mounts, ['Activities'])
 
         self.mounts.home_volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {

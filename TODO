@@ -1,12 +1,9 @@
-- import <bundle_id> data dir into data/
-- reuse the same data dir for all SN names for the same context
-- treat "/" in user datain requests
+- reuse the same data dir for all SN resources for the same context
 - GC and stale fs cache
-- stale Object.cache_props and _missed_blobs
-- empty stub for not accessible SN server should be replaced by local SN db
 - synchronize local "keep" resources
-- optimize getting/setting(?) StoredProperty values for home folder
-- handle reconnects for regular remote connections and subscriptions
+- on a XO, there are DNS resolving fails in reconnection loop after got connected to the internet
+
+1.0
+===
 - (?) delete local document on unsetting keep/keep_impl
-- track /usr and /opt activities
 - localize 0install usage

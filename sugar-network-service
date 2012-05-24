@@ -19,12 +19,13 @@ import logging
 from os.path import join, abspath
 from gettext import gettext as _
 
-import active_document
-import restful_document
-from active_document import coroutine
+import active_document as ad
+import restful_document as rd
+import sugar_network_server as server
 from sugar_network_server import resources
-from local_document import application, optparse, sugar, env
-from local_document.bus import Server
+from local_document import application, sugar, env, bus, activities
+from local_document.mounts import Mounts
+from active_toolkit import optparse, coroutine
 
 
 VERSION = '0.2'
@@ -34,7 +35,7 @@ SUGAR_REGISTRATION_TIMEOUT = 5
 
 class Application(application.Daemon):
 
-    server = None
+    _bus = None
 
     def start(self):
         new_root = (env.local_root.value != env.local_root.default)
@@ -55,26 +56,54 @@ class Application(application.Daemon):
                     SUGAR_REGISTRATION_TIMEOUT)
             coroutine.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        self.server = Server(join(env.local_root.value, 'local'),
-                resources.path)
-        self.server.serve_forever()
+        mounts = Mounts(join(env.local_root.value, 'local'), resources.path,
+                lambda event: self._bus.emit(event))
+        self._bus = bus.Server(mounts)
+        monitor = coroutine.spawn(activities.monitor, mounts, [
+            env.activities_root.value,
+            '/usr/share/sugar/activities',
+            '/opt/sweets',
+            ])
+        http_server = None
+        http_subscriber = None
+
+        if env.server_mode.value:
+            logging.info(_('Listening for remote requests on %s port'),
+                    server.port.value)
+            http_server = coroutine.WSGIServer(('0.0.0.0', server.port.value),
+                    rd.Router(mounts['~']))
+            coroutine.spawn(http_server.serve_forever)
+            http_subscriber = rd.SubscribeSocket(mounts.home_volume,
+                    '0.0.0.0', server.subscribe_port.value)
+            coroutine.spawn(http_subscriber.serve_forever)
+
+        try:
+            self._bus.serve_forever()
+        finally:
+            monitor.kill()
+            if http_server is not None:
+                http_server.stop()
+            if http_subscriber is not None:
+                http_subscriber.stop()
+            mounts.close()
 
     def shutdown(self):
-        if self.server is not None:
-            self.server.stop()
+        if self._bus is not None:
+            self._bus.stop()
 
 
 # New defaults
 application.debug.value = sugar.logger_level()
-restful_document.only_sync_notification.value = False
+rd.only_sync_notification.value = False
 # It seems to be that most of users (on XO at least) don't have recent SSH
-restful_document.trust_users.value = True
+server.trust_users.value = True
 
-optparse.Option.seek('local-document', env)
-optparse.Option.seek('restful-document', restful_document)
-optparse.Option.seek('active-document', active_document)
-optparse.Option.seek('sugar-network-service',
-        [application.debug, application.foreground])
+optparse.Option.seek('main', [application.debug, application.foreground])
+optparse.Option.seek('sugar-network', env)
+optparse.Option.seek('sugar-network-server',
+        [server.port, server.subscribe_port])
+optparse.Option.seek('restful-document', rd)
+optparse.Option.seek('active-document', ad)
 
 app = Application(
         name='sugar-network-service',

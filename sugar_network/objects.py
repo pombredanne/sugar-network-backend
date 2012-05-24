@@ -20,7 +20,7 @@ from os.path import isdir, abspath
 from gettext import gettext as _
 
 from local_document import sugar
-from active_document import enforce
+from active_toolkit import enforce
 
 
 _logger = logging.getLogger('sugar_network.objects')

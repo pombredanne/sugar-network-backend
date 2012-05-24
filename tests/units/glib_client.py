@@ -9,7 +9,7 @@ from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
 import active_document as ad
-from active_document import coroutine
+from active_toolkit import coroutine
 from sugar_network.client import Client
 from sugar_network.glib_client import Client as GlibClient
 from local_document.bus import Server

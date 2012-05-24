@@ -30,9 +30,9 @@ from zeroinstall.injector.requirements import Requirements
 
 from zerosugar import solver
 from zerosugar.config import config
-from active_document import coroutine
 from sugar_network import Client
-from local_document import env, sugar, util, enforce
+from local_document import env, sugar
+from active_toolkit import coroutine, util, enforce
 
 
 _logger = logging.getLogger('zerosugar')

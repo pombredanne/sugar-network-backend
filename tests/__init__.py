@@ -11,15 +11,16 @@ from os.path import dirname, join, exists, abspath
 import active_document as ad
 import restful_document as rd
 import sugar_network_server
-from active_document import coroutine
+from active_toolkit import coroutine
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 from restful_document.router import Router
 from restful_document.subscribe_socket import SubscribeSocket
-from local_document import env
+from local_document import env, sugar
 from local_document.bus import Server
 from sugar_network import client
 from sugar_network.bus import Bus
+from local_document.mounts import Mounts
 
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
@@ -61,10 +62,11 @@ class Test(unittest.TestCase):
         ad.index_write_queue.value = 10
         env.local_root.value = tmpdir
         env.activities_root.value = tmpdir + '/Activities'
-        env.api_url.value = 'http://localhost:8000'
+        env.api_url.value = 'http://localhost:8800'
         env.server_mode.value = False
-        rd.host.value = 'localhost'
-        rd.port.value = 8000
+
+        sugar.nickname = lambda: 'test'
+        sugar.color = lambda: '#000000,#000000'
 
         self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile
@@ -94,6 +96,7 @@ class Test(unittest.TestCase):
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
+        coroutine.shutdown()
         sys.stdout.flush()
 
     def waitpid(self, pid):
@@ -141,6 +144,7 @@ class Test(unittest.TestCase):
     def fork(self, cb, *args):
         pid = os.fork()
         if not pid:
+            coroutine.shutdown()
             try:
                 cb(*args)
                 result = 0
@@ -162,6 +166,7 @@ class Test(unittest.TestCase):
 
         child_pid = os.fork()
         if child_pid:
+            coroutine.shutdown()
             time.sleep(1)
             Test.httpd_pids[port] = child_pid
             return
@@ -196,10 +201,11 @@ class Test(unittest.TestCase):
 
         if classes is None:
             classes = [User, Context]
-        self.server = Server('local', classes)
+        self.mounts = Mounts('local', classes,
+                lambda event: self.server.emit(event))
+        self.server = Server(self.mounts)
         coroutine.spawn(server)
         coroutine.dispatch()
-        self.mounts = self.server._mounts
 
     def start_ipc_and_restful_server(self, classes=None):
         pid = self.fork(self.restful_server, classes)
@@ -236,8 +242,8 @@ class Test(unittest.TestCase):
 
         volume = ad.SingleVolume('remote', classes or [User, Context])
         cp = ad.VolumeCommands(volume)
-        httpd = coroutine.WSGIServer(('localhost', 8000), rd.Router(cp))
-        subscriber = SubscribeSocket(volume)
+        httpd = coroutine.WSGIServer(('localhost', 8800), rd.Router(cp))
+        subscriber = SubscribeSocket(volume, 'localhost', 8801)
         try:
             coroutine.joinall([
                 coroutine.spawn(httpd.serve_forever),

@@ -15,7 +15,6 @@
 
 import logging
 
-from local_document import activities
 from sugar_network.objects import Object
 from sugar_network.cursor import Cursor
 from sugar_network.bus import Bus
@@ -26,6 +25,7 @@ _logger = logging.getLogger('sugar_network')
 
 def checkins(context):
     """Iterate paths of checked in implementations."""
+    from local_document import activities
     return activities.checkins(context)
 
 

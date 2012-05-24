@@ -1,4 +1,4 @@
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,8 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from active_document import optparse, util, enforce
+from active_toolkit import optparse
+
+from local_document import sugar, application
 
 from sugar_network.client import Client, checkins
 
-from local_document import application, sugar
+from local_document.env import api_url, certfile, no_check_certificate, \
+        local_root, activities_root, server_mode

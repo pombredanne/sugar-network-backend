@@ -21,9 +21,7 @@ import hashlib
 from os.path import join, exists, dirname
 from gettext import gettext as _
 
-import gconf
-
-from active_document import enforce
+from active_toolkit import enforce
 
 
 _XO_SERIAL_PATH = '/ofw/mfg-data/SN'
@@ -91,11 +89,13 @@ def uid():
 
 
 def nickname():
+    import gconf
     gconf_client = gconf.client_get_default()
     return gconf_client.get_string(_NICKNAME_GCONF)
 
 
 def color():
+    import gconf
     gconf_client = gconf.client_get_default()
     return gconf_client.get_string(_COLOR_GCONF)
 

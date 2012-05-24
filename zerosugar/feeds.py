@@ -21,7 +21,7 @@ from gettext import gettext as _
 from zeroinstall.injector import model
 
 import sweets_recipe
-from local_document import util, enforce
+from active_toolkit import util, enforce
 from zerosugar.config import config
 
 
