@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import re
 import logging
 from gettext import gettext as _
 
@@ -37,6 +38,9 @@ volume_command = lambda ** kwargs: command('volume', **kwargs)
 directory_command = lambda ** kwargs: command('directory', **kwargs)
 document_command = lambda ** kwargs: command('document', **kwargs)
 property_command = lambda ** kwargs: command('property', **kwargs)
+
+
+_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 
 class CommandNotFound(env.NotFound):
@@ -110,6 +114,11 @@ class CommandsProcessor(object):
     def call(self, request, response):
         cmd = self._resolve(request)
         enforce(cmd is not None, CommandNotFound, _('Unsupported command'))
+
+        guid = request.get('guid')
+        if guid is not None:
+            enforce(_GUID_RE.match(guid) is not None,
+                    _('Specified malformed GUID'))
 
         if request.principal is not None:
             if cmd.permissions & env.ACCESS_AUTH:
