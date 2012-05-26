@@ -17,10 +17,12 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/coroutine.py$
-$Data: 2012-05-24$
+$Data: 2012-05-25$
 
 """
 # pylint: disable-msg=W0621
+
+import logging
 
 import gevent
 import gevent.pool
@@ -42,6 +44,7 @@ joinall = gevent.joinall
 gevent.hub.Hub.resolver_class = ['gevent.socket.BlockingResolver']
 
 _group = gevent.pool.Group()
+_logger = logging.getLogger('coroutine')
 
 
 def spawn(callback, *args):
@@ -71,7 +74,18 @@ def Server(*args, **kwargs):
 
 def WSGIServer(*args, **kwargs):
     import gevent.wsgi
+
+    class WSGIHandler(gevent.wsgi.WSGIHandler):
+
+        def log_error(self, msg, *args):
+            _logger.error(msg, *args)
+
+        def log_request(self):
+            pass
+
     kwargs['spawn'] = spawn
+    if 'handler_class' not in kwargs:
+        kwargs['handler_class'] = WSGIHandler
     return gevent.wsgi.WSGIServer(*args, **kwargs)
 
 

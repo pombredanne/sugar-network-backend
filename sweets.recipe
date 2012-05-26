@@ -16,6 +16,7 @@ requires  = gevent; werkzeug
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
             cp -r active_document %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
+            cp -r active_toolkit %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
             install -m 0755 -d %(DESTDIR)s/%(DATADIR)s/doc/%(name)s &&
             cp AUTHORS COPYING HACKING README TODO %(DESTDIR)s/%(DATADIR)s/doc/%(name)s/ &&
             true
