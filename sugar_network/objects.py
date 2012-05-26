@@ -28,9 +28,9 @@ _logger = logging.getLogger('sugar_network.objects')
 
 class Object(object):
 
-    def __init__(self, bus, reply, guid=None, props=None, offset=None,
+    def __init__(self, request, reply, guid=None, props=None, offset=None,
             **kwargs):
-        self._bus = bus
+        self._request = request
         self._reply = reply or []
         self._guid = guid
         self._props = props or {}
@@ -52,7 +52,7 @@ class Object(object):
         if result is None:
             enforce(prop in self._reply,
                     _('Access to not requested %r property in \'%s\''),
-                    prop, self._bus)
+                    prop, self._request)
             self.fetch()
             result = self._props.get(prop)
         return result
@@ -67,8 +67,7 @@ class Object(object):
         if not to_fetch:
             return
 
-        response = self._bus.send('GET', guid=self._guid,
-                reply=to_fetch)
+        response = self._request.call('GET', guid=self._guid, reply=to_fetch)
         response.update(self._props)
         self._props = response
 
@@ -81,11 +80,11 @@ class Object(object):
             props[i] = self._props.get(i)
 
         if self._guid:
-            self._bus.send('PUT', guid=self._guid, content=props,
+            self._request.call('PUT', guid=self._guid, content=props,
                     content_type='application/json')
         else:
             props['author'] = [sugar.uid()]
-            self._guid = self._bus.send('POST', content=props,
+            self._guid = self._request.call('POST', content=props,
                     content_type='application/json')
 
         self._dirty.clear()
@@ -115,31 +114,31 @@ class Object(object):
         enforce(self._guid, _('Object needs to be posted first'))
         if mime_type == 'application/json':
             data = json.dumps(data)
-        self._bus.send('PUT', guid=self._guid, prop=prop, content=data,
+        self._request.call('PUT', guid=self._guid, prop=prop, content=data,
                 content_type=mime_type)
 
     def set_blob_by_url(self, prop, url):
         enforce(self._guid, _('Object needs to be posted first'))
-        self._bus.send('PUT', guid=self._guid, prop=prop, url=url)
+        self._request.call('PUT', guid=self._guid, prop=prop, url=url)
 
     def upload_blob(self, prop, path, pass_ownership=False):
         enforce(self._guid, _('Object needs to be posted first'))
-        self._bus.send('PUT', 'upload_blob', guid=self._guid, prop=prop,
+        self._request.call('PUT', 'upload_blob', guid=self._guid, prop=prop,
                 path=abspath(path), pass_ownership=pass_ownership)
 
     def _get_blob(self, prop):
         blob = self._blobs.get(prop)
         if blob is None:
-            blob = self._bus.send('GET', 'get_blob', guid=self._guid,
-                    prop=prop)
+            blob = self._request.call('GET', 'get_blob',
+                    guid=self._guid, prop=prop)
             self._blobs[prop] = blob
         return blob, type(blob) is dict and 'path' in blob
 
     def __getitem__(self, prop):
         result = self.get(prop)
         enforce(result is not None, KeyError,
-                _('Property %r is absent in \'%s\' resource'),
-                prop, self._bus)
+                _('Property %r is absent in %r resource'),
+                prop, self._request)
         return result
 
     def __setitem__(self, prop, value):

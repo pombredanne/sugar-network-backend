@@ -36,6 +36,7 @@ class Server(object):
         self._mounts = mounts
         self._acceptor = _start_server('accept', self._serve_client)
         self._subscriber = _start_server('subscribe', self._serve_subscription)
+        self._principal = sugar.uid()
 
     def serve_forever(self):
         # Clients write to rendezvous named pipe, in block mode,
@@ -64,7 +65,7 @@ class Server(object):
                 break
             try:
                 request = Request(message)
-                request.principal = sugar.uid()
+                request.principal = self._principal
                 request.access_level = Request.ACCESS_LOCAL
 
                 request_repr = str(request)
@@ -78,7 +79,7 @@ class Server(object):
                     request.content = conn_file.read() or None
 
                 if request.get('cmd') == 'publish':
-                    self.emit(request.content)
+                    self.publish(request.content)
                     result = None
                 else:
                     response = Response()
@@ -101,7 +102,7 @@ class Server(object):
         self._subscriptions.append(conn_file)
         return True
 
-    def emit(self, event):
+    def publish(self, event):
         _logger.debug('Send notification: %r', event)
         for socket_file in self._subscriptions:
             socket_file.write_message(event)

@@ -29,8 +29,8 @@ _logger = logging.getLogger('sugar_network.cursor')
 
 class Cursor(object):
 
-    def __init__(self, bus, query, order_by, reply, page_size, **filters):
-        self._bus = bus
+    def __init__(self, request, query, order_by, reply, page_size, **filters):
+        self._request = request
         self._query = query
         self._order_by = order_by
         self._reply = reply or ['guid']
@@ -44,10 +44,10 @@ class Cursor(object):
         self._offset = -1
         self._wait_session = None
 
-        self._bus.connect(self.__event_cb)
+        self._request.connect(self.__event_cb)
 
     def close(self):
-        self._bus.disconnect(self.__event_cb)
+        self._request.disconnect(self.__event_cb)
 
     # pylint: disable-msg=E1101,E0102,E0202
     @property
@@ -142,7 +142,7 @@ class Cursor(object):
                 for obj in page:
                     if obj is not None and obj.guid == key:
                         return obj
-            return Object(self._bus, self._reply, key)
+            return Object(self._request, self._reply, key)
         else:
             offset = key
 
@@ -197,18 +197,18 @@ class Cursor(object):
             params['reply'] = self._reply
 
         try:
-            response = self._bus.send('GET', **params)
+            response = self._request.call('GET', **params)
             self._total = response['total']
         except Exception:
             util.exception(_logger,
                     _('Failed to fetch query result: resource=%r query=%r'),
-                    self._bus, params)
+                    self._request, params)
             self._total = None
             return False
 
         result = [None] * len(response['result'])
         for i, props in enumerate(response['result']):
-            result[i] = Object(self._bus, self._reply,
+            result[i] = Object(self._request, self._reply,
                     props['guid'], props, offset + i)
 
         if not self._page_access or self._page_access[-1] != page:

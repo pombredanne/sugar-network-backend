@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Data: 2012-05-23$
+$Data: 2012-05-25$
 
 """
 
@@ -137,9 +137,6 @@ class Application(object):
                 print epilog
             exit(0)
 
-    def start(self):
-        cmd_name = self.args.pop(0)
-
         if not debug.value:
             logging_level = logging.WARNING
         elif debug.value == 1:
@@ -154,10 +151,12 @@ class Application(object):
 
         logging.basicConfig(level=logging_level, format=logging_format)
 
+    def start(self):
         if optparse.Option.config_files:
             logging.info(_('Load configuration from %s file(s)'),
                     ', '.join(optparse.Option.config_files))
 
+        cmd_name = self.args.pop(0)
         try:
             cmd = self._commands.get(cmd_name)
             enforce(cmd is not None, _('Unknown command "%s"') % cmd_name)

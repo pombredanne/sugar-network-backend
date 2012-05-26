@@ -17,7 +17,7 @@ import logging
 
 from sugar_network.objects import Object
 from sugar_network.cursor import Cursor
-from sugar_network.bus import Bus
+from sugar_network.bus import Request
 
 
 _logger = logging.getLogger('sugar_network')
@@ -43,8 +43,8 @@ class Client(object):
 
     @property
     def connected(self):
-        bus = Bus(self._mountpoint)
-        return bus.send('GET', 'is_connected')
+        request = Request(self._mountpoint)
+        return request.call('GET', 'is_connected')
 
     def launch(self, context, command='activity', object_id=None, uri=None,
             args=None):
@@ -68,8 +68,7 @@ class Client(object):
 
         """
         # TODO Make a diference in launching from "~" and "/" mounts
-        bus = Bus(self._mountpoint)
-        bus.publish('launch', context=context, command=command,
+        Request().publish('launch', context=context, command=command,
                 object_id=object_id, uri=uri, args=args)
 
     def __getattr__(self, name):
@@ -97,7 +96,7 @@ class Client(object):
 class _Resource(object):
 
     def __init__(self, mountpoint, name):
-        self._bus = Bus(mountpoint, name)
+        self._request = Request(mountpoint, name)
 
     def cursor(self, query=None, order_by=None, reply=None, page_size=18,
             **filters):
@@ -120,7 +119,8 @@ class _Resource(object):
             a dictionary of properties to filter resulting list
 
         """
-        return Cursor(self._bus, query, order_by, reply, page_size, **filters)
+        return Cursor(self._request, query, order_by, reply, page_size,
+                **filters)
 
     def delete(self, guid):
         """Delete resource object.
@@ -129,7 +129,7 @@ class _Resource(object):
             resource object's GUID
 
         """
-        return self._bus.send('DELETE', guid=guid)
+        return self._request.call('DELETE', guid=guid)
 
     def __call__(self, guid=None, reply=None, **kwargs):
-        return Object(self._bus, reply or [], guid, **kwargs)
+        return Object(self._request, reply or [], guid, **kwargs)

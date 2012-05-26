@@ -57,26 +57,47 @@ class Offline(Exception):
 
 class Mounts(dict):
 
-    def __init__(self, root, resources_path, events_callback=None):
+    def __init__(self, root, resources_path):
         self.home_volume = ad.SingleVolume(root, resources_path, _HOME_PROPS)
+        self._subscriptions = {}
 
-        self['~'] = _LocalMount('~', self.home_volume, events_callback)
+        self['~'] = _LocalMount('~', self.home_volume, self.publish)
         if env.server_mode.value:
             self['/'] = self['~']
         else:
-            self['/'] = _RemoteMount('/', self.home_volume, events_callback)
+            self['/'] = _RemoteMount('/', self.home_volume, self.publish)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
         return self.get(mountpoint)
 
-    def call(self, request, response):
+    def call(self, request, response=None):
         mountpoint = request.pop('mountpoint')
         mount = self[mountpoint]
         if request.get('cmd') == 'is_connected':
             return mount.connected
         else:
+            if response is None:
+                response = ad.Response()
             return mount.call(request, response)
+
+    def connect(self, callback, condition=None):
+        self._subscriptions[callback] = condition or {}
+
+    def disconnect(self, callback):
+        if callback in self._subscriptions:
+            del self._subscriptions[callback]
+
+    def publish(self, event):
+        for callback, condition in self._subscriptions.items():
+            for key, value in condition.items():
+                if event.get(key) not in ('*', value):
+                    break
+            else:
+                try:
+                    callback(event)
+                except Exception:
+                    util.exception(_logger, _('Failed to dispatch %r'), event)
 
     def close(self):
         while self:
@@ -87,27 +108,16 @@ class Mounts(dict):
 
 class _Mount(object):
 
-    def __init__(self, mountpoint, events_callback):
+    def __init__(self, mountpoint):
         self.mountpoint = mountpoint
-        self._events_callback = events_callback
-
-    def emit(self, event):
-        callback = self._events_callback
-        if callback is None:
-            return
-        if 'mountpoint' not in event:
-            event['mountpoint'] = self.mountpoint
-        try:
-            callback(event)
-        except Exception:
-            util.exception(_logger, _('Failed to dispatch %r event'), event)
 
 
 class _LocalMount(ad.ProxyCommands, _Mount):
 
-    def __init__(self, mountpoint, volume, events_callback):
+    def __init__(self, mountpoint, volume, publish_cb):
         ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
-        _Mount.__init__(self, mountpoint, events_callback)
+        _Mount.__init__(self, mountpoint)
+        self._publish = publish_cb
         volume.connect(self.__events_cb)
 
     @property
@@ -200,7 +210,8 @@ class _LocalMount(ad.ProxyCommands, _Mount):
         return feed
 
     def __events_cb(self, event):
-        self.emit(event)
+        event['mountpoint'] = self.mountpoint
+        self._publish(event)
 
         if 'props' not in event:
             return
@@ -221,7 +232,7 @@ class _LocalMount(ad.ProxyCommands, _Mount):
             # These local properties exposed from "/" mount as well
             event['mountpoint'] = '/'
             event['event'] = 'update'
-            self.emit(event)
+            self._publish(event)
 
     def _checkout(self, guid):
         for path in activities.checkins(guid):
@@ -232,8 +243,9 @@ class _LocalMount(ad.ProxyCommands, _Mount):
         for phase, __ in zerosugar.checkin('/', guid, 'activity'):
             # TODO Publish checkin progress
             if phase == 'failure':
-                self.emit({
+                self._publish({
                     'event': 'alert',
+                    'mountpoint': self.mountpoint,
                     'severity': 'error',
                     'message': _("Cannot check-in '%s' implementation") % guid,
                     })
@@ -248,10 +260,11 @@ class _LocalMount(ad.ProxyCommands, _Mount):
 
 class _RemoteMount(ad.CommandsProcessor, _Mount):
 
-    def __init__(self, mountpoint, volume, events_callback):
+    def __init__(self, mountpoint, volume, publish_cb):
         ad.CommandsProcessor.__init__(self)
-        _Mount.__init__(self, mountpoint, events_callback)
+        _Mount.__init__(self, mountpoint)
         self._home_volume = volume
+        self._publish = publish_cb
         self._events_job = coroutine.spawn(self._events_listerner)
         self._connected = False
 
@@ -289,11 +302,13 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
 
         if document == 'context':
             if command == ('GET', None):
-                reply = request.get('reply', [])
-                for prop, default in _COMMON_PROPS.items():
-                    if prop in reply:
-                        patch[prop] = default
-                        reply.remove(prop)
+                if 'reply' in request:
+                    reply = request.get('reply', [])[:]
+                    for prop, default in _COMMON_PROPS.items():
+                        if prop in reply:
+                            patch[prop] = default
+                            reply.remove(prop)
+                    request['reply'] = reply
             elif command in (('POST', None), ('PUT', None)):
                 for prop in _COMMON_PROPS.keys():
                     if prop in request.content:
@@ -371,7 +386,8 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             event = conn.read_message()
             if event is None:
                 return False
-            self.emit(event)
+            event['mountpoint'] = self.mountpoint
+            self._publish(event)
             return True
 
         def configured_host():
@@ -401,7 +417,11 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
 
             _logger.info(_('Connected to remote server'))
             self._connected = True
-            self.emit({'event': 'connect', 'document': '*'})
+            self._publish({
+                'event': 'connect',
+                'mountpoint': self.mountpoint,
+                'document': '*',
+                })
 
             try:
                 while dispatch(conn):
@@ -411,4 +431,8 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             finally:
                 _logger.info(_('Got disconnected from remote server'))
                 self._connected = False
-                self.emit({'event': 'disconnect', 'document': '*'})
+                self._publish({
+                    'event': 'disconnect',
+                    'mountpoint': self.mountpoint,
+                    'document': '*',
+                    })

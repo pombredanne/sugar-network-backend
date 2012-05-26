@@ -422,8 +422,7 @@ class MountsTest(tests.Test):
 
     def test_ServerMode(self):
         env.api_url.value = 'http://localhost:8881'
-        self.mounts = Mounts('local', [User, Context],
-                lambda event: self.server.emit(event))
+        self.mounts = Mounts('local', [User, Context])
 
         http_server = coroutine.WSGIServer(
                 ('localhost', 8881), rd.Router(self.mounts['~']))
@@ -434,6 +433,7 @@ class MountsTest(tests.Test):
         monitor = coroutine.spawn(activities.monitor, self.mounts, ['Activities'])
 
         self.server = Server(self.mounts)
+        self.mounts.connect(self.server.publish)
         coroutine.spawn(self.server.serve_forever)
 
         coroutine.sleep(1)

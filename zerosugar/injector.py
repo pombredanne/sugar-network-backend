@@ -133,8 +133,8 @@ def _fork(callback, mountpoint, context, *args):
     global _pipe
     _pipe = fd_w
 
-    from sugar_network.bus import Bus
-    Bus.connection = None
+    from sugar_network.bus import Request
+    Request.connection = None
 
     def thread_func():
         log_path = _setup_logging(context)

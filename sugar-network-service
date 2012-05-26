@@ -26,6 +26,7 @@ from sugar_network_server import resources
 from local_document import application, sugar, env, bus, activities
 from local_document.mounts import Mounts
 from active_toolkit import optparse, coroutine
+from sugar_network import bus as client
 
 
 VERSION = '0.2'
@@ -33,11 +34,30 @@ VERSION = '0.2'
 SUGAR_REGISTRATION_TIMEOUT = 5
 
 
+class NullHandler(logging.Handler):
+
+    def emit(self, record):
+        pass
+
+
 class Application(application.Daemon):
 
-    _bus = None
+    def __init__(self, **kwargs):
+        application.Daemon.__init__(self, **kwargs)
+        self._bus = None
 
-    def start(self):
+        # Disable some low level logging
+        for log_name in (
+                'requests.packages.urllib3.connectionpool',
+                'requests.packages.urllib3.poolmanager',
+                'requests.packages.urllib3.response',
+                'requests.packages.urllib3',
+                'inotify',
+                ):
+            logger = logging.getLogger(log_name)
+            logger.propagate = False
+            logger.addHandler(NullHandler())
+
         new_root = (env.local_root.value != env.local_root.default)
         env.local_root.value = abspath(env.local_root.value)
         env.activities_root.value = abspath(env.activities_root.value)
@@ -48,24 +68,27 @@ class Application(application.Daemon):
             application.logdir.value = sugar.profile_path('logs')
         application.rundir.value = join(env.local_root.value, 'run')
 
-        application.Daemon.start(self)
-
     def run(self):
         while not sugar.has_pubkey():
             logging.info(_('No Sugar SSH key, will start in %s seconds'),
                     SUGAR_REGISTRATION_TIMEOUT)
             coroutine.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        mounts = Mounts(join(env.local_root.value, 'local'), resources.path,
-                lambda event: self._bus.emit(event))
+        mounts = Mounts(join(env.local_root.value, 'local'), resources.path)
         self._bus = bus.Server(mounts)
+        mounts.connect(self._bus.publish)
+        # Point client API to `mounts` directly passing over IPC
+        client.Request.connection = mounts
+
         monitor = coroutine.spawn(activities.monitor, mounts, [
             env.activities_root.value,
             '/usr/share/sugar/activities',
             '/opt/sweets',
             ])
+
         http_server = None
         http_subscriber = None
+        web_server = None
 
         if env.server_mode.value:
             logging.info(_('Listening for remote requests on %s port'),
@@ -77,10 +100,22 @@ class Application(application.Daemon):
                     '0.0.0.0', server.subscribe_port.value)
             coroutine.spawn(http_subscriber.serve_forever)
 
+        if env.webui.value:
+            from sugar_network_webui import app
+
+            logging.info(_('Start Web server on %s port'),
+                    env.webui_port.value)
+
+            web_server = coroutine.WSGIServer(
+                    ('127.0.0.1', env.webui_port.value), app)
+            coroutine.spawn(web_server.serve_forever)
+
         try:
             self._bus.serve_forever()
         finally:
             monitor.kill()
+            if web_server is not None:
+                web_server.stop()
             if http_server is not None:
                 http_server.stop()
             if http_subscriber is not None:
@@ -105,7 +140,7 @@ optparse.Option.seek('sugar-network-server',
 optparse.Option.seek('restful-document', rd)
 optparse.Option.seek('active-document', ad)
 
-app = Application(
+application = Application(
         name='sugar-network-service',
         description=_('Sugar Network service'),
         epilog=_('See http://wiki.sugarlabs.org/go/Sugar_Network ' \
@@ -116,4 +151,4 @@ app = Application(
             '~/.config/sweets/config',
             sugar.profile_path('sweets.conf'),
             ])
-app.start()
+application.start()

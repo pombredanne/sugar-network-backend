@@ -19,7 +19,7 @@ from restful_document.subscribe_socket import SubscribeSocket
 from local_document import env, sugar
 from local_document.bus import Server
 from sugar_network import client
-from sugar_network.bus import Bus
+from sugar_network.bus import Request
 from local_document.mounts import Mounts
 
 root = abspath(dirname(__file__))
@@ -72,7 +72,7 @@ class Test(unittest.TestCase):
         sys.stdout = sys.stderr = self._logfile
 
         client._CONNECTION_POOL = 1
-        Bus.connection = None
+        Request.connection = None
 
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
@@ -84,8 +84,8 @@ class Test(unittest.TestCase):
         self.forks = []
 
     def tearDown(self):
-        if Bus.connection is not None:
-            Bus.connection.close()
+        if Request.connection is not None:
+            Request.connection.close()
         if self.server is not None:
             self.server.stop()
         while Test.httpd_pids:
@@ -201,9 +201,9 @@ class Test(unittest.TestCase):
 
         if classes is None:
             classes = [User, Context]
-        self.mounts = Mounts('local', classes,
-                lambda event: self.server.emit(event))
+        self.mounts = Mounts('local', classes)
         self.server = Server(self.mounts)
+        self.mounts.connect(self.server.publish)
         coroutine.spawn(server)
         coroutine.dispatch()
 
@@ -217,7 +217,7 @@ class Test(unittest.TestCase):
                 connected.set()
 
         connected = coroutine.Event()
-        Bus('/').connect(wait_connect)
+        Request('/').connect(wait_connect)
         connected.wait()
 
         return pid

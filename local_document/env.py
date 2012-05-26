@@ -48,6 +48,14 @@ server_mode = optparse.Option(
         default=False, type_cast=optparse.Option.bool_cast,
         action='store_true')
 
+webui = optparse.Option(
+        _('start web application to serve Sugar Network content'),
+        default=True, type_cast=optparse.Option.bool_cast, action='store_true')
+
+webui_port = optparse.Option(
+        _('address to listen for Web clients'),
+        default=5000)
+
 
 def path(*args):
     """Calculate a path from the root.

@@ -12,8 +12,10 @@ from sugar_network_server.resources.context import Context
 import active_document as ad
 
 from active_toolkit import coroutine
+from sugar_network_server.resources.user import User
+from sugar_network_server.resources.context import Context
 from sugar_network.client import Client
-from sugar_network.bus import Bus
+from sugar_network.bus import Request
 from local_document.bus import Server
 from local_document import mounts
 
@@ -250,14 +252,14 @@ class ClientTest(tests.Test):
 
     def test_PublishEvents(self):
         self.start_server()
-        bus = Bus(None)
+        request = Request(None)
 
         events = []
-        bus.connect(lambda event: events.append(event))
+        request.connect(lambda event: events.append(event))
 
-        bus.publish('probe', payload=1)
-        bus.publish('probe', payload=2)
-        bus.publish('probe', payload=3)
+        request.publish('probe', payload=1)
+        request.publish('probe', payload=2)
+        request.publish('probe', payload=3)
         coroutine.sleep()
 
         self.assertEqual([
@@ -304,6 +306,43 @@ class ClientTest(tests.Test):
 
         blob = client.Document('guid').get_blob('value')
         self.assertEqual('value', blob.read())
+
+    def test_Direct(self):
+        Request.connection = mounts.Mounts('local', [Context, User])
+        client = Client('~')
+
+        guid_1 = client.Context(
+                type='activity',
+                title='title-1',
+                summary='summary',
+                description='description').post()
+        guid_2 = client.Context(
+                type='activity',
+                title='title-2',
+                summary='summary',
+                description='description').post()
+
+        self.assertEqual(
+                'title-1',
+                client.Context(guid_1, reply=['title'])['title'])
+
+        self.assertEqual(
+                sorted([
+                    (guid_1, 'title-1'),
+                    (guid_2, 'title-2'),
+                    ]),
+                sorted([(i.guid, i['title']) \
+                        for i in client.Context.cursor(reply=['title'])]))
+
+        self.touch(('file', 'blob'))
+        client.Context(guid_2).upload_blob('preview', 'file')
+        self.assertEqual(
+                'blob',
+                client.Context(guid_2).get_blob('preview').read())
+
+        client.Context.delete(guid_1)
+        client.Context.delete(guid_2)
+        self.assertEqual(0, client.Context.cursor().total)
 
 
 if __name__ == '__main__':

@@ -19,7 +19,8 @@ import logging
 from contextlib import contextmanager
 from gettext import gettext as _
 
-from local_document import ipc, env
+from active_document import Request as _Request
+from local_document import ipc, env, sugar
 from active_toolkit import util, coroutine, sockets
 
 
@@ -32,83 +33,89 @@ class ServerError(RuntimeError):
     pass
 
 
-class Bus(object):
+class Request(dict):
 
     connection = None
+    principal = None
 
     def __init__(self, mountpoint=None, document=None):
-        self.mountpoint = mountpoint
-        self.document = document
+        dict.__init__(self)
 
-        if Bus.connection is None:
-            Bus.connection = _Connection()
+        if mountpoint:
+            self['mountpoint'] = mountpoint
+        if document:
+            self['document'] = document
+
+        if Request.connection is None:
+            Request.connection = _Client()
+            Request.principal = sugar.uid()
 
     @property
     def online(self):
-        return self.mountpoint == '/'
+        return self.get('mountpoint') == '/'
 
-    def connect(self, callback):
-        conn = Bus.connection
-        conn.subscriptions[callback] = (self.mountpoint, self.document)
-
-    def disconnect(self, callback):
-        conn = Bus.connection
-        if conn is not None and callback in conn.subscriptions:
-            del conn.subscriptions[callback]
-
-    @staticmethod
-    def subscribe():
-        """Start subscription session.
-
-        :returns:
-            `SocketFile` object connected to IPC server to read events from
-
-        """
-        return _subscribe()
-
-    def send(self, method, cmd=None, content=None, content_type=None,
-            **request):
+    def call(self, method, cmd=None, content=None, content_type=None,
+            **kwargs):
+        request = _Request(kwargs)
+        request.principal = self.principal
+        request.update(self)
         request['method'] = method
         if cmd:
             request['cmd'] = cmd
-        request['mountpoint'] = self.mountpoint
-        if self.document:
-            request['document'] = self.document
-        return self._send(request, content, content_type)
+        request.content = content
+        request.content_type = content_type
+        return self.connection.call(request)
 
     def publish(self, event, **kwargs):
         kwargs['event'] = event
-        self._send({'cmd': 'publish'}, kwargs, 'application/json')
+        self.connection.publish(kwargs)
 
-    def _send(self, request, content, content_type):
-        request['content_type'] = content_type
+    def connect(self, callback):
+        self.connection.connect(callback, self)
 
-        with Bus.connection.pipe() as pipe:
-            pipe.write_message(request)
-            if content_type == 'application/json':
-                content = json.dumps(content)
-            pipe.write(content)
-            response = pipe.read_message()
-
-            _logger.debug('Made a call: request=%r response=%r',
-                    request, response)
-
-        if type(response) is dict and 'error' in response:
-            raise ServerError(response['error'])
-
-        return response
-
-    def __repr__(self):
-        return str((self.mountpoint, self.document))
+    def disconnect(self, callback):
+        self.connection.disconnect(callback)
 
 
-class _Connection(object):
+class _Client(object):
 
     def __init__(self):
         self._pool = coroutine.Queue(maxsize=_CONNECTION_POOL)
         self._pool_size = 0
         self._subscribe_job = None
         self._subscriptions = {}
+
+    def call(self, request, response=None):
+        with self._pipe() as pipe:
+            request['content_type'] = request.content_type
+            pipe.write_message(request)
+            if request.content_type == 'application/json':
+                request.content = json.dumps(request.content)
+            pipe.write(request.content)
+            reply = pipe.read_message()
+
+            _logger.debug('Made a call: request=%r reply=%r', request, reply)
+
+        if type(reply) is dict and 'error' in reply:
+            raise ServerError(reply['error'])
+
+        return reply
+
+    def connect(self, callback, condition=None):
+        if self._subscribe_job is None:
+            self._subscribe_job = coroutine.spawn(self._subscribe)
+        self._subscriptions[callback] = condition or {}
+
+    def disconnect(self, callback):
+        if callback in self._subscriptions:
+            del self._subscriptions[callback]
+
+    def publish(self, event):
+        request = _Request()
+        request['cmd'] = 'publish'
+        request.content = event
+        request.content_type = 'application/json'
+        self.call(request)
 
     def close(self):
         if self._subscribe_job is not None:
@@ -124,8 +131,18 @@ class _Connection(object):
             except Exception:
                 util.exception(_logger, _('Cannot close IPC connection'))
 
+    @staticmethod
+    def subscribe():
+        """Start subscription session.
+
+        :returns:
+            `SocketFile` object connected to IPC server to read events from
+
+        """
+        return _subscribe()
+
     @contextmanager
-    def pipe(self):
+    def _pipe(self):
         if self._pool.qsize() or self._pool_size >= self._pool.maxsize:
             conn = self._pool.get()
         else:
@@ -140,12 +157,6 @@ class _Connection(object):
         finally:
             self._pool.put(conn)
 
-    @property
-    def subscriptions(self):
-        if self._subscribe_job is None:
-            self._subscribe_job = coroutine.spawn(self._subscribe)
-        return self._subscriptions
-
     def _subscribe(self):
         _logger.debug('Start waiting for events')
 
@@ -156,9 +167,11 @@ class _Connection(object):
                 event = conn.read_message()
                 if event is None:
                     break
-                for callback, (mount, document) in self._subscriptions.items():
-                    if event.get('mountpoint') in ('*', mount) and \
-                            event.get('document') in ('*', document):
+                for callback, condition in self._subscriptions.items():
+                    for key, value in condition.items():
+                        if event.get(key) not in ('*', value):
+                            break
+                    else:
                         callback(event)
         finally:
             conn.close()
