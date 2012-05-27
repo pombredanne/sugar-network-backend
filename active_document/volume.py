@@ -99,10 +99,16 @@ class SingleVolume(_Volume):
     def __init__(self, root, document_classes, extra_props=None):
         enforce(env.index_write_queue.value > 0,
                 _('The active_document.index_write_queue.value should be > 0'))
-
         _Volume.__init__(self, root, document_classes, IndexWriter,
                 extra_props)
+        self._populate_job = coroutine.spawn(self._populate)
 
+    def close(self):
+        if self._populate_job is not None:
+            self._populate_job.kill()
+            self._populate_job = None
+
+    def _populate(self):
         for cls in self.values():
             for __ in cls.populate():
                 coroutine.dispatch()

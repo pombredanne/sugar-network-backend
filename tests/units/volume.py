@@ -14,7 +14,7 @@ from __init__ import tests
 from active_document import volume, document, SingleVolume, \
         Request, Response, Document, active_property, \
         BlobProperty, NotFound
-from active_toolkit import sockets
+from active_toolkit import sockets, coroutine
 
 
 class VolumeTest(tests.Test):
@@ -61,6 +61,7 @@ class VolumeTest(tests.Test):
             pass
 
         with SingleVolume(tests.tmpdir, [Document]) as volume:
+            coroutine.sleep(1)
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in volume['document'].find()[0]]))
@@ -71,6 +72,7 @@ class VolumeTest(tests.Test):
             pass
 
         with SingleVolume(tests.tmpdir, [Document]) as volume:
+            coroutine.sleep(1)
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in volume['document'].find()[0]]))

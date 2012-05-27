@@ -379,6 +379,8 @@ class IndexWriter(IndexReader):
                 util.exception(_('Cannot open Xapian index in %r, ' \
                         'will rebuild it'), self.metadata.name)
                 self._do_open(True)
+        else:
+            _logger.info(_('Opened %r index'), self.metadata.name)
 
         if reset:
             self._save_layout()

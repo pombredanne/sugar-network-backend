@@ -9,7 +9,6 @@
 - limit uploaded size, at least for blobs
 - upload blobs by external url
 - range generators for bool and dates
-- (?) make populate in spawned job
 - (?) hide new docs in IndexProxy
 - use read/write processes for master server
 - IndexProxy should be smarter to take into account sorting of cached documents
