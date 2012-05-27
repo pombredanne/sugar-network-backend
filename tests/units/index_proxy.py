@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import time
 import logging
 import threading
@@ -22,6 +23,7 @@ class IndexProxyTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+        env.index_lazy_open.value = True
 
         class Document(document.Document):
 
@@ -45,7 +47,9 @@ class IndexProxyTest(tests.Test):
         env.index_flush_timeout.value = 0
 
     def test_Create(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         existing = ([
             ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
@@ -135,7 +139,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
 
     def test_Update(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
@@ -160,7 +166,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_())
 
     def test_Update_Adds(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
@@ -197,7 +205,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(term='foo'))
 
     def test_Update_Deletes(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': '', 'layers': ['public'], 'author': ['me']}),
@@ -287,7 +297,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(prop='aaa'))
 
     def test_Update_AddsByListProps(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'prop': (), 'layers': ['public'], 'author': ['me']}),
@@ -330,7 +342,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(prop='a'))
 
     def test_Update_DeletesByListProps(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'prop': ('a',), 'layers': ['public'], 'author': ['me']}),
@@ -386,7 +400,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(prop='a'))
 
     def test_SeamlessCache_Create(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         existing = ([
             ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': 'a', 'layers': ['public'], 'author': ['me']}),
@@ -509,7 +525,9 @@ class IndexProxyTest(tests.Test):
                 return value
 
         Document.metadata = Metadata(Document)
-        IndexWriter(tests.tmpdir, Document.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         storage = Storage(tests.tmpdir, Document.metadata)
         storage.put(*existing[0][0])
@@ -551,7 +569,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(prop=('a',)))
 
     def test_DropPages(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
@@ -609,7 +629,9 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(0, len(proxy._pages))
 
     def test_NoCache(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         existing = ([
             ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'layers': ['public'], 'author': ['me']}),
@@ -638,7 +660,9 @@ class IndexProxyTest(tests.Test):
                 proxy.find_(no_cache=True))
 
     def test_SetSeqnoOnInitialOpen(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
 
         proxy = TestIndexProxy(tests.tmpdir, self.metadata)
 
@@ -650,7 +674,10 @@ class IndexProxyTest(tests.Test):
         self.assertEqual(5, proxy._commit_seqno)
 
     def test_NotFailOnEmptyCache(self):
-        IndexWriter(tests.tmpdir, self.metadata).close()
+        index = IndexWriter(tests.tmpdir, self.metadata)
+        index._do_open(True)
+        index.close()
+
         proxy = TestIndexProxy(tests.tmpdir, self.metadata)
         self.assertEqual(0, len(proxy._pages))
 

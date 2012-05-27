@@ -54,6 +54,9 @@ class IndexReader(object):
             if isinstance(prop, ActiveProperty):
                 self._props[name] = prop
 
+        if not env.index_lazy_open.value:
+            self._do_open(False)
+
     @property
     def mtime(self):
         """UNIX seconds of the last `commit()` call."""
@@ -114,9 +117,7 @@ class IndexReader(object):
 
         """
         if self._db is None:
-            _logger.warning(_('%s was called with not initialized db'),
-                    self.find)
-            return [], Total(0)
+            self._do_open(False)
 
         start_timestamp = time.time()
         # This will assure that the results count is exact.
@@ -154,6 +155,9 @@ class IndexReader(object):
 
     def commit(self):
         """Flush index changes to the disk."""
+        raise NotImplementedError()
+
+    def _do_open(self, reset):
         raise NotImplementedError()
 
     def _enquire(self, request, query, order_by):
@@ -274,13 +278,12 @@ class IndexWriter(IndexReader):
     """Write access to Xapian databases."""
 
     def __init__(self, root, metadata, commit_cb=None):
-        IndexReader.__init__(self, root, metadata, commit_cb)
-
         self._pending_updates = 0
         self._commit_cond = coroutine.Condition()
         self._commit_job = None
 
-        self._open(False)
+        IndexReader.__init__(self, root, metadata, commit_cb)
+
         self._commit_job = coroutine.spawn(self._commit_handler)
 
     def close(self):
@@ -293,6 +296,9 @@ class IndexWriter(IndexReader):
         self._db = None
 
     def store(self, guid, properties, new, pre_cb=None, post_cb=None, *args):
+        if self._db is None:
+            self._do_open(False)
+
         if pre_cb is not None:
             pre_cb(guid, properties, new)
 
@@ -333,6 +339,9 @@ class IndexWriter(IndexReader):
         self._check_for_commit()
 
     def delete(self, guid, post_cb=None, *args):
+        if self._db is None:
+            self._do_open(False)
+
         _logger.debug('Delete %r document from %r',
                 guid, self.metadata.name)
 
@@ -345,11 +354,13 @@ class IndexWriter(IndexReader):
         self._check_for_commit()
 
     def commit(self):
+        if self._db is None:
+            return
         self._commit()
         # Trigger condition to reset waiting for `index_flush_timeout` timeout
         self._commit_cond.notify(False)
 
-    def _open(self, reset):
+    def _do_open(self, reset):
         if not reset and self._is_layout_stale():
             reset = True
 
@@ -367,7 +378,7 @@ class IndexWriter(IndexReader):
             else:
                 util.exception(_('Cannot open Xapian index in %r, ' \
                         'will rebuild it'), self.metadata.name)
-                self._open(True)
+                self._do_open(True)
 
         if reset:
             self._save_layout()

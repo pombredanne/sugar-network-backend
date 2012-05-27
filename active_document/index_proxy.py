@@ -32,8 +32,6 @@ _logger = logging.getLogger('active_document.index_proxy')
 class IndexProxy(IndexReader):
 
     def __init__(self, root, metadata):
-        IndexReader.__init__(self, root, metadata)
-
         self._commit_seqno = 0
         self._cache_seqno = 1
         self._term_props = {}
@@ -45,6 +43,8 @@ class IndexProxy(IndexReader):
                     isinstance(prop, StoredProperty) and \
                     prop.permissions & env.ACCESS_WRITE:
                 self._term_props[prop.name] = prop
+
+        IndexReader.__init__(self, root, metadata)
 
     def commit(self):
         index_queue.commit_and_wait(self.metadata.name)
@@ -92,7 +92,7 @@ class IndexProxy(IndexReader):
         self._put(IndexWriter.delete, guid, post_cb, *args)
 
     def find(self, query):
-        self._reopen()
+        self._do_open(False)
 
         if query.no_cache:
             pages = []
@@ -113,7 +113,10 @@ class IndexProxy(IndexReader):
     def _sorted_pages(self):
         return [self._pages[i] for i in sorted(self._pages.keys())]
 
-    def _reopen(self):
+    def _do_open(self, reset):
+        if reset:
+            self._dirty = True
+
         if self._db is None:
             if exists(self._path):
                 self._drop_pages()
