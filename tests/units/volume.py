@@ -61,7 +61,9 @@ class VolumeTest(tests.Test):
             pass
 
         with SingleVolume(tests.tmpdir, [Document]) as volume:
-            coroutine.sleep(1)
+            for cls in volume.values():
+                for __ in cls.populate():
+                    pass
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in volume['document'].find()[0]]))
@@ -72,7 +74,9 @@ class VolumeTest(tests.Test):
             pass
 
         with SingleVolume(tests.tmpdir, [Document]) as volume:
-            coroutine.sleep(1)
+            for cls in volume.values():
+                for __ in cls.populate():
+                    pass
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in volume['document'].find()[0]]))

@@ -32,7 +32,7 @@ from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
 from active_document.commands import Request
 from active_document.metadata import BlobProperty
-from active_toolkit import coroutine, sockets, enforce
+from active_toolkit import sockets, enforce
 
 
 _logger = logging.getLogger('active_document.volume')
@@ -101,17 +101,6 @@ class SingleVolume(_Volume):
                 _('The active_document.index_write_queue.value should be > 0'))
         _Volume.__init__(self, root, document_classes, IndexWriter,
                 extra_props)
-        self._populate_job = coroutine.spawn(self._populate)
-
-    def close(self):
-        if self._populate_job is not None:
-            self._populate_job.kill()
-            self._populate_job = None
-
-    def _populate(self):
-        for cls in self.values():
-            for __ in cls.populate():
-                coroutine.dispatch()
 
 
 class VolumeCommands(CommandsProcessor):
