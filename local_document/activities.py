@@ -49,8 +49,27 @@ def checkins(context):
 
 
 def monitor(mounts, paths):
+    _Monitor(mounts, paths).serve_forever()
 
-    def found_cb(impl_path):
+
+def populate(mounts, paths, prefix):
+    _Monitor(mounts, paths, prefix).populate()
+
+
+class _Monitor(object):
+
+    def __init__(self, mounts, paths, prefix=''):
+        self._mounts = mounts
+        self._paths = paths
+        self._prefix = prefix
+
+    def serve_forever(self):
+        crawler.dispatch(self._paths, self.__found_cb, self.__lost_cb)
+
+    def populate(self):
+        crawler.populate(self._paths, self.__found_cb, self.__lost_cb)
+
+    def __found_cb(self, impl_path):
         hashed_path, checkin_path = _checkin_path(impl_path)
         if exists(checkin_path):
             return
@@ -64,7 +83,7 @@ def monitor(mounts, paths):
             return
 
         context = spec['Activity', 'bundle_id']
-        directory = mounts.home_volume['context']
+        directory = self._mounts.home_volume['context']
         if directory.exists(context):
             directory.update(context, {'keep_impl': 2})
         else:
@@ -89,14 +108,14 @@ def monitor(mounts, paths):
         context_path = _ensure_context_path(context, hashed_path)
         if lexists(context_path):
             os.unlink(context_path)
-        os.symlink(impl_path, context_path)
+        os.symlink(impl_path[len(self._prefix):], context_path)
 
         if lexists(checkin_path):
             os.unlink(checkin_path)
         env.ensure_path(checkin_path)
         os.symlink(relpath(context_path, dirname(checkin_path)), checkin_path)
 
-    def lost_cb(impl_path):
+    def __lost_cb(self, impl_path):
         __, checkin_path = _checkin_path(impl_path)
         if not lexists(checkin_path):
             return
@@ -109,15 +128,13 @@ def monitor(mounts, paths):
 
         if not impls:
             context = basename(context_dir)
-            directory = mounts.home_volume['context']
+            directory = self._mounts.home_volume['context']
             if directory.exists(context):
                 directory.update(context, {'keep_impl': 0})
 
         if lexists(context_path):
             os.unlink(context_path)
         os.unlink(checkin_path)
-
-    crawler.dispatch(paths, found_cb, lost_cb)
 
 
 def _checkin_path(impl_path):

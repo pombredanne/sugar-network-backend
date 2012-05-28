@@ -28,6 +28,24 @@ from local_document import env
 _logger = logging.getLogger('local_document.crawler')
 
 
+def populate(paths, found_cb, lost_cb):
+
+    class FakeMonitor(object):
+
+        def add_watch(self, *args):
+            pass
+
+        def found_cb(self, path):
+            found_cb(path)
+
+        def lost_cb(self, path):
+            lost_cb(path)
+
+    for path in paths:
+        env.ensure_path(path, '')
+        _Root(FakeMonitor(), path)
+
+
 def dispatch(paths, found_cb, lost_cb):
     with _Inotify(found_cb, lost_cb) as monitor:
         roots = []
