@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import logging
 from os.path import join, abspath
 from gettext import gettext as _
@@ -24,8 +25,8 @@ import restful_document as rd
 import sugar_network_server as server
 from local_document import application, sugar, env, bus, activities
 from local_document.mounts import Mounts
-from active_toolkit import optparse, coroutine
 from sugar_network import bus as client
+from active_toolkit import optparse, coroutine, enforce
 
 
 VERSION = '0.2'
@@ -76,16 +77,30 @@ class Application(application.Daemon):
         application.rundir.value = join(env.local_root.value, 'run')
 
     @application.command(
-            _('[PREFIX-PATH]\n'
+            _('[PREFIX-PATH SYSTEM-USER USER-GUID]\n'
                 'Index local Sugar Network database'))
     def index(self):
         from sugar_network_server import resources
 
+        enforce(not self.args or len(self.args) == 3,
+                _('Not all command arguments where specified'))
+
         if self.args:
-            self._prefix = abspath(self.args.pop(0))
-            env.activities_root.value = \
-                    self._prefix + env.activities_root.value
-            env.local_root.value = self._prefix + env.local_root.value
+            prefix, user, uid = self.args
+            self._prefix = abspath(prefix)
+
+            def patch_path(path):
+                path = path.split(os.sep)
+                if len(path) >= 3 and path[1] == 'home':
+                    path[2] = user
+                return join(self._prefix, *path)
+
+            env.activities_root.value = patch_path(env.activities_root.value)
+            env.local_root.value = patch_path(env.local_root.value)
+
+            print env.activities_root.value, env.local_root.value
+
+            sugar.uid = lambda: uid
 
         ad.index_lazy_open.value = False
         try:

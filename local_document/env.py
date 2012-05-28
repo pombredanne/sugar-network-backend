@@ -55,7 +55,7 @@ webui = optparse.Option(
 
 webui_port = optparse.Option(
         _('address to listen for Web clients'),
-        default=5000, name='webui-port')
+        default=5000, type_cast=int, name='webui-port')
 
 delayed_start = optparse.Option(
         _('immediate start only databse and the rest after first IPC command'),
