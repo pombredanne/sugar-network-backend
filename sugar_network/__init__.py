@@ -19,5 +19,4 @@ from local_document import sugar, application
 
 from sugar_network.client import Client, checkins
 
-from local_document.env import api_url, certfile, no_check_certificate, \
-        local_root, activities_root, server_mode
+from local_document.env import api_url, server_mode, webui_port

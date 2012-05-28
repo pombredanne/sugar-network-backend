@@ -24,7 +24,8 @@ from local_document import sugar
 
 api_url = optparse.Option(
         _('url to connect to Sugar Network server API'),
-        default='http://18.85.44.120:8000', short_option='-a')
+        default='http://18.85.44.120:8000', short_option='-a',
+        name='api-url')
 
 certfile = optparse.Option(
         _('path to SSL certificate file to connect to server via HTTPS'))
@@ -46,7 +47,7 @@ activities_root = optparse.Option(
 server_mode = optparse.Option(
         _('start server to share local documents'),
         default=False, type_cast=optparse.Option.bool_cast,
-        action='store_true')
+        action='store_true', name='server-mode')
 
 webui = optparse.Option(
         _('start web application to serve Sugar Network content'),
@@ -54,7 +55,12 @@ webui = optparse.Option(
 
 webui_port = optparse.Option(
         _('address to listen for Web clients'),
-        default=5000)
+        default=5000, name='webui-port')
+
+delayed_start = optparse.Option(
+        _('immediate start only databse and the rest after first IPC command'),
+        default=False, type_cast=optparse.Option.bool_cast,
+        action='store_true')
 
 
 def path(*args):

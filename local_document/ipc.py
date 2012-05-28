@@ -45,7 +45,7 @@ def rendezvous(server=False):
         _logger.debug('Start accepting clients')
         return os.open(rendezvous_path, os.O_RDONLY | os.O_NONBLOCK)
     else:
-        _logger.debug('Connecting to the server')
+        _logger.debug('Connecting to IPC server')
         # Will be blocked until server will call `rendezvous(server=True)`
         fd = os.open(rendezvous_path, os.O_WRONLY)
         _logger.debug('Connected successfully')

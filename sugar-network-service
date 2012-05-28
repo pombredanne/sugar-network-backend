@@ -22,7 +22,6 @@ from gettext import gettext as _
 import active_document as ad
 import restful_document as rd
 import sugar_network_server as server
-from sugar_network_server import resources
 from local_document import application, sugar, env, bus, activities
 from local_document.mounts import Mounts
 from active_toolkit import optparse, coroutine
@@ -44,7 +43,13 @@ class Application(application.Daemon):
 
     def __init__(self, **kwargs):
         application.Daemon.__init__(self, **kwargs)
-        self._bus = None
+
+        self._mounts = None
+        self._ipc_server = None
+        self._api_server = None
+        self._api_subscriber = None
+        self._web_server = None
+        self._monitor = None
 
         # Disable some low level logging
         for log_name in (
@@ -70,35 +75,67 @@ class Application(application.Daemon):
 
     def run(self):
         while not sugar.has_pubkey():
-            logging.info(_('No Sugar SSH key, will start in %s seconds'),
+            logging.info(_('No Sugar SSH key, delay start for %s seconds'),
                     SUGAR_REGISTRATION_TIMEOUT)
             coroutine.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        mounts = Mounts(join(env.local_root.value, 'local'), resources.path)
-        self._bus = bus.Server(mounts)
-        mounts.connect(self._bus.publish)
-        # Point client API to `mounts` directly passing over IPC
-        client.Request.connection = mounts
+        db_path = join(env.local_root.value, 'local')
+        if env.server_mode.value:
+            from sugar_network_server import resources
+            self._mounts = Mounts(db_path, resources.path)
+        else:
+            from sugar_network_server.resources.context import Context
+            from sugar_network_server.resources.report import Report
+            self._mounts = Mounts(db_path, [Context, Report])
+        # Point client API to `self._mounts` directly passing over IPC
+        client.Request.connection = self._mounts
 
-        monitor = coroutine.spawn(activities.monitor, mounts, [
-            env.activities_root.value,
-            '/usr/share/sugar/activities',
-            '/opt/sweets',
-            ])
+        if env.delayed_start.value:
+            delayed_start = self._delayed_start
+        else:
+            self._delayed_start()
+            delayed_start = None
 
-        http_server = None
-        http_subscriber = None
-        web_server = None
+        self._ipc_server = bus.Server(self._mounts, delayed_start)
+        self._mounts.connect(self._ipc_server.publish)
 
         if env.server_mode.value:
             logging.info(_('Listening for remote requests on %s port'),
                     server.port.value)
-            http_server = coroutine.WSGIServer(('0.0.0.0', server.port.value),
-                    rd.Router(mounts['~']))
-            coroutine.spawn(http_server.serve_forever)
-            http_subscriber = rd.SubscribeSocket(mounts.home_volume,
+            self._api_server = coroutine.WSGIServer(
+                    ('0.0.0.0', server.port.value),
+                    rd.Router(self._mounts['~']))
+            coroutine.spawn(self._api_server.serve_forever)
+            self._api_subscriber = rd.SubscribeSocket(
+                    self._mounts.home_volume,
                     '0.0.0.0', server.subscribe_port.value)
-            coroutine.spawn(http_subscriber.serve_forever)
+            coroutine.spawn(self._api_subscriber.serve_forever)
+
+        try:
+            self._ipc_server.serve_forever()
+        finally:
+            if self._monitor is not None:
+                self._monitor.kill()
+            if self._web_server is not None:
+                self._web_server.stop()
+            if self._api_server is not None:
+                self._api_server.stop()
+            if self._api_subscriber is not None:
+                self._api_subscriber.stop()
+            self._mounts.close()
+
+    def shutdown(self):
+        if self._ipc_server is not None:
+            self._ipc_server.stop()
+
+    def _delayed_start(self):
+        logging.info(_('Proceed delayed start'))
+
+        self._monitor = coroutine.spawn(activities.monitor, self._mounts, [
+            env.activities_root.value,
+            '/usr/share/sugar/activities',
+            '/opt/sweets',
+            ])
 
         if env.webui.value:
             from sugar_network_webui import app
@@ -106,30 +143,15 @@ class Application(application.Daemon):
             logging.info(_('Start Web server on %s port'),
                     env.webui_port.value)
 
-            web_server = coroutine.WSGIServer(
+            self._web_server = coroutine.WSGIServer(
                     ('127.0.0.1', env.webui_port.value), app)
-            coroutine.spawn(web_server.serve_forever)
-
-        try:
-            self._bus.serve_forever()
-        finally:
-            monitor.kill()
-            if web_server is not None:
-                web_server.stop()
-            if http_server is not None:
-                http_server.stop()
-            if http_subscriber is not None:
-                http_subscriber.stop()
-            mounts.close()
-
-    def shutdown(self):
-        if self._bus is not None:
-            self._bus.stop()
+            coroutine.spawn(self._web_server.serve_forever)
 
 
 # New defaults
 application.debug.value = sugar.logger_level()
 rd.only_sync_notification.value = False
+ad.index_lazy_open.value = True
 # It seems to be that most of users (on XO at least) don't have recent SSH
 server.trust_users.value = True
 

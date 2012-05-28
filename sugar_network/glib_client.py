@@ -47,14 +47,9 @@ class Client(gobject.GObject):
     def __init__(self):
         gobject.GObject.__init__(self)
 
-        self._subscription = None
-
-        def init():
-            self._subscription = Request().connection.subscribe()
-            gobject.io_add_watch(self._subscription.fileno(),
-                    gobject.IO_IN | gobject.IO_HUP, self.__subscription_cb)
-
-        gobject.idle_add(init)
+        self._subscription = Request().connection.subscribe()
+        gobject.io_add_watch(self._subscription.fileno(),
+                gobject.IO_IN | gobject.IO_HUP, self.__subscription_cb)
 
     def close(self):
         if self._subscription is not None:
@@ -88,6 +83,12 @@ class Client(gobject.GObject):
     def update(self, mountpoint, document, guid, **props):
         request = Request(mountpoint, document)
         request.call('PUT', guid=guid, content=props,
+                content_type='application/json')
+
+    def publish(self, event, **kwargs):
+        kwargs['event'] = event
+        request = Request()
+        request.call('POST', 'publish', content=kwargs,
                 content_type='application/json')
 
     def __subscription_cb(self, source, cb_condition):

@@ -31,9 +31,10 @@ _logger = logging.getLogger('local_document.bus')
 
 class Server(object):
 
-    def __init__(self, mounts):
+    def __init__(self, mounts, delayed_start=None):
         self._subscriptions = []
         self._mounts = mounts
+        self._delayed_start = delayed_start
         self._acceptor = _start_server('accept', self._serve_client)
         self._subscriber = _start_server('subscribe', self._serve_subscription)
         self._principal = sugar.uid()
@@ -103,7 +104,16 @@ class Server(object):
         return True
 
     def publish(self, event):
+        if event.get('event') == 'delayed-start':
+            if self._delayed_start is not None:
+                try:
+                    self._delayed_start()
+                finally:
+                    self._delayed_start = None
+            return
+
         _logger.debug('Send notification: %r', event)
+
         for socket_file in self._subscriptions:
             socket_file.write_message(event)
 

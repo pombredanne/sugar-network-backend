@@ -12,6 +12,7 @@ version   = 0.2
 stability = developer
 
 requires  = base/requests; base/m2crypto; sweets-recipe; sugar-network-server
+            sugar-network-webui
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
