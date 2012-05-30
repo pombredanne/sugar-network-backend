@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import logging
 from os.path import join, abspath
 from gettext import gettext as _
@@ -88,18 +87,12 @@ class Application(application.Daemon):
         if self.args:
             prefix, user, uid = self.args
             self._prefix = abspath(prefix)
-
-            def patch_path(path):
-                path = path.split(os.sep)
-                if len(path) >= 3 and path[1] == 'home':
-                    path[2] = user
-                return join(self._prefix, *path)
-
-            env.activities_root.value = patch_path(env.activities_root.value)
-            env.local_root.value = patch_path(env.local_root.value)
-
-            print env.activities_root.value, env.local_root.value
-
+            if env.activities_root.value == env.activities_root.default:
+                env.activities_root.value = join(self._prefix, 'home', user,
+                        'Activities')
+            if env.local_root.value == env.local_root.default:
+                env.local_root.value = join(self._prefix, 'home', user,
+                        '.sugar', 'default', 'network')
             sugar.uid = lambda: uid
 
         ad.index_lazy_open.value = False
