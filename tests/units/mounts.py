@@ -178,55 +178,73 @@ class MountsTest(tests.Test):
         remote = Client('/')
         local = Client('~')
 
-        guid = remote.Context(
+        guid_1 = remote.Context(
                 type=['activity'],
                 title='remote',
                 summary='summary',
                 description='description').post()
+        guid_2 = remote.Context(
+                type=['activity'],
+                title='remote-2',
+                summary='summary',
+                description='description').post()
 
-        self.assertRaises(ServerError, lambda: local.Context(guid, reply=['title'])['title'])
+        self.assertRaises(ServerError, lambda: local.Context(guid_1, reply=['title'])['title'])
+        self.assertRaises(ServerError, lambda: local.Context(guid_2, reply=['title'])['title'])
 
-        remote.Context(guid, keep=True).post()
+        remote.Context(guid_1, keep=True).post()
 
-        context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
-        self.assertEqual(True, context['keep'])
-        self.assertEqual(0, context['keep_impl'])
-        self.assertEqual('remote', context['title'])
+        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(
+                sorted([
+                    (guid_1, 'remote', True, 0),
+                    ]),
+                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(
+                sorted([
+                    (guid_1, 'remote', True, 0),
+                    (guid_2, 'remote-2', False, 0),
+                    ]),
+                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
 
-        context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
-        self.assertEqual(True, context['keep'])
-        self.assertEqual(0, context['keep_impl'])
-        self.assertEqual('remote', context['title'])
+        remote.Context(guid_1, keep=False).post()
 
-        remote.Context(guid, keep=False).post()
+        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(
+                sorted([
+                    (guid_1, 'remote', False, 0),
+                    ]),
+                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(
+                sorted([
+                    (guid_1, 'remote', False, 0),
+                    (guid_2, 'remote-2', False, 0),
+                    ]),
+                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
 
-        context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
-        self.assertEqual(False, context['keep'])
-        self.assertEqual(0, context['keep_impl'])
-        self.assertEqual('remote', context['title'])
-
-        context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
-        self.assertEqual(False, context['keep'])
-        self.assertEqual(0, context['keep_impl'])
-        self.assertEqual('remote', context['title'])
-
-        context = local.Context(guid)
+        context = local.Context(guid_1)
         context['title'] = 'local'
         context.post()
-        context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
+        context = local.Context(guid_1, reply=['keep', 'keep_impl', 'title'])
         self.assertEqual('local', context['title'])
 
-        remote.Context(guid, keep=True).post()
+        remote.Context(guid_1, keep=True).post()
 
-        context = local.Context(guid, reply=['keep', 'keep_impl', 'title'])
-        self.assertEqual(True, context['keep'])
-        self.assertEqual(0, context['keep_impl'])
-        self.assertEqual('local', context['title'])
-
-        context = remote.Context(guid, reply=['keep', 'keep_impl', 'title'])
-        self.assertEqual(True, context['keep'])
-        self.assertEqual(0, context['keep_impl'])
-        self.assertEqual('remote', context['title'])
+        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(
+                sorted([
+                    (guid_1, 'local', True, 0),
+                    ]),
+                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+        self.assertEqual(
+                sorted([
+                    (guid_1, 'remote', True, 0),
+                    (guid_2, 'remote-2', False, 0),
+                    ]),
+                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
 
     def test_OfflineSubscription(self):
         self.start_server()

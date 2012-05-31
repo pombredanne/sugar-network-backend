@@ -326,14 +326,18 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             if command == ('GET', None):
                 if guid:
                     if directory.exists(guid):
-                        patch = directory.get(guid).properties(patch.keys())
-                    result.update(patch)
+                        to_patch = directory.get(guid).properties(patch.keys())
+                    else:
+                        to_patch = patch
+                    result.update(to_patch)
                 else:
                     for props in result['result']:
                         if directory.exists(props['guid']):
-                            patch = directory.get(props['guid']).properties(
+                            to_patch = directory.get(props['guid']).properties(
                                     patch.keys())
-                        props.update(patch)
+                        else:
+                            to_patch = patch
+                        props.update(to_patch)
             else:
                 if command == ('POST', None):
                     guid = result
@@ -348,6 +352,9 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                         blob = self.get_blob('context', guid, prop)
                         if blob:
                             directory.set_blob(guid, prop, blob['path'])
+
+        _logger.debug('Called %r(%s): request=%r result=%r',
+                command, ', '.join(path), request, result)
 
         return result
 
