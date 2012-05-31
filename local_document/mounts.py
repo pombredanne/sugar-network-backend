@@ -18,13 +18,13 @@ import json
 import shutil
 import logging
 from urlparse import urlparse
-from os.path import isabs, exists
+from os.path import isabs, exists, join
 from gettext import gettext as _
 
 import zerosugar
 import sweets_recipe
 import active_document as ad
-from local_document import activities, cache, sugar, http, env, zeroconf
+from local_document import activities, sugar, http, env, zeroconf
 from active_toolkit import sockets, util, coroutine, enforce
 
 
@@ -267,6 +267,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
         self._publish = publish_cb
         self._events_job = coroutine.spawn(self._events_listerner)
         self._connected = False
+        self._seqno = {}
 
     @property
     def connected(self):
@@ -360,10 +361,28 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop):
-        path, mime_type = cache.get_blob(document, guid, prop)
-        if path is None:
+        blob_path = join(env.local_root.value, 'cache', document, guid[:2],
+                guid, prop)
+        meta_path = blob_path + '.meta'
+        meta = {}
+
+        def download():
+            mime_type = http.download([document, guid, prop], blob_path,
+                    document == 'implementation' and prop == 'bundle')
+            meta['mime_type'] = mime_type
+            with file(meta_path, 'w') as f:
+                json.dump(meta, f)
+
+        if exists(meta_path):
+            with file(meta_path) as f:
+                meta = json.load(f)
+        else:
+            download()
+
+        if not exists(blob_path):
             return None
-        return {'path': path, 'mime_type': mime_type}
+        meta['path'] = blob_path
+        return meta
 
     @ad.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
@@ -393,8 +412,14 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             event = conn.read_message()
             if event is None:
                 return False
+
+            seqno = event.get('seqno')
+            if seqno:
+                self._seqno[event['document']] = seqno
+
             event['mountpoint'] = self.mountpoint
             self._publish(event)
+
             return True
 
         def configured_host():

@@ -20,7 +20,7 @@ from sugar_network.client import Client
 from sugar_network.bus import ServerError
 from local_document.mounts import Mounts
 from local_document.bus import Server
-from local_document import env, mounts, sugar, http, cache, activities
+from local_document import env, mounts, sugar, http, activities
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 
@@ -510,10 +510,10 @@ class MountsTest(tests.Test):
                    'Activities/activity/4/5',
                    'Activities/activity/6')
 
-        path, mime_type = cache.get_blob('implementation', impl_id, 'bundle')
+        mime_type = http.download(['implementation', impl_id, 'bundle'], './downloaded_blob', False)
         content_type, params = cgi.parse_header(mime_type)
         self.assertEqual('multipart/mixed', content_type)
-        subprocess.check_call('diff -r %s Activities/activity/' % path, shell=True)
+        subprocess.check_call('diff -r downloaded_blob Activities/activity', shell=True)
 
 
 if __name__ == '__main__':

@@ -75,7 +75,7 @@ class InjectorTest(tests.Test):
                     })),
                 (blob_path + '.sha1', ''),
                 )
-        os.unlink('cache/context/%s/%s/feed' % (context[:2], context))
+        os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
 
         pipe = zerosugar.checkin('/', context)
         self.assertEqual([
@@ -89,6 +89,7 @@ class InjectorTest(tests.Test):
                 }),
             ],
             [i for i in pipe])
+        os.unlink('cache/implementation/%s/%s/bundle.meta' % (impl[:2], impl))
 
         blob_path = 'remote/implementation/%s/%s/bundle' % (impl[:2], impl)
         self.touch((blob_path + '.sha1', ''))
@@ -180,7 +181,7 @@ class InjectorTest(tests.Test):
                 stability='stable',
                 notes='').post()
 
-        os.unlink('cache/context/%s/%s/feed' % (context[:2], context))
+        os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
         self.touch(
                 (blob_path, json.dumps({
