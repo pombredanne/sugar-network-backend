@@ -247,7 +247,9 @@ class _WaitSession(object):
 
     def __enter__(self):
         if self._users:
-            # Break previous waiting session, only one wait should
+            # Break previous waiting session,
+            # only one `wait()` should exist for one session
+            # TODO Support multiple clients
             self._signal.set()
             self._signal.clear()
         self._users += 1

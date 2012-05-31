@@ -58,7 +58,8 @@ webui_port = optparse.Option(
         default=5000, type_cast=int, name='webui-port')
 
 delayed_start = optparse.Option(
-        _('immediate start only databse and the rest after first IPC command'),
+        _('immediate start only database and the rest on getting ' \
+                'notification from IPC client'),
         default=False, type_cast=optparse.Option.bool_cast,
         action='store_true')
 

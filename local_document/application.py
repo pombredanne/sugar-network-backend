@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Data: 2012-05-25$
+$Data: 2012-05-31$
 
 """
 
@@ -114,7 +114,7 @@ class Application(object):
 
         if not self.args and not options.help:
             prog = basename(sys.argv[0])
-            print 'Usage: %s [OPTIONS] [COMMAND]' % parser.prog
+            print 'Usage: %s [OPTIONS] [COMMAND]' % prog
             print '       %s -h|--help' % prog
             print
             print description
