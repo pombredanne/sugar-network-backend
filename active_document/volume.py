@@ -224,9 +224,7 @@ class VolumeCommands(CommandsProcessor):
         response.content_type = directory.metadata[prop].mime_type
 
         path = stat.get('path')
-        if not path:
-            # TODO Empty BLOBs should raise `NotFound`
-            return None
+        enforce(path, env.NotFound, _('Property does not exist'))
 
         if isdir(path):
             dir_info, dir_reader = sockets.encode_directory(path)

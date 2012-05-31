@@ -176,6 +176,11 @@ class VolumeTest(tests.Test):
                     ]),
                 sorted([(name, content.read()) for name, content in files]))
 
+    def test_CommandsGetAbsentBlobs(self):
+        guid = self.call('POST', document='testdocument', content={'prop': 'value'})
+        self.assertEqual('value', self.call('GET', document='testdocument', guid=guid, prop='prop'))
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
     def test_Command_ReplyForGET(self):
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
