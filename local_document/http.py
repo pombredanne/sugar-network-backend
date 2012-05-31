@@ -39,13 +39,16 @@ _headers = {}
 def download(url_path, out_path, extract):
     if isdir(out_path):
         shutil.rmtree(out_path)
+    elif not exists(dirname(out_path)):
+        os.makedirs(dirname(out_path))
 
-    response = raw_request('GET', url_path, allow_redirects=True)
+    response = raw_request('GET', url_path, allow_redirects=True,
+            allowed_response=[404])
+    if response.status_code != 200:
+        return 'application/octet-stream'
+
     mime_type = response.headers.get('Content-Type') or \
             'application/octet-stream'
-
-    if not exists(dirname(out_path)):
-        os.makedirs(dirname(out_path))
 
     def fetch(f):
         _logger.debug('Download %r BLOB to %r', '/'.join(url_path), out_path)
@@ -105,7 +108,8 @@ def request(method, path, data=None, headers=None, **kwargs):
         return response
 
 
-def raw_request(method, path, data=None, headers=None, **kwargs):
+def raw_request(method, path, data=None, headers=None, allowed_response=None,
+        **kwargs):
     path = '/'.join([i.strip('/') for i in [env.api_url.value] + path])
 
     if not _headers:
@@ -143,6 +147,8 @@ def raw_request(method, path, data=None, headers=None, **kwargs):
                         'registering'))
                 _register()
                 continue
+            if allowed_response and response.status_code in allowed_response:
+                return response
             content = response.content
             try:
                 error = json.loads(content)

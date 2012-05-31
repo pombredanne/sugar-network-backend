@@ -137,6 +137,19 @@ class MountsTest(tests.Test):
         self.assertEqual('blob2', local.Context(guid).get_blob('preview').read())
         assert not exists('file2')
 
+    def test_OfflineMount_GetAbsetnBLOB(self):
+        self.start_server()
+        client = Client('~')
+
+        guid = client.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+
+        path, mime_type = client.Context(guid).get_blob_path('icon')
+        self.assertEqual(None, path)
+
     def test_OnlineMount_GetKeep(self):
         self.start_ipc_and_restful_server()
 
@@ -437,6 +450,19 @@ class MountsTest(tests.Test):
         # TODO Enable after implementing feature to stale BLOB's cache
         #self.assertEqual('blob2', remote.Context(guid).get_blob('preview').read())
         assert not exists('file2')
+
+    def test_OnlineMount_GetAbsetnBLOB(self):
+        self.start_ipc_and_restful_server()
+        client = Client('/')
+
+        guid = client.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+
+        path, mime_type = client.Context(guid).get_blob_path('icon')
+        self.assertEqual(None, path)
 
     def test_ServerMode(self):
         env.api_url.value = 'http://localhost:8881'

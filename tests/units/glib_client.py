@@ -88,7 +88,7 @@ class GlibClientTest(tests.Test):
         client.Context(guid, keep_impl=0).post()
         client.Context.delete(guid)
 
-        gobject.timeout_add(1000, mainloop.quit)
+        gobject.timeout_add(2000, mainloop.quit)
         mainloop.run()
 
         self.assertEqual([
