@@ -332,16 +332,21 @@ class Record(object):
     def __init__(self, root):
         self._root = root
 
-    def get(self, name, default=None):
-        if name == 'seqno':
+    def get(self, prop, default=None):
+        if prop == 'seqno':
             return int(os.stat(join(self._root, _SEQNO_SUFFIX)).st_mtime)
-        path = join(self._root, name)
+        path = join(self._root, prop)
         if not exists(path):
             enforce(default is not None,
                     _('Cannot find %r property in %r'),
-                    name, basename(self._root))
+                    prop, basename(self._root))
             return default
         return _read_property(path)
+
+    def get_seqno(self, prop):
+        path = join(self._root, prop) + _SEQNO_SUFFIX
+        if exists(path):
+            return int(os.stat(path).st_mtime)
 
 
 def _touch_seqno(path, seqno):

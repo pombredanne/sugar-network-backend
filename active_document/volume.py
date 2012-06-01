@@ -219,7 +219,7 @@ class VolumeCommands(CommandsProcessor):
         return doc.properties(reply)
 
     @property_command(method='GET')
-    def get_prop(self, document, guid, prop, response):
+    def get_prop(self, document, guid, prop, response, seqno=None):
         directory = self.volume[document]
         doc = directory.get(guid)
 
@@ -227,6 +227,11 @@ class VolumeCommands(CommandsProcessor):
 
         if not isinstance(directory.metadata[prop], BlobProperty):
             return doc[prop]
+
+        if seqno and seqno <= doc.get_seqno(prop):
+            response.content_length = 0
+            response.content_type = directory.metadata[prop].mime_type
+            return None
 
         stat = directory.stat_blob(guid, prop)
         response.content_length = stat.get('size') or 0

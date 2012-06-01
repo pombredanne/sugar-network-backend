@@ -20,6 +20,7 @@ from gettext import gettext as _
 from active_document import env
 from active_document.metadata import BrowsableProperty, StoredProperty
 from active_document.metadata import active_property
+from active_toolkit import enforce
 
 
 _logger = logging.getLogger('active_document.document')
@@ -89,6 +90,12 @@ class Document(object):
         self._props[prop.name] = value
 
         return value
+
+    def get_seqno(self, prop):
+        prop = self.metadata[prop]
+        enforce(self._record is not None, _('Property %r in %r cannot be get'),
+                prop.name, self.metadata.name)
+        return self._record.get_seqno(prop.name)
 
     def properties(self, names=None):
         result = {}
