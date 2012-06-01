@@ -228,7 +228,7 @@ class VolumeCommands(CommandsProcessor):
         if not isinstance(directory.metadata[prop], BlobProperty):
             return doc[prop]
 
-        if seqno and seqno <= doc.get_seqno(prop):
+        if seqno is not None and seqno >= doc.get_seqno(prop):
             response.content_length = 0
             response.content_type = directory.metadata[prop].mime_type
             return None

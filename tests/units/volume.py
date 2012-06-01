@@ -205,24 +205,28 @@ class VolumeTest(tests.Test):
                 sorted(self.call('GET', document='testdocument', reply=['prop'])['result'][0].keys()))
 
     def test_Command_GetBlobBySeqno(self):
+        # seqno == 1
         guid = self.call('POST', document='testdocument', content={})
+        # seqno == 2
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content_stream=StringIO('value'))
 
         blob = self.call('GET', document='testdocument', guid=guid, prop='blob')
         self.assertEqual('value', ''.join(blob))
         self.assertEqual(len('value'), self.response.content_length)
 
-        # POST request, seqno == 1
-        self.assertEqual(None, self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=1))
-        self.assertEqual(0, self.response.content_length)
+        blob = self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=0)
+        self.assertEqual('value', ''.join(blob))
+        self.assertEqual(len('value'), self.response.content_length)
 
-        # PUT request, seqno == 2
+        blob = self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=1)
+        self.assertEqual('value', ''.join(blob))
+        self.assertEqual(len('value'), self.response.content_length)
+
         self.assertEqual(None, self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=2))
         self.assertEqual(0, self.response.content_length)
 
-        blob = self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=3)
-        self.assertEqual('value', ''.join(blob))
-        self.assertEqual(len('value'), self.response.content_length)
+        self.assertEqual(None, self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=22))
+        self.assertEqual(0, self.response.content_length)
 
     def call(self, method, document=None, guid=None, prop=None,
             principal=None, **kwargs):
