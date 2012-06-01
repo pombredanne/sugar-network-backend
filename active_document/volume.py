@@ -30,7 +30,7 @@ from active_document.directory import Directory
 from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
-from active_document.commands import Request
+from active_document.commands import volume_command, Request
 from active_document.metadata import BlobProperty
 from active_toolkit import sockets, enforce
 
@@ -108,6 +108,15 @@ class VolumeCommands(CommandsProcessor):
     def __init__(self, volume):
         CommandsProcessor.__init__(self, volume)
         self.volume = volume
+
+    @volume_command(method='GET', cmd='stat')
+    def stat(self):
+        documents = {}
+        for name, directory in self.volume.items():
+            documents[name] = {
+                    'seqno': directory.seqno,
+                    }
+        return {'documents': documents}
 
     @directory_command(method='POST',
             permissions=env.ACCESS_AUTH)

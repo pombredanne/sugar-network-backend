@@ -577,13 +577,13 @@ class DocumentTest(tests.Test):
         directory.commit()
 
         self.assertEqual([
-            {'event': 'commit'},
-            {'event': 'sync'},
+            {'event': 'commit', 'seqno': 0},
+            {'event': 'sync', 'seqno': 0},
             {'guid': 'guid', 'event': 'create'},
-            {'guid': 'guid', 'event': 'update_blob', 'prop': 'blob'},
+            {'guid': 'guid', 'event': 'update_blob', 'prop': 'blob', 'seqno': 2},
             {'guid': 'guid', 'event': 'update'},
             {'guid': 'guid', 'event': 'delete'},
-            {'event': 'commit'}
+            {'event': 'commit', 'seqno': 3}
             ],
             events)
 

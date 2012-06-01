@@ -68,6 +68,10 @@ class Directory(object):
 
         _logger.debug('Initiated %r document', document_class)
 
+    @property
+    def seqno(self):
+        return self._seqno
+
     def close(self):
         """Flush index write pending queue and close the index."""
         self._index.close()
@@ -205,6 +209,7 @@ class Directory(object):
             event = {'event': 'update_blob',
                      'guid': guid,
                      'prop': prop.name,
+                     'seqno': seqno,
                      }
             self._notify(event)
 
@@ -249,7 +254,7 @@ class Directory(object):
 
         if found:
             self.commit()
-            self._notify({'event': 'sync'})
+            self._notify({'event': 'sync', 'seqno': self._seqno})
 
     def diff(self, accept_range):
         """Return documents' properties for specified times range.
@@ -348,7 +353,7 @@ class Directory(object):
             f.write(str(self._seqno))
             f.flush()
             os.fsync(f.fileno())
-        self._notify({'event': 'commit'})
+        self._notify({'event': 'commit', 'seqno': self._seqno})
 
     def _next_seqno(self):
         self._seqno += 1
