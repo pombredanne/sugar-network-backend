@@ -49,7 +49,7 @@ class _Volume(dict):
 
         _logger.info(_('Opening documents in %r'), self._root)
 
-        if type(document_classes) not in (tuple, list):
+        if not isinstance(document_classes, (tuple, list)):
             document_classes = _walk_classes(document_classes)
 
         if extra_props is None:
@@ -228,6 +228,7 @@ class VolumeCommands(CommandsProcessor):
         if not isinstance(directory.metadata[prop], BlobProperty):
             return doc[prop]
 
+        seqno = _to_int('seqno', seqno)
         if seqno is not None and seqno >= doc.get_seqno(prop):
             response.content_length = 0
             response.content_type = directory.metadata[prop].mime_type
@@ -273,7 +274,7 @@ class VolumeCommands(CommandsProcessor):
 
 
 def _to_int(name, value):
-    if type(value) in (str, unicode):
+    if isinstance(value, basestring):
         enforce(value.isdigit(),
                 _('Argument %r should be an integer value'), name)
         value = int(value)
@@ -281,7 +282,7 @@ def _to_int(name, value):
 
 
 def _to_list(value):
-    if type(value) in (str, unicode):
+    if isinstance(value, basestring):
         value = value.split(',')
     return value
 
