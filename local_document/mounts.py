@@ -366,18 +366,21 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
         meta_path = blob_path + '.meta'
         meta = {}
 
-        def download():
-            mime_type = http.download([document, guid, prop], blob_path,
+        def download(seqno):
+            mime_type = http.download([document, guid, prop], blob_path, seqno,
                     document == 'implementation' and prop == 'bundle')
             meta['mime_type'] = mime_type
+            meta['seqno'] = self._seqno[document]
             with file(meta_path, 'w') as f:
                 json.dump(meta, f)
 
         if exists(meta_path):
             with file(meta_path) as f:
                 meta = json.load(f)
+            if meta['seqno'] < self._seqno[document]:
+                download(meta['seqno'])
         else:
-            download()
+            download(None)
 
         if not exists(blob_path):
             return None
@@ -448,16 +451,23 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 continue
 
             _logger.info(_('Connected to remote server'))
-            self._connected = True
-            self._publish({
-                'event': 'connect',
-                'mountpoint': self.mountpoint,
-                'document': '*',
-                })
 
+            self._connected = True
             try:
+                self._publish({
+                    'event': 'connect',
+                    'mountpoint': self.mountpoint,
+                    'document': '*',
+                    })
+
+                stat = http.request('GET', [], params={'cmd': 'stat'},
+                        headers={'Content-Type': 'application/json'})
+                for document, props in stat['documents'].items():
+                    self._seqno[document] = props.get('seqno') or 0
+
                 while dispatch(conn):
                     pass
+
             except Exception:
                 util.exception(_logger, _('Failed to dispatch remote event'))
             finally:

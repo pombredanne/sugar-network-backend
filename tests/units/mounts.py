@@ -284,7 +284,7 @@ class MountsTest(tests.Test):
                 {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
                 subscription.read_message())
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit', 'seqno': 1},
                 subscription.read_message())
 
         client.Context(guid, title='new-title').post()
@@ -296,7 +296,7 @@ class MountsTest(tests.Test):
                 {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
                 event)
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit', 'seqno': 2},
                 subscription.read_message())
 
         client.Context.delete(guid)
@@ -306,7 +306,7 @@ class MountsTest(tests.Test):
                 {'mountpoint': '~', 'document': 'context', 'event': 'delete', 'guid': guid},
                 subscription.read_message())
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'commit'},
+                {'mountpoint': '~', 'document': 'context', 'event': 'commit', 'seqno': 2},
                 subscription.read_message())
 
     def test_OnlineSubscription(self):
@@ -447,9 +447,30 @@ class MountsTest(tests.Test):
 
         self.touch(('file2', 'blob2'))
         remote.Context(guid).upload_blob('preview', 'file2', pass_ownership=True)
-        # TODO Enable after implementing feature to stale BLOB's cache
-        #self.assertEqual('blob2', remote.Context(guid).get_blob('preview').read())
+        self.assertEqual('blob2', remote.Context(guid).get_blob('preview').read())
         assert not exists('file2')
+
+    def test_OnlineMount_StaleBLOBs(self):
+        self.start_ipc_and_restful_server()
+        remote = Client('/')
+
+        guid = remote.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+
+        self.touch(('file', 'blob-1'))
+        remote.Context(guid).upload_blob('preview', 'file')
+        self.assertEqual('blob-1', remote.Context(guid).get_blob('preview').read())
+
+        cache_path = 'cache/context/%s/%s/preview' % (guid[:2], guid)
+        self.touch((cache_path, 'blob-2'))
+        self.assertEqual('blob-2', remote.Context(guid).get_blob('preview').read())
+
+        self.touch(('file', 'blob-3'))
+        remote.Context(guid).upload_blob('preview', 'file')
+        self.assertEqual('blob-3', remote.Context(guid).get_blob('preview').read())
 
     def test_OnlineMount_GetAbsetnBLOB(self):
         self.start_ipc_and_restful_server()

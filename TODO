@@ -1,5 +1,5 @@
 - reuse the same data dir for all SN resources for the same context
-- GC and stale fs cache
+- GC BLOBs cache
 - synchronize local "keep" resources
 - on a XO, there are DNS resolving fails in reconnection loop after got connected to the internet
 

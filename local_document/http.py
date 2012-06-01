@@ -36,14 +36,18 @@ _logger = logging.getLogger('local_document.http')
 _headers = {}
 
 
-def download(url_path, out_path, extract):
+def download(url_path, out_path, seqno=None, extract=False):
     if isdir(out_path):
         shutil.rmtree(out_path)
     elif not exists(dirname(out_path)):
         os.makedirs(dirname(out_path))
 
+    params = {}
+    if seqno:
+        params['seqno'] = seqno
+
     response = raw_request('GET', url_path, allow_redirects=True,
-            allowed_response=[404])
+            params=params, allowed_response=[404])
     if response.status_code != 200:
         return 'application/octet-stream'
 
@@ -110,6 +114,8 @@ def request(method, path, data=None, headers=None, **kwargs):
 
 def raw_request(method, path, data=None, headers=None, allowed_response=None,
         **kwargs):
+    if not path:
+        path = ['']
     path = '/'.join([i.strip('/') for i in [env.api_url.value] + path])
 
     if not _headers:
