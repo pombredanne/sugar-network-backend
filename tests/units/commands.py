@@ -121,7 +121,7 @@ class CommandsTest(tests.Test):
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal=Request.ANONYMOUS)
         self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal='me')
 
-        volume['testdocument'].create_with_guid('guid', {'author': ['me']})
+        volume['testdocument'].create_with_guid('guid', {'user': ['me']})
         self.assertRaises(env.Forbidden, self.call, cp, 'GET', document='testdocument', guid='guid', principal=Request.ANONYMOUS)
         self.call(cp, 'GET', document='testdocument', guid='guid', principal='me')
 
@@ -174,7 +174,7 @@ class CommandsTest(tests.Test):
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal=Request.ANONYMOUS)
         self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal='me')
 
-        volume['testdocument'].create_with_guid('guid', {'author': ['me']})
+        volume['testdocument'].create_with_guid('guid', {'user': ['me']})
         self.assertRaises(env.Forbidden, self.call, cp, 'GET', document='testdocument', guid='guid', prop='prop', principal=Request.ANONYMOUS)
         self.call(cp, 'GET', document='testdocument', guid='guid', prop='prop', principal='me')
 
@@ -256,7 +256,7 @@ class CommandsTest(tests.Test):
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE')
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument')
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument', guid='guid')
-        volume['testdocument'].create_with_guid('guid', {'author': ['me']})
+        volume['testdocument'].create_with_guid('guid', {'user': ['me']})
         self.call(cp, 'PROBE', document='testdocument', guid='guid')
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='fakedocument', guid='guid')
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid')
@@ -305,7 +305,7 @@ class CommandsTest(tests.Test):
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument')
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument', prop='prop')
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument', guid='guid', prop='prop')
-        volume['testdocument'].create_with_guid('guid', {'author': ['me']})
+        volume['testdocument'].create_with_guid('guid', {'user': ['me']})
         self.call(cp, 'PROBE', document='testdocument', guid='guid', prop='prop')
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='fakedocument', guid='guid', prop='prop')
         self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid', prop='prop')
@@ -314,7 +314,7 @@ class CommandsTest(tests.Test):
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal=Request.ANONYMOUS)
         self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal='me')
 
-        volume['testdocument'].create_with_guid('guid', {'author': ['me']})
+        volume['testdocument'].create_with_guid('guid', {'user': ['me']})
         self.assertRaises(env.Forbidden, self.call, cp, 'GET', document='testdocument', guid='guid', prop='prop', principal=Request.ANONYMOUS)
         self.call(cp, 'GET', document='testdocument', guid='guid', prop='prop', principal='me')
 

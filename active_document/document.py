@@ -56,9 +56,9 @@ class Document(object):
     def layers(self, value):
         return value
 
-    @active_property(prefix='IA', typecast=[],
+    @active_property(prefix='IU', typecast=[],
             permissions=env.ACCESS_CREATE | env.ACCESS_READ)
-    def author(self, value):
+    def user(self, value):
         return value
 
     @property
@@ -110,7 +110,7 @@ class Document(object):
         return result
 
     @classmethod
-    def on_create(cls, props):
+    def before_create(cls, props):
         """Callback to call on document creation.
 
         Function needs to be re-implemented in child classes.
@@ -127,7 +127,7 @@ class Document(object):
         props['layers'] = ['public']
 
     @classmethod
-    def on_update(cls, props):
+    def before_update(cls, props):
         """Callback to call on existing document modification.
 
         Function needs to be re-implemented in child classes.
@@ -137,6 +137,18 @@ class Document(object):
 
         """
         props['mtime'] = int(time.time())
+
+    @classmethod
+    def before_post(cls, props):
+        """Callback to call on existing document before posting changes.
+
+        Function needs to be re-implemented in child classes.
+
+        :param props:
+            dictionary with document properties updates
+
+        """
+        pass
 
     def __getitem__(self, prop):
         return self.get(prop)

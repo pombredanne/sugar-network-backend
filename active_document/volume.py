@@ -125,7 +125,7 @@ class VolumeCommands(CommandsProcessor):
         props = request.content
         for i in props.keys():
             directory.metadata[i].assert_access(env.ACCESS_CREATE)
-        props['author'] = [request.principal] if request.principal else []
+        props['user'] = [request.principal] if request.principal else []
         return directory.create(props)
 
     @directory_command(method='GET')

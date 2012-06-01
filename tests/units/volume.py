@@ -47,14 +47,14 @@ class VolumeTest(tests.Test):
                 ('document/1/1/ctime', '1'),
                 ('document/1/1/mtime', '1'),
                 ('document/1/1/layers', '["public"]'),
-                ('document/1/1/author', '["me"]'),
+                ('document/1/1/user', '["me"]'),
 
                 ('document/2/2/.seqno', ''),
                 ('document/2/2/guid', '2'),
                 ('document/2/2/ctime', '2'),
                 ('document/2/2/mtime', '2'),
                 ('document/2/2/layers', '["public"]'),
-                ('document/2/2/author', '["me"]'),
+                ('document/2/2/user', '["me"]'),
                 )
 
         class Document(document.Document):
@@ -82,7 +82,7 @@ class VolumeTest(tests.Test):
                     sorted([i.guid for i in volume['document'].find()[0]]))
 
     def test_Commands(self):
-        self.volume['testdocument'].create_with_guid('guid', {'author': []})
+        self.volume['testdocument'].create_with_guid('guid', {'user': []})
 
         self.assertEqual({
             'total': 1,
@@ -185,7 +185,7 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
-                sorted(['layers', 'ctime', 'author', 'prop', 'mtime', 'guid']),
+                sorted(['layers', 'ctime', 'user', 'prop', 'mtime', 'guid']),
                 sorted(self.call('GET', document='testdocument', guid=guid).keys()))
 
         self.assertEqual(

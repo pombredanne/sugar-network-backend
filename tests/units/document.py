@@ -39,7 +39,7 @@ class DocumentTest(tests.Test):
         directory = Directory(tests.tmpdir, Document, IndexWriter)
         self.assertEqual(1, directory.metadata['slotted'].slot)
 
-        directory.create({'slotted': 'slotted', 'not_slotted': 'not_slotted', 'author': []})
+        directory.create({'slotted': 'slotted', 'not_slotted': 'not_slotted', 'user': []})
 
         docs, total = directory.find(0, 100, order_by='slotted')
         self.assertEqual(1, total.value)
@@ -78,7 +78,7 @@ class DocumentTest(tests.Test):
         directory = Directory(tests.tmpdir, Document, IndexWriter)
         self.assertEqual('T', directory.metadata['term'].prefix)
 
-        guid = directory.create({'term': 'term', 'not_term': 'not_term', 'author': []})
+        guid = directory.create({'term': 'term', 'not_term': 'not_term', 'user': []})
 
         docs, total = directory.find(0, 100, term='term')
         self.assertEqual(1, total.value)
@@ -120,7 +120,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(False, directory.metadata['no'].full_text)
         self.assertEqual(True, directory.metadata['yes'].full_text)
 
-        guid = directory.create({'no': 'foo', 'yes': 'bar', 'author': []})
+        guid = directory.create({'no': 'foo', 'yes': 'bar', 'user': []})
 
         self.assertEqual(0, directory.find(0, 100, query='foo')[-1])
         self.assertEqual(1, directory.find(0, 100, query='bar')[-1])
@@ -146,7 +146,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(None, directory.metadata['wo_default'].default)
         self.assertEqual('not_stored_default', directory.metadata['not_stored_default'].default)
 
-        guid = directory.create({'wo_default': 'wo_default', 'author': []})
+        guid = directory.create({'wo_default': 'wo_default', 'user': []})
 
         docs, total = directory.find(0, 100)
         self.assertEqual(1, total.value)
@@ -154,7 +154,7 @@ class DocumentTest(tests.Test):
                 [('default', 'wo_default', 'not_stored_default')],
                 [(i.w_default, i.wo_default, i.not_stored_default) for i in docs])
 
-        self.assertRaises(RuntimeError, directory.create, {'author': []})
+        self.assertRaises(RuntimeError, directory.create, {'user': []})
 
     def test_properties_Blob(self):
 
@@ -166,9 +166,9 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        self.assertRaises(RuntimeError, directory.create, {'blob': 'probe', 'author': []})
+        self.assertRaises(RuntimeError, directory.create, {'blob': 'probe', 'user': []})
 
-        guid = directory.create({'author': []})
+        guid = directory.create({'user': []})
 
         self.assertRaises(RuntimeError, directory.find, 0, 100, reply='blob')
         self.assertRaises(RuntimeError, lambda: directory.get(guid).blob)
@@ -199,7 +199,7 @@ class DocumentTest(tests.Test):
                 return stat
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
-        guid = directory.create({'author': []})
+        guid = directory.create({'user': []})
 
         self.assertEqual('new-prop', directory.get(guid).prop)
 
@@ -215,9 +215,9 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        directory.create({'author': []})
-        directory.create({'author': []})
-        directory.create({'author': []})
+        directory.create({'user': []})
+        directory.create({'user': []})
+        directory.create({'user': []})
 
         env.find_limit.value = 1
         docs, total = directory.find(0, 1024)
@@ -231,21 +231,13 @@ class DocumentTest(tests.Test):
             def prop_1(self, value):
                 return value
 
-            @prop_1.setter
-            def prop_1(self, value):
-                return value
-
             @active_property(StoredProperty)
-            def prop_2(self, value):
-                return value
-
-            @prop_2.setter
             def prop_2(self, value):
                 return value
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create({'prop_1': '1', 'prop_2': '2', 'author': []})
+        guid = directory.create({'prop_1': '1', 'prop_2': '2', 'user': []})
         self.assertEqual(
                 [('1', '2')],
                 [(i.prop_1, i.prop_2) for i in directory.find(0, 1024)[0]])
@@ -265,9 +257,9 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid_1 = directory.create({'prop': '1', 'author': []})
-        guid_2 = directory.create({'prop': '2', 'author': []})
-        guid_3 = directory.create({'prop': '3', 'author': []})
+        guid_1 = directory.create({'prop': '1', 'user': []})
+        guid_2 = directory.create({'prop': '2', 'user': []})
+        guid_3 = directory.create({'prop': '3', 'user': []})
 
         self.assertEqual(
                 ['1', '2', '3'],
@@ -304,7 +296,7 @@ class DocumentTest(tests.Test):
                 ('1/1/mtime', '1'),
                 ('1/1/prop', '"prop-1"'),
                 ('1/1/layers', '["public"]'),
-                ('1/1/author', '["me"]'),
+                ('1/1/user', '["me"]'),
 
                 ('2/2/.seqno', ''),
                 ('2/2/guid', '2'),
@@ -312,7 +304,7 @@ class DocumentTest(tests.Test):
                 ('2/2/mtime', '2'),
                 ('2/2/prop', '"prop-2"'),
                 ('2/2/layers', '["public"]'),
-                ('2/2/author', '["me"]'),
+                ('2/2/user', '["me"]'),
                 )
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
@@ -345,16 +337,12 @@ class DocumentTest(tests.Test):
             def prop(self, value):
                 return value
 
-            @prop.setter
-            def prop(self, value):
-                return value
-
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create_with_guid('guid', {'prop': 'foo', 'author': []})
+        guid = directory.create_with_guid('guid', {'prop': 'foo', 'user': []})
         self.assertEqual(
                 [('guid', 'foo', [], ['public'])],
-                [(i.guid, i.prop, i.author, i.layers) for i in directory.find(0, 1024)[0]])
+                [(i.guid, i.prop, i.user, i.layers) for i in directory.find(0, 1024)[0]])
 
         directory.update(guid, {'prop': 'probe'})
         self.assertEqual(
@@ -370,18 +358,18 @@ class DocumentTest(tests.Test):
                 return value
 
             @classmethod
-            def on_create(cls, props):
-                super(Document, cls).on_create(props)
+            def before_create(cls, props):
+                super(Document, cls).before_create(props)
                 props['prop'] = 'foo'
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        directory.create({'author': []})
+        directory.create({'user': []})
         self.assertEqual(
                 ['foo'],
                 [i.prop for i in directory.find(0, 1024)[0]])
 
-        directory.create({'prop': 'bar', 'author': []})
+        directory.create({'prop': 'bar', 'user': []})
         self.assertEqual(
                 ['foo', 'foo'],
                 [i.prop for i in directory.find(0, 1024)[0]])
@@ -391,13 +379,13 @@ class DocumentTest(tests.Test):
         class Document(document.Document):
 
             @classmethod
-            def on_create(cls, props):
+            def before_create(cls, props):
                 props['guid'] = props.pop('uid')
-                super(Document, cls).on_create(props)
+                super(Document, cls).before_create(props)
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        directory.create({'uid': 'guid', 'author': []})
+        directory.create({'uid': 'guid', 'user': []})
         self.assertEqual(
                 ['guid'],
                 [i.guid for i in directory.find(0, 1024)[0]])
@@ -411,13 +399,13 @@ class DocumentTest(tests.Test):
                 return value
 
             @classmethod
-            def on_update(cls, props):
-                super(Document, cls).on_update(props)
+            def before_update(cls, props):
+                super(Document, cls).before_update(props)
                 props['prop'] = 'foo'
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create({'prop': 'bar', 'author': []})
+        guid = directory.create({'prop': 'bar', 'user': []})
         self.assertEqual(
                 ['bar'],
                 [i.prop for i in directory.find(0, 1024)[0]])
@@ -435,13 +423,9 @@ class DocumentTest(tests.Test):
             def prop(self, value):
                 return value
 
-            @prop.setter
-            def prop(self, value):
-                return value
-
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create({'prop': '1', 'author': []})
+        guid = directory.create({'prop': '1', 'user': []})
         doc = directory.get(guid)
         self.assertNotEqual(0, doc['ctime'])
         self.assertNotEqual(0, doc['mtime'])
@@ -464,13 +448,13 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create({'author': []})
+        guid = directory.create({'user': []})
         self.assertEqual(
                 os.stat('%s/%s/.seqno' % (guid[:2], guid)).st_mtime,
                 directory.get(guid).get('seqno'))
         self.assertEqual(1, directory.get(guid).get('seqno'))
 
-        guid_2 = directory.create({'author': []})
+        guid_2 = directory.create({'user': []})
         self.assertEqual(
                 os.stat('%s/%s/.seqno' % (guid_2[:2], guid_2)).st_mtime,
                 directory.get(guid_2).get('seqno'))
@@ -486,7 +470,7 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create({'prop': '2', 'author': []})
+        guid = directory.create({'prop': '2', 'user': []})
 
         ts = int(time.time())
         directory.merge('1', {
@@ -495,7 +479,7 @@ class DocumentTest(tests.Test):
             'ctime': (1, 1),
             'mtime': (1, 1),
             'layers': (['public'], 1),
-            'author': (['me'], 1),
+            'user': (['me'], 1),
             })
         directory.merge('3', {
             'guid': ('3', ts + 60),
@@ -503,7 +487,7 @@ class DocumentTest(tests.Test):
             'ctime': (ts + 60, ts + 60),
             'mtime': (ts + 60, ts + 60),
             'layers': (['public'], ts + 60),
-            'author': (['me'], ts + 60),
+            'user': (['me'], ts + 60),
             })
 
         self.assertEqual(
@@ -520,10 +504,10 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        directory.create({'prop': '1', 'author': []})
-        directory.create({'prop': '2', 'author': []})
-        directory.create({'prop': '3', 'author': []})
-        directory.create({'prop': '4', 'author': []})
+        directory.create({'prop': '1', 'user': []})
+        directory.create({'prop': '2', 'user': []})
+        directory.create({'prop': '3', 'user': []})
+        directory.create({'prop': '4', 'user': []})
 
         directory_._DIFF_PAGE_SIZE = 2
         diff_rage, docs = directory.diff(xrange(10))
@@ -555,7 +539,7 @@ class DocumentTest(tests.Test):
                 ('1/1/mtime', '1'),
                 ('1/1/prop', '"prop-1"'),
                 ('1/1/layers', '["public"]'),
-                ('1/1/author', '["me"]'),
+                ('1/1/user', '["me"]'),
                 )
 
         def notification_cb(event):
@@ -570,7 +554,7 @@ class DocumentTest(tests.Test):
         for i in directory.populate():
             pass
 
-        directory.create_with_guid('guid', {'prop': 'prop', 'author': []})
+        directory.create_with_guid('guid', {'prop': 'prop', 'user': []})
         directory.set_blob('guid', 'blob', StringIO('blob'))
         directory.update('guid', {'prop': 'prop2'})
         directory.delete('guid')

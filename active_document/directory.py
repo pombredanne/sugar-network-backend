@@ -102,7 +102,7 @@ class Directory(object):
             new document properties
 
         """
-        self.document_class.on_create(props)
+        self.document_class.before_create(props)
         if 'guid' in props:
             guid = props['guid']
         else:
@@ -119,6 +119,7 @@ class Directory(object):
             if prop.default is not None:
                 props[prop_name] = prop.default
 
+        self.document_class.before_post(props)
         self._post(guid, props, True)
         return guid
 
@@ -133,7 +134,8 @@ class Directory(object):
         """
         if not props:
             return
-        self.document_class.on_update(props)
+        self.document_class.before_update(props)
+        self.document_class.before_post(props)
         self._post(guid, props, False)
 
     def delete(self, guid):

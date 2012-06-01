@@ -127,7 +127,7 @@ class CommandsProcessor(object):
             if cmd.permissions & env.ACCESS_AUTHOR:
                 enforce(self.volume is not None)
                 doc = self.volume[request['document']].get(request['guid'])
-                enforce(request.principal in doc['author'], env.Forbidden,
+                enforce(request.principal in doc['user'], env.Forbidden,
                         _('Operation is permitted only for authors'))
 
         if cmd.accept_request:
