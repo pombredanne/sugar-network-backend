@@ -54,7 +54,7 @@ class VolumeTest(tests.Test):
                 ['resource_1', 'resource_3'],
                 sorted([i for i in self.volume.keys()]))
 
-    def test_SingleVolume_Populate(self):
+    def test_Populate(self):
         self.touch(
                 ('document/1/1/.seqno', ''),
                 ('document/1/1/guid', '1'),
@@ -94,6 +94,37 @@ class VolumeTest(tests.Test):
             self.assertEqual(
                     sorted(['1', '2']),
                     sorted([i.guid for i in volume['document'].find()[0]]))
+
+    def test_UpdatedSchemeOnReindex(self):
+        self.touch(
+                ('document/1/1/.seqno', ''),
+                ('document/1/1/guid', '1'),
+                ('document/1/1/ctime', '1'),
+                ('document/1/1/mtime', '1'),
+                ('document/1/1/layer', '["public"]'),
+                ('document/1/1/user', '["me"]'),
+                )
+
+        class Document(document.Document):
+            pass
+
+        with SingleVolume(tests.tmpdir, [Document]) as volume:
+            for cls in volume.values():
+                for __ in cls.populate():
+                    pass
+            self.assertRaises(RuntimeError, lambda: volume['document'].get('1')['prop'])
+
+        class Document(document.Document):
+
+            @active_property(slot=1, default='default')
+            def prop(self, value):
+                return value
+
+        with SingleVolume(tests.tmpdir, [Document]) as volume:
+            for cls in volume.values():
+                for __ in cls.populate():
+                    pass
+            self.assertEqual('default', volume['document'].get('1')['prop'])
 
     def test_Commands(self):
         self.volume['testdocument'].create_with_guid('guid', {'user': []})

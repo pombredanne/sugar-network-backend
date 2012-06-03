@@ -2,6 +2,7 @@
 - find only within `accept_range` ranges in DocumentClass.diff()
 - if not completed populate (but commit happened) was aborted, the rest of populate will be skipped next populate
 - do not sync objects that were created and deleted before syncing
+- more relibale db update on schema changes
 
 1.0
 ===

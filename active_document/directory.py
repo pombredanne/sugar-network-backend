@@ -334,7 +334,7 @@ class Directory(object):
             for prop_name, prop in self.metadata.items():
                 if prop_name not in changes and \
                         isinstance(prop, StoredProperty):
-                    changes[prop_name] = record.get(prop_name)
+                    changes[prop_name] = record.get(prop_name, prop.default)
 
         if is_new is not None:
             changes['seqno'] = self._next_seqno()

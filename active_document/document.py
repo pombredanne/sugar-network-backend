@@ -82,7 +82,7 @@ class Document(object):
             return value
 
         if self._record is not None and isinstance(prop, StoredProperty):
-            value = self._record.get(prop.name)
+            value = self._record.get(prop.name, prop.default)
         else:
             raise RuntimeError(_('Property %r in %r cannot be get') % \
                     (prop.name, self.metadata.name))
