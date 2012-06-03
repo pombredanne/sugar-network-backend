@@ -27,9 +27,6 @@ from active_toolkit import util, optparse, enforce
 _logger = logging.getLogger('active_document')
 
 
-#: To invalidate existed Xapian db on stcuture changes in stored documents
-LAYOUT_VERSION = 1
-
 #: Xapian term prefix for GUID value
 GUID_PREFIX = 'I'
 

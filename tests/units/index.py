@@ -411,7 +411,7 @@ class IndexTest(tests.Test):
         self.assertEqual(0, os.stat('index/layout').st_mtime)
         db.close()
 
-        env.LAYOUT_VERSION += 1
+        Index.LAYOUT_VERSION += 1
         db = Index({})
         self.assertNotEqual(0, os.stat('index/layout').st_mtime)
         db.close()
@@ -589,10 +589,13 @@ class IndexTest(tests.Test):
 
 class Index(index.IndexWriter):
 
+    LAYOUT_VERSION = 1
+
     def __init__(self, props, *args):
 
-        class Index(object):
-            pass
+        class Document(object):
+
+            layout_version = Index.LAYOUT_VERSION
 
         metadata = Metadata(Index)
         metadata.update(props)

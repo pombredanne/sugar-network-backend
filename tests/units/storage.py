@@ -20,7 +20,8 @@ class StorageTest(tests.Test):
     def storage(self, props):
 
         class Test(object):
-            pass
+
+            LAYOUT_VERSION = 0
 
         metadata = Metadata(Test)
         for i in props:

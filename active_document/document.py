@@ -31,6 +31,9 @@ class Document(object):
     #: `Metadata` object that describes the document
     metadata = None
 
+    #: To invalidate existed index on stcuture changes
+    LAYOUT_VERSION = 1
+
     def __init__(self, guid, indexed_props=None, record=None):
         self._guid = guid
         self._props = indexed_props or {}
@@ -52,7 +55,7 @@ class Document(object):
         return value
 
     @active_property(prefix='IL', full_text=True, typecast=[env.LAYERS],
-            permissions=env.ACCESS_READ)
+            default=['public'], permissions=env.ACCESS_READ)
     def layer(self, value):
         return value
 

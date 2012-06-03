@@ -54,7 +54,6 @@ class Test(unittest.TestCase):
         _env.index_flush_threshold.value = 1
         _env.find_limit.value = 1024
         _env.index_lazy_open.value = False
-        _env.LAYOUT_VERSION = 1
         _sneakernet.next_volume_cb = None
         _directory._DIFF_PAGE_SIZE = 256
 

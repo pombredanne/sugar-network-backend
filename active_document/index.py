@@ -412,11 +412,12 @@ class IndexWriter(IndexReader):
             return True
         with file(self._layout_path) as f:
             version = f.read()
-        return not version.isdigit() or int(version) != env.LAYOUT_VERSION
+        return not version.isdigit() or \
+                int(version) != self.metadata.layout_version
 
     def _save_layout(self):
         with file(self._layout_path, 'w') as f:
-            f.write(str(env.LAYOUT_VERSION))
+            f.write(str(self.metadata.layout_version))
 
     def _check_for_commit(self):
         if env.index_flush_threshold.value > 0 and \
