@@ -32,7 +32,7 @@ _logger = logging.getLogger('active_document.document')
 
 class Directory(object):
 
-    def __init__(self, root, document_class, index_class, extra_props=None,
+    def __init__(self, root, document_class, index_class,
             notification_cb=None):
         """
         :param index_class:
@@ -50,8 +50,6 @@ class Directory(object):
             document_class.metadata['guid'] = ActiveProperty('guid',
                     permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
                     prefix=env.GUID_PREFIX)
-            for prop in (extra_props or []):
-                document_class.metadata[prop.name] = prop
         self.metadata = document_class.metadata
 
         self.document_class = document_class

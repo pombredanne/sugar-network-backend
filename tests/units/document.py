@@ -295,7 +295,7 @@ class DocumentTest(tests.Test):
                 ('1/1/ctime', '1'),
                 ('1/1/mtime', '1'),
                 ('1/1/prop', '"prop-1"'),
-                ('1/1/layers', '["public"]'),
+                ('1/1/layer', '["public"]'),
                 ('1/1/user', '["me"]'),
 
                 ('2/2/.seqno', ''),
@@ -303,7 +303,7 @@ class DocumentTest(tests.Test):
                 ('2/2/ctime', '2'),
                 ('2/2/mtime', '2'),
                 ('2/2/prop', '"prop-2"'),
-                ('2/2/layers', '["public"]'),
+                ('2/2/layer', '["public"]'),
                 ('2/2/user', '["me"]'),
                 )
 
@@ -342,7 +342,7 @@ class DocumentTest(tests.Test):
         guid = directory.create_with_guid('guid', {'prop': 'foo', 'user': []})
         self.assertEqual(
                 [('guid', 'foo', [], ['public'])],
-                [(i.guid, i.prop, i.user, i.layers) for i in directory.find(0, 1024)[0]])
+                [(i.guid, i.prop, i.user, i.layer) for i in directory.find(0, 1024)[0]])
 
         directory.update(guid, {'prop': 'probe'})
         self.assertEqual(
@@ -478,7 +478,7 @@ class DocumentTest(tests.Test):
             'prop': ('1', 1),
             'ctime': (1, 1),
             'mtime': (1, 1),
-            'layers': (['public'], 1),
+            'layer': (['public'], 1),
             'user': (['me'], 1),
             })
         directory.merge('3', {
@@ -486,7 +486,7 @@ class DocumentTest(tests.Test):
             'prop': ('3', ts + 60),
             'ctime': (ts + 60, ts + 60),
             'mtime': (ts + 60, ts + 60),
-            'layers': (['public'], ts + 60),
+            'layer': (['public'], ts + 60),
             'user': (['me'], ts + 60),
             })
 
@@ -538,7 +538,7 @@ class DocumentTest(tests.Test):
                 ('1/1/ctime', '1'),
                 ('1/1/mtime', '1'),
                 ('1/1/prop', '"prop-1"'),
-                ('1/1/layers', '["public"]'),
+                ('1/1/layer', '["public"]'),
                 ('1/1/user', '["me"]'),
                 )
 

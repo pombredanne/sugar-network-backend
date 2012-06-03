@@ -14,18 +14,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import imp
 import json
 import urllib2
-import inspect
 import logging
 from cStringIO import StringIO
 from functools import partial
-from os.path import exists, basename, join, abspath, isdir
+from os.path import exists, join, abspath, isdir
 from gettext import gettext as _
 
 from active_document import env
-from active_document.document import Document
 from active_document.directory import Directory
 from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
@@ -40,7 +37,7 @@ _logger = logging.getLogger('active_document.volume')
 
 class _Volume(dict):
 
-    def __init__(self, root, document_classes, index_class, extra_props):
+    def __init__(self, root, document_classes, index_class):
         self._subscriptions = set()
 
         self._root = abspath(root)
@@ -49,16 +46,14 @@ class _Volume(dict):
 
         _logger.info(_('Opening documents in %r'), self._root)
 
-        if not isinstance(document_classes, (tuple, list)):
-            document_classes = _walk_classes(document_classes)
-
-        if extra_props is None:
-            extra_props = {}
 
         for cls in document_classes:
+            if [i for i in document_classes \
+                    if i is not cls and issubclass(i, cls)]:
+                _logger.warning(_('Skip not final %r document class'), cls)
+                continue
             name = cls.__name__.lower()
             directory = Directory(join(self._root, name), cls, index_class,
-                    extra_props.get(name),
                     partial(self._notification_cb, document=name))
             self[name] = directory
 
@@ -77,7 +72,7 @@ class _Volume(dict):
         for callback in self._subscriptions:
             if event['event'] == 'update' and \
                     'props' in event and \
-                    'deleted' in event['props'].get('layers', []):
+                    'deleted' in event['props'].get('layer', []):
                 event['event'] = 'delete'
                 del event['props']
             event['document'] = document
@@ -96,11 +91,10 @@ class _Volume(dict):
 
 class SingleVolume(_Volume):
 
-    def __init__(self, root, document_classes, extra_props=None):
+    def __init__(self, root, document_classes):
         enforce(env.index_write_queue.value > 0,
                 _('The active_document.index_write_queue.value should be > 0'))
-        _Volume.__init__(self, root, document_classes, IndexWriter,
-                extra_props)
+        _Volume.__init__(self, root, document_classes, IndexWriter)
 
 
 class VolumeCommands(CommandsProcessor):
@@ -141,7 +135,7 @@ class VolumeCommands(CommandsProcessor):
             directory.metadata[i].assert_access(env.ACCESS_READ)
 
         # TODO until implementing layers support
-        kwargs['layers'] = 'public'
+        kwargs['layer'] = 'public'
 
         documents, total = directory.find(offset=offset, limit=limit,
                 query=query, reply=reply, order_by=order_by, **kwargs)
@@ -201,7 +195,7 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
     def hide(self, document, guid):
         directory = self.volume[document]
-        directory.update(guid, {'layers': ['deleted']})
+        directory.update(guid, {'layer': ['deleted']})
 
     @document_command(method='GET')
     def get(self, document, guid, reply=None):
@@ -213,7 +207,7 @@ class VolumeCommands(CommandsProcessor):
             for i in reply:
                 directory.metadata[i].assert_access(env.ACCESS_READ)
 
-        enforce('deleted' not in doc['layers'], env.NotFound,
+        enforce('deleted' not in doc['layer'], env.NotFound,
                 _('Document is not found'))
 
         return doc.properties(reply)
@@ -285,29 +279,3 @@ def _to_list(value):
     if isinstance(value, basestring):
         value = value.split(',')
     return value
-
-
-def _walk_classes(path):
-    classes = set()
-
-    for filename in os.listdir(path):
-        if filename == '__init__.py' or not filename.endswith('.py'):
-            continue
-
-        mod_name = basename(filename)[:-3]
-        fp, pathname, description = imp.find_module(mod_name, [path])
-        try:
-            mod = imp.load_module(mod_name, fp, pathname, description)
-        finally:
-            if fp:
-                fp.close()
-
-        for __, cls in inspect.getmembers(mod):
-            if inspect.isclass(cls) and issubclass(cls, Document):
-                classes.add(cls)
-
-    for cls in list(classes):
-        if [i for i in classes if i is not cls and issubclass(i, cls)]:
-            classes = [i for i in classes if i.__name__ != cls.__name__]
-
-    return classes

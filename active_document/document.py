@@ -51,9 +51,9 @@ class Document(object):
     def seqno(self, value):
         return value
 
-    @active_property(prefix='IL', typecast=[env.LAYERS],
+    @active_property(prefix='IL', full_text=True, typecast=[env.LAYERS],
             permissions=env.ACCESS_READ)
-    def layers(self, value):
+    def layer(self, value):
         return value
 
     @active_property(prefix='IU', typecast=[],
@@ -124,7 +124,7 @@ class Document(object):
         props['mtime'] = ts
 
         # TODO until implementing layers support
-        props['layers'] = ['public']
+        props['layer'] = ['public']
 
     @classmethod
     def before_update(cls, props):

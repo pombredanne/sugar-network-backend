@@ -34,11 +34,25 @@ class VolumeTest(tests.Test):
 
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
 
-    def test_walk_classes(self):
-        classes = volume._walk_classes(join(src_root, 'document_classes'))
+    def test_AvoidParentClasses(self):
+
+        class Resource(Document):
+            pass
+
+        class Resource_1(Resource):
+            pass
+
+        class Resource_2(Resource):
+            pass
+
+        class Resource_3(Resource_2):
+            pass
+
+        self.volume = SingleVolume(tests.tmpdir,
+                [Resource, Resource_1, Resource_2, Resource_3])
         self.assertEqual(
-                ['Resource_1', 'Resource_3'],
-                sorted([i.__name__ for i in classes]))
+                ['resource_1', 'resource_3'],
+                sorted([i for i in self.volume.keys()]))
 
     def test_SingleVolume_Populate(self):
         self.touch(
@@ -46,14 +60,14 @@ class VolumeTest(tests.Test):
                 ('document/1/1/guid', '1'),
                 ('document/1/1/ctime', '1'),
                 ('document/1/1/mtime', '1'),
-                ('document/1/1/layers', '["public"]'),
+                ('document/1/1/layer', '["public"]'),
                 ('document/1/1/user', '["me"]'),
 
                 ('document/2/2/.seqno', ''),
                 ('document/2/2/guid', '2'),
                 ('document/2/2/ctime', '2'),
                 ('document/2/2/mtime', '2'),
-                ('document/2/2/layers', '["public"]'),
+                ('document/2/2/layer', '["public"]'),
                 ('document/2/2/user', '["me"]'),
                 )
 
@@ -185,7 +199,7 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
-                sorted(['layers', 'ctime', 'user', 'prop', 'mtime', 'guid']),
+                sorted(['layer', 'ctime', 'user', 'prop', 'mtime', 'guid']),
                 sorted(self.call('GET', document='testdocument', guid=guid).keys()))
 
         self.assertEqual(

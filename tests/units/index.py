@@ -380,6 +380,7 @@ class IndexTest(tests.Test):
         self.assertEqual(
                 [{'guid': '2'}],
                 db._find(query='3', reply=['guid'])[0])
+        db.close()
 
         db = Index({
             'prop': ActiveProperty('prop', prefix='B', typecast=[], full_text=True),
@@ -398,6 +399,7 @@ class IndexTest(tests.Test):
         self.assertEqual(
                 [{'guid': '2'}],
                 db._find(query='c', reply=['guid'])[0])
+        db.close()
 
     def test_LayoutVersion(self):
         db = Index({})
@@ -518,6 +520,7 @@ class IndexTest(tests.Test):
         db.store('3', {}, True)
         gevent.sleep()
         self.assertEqual(3, len(commits))
+        db.close()
 
         del commits[:]
         db = Index({}, lambda: commits.append(True))
@@ -534,6 +537,7 @@ class IndexTest(tests.Test):
         db.store('8', {}, True)
         gevent.sleep()
         self.assertEqual(2, len(commits))
+        db.close()
 
     def test_FlushTimeout(self):
         env.index_flush_threshold.value = 0
