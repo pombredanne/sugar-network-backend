@@ -83,7 +83,7 @@ class Object(object):
             self._request.call('PUT', guid=self._guid, content=props,
                     content_type='application/json')
         else:
-            props['author'] = [sugar.uid()]
+            props['user'] = [sugar.uid()]
             self._guid = self._request.call('POST', content=props,
                     content_type='application/json')
 

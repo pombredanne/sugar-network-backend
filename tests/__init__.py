@@ -10,10 +10,9 @@ from os.path import dirname, join, exists, abspath
 
 import active_document as ad
 import restful_document as rd
-import sugar_network_server
 from active_toolkit import coroutine
+from sugar_network_server import env as server_env
 from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
 from restful_document.router import Router
 from restful_document.subscribe_socket import SubscribeSocket
 from local_document import env, sugar
@@ -21,6 +20,7 @@ from local_document.bus import Server
 from sugar_network import client
 from sugar_network.bus import Request
 from local_document.mounts import Mounts
+from local_document.context import Context
 
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
@@ -33,8 +33,6 @@ def main():
 
 
 class Test(unittest.TestCase):
-
-    httpd_pids = {}
 
     def setUp(self):
         self._overriden = []
@@ -88,8 +86,6 @@ class Test(unittest.TestCase):
             Request.connection.close()
         if self.server is not None:
             self.server.stop()
-        while Test.httpd_pids:
-            self.httpdown(Test.httpd_pids.keys()[0])
         while self.forks:
             pid = self.forks.pop()
             self.assertEqual(0, self.waitpid(pid))
@@ -158,42 +154,6 @@ class Test(unittest.TestCase):
             self.forks.append(pid)
             return pid
 
-    def httpd(self, port, classes):
-        if port in Test.httpd_pids:
-            self.httpdown(port)
-
-        self.httpd_seqno += 1
-
-        child_pid = os.fork()
-        if child_pid:
-            coroutine.shutdown()
-            time.sleep(1)
-            Test.httpd_pids[port] = child_pid
-            return
-
-        for handler in logging.getLogger().handlers:
-            logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG, filename=tmpdir + '-%s.http.log' % self.httpd_seqno)
-
-        volume = ad.SingleFolder(classes)
-        httpd = coroutine.WSGIServer(('localhost', port), Router(volume))
-
-        try:
-            httpd.serve_forever()
-        finally:
-            httpd.stop()
-            volume.close()
-
-    def httpdown(self, port):
-        pid = Test.httpd_pids[port]
-        del Test.httpd_pids[port]
-        os.kill(pid, signal.SIGINT)
-        sys.stdout.flush()
-        try:
-            os.waitpid(pid, 0)
-        except OSError:
-            pass
-
     def start_server(self, classes=None):
 
         def server():
@@ -201,7 +161,9 @@ class Test(unittest.TestCase):
 
         if classes is None:
             classes = [User, Context]
-        self.mounts = Mounts('local', classes)
+        volume = ad.SingleVolume('local', classes)
+        self.mounts = Mounts(volume)
+        server_env.volume = self.mounts.home_volume
         self.server = Server(self.mounts)
         self.mounts.connect(self.server.publish)
         coroutine.spawn(server)
@@ -240,10 +202,10 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
-        volume = ad.SingleVolume('remote', classes or [User, Context])
-        cp = ad.VolumeCommands(volume)
+        server_env.volume = ad.SingleVolume('remote', classes or [User, Context])
+        cp = ad.VolumeCommands(server_env.volume)
         httpd = coroutine.WSGIServer(('localhost', 8800), rd.Router(cp))
-        subscriber = SubscribeSocket(volume, 'localhost', 8801)
+        subscriber = SubscribeSocket(server_env.volume, 'localhost', 8801)
         try:
             coroutine.joinall([
                 coroutine.spawn(httpd.serve_forever),
@@ -252,4 +214,24 @@ class Test(unittest.TestCase):
         finally:
             httpd.stop()
             subscriber.stop()
-            volume.close()
+            server_env.volume.close()
+
+
+PUBKEY = """\
+ssh-dss AAAAB3NzaC1kc3MAAACBANuYoFH3uvJGoQFMeW6M3CCJQlPrSv6sqd9dGQlwnnNxLBrq6KgY63e10ULtyYzq9UjiIUowqbtheGrtPCtL5w7qmFcCnq1cFzAk6Xxfe6ytJDx1fql5Y1wKqa+zxOKF6SGNnglyxvf78mZXt2G6wx22AjW+1fEhAOr+g8kRiUbBAAAAFQDA/W3LfD5NBB4vlZFcT10jU4B8QwAAAIBHh1U2B71memu/TsatwOo9+CyUyvF0FHHsXwQDkeRjqY3dcfeV38YoU/EbOZtHIQgdfGrzy7m5osnpBwUtHLunZJuwCt5tBNrpU8CAF7nEXOJ4n2FnoNiWO1IsbWdhkh9Hd7+TBM9hLGmOqlqTIx3TmUG0e4F2X33VVJ8UsrJ3mwAAAIEAm29WVw9zkRbv6CTFhPlLjJ71l/2GE9XFbdznJFRmPNBBWF2J452okRWywzeDMIIoi/z0wmNSr2B6P9wduxSxp8eIWQhKVQa4V4lJyqX/A2tE5SQtFULtw3yiYOUaCjvB2s46ZM6/9K3r8o7FSKHDpYlqAbBKURNCot5zDAu6RgE=
+"""
+PRIVKEY = """\
+-----BEGIN DSA PRIVATE KEY-----
+MIIBvAIBAAKBgQDbmKBR97ryRqEBTHlujNwgiUJT60r+rKnfXRkJcJ5zcSwa6uio
+GOt3tdFC7cmM6vVI4iFKMKm7YXhq7TwrS+cO6phXAp6tXBcwJOl8X3usrSQ8dX6p
+eWNcCqmvs8TihekhjZ4Jcsb3+/JmV7dhusMdtgI1vtXxIQDq/oPJEYlGwQIVAMD9
+bct8Pk0EHi+VkVxPXSNTgHxDAoGAR4dVNge9Znprv07GrcDqPfgslMrxdBRx7F8E
+A5HkY6mN3XH3ld/GKFPxGzmbRyEIHXxq88u5uaLJ6QcFLRy7p2SbsArebQTa6VPA
+gBe5xFzieJ9hZ6DYljtSLG1nYZIfR3e/kwTPYSxpjqpakyMd05lBtHuBdl991VSf
+FLKyd5sCgYEAm29WVw9zkRbv6CTFhPlLjJ71l/2GE9XFbdznJFRmPNBBWF2J452o
+kRWywzeDMIIoi/z0wmNSr2B6P9wduxSxp8eIWQhKVQa4V4lJyqX/A2tE5SQtFULt
+w3yiYOUaCjvB2s46ZM6/9K3r8o7FSKHDpYlqAbBKURNCot5zDAu6RgECFQC6wU/U
+6uUSSSw8Apr+eJQlSFhA+Q==
+-----END DSA PRIVATE KEY-----
+"""
+UID = '25c081e29242cf7a19ae893a420ab3de56e9e989'

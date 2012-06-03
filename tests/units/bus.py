@@ -7,12 +7,12 @@ from os.path import join
 
 from __init__ import tests
 
+import active_document as ad
 from active_toolkit import coroutine
 from sugar_network import client as client_
 from sugar_network.client import Client
 from sugar_network.bus import ServerError
 from local_document.bus import Server
-from sugar_network_server.resources.context import Context
 from local_document.mounts import Mounts
 
 
@@ -22,7 +22,8 @@ class IPCTest(tests.Test):
 
         def server():
             time.sleep(1)
-            mounts = Mounts('local', [])
+            volume = ad.SingleVolume('local', [])
+            mounts = Mounts(volume)
             server = Server(mounts)
             mounts.call = lambda *args: None
             server.serve_forever()

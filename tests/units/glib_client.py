@@ -5,15 +5,10 @@ import gobject
 
 from __init__ import tests
 
-from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
-
 import active_document as ad
 from active_toolkit import coroutine
 from sugar_network.client import Client
 from sugar_network.glib_client import Client as GlibClient
-from local_document.bus import Server
-from local_document.mounts import Mounts
 
 
 class GlibClientTest(tests.Test):

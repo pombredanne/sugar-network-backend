@@ -22,7 +22,7 @@ from local_document.mounts import Mounts
 from local_document.bus import Server
 from local_document import env, mounts, sugar, http, activities
 from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
+from local_document.context import Context
 
 
 class MountsTest(tests.Test):
@@ -175,7 +175,7 @@ class MountsTest(tests.Test):
             'description': 'description',
             'keep': True,
             'keep_impl': 2,
-            'author': [sugar.uid()],
+            'user': [sugar.uid()],
             })
 
         context = remote.Context(guid, ['keep', 'keep_impl'])
@@ -487,7 +487,8 @@ class MountsTest(tests.Test):
 
     def test_ServerMode(self):
         env.api_url.value = 'http://localhost:8881'
-        self.mounts = Mounts('local', [User, Context])
+        volume = ad.SingleVolume('local', [Context, User])
+        self.mounts = Mounts(volume)
 
         http_server = coroutine.WSGIServer(
                 ('localhost', 8881), rd.Router(self.mounts['~']))
@@ -495,7 +496,7 @@ class MountsTest(tests.Test):
         http_subscriber = rd.SubscribeSocket(self.mounts.home_volume, 'localhost', 8882)
         coroutine.spawn(http_subscriber.serve_forever)
 
-        monitor = coroutine.spawn(activities.monitor, self.mounts, ['Activities'])
+        monitor = coroutine.spawn(activities.monitor, self.mounts.home_volume, ['Activities'])
 
         self.server = Server(self.mounts)
         self.mounts.connect(self.server.publish)

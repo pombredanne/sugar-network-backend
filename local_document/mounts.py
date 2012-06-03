@@ -25,25 +25,9 @@ import zerosugar
 import sweets_recipe
 import active_document as ad
 from local_document import activities, sugar, http, env, zeroconf
+from local_document.context import Context
 from active_toolkit import sockets, util, coroutine, enforce
 
-
-_HOME_PROPS = {
-        'context': [
-            ad.ActiveProperty('keep',
-                prefix='LK', typecast=bool, default=False),
-            ad.ActiveProperty('keep_impl',
-                prefix='LI', typecast=[0, 1, 2], default=0),
-            ad.StoredProperty('position',
-                typecast=[int], default=(-1, -1)),
-            ],
-        }
-
-_COMMON_PROPS = {
-        # prop_name: default_value
-        'keep': False,
-        'keep_impl': 0,
-        }
 
 # TODO Incremental timeout
 _RECONNECTION_TIMEOUT = 3
@@ -57,15 +41,15 @@ class Offline(Exception):
 
 class Mounts(dict):
 
-    def __init__(self, root, resources_path):
-        self.home_volume = ad.SingleVolume(root, resources_path, _HOME_PROPS)
+    def __init__(self, home_volume):
+        self.home_volume = home_volume
         self._subscriptions = {}
 
-        self['~'] = _LocalMount('~', self.home_volume, self.publish)
+        self['~'] = _LocalMount('~', home_volume, self.publish)
         if env.server_mode.value:
             self['/'] = self['~']
         else:
-            self['/'] = _RemoteMount('/', self.home_volume, self.publish)
+            self['/'] = _RemoteMount('/', home_volume, self.publish)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
@@ -218,7 +202,7 @@ class _LocalMount(ad.ProxyCommands, _Mount):
         props = event.pop('props')
 
         found_commons = False
-        for prop in _COMMON_PROPS.keys():
+        for prop in Context.LOCAL_PROPS.keys():
             if prop not in props:
                 continue
             if prop == 'keep_impl':
@@ -305,13 +289,13 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             if command == ('GET', None):
                 if 'reply' in request:
                     reply = request.get('reply', [])[:]
-                    for prop, default in _COMMON_PROPS.items():
+                    for prop, default in Context.LOCAL_PROPS.items():
                         if prop in reply:
                             patch[prop] = default
                             reply.remove(prop)
                     request['reply'] = reply
             elif command in (('POST', None), ('PUT', None)):
-                for prop in _COMMON_PROPS.keys():
+                for prop in Context.LOCAL_PROPS.keys():
                     if prop in request.content:
                         patch[prop] = request.content.pop(prop)
                 if not request.content:
@@ -347,7 +331,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 elif [True for prop, value in patch.items() if value]:
                     props = http.request('GET', ['context', guid])
                     props.update(patch)
-                    props['author'] = [sugar.uid()]
+                    props['user'] = [sugar.uid()]
                     directory.create_with_guid(guid, props)
                     for prop in ('icon', 'artifact_icon', 'preview'):
                         blob = self.get_blob('context', guid, prop)

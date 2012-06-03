@@ -14,9 +14,9 @@ import zerosugar
 from active_toolkit import coroutine
 from sugar_network.client import Client
 from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
 from sugar_network_server.resources.implementation import Implementation
 from local_document import activities
+from local_document.context import Context
 
 
 class InjectorTest(tests.Test):
@@ -260,7 +260,7 @@ class InjectorTest(tests.Test):
         self.start_server()
         client = Client('~')
 
-        monitor = coroutine.spawn(activities.monitor, self.mounts, ['Activities'])
+        monitor = coroutine.spawn(activities.monitor, self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
         self.assertEqual(

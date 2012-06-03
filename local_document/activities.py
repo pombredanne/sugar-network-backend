@@ -48,18 +48,18 @@ def checkins(context):
             yield os.readlink(path)
 
 
-def monitor(mounts, paths):
-    _Monitor(mounts, paths).serve_forever()
+def monitor(volume, paths):
+    _Monitor(volume, paths).serve_forever()
 
 
-def populate(mounts, paths, prefix):
-    _Monitor(mounts, paths, prefix).populate()
+def populate(volume, paths, prefix):
+    _Monitor(volume, paths, prefix).populate()
 
 
 class _Monitor(object):
 
-    def __init__(self, mounts, paths, prefix=''):
-        self._mounts = mounts
+    def __init__(self, volume, paths, prefix=''):
+        self._volume = volume
         self._paths = paths
         self._prefix = prefix
 
@@ -83,7 +83,7 @@ class _Monitor(object):
             return
 
         context = spec['Activity', 'bundle_id']
-        directory = self._mounts.home_volume['context']
+        directory = self._volume['context']
         if directory.exists(context):
             directory.update(context, {'keep_impl': 2})
         else:
@@ -95,7 +95,7 @@ class _Monitor(object):
                 'summary': spec['summary'],
                 'description': spec['description'],
                 'keep_impl': 2,
-                'author': [sugar.uid()],
+                'user': [sugar.uid()],
                 })
 
             icon_path = join(spec.root, spec['icon'])
@@ -128,7 +128,7 @@ class _Monitor(object):
 
         if not impls:
             context = basename(context_dir)
-            directory = self._mounts.home_volume['context']
+            directory = self._volume['context']
             if directory.exists(context):
                 directory.update(context, {'keep_impl': 0})
 

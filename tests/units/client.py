@@ -6,18 +6,15 @@ from os.path import isdir
 
 from __init__ import tests
 
-from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
-
 import active_document as ad
 
 from active_toolkit import coroutine
 from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
 from sugar_network.client import Client
 from sugar_network.bus import Request
 from local_document.bus import Server
 from local_document import mounts
+from local_document.context import Context
 
 
 class ClientTest(tests.Test):
@@ -308,7 +305,8 @@ class ClientTest(tests.Test):
         self.assertEqual('value', blob.read())
 
     def test_Direct(self):
-        Request.connection = mounts.Mounts('local', [Context, User])
+        volume = ad.SingleVolume('local', [User, Context])
+        Request.connection = mounts.Mounts(volume)
         client = Client('~')
 
         guid_1 = client.Context(
