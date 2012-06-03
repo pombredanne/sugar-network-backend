@@ -119,7 +119,7 @@ class _LocalMount(ad.ProxyCommands, _Mount):
         if document == 'context' and prop == 'feed':
             return json.dumps(self._get_feed(request))
         else:
-            return directory.stat_blob(guid, prop)
+            return directory.stat_blob(guid, prop) or None
 
     @ad.document_command(method='GET')
     def get(self, document, guid, request, response, reply=None):

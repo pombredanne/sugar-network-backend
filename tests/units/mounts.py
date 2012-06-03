@@ -149,6 +149,7 @@ class MountsTest(tests.Test):
 
         path, mime_type = client.Context(guid).get_blob_path('icon')
         self.assertEqual(None, path)
+        self.assertEqual(True, client.Context(guid).get_blob('icon').closed)
 
     def test_OnlineMount_GetKeep(self):
         self.start_ipc_and_restful_server()
@@ -484,6 +485,7 @@ class MountsTest(tests.Test):
 
         path, mime_type = client.Context(guid).get_blob_path('icon')
         self.assertEqual(None, path)
+        self.assertEqual(True, client.Context(guid).get_blob('icon').closed)
 
     def test_ServerMode(self):
         env.api_url.value = 'http://localhost:8881'
