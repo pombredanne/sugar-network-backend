@@ -3,6 +3,7 @@
 
 import os
 import shutil
+from os.path import exists
 
 from __init__ import tests
 
@@ -142,6 +143,11 @@ class CrawlerTest(tests.Test):
         self.assertEqual([], self.lost)
         del self.found[:]
         del self.lost[:]
+
+    def test_NoPermissions(self):
+        assert not exists('/foo/bar')
+        crawler.populate(['/foo/bar'], None, None)
+        assert not exists('/foo/bar')
 
 
 if __name__ == '__main__':

@@ -15,14 +15,13 @@
 
 import os
 import logging
-from os.path import join, exists, isdir, dirname
+from os.path import join, exists, isdir, dirname, abspath
 from gettext import gettext as _
 
 from active_toolkit import coroutine, util
 from local_document.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
         IN_MOVED_TO, IN_MOVED_FROM
-from local_document import env
 
 
 _logger = logging.getLogger('local_document.crawler')
@@ -42,15 +41,21 @@ def populate(paths, found_cb, lost_cb):
             lost_cb(path)
 
     for path in paths:
-        env.ensure_path(path, '')
-        _Root(FakeMonitor(), path)
+        if exists(path):
+            _Root(FakeMonitor(), path)
 
 
 def dispatch(paths, found_cb, lost_cb):
     with _Inotify(found_cb, lost_cb) as monitor:
         roots = []
         for path in paths:
-            env.ensure_path(path, '')
+            path = abspath(path)
+            if not exists(path):
+                if not os.access(dirname(path), os.W_OK):
+                    _logger.warning(_('No permissions to create %s ' \
+                            'directory, do not monitor it'), path)
+                    continue
+                os.makedirs(path)
             roots.append(_Root(monitor, path))
 
         while True:
@@ -77,7 +82,7 @@ class _Inotify(Inotify):
 class _Root(object):
 
     def __init__(self, monitor, path):
-        self.path = env.ensure_path(path, '')
+        self.path = path
         self._monitor = monitor
         self._nodes = {}
 
