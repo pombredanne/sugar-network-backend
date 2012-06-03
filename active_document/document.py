@@ -59,7 +59,7 @@ class Document(object):
     def layer(self, value):
         return value
 
-    @active_property(prefix='IU', typecast=[],
+    @active_property(prefix='IU', typecast=[], default=[],
             permissions=env.ACCESS_CREATE | env.ACCESS_READ)
     def user(self, value):
         return value
