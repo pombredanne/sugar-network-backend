@@ -257,6 +257,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
         self._events_job = coroutine.spawn(self._events_listerner)
         self._connected = False
         self._seqno = {}
+        self._remote_volume_guid = None
 
     @property
     def connected(self):
@@ -360,13 +361,15 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                     document == 'implementation' and prop == 'bundle')
             meta['mime_type'] = mime_type
             meta['seqno'] = self._seqno[document]
+            meta['volume'] = self._remote_volume_guid
             with file(meta_path, 'w') as f:
                 json.dump(meta, f)
 
         if exists(meta_path):
             with file(meta_path) as f:
                 meta = json.load(f)
-            if meta['seqno'] < self._seqno[document]:
+            if meta.get('seqno') < self._seqno[document] or \
+                    meta.get('volume') != self._remote_volume_guid:
                 download(meta['seqno'])
         else:
             download(None)
@@ -453,6 +456,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                         headers={'Content-Type': 'application/json'})
                 for document, props in stat['documents'].items():
                     self._seqno[document] = props.get('seqno') or 0
+                self._remote_volume_guid = stat.get('guid')
 
                 while dispatch(conn):
                     pass
