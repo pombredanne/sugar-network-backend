@@ -44,8 +44,16 @@ class _Volume(dict):
         if not exists(root):
             os.makedirs(root)
 
-        _logger.info(_('Opening documents in %r'), self._root)
+        guid_path = join(self._root, 'guid')
+        if exists(guid_path):
+            with file(guid_path) as f:
+                self._guid = f.read().strip()
+        else:
+            self._guid = env.uuid()
+            with file(guid_path, 'w') as f:
+                f.write(self._guid)
 
+        _logger.info(_('Opening %r volume from %r'), self._guid, self._root)
 
         for cls in document_classes:
             if [i for i in document_classes \
@@ -56,6 +64,10 @@ class _Volume(dict):
             directory = Directory(join(self._root, name), cls, index_class,
                     partial(self._notification_cb, document=name))
             self[name] = directory
+
+    @property
+    def guid(self):
+        return self._guid
 
     def close(self):
         """Close operations with the server."""
@@ -121,7 +133,7 @@ class VolumeCommands(CommandsProcessor):
             documents[name] = {
                     'seqno': directory.seqno,
                     }
-        return {'documents': documents}
+        return {'guid': self.volume.guid, 'documents': documents}
 
     @directory_command(method='POST',
             permissions=env.ACCESS_AUTH)
