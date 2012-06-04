@@ -22,7 +22,7 @@ from local_document.mounts import Mounts
 from local_document.bus import Server
 from local_document import env, mounts, sugar, http, activities
 from sugar_network_server.resources.user import User
-from local_document.context import Context
+from sugar_network_server.resources.context import Context
 
 
 class MountsTest(tests.Test):

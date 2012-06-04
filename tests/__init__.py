@@ -13,6 +13,7 @@ import restful_document as rd
 from active_toolkit import coroutine
 from sugar_network_server import env as server_env
 from sugar_network_server.resources.user import User
+from sugar_network_server.resources.context import Context
 from restful_document.router import Router
 from restful_document.subscribe_socket import SubscribeSocket
 from local_document import env, sugar
@@ -20,7 +21,6 @@ from local_document.bus import Server
 from sugar_network import client
 from sugar_network.bus import Request
 from local_document.mounts import Mounts
-from local_document.context import Context
 
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')

@@ -10,11 +10,11 @@ import active_document as ad
 
 from active_toolkit import coroutine
 from sugar_network_server.resources.user import User
+from sugar_network_server.resources.context import Context
 from sugar_network.client import Client
 from sugar_network.bus import Request
 from local_document.bus import Server
 from local_document import mounts
-from local_document.context import Context
 
 
 class ClientTest(tests.Test):

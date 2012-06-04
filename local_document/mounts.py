@@ -25,12 +25,17 @@ import zerosugar
 import sweets_recipe
 import active_document as ad
 from local_document import activities, sugar, http, env, zeroconf
-from local_document.context import Context
 from active_toolkit import sockets, util, coroutine, enforce
 
 
 # TODO Incremental timeout
 _RECONNECTION_TIMEOUT = 3
+
+_LOCAL_PROPS = {
+        'keep': False,
+        'keep_impl': 0,
+        'position': (-1, -1),
+        }
 
 _logger = logging.getLogger('local_document.mounts')
 
@@ -202,7 +207,7 @@ class _LocalMount(ad.ProxyCommands, _Mount):
         props = event.pop('props')
 
         found_commons = False
-        for prop in Context.LOCAL_PROPS.keys():
+        for prop in _LOCAL_PROPS.keys():
             if prop not in props:
                 continue
             if prop == 'keep_impl':
@@ -289,13 +294,13 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
             if command == ('GET', None):
                 if 'reply' in request:
                     reply = request.get('reply', [])[:]
-                    for prop, default in Context.LOCAL_PROPS.items():
+                    for prop, default in _LOCAL_PROPS.items():
                         if prop in reply:
                             patch[prop] = default
                             reply.remove(prop)
                     request['reply'] = reply
             elif command in (('POST', None), ('PUT', None)):
-                for prop in Context.LOCAL_PROPS.keys():
+                for prop in _LOCAL_PROPS.keys():
                     if prop in request.content:
                         patch[prop] = request.content.pop(prop)
                 if not request.content:

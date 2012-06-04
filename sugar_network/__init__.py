@@ -19,4 +19,6 @@ from local_document import sugar, application
 
 from sugar_network.client import Client, checkins
 
-from local_document.env import api_url, server_mode, webui_port
+from local_document.env import api_url, server_mode
+
+from sugar_network_webui import webui_port

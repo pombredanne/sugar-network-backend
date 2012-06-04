@@ -22,9 +22,10 @@ from gettext import gettext as _
 import active_document as ad
 import restful_document as rd
 import sugar_network_server as server
+import sugar_network_webui as webui
+
 from local_document import application, sugar, env, bus, activities
 from local_document.mounts import Mounts
-from local_document.context import Context
 from sugar_network import bus as client
 from active_toolkit import optparse, coroutine, enforce
 
@@ -169,26 +170,22 @@ class Application(application.Daemon):
         self._monitor = coroutine.spawn(activities.monitor, self._home_volume,
                 self._activity_directories)
 
-        if env.webui.value:
-            from sugar_network_webui import app
-
-            logging.info(_('Start Web server on %s port'),
-                    env.webui_port.value)
-
-            self._web_server = coroutine.WSGIServer(
-                    ('127.0.0.1', env.webui_port.value), app)
+        if webui.webui.value:
+            # Point client API to `self._mounts` directly passing over IPC
+            client.Request.connection = self._mounts
+            host = (webui.webui_host.value, webui.webui_port.value)
+            logging.info(_('Start Web server on %s:%s port'), *host)
+            self._web_server = coroutine.WSGIServer(host, webui.get_app())
             coroutine.spawn(self._web_server.serve_forever)
 
     def _mount(self, server_mode):
         if server_mode:
-            documents = [Context] + server.documents()
+            documents = server.documents()
         else:
-            documents = [Context] + server.documents(['report'])
+            documents = server.documents(['context', 'report'])
         self._home_volume = ad.SingleVolume(self._db_path, documents)
         server.volume.update(self._home_volume)
         self._mounts = Mounts(self._home_volume)
-        # Point client API to `self._mounts` directly passing over IPC
-        client.Request.connection = self._mounts
 
     def _populate_index(self):
         for cls in self._home_volume.values():
@@ -200,10 +197,12 @@ class Application(application.Daemon):
 application.debug.value = sugar.logger_level()
 rd.only_sync_notification.value = False
 ad.index_lazy_open.value = True
+webui.webui.value = True
 # It seems to be that most of users (on XO at least) don't have recent SSH
 server.trust_users.value = True
 
 optparse.Option.seek('main', [application.debug, application.foreground])
+optparse.Option.seek('webui', webui)
 optparse.Option.seek('sugar-network', env)
 optparse.Option.seek('sugar-network-server',
         [server.port, server.subscribe_port])

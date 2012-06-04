@@ -10,11 +10,11 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network_server.resources.user import User
+from sugar_network_server.resources.context import Context
 from sugar_network_server import env as server_env
 from active_toolkit import coroutine
 from local_document.mounts import Mounts
 from local_document import activities, sugar
-from local_document.context import Context
 
 
 class ActivitiesTest(tests.Test):
