@@ -181,20 +181,20 @@ class IndexTest(tests.Test):
         db.store('3', {'key': 'фу бар тест'}, True)
 
         self.assertEqual(
-                ([{'guid': '1', 'key': 'фу'}, {'guid': '2', 'key': 'фу бар'}, {'guid': '3', 'key': 'фу бар тест'}], 3),
+                ([{'guid': '1', 'key': u'фу'}, {'guid': '2', 'key': u'фу бар'}, {'guid': '3', 'key': u'фу бар тест'}], 3),
                 db._find(query='key:фу', reply=['key']))
         self.assertEqual(
-                ([{'guid': '2', 'key': 'фу бар'}, {'guid': '3', 'key': 'фу бар тест'}], 2),
+                ([{'guid': '2', 'key': u'фу бар'}, {'guid': '3', 'key': u'фу бар тест'}], 2),
                 db._find(query='key:"фу бар"', reply=['key']))
 
         self.assertEqual(
-                ([{'guid': '1', 'key': 'фу'}], 1),
+                ([{'guid': '1', 'key': u'фу'}], 1),
                 db._find(query='key:=фу', reply=['key']))
         self.assertEqual(
-                ([{'guid': '2', 'key': 'фу бар'}], 1),
+                ([{'guid': '2', 'key': u'фу бар'}], 1),
                 db._find(query='key:="фу бар"', reply=['key']))
         self.assertEqual(
-                ([{'guid': '3', 'key': 'фу бар тест'}], 1),
+                ([{'guid': '3', 'key': u'фу бар тест'}], 1),
                 db._find(query='key:="фу бар тест"', reply=['key']))
 
     def test_find_ExactQueryTerms(self):

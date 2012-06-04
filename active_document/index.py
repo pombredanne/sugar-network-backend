@@ -147,6 +147,8 @@ class IndexReader(object):
                             value = xapian.sortable_unserialise(value)
                         elif prop.typecast is bool:
                             value = bool(xapian.sortable_unserialise(value))
+                        else:
+                            value = value.decode('utf8')
                         props[name] = value
                 guid = hit.document.get_value(0)
                 yield guid, props
