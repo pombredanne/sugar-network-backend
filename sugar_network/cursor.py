@@ -37,7 +37,7 @@ class Cursor(object):
         if 'guid' not in self._reply:
             self._reply.append('guid')
         self._page_size = page_size
-        self._filters = filters
+        self._filters = filters or {}
         self._total = None
         self._page_access = collections.deque([], _QUERY_PAGES_NUMBER)
         self._pages = {}
@@ -125,6 +125,19 @@ class Cursor(object):
         self._filters = filters
         self._reset()
 
+    def update_filter(self, query=None, **filters):
+        """Update query parameters applying them on top of existing.
+
+        :param query:
+            full text search query string in Xapian format
+        :param filters:
+            a dictionary of properties to filter resulting list
+
+        """
+        new_filters = self._filters.copy()
+        new_filters.update(filters)
+        self.filter(query, **new_filters)
+
     def get(self, key, default=None):
         """Get either object by key or default value.
 
@@ -184,7 +197,7 @@ class Cursor(object):
         offset = page * self._page_size
 
         params = {}
-        for key, value in (self._filters or {}).items():
+        for key, value in self._filters.items():
             if value is not None:
                 params[key] = value
         params['offset'] = offset
