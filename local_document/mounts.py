@@ -368,8 +368,9 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
         if exists(meta_path):
             with file(meta_path) as f:
                 meta = json.load(f)
-            if meta.get('seqno') < self._seqno[document] or \
-                    meta.get('volume') != self._remote_volume_guid:
+            if meta.get('volume') != self._remote_volume_guid:
+                download(None)
+            elif meta.get('seqno') < self._seqno[document]:
                 download(meta['seqno'])
         else:
             download(None)
