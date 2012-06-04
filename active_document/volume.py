@@ -29,7 +29,7 @@ from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
 from active_document.commands import volume_command, Request
 from active_document.metadata import BlobProperty
-from active_toolkit import sockets, enforce
+from active_toolkit import util, sockets, enforce
 
 
 _logger = logging.getLogger('active_document.volume')
@@ -38,7 +38,7 @@ _logger = logging.getLogger('active_document.volume')
 class _Volume(dict):
 
     def __init__(self, root, document_classes, index_class):
-        self._subscriptions = set()
+        self._subscriptions = {}
 
         self._root = abspath(root)
         if not exists(root):
@@ -65,18 +65,29 @@ class _Volume(dict):
             __, cls = self.popitem()
             cls.close()
 
-    def connect(self, callback):
-        self._subscriptions.add(callback)
+    def connect(self, callback, condition=None):
+        self._subscriptions[callback] = condition or {}
+
+    def disconnect(self, callback):
+        if callback in self._subscriptions:
+            del self._subscriptions[callback]
 
     def _notification_cb(self, event, document):
-        for callback in self._subscriptions:
-            if event['event'] == 'update' and \
-                    'props' in event and \
-                    'deleted' in event['props'].get('layer', []):
-                event['event'] = 'delete'
-                del event['props']
-            event['document'] = document
-            callback(event)
+        if event['event'] == 'update' and 'props' in event and \
+                'deleted' in event['props'].get('layer', []):
+            event['event'] = 'delete'
+            del event['props']
+        event['document'] = document
+
+        for callback, condition in self._subscriptions.items():
+            for key, value in condition.items():
+                if event.get(key) not in ('*', value):
+                    break
+            else:
+                try:
+                    callback(event)
+                except Exception:
+                    util.exception(_logger, _('Failed to dispatch %r'), event)
 
     def __enter__(self):
         return self
