@@ -312,14 +312,13 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 if not request.content:
                     result = guid
 
-        headers = {
-                'Content-Type': 'application/json',
-                'Accept-Language': ','.join(request.accept_language),
-                }
-
         if result is None:
             result = http.request(method, path,
-                    data=request.content, params=request, headers=headers)
+                    data=request.content, params=request,
+                    headers={
+                        'Content-Type': 'application/json',
+                        'Accept-Language': ','.join(request.accept_language),
+                        })
 
         if document == 'context' and patch:
             directory = self._home_volume['context']
@@ -344,8 +343,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 if directory.exists(guid):
                     directory.update(guid, patch)
                 elif [True for prop, value in patch.items() if value]:
-                    props = http.request('GET', ['context', guid],
-                            headers=headers)
+                    props = http.request('GET', ['context', guid])
                     props.update(patch)
                     props['user'] = [sugar.uid()]
                     directory.create_with_guid(guid, props)

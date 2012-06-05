@@ -37,6 +37,8 @@ class Test(unittest.TestCase):
     def setUp(self):
         self._overriden = []
 
+        os.environ['LANG'] = 'en_US'
+
         global tmpdir
         tmpdir = join(tmproot, '.'.join(self.id().split('.')[1:]))
         shutil.rmtree(tmpdir, ignore_errors=True)

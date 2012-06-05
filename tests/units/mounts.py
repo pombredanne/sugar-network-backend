@@ -172,9 +172,9 @@ class MountsTest(tests.Test):
 
         self.mounts.home_volume['context'].create_with_guid(guid, {
             'type': 'activity',
-            'title': 'local',
-            'summary': 'summary',
-            'description': 'description',
+            'title': {'en': 'local'},
+            'summary': {'en': 'summary'},
+            'description': {'en': 'description'},
             'keep': True,
             'keep_impl': 2,
             'user': [sugar.uid()],
@@ -362,9 +362,9 @@ class MountsTest(tests.Test):
 
         guid = remote.Context(
                 type='activity',
-                title='title',
-                summary='summary',
-                description='description',
+                title={'en': 'title'},
+                summary={'en': 'summary'},
+                description={'en': 'description'},
                 keep=True).post()
 
         subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
@@ -630,7 +630,7 @@ class MountsTest(tests.Test):
                 'title',
                 remote.Context(guid, reply=['title'])['title'])
         self.assertEqual(
-                'title',
+                {'en-US': 'title'},
                 http.request('GET', ['context', guid])['title'])
 
         self.touch(('Activities/activity/activity/activity.info', [

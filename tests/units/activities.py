@@ -38,9 +38,9 @@ class ActivitiesTest(tests.Test):
         self.mounts.home_volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
                     'type': 'activity',
-                    'title': 'title',
-                    'summary': 'summary',
-                    'description': 'description',
+                    'title': {'en': 'title'},
+                    'summary': {'en': 'summary'},
+                    'description': {'en': 'description'},
                     'user': [sugar.uid()],
                     })
 
@@ -65,7 +65,7 @@ class ActivitiesTest(tests.Test):
                 abspath('Activities/activity'),
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkin_Copy(self):
@@ -75,9 +75,9 @@ class ActivitiesTest(tests.Test):
         self.mounts.home_volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
                     'type': 'activity',
-                    'title': 'title',
-                    'summary': 'summary',
-                    'description': 'description',
+                    'title': {'en': 'title'},
+                    'summary': {'en': 'summary'},
+                    'description': {'en': 'description'},
                     'user': [sugar.uid()],
                     })
 
@@ -99,7 +99,7 @@ class ActivitiesTest(tests.Test):
                 abspath('Activities/activity'),
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkin_Hardlink(self):
@@ -109,9 +109,9 @@ class ActivitiesTest(tests.Test):
         self.mounts.home_volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
                     'type': 'activity',
-                    'title': 'title',
-                    'summary': 'summary',
-                    'description': 'description',
+                    'title': {'en': 'title'},
+                    'summary': {'en': 'summary'},
+                    'description': {'en': 'description'},
                     'user': [sugar.uid()],
                     })
 
@@ -135,7 +135,7 @@ class ActivitiesTest(tests.Test):
                 abspath('Activities/activity'),
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_OfflineCheckin(self):
@@ -160,7 +160,7 @@ class ActivitiesTest(tests.Test):
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
 
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'HelloWorld', 'keep': False, 'keep_impl': 2},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'HelloWorld'}, 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkout(self):
@@ -169,9 +169,9 @@ class ActivitiesTest(tests.Test):
         self.mounts.home_volume['context'].create_with_guid(
                 'org.sugarlabs.HelloWorld', {
                     'type': 'activity',
-                    'title': 'title',
-                    'summary': 'summary',
-                    'description': 'description',
+                    'title': {'en': 'title'},
+                    'summary': {'en': 'summary'},
+                    'description': {'en': 'description'},
                     'user': [sugar.uid()],
                     })
 
@@ -190,7 +190,7 @@ class ActivitiesTest(tests.Test):
         assert exists('activities/checkins/' + hashed_path)
         assert exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
         shutil.rmtree('Activities/activity')
@@ -199,7 +199,7 @@ class ActivitiesTest(tests.Test):
         assert not exists('activities/checkins/' + hashed_path)
         assert not exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 0},
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 0},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
 
