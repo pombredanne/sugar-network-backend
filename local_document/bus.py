@@ -38,6 +38,7 @@ class Server(object):
         self._acceptor = _start_server('accept', self._serve_client)
         self._subscriber = _start_server('subscribe', self._serve_subscription)
         self._principal = sugar.uid()
+        self._publish_lock = coroutine.Lock()
 
     def serve_forever(self):
         # Clients write to rendezvous named pipe, in block mode,
@@ -114,8 +115,9 @@ class Server(object):
 
         _logger.debug('Send notification: %r', event)
 
-        for socket_file in self._subscriptions:
-            socket_file.write_message(event)
+        with self._publish_lock:
+            for socket_file in self._subscriptions:
+                socket_file.write_message(event)
 
 
 def _start_server(name, serve_cb):
