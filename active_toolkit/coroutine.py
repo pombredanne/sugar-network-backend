@@ -99,6 +99,16 @@ def Queue(*args, **kwargs):
     return gevent.queue.Queue(*args, **kwargs)
 
 
+def Lock(*args, **kwargs):
+    import gevent.coros
+    return gevent.coros.Semaphore(*args, **kwargs)
+
+
+def RLock(*args, **kwargs):
+    import gevent.coros
+    return gevent.coros.RLock(*args, **kwargs)
+
+
 class Condition(object):
 
     def __init__(self):
