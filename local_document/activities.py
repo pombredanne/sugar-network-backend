@@ -21,6 +21,7 @@ from os.path import join, exists, lexists, relpath, dirname, basename
 from gettext import gettext as _
 
 import sweets_recipe
+from active_document import DEFAULT_LANG
 from local_document import crawler, env, sugar
 from active_toolkit import util
 
@@ -93,9 +94,9 @@ class _Monitor(object):
 
             directory.create_with_guid(context, {
                 'type': 'activity',
-                'title': spec['name'],
-                'summary': spec['summary'],
-                'description': spec['description'],
+                'title': {DEFAULT_LANG: spec['name']},
+                'summary': {DEFAULT_LANG: spec['summary']},
+                'description': {DEFAULT_LANG: spec['description']},
                 'keep_impl': 2,
                 'user': [sugar.uid()],
                 })
