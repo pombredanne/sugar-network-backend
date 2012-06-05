@@ -82,6 +82,16 @@ class Test(unittest.TestCase):
         self.forks = []
 
     def tearDown(self):
+        self.stop_servers()
+        while self._overriden:
+            mod, name, old_handler = self._overriden.pop()
+            setattr(mod, name, old_handler)
+        coroutine.shutdown()
+        sys.stdout.flush()
+
+    def stop_servers(self):
+        if self.mounts is not None:
+            self.mounts.close()
         if Request.connection is not None:
             Request.connection.close()
         if self.server is not None:
@@ -89,11 +99,6 @@ class Test(unittest.TestCase):
         while self.forks:
             pid = self.forks.pop()
             self.assertEqual(0, self.waitpid(pid))
-        while self._overriden:
-            mod, name, old_handler = self._overriden.pop()
-            setattr(mod, name, old_handler)
-        coroutine.shutdown()
-        sys.stdout.flush()
 
     def waitpid(self, pid):
         if pid in self.forks:

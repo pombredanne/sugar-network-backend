@@ -16,6 +16,7 @@
 import os
 import json
 import shutil
+import locale
 import logging
 from urlparse import urlparse
 from os.path import isabs, exists, join
@@ -50,6 +51,9 @@ class Mounts(dict):
         self.home_volume = home_volume
         self._subscriptions = {}
 
+        locale.setlocale(locale.LC_ALL, '')
+        self._locale = locale.getdefaultlocale()[0].replace('_', '-')
+
         self['~'] = _LocalMount('~', home_volume, self.publish)
         if env.server_mode.value:
             self['/'] = _StubMount('/')
@@ -66,6 +70,7 @@ class Mounts(dict):
         if request.get('cmd') == 'is_connected':
             return mount.connected
         else:
+            request.accept_language = [self._locale]
             if response is None:
                 response = ad.Response()
             return mount.call(request, response)
@@ -307,10 +312,14 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 if not request.content:
                     result = guid
 
+        headers = {
+                'Content-Type': 'application/json',
+                'Accept-Language': ','.join(request.accept_language),
+                }
+
         if result is None:
             result = http.request(method, path,
-                    data=request.content, params=request,
-                    headers={'Content-Type': 'application/json'})
+                    data=request.content, params=request, headers=headers)
 
         if document == 'context' and patch:
             directory = self._home_volume['context']
@@ -335,7 +344,8 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 if directory.exists(guid):
                     directory.update(guid, patch)
                 elif [True for prop, value in patch.items() if value]:
-                    props = http.request('GET', ['context', guid])
+                    props = http.request('GET', ['context', guid],
+                            headers=headers)
                     props.update(patch)
                     props['user'] = [sugar.uid()]
                     directory.create_with_guid(guid, props)

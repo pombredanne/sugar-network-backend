@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import cgi
 import time
 import json
@@ -390,6 +391,62 @@ class MountsTest(tests.Test):
 
         self.assertEqual(True, client.connected)
 
+    def test_OfflineMount_Localize(self):
+        os.environ['LANG'] = 'en_US'
+        self.start_server()
+        client = Client('~')
+
+        guid = client.Context(
+                type='activity',
+                title='title_en',
+                summary='summary_en',
+                description='description_en').post()
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_en', res['title'])
+        self.assertEqual('summary_en', res['summary'])
+        self.assertEqual('description_en', res['description'])
+
+        self.stop_servers()
+        os.environ['LANG'] = 'ru_RU'
+        self.start_server()
+        client = Client('~')
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_en', res['title'])
+        self.assertEqual('summary_en', res['summary'])
+        self.assertEqual('description_en', res['description'])
+
+        res['title'] = 'title_ru'
+        res['summary'] = 'summary_ru'
+        res['description'] = 'description_ru'
+        res.post()
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_ru', res['title'])
+        self.assertEqual('summary_ru', res['summary'])
+        self.assertEqual('description_ru', res['description'])
+
+        self.stop_servers()
+        os.environ['LANG'] = 'es_ES'
+        self.start_server()
+        client = Client('~')
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_en', res['title'])
+        self.assertEqual('summary_en', res['summary'])
+        self.assertEqual('description_en', res['description'])
+
+        self.stop_servers()
+        os.environ['LANG'] = 'ru_RU'
+        self.start_server()
+        client = Client('~')
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_ru', res['title'])
+        self.assertEqual('summary_ru', res['summary'])
+        self.assertEqual('description_ru', res['description'])
+
     def test_OnlineConnect(self):
         pid = self.fork(self.restful_server)
         coroutine.sleep(1)
@@ -486,6 +543,62 @@ class MountsTest(tests.Test):
         path, mime_type = client.Context(guid).get_blob_path('icon')
         self.assertEqual(None, path)
         self.assertEqual(True, client.Context(guid).get_blob('icon').closed)
+
+    def test_OnlineMount_Localize(self):
+        os.environ['LANG'] = 'en_US'
+        self.start_ipc_and_restful_server()
+        client = Client('/')
+
+        guid = client.Context(
+                type='activity',
+                title='title_en',
+                summary='summary_en',
+                description='description_en').post()
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_en', res['title'])
+        self.assertEqual('summary_en', res['summary'])
+        self.assertEqual('description_en', res['description'])
+
+        self.stop_servers()
+        os.environ['LANG'] = 'ru_RU'
+        self.start_ipc_and_restful_server()
+        client = Client('/')
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_en', res['title'])
+        self.assertEqual('summary_en', res['summary'])
+        self.assertEqual('description_en', res['description'])
+
+        res['title'] = 'title_ru'
+        res['summary'] = 'summary_ru'
+        res['description'] = 'description_ru'
+        res.post()
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_ru', res['title'])
+        self.assertEqual('summary_ru', res['summary'])
+        self.assertEqual('description_ru', res['description'])
+
+        self.stop_servers()
+        os.environ['LANG'] = 'es_ES'
+        self.start_ipc_and_restful_server()
+        client = Client('/')
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_en', res['title'])
+        self.assertEqual('summary_en', res['summary'])
+        self.assertEqual('description_en', res['description'])
+
+        self.stop_servers()
+        os.environ['LANG'] = 'ru_RU'
+        self.start_ipc_and_restful_server()
+        client = Client('/')
+
+        res = client.Context(guid, ['title', 'summary', 'description'])
+        self.assertEqual('title_ru', res['title'])
+        self.assertEqual('summary_ru', res['summary'])
+        self.assertEqual('description_ru', res['description'])
 
     def test_ServerMode(self):
         env.api_url.value = 'http://localhost:8881'
