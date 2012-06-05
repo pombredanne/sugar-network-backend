@@ -215,8 +215,8 @@ class StoredProperty(Property, BrowsableProperty):
                     _('typecast should be None for localized properties'))
             enforce(reprcast is None,
                     _('reprcast should be None for localized properties'))
-            typecast = dict
-            reprcast = lambda x: x.values()
+            typecast = _localized_typecast
+            reprcast = _localized_reprcast
 
         Property.__init__(self, name, typecast=typecast, reprcast=reprcast,
                 **kwargs)
@@ -354,3 +354,17 @@ def _is_sloted_prop(typecast):
         if typecast and [i for i in typecast \
                 if type(i) in [None, int, float, bool, str]]:
             return True
+
+
+def _localized_typecast(value):
+    if isinstance(value, dict):
+        return value
+    else:
+        return {env.DEFAULT_LANG: value}
+
+
+def _localized_reprcast(value):
+    if isinstance(value, dict):
+        return value.values()
+    else:
+        return [value]

@@ -278,7 +278,21 @@ class VolumeTest(tests.Test):
         self.assertEqual(0, self.response.content_length)
 
     def test_LocalizedSet(self):
+        env.DEFAULT_LANG = 'en'
+
         directory = self.volume['testdocument']
+
+        guid = directory.create({'localized_prop': 'value_raw'})
+        self.assertEqual({'en': 'value_raw'}, directory.get(guid)['localized_prop'])
+        self.assertEqual(
+                [guid],
+                [i.guid for i in directory.find(0, 100, localized_prop='value_raw')[0]])
+
+        directory.update(guid, {'localized_prop': 'value_raw2'})
+        self.assertEqual({'en': 'value_raw2'}, directory.get(guid)['localized_prop'])
+        self.assertEqual(
+                [guid],
+                [i.guid for i in directory.find(0, 100, localized_prop='value_raw2')[0]])
 
         guid = self.call('POST', document='testdocument', accept_language=['ru'], content={'localized_prop': 'value_ru'})
         self.assertEqual({'ru': 'value_ru'}, directory.get(guid)['localized_prop'])
