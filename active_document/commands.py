@@ -15,6 +15,7 @@
 
 import re
 import logging
+from copy import copy
 from gettext import gettext as _
 
 from active_document import env
@@ -60,15 +61,10 @@ class Request(dict):
     content_length = None
     principal = ANONYMOUS
     access_level = ACCESS_REMOTE
+    accept_language = None
 
     def copy(self):
-        result = Request(self)
-        result.content = self.content
-        result.content_stream = self.content_stream
-        result.content_length = self.content_length
-        result.principal = self.principal
-        result.access_level = self.access_level
-        return result
+        return copy(self)
 
     def __getitem__(self, key):
         enforce(key in self, _('Cannot find %r request argument'), key)

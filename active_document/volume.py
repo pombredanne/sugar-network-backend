@@ -140,14 +140,16 @@ class VolumeCommands(CommandsProcessor):
     def create(self, document, request):
         directory = self.volume[document]
         props = request.content
-        for i in props.keys():
-            directory.metadata[i].assert_access(env.ACCESS_CREATE)
+        for name, value in props.items():
+            prop = directory.metadata[name]
+            prop.assert_access(env.ACCESS_CREATE)
+            props[name] = self._prepost(request, prop, value)
         props['user'] = [request.principal] if request.principal else []
         return directory.create(props)
 
     @directory_command(method='GET')
-    def find(self, document, offset=None, limit=None, query=None, reply=None,
-            order_by=None, **kwargs):
+    def find(self, document, request, offset=None, limit=None, query=None,
+            reply=None, order_by=None, **kwargs):
         directory = self.volume[document]
         offset = _to_int('offset', offset)
         limit = _to_int('limit', limit)
@@ -162,7 +164,8 @@ class VolumeCommands(CommandsProcessor):
 
         documents, total = directory.find(offset=offset, limit=limit,
                 query=query, reply=reply, order_by=order_by, **kwargs)
-        result = [i.properties(reply) for i in documents]
+        result = [i.properties(reply, request.accept_language) \
+                for i in documents]
 
         return {'total': total.value, 'result': result}
 
@@ -176,8 +179,10 @@ class VolumeCommands(CommandsProcessor):
     def update(self, document, guid, request):
         directory = self.volume[document]
         props = request.content
-        for i in props.keys():
-            directory.metadata[i].assert_access(env.ACCESS_WRITE)
+        for name, value in props.items():
+            prop = directory.metadata[name]
+            prop.assert_access(env.ACCESS_WRITE)
+            props[name] = self._prepost(request, prop, value)
         directory.update(guid, props)
 
     @property_command(method='PUT',
@@ -185,17 +190,19 @@ class VolumeCommands(CommandsProcessor):
     def update_prop(self, document, guid, prop, request, url=None):
         directory = self.volume[document]
 
-        directory.metadata[prop].assert_access(env.ACCESS_WRITE)
+        prop = directory.metadata[prop]
+        prop.assert_access(env.ACCESS_WRITE)
 
-        if not isinstance(directory.metadata[prop], BlobProperty):
-            directory.update(guid, {prop: request.content})
+        if not isinstance(prop, BlobProperty):
+            props = {prop.name: self._prepost(request, prop, request.content)}
+            directory.update(guid, props)
             return
 
         if url is not None:
-            _logger.info(_('Download BLOB for %r from %r'), prop, url)
+            _logger.info(_('Download BLOB for %r from %r'), prop.name, url)
             stream = urllib2.urlopen(url)
             try:
-                directory.set_blob(guid, prop, stream)
+                directory.set_blob(guid, prop.name, stream)
             finally:
                 stream.close()
         elif request.content is not None:
@@ -203,9 +210,9 @@ class VolumeCommands(CommandsProcessor):
             content_stream = StringIO()
             json.dump(request.content, content_stream)
             content_stream.seek(0)
-            directory.set_blob(guid, prop, content_stream, None)
+            directory.set_blob(guid, prop.name, content_stream, None)
         else:
-            directory.set_blob(guid, prop, request.content_stream,
+            directory.set_blob(guid, prop.name, request.content_stream,
                     request.content_length)
 
     @document_command(method='DELETE',
@@ -221,7 +228,7 @@ class VolumeCommands(CommandsProcessor):
         directory.update(guid, {'layer': ['deleted']})
 
     @document_command(method='GET')
-    def get(self, document, guid, reply=None):
+    def get(self, document, guid, request, reply=None):
         directory = self.volume[document]
         doc = directory.get(guid)
 
@@ -233,17 +240,17 @@ class VolumeCommands(CommandsProcessor):
         enforce('deleted' not in doc['layer'], env.NotFound,
                 _('Document is not found'))
 
-        return doc.properties(reply)
+        return doc.properties(reply, request.accept_language)
 
     @property_command(method='GET')
-    def get_prop(self, document, guid, prop, response, seqno=None):
+    def get_prop(self, document, guid, prop, request, response, seqno=None):
         directory = self.volume[document]
         doc = directory.get(guid)
 
         directory.metadata[prop].assert_access(env.ACCESS_READ)
 
         if not isinstance(directory.metadata[prop], BlobProperty):
-            return doc[prop]
+            return doc.get(prop, request.accept_language)
 
         seqno = _to_int('seqno', seqno)
         if seqno is not None and seqno >= doc.get_seqno(prop):
@@ -288,6 +295,12 @@ class VolumeCommands(CommandsProcessor):
             return stat
         else:
             return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
+
+    def _prepost(self, request, prop, value):
+        if prop.localized and request.accept_language:
+            return {request.accept_language[0]: value}
+        else:
+            return value
 
 
 def _to_int(name, value):

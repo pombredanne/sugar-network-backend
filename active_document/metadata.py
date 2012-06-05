@@ -49,16 +49,6 @@ def active_property(property_class=None, *args, **kwargs):
     return decorate_getter
 
 
-def active_command(**kwargs):
-
-    def decorate(func):
-        func._is_active_command = True
-        func.kwargs = kwargs
-        return func
-
-    return decorate
-
-
 class Metadata(dict):
     """Structure to describe the document.
 
@@ -215,7 +205,26 @@ class BrowsableProperty(object):
 
 class StoredProperty(Property, BrowsableProperty):
     """Property that can be saved in persistent storare."""
-    pass
+
+    def __init__(self, name, localized=False, typecast=None, reprcast=None,
+            **kwargs):
+        self._localized = localized
+
+        if localized:
+            enforce(typecast is None,
+                    _('typecast should be None for localized properties'))
+            enforce(reprcast is None,
+                    _('reprcast should be None for localized properties'))
+            typecast = dict
+            reprcast = lambda x: x.values()
+
+        Property.__init__(self, name, typecast=typecast, reprcast=reprcast,
+                **kwargs)
+
+    @property
+    def localized(self):
+        """Property value will be stored per locale."""
+        return self._localized
 
 
 class ActiveProperty(StoredProperty):
@@ -238,6 +247,8 @@ class ActiveProperty(StoredProperty):
         enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')),
                 _('Slot can be set only for properties for str, int, float, ' \
                         'bool types, or, for list of these types'))
+        enforce(not kwargs.get('localized') or slot is None,
+                _('Localized property cannot be sloted'))
 
         StoredProperty.__init__(self, name, **kwargs)
         self._slot = slot

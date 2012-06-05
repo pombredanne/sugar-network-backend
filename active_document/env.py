@@ -27,6 +27,9 @@ from active_toolkit import util, optparse, enforce
 _logger = logging.getLogger('active_document')
 
 
+#: Default language to fallback for localized properties
+DEFAULT_LANG = 'en'
+
 #: Xapian term prefix for GUID value
 GUID_PREFIX = 'I'
 

@@ -23,7 +23,7 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
 
 from active_document.metadata import Metadata, Property, \
         StoredProperty, ActiveProperty, BlobProperty, BrowsableProperty, \
-        active_property, active_command
+        active_property
 
 from active_document.commands import document_command, directory_command, \
         volume_command, property_command, Request, Response, \

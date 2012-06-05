@@ -328,13 +328,32 @@ class Directory(object):
 
     def _pre_store(self, guid, changes, is_new):
         is_reindexing = not changes
+        record = []
+
+        def get_prop_value(prop):
+            if not record:
+                record.append(self._storage.get(guid))
+            value = record[0].get(prop.name, prop.default)
+            if prop.localized and not isinstance(value, dict):
+                value = {env.DEFAULT_LANG: value or ''}
+            return value
+
+        if not is_new:
+            for prop_name, value in changes.items():
+                prop = self.metadata[prop_name]
+                if not prop.localized:
+                    continue
+                if not isinstance(value, dict):
+                    value = {env.DEFAULT_LANG: value}
+                orig_value = get_prop_value(prop)
+                orig_value.update(value)
+                changes[prop_name] = orig_value
 
         if is_reindexing or not is_new:
-            record = self._storage.get(guid)
             for prop_name, prop in self.metadata.items():
                 if prop_name not in changes and \
                         isinstance(prop, StoredProperty):
-                    changes[prop_name] = record.get(prop_name, prop.default)
+                    changes[prop_name] = get_prop_value(prop)
 
         if is_new is not None:
             changes['seqno'] = self._next_seqno()

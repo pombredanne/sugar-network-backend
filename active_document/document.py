@@ -69,7 +69,7 @@ class Document(object):
         """Document GUID."""
         return self._guid
 
-    def get(self, prop):
+    def get(self, prop, accept_language=None):
         """Get document's property value.
 
         :param prop:
@@ -81,16 +81,16 @@ class Document(object):
         prop = self.metadata[prop]
 
         value = self._props.get(prop.name)
-        if value is not None:
-            return value
+        if value is None:
+            if self._record is not None and isinstance(prop, StoredProperty):
+                value = self._record.get(prop.name, prop.default)
+            else:
+                raise RuntimeError(_('Property %r in %r cannot be get') % \
+                        (prop.name, self.metadata.name))
+            self._props[prop.name] = value
 
-        if self._record is not None and isinstance(prop, StoredProperty):
-            value = self._record.get(prop.name, prop.default)
-        else:
-            raise RuntimeError(_('Property %r in %r cannot be get') % \
-                    (prop.name, self.metadata.name))
-
-        self._props[prop.name] = value
+        if accept_language and prop.localized:
+            value = self._localize(value, accept_language)
 
         return value
 
@@ -100,16 +100,25 @@ class Document(object):
                 prop.name, self.metadata.name)
         return self._record.get_seqno(prop.name)
 
-    def properties(self, names=None):
+    def properties(self, names=None, accept_language=None):
         result = {}
+
         if names:
             for prop_name in names:
-                result[prop_name] = self[prop_name]
+                value = self[prop_name]
+                if accept_language and self.metadata[prop_name].localized:
+                    value = self._localize(value, accept_language)
+                result[prop_name] = value
         else:
             for prop_name, prop in self.metadata.items():
-                if isinstance(prop, BrowsableProperty) and \
-                        prop.permissions & env.ACCESS_READ:
-                    result[prop_name] = self[prop_name]
+                if not isinstance(prop, BrowsableProperty) or \
+                        not prop.permissions & env.ACCESS_READ:
+                    continue
+                value = self[prop_name]
+                if accept_language and prop.localized:
+                    value = self._localize(value, accept_language)
+                result[prop_name] = value
+
         return result
 
     @classmethod
@@ -155,3 +164,23 @@ class Document(object):
 
     def __getitem__(self, prop):
         return self.get(prop)
+
+    def _localize(self, value, accept_language):
+        if not value:
+            return ''
+        if not isinstance(value, dict):
+            return value
+
+        for lang in accept_language + [env.DEFAULT_LANG]:
+            result = value.get(lang)
+            if result is not None:
+                return result
+            lang = lang.split('-')
+            if len(lang) == 1:
+                continue
+            result = value.get(lang[0])
+            if result is not None:
+                return result
+
+        # TODO
+        return value[sorted(value.keys())[0]]

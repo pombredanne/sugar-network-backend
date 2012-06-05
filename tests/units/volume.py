@@ -11,7 +11,7 @@ src_root = abspath(dirname(__file__))
 
 from __init__ import tests
 
-from active_document import volume, document, SingleVolume, \
+from active_document import env, volume, document, SingleVolume, \
         Request, Response, Document, active_property, \
         BlobProperty, NotFound
 from active_toolkit import sockets, coroutine
@@ -30,6 +30,10 @@ class VolumeTest(tests.Test):
 
             @active_property(BlobProperty)
             def blob(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
                 return value
 
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
@@ -230,7 +234,7 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
-                sorted(['layer', 'ctime', 'user', 'prop', 'mtime', 'guid']),
+                sorted(['layer', 'ctime', 'user', 'prop', 'mtime', 'guid', 'localized_prop']),
                 sorted(self.call('GET', document='testdocument', guid=guid).keys()))
 
         self.assertEqual(
@@ -273,8 +277,157 @@ class VolumeTest(tests.Test):
         self.assertEqual(None, self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=22))
         self.assertEqual(0, self.response.content_length)
 
+    def test_LocalizedSet(self):
+        directory = self.volume['testdocument']
+
+        guid = self.call('POST', document='testdocument', accept_language=['ru'], content={'localized_prop': 'value_ru'})
+        self.assertEqual({'ru': 'value_ru'}, directory.get(guid)['localized_prop'])
+        self.assertEqual(
+                [guid],
+                [i.guid for i in directory.find(0, 100, localized_prop='value_ru')[0]])
+
+        self.call('PUT', document='testdocument', guid=guid, accept_language=['en'], content={'localized_prop': 'value_en'})
+        self.assertEqual({'ru': 'value_ru', 'en': 'value_en'}, directory.get(guid)['localized_prop'])
+        self.assertEqual(
+                [guid],
+                [i.guid for i in directory.find(0, 100, localized_prop='value_ru')[0]])
+        self.assertEqual(
+                [guid],
+                [i.guid for i in directory.find(0, 100, localized_prop='value_en')[0]])
+
+    def test_LocalizedGet(self):
+        directory = self.volume['testdocument']
+
+        guid = self.call('POST', document='testdocument', content={
+            'localized_prop': {
+                'ru': 'value_ru',
+                'es': 'value_es',
+                'en': 'value_en',
+                },
+            })
+
+        env.DEFAULT_LANG = 'en'
+
+        self.assertEqual(
+                {'localized_prop': 'value_ru'},
+                self.call('GET', document='testdocument', guid=guid, accept_language=['ru'], reply=['localized_prop']))
+        self.assertEqual(
+                'value_ru',
+                self.call('GET', document='testdocument', guid=guid, accept_language=['ru', 'es'], prop='localized_prop'))
+        self.assertEqual(
+                [{'guid': guid, 'localized_prop': 'value_ru'}],
+                self.call('GET', document='testdocument', accept_language=['foo', 'ru', 'es'], reply=['localized_prop'])['result'])
+
+        self.assertEqual(
+                {'localized_prop': 'value_ru'},
+                self.call('GET', document='testdocument', guid=guid, accept_language=['ru-RU'], reply=['localized_prop']))
+        self.assertEqual(
+                'value_ru',
+                self.call('GET', document='testdocument', guid=guid, accept_language=['ru-RU', 'es'], prop='localized_prop'))
+        self.assertEqual(
+                [{'guid': guid, 'localized_prop': 'value_ru'}],
+                self.call('GET', document='testdocument', accept_language=['foo', 'ru-RU', 'es'], reply=['localized_prop'])['result'])
+
+        self.assertEqual(
+                {'localized_prop': 'value_es'},
+                self.call('GET', document='testdocument', guid=guid, accept_language=['es'], reply=['localized_prop']))
+        self.assertEqual(
+                'value_es',
+                self.call('GET', document='testdocument', guid=guid, accept_language=['es', 'ru'], prop='localized_prop'))
+        self.assertEqual(
+                [{'guid': guid, 'localized_prop': 'value_es'}],
+                self.call('GET', document='testdocument', accept_language=['foo', 'es', 'ru'], reply=['localized_prop'])['result'])
+
+        self.assertEqual(
+                {'localized_prop': 'value_en'},
+                self.call('GET', document='testdocument', guid=guid, accept_language=['fr'], reply=['localized_prop']))
+        self.assertEqual(
+                'value_en',
+                self.call('GET', document='testdocument', guid=guid, accept_language=['fr', 'za'], prop='localized_prop'))
+        self.assertEqual(
+                [{'guid': guid, 'localized_prop': 'value_en'}],
+                self.call('GET', document='testdocument', accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
+
+        env.DEFAULT_LANG = 'foo'
+        fallback_lang = sorted(['ru', 'es', 'en'])[0]
+
+        self.assertEqual(
+                {'localized_prop': 'value_%s' % fallback_lang},
+                self.call('GET', document='testdocument', guid=guid, accept_language=['fr'], reply=['localized_prop']))
+        self.assertEqual(
+                'value_%s' % fallback_lang,
+                self.call('GET', document='testdocument', guid=guid, accept_language=['fr', 'za'], prop='localized_prop'))
+        self.assertEqual(
+                [{'guid': guid, 'localized_prop': 'value_%s' % fallback_lang}],
+                self.call('GET', document='testdocument', accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
+
+    def test_Localized_SupportDeprecatedScheme(self):
+        env.DEFAULT_LANG = 'en'
+
+        directory = self.volume['testdocument']
+
+        self.touch(
+                ('testdocument/1/1/.seqno', ''),
+                ('testdocument/1/1/guid', '1'),
+                ('testdocument/1/1/ctime', '1'),
+                ('testdocument/1/1/mtime', '1'),
+                ('testdocument/1/1/layer', '["public"]'),
+                ('testdocument/1/1/user', '["me"]'),
+                ('testdocument/1/1/localized_prop', '"orig"'),
+                )
+
+        for __ in directory.populate():
+            pass
+
+        self.call('PUT', document='testdocument', guid='1', accept_language=['ru'], content={'localized_prop': 'value_ru'})
+        self.assertEqual({'ru': 'value_ru', 'en': 'orig'}, directory.get('1')['localized_prop'])
+        self.assertEqual(
+                ['1'],
+                [i.guid for i in directory.find(0, 100, localized_prop='value_ru')[0]])
+        self.assertEqual(
+                ['1'],
+                [i.guid for i in directory.find(0, 100, localized_prop='orig')[0]])
+
+        class Document(document.Document):
+
+            @active_property(slot=1, prefix='L', localized=False, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [Document])
+        directory = self.volume['document']
+        directory.create_with_guid('2', {'localized_prop': 'orig'})
+        self.assertEqual('orig', directory.get('2')['localized_prop'])
+        self.volume.close()
+
+        class Document(document.Document):
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [Document])
+        directory = self.volume['document']
+
+        self.assertEqual('orig', directory.get('2')['localized_prop'])
+        self.assertEqual(
+                {'localized_prop': 'orig'},
+                self.call('GET', document='document', guid='2', accept_language=['en'], reply=['localized_prop']))
+        self.assertEqual(
+                {'localized_prop': 'orig'},
+                self.call('GET', document='document', guid='2', accept_language=['fake'], reply=['localized_prop']))
+
+        self.call('PUT', document='document', guid='2', accept_language=['ru'], content={'localized_prop': 'value_ru'})
+        self.assertEqual({'ru': 'value_ru', 'en': 'orig'}, directory.get('2')['localized_prop'])
+        self.assertEqual(
+                ['2'],
+                [i.guid for i in directory.find(0, 100, localized_prop='value_ru')[0]])
+        self.assertEqual(
+                ['2'],
+                [i.guid for i in directory.find(0, 100, localized_prop='orig')[0]])
+
     def call(self, method, document=None, guid=None, prop=None,
-            principal=None, **kwargs):
+            principal=None, accept_language=None, **kwargs):
 
         class TestRequest(Request):
 
@@ -283,6 +436,7 @@ class VolumeTest(tests.Test):
             principal = None
 
         request = TestRequest(kwargs)
+        request.accept_language = accept_language
         request['method'] = method
         request.principal = principal
         if 'content' in kwargs:
