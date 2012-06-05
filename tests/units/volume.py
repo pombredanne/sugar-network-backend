@@ -309,6 +309,16 @@ class VolumeTest(tests.Test):
         env.DEFAULT_LANG = 'en'
 
         self.assertEqual(
+                {
+                    'localized_prop': {
+                        'ru': 'value_ru',
+                        'es': 'value_es',
+                        'en': 'value_en',
+                        },
+                    },
+                self.call('GET', document='testdocument', guid=guid, reply=['localized_prop']))
+
+        self.assertEqual(
                 {'localized_prop': 'value_ru'},
                 self.call('GET', document='testdocument', guid=guid, accept_language=['ru'], reply=['localized_prop']))
         self.assertEqual(
