@@ -52,7 +52,7 @@ class Mounts(dict):
 
         self['~'] = _LocalMount('~', home_volume, self.publish)
         if env.server_mode.value:
-            self['/'] = self['~']
+            self['/'] = _StubMount('/')
         else:
             self['/'] = _RemoteMount('/', home_volume, self.publish)
 
@@ -473,3 +473,27 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                     'mountpoint': self.mountpoint,
                     'document': '*',
                     })
+
+
+class _StubMount(_Mount):
+
+    def __init__(self, mountpoint):
+        _Mount.__init__(self, mountpoint)
+
+    @property
+    def connected(self):
+        return False
+
+    def close(self):
+        pass
+
+    def call(self, request, response):
+        raise Offline(_('Mount is empty'))
+
+    @ad.property_command(method='GET', cmd='get_blob')
+    def get_blob(self, document, guid, prop):
+        raise Offline(_('Mount is empty'))
+
+    @ad.property_command(method='PUT', cmd='upload_blob')
+    def upload_blob(self, document, guid, prop, path, pass_ownership=False):
+        raise Offline(_('Mount is empty'))
