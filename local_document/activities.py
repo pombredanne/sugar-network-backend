@@ -22,6 +22,7 @@ from gettext import gettext as _
 
 import sweets_recipe
 from local_document import crawler, env, sugar
+from active_toolkit import util
 
 
 _logger = logging.getLogger('local_document.activities')
@@ -79,7 +80,8 @@ class _Monitor(object):
         try:
             spec = sweets_recipe.Spec(root=impl_path)
         except Exception, error:
-            _logger.warning(_('Cannot read %r spec: %s'), impl_path, error)
+            util.exception(_logger, _('Cannot read %r spec: %s'),
+                    impl_path, error)
             return
 
         context = spec['Activity', 'bundle_id']

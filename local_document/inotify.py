@@ -20,7 +20,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/inotify.py$
-$Data: 2012-05-12$
+$Data: 2012-06-05$
 
 """
 import os
@@ -201,7 +201,10 @@ class Inotify(object):
 
             if wd not in self._wds:
                 continue
-            __, data = self._wds[wd]
+            path, data = self._wds[wd]
+
+            _logger.debug('Got event: wd=%r mask=0x%X path=%r filename=\'%s\'',
+                    wd, mask, path, filename)
 
             yield filename, mask, data
 

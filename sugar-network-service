@@ -56,17 +56,17 @@ class Application(application.Daemon):
     def __init__(self, **kwargs):
         application.Daemon.__init__(self, **kwargs)
 
-        # Disable some low level logging
-        for log_name in (
-                'requests.packages.urllib3.connectionpool',
-                'requests.packages.urllib3.poolmanager',
-                'requests.packages.urllib3.response',
-                'requests.packages.urllib3',
-                'inotify',
-                ):
-            logger = logging.getLogger(log_name)
-            logger.propagate = False
-            logger.addHandler(NullHandler())
+        if application.debug.value < 3:
+            for log_name in (
+                    'requests.packages.urllib3.connectionpool',
+                    'requests.packages.urllib3.poolmanager',
+                    'requests.packages.urllib3.response',
+                    'requests.packages.urllib3',
+                    'inotify',
+                    ):
+                logger = logging.getLogger(log_name)
+                logger.propagate = False
+                logger.addHandler(NullHandler())
 
         new_root = (env.local_root.value != env.local_root.default)
         env.local_root.value = abspath(env.local_root.value)

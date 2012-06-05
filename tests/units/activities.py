@@ -12,7 +12,7 @@ import active_document as ad
 from sugar_network_server.resources.user import User
 from sugar_network_server.resources.context import Context
 from sugar_network_server import env as server_env
-from active_toolkit import coroutine
+from active_toolkit import coroutine, util
 from local_document.mounts import Mounts
 from local_document import activities, sugar
 
@@ -31,7 +31,7 @@ class ActivitiesTest(tests.Test):
         self.mounts.close()
         tests.Test.tearDown(self)
 
-    def test_Checkin(self):
+    def test_Checkin_Create(self):
         self.job = coroutine.spawn(activities.monitor, self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
@@ -44,7 +44,44 @@ class ActivitiesTest(tests.Test):
                     'user': [sugar.uid()],
                     })
 
-        self.touch(('Activities/activity/activity/activity.info', [
+        os.makedirs('Activities/activity/activity')
+        coroutine.sleep(1)
+        spec = ['[Activity]',
+                'name = HelloWorld',
+                'activity_version = 1',
+                'bundle_id = org.sugarlabs.HelloWorld',
+                'exec = sugar-activity activity.HelloWorldActivity',
+                'icon = activity-helloworld',
+                'license = GPLv2+',
+                ]
+        with file('Activities/activity/activity/activity.info', 'w') as f:
+            coroutine.sleep(1)
+            f.write('\n'.join(spec))
+        coroutine.sleep(1)
+
+        hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
+        assert exists('activities/checkins/' + hashed_path)
+        self.assertEqual(
+                abspath('Activities/activity'),
+                os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
+        self.assertEqual(
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
+                self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+
+    def test_Checkin_Copy(self):
+        self.job = coroutine.spawn(activities.monitor, self.mounts.home_volume, ['Activities'])
+        coroutine.sleep()
+
+        self.mounts.home_volume['context'].create_with_guid(
+                'org.sugarlabs.HelloWorld', {
+                    'type': 'activity',
+                    'title': 'title',
+                    'summary': 'summary',
+                    'description': 'description',
+                    'user': [sugar.uid()],
+                    })
+
+        self.touch(('activity/activity/activity.info', [
             '[Activity]',
             'name = HelloWorld',
             'activity_version = 1',
@@ -53,6 +90,7 @@ class ActivitiesTest(tests.Test):
             'icon = activity-helloworld',
             'license = GPLv2+',
             ]))
+        shutil.copytree('activity', 'Activities/activity')
         coroutine.sleep(1)
 
         hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
@@ -60,7 +98,42 @@ class ActivitiesTest(tests.Test):
         self.assertEqual(
                 abspath('Activities/activity'),
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
+        self.assertEqual(
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
+                self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
+    def test_Checkin_Hardlink(self):
+        self.job = coroutine.spawn(activities.monitor, self.mounts.home_volume, ['Activities'])
+        coroutine.sleep()
+
+        self.mounts.home_volume['context'].create_with_guid(
+                'org.sugarlabs.HelloWorld', {
+                    'type': 'activity',
+                    'title': 'title',
+                    'summary': 'summary',
+                    'description': 'description',
+                    'user': [sugar.uid()],
+                    })
+
+        self.touch(('activity/activity/activity.info', [
+            '[Activity]',
+            'name = HelloWorld',
+            'activity_version = 1',
+            'bundle_id = org.sugarlabs.HelloWorld',
+            'exec = sugar-activity activity.HelloWorldActivity',
+            'icon = activity-helloworld',
+            'license = GPLv2+',
+            ]))
+        os.makedirs('Activities/activity/activity')
+        coroutine.sleep(1)
+        os.link('activity/activity/activity.info', 'Activities/activity/activity/activity.info')
+        coroutine.sleep(1)
+
+        hashed_path = hashlib.sha1(tests.tmpdir + '/Activities/activity').hexdigest()
+        assert exists('activities/checkins/' + hashed_path)
+        self.assertEqual(
+                abspath('Activities/activity'),
+                os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': 'title', 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))

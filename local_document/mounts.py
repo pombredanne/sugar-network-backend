@@ -443,8 +443,6 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 coroutine.sleep(_RECONNECTION_TIMEOUT)
                 continue
 
-            _logger.info(_('Connected to remote server'))
-
             self._connected = True
             try:
                 self._publish({
@@ -458,6 +456,9 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 for document, props in stat['documents'].items():
                     self._seqno[document] = props.get('seqno') or 0
                 self._remote_volume_guid = stat.get('guid')
+
+                _logger.info(_('Connected to %r remote server'),
+                        self._remote_volume_guid)
 
                 while dispatch(conn):
                     pass

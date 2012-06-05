@@ -191,7 +191,10 @@ class _ActivityDir(object):
     def __watch_cb(self, filename, event):
         if filename != 'activity.info':
             return
-        if event & (IN_CREATE | IN_CLOSE_WRITE | IN_MOVED_TO):
+        if event & IN_CREATE:
+            if os.stat(join(self._path, filename)).st_nlink > 1:
+                self.found()
+        elif event & (IN_CLOSE_WRITE | IN_MOVED_TO):
             self.found()
         elif event & (IN_DELETE | IN_MOVED_FROM):
             self.lost()
