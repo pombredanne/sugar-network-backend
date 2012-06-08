@@ -87,9 +87,7 @@ def download(url_path, out_path, seqno=None, extract=False):
     elif extract:
         tmp_file = tempfile.NamedTemporaryFile(delete=False)
         try:
-            _logger.error('> %r', tmp_file.name)
             if fetch(tmp_file):
-                _logger.error('>> %r', tmp_file.name)
                 tmp_file.close()
                 with Bundle(tmp_file.name, 'application/zip') as bundle:
                     bundle.extractall(out_path)

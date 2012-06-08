@@ -50,8 +50,6 @@ class Mounts(dict):
     def __init__(self, home_volume):
         self.home_volume = home_volume
         self._subscriptions = {}
-
-        locale.setlocale(locale.LC_ALL, '')
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
 
         self['~'] = _LocalMount('~', home_volume, self.publish)
@@ -365,6 +363,8 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
         meta = {}
 
         def download(seqno):
+            if not self.connected:
+                return
             mime_type = http.download([document, guid, prop], blob_path, seqno,
                     document == 'implementation' and prop == 'bundle')
             meta['mime_type'] = mime_type
@@ -451,14 +451,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 coroutine.sleep(_RECONNECTION_TIMEOUT)
                 continue
 
-            self._connected = True
             try:
-                self._publish({
-                    'event': 'connect',
-                    'mountpoint': self.mountpoint,
-                    'document': '*',
-                    })
-
                 stat = http.request('GET', [], params={'cmd': 'stat'},
                         headers={'Content-Type': 'application/json'})
                 for document, props in stat['documents'].items():
@@ -467,6 +460,13 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
 
                 _logger.info(_('Connected to %r remote server'),
                         self._remote_volume_guid)
+
+                self._publish({
+                    'event': 'connect',
+                    'mountpoint': self.mountpoint,
+                    'document': '*',
+                    })
+                self._connected = True
 
                 while dispatch(conn):
                     pass
