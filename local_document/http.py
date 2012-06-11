@@ -54,20 +54,22 @@ def download(url_path, out_path, seqno=None, extract=False):
     mime_type = response.headers.get('Content-Type') or \
             'application/octet-stream'
 
+    content_length = response.headers.get('Content-Length')
+    content_length = int(content_length) if content_length else 0
+    if seqno and not content_length:
+        # Local cacheed versions is not stale
+        return mime_type
+
     def fetch(f):
         _logger.debug('Download %r BLOB to %r', '/'.join(url_path), out_path)
-
-        length = int(response.headers.get('Content-Length', BUFFER_SIZE))
-        chunk_size = min(length, BUFFER_SIZE)
+        chunk_size = min(content_length, BUFFER_SIZE)
         empty = True
-
         for chunk in response.iter_content(chunk_size=chunk_size):
             empty = False
             f.write(chunk)
-
         return not empty
 
-    def download_multipart(stream, size, boundary):
+    def fetch_multipart(stream, size, boundary):
         stream.readline = None
         for filename, content in decode_multipart(stream, size, boundary):
             dst_path = join(out_path, filename)
@@ -78,9 +80,7 @@ def download(url_path, out_path, seqno=None, extract=False):
     content_type, params = cgi.parse_header(mime_type)
     if content_type.split('/', 1)[0] == 'multipart':
         try:
-            download_multipart(response.raw,
-                    int(response.headers['content-length']),
-                    params['boundary'])
+            fetch_multipart(response.raw, content_length, params['boundary'])
         except Exception:
             shutil.rmtree(out_path, ignore_errors=True)
             raise
