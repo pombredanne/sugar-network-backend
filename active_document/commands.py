@@ -50,17 +50,11 @@ class CommandNotFound(env.NotFound):
 
 class Request(dict):
 
-    ANONYMOUS = object()
-
-    ACCESS_SYSTEM = 0
-    ACCESS_LOCAL = 1
-    ACCESS_REMOTE = 2
-
     content = None
     content_stream = None
     content_length = None
-    principal = ANONYMOUS
-    access_level = ACCESS_REMOTE
+    principal = env.ANONYMOUS
+    access_level = env.ACCESS_REMOTE
     accept_language = None
 
     def copy(self):
@@ -116,9 +110,12 @@ class CommandsProcessor(object):
             enforce(_GUID_RE.match(guid) is not None,
                     _('Specified malformed GUID'))
 
+        enforce(request.access_level & cmd.access_level, env.Forbidden,
+                _('Operation is permitted on requester\'s level'))
+
         if request.principal is not None:
             if cmd.permissions & env.ACCESS_AUTH:
-                enforce(request.principal is not Request.ANONYMOUS,
+                enforce(request.principal is not env.ANONYMOUS,
                         env.Unauthorized, _('User is not authenticated'))
             if cmd.permissions & env.ACCESS_AUTHOR:
                 enforce(self.volume is not None)
@@ -175,7 +172,7 @@ class ProxyCommands(CommandsProcessor):
             return self.parent.call(orig_request, response)
 
     def super_call(self, method, cmd=None, content=None,
-            access_level=Request.ACCESS_REMOTE, principal=Request.ANONYMOUS,
+            access_level=env.ACCESS_REMOTE, principal=env.ANONYMOUS,
             response=None, **kwargs):
         request = Request(kwargs)
         request['method'] = method
@@ -194,11 +191,13 @@ class ProxyCommands(CommandsProcessor):
 class _Command(object):
 
     def __init__(self, callback, args, method='GET', document=None, cmd=None,
-            mime_type='application/json', permissions=0):
+            mime_type='application/json', permissions=0,
+            access_level=env.ACCESS_LEVELS):
         self.callback = callback
         self.args = args
         self.mime_type = mime_type
         self.permissions = permissions
+        self.access_level = access_level
         self.accept_request = 'request' in _function_arg_names(callback)
         self.accept_response = 'response' in _function_arg_names(callback)
         self.key = (method, cmd, document)

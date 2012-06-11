@@ -45,6 +45,11 @@ ACCESS_AUTHOR = 32
 ACCESS_PUBLIC = ACCESS_CREATE | ACCESS_WRITE | ACCESS_READ | \
         ACCESS_DELETE | ACCESS_AUTH
 
+ACCESS_SYSTEM = 64
+ACCESS_LOCAL = 128
+ACCESS_REMOTE = 256
+ACCESS_LEVELS = ACCESS_SYSTEM | ACCESS_LOCAL | ACCESS_REMOTE
+
 ACCESS_NAMES = {
         ACCESS_CREATE: _('Create'),
         ACCESS_WRITE: _('Write'),
@@ -53,6 +58,8 @@ ACCESS_NAMES = {
         }
 
 LAYERS = ['public', 'deleted']
+
+ANONYMOUS = object()
 
 
 index_lazy_open = optparse.Option(
