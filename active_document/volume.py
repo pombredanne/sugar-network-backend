@@ -27,7 +27,6 @@ from active_document.directory import Directory
 from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
-from active_document.commands import volume_command
 from active_document.metadata import BlobProperty
 from active_toolkit import util, sockets, enforce
 
@@ -44,16 +43,7 @@ class _Volume(dict):
         if not exists(root):
             os.makedirs(root)
 
-        guid_path = join(self._root, 'guid')
-        if exists(guid_path):
-            with file(guid_path) as f:
-                self._guid = f.read().strip()
-        else:
-            self._guid = env.uuid()
-            with file(guid_path, 'w') as f:
-                f.write(self._guid)
-
-        _logger.info(_('Opening %r volume from %r'), self._guid, self._root)
+        _logger.info(_('Opening %r volume'), self._root)
 
         for cls in document_classes:
             if [i for i in document_classes \
@@ -68,10 +58,6 @@ class _Volume(dict):
     @property
     def root(self):
         return self._root
-
-    @property
-    def guid(self):
-        return self._guid
 
     def close(self):
         """Close operations with the server."""
@@ -129,15 +115,6 @@ class VolumeCommands(CommandsProcessor):
     def __init__(self, volume):
         CommandsProcessor.__init__(self, volume)
         self.volume = volume
-
-    @volume_command(method='GET', cmd='stat')
-    def stat(self):
-        documents = {}
-        for name, directory in self.volume.items():
-            documents[name] = {
-                    'seqno': directory.seqno,
-                    }
-        return {'guid': self.volume.guid, 'documents': documents}
 
     @directory_command(method='POST',
             permissions=env.ACCESS_AUTH)
