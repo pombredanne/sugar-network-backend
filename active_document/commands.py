@@ -264,10 +264,15 @@ def _function_arg_names(func):
 
 
 def _scan_class_for_commands(root_cls):
+    processed = set()
     cls = root_cls
     while cls is not None:
-        for attr in [getattr(cls, i) for i in dir(cls)]:
+        for name in dir(cls):
+            if name in processed:
+                continue
+            attr = getattr(cls, name)
             if hasattr(attr, 'commands_scope'):
                 callback = getattr(root_cls, attr.__name__)
                 yield attr.commands_scope, callback, attr
+            processed.add(name)
         cls = cls.__base__

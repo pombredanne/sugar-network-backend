@@ -401,6 +401,35 @@ class CommandsTest(tests.Test):
         proxy = TestProxyProcessor(CommandsProcessor())
         self.assertEqual('probe', self.call(proxy, 'PROBE'))
 
+    def test_OverrideInChildClass(self):
+        calls = []
+
+        class Parent(CommandsProcessor):
+
+            @volume_command(method='PROBE')
+            def probe(self):
+                return 'probe-1'
+
+            @volume_command(method='COMMON')
+            def common(self):
+                return 'common'
+
+        class Child(Parent):
+
+            @volume_command(method='PROBE')
+            def probe(self):
+                return 'probe-2'
+
+            @volume_command(method='PARTICULAR')
+            def particular(self):
+                return 'particular'
+
+
+        cp = Child()
+        self.assertEqual('probe-2', self.call(cp, 'PROBE'))
+        self.assertEqual('common', self.call(cp, 'COMMON'))
+        self.assertEqual('particular', self.call(cp, 'PARTICULAR'))
+
     def call(self, cp, method, document=None, guid=None, prop=None,
             principal=None, access_level=env.ACCESS_REMOTE, **kwargs):
 
