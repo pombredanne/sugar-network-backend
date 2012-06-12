@@ -11,16 +11,15 @@ from os.path import dirname, join, exists, abspath
 import active_document as ad
 import restful_document as rd
 from active_toolkit import coroutine
-from sugar_network_server import env as server_env
-from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
-from restful_document.router import Router
-from restful_document.subscribe_socket import SubscribeSocket
-from local_document import env, sugar
-from local_document.bus import Server
-from sugar_network import client
-from sugar_network.bus import Request
-from local_document.mounts import Mounts
+from sugar_network.client import bus
+from sugar_network.toolkit import sugar
+from sugar_network.local.bus import IPCServer
+from sugar_network.local.mounts import Mounts
+from sugar_network import local, node
+from sugar_network.node.mounts import NodeCommands
+from sugar_network.resources.user import User
+from sugar_network.resources.context import Context
+
 
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
@@ -60,10 +59,12 @@ class Test(unittest.TestCase):
         ad.index_flush_threshold.value = 1
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
-        env.local_root.value = tmpdir
-        env.activities_root.value = tmpdir + '/Activities'
-        env.api_url.value = 'http://localhost:8800'
-        env.server_mode.value = False
+        local.local_root.value = tmpdir
+        local.activities_root.value = tmpdir + '/Activities'
+        local.api_url.value = 'http://localhost:8800'
+        local.server_mode.value = False
+
+        node.privkey.value = join(profile_dir, 'owner.key')
 
         sugar.nickname = lambda: 'test'
         sugar.color = lambda: '#000000,#000000'
@@ -71,8 +72,8 @@ class Test(unittest.TestCase):
         self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile
 
-        client._CONNECTION_POOL = 1
-        Request.connection = None
+        bus._CONNECTION_POOL = 1
+        bus.Request.connection = None
 
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
@@ -94,8 +95,9 @@ class Test(unittest.TestCase):
     def stop_servers(self):
         if self.mounts is not None:
             self.mounts.close()
-        if Request.connection is not None:
-            Request.connection.close()
+        if bus.Request.connection is not None:
+            bus.Request.connection.close()
+        bus.Request.connection = None
         if self.server is not None:
             self.server.stop()
         while self.forks:
@@ -170,8 +172,8 @@ class Test(unittest.TestCase):
             classes = [User, Context]
         volume = ad.SingleVolume('local', classes)
         self.mounts = Mounts(volume)
-        server_env.volume = self.mounts.home_volume
-        self.server = Server(self.mounts)
+        node.volume = self.mounts.home_volume
+        self.server = IPCServer(self.mounts)
         self.mounts.connect(self.server.publish)
         coroutine.spawn(server)
         coroutine.dispatch()
@@ -186,7 +188,7 @@ class Test(unittest.TestCase):
                 connected.set()
 
         connected = coroutine.Event()
-        Request('/').connect(wait_connect)
+        bus.Request('/').connect(wait_connect)
         connected.wait()
 
         return pid
@@ -209,10 +211,10 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
-        server_env.volume = ad.SingleVolume('remote', classes or [User, Context])
-        cp = ad.VolumeCommands(server_env.volume)
+        node.volume = ad.SingleVolume('remote', classes or [User, Context])
+        cp = Commands(node.volume)
         httpd = coroutine.WSGIServer(('localhost', 8800), rd.Router(cp))
-        subscriber = SubscribeSocket(server_env.volume, 'localhost', 8801)
+        subscriber = rd.SubscribeSocket(node.volume, 'localhost', 8801)
         try:
             coroutine.joinall([
                 coroutine.spawn(httpd.serve_forever),
@@ -221,7 +223,14 @@ class Test(unittest.TestCase):
         finally:
             httpd.stop()
             subscriber.stop()
-            server_env.volume.close()
+            node.volume.close()
+
+
+class Commands(ad.VolumeCommands, NodeCommands):
+
+    def __init__(self, volume):
+        ad.VolumeCommands.__init__(self, volume)
+        NodeCommands.__init__(self)
 
 
 PUBKEY = """\

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,17 +17,18 @@
 
 import locale
 import logging
-from os.path import join, abspath
+from os.path import join, abspath, exists
 from gettext import gettext as _
 
 import active_document as ad
 import restful_document as rd
-import sugar_network_server as server
 import sugar_network_webui as webui
-
-from local_document import application, sugar, env, bus, activities
-from local_document.mounts import Mounts
-from sugar_network import bus as client
+from sugar_network.client.bus import Request
+from sugar_network import local, node
+from sugar_network.toolkit import application, sugar
+from sugar_network.local import activities
+from sugar_network.local.bus import IPCServer
+from sugar_network.local.mounts import Mounts
 from active_toolkit import optparse, coroutine, enforce
 
 
@@ -69,15 +70,15 @@ class Application(application.Daemon):
                 logger.propagate = False
                 logger.addHandler(NullHandler())
 
-        new_root = (env.local_root.value != env.local_root.default)
-        env.local_root.value = abspath(env.local_root.value)
-        env.activities_root.value = abspath(env.activities_root.value)
+        new_root = (local.local_root.value != local.local_root.default)
+        local.local_root.value = abspath(local.local_root.value)
+        local.activities_root.value = abspath(local.activities_root.value)
 
         if new_root:
-            application.logdir.value = join(env.local_root.value, 'log')
+            application.logdir.value = join(local.local_root.value, 'log')
         else:
             application.logdir.value = sugar.profile_path('logs')
-        application.rundir.value = join(env.local_root.value, 'run')
+        application.rundir.value = join(local.local_root.value, 'run')
 
     @application.command(
             _('[PREFIX-PATH SYSTEM-USER USER-GUID]\n'
@@ -89,11 +90,11 @@ class Application(application.Daemon):
         if self.args:
             prefix, user, uid = self.args
             self._prefix = abspath(prefix)
-            if env.activities_root.value == env.activities_root.default:
-                env.activities_root.value = join(self._prefix, 'home', user,
-                        'Activities')
-            if env.local_root.value == env.local_root.default:
-                env.local_root.value = join(self._prefix, 'home', user,
+            if local.activities_root.value == local.activities_root.default:
+                local.activities_root.value = join(self._prefix, 'home',
+                        user, 'Activities')
+            if local.local_root.value == local.local_root.default:
+                local.local_root.value = join(self._prefix, 'home', user,
                         '.sugar', 'default', 'network')
             sugar.uid = lambda: uid
 
@@ -107,31 +108,31 @@ class Application(application.Daemon):
             self._mounts.close()
 
     def run(self):
-        while not sugar.has_pubkey():
+        while not exists(node.privkey.value):
             logging.info(_('No Sugar SSH key, delay start for %s seconds'),
                     SUGAR_REGISTRATION_TIMEOUT)
             coroutine.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        self._mount(env.server_mode.value)
+        self._mount(local.server_mode.value)
 
-        if env.delayed_start.value:
+        if local.delayed_start.value:
             delayed_start = self._delayed_start
         else:
             self._delayed_start()
             delayed_start = None
 
-        self._ipc_server = bus.Server(self._mounts, delayed_start)
+        self._ipc_server = IPCServer(self._mounts, delayed_start)
         self._mounts.connect(self._ipc_server.publish)
 
-        if env.server_mode.value:
+        if local.server_mode.value:
             logging.info(_('Listening for remote requests on %s port'),
-                    server.port.value)
+                    node.port.value)
             self._api_server = coroutine.WSGIServer(
-                    ('0.0.0.0', server.port.value),
+                    ('0.0.0.0', node.port.value),
                     rd.Router(self._mounts['~']))
             coroutine.spawn(self._api_server.serve_forever)
             self._api_subscriber = rd.SubscribeSocket(self._home_volume,
-                    '0.0.0.0', server.subscribe_port.value)
+                    '0.0.0.0', node.subscribe_port.value)
             coroutine.spawn(self._api_subscriber.serve_forever)
 
         try:
@@ -155,11 +156,11 @@ class Application(application.Daemon):
 
     @property
     def _db_path(self):
-        return join(env.local_root.value, 'local')
+        return join(local.local_root.value, 'local')
 
     @property
     def _activity_directories(self):
-        return [env.activities_root.value,
+        return [local.activities_root.value,
                 self._prefix + '/usr/share/sugar/activities',
                 self._prefix + '/opt/sweets']
 
@@ -173,7 +174,7 @@ class Application(application.Daemon):
 
         if webui.webui.value:
             # Point client API to `self._mounts` directly passing over IPC
-            client.Request.connection = self._mounts
+            Request.connection = self._mounts
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info(_('Start Web server on %s:%s port'), *host)
             self._web_server = coroutine.WSGIServer(host, webui.get_app())
@@ -181,11 +182,11 @@ class Application(application.Daemon):
 
     def _mount(self, server_mode):
         if server_mode:
-            documents = server.documents()
+            documents = node.documents()
         else:
-            documents = server.documents(['context', 'report'])
+            documents = node.documents(['context', 'report'])
         self._home_volume = ad.SingleVolume(self._db_path, documents)
-        server.volume.update(self._home_volume)
+        node.volume.update(self._home_volume)
         self._mounts = Mounts(self._home_volume)
 
     def _populate_index(self):
@@ -201,14 +202,15 @@ application.debug.value = sugar.logger_level()
 rd.only_sync_notification.value = False
 ad.index_lazy_open.value = True
 webui.webui.value = True
+# Use sugar key for server identification
+node.privkey.value = sugar.profile_path('owner.key')
 # It seems to be that most of users (on XO at least) don't have recent SSH
-server.trust_users.value = True
+node.trust_users.value = True
 
 optparse.Option.seek('main', [application.debug, application.foreground])
 optparse.Option.seek('webui', webui)
-optparse.Option.seek('sugar-network', env)
-optparse.Option.seek('sugar-network-server',
-        [server.port, server.subscribe_port])
+optparse.Option.seek('local', local)
+optparse.Option.seek('node', [node.port, node.subscribe_port])
 optparse.Option.seek('restful-document', rd)
 optparse.Option.seek('active-document', ad)
 

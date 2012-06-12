@@ -17,13 +17,14 @@ from __init__ import tests
 import restful_document as rd
 import active_document as ad
 from active_toolkit import sockets, coroutine
-from sugar_network.client import Client
-from sugar_network.bus import ServerError
-from local_document.mounts import Mounts
-from local_document.bus import Server
-from local_document import env, mounts, sugar, http, activities
-from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
+from sugar_network import Client
+from sugar_network.client.bus import ServerError
+from sugar_network import local
+from sugar_network.local import mounts, activities, http
+from sugar_network.local.bus import IPCServer
+from sugar_network.toolkit import sugar
+from sugar_network.resources.user import User
+from sugar_network.resources.context import Context
 
 
 class MountsTest(tests.Test):
@@ -634,9 +635,9 @@ class MountsTest(tests.Test):
         self.assertEqual('description_ru', res['description'])
 
     def test_ServerMode(self):
-        env.api_url.value = 'http://localhost:8881'
+        local.api_url.value = 'http://localhost:8881'
         volume = ad.SingleVolume('local', [Context, User])
-        self.mounts = Mounts(volume)
+        self.mounts = mounts.Mounts(volume)
 
         http_server = coroutine.WSGIServer(
                 ('localhost', 8881), rd.Router(self.mounts['~']))
@@ -646,15 +647,15 @@ class MountsTest(tests.Test):
 
         monitor = coroutine.spawn(activities.monitor, self.mounts.home_volume, ['Activities'])
 
-        self.server = Server(self.mounts)
+        self.server = IPCServer(self.mounts)
         self.mounts.connect(self.server.publish)
         coroutine.spawn(self.server.serve_forever)
 
         coroutine.sleep(1)
-        local = Client('~')
+        local_client = Client('~')
         remote = Client('/')
 
-        guid = local.Context(
+        guid = local_client.Context(
                 type='activity',
                 title='title',
                 summary='summary',
@@ -677,7 +678,7 @@ class MountsTest(tests.Test):
             ]))
         coroutine.sleep(1)
 
-        self.assertEqual(2, local.Context(guid, reply=['keep_impl'])['keep_impl'])
+        self.assertEqual(2, local_client.Context(guid, reply=['keep_impl'])['keep_impl'])
         self.assertEqual(2, remote.Context(guid, reply=['keep_impl'])['keep_impl'])
 
         feed = {
@@ -695,7 +696,7 @@ class MountsTest(tests.Test):
                 }
         self.assertEqual(
                 feed,
-                json.loads(local.Context(guid).get_blob('feed').read()))
+                json.loads(local_client.Context(guid).get_blob('feed').read()))
         impl_id = feed['1']['*-*']['guid'] = \
                 hashlib.sha1(feed['1']['*-*']['guid']).hexdigest()
         self.assertEqual(

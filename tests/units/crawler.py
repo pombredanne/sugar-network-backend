@@ -8,7 +8,7 @@ from os.path import exists
 from __init__ import tests
 
 from active_toolkit import coroutine
-from local_document import crawler, env
+from sugar_network.toolkit import crawler
 
 
 class CrawlerTest(tests.Test):

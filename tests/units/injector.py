@@ -10,13 +10,12 @@ from os.path import exists
 
 from __init__ import tests
 
-import zerosugar
 from active_toolkit import coroutine
-from sugar_network.client import Client
-from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
-from sugar_network_server.resources.implementation import Implementation
-from local_document import activities
+from sugar_network import zerosugar, Client
+from sugar_network.resources.user import User
+from sugar_network.resources.context import Context
+from sugar_network.resources.implementation import Implementation
+from sugar_network.local import activities
 
 
 class InjectorTest(tests.Test):

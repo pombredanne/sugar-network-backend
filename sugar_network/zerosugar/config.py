@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2011-2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,15 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from active_toolkit import optparse
-from sugar_network.toolkit import sugar, application
-from sugar_network.client.bus import Client
-from sugar_network.local.activities import checkins
-from sugar_network.local import api_url, server_mode
-from sugar_network_webui import webui_port
+from zeroinstall.injector import config as injector_config
 
 
-def GlibClient():
-    # Avoid importing Glib stuff for non-glib clients
-    from sugar_network.client import glib_client
-    return glib_client.GlibClient()
+class Config(injector_config.Config):
+
+    clients = []
+
+
+config = Config()

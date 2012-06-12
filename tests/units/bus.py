@@ -9,11 +9,11 @@ from __init__ import tests
 
 import active_document as ad
 from active_toolkit import coroutine
-from sugar_network import client as client_
-from sugar_network.client import Client
-from sugar_network.bus import ServerError
-from local_document.bus import Server
-from local_document.mounts import Mounts
+from sugar_network.client import bus
+from sugar_network import Client
+from sugar_network.client.bus import ServerError
+from sugar_network.local.bus import IPCServer
+from sugar_network.local.mounts import Mounts
 
 
 class IPCTest(tests.Test):
@@ -24,7 +24,7 @@ class IPCTest(tests.Test):
             time.sleep(1)
             volume = ad.SingleVolume('local', [])
             mounts = Mounts(volume)
-            server = Server(mounts)
+            server = IPCServer(mounts)
             mounts.call = lambda *args: None
             server.serve_forever()
 
@@ -51,7 +51,7 @@ class IPCTest(tests.Test):
         calls = []
         self.mounts.call = lambda request, response: calls.append(dict(request))
 
-        client_._CONNECTION_POOL = 3
+        bus._CONNECTION_POOL = 3
 
         def caller(client, i, n):
             getattr(client, 'Resource%s' % i).delete('wait%s%s' % (i, n))

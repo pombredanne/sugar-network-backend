@@ -13,15 +13,27 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from active_toolkit import optparse
-from sugar_network.toolkit import sugar, application
-from sugar_network.client.bus import Client
-from sugar_network.local.activities import checkins
-from sugar_network.local import api_url, server_mode
-from sugar_network_webui import webui_port
+import active_document as ad
+
+from sugar_network import node
+from sugar_network.resources.resource import Resource
 
 
-def GlibClient():
-    # Avoid importing Glib stuff for non-glib clients
-    from sugar_network.client import glib_client
-    return glib_client.GlibClient()
+class Solution(Resource):
+
+    LAYOUT_VERSION = 2
+
+    @ad.active_property(prefix='T',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
+            typecast=node.SOLUTION_PARENTS)
+    def parent_resource(self, value):
+        return value
+
+    @ad.active_property(prefix='P',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def parent(self, value):
+        return value
+
+    @ad.active_property(prefix='N', full_text=True, localized=True)
+    def content(self, value):
+        return value

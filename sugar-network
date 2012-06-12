@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,8 +17,8 @@
 
 from gettext import gettext as _
 
-from local_document import application, sugar
-from active_document import optparse, enforce
+from active_toolkit import optparse, enforce
+from sugar_network.toolkit import application, sugar
 
 
 command = optparse.Option(

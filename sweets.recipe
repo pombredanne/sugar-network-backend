@@ -4,21 +4,24 @@ name      = sugar-network
 [Package]
 project   = SweetsDistribution:Factory
 implement = %(name)s
-summary   = Client side library to access to Sugar Network server
+summary   = Sugar Network
 license   = GPLv3+
-homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
+homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network
 
 version   = 0.2
 stability = developer
 
-requires  = base/requests; base/m2crypto; sweets-recipe; sugar-network-server
-            sugar-network-webui
+requires  = base/m2crypto; base/requests; base/rrdtool-python
+            base/openssh-client; active-document; restful-document
+            sweets-recipe; sugar-network-webui
+replaces  = sugar-network-server
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
-            cp -r local_document sugar_network zerosugar %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
+            cp -r sugar_network %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
             install -m 0755 -D sugar-network %(DESTDIR)s/%(BINDIR)s/sugar-network &&
             install -m 0755 -D sugar-network-service %(DESTDIR)s/%(BINDIR)s/sugar-network-service &&
-            install -m 0755 -d %(DESTDIR)s/%(DATADIR)s/doc/%(name)s &&
-            cp -r examples %(DESTDIR)s/%(DATADIR)s/doc/%(name)s/ &&
+            install -m 0755 -D sugar-network-server %(DESTDIR)s/%(BINDIR)s/sugar-network-server &&
+            install -m 0755 -D misc/aslo_sync.py %(DESTDIR)s/%(DATADIR)s/%(name)s/aslo_sync.py &&
+            cp -r examples %(DESTDIR)s/%(DATADIR)s/%(name)s/ &&
             true

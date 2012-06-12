@@ -1,0 +1,115 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2012 Aleksey Lim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import locale
+import logging
+from gettext import gettext as _
+
+import active_document as ad
+import restful_document as rd
+import sugar_network_webui as webui
+from active_toolkit import optparse, coroutine
+
+from sugar_network import node
+from sugar_network.client.bus import Request
+from sugar_network.node import stats
+from sugar_network.node.mounts import Mount
+from sugar_network.toolkit import application, sugar
+
+
+class Application(application.Daemon):
+
+    httpd = None
+    subscriber = None
+
+    def run(self):
+        ssl_args = {}
+        if node.keyfile.value:
+            ssl_args['keyfile'] = node.keyfile.value
+        if node.certfile.value:
+            ssl_args['certfile'] = node.certfile.value
+
+        volume = ad.SingleVolume(node.data_root.value, node.documents())
+        node.volume.update(volume)
+
+        mount = Mount(volume)
+        self.httpd = coroutine.WSGIServer((node.host.value, node.port.value),
+                rd.Router(mount), **ssl_args)
+        self.subscriber = rd.SubscribeSocket(volume,
+                node.host.value, node.subscribe_port.value)
+
+        def populate_index():
+            for cls in volume.values():
+                for __ in cls.populate():
+                    coroutine.dispatch()
+
+        reindexer = coroutine.spawn(populate_index)
+        web_server = None
+
+        logging.info(_('Listening for requests on %s:%s'),
+                node.host.value, node.port.value)
+
+        if webui.webui.value:
+            # XXX Until implementing regular web users
+            sugar.nickname = lambda: 'demo'
+            sugar.color = lambda: '#000000,#000000'
+
+            # Point client API to volume directly
+            Request.connection = mount
+
+            host = (webui.webui_host.value, webui.webui_port.value)
+            logging.info(_('Start Web server on %s:%s port'), *host)
+            web_server = coroutine.WSGIServer(host, webui.get_app())
+            coroutine.spawn(web_server.serve_forever)
+
+        try:
+            coroutine.joinall([
+                coroutine.spawn(self.httpd.serve_forever),
+                coroutine.spawn(self.subscriber.serve_forever),
+                ])
+        finally:
+            self.httpd.stop()
+            self.subscriber.stop()
+            reindexer.kill()
+            if web_server is not None:
+                web_server.stop()
+            volume.close()
+
+    def shutdown(self):
+        self.httpd.stop()
+        self.subscriber.stop()
+
+
+locale.setlocale(locale.LC_ALL, '')
+
+optparse.Option.seek('main', application)
+optparse.Option.seek('webui', webui)
+optparse.Option.seek('node', node)
+optparse.Option.seek('stats', stats)
+optparse.Option.seek('restful-document', rd)
+optparse.Option.seek('active-document', ad)
+
+app = Application(
+        name='sugar-network-server',
+        description=_('Sugar Network server'),
+        epilog=_('See http://wiki.sugarlabs.org/go/Sugar_Network ' \
+                 'for details.'),
+        config_files=[
+            '/etc/sugar-network-server/config',
+            '~/.config/sugar-network-server/config',
+            ])
+app.start()

@@ -7,8 +7,7 @@ from __init__ import tests
 
 import active_document as ad
 from active_toolkit import coroutine
-from sugar_network.client import Client
-from sugar_network.glib_client import Client as GlibClient
+from sugar_network import Client, GlibClient
 
 
 class GlibClientTest(tests.Test):

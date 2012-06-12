@@ -9,12 +9,12 @@ from os.path import abspath, lexists, exists
 from __init__ import tests
 
 import active_document as ad
-from sugar_network_server.resources.user import User
-from sugar_network_server.resources.context import Context
-from sugar_network_server import env as server_env
+from sugar_network.resources.user import User
+from sugar_network.resources.context import Context
 from active_toolkit import coroutine, util
-from local_document.mounts import Mounts
-from local_document import activities, sugar
+from sugar_network.local.mounts import Mounts
+from sugar_network.local import activities
+from sugar_network.toolkit import sugar
 
 
 class ActivitiesTest(tests.Test):
