@@ -11,7 +11,6 @@ import dbus.glib
 import dbus.mainloop.glib
 
 from active_document import env as _env, index_queue as _index_queue
-from active_document import sneakernet as _sneakernet
 from active_document import storage as _storage
 from active_document import directory as _directory
 
@@ -54,7 +53,6 @@ class Test(unittest.TestCase):
         _env.index_flush_threshold.value = 1
         _env.find_limit.value = 1024
         _env.index_lazy_open.value = False
-        _sneakernet.next_volume_cb = None
         _directory._DIFF_PAGE_SIZE = 256
 
         _index_queue.errnum = 0

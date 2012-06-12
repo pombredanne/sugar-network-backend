@@ -27,7 +27,7 @@ from active_document.directory import Directory
 from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
-from active_document.commands import volume_command, Request
+from active_document.commands import volume_command
 from active_document.metadata import BlobProperty
 from active_toolkit import util, sockets, enforce
 
@@ -64,6 +64,10 @@ class _Volume(dict):
             directory = Directory(join(self._root, name), cls, index_class,
                     partial(self._notification_cb, document=name))
             self[name] = directory
+
+    @property
+    def root(self):
+        return self._root
 
     @property
     def guid(self):
@@ -291,7 +295,7 @@ class VolumeCommands(CommandsProcessor):
         if not stat:
             return None
 
-        if request.access_level < Request.ACCESS_REMOTE:
+        if request.access_level == env.ACCESS_LOCAL:
             return stat
         else:
             return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
