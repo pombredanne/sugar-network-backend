@@ -510,9 +510,8 @@ class DocumentTest(tests.Test):
         directory.create({'prop': '4', 'user': []})
 
         directory_._DIFF_PAGE_SIZE = 2
-        diff_rage, docs = directory.diff(xrange(10))
+        diff_rage, docs = directory.diff(xrange(10), 1024)
 
-        self.assertEqual([None, None], diff_rage)
         self.assertEqual(
                 ['1', '2', '3', '4'],
                 [diff.get('prop')[0] for guid, diff in docs])

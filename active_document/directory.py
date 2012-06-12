@@ -25,8 +25,6 @@ from active_document.metadata import ActiveProperty, StoredProperty
 from active_toolkit import util, enforce
 
 
-_DIFF_PAGE_SIZE = 256
-
 _logger = logging.getLogger('active_document.document')
 
 
@@ -256,51 +254,56 @@ class Directory(object):
             self.commit()
             self._notify({'event': 'sync', 'seqno': self._seqno})
 
-    def diff(self, accept_range):
+    def diff(self, accept_range, limit):
         """Return documents' properties for specified times range.
 
         :param accept_range:
             sequence object with times to accept documents
+        :param limit:
+            number of documents to return at once
         :returns:
-            tuple of dictionaries for regular properties and BLOBs
+            a tuple of ((`left-seqno`, `right-seqno`), [(`guid`, `patch`)]),
+            where `patch` is a resulting dictionary from `Document.diff()`
+            for corresponding `guid`
 
         """
-        result = [None, None]
+        ranges = [None, None]
+        if not accept_range:
+            return ranges, []
 
-        def do():
-            # To make fetching docs more reliable, avoid using intermediate
-            # find's offsets (documents can be changed and offset will point
-            # to different document).
-            if hasattr(accept_range, 'first'):
-                start = accept_range.first
-            else:
-                start = accept_range[0]
-
-            while True:
-                documents, total = self.find(
-                        query='seqno:%s..' % start,
-                        order_by='seqno', reply=['guid'],
-                        limit=_DIFF_PAGE_SIZE, no_cache=True)
-                if not total.value:
-                    break
-                seqno = None
-                for i in documents:
-                    start = max(start, i.get('seqno'))
-                    diff, __ = self._storage.diff(i.guid, accept_range)
-                    if not diff:
-                        continue
-                    seqno = max(seqno, i.get('seqno'))
-                    if result[0] is None:
-                        result[0] = seqno
-                    yield i.guid, diff
-                if seqno:
-                    result[1] = seqno
-                start += 1
-
-        if accept_range:
-            return result, do()
+        # To make fetching more reliable, avoid using intermediate
+        # find's offsets (documents can be changed and offset will point
+        # to different document).
+        if hasattr(accept_range, 'first'):
+            start = accept_range.first
         else:
-            return result, []
+            start = accept_range[0]
+        patch = []
+
+        while True:
+            documents, total = self.find(
+                    query='seqno:%s..' % start,
+                    order_by='seqno', reply=['guid'],
+                    limit=limit, no_cache=True)
+            if not total.value:
+                break
+
+            seqno = None
+            for i in documents:
+                start = max(start, i.get('seqno'))
+                diff, __ = self._storage.diff(i.guid, accept_range)
+                if not diff:
+                    continue
+                seqno = max(seqno, i.get('seqno'))
+                if ranges[0] is None:
+                    ranges[0] = seqno
+                patch.append((i.guid, diff))
+
+            if seqno:
+                ranges[1] = seqno
+            start += 1
+
+        return ranges, patch
 
     def merge(self, guid, diff, touch=True):
         """Apply changes for documents.
