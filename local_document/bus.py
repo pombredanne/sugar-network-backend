@@ -20,9 +20,9 @@ import logging
 from os.path import exists
 from gettext import gettext as _
 
+import active_document as ad
 from local_document import ipc, env, sugar
 from local_document.mounts import Offline
-from active_document import Request, Response
 from active_toolkit import util, coroutine, sockets
 
 
@@ -66,9 +66,9 @@ class Server(object):
             if message is None:
                 break
             try:
-                request = Request(message)
+                request = ad.Request(message)
                 request.principal = self._principal
-                request.access_level = Request.ACCESS_LOCAL
+                request.access_level = ad.ACCESS_LOCAL
 
                 request_repr = str(request)
 
@@ -84,7 +84,7 @@ class Server(object):
                     self.publish(request.content)
                     result = None
                 else:
-                    response = Response()
+                    response = ad.Response()
                     result = self._mounts.call(request, response)
 
             except Exception, error:

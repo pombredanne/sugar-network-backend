@@ -182,7 +182,7 @@ class _LocalMount(ad.ProxyCommands, _Mount):
                 util.exception(_logger, _('Failed to read %r spec file'), path)
                 continue
 
-            if request.access_level == ad.Request.ACCESS_LOCAL:
+            if request.access_level == ad.ACCESS_LOCAL:
                 impl_id = spec.root
             else:
                 impl_id = activities.path_to_guid(spec.root)

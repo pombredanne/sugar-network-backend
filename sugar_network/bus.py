@@ -19,7 +19,7 @@ import logging
 from contextlib import contextmanager
 from gettext import gettext as _
 
-from active_document import Request as _Request
+import active_document as ad
 from local_document import ipc, env, sugar
 from active_toolkit import util, coroutine, sockets
 
@@ -56,7 +56,8 @@ class Request(dict):
 
     def call(self, method, cmd=None, content=None, content_type=None,
             **kwargs):
-        request = _Request(kwargs)
+        request = ad.Request(kwargs)
+        request.access_level = ad.ACCESS_LOCAL
         request.principal = self.principal
         request.update(self)
         request['method'] = method
@@ -111,7 +112,7 @@ class _Client(object):
             del self._subscriptions[callback]
 
     def publish(self, event):
-        request = _Request()
+        request = ad.Request()
         request['cmd'] = 'publish'
         request.content = event
         request.content_type = 'application/json'
