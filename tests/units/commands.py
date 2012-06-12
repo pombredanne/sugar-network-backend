@@ -7,7 +7,8 @@ from __init__ import tests
 
 from active_document import env, volume, SingleVolume, Document, \
         property_command, document_command, directory_command, volume_command, \
-        active_property, Request, BlobProperty, Response, CommandsProcessor
+        active_property, Request, BlobProperty, Response, CommandsProcessor, \
+        ProxyCommands
 
 
 class CommandsTest(tests.Test):
@@ -378,6 +379,27 @@ class CommandsTest(tests.Test):
         self.assertRaises(env.Forbidden, self.call, cp, 'PROBE', cmd='system', access_level=env.ACCESS_REMOTE)
         self.assertRaises(env.Forbidden, self.call, cp, 'PROBE', cmd='system', access_level=env.ACCESS_LOCAL)
         self.call(cp, 'PROBE', cmd='system', access_level=env.ACCESS_SYSTEM)
+
+    def test_ParentClasses(self):
+        calls = []
+
+        class Parent(object):
+
+            @volume_command(method='PROBE')
+            def probe(self):
+                return 'probe'
+
+        class TestCommandsProcessor(CommandsProcessor, Parent):
+            pass
+
+        class TestProxyProcessor(ProxyCommands, Parent):
+            pass
+
+        cp = TestCommandsProcessor()
+        self.assertEqual('probe', self.call(cp, 'PROBE'))
+
+        proxy = TestProxyProcessor(CommandsProcessor())
+        self.assertEqual('probe', self.call(proxy, 'PROBE'))
 
     def call(self, cp, method, document=None, guid=None, prop=None,
             principal=None, access_level=env.ACCESS_REMOTE, **kwargs):
