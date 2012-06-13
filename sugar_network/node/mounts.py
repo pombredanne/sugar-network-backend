@@ -57,12 +57,12 @@ class NodeCommands(object):
                 }
 
 
-class _LocalCommands(object):
-    """Support webui started in the same process with the server."""
-
-    volume = None
+class Mount(ad.VolumeCommands, NodeCommands):
 
     def __init__(self, volume):
+        ad.VolumeCommands.__init__(self, volume)
+        NodeCommands.__init__(self)
+
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
 
         self.connect = volume.connect
@@ -83,19 +83,13 @@ class _LocalCommands(object):
         _logger.warning(_('Ignore %r event, not implementated'), event)
 
     def call(self, request, response=None):
-        request.pop('mountpoint')
+        if 'mountpoint' in request:
+            # In case if mount is being used for local clients
+            request.pop('mountpoint')
         request.accept_language = [self._locale]
         if response is None:
             response = ad.Response()
         return ad.VolumeCommands.call(self, request, response)
-
-
-class Mount(ad.VolumeCommands, NodeCommands, _LocalCommands):
-
-    def __init__(self, volume):
-        ad.VolumeCommands.__init__(self, volume)
-        NodeCommands.__init__(self)
-        _LocalCommands.__init__(self, volume)
 
 
 def _load_pubkey(path):
