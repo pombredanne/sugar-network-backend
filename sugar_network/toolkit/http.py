@@ -25,6 +25,7 @@ from gettext import gettext as _
 
 import requests
 import requests.async
+from requests.sessions import Session
 from M2Crypto import DSA
 
 from sweets_recipe import Bundle
@@ -33,8 +34,13 @@ from sugar_network.toolkit import sugar
 from sugar_network import local
 
 
-_logger = logging.getLogger('local.http')
-_headers = {}
+_logger = logging.getLogger('toolkit.http')
+_session = None
+
+
+def reset():
+    global _session
+    _session = None
 
 
 def download(url_path, out_path, seqno=None, extract=False):
@@ -47,7 +53,7 @@ def download(url_path, out_path, seqno=None, extract=False):
     if seqno:
         params['seqno'] = seqno
 
-    response = raw_request('GET', url_path, allow_redirects=True,
+    response = _request('GET', url_path, allow_redirects=True,
             params=params, allowed_response=[404])
     if response.status_code != 200:
         return 'application/octet-stream'
@@ -104,41 +110,44 @@ def download(url_path, out_path, seqno=None, extract=False):
 
 
 def request(method, path, data=None, headers=None, **kwargs):
-    response = raw_request(method, path, data, headers, **kwargs)
+    response = _request(method, path, data, headers, **kwargs)
     if response.headers.get('Content-Type') == 'application/json':
         return json.loads(response.content)
     else:
         return response
 
 
-def raw_request(method, path, data=None, headers=None, allowed_response=None,
+def _request(method, path, data=None, headers=None, allowed_response=None,
         **kwargs):
+    global _session
+
+    if _session is None:
+        verify = True
+        if local.no_check_certificate.value:
+            verify = False
+        elif local.certfile.value:
+            verify = local.certfile.value
+        uid = sugar.uid()
+        _session = Session(
+                headers={
+                    'sugar_user': uid,
+                    'sugar_user_signature': _sign(uid),
+                    },
+                verify=verify,
+                )
+
     if not path:
         path = ['']
     path = '/'.join([i.strip('/') for i in [local.api_url.value] + path])
 
-    if not _headers:
-        uid = sugar.uid()
-        _headers['sugar_user'] = uid
-        _headers['sugar_user_signature'] = _sign(uid)
-    if headers:
-        headers.update(_headers)
-    else:
-        headers = _headers
-
-    if data is not None and headers.get('Content-Type') == 'application/json':
+    if data is not None and headers and \
+            headers.get('Content-Type') == 'application/json':
         data = json.dumps(data)
-
-    verify = True
-    if local.no_check_certificate.value:
-        verify = False
-    elif local.certfile.value:
-        verify = local.certfile.value
 
     while True:
         try:
-            rs = requests.async.request(method, path, data=data, verify=verify,
-                    headers=headers, config={'keep_alive': True}, **kwargs)
+            rs = requests.async.request(method, path, data=data,
+                    headers=headers, session=_session, **kwargs)
             rs.send()
             response = rs.response
         except requests.exceptions.SSLError:
@@ -168,7 +177,7 @@ def raw_request(method, path, data=None, headers=None, allowed_response=None,
 
 
 def _register():
-    raw_request('POST', ['user'],
+    _request('POST', ['user'],
             headers={'Content-Type': 'application/json'},
             data={
                 'nickname': sugar.nickname() or '',

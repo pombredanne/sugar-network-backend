@@ -20,9 +20,9 @@ from active_toolkit import sockets, coroutine
 from sugar_network import Client
 from sugar_network.client.bus import ServerError
 from sugar_network import local
-from sugar_network.local import mounts, activities, http
+from sugar_network.local import mounts, activities
 from sugar_network.local.bus import IPCServer
-from sugar_network.toolkit import sugar
+from sugar_network.toolkit import sugar, http
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 

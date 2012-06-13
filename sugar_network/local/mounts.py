@@ -24,9 +24,9 @@ from gettext import gettext as _
 
 import sweets_recipe
 import active_document as ad
-from sugar_network.toolkit import sugar
+from sugar_network.toolkit import sugar, http
 from sugar_network.node.mounts import NodeCommands
-from sugar_network.local import activities, http, zeroconf
+from sugar_network.local import activities, zeroconf
 from sugar_network import local, zerosugar
 from active_toolkit import sockets, util, coroutine, enforce
 
@@ -445,7 +445,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                     _logger.debug('Connecting to %r remote server', url)
                     conn = connect(host)
                 except Exception:
-                    _logger.debug('Cannot connect to %r remote server', url)
+                    util.exception(_logger, 'Cannot connect to %r node', url)
                 else:
                     break
             else:

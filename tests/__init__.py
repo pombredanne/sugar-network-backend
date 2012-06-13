@@ -12,7 +12,7 @@ import active_document as ad
 import restful_document as rd
 from active_toolkit import coroutine
 from sugar_network.client import bus
-from sugar_network.toolkit import sugar
+from sugar_network.toolkit import sugar, http
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import Mounts
 from sugar_network import local, node
@@ -74,6 +74,8 @@ class Test(unittest.TestCase):
 
         bus._CONNECTION_POOL = 1
         bus.Request.connection = None
+
+        http.reset()
 
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
