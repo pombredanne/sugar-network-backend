@@ -44,7 +44,7 @@ property_command = lambda ** kwargs: command('property', **kwargs)
 _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 
-class CommandNotFound(env.NotFound):
+class CommandNotFound(Exception):
     pass
 
 

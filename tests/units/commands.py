@@ -8,7 +8,7 @@ from __init__ import tests
 from active_document import env, volume, SingleVolume, Document, \
         property_command, document_command, directory_command, volume_command, \
         active_property, Request, BlobProperty, Response, CommandsProcessor, \
-        ProxyCommands
+        ProxyCommands, CommandNotFound, NotFound
 
 
 class CommandsTest(tests.Test):
@@ -34,7 +34,7 @@ class CommandsTest(tests.Test):
         cp = TestCommandsProcessor()
 
         self.call(cp, 'PROBE')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1')
         self.call(cp, 'PROBE', cmd='command_2')
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', principal=env.ANONYMOUS)
         self.call(cp, 'PROBE', cmd='command_3', principal='me')
@@ -66,10 +66,10 @@ class CommandsTest(tests.Test):
 
         cp = TestCommandsProcessor()
 
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
         self.call(cp, 'PROBE', document='testdocument')
         self.call(cp, 'PROBE', document='fakedocument')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument')
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument')
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', principal=env.ANONYMOUS)
@@ -112,11 +112,11 @@ class CommandsTest(tests.Test):
         volume = SingleVolume(tests.tmpdir, [TestDocument])
         cp = TestCommandsProcessor(volume)
 
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='testdocument')
         self.call(cp, 'PROBE', document='testdocument', guid='guid')
         self.call(cp, 'PROBE', document='fakedocument', guid='guid')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument', guid='guid')
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid')
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal=env.ANONYMOUS)
@@ -164,12 +164,12 @@ class CommandsTest(tests.Test):
         volume = SingleVolume(tests.tmpdir, [TestDocument])
         cp = TestCommandsProcessor(volume)
 
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument', guid='guid')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='testdocument')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='testdocument', guid='guid')
         self.call(cp, 'PROBE', document='testdocument', guid='guid', prop='prop')
         self.call(cp, 'PROBE', document='fakedocument', guid='guid', prop='prop')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid', prop='prop')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid', prop='prop')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument', guid='guid', prop='prop')
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid', prop='prop')
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal=env.ANONYMOUS)
@@ -213,12 +213,12 @@ class CommandsTest(tests.Test):
         volume = SingleVolume(tests.tmpdir, [TestDocument])
         cp = CommandsProcessor(volume)
 
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
         self.call(cp, 'PROBE', document='testdocument')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='fakedocument')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='fakedocument')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument')
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', principal=env.ANONYMOUS)
         self.call(cp, 'PROBE', cmd='command_3', document='testdocument', principal='me')
 
@@ -254,15 +254,15 @@ class CommandsTest(tests.Test):
         volume = SingleVolume(tests.tmpdir, [TestDocument])
         cp = CommandsProcessor(volume)
 
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument', guid='guid')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='testdocument')
+        self.assertRaises(NotFound, self.call, cp, 'PROBE', document='testdocument', guid='guid')
         volume['testdocument'].create_with_guid('guid', {'user': ['me']})
         self.call(cp, 'PROBE', document='testdocument', guid='guid')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='fakedocument', guid='guid')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='fakedocument', guid='guid')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument', guid='guid')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid')
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal=env.ANONYMOUS)
         self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal='me')
 
@@ -302,16 +302,16 @@ class CommandsTest(tests.Test):
         volume = SingleVolume(tests.tmpdir, [TestDocument])
         cp = CommandsProcessor(volume)
 
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument', prop='prop')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='testdocument', guid='guid', prop='prop')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='testdocument')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='testdocument', prop='prop')
+        self.assertRaises(NotFound, self.call, cp, 'PROBE', document='testdocument', guid='guid', prop='prop')
         volume['testdocument'].create_with_guid('guid', {'user': ['me']})
         self.call(cp, 'PROBE', document='testdocument', guid='guid', prop='prop')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', document='fakedocument', guid='guid', prop='prop')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid', prop='prop')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='fakedocument', guid='guid', prop='prop')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid', prop='prop')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument', guid='guid', prop='prop')
-        self.assertRaises(env.NotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid', prop='prop')
+        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid', prop='prop')
         self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal=env.ANONYMOUS)
         self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal='me')
 
