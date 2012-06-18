@@ -24,7 +24,6 @@ from os.path import isdir, exists, dirname, join
 from gettext import gettext as _
 
 import requests
-import requests.async
 from requests.sessions import Session
 from M2Crypto import DSA
 
@@ -146,10 +145,8 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
 
     while True:
         try:
-            rs = requests.async.request(method, path, data=data,
+            response = requests.request(method, path, data=data,
                     headers=headers, session=_session, **kwargs)
-            rs.send()
-            response = rs.response
         except requests.exceptions.SSLError:
             _logger.warning(_('Pass --no-check-certificate ' \
                     'to avoid SSL checks'))
