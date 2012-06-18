@@ -65,6 +65,7 @@ class Application(application.Daemon):
 
         if webui.webui.value:
             # XXX Until implementing regular web users
+            sugar.uid = lambda: 'demo'
             sugar.nickname = lambda: 'demo'
             sugar.color = lambda: '#000000,#000000'
 
