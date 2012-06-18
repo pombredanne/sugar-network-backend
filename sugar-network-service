@@ -209,7 +209,7 @@ node.trust_users.value = True
 
 optparse.Option.seek('main', [application.debug, application.foreground])
 optparse.Option.seek('webui', webui)
-optparse.Option.seek('sugar-network', local)
+optparse.Option.seek('local', local)
 optparse.Option.seek('node', [node.port, node.subscribe_port])
 optparse.Option.seek('restful-document', rd)
 optparse.Option.seek('active-document', ad)

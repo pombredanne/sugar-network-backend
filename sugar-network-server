@@ -24,7 +24,7 @@ import restful_document as rd
 import sugar_network_webui as webui
 from active_toolkit import optparse, coroutine
 
-from sugar_network import node
+from sugar_network import node, local
 from sugar_network.client.bus import Request
 from sugar_network.node import stats
 from sugar_network.node.mounts import Mount
@@ -98,6 +98,7 @@ locale.setlocale(locale.LC_ALL, '')
 
 optparse.Option.seek('main', application)
 optparse.Option.seek('webui', webui)
+optparse.Option.seek('local', [local.api_url])
 optparse.Option.seek('node', node)
 optparse.Option.seek('stats', stats)
 optparse.Option.seek('restful-document', rd)
