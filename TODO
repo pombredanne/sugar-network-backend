@@ -4,6 +4,7 @@
 - on a XO, there are DNS resolving fails in reconnection loop after got connected to the internet
 - get all localized strings from activity.info while populating local contexts
 - reuse gevent for HTTP requests
+- (?) avoid monitoring non activitis sweets
 
 1.0
 ===
