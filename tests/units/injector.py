@@ -11,7 +11,7 @@ from os.path import exists
 from __init__ import tests
 
 from active_toolkit import coroutine
-from sugar_network import zerosugar, Client
+from sugar_network import checkin, launch, Client
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
@@ -36,7 +36,7 @@ class InjectorTest(tests.Test):
                 (blob_path + '.sha1', ''),
                 )
 
-        pipe = zerosugar.checkin('/', context)
+        pipe = checkin('/', context)
         self.assertEqual([
             ('analyze', {'progress': -1}),
             ('failure', {
@@ -76,7 +76,7 @@ class InjectorTest(tests.Test):
                 )
         os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
 
-        pipe = zerosugar.checkin('/', context)
+        pipe = checkin('/', context)
         self.assertEqual([
             ('analyze', {'progress': -1}),
             ('download', {'progress': -1}),
@@ -96,7 +96,7 @@ class InjectorTest(tests.Test):
         bundle.writestr('probe', 'probe')
         bundle.close()
 
-        pipe = zerosugar.checkin('/', context)
+        pipe = checkin('/', context)
         self.assertEqual([
             ('analyze', {'progress': -1}),
             ('download', {'progress': -1}),
@@ -157,7 +157,7 @@ class InjectorTest(tests.Test):
             ]))
         bundle.close()
 
-        pipe = zerosugar.launch('/', context)
+        pipe = launch('/', context)
         self.assertEqual([
             ('analyze', {'progress': -1}),
             ('download', {'progress': -1}),
@@ -228,7 +228,7 @@ class InjectorTest(tests.Test):
             ]))
         bundle.close()
 
-        pipe = zerosugar.launch('/', context)
+        pipe = launch('/', context)
         self.assertEqual([
             ('analyze', {'progress': -1}),
             ('download', {'progress': -1}),

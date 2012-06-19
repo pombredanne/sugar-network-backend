@@ -27,7 +27,7 @@ import active_document as ad
 from sugar_network.toolkit import sugar, http
 from sugar_network.node.mounts import NodeCommands
 from sugar_network.local import activities, zeroconf
-from sugar_network import local, zerosugar
+from sugar_network import local, checkin
 from active_toolkit import sockets, util, coroutine, enforce
 
 
@@ -235,7 +235,7 @@ class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
             shutil.rmtree(path)
 
     def _checkin(self, guid):
-        for phase, __ in zerosugar.checkin('/', guid, 'activity'):
+        for phase, __ in checkin('/', guid, 'activity'):
             # TODO Publish checkin progress
             if phase == 'failure':
                 self._publish({

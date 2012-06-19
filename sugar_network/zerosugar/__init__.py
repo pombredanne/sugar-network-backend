@@ -17,8 +17,6 @@ import sys
 from os.path import join, abspath, dirname
 sys.path.insert(0, join(abspath(dirname(__file__)), 'lib'))
 
-from sugar_network.zerosugar.injector import launch, checkin
-
 
 def _init():
     from zeroinstall.injector import reader, model
