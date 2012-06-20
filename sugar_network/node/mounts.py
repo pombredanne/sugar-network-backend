@@ -88,9 +88,9 @@ class Mount(ad.VolumeCommands, NodeCommands):
             # In case if mount is being used for local clients
             request.pop('mountpoint')
             request.principal = sugar.uid()
-        request.accept_language = [self._locale]
-        if response is None:
-            response = ad.Response()
+            request.accept_language = [self._locale]
+            if response is None:
+                response = ad.Response()
         return ad.VolumeCommands.call(self, request, response)
 
 
