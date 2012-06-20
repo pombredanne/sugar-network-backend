@@ -22,6 +22,7 @@ from gettext import gettext as _
 import active_document as ad
 from active_toolkit import util
 from sugar_network import node
+from sugar_network.toolkit import sugar
 
 
 _logger = logging.getLogger('node.mounts')
@@ -86,6 +87,7 @@ class Mount(ad.VolumeCommands, NodeCommands):
         if 'mountpoint' in request:
             # In case if mount is being used for local clients
             request.pop('mountpoint')
+            request.principal = sugar.uid()
         request.accept_language = [self._locale]
         if response is None:
             response = ad.Response()
