@@ -271,39 +271,38 @@ class Directory(object):
         if not accept_range:
             return ranges, []
 
-        # To make fetching more reliable, avoid using intermediate
-        # find's offsets (documents can be changed and offset will point
-        # to different document).
-        if hasattr(accept_range, 'first'):
-            start = accept_range.first
-        else:
-            start = accept_range[0]
-        patch = []
+        def patch():
+            # To make fetching more reliable, avoid using intermediate
+            # find's offsets (documents can be changed and offset will point
+            # to different document).
+            if hasattr(accept_range, 'first'):
+                start = accept_range.first
+            else:
+                start = accept_range[0]
+            ranges[0] = start
 
-        while True:
-            documents, total = self.find(
-                    query='seqno:%s..' % start,
-                    order_by='seqno', reply=['guid'],
-                    limit=limit, no_cache=True)
-            if not total.value:
-                break
+            while True:
+                documents, total = self.find(
+                        query='seqno:%s..' % start,
+                        order_by='seqno', reply=['guid'],
+                        limit=limit, no_cache=True)
+                if not total.value:
+                    break
 
-            seqno = None
-            for i in documents:
-                start = max(start, i.get('seqno'))
-                diff, __ = self._storage.diff(i.guid, accept_range)
-                if not diff:
-                    continue
-                seqno = max(seqno, i.get('seqno'))
-                if ranges[0] is None:
-                    ranges[0] = seqno
-                patch.append((i.guid, diff))
+                seqno = None
+                for i in documents:
+                    start = max(start, i.get('seqno'))
+                    diff, __ = self._storage.diff(i.guid, accept_range)
+                    if not diff:
+                        continue
+                    seqno = max(seqno, i.get('seqno'))
+                    yield i.guid, diff
 
-            if seqno:
-                ranges[1] = seqno
-            start += 1
+                if seqno:
+                    ranges[1] = seqno
+                start += 1
 
-        return ranges, patch
+        return ranges, patch()
 
     def merge(self, guid, diff, touch=True):
         """Apply changes for documents.

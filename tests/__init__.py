@@ -7,8 +7,7 @@ import logging
 import unittest
 from os.path import dirname, join, exists, abspath
 
-import dbus.glib
-import dbus.mainloop.glib
+from dbus.mainloop.glib import DBusGMainLoop
 
 from active_document import env as _env, index_queue as _index_queue
 from active_document import storage as _storage
@@ -19,7 +18,7 @@ root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
 tmpdir = None
 
-dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+DBusGMainLoop(set_as_default=True)
 
 
 def main():

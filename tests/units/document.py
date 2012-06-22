@@ -515,7 +515,39 @@ class DocumentTest(tests.Test):
         self.assertEqual(
                 ['1', '2', '3', '4'],
                 [diff.get('prop')[0] for guid, diff in docs])
-        self.assertEqual([1, 4], diff_rage)
+        self.assertEqual([0, 4], diff_rage)
+
+    def test_diff_ContinuousSequence(self):
+
+        class Document(document.Document):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        guid = directory.create({'prop': '1', 'user': []})
+        directory.delete(guid)
+        directory.create({'prop': '2', 'user': []})
+        guid = directory.create({'prop': '3', 'user': []})
+        directory.delete(guid)
+        directory.create({'prop': '4', 'user': []})
+        guid = directory.create({'prop': '5', 'user': []})
+        directory.delete(guid)
+        guid = directory.create({'prop': '6', 'user': []})
+        directory.delete(guid)
+        directory.create({'prop': '7', 'user': []})
+        guid = directory.create({'prop': '8', 'user': []})
+        directory.delete(guid)
+
+        directory_._DIFF_PAGE_SIZE = 2
+        diff_rage, docs = directory.diff(xrange(10), 1024)
+
+        self.assertEqual(
+                ['2', '4', '7'],
+                [diff.get('prop')[0] for guid, diff in docs])
+        self.assertEqual([0, 7], diff_rage)
 
     def test_Events(self):
         env.index_flush_threshold.value = 0
