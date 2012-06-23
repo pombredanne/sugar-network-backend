@@ -13,11 +13,6 @@ from sugar_network.node.sneakernet import InPacket, OutPacket, DiskFull
 
 class SneakernetTest(tests.Test):
 
-    def setUp(self):
-        tests.Test.setUp(self)
-        sneakernet._RESERVED_SIZE = 0
-        sneakernet._MAX_PACKET_SIZE = 1024 * 1024 * 100
-
     def test_InPacket_Empty(self):
         self.touch('file')
         self.assertRaises(RuntimeError, InPacket, 'file')

@@ -30,12 +30,13 @@ from active_toolkit import sockets, util, enforce
 
 _RESERVED_SIZE = 1024 * 1024
 _MAX_PACKET_SIZE = 1024 * 1024 * 100
+_PACKET_COMPRESS_MODE = 'gz'
 
 _logger = logging.getLogger('node.sneakernet')
 
 
 def walk(path):
-    for path in glob(join(path, '*.packet.tar.gz')):
+    for path in glob(join(path, '*.packet')):
         with InPacket(path) as packet:
             yield packet
 
@@ -157,13 +158,13 @@ class OutPacket(object):
         self._size_to_flush = 0
 
         if root is not None:
-            self._path = join(root,
-                    '%s-%s.packet.tar.gz' % (packet_type, ad.uuid()))
+            self._path = join(root, '%s-%s.packet' % (packet_type, ad.uuid()))
             self._file = stream = file(self._path, 'w')
         if stream is None:
             stream = StringIO()
 
-        self._tarball = tarfile.open(mode='w:gz', fileobj=stream)
+        self._tarball = tarfile.open(
+                mode='w:' + _PACKET_COMPRESS_MODE, fileobj=stream)
         self._stream = stream
 
     @property

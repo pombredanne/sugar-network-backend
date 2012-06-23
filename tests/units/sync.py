@@ -10,6 +10,7 @@ from __init__ import tests
 import active_document as ad
 from sugar_network.node.sneakernet import InPacket, OutPacket
 from sugar_network.node.sync import Master, Node
+from sugar_network.node import sneakernet
 
 
 class SyncTest(tests.Test):
@@ -111,7 +112,50 @@ class SyncTest(tests.Test):
         self.assertEqual({'document': [[1, 1]]}, packet['sequence'])
 
     def test_Master_LimittedPull(self):
-        pass
+        master = Master('master')
+        master.volume = {'document': Directory(diff=['0' * 1024] * 10)}
+        response = ad.Response()
+
+        def rewind():
+            request = ad.Request()
+            packet = OutPacket('pull',
+                    sender='node',
+                    receiver='master',
+                    sequence={'document': 'sequence'})
+            request.content_stream, request.content_length = packet.pop_content()
+            master.volume['document'].pulled = []
+            master.volume['document'].seqno = 0
+            return request
+
+        request = rewind()
+        reply = master.sync(request, response, accept_length=1024)
+        self.assertEqual([], master.volume['document'].pulled)
+        packet = InPacket(stream=reply)
+        self.assertEqual({}, packet['sequence'])
+        self.assertEqual([
+            ],
+            [i for i in packet])
+
+        request = rewind()
+        reply = master.sync(request, response, accept_length=1024 * 2)
+        self.assertEqual(['sequence'], master.volume['document'].pulled)
+        packet = InPacket(stream=reply)
+        self.assertEqual({'document': [[1, 1]]}, packet['sequence'])
+        self.assertEqual([
+            {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 1024},
+            ],
+            [i for i in packet])
+
+        request = rewind()
+        reply = master.sync(request, response, accept_length=1024 * 3)
+        self.assertEqual(['sequence'] * 2, master.volume['document'].pulled)
+        packet = InPacket(stream=reply)
+        self.assertEqual({'document': [[1, 2]]}, packet['sequence'])
+        self.assertEqual([
+            {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 1024},
+            {'type': 'messages', 'document': 'document', 'guid': 2, 'diff': '0' * 1024},
+            ],
+            [i for i in packet])
 
     def test_Node_Export(self):
         node = Node('node', 'master')
@@ -119,9 +163,9 @@ class SyncTest(tests.Test):
         os.makedirs('sync')
 
         node.sync('sync')
-        self.assertEqual(['push-1.packet.tar.gz'], os.listdir('sync'))
+        self.assertEqual(['push-1.packet'], os.listdir('sync'))
 
-        packet = InPacket('sync/push-1.packet.tar.gz')
+        packet = InPacket('sync/push-1.packet')
         self.assertEqual('node', packet['sender'])
         self.assertEqual('master', packet['receiver'])
         self.assertEqual({'document': [[1, 1]]}, packet['sequence'])
@@ -190,11 +234,12 @@ class SyncTest(tests.Test):
         self.assertEqual(
                 {'document': [[1, 2], [5, 10], [13, None]]},
                 json.load(file('pull.sequence')))
-        self.assertEqual([
-            (2, 'diff-2'),
-            (3, 'diff-3'),
-            ],
-            node.volume['document'].merged)
+        self.assertEqual(
+                sorted([
+                    (2, 'diff-2'),
+                    (3, 'diff-3'),
+                    ]),
+                sorted(node.volume['document'].merged))
 
     def test_Node_LimittedExport(self):
         pass
@@ -202,15 +247,17 @@ class SyncTest(tests.Test):
 
 class Directory(object):
 
-    def __init__(self):
+    def __init__(self, diff=None):
         self.seqno = 0
         self.merged = []
         self.pulled = []
+        self._diff = diff or ['diff']
 
     def diff(self, seq):
-        self.pulled.append(seq)
-        self.seqno += 1
-        yield [[self.seqno, self.seqno]], self.seqno, 'diff'
+        for diff in self._diff:
+            self.seqno += 1
+            yield [[self.seqno, self.seqno]], self.seqno, diff
+            self.pulled.append(seq)
 
     def merge(self, *args):
         self.merged.append(args)

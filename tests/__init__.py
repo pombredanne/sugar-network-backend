@@ -19,6 +19,7 @@ from sugar_network import local, node
 from sugar_network.node.mounts import NodeCommands
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
+from sugar_network.node import sneakernet
 
 
 root = abspath(dirname(__file__))
@@ -68,6 +69,9 @@ class Test(unittest.TestCase):
 
         sugar.nickname = lambda: 'test'
         sugar.color = lambda: '#000000,#000000'
+
+        sneakernet._RESERVED_SIZE = 0
+        sneakernet._PACKET_COMPRESS_MODE = ''
 
         self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile

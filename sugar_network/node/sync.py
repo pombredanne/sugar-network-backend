@@ -172,11 +172,14 @@ class Master(object):
             def patch():
                 for seq, guid, diff in directory.diff(in_seq[document]):
                     coroutine.dispatch()
-                    yield guid, diff
+                    yield {'guid': guid, 'diff': diff}
                     out_seq[document].include(seq)
 
             directory.commit()
-            packet.push_messages(patch(), document=document)
+            try:
+                packet.push_messages(patch(), document=document)
+            except sneakernet.DiskFull:
+                _logger.debug('Reach package size limit')
 
 
 class _Sequence(dict):
