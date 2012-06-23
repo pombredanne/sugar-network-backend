@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from gettext import gettext as _
 
 import active_document
-from active_toolkit import util, enforce
+from active_toolkit import sockets, util, enforce
 
 
 _RESERVED_SIZE = 1024 * 1024
@@ -43,10 +43,21 @@ class InPacket(object):
         self._tarball = None
         self._header = None
 
-        if stream is None:
-            self._file = stream = file(path)
-
         try:
+            if stream is None:
+                self._file = stream = file(path, 'rb')
+            elif not hasattr(stream, 'seek'):
+                # tarfile/gzip/zip might require seeking
+                self._file = tempfile.TemporaryFile()
+                while True:
+                    chunk = stream.read(sockets.BUFFER_SIZE)
+                    if not chunk:
+                        self._file.flush()
+                        self._file.seek(0)
+                        break
+                    self._file.write(chunk)
+                stream = self._file
+
             self._tarball = tarfile.open('r', fileobj=stream)
             with self._extractfile('header') as f:
                 self._header = json.load(f)

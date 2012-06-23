@@ -84,6 +84,25 @@ class SneakernetTest(tests.Test):
             {'type': 'blob', 'num': 2, 'blob': 'blob'},
             ], records)
 
+    def test_InPacket_SaveStream(self):
+
+        class Stream(object):
+
+            def __init__(self_):
+                self.touch(('header', '{"probe": "ok"}'))
+                tarball = tarfile.open('tarball', 'w:gz')
+                tarball.add('header')
+                tarball.close()
+                self_.data = file('tarball', 'rb').read()
+
+            def read(self, size):
+                data = self.data
+                self.data = None
+                return data
+
+        packet = InPacket(stream=Stream())
+        self.assertEqual('ok', packet['probe'])
+
     def test_OutPacket_Header(self):
         with OutPacket('probe', root='.', a=1) as out_packet:
             out_packet['b'] = '2'
