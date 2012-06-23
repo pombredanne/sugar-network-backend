@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import json
 import tarfile
 from cStringIO import StringIO
@@ -12,6 +13,11 @@ from sugar_network.node.sneakernet import InPacket, OutPacket, DiskFull
 
 
 class SneakernetTest(tests.Test):
+
+    def setUp(self):
+        tests.Test.setUp(self)
+        self.override(os, 'statvfs', lambda *args: statvfs())
+        statvfs.f_bfree = 1024 * 1024
 
     def test_InPacket_Empty(self):
         self.touch('file')
@@ -143,7 +149,7 @@ class SneakernetTest(tests.Test):
             {'type': 'messages', 'num': 3, 'g': 5, 'h': '6',  'i': None},
             ], records)
 
-    def test_OutPacket_DiskFullOnPushBlobs(self):
+    def test_OutPacket_LimitOnPushBlobs(self):
         self.touch(('blob', '0' * 100))
 
         packet = OutPacket('probe', root='.', limit=100)
@@ -161,7 +167,7 @@ class SneakernetTest(tests.Test):
                 ['0' * 100],
                 [i['blob'].read() for i in InPacket(packet.path)])
 
-    def test_OutPacket_DiskFullOnPushMessages(self):
+    def test_OutPacket_LimitOnPushMessages(self):
         packet = OutPacket('probe', root='.', limit=100)
         self.assertRaises(DiskFull, packet.push_messages, ['1' * 100])
         packet.close()
@@ -190,6 +196,33 @@ class SneakernetTest(tests.Test):
                     {'type': 'messages', 'probe': '2' * 100},
                     ],
                 [i for i in InPacket(packet.path)])
+
+    def test_OutPacket_DiskFull(self):
+        self.touch(('blob', '0' * 100))
+
+        statvfs.f_bfree = 100
+        packet = OutPacket('probe', root='.')
+        self.assertRaises(DiskFull, packet.push_blob, file('blob'))
+        packet.close()
+        self.assertEqual(
+                [],
+                [i['blob'].read() for i in InPacket(packet.path)])
+
+        statvfs.f_bfree = 200
+        packet = OutPacket('probe', root='.')
+        packet.push_blob(file('blob'))
+        statvfs.f_bfree = 100
+        self.assertRaises(DiskFull, packet.push_blob, file('blob'))
+        packet.close()
+        self.assertEqual(
+                ['0' * 100],
+                [i['blob'].read() for i in InPacket(packet.path)])
+
+
+class statvfs(object):
+
+    f_bfree = 0
+    f_frsize = 1
 
 
 if __name__ == '__main__':

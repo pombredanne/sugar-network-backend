@@ -146,9 +146,6 @@ class OutPacket(object):
 
     def __init__(self, packet_type, root=None, stream=None, limit=None,
             **kwargs):
-        if not limit:
-            limit = _MAX_PACKET_SIZE
-        self._limit = min(_MAX_PACKET_SIZE, limit) - _RESERVED_SIZE
         self._stream = None
         self._file = None
         self._tarball = None
@@ -160,9 +157,12 @@ class OutPacket(object):
         if root is not None:
             self._path = join(root, '%s-%s.packet' % (packet_type, ad.uuid()))
             self._file = stream = file(self._path, 'w')
+        else:
+            limit = min(_MAX_PACKET_SIZE, limit or _MAX_PACKET_SIZE)
+        self._limit = limit
+
         if stream is None:
             stream = StringIO()
-
         self._tarball = tarfile.open(
                 mode='w:' + _PACKET_COMPRESS_MODE, fileobj=stream)
         self._stream = stream
@@ -210,8 +210,7 @@ class OutPacket(object):
 
         while chunk is not None:
             self._flush(0, True)
-            limit = self._limit - self._stream.tell()
-            enforce(limit > 0, DiskFull)
+            limit = self._enforce_limit()
 
             with tempfile.TemporaryFile() as arcfile:
                 while True:
@@ -268,7 +267,7 @@ class OutPacket(object):
 
         self._flush(info.size, False)
         if not force:
-            enforce(self._stream.tell() + info.size < self._limit, DiskFull)
+            self._enforce_limit(info.size)
 
         self._tarball.addfile(info, fileobj=fileobj)
 
@@ -277,3 +276,13 @@ class OutPacket(object):
             self._tarball.fileobj.flush()
             self._size_to_flush = 0
         self._size_to_flush += size
+
+    def _enforce_limit(self, size=0):
+        if self._limit is None:
+            stat = os.statvfs(self.path)
+            free = stat.f_bfree * stat.f_frsize
+        else:
+            free = self._limit - self._stream.tell()
+        free -= _RESERVED_SIZE
+        enforce(free - size > 0, DiskFull)
+        return free
