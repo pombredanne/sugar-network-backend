@@ -5,6 +5,7 @@
 - get all localized strings from activity.info while populating local contexts
 - reuse gevent for HTTP requests
 - (?) avoid monitoring non activitis sweets
+- if webui startes from server, no way to pass webbrwosers's accept_langs to ad
 
 1.0
 ===

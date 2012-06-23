@@ -13,6 +13,7 @@ from ipc_server import *
 from glib_client import *
 from injector import *
 from node import *
+from sync import *
 
 
 tests.main()

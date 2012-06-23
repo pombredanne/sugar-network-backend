@@ -5,13 +5,13 @@ import copy
 
 from __init__ import tests
 
-from sugar_network.toolkit.sequence import Sequence
+from sugar_network.node.sequence import Sequence
 
 
 class SequenceTest(tests.Test):
 
     def test_empty(self):
-        scale = Sequence(tests.tmpdir, init_value=[1, None])
+        scale = Sequence(empty_value=[1, None])
         self.assertEqual(
                 [[1, None]],
                 scale)
@@ -19,7 +19,7 @@ class SequenceTest(tests.Test):
         scale.exclude(1, 1)
         assert not scale.empty
 
-        scale = Sequence(tests.tmpdir)
+        scale = Sequence()
         self.assertEqual(
                 [],
                 scale)
@@ -27,27 +27,14 @@ class SequenceTest(tests.Test):
         scale.include(1, None)
         assert not scale.empty
 
-    def test_commit(self):
-        scale = Sequence(tests.tmpdir, 'scale')
-        self.assertEqual(
-                [],
-                scale)
-        scale.append([2, 3])
-        scale.commit()
-
-        scale = Sequence(tests.tmpdir, 'scale')
-        self.assertEqual(
-                [[2, 3]],
-                scale)
-
     def test_exclude(self):
-        scale = Sequence(tests.tmpdir, '1', [1, None])
+        scale = Sequence(empty_value=[1, None])
         scale.exclude(1, 10)
         self.assertEqual(
                 [[11, None]],
                 scale)
 
-        scale = Sequence(tests.tmpdir, '2', [1, None])
+        scale = Sequence(empty_value=[1, None])
         scale.exclude(5, 10)
         self.assertEqual(
                 [[1, 4], [11, None]],
@@ -79,7 +66,7 @@ class SequenceTest(tests.Test):
                 scale)
 
     def test_include_JoinExistingItems(self):
-        scale = Sequence(tests.tmpdir)
+        scale = Sequence()
 
         scale.include(1, None)
         self.assertEqual(
@@ -138,7 +125,7 @@ class SequenceTest(tests.Test):
                 scale)
 
     def test_include_InsertNewItems(self):
-        scale = Sequence(tests.tmpdir)
+        scale = Sequence()
 
         scale.include(8, 10)
         scale.include(3, 3)
@@ -185,7 +172,7 @@ class SequenceTest(tests.Test):
                 scale)
 
     def teste_Invert(self):
-        scale_1 = Sequence(tests.tmpdir, init_value=[1, None])
+        scale_1 = Sequence(empty_value=[1, None])
         scale_1.exclude(2, 2)
         scale_1.exclude(5, 10)
 
@@ -205,7 +192,7 @@ class SequenceTest(tests.Test):
                 scale_1)
 
     def test_contains(self):
-        scale = Sequence(tests.tmpdir, init_value=[1, None])
+        scale = Sequence(empty_value=[1, None])
         scale.exclude(2, 2)
         scale.exclude(5, 10)
 
@@ -217,16 +204,16 @@ class SequenceTest(tests.Test):
         assert 11 in scale
 
     def test_first(self):
-        scale = Sequence(tests.tmpdir)
+        scale = Sequence()
         self.assertEqual(0, scale.first)
 
-        scale = Sequence(tests.tmpdir, init_value=[1, None])
+        scale = Sequence(empty_value=[1, None])
         self.assertEqual(1, scale.first)
         scale.exclude(1, 3)
         self.assertEqual(4, scale.first)
 
     def test_include(self):
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, 2)
         self.assertEqual(
                 [[2, 2]],
@@ -252,7 +239,7 @@ class SequenceTest(tests.Test):
                 [[2, 5], [7, None]],
                 rng)
 
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(10, None)
         self.assertEqual(
                 [[10, None]],
@@ -267,46 +254,46 @@ class SequenceTest(tests.Test):
                 rng)
 
     def test_floor(self):
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, None)
         rng.floor(1)
         self.assertEqual([], rng)
 
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, None)
         rng.floor(2)
         self.assertEqual([[2, 2]], rng)
 
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, None)
         rng.floor(10)
         self.assertEqual([[2, 10]], rng)
 
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(7)
         self.assertEqual([[2, 5]], rng)
 
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(5)
         self.assertEqual([[2, 5]], rng)
 
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(3)
         self.assertEqual([[2, 3]], rng)
 
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(2)
         self.assertEqual([[2, 2]], rng)
 
-        rng = Sequence(tests.tmpdir)
+        rng = Sequence()
         rng.include(2, 5)
         rng.include(10, 11)
         rng.floor(1)

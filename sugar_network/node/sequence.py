@@ -13,13 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import json
 import collections
-from os.path import join, exists
 from gettext import gettext as _
 
-from active_toolkit import util, enforce
+from active_toolkit import enforce
 
 
 class Sequence(list):
@@ -30,27 +27,21 @@ class Sequence(list):
 
     """
 
-    def __init__(self, root, name=None, init_value=None):
+    def __init__(self, value=None, empty_value=None):
         """
-        :param name:
-            if set, `Sequence` value will be restored on creation and
-            can be stored by `flush()` function
-        :param init_value:
-            if not `None`, the initial value for the range
+        :param value:
+            default value to initialize range
+        :param empty_value:
+            if not `None`, the initial value for empty range
 
         """
-        if not name:
-            self._path = None
+        if empty_value is None:
+            self._empty_value = []
         else:
-            self._path = join(root, name + '.range')
-        if init_value is None:
-            self._init_value = []
-        else:
-            self._init_value = [init_value]
+            self._empty_value = [empty_value]
 
-        if self._path and exists(self._path):
-            with file(self._path) as f:
-                self.extend(json.load(f))
+        if value:
+            self.extend(value)
         else:
             self.clear()
 
@@ -71,11 +62,11 @@ class Sequence(list):
     @property
     def empty(self):
         """Is timeline in the initial state."""
-        return self == self._init_value
+        return self == self._empty_value
 
     def clear(self):
         """Reset range to the initial value."""
-        self[:] = self._init_value
+        self[:] = self._empty_value
 
     def include(self, start, end=None):
         """Include specified range.
@@ -124,14 +115,6 @@ class Sequence(list):
             return
         if i < len(self):
             del self[i:]
-
-    def commit(self):
-        """If timeline supports persistent saving, store current state."""
-        enforce(self._path)
-        with util.new_file(self._path) as f:
-            json.dump(self, f)
-            f.flush()
-            os.fsync(f.fileno())
 
     def _include(self, range_start, range_end):
         if range_start is None:

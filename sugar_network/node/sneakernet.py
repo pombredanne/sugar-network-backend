@@ -18,11 +18,13 @@ import json
 import tarfile
 import logging
 import tempfile
+from glob import glob
 from cStringIO import StringIO
 from contextlib import contextmanager
+from os.path import join
 from gettext import gettext as _
 
-import active_document
+import active_document as ad
 from active_toolkit import sockets, util, enforce
 
 
@@ -30,6 +32,16 @@ _RESERVED_SIZE = 1024 * 1024
 _MAX_PACKET_SIZE = 1024 * 1024 * 100
 
 _logger = logging.getLogger('node.sneakernet')
+
+
+def walk(path):
+    for path in glob(join(path, '*.packet.tar.gz')):
+        with InPacket(path) as packet:
+            yield packet
+
+
+def switch_disk(path):
+    return path
 
 
 class DiskFull(Exception):
@@ -66,6 +78,16 @@ class InPacket(object):
             self.close()
             util.exception()
             raise RuntimeError(_('Malformed packet: %s') % error)
+
+    @property
+    def path(self):
+        if self._file is None:
+            return None
+        else:
+            return self._file.name
+
+    def __repr__(self):
+        return str(self.path)
 
     def __enter__(self):
         return self
@@ -135,7 +157,8 @@ class OutPacket(object):
         self._size_to_flush = 0
 
         if root is not None:
-            self._path = '%s-%s.packet' % (packet_type, active_document.uuid())
+            self._path = join(root,
+                    '%s-%s.packet.tar.gz' % (packet_type, ad.uuid()))
             self._file = stream = file(self._path, 'w')
         if stream is None:
             stream = StringIO()
@@ -159,18 +182,19 @@ class OutPacket(object):
     def close(self):
         if self._tarball is not None:
             self._commit()
+            self._tarball = None
         if self._file is not None:
             self._file.close()
             self._file = None
 
     def clear(self):
+        if self._tarball is not None:
+            self.close()
+            self._tarball = None
         if self._file is not None:
             self._file.close()
             os.unlink(self._file.name)
             self._file = None
-        if self._tarball is not None:
-            self._tarball.close()
-            self._tarball = None
 
     @contextmanager
     def push_messages(self, items, **meta):
@@ -207,13 +231,13 @@ class OutPacket(object):
                     break
 
                 arcfile.seek(0)
-                arcname = active_document.uuid()
+                arcname = ad.uuid()
                 self._addfile(arcname, arcfile, False)
                 self._addfile(arcname + '.meta', meta, True)
 
     def push_blob(self, stream, **meta):
         meta['type'] = 'blob'
-        arcname = active_document.uuid()
+        arcname = ad.uuid()
         self._addfile(arcname, stream, False)
         self._addfile(arcname + '.meta', meta, True)
 
