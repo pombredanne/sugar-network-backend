@@ -41,10 +41,6 @@ def walk(path):
             yield packet
 
 
-def switch_disk(path):
-    return path
-
-
 class DiskFull(Exception):
     pass
 
@@ -54,7 +50,7 @@ class InPacket(object):
     def __init__(self, path=None, stream=None):
         self._file = None
         self._tarball = None
-        self._header = None
+        self.header = {}
 
         try:
             if stream is None:
@@ -73,8 +69,8 @@ class InPacket(object):
 
             self._tarball = tarfile.open('r', fileobj=stream)
             with self._extractfile('header') as f:
-                self._header = json.load(f)
-            enforce(type(self._header) is dict, _('Incorrect header'))
+                self.header = json.load(f)
+            enforce(type(self.header) is dict, _('Incorrect header'))
         except Exception, error:
             self.close()
             util.exception()
@@ -95,9 +91,6 @@ class InPacket(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-
-    def __getitem__(self, key):
-        return self._header.get(key)
 
     def __iter__(self):
         for info in self._tarball:
@@ -149,8 +142,8 @@ class OutPacket(object):
         self._stream = None
         self._file = None
         self._tarball = None
-        self._header = kwargs
-        self._header['type'] = packet_type
+        self.header = kwargs
+        self.header['type'] = packet_type
         self._path = None
         self._size_to_flush = 0
 
@@ -171,14 +164,14 @@ class OutPacket(object):
     def path(self):
         return self._path
 
+    def __repr__(self):
+        return str(self.path)
+
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-
-    def __setitem__(self, key, value):
-        self._header[key] = value
 
     def close(self):
         if self._tarball is not None:
@@ -190,7 +183,7 @@ class OutPacket(object):
 
     def clear(self):
         if self._tarball is not None:
-            self.close()
+            self._tarball.close()
             self._tarball = None
         if self._file is not None:
             self._file.close()
@@ -250,7 +243,7 @@ class OutPacket(object):
         return content, length
 
     def _commit(self):
-        self._addfile('header', self._header, True)
+        self._addfile('header', self.header, True)
         self._tarball.close()
         self._tarball = None
 

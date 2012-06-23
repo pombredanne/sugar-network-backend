@@ -45,9 +45,9 @@ class SneakernetTest(tests.Test):
         tarball.close()
 
         with InPacket('tarball') as packet:
-            self.assertEqual(2, packet['a'])
-            self.assertEqual('4', packet['b'])
-            self.assertEqual(None, packet['c'])
+            self.assertEqual(2, packet.header['a'])
+            self.assertEqual('4', packet.header['b'])
+            self.assertEqual(None, packet.header['c'])
 
     def test_InPacket_Content(self):
         self.touch(('header', '{}'))
@@ -102,26 +102,26 @@ class SneakernetTest(tests.Test):
                 return data
 
         packet = InPacket(stream=Stream())
-        self.assertEqual('ok', packet['probe'])
+        self.assertEqual('ok', packet.header['probe'])
 
     def test_OutPacket_Header(self):
         with OutPacket('probe', root='.', a=1) as out_packet:
-            out_packet['b'] = '2'
-            out_packet['c'] = None
+            out_packet.header['b'] = '2'
+            out_packet.header['c'] = None
         with InPacket(out_packet.path) as in_packet:
-            self.assertEqual(1, in_packet['a'])
-            self.assertEqual('2', in_packet['b'])
-            self.assertEqual(None, in_packet['c'])
+            self.assertEqual(1, in_packet.header['a'])
+            self.assertEqual('2', in_packet.header['b'])
+            self.assertEqual(None, in_packet.header['c'])
 
         with OutPacket('probe', a=1) as out_packet:
-            out_packet['b'] = '2'
-            out_packet['c'] = None
+            out_packet.header['b'] = '2'
+            out_packet.header['c'] = None
             stream, length = out_packet.pop_content()
             assert length > 0
             with InPacket(stream=stream) as in_packet:
-                self.assertEqual(1, in_packet['a'])
-                self.assertEqual('2', in_packet['b'])
-                self.assertEqual(None, in_packet['c'])
+                self.assertEqual(1, in_packet.header['a'])
+                self.assertEqual('2', in_packet.header['b'])
+                self.assertEqual(None, in_packet.header['c'])
 
     def test_OutPacket_Content(self):
         packet = OutPacket('probe', root='.')
