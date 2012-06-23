@@ -424,11 +424,43 @@ class CommandsTest(tests.Test):
             def particular(self):
                 return 'particular'
 
-
         cp = Child()
         self.assertEqual('probe-2', self.call(cp, 'PROBE'))
         self.assertEqual('common', self.call(cp, 'COMMON'))
         self.assertEqual('particular', self.call(cp, 'PARTICULAR'))
+
+    def test_RequestRead(self):
+
+        class Stream(object):
+
+            def __init__(self, value):
+                self.pos = 0
+                self.value = value
+
+            def read(self, size):
+                assert self.pos + size <= len(self.value)
+                result = self.value[self.pos:self.pos + size]
+                self.pos += size
+                return result
+
+        request = Request()
+        request.content_stream = Stream('123')
+        request.content_length = len(request.content_stream.value)
+        self.assertEqual('123', request.read())
+        self.assertEqual('', request.read())
+        self.assertEqual('', request.read(10))
+
+        request = Request()
+        request.content_stream = Stream('123')
+        request.content_length = len(request.content_stream.value)
+        self.assertEqual('123', request.read(10))
+
+        request = Request()
+        request.content_stream = Stream('123')
+        request.content_length = len(request.content_stream.value)
+        self.assertEqual('1', request.read(1))
+        self.assertEqual('2', request.read(1))
+        self.assertEqual('3', request.read())
 
     def call(self, cp, method, document=None, guid=None, prop=None,
             principal=None, access_level=env.ACCESS_REMOTE, **kwargs):

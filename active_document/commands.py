@@ -58,6 +58,10 @@ class Request(dict):
     access_level = env.ACCESS_REMOTE
     accept_language = None
 
+    def __init__(self, *args):
+        dict.__init__(self, *args)
+        self._pos = 0
+
     def copy(self):
         return copy(self)
 
@@ -68,10 +72,14 @@ class Request(dict):
     def read(self, size=None):
         if self.content_stream is None:
             return ''
-        result = self.content_stream.read(size or self.content_length)
+        rest = max(0, self.content_length - self._pos)
+        size = rest if size is None else min(rest, size)
+        print '>', self._pos, rest, size
+        result = self.content_stream.read(size)
         if not result:
             return ''
-        self.content_length -= len(result)
+        self._pos += len(result)
+        print '>>', self._pos, rest, result
         return result
 
 
