@@ -11,12 +11,14 @@ homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
 version   = 0.3
 stability = developer
 
-requires  = gevent; werkzeug
+requires  = base/m2crypto; gevent; werkzeug
+replaces  = restful-document
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
-            cp -r active_document %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
             cp -r active_toolkit %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
+            cp -r active_document %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
+            cp -r restful_document %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
             install -m 0755 -d %(DESTDIR)s/%(DATADIR)s/doc/%(name)s &&
             cp AUTHORS COPYING HACKING README TODO %(DESTDIR)s/%(DATADIR)s/doc/%(name)s/ &&
             true
