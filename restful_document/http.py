@@ -81,15 +81,6 @@ class Request(ad.Request):
         elif scope == 1:
             self['document'], = self.path
 
-    def read(self, size=None):
-        if self.content_stream is None:
-            return ''
-        result = self.content_stream.read(size or self.content_length)
-        if not result:
-            return ''
-        self.content_length -= len(result)
-        return result
-
 
 class Response(ad.Response):
 

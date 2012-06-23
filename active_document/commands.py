@@ -65,6 +65,15 @@ class Request(dict):
         enforce(key in self, _('Cannot find %r request argument'), key)
         return self.get(key)
 
+    def read(self, size=None):
+        if self.content_stream is None:
+            return ''
+        result = self.content_stream.read(size or self.content_length)
+        if not result:
+            return ''
+        self.content_length -= len(result)
+        return result
+
 
 class Response(dict):
 

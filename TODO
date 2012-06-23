@@ -3,6 +3,7 @@
 - if not completed populate (but commit happened) was aborted, the rest of populate will be skipped next populate
 - do not sync objects that were created and deleted before syncing
 - more relibale db update on schema changes
+- implement authentication
 
 1.0
 ===
@@ -14,3 +15,4 @@
 - use read/write processes for master server
 - IndexProxy should be smarter to take into account sorting of cached documents
 - i18n for SN content
+- replace urllib2 with requests with greenlets enabled
