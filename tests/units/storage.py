@@ -24,8 +24,7 @@ class StorageTest(tests.Test):
     def storage(self, props):
 
         class Test(object):
-
-            LAYOUT_VERSION = 0
+            pass
 
         metadata = Metadata(Test)
         for i in props:
@@ -150,30 +149,20 @@ class StorageTest(tests.Test):
         storage.get('guid3').set('guid', value=3, mtime=3)
 
         self.assertEqual(
-                sorted([
-                    ('guid1', {'guid': 1}),
-                    ('guid2', {'guid': 2}),
-                    ('guid3', {'guid': 3}),
-                    ]),
+                sorted(['guid1', 'guid2', 'guid3']),
+                sorted([i for i in storage.walk(0)]))
+
+        self.assertEqual(
+                sorted(['guid2', 'guid3']),
                 sorted([i for i in storage.walk(1)]))
 
         self.assertEqual(
-                sorted([
-                    ('guid2', {'guid': 2}),
-                    ('guid3', {'guid': 3}),
-                    ]),
+                sorted(['guid3']),
                 sorted([i for i in storage.walk(2)]))
 
         self.assertEqual(
-                sorted([
-                    ('guid3', {'guid': 3}),
-                    ]),
+                sorted([]),
                 sorted([i for i in storage.walk(3)]))
-
-        self.assertEqual(
-                sorted([
-                    ]),
-                sorted([i for i in storage.walk(4)]))
 
     def test_walk_SkipGuidLess(self):
         storage = self.storage([
@@ -193,10 +182,7 @@ class StorageTest(tests.Test):
         record.set('prop', value=3)
 
         self.assertEqual(
-                sorted([
-                    ('guid1', {'guid': 1, 'prop': 1}),
-                    ('guid3', {'guid': 3, 'prop': 3}),
-                    ]),
+                sorted(['guid1', 'guid3']),
                 sorted([i for i in storage.walk(0)]))
 
 

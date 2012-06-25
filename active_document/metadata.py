@@ -63,7 +63,6 @@ class Metadata(dict):
 
         """
         self._name = cls.__name__.lower()
-        self.layout_version = cls.LAYOUT_VERSION
 
         slots = {}
         prefixes = {}

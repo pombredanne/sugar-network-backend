@@ -32,9 +32,6 @@ class Document(object):
     #: `Metadata` object that describes the document
     metadata = None
 
-    #: To invalidate existed index on stcuture changes
-    LAYOUT_VERSION = 1
-
     def __init__(self, guid, record, cached_props=None):
         self._guid = guid
         self._props = cached_props or {}

@@ -44,18 +44,13 @@ class IndexReader(object):
         self.metadata = metadata
         self._db = None
         self._props = {}
-        self._root = root
-        self._path = join(root, 'index')
-        self._layout_path = join(self._path, 'layout')
+        self._path = root
         self._mtime_path = join(self._path, 'mtime')
         self._commit_cb = commit_cb
 
         for name, prop in self.metadata.items():
             if isinstance(prop, ActiveProperty):
                 self._props[name] = prop
-
-        if not env.index_lazy_open.value:
-            self._do_open(False)
 
     @property
     def mtime(self):
@@ -116,9 +111,6 @@ class IndexReader(object):
         Function interface is the same as for `active_document.Document.find`.
 
         """
-        if self._db is None:
-            self._do_open(False)
-
         start_timestamp = time.time()
         # This will assure that the results count is exact.
         check_at_least = query.offset + query.limit + 1
@@ -157,9 +149,6 @@ class IndexReader(object):
 
     def commit(self):
         """Flush index changes to the disk."""
-        raise NotImplementedError()
-
-    def _do_open(self, reset):
         raise NotImplementedError()
 
     def _enquire(self, request, query, order_by):
@@ -280,13 +269,14 @@ class IndexWriter(IndexReader):
     """Write access to Xapian databases."""
 
     def __init__(self, root, metadata, commit_cb=None):
-        self._pending_updates = 0
-        self._commit_cond = coroutine.Condition()
-        self._commit_job = None
-
         IndexReader.__init__(self, root, metadata, commit_cb)
 
+        self._pending_updates = 0
+        self._commit_cond = coroutine.Condition()
         self._commit_job = coroutine.spawn(self._commit_handler)
+
+        if not env.index_lazy_open.value:
+            self._do_open()
 
     def close(self):
         """Flush index write pending queue and close the index."""
@@ -297,9 +287,14 @@ class IndexWriter(IndexReader):
         self._commit_job = None
         self._db = None
 
+    def find(self, query):
+        if self._db is None:
+            self._do_open()
+        return IndexReader.find(self, query)
+
     def store(self, guid, properties, new, pre_cb=None, post_cb=None, *args):
         if self._db is None:
-            self._do_open(False)
+            self._do_open()
 
         if pre_cb is not None:
             pre_cb(guid, properties)
@@ -342,7 +337,7 @@ class IndexWriter(IndexReader):
 
     def delete(self, guid, post_cb=None, *args):
         if self._db is None:
-            self._do_open(False)
+            self._do_open()
 
         _logger.debug('Delete %r document from %r',
                 guid, self.metadata.name)
@@ -362,30 +357,18 @@ class IndexWriter(IndexReader):
         # Trigger condition to reset waiting for `index_flush_timeout` timeout
         self._commit_cond.notify(False)
 
-    def _do_open(self, reset):
-        if not reset and self._is_layout_stale():
-            reset = True
-
-        if reset:
-            shutil.rmtree(self._path, ignore_errors=True)
-
+    def _do_open(self):
         try:
             self._db = xapian.WritableDatabase(self._path,
                     xapian.DB_CREATE_OR_OPEN)
         except xapian.DatabaseError:
-            if reset:
-                util.exception(_('Unrecoverable error while opening %r ' \
-                        'Xapian index'), self.metadata.name)
-                raise
-            else:
-                util.exception(_('Cannot open Xapian index in %r, ' \
-                        'will rebuild it'), self.metadata.name)
-                self._do_open(True)
-        else:
-            _logger.info(_('Opened %r index'), self.metadata.name)
+            util.exception(_('Cannot open Xapian index in %r, ' \
+                    'will rebuild it'), self.metadata.name)
+            shutil.rmtree(self._path, ignore_errors=True)
+            self._db = xapian.WritableDatabase(self._path,
+                    xapian.DB_CREATE_OR_OPEN)
 
-        if reset:
-            self._save_layout()
+        _logger.info(_('Opened %r index'), self.metadata.name)
 
     def _commit(self):
         if self._pending_updates <= 0:
@@ -408,18 +391,6 @@ class IndexWriter(IndexReader):
 
         if self._commit_cb is not None:
             self._commit_cb()
-
-    def _is_layout_stale(self):
-        if not exists(self._layout_path):
-            return True
-        with file(self._layout_path) as f:
-            version = f.read()
-        return not version.isdigit() or \
-                int(version) != self.metadata.layout_version
-
-    def _save_layout(self):
-        with file(self._layout_path, 'w') as f:
-            f.write(str(self.metadata.layout_version))
 
     def _check_for_commit(self):
         if env.index_flush_threshold.value > 0 and \

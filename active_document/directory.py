@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import shutil
 import logging
 from os.path import exists, join
 from gettext import gettext as _
@@ -24,6 +25,9 @@ from active_document.metadata import Metadata, BlobProperty, BrowsableProperty
 from active_document.metadata import ActiveProperty, StoredProperty
 from active_toolkit import util, enforce
 
+
+# To invalidate existed index on stcuture changes
+_LAYOUT_VERSION = 1
 
 _logger = logging.getLogger('active_document.document')
 
@@ -51,8 +55,6 @@ class Directory(object):
         self.metadata = document_class.metadata
 
         self.document_class = document_class
-        self._storage = Storage(root, self.metadata)
-        self._index = index_class(root, self.metadata, self._post_commit)
         self._root = root
         self._seqno = 0
         self._notification_cb = notification_cb
@@ -61,6 +63,13 @@ class Directory(object):
         if exists(seqno_path):
             with file(seqno_path) as f:
                 self._seqno = int(f.read().strip())
+
+        index_path = join(root, 'index')
+        if self._is_layout_stale():
+            shutil.rmtree(index_path, ignore_errors=True)
+
+        self._storage = Storage(root, self.metadata)
+        self._index = index_class(index_path, self.metadata, self._post_commit)
 
         _logger.debug('Initiated %r document', document_class)
 
@@ -235,16 +244,31 @@ class Directory(object):
 
         """
         found = False
+        migrate = (self._index.mtime == 0)
 
-        for guid, props in self._storage.walk(self._index.mtime):
+        for guid in self._storage.walk(self._index.mtime):
             if not found:
                 _logger.info(_('Start populating %r index'),
                         self.metadata.name)
                 found = True
-            self._index.store(guid, props, None, self._pre_store, None)
+
+            if migrate:
+                self._storage.migrate(guid)
+
+            props = {}
+            record = self._storage.get(guid)
+            for name, prop in self.metadata.items():
+                if not isinstance(prop, StoredProperty):
+                    continue
+                meta = record.get(name)
+                if meta is not None:
+                    props[name] = meta['value']
+            self._index.store(guid, props, None, None, None)
+
             yield
 
         if found:
+            self._save_layout()
             self.commit()
             self._notify({'event': 'sync', 'seqno': self._seqno})
 
@@ -423,3 +447,16 @@ class Directory(object):
     def _notify(self, even):
         if self._notification_cb is not None:
             self._notification_cb(even)
+
+    def _save_layout(self):
+        path = join(self._root, 'layout')
+        with util.new_file(path) as f:
+            f.write(str(_LAYOUT_VERSION))
+
+    def _is_layout_stale(self):
+        path = join(self._root, 'layout')
+        if not exists(path):
+            return True
+        with file(path) as f:
+            version = f.read()
+        return not version.isdigit() or int(version) != _LAYOUT_VERSION

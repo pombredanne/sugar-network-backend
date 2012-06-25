@@ -137,7 +137,7 @@ class Test(unittest.TestCase):
 
         child_pid = os.fork()
         if child_pid:
-            time.sleep(1)
+            time.sleep(3)
             Test.httpd_pids[port] = child_pid
             return
 
@@ -146,6 +146,9 @@ class Test(unittest.TestCase):
         logging.basicConfig(level=logging.DEBUG, filename=tmpdir + '-%s.http.log' % self.httpd_seqno)
 
         volume = ad.SingleVolume(tmpdir + '/db', classes)
+        for cls in volume.values():
+            for i in cls.populate():
+                pass
         cp = ad.VolumeCommands(volume)
         httpd = coroutine.WSGIServer(('localhost', port), Router(cp))
         subscriber = SubscribeSocket(volume, 'localhost', port + 1)

@@ -48,7 +48,7 @@ class IndexProxyTest(tests.Test):
 
     def test_Create(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         existing = ([
@@ -140,7 +140,7 @@ class IndexProxyTest(tests.Test):
 
     def test_Update(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         existing = ([
@@ -167,7 +167,7 @@ class IndexProxyTest(tests.Test):
 
     def test_Update_Adds(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         existing = ([
@@ -206,7 +206,7 @@ class IndexProxyTest(tests.Test):
 
     def test_Update_Deletes(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         existing = ([
@@ -298,7 +298,7 @@ class IndexProxyTest(tests.Test):
 
     def test_Update_AddsByListProps(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         existing = ([
@@ -343,7 +343,7 @@ class IndexProxyTest(tests.Test):
 
     def test_Update_DeletesByListProps(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         existing = ([
@@ -401,7 +401,7 @@ class IndexProxyTest(tests.Test):
 
     def test_SeamlessCache_Create(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         existing = ([
@@ -526,7 +526,7 @@ class IndexProxyTest(tests.Test):
 
         Document.metadata = Metadata(Document)
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         storage = Storage(tests.tmpdir, Document.metadata)
@@ -570,7 +570,7 @@ class IndexProxyTest(tests.Test):
 
     def test_DropPages(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         proxy = TestIndexProxy(tests.tmpdir, self.metadata)
@@ -630,7 +630,7 @@ class IndexProxyTest(tests.Test):
 
     def test_NoCache(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         existing = ([
@@ -661,7 +661,7 @@ class IndexProxyTest(tests.Test):
 
     def test_SetSeqnoOnInitialOpen(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         proxy = TestIndexProxy(tests.tmpdir, self.metadata)
@@ -675,7 +675,7 @@ class IndexProxyTest(tests.Test):
 
     def test_NotFailOnEmptyCache(self):
         index = IndexWriter(tests.tmpdir, self.metadata)
-        index._do_open(True)
+        index._do_open()
         index.close()
 
         proxy = TestIndexProxy(tests.tmpdir, self.metadata)

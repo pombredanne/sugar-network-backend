@@ -68,7 +68,7 @@ class IndexProxy(IndexReader):
                 orig = self.get_cached(guid)
                 try:
                     # XXX Avoid creating Storage every time
-                    record = Storage(self._root, self.metadata).get(guid)
+                    record = Storage(self._path, self.metadata).get(guid)
                     for prop in self._term_props.values():
                         if prop.name not in orig:
                             orig[prop.name] = record.get(prop.name)['value']

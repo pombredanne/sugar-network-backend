@@ -290,6 +290,7 @@ class DocumentTest(tests.Test):
                 ('1/1/prop', '{"value": "prop-1"}'),
                 ('1/1/layer', '{"value": ["public"]}'),
                 ('1/1/user', '{"value": ["me"]}'),
+                ('1/1/seqno', '{"value": 0}'),
 
                 ('2/2/guid', '{"value": "2"}'),
                 ('2/2/ctime', '{"value": 2}'),
@@ -297,6 +298,7 @@ class DocumentTest(tests.Test):
                 ('2/2/prop', '{"value": "prop-2"}'),
                 ('2/2/layer', '{"value": ["public"]}'),
                 ('2/2/user', '{"value": ["me"]}'),
+                ('2/2/seqno', '{"value": 0}'),
                 )
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
@@ -514,6 +516,7 @@ class DocumentTest(tests.Test):
                 ('1/1/prop', '{"value": "prop-1"}'),
                 ('1/1/layer', '{"value": ["public"]}'),
                 ('1/1/user', '{"value": ["me"]}'),
+                ('1/1/seqno', '{"value": 0}'),
                 )
 
         def notification_cb(event):
@@ -535,14 +538,14 @@ class DocumentTest(tests.Test):
         directory.commit()
 
         self.assertEqual([
-            {'event': 'commit', 'seqno': 1},
-            {'event': 'sync', 'seqno': 1},
+            {'event': 'commit', 'seqno': 0},
+            {'event': 'sync', 'seqno': 0},
             {'guid': 'guid', 'event': 'create'},
             {'guid': 'guid', 'event': 'update'},
-            {'guid': 'guid', 'event': 'update_blob', 'prop': 'blob', 'seqno': 3},
+            {'guid': 'guid', 'event': 'update_blob', 'prop': 'blob', 'seqno': 2},
             {'guid': 'guid', 'event': 'update'},
             {'guid': 'guid', 'event': 'delete'},
-            {'event': 'commit', 'seqno': 4}
+            {'event': 'commit', 'seqno': 3}
             ],
             events)
 
@@ -793,6 +796,93 @@ class DocumentTest(tests.Test):
         self.assertEqual(3, doc.meta('mtime')['mtime'])
         self.assertEqual(4, doc.meta('blob')['mtime'])
         self.assertEqual('1', file('document2/gu/guid/blob.blob').read())
+
+    def test_migrate(self):
+
+        class Document(document.Document):
+
+            @active_property(prefix='P', localized=True)
+            def prop(self, value):
+                return value
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+        self.touch(
+                ('gu/guid/.seqno', ''),
+                ('gu/guid/guid', '"guid"'),
+                ('gu/guid/guid.seqno', ''),
+                ('gu/guid/ctime', '1'),
+                ('gu/guid/ctime.seqno', ''),
+                ('gu/guid/mtime', '1'),
+                ('gu/guid/mtime.seqno', ''),
+                ('gu/guid/layer', '["public"]'),
+                ('gu/guid/layer.seqno', ''),
+                ('gu/guid/user', '["me"]'),
+                ('gu/guid/user.seqno', ''),
+                ('gu/guid/prop', '"prop"'),
+                ('gu/guid/prop.seqno', ''),
+                ('gu/guid/blob', 'blob'),
+                ('gu/guid/blob.seqno', ''),
+                ('gu/guid/blob.sha1', 'digest'),
+                )
+        for i in os.listdir('gu/guid'):
+            os.utime('gu/guid/%s' % i, (1, 1))
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+        for i in directory.populate():
+            pass
+        assert exists('layout')
+        self.assertEqual(str(directory_._LAYOUT_VERSION), file('layout').read())
+
+        assert not exists('gu/guid/.seqno')
+        assert not exists('gu/guid/guid.seqno')
+        assert not exists('gu/guid/ctime.seqno')
+        assert not exists('gu/guid/mtime.seqno')
+        assert not exists('gu/guid/layer.seqno')
+        assert not exists('gu/guid/user.seqno')
+        assert not exists('gu/guid/prop.seqno')
+        assert not exists('gu/guid/blob.seqno')
+        assert not exists('gu/guid/blob.sha1')
+        assert exists('gu/guid/blob.blob')
+
+        def test_meta():
+            doc = directory.get('guid')
+            self.assertEqual(
+                    {'value': 'guid', 'mtime': 1, 'seqno': 1},
+                    doc.meta('guid'))
+            self.assertEqual(
+                    {'value': 1, 'mtime': 1, 'seqno': 1},
+                    doc.meta('ctime'))
+            self.assertEqual(
+                    {'value': 1, 'mtime': 1, 'seqno': 1},
+                    doc.meta('mtime'))
+            self.assertEqual(
+                    {'value': ['public'], 'mtime': 1, 'seqno': 1},
+                    doc.meta('layer'))
+            self.assertEqual(
+                    {'value': ['me'], 'mtime': 1, 'seqno': 1},
+                    doc.meta('user'))
+            self.assertEqual(
+                    {'value': {env.DEFAULT_LANG: 'prop'}, 'mtime': 1, 'seqno': 1},
+                    doc.meta('prop'))
+            self.assertEqual(
+                    {'digest': 'digest', 'mtime': 1, 'seqno': 1, 'path': tests.tmpdir + '/gu/guid/blob.blob'},
+                    doc.meta('blob'))
+            self.assertEqual('blob', file('gu/guid/blob.blob').read())
+
+        test_meta()
+
+        directory.close()
+        with file('layout', 'w') as f:
+            f.write('*')
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+        for i in directory.populate():
+            pass
+        self.assertEqual(str(directory_._LAYOUT_VERSION), file('layout').read())
+
+        test_meta()
 
 
 if __name__ == '__main__':

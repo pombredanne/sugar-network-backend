@@ -65,12 +65,14 @@ class VolumeTest(tests.Test):
                 ('document/1/1/mtime', '{"value": 1}'),
                 ('document/1/1/layer', '{"value": ["public"]}'),
                 ('document/1/1/user', '{"value": ["me"]}'),
+                ('document/1/1/seqno', '{"value": 0}'),
 
                 ('document/2/2/guid', '{"value": "2"}'),
                 ('document/2/2/ctime', '{"value": 2}'),
                 ('document/2/2/mtime', '{"value": 2}'),
                 ('document/2/2/layer', '{"value": ["public"]}'),
                 ('document/2/2/user', '{"value": ["me"]}'),
+                ('document/2/2/seqno', '{"value": 0}'),
                 )
 
         class Document(document.Document):
@@ -104,6 +106,7 @@ class VolumeTest(tests.Test):
                 ('document/1/1/mtime', '{"value": 1}'),
                 ('document/1/1/layer', '{"value": ["public"]}'),
                 ('document/1/1/user', '{"value": ["me"]}'),
+                ('document/1/1/seqno', '{"value": 0}'),
                 )
 
         class Document(document.Document):
@@ -373,70 +376,6 @@ class VolumeTest(tests.Test):
         self.assertEqual(
                 [{'guid': guid, 'localized_prop': 'value_%s' % fallback_lang}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
-
-    def test_Localized_SupportDeprecatedScheme(self):
-        env.DEFAULT_LANG = 'en'
-
-        directory = self.volume['testdocument']
-
-        self.touch(
-                ('testdocument/1/1/guid', '{"value": "1"}'),
-                ('testdocument/1/1/ctime', '{"value": 1}'),
-                ('testdocument/1/1/mtime', '{"value": 1}'),
-                ('testdocument/1/1/layer', '{"value": ["public"]}'),
-                ('testdocument/1/1/user', '{"value": ["me"]}'),
-                ('testdocument/1/1/localized_prop', '"orig"'),
-                )
-
-        for __ in directory.populate():
-            pass
-
-        self.call('PUT', document='testdocument', guid='1', accept_language=['ru'], content={'localized_prop': 'value_ru'})
-        self.assertEqual({'ru': 'value_ru', 'en': 'orig'}, directory.get('1')['localized_prop'])
-        self.assertEqual(
-                ['1'],
-                [i.guid for i in directory.find(0, 100, localized_prop='value_ru')[0]])
-        self.assertEqual(
-                ['1'],
-                [i.guid for i in directory.find(0, 100, localized_prop='orig')[0]])
-
-        class Document(document.Document):
-
-            @active_property(slot=1, prefix='L', localized=False, default='')
-            def localized_prop(self, value):
-                return value
-
-        self.volume = SingleVolume(tests.tmpdir, [Document])
-        directory = self.volume['document']
-        directory.create_with_guid('2', {'localized_prop': 'orig'})
-        self.assertEqual('orig', directory.get('2')['localized_prop'])
-        self.volume.close()
-
-        class Document(document.Document):
-
-            @active_property(prefix='L', localized=True, default='')
-            def localized_prop(self, value):
-                return value
-
-        self.volume = SingleVolume(tests.tmpdir, [Document])
-        directory = self.volume['document']
-
-        self.assertEqual('orig', directory.get('2')['localized_prop'])
-        self.assertEqual(
-                {'localized_prop': 'orig'},
-                self.call('GET', document='document', guid='2', accept_language=['en'], reply=['localized_prop']))
-        self.assertEqual(
-                {'localized_prop': 'orig'},
-                self.call('GET', document='document', guid='2', accept_language=['fake'], reply=['localized_prop']))
-
-        self.call('PUT', document='document', guid='2', accept_language=['ru'], content={'localized_prop': 'value_ru'})
-        self.assertEqual({'ru': 'value_ru', 'en': 'orig'}, directory.get('2')['localized_prop'])
-        self.assertEqual(
-                ['2'],
-                [i.guid for i in directory.find(0, 100, localized_prop='value_ru')[0]])
-        self.assertEqual(
-                ['2'],
-                [i.guid for i in directory.find(0, 100, localized_prop='orig')[0]])
 
     def call(self, method, document=None, guid=None, prop=None,
             principal=None, accept_language=None, **kwargs):

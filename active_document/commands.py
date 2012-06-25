@@ -74,12 +74,10 @@ class Request(dict):
             return ''
         rest = max(0, self.content_length - self._pos)
         size = rest if size is None else min(rest, size)
-        print '>', self._pos, rest, size
         result = self.content_stream.read(size)
         if not result:
             return ''
         self._pos += len(result)
-        print '>>', self._pos, rest, result
         return result
 
 
