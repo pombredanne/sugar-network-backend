@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012, Aleksey Lim
+# Copyright (C) 2011-2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -302,9 +302,9 @@ class IndexWriter(IndexReader):
             self._do_open(False)
 
         if pre_cb is not None:
-            pre_cb(guid, properties, new)
+            pre_cb(guid, properties)
 
-        _logger.debug('Store %r object: %r', self.metadata.name, properties)
+        _logger.debug('Index %r object: %r', self.metadata.name, properties)
 
         document = xapian.Document()
         term_generator = xapian.TermGenerator()
@@ -336,7 +336,7 @@ class IndexWriter(IndexReader):
         self._pending_updates += 1
 
         if post_cb is not None:
-            post_cb(guid, properties, new, *args)
+            post_cb(guid, properties, *args)
 
         self._check_for_commit()
 

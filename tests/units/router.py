@@ -90,9 +90,6 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 payload,
                 rest.get('/document/' + guid_2 + '/blob'))
-        self.assertEqual(
-                {'size': len(payload), 'sha1sum': hashlib.sha1(payload).hexdigest()},
-                rest.get('/document/' + guid_2 + '/blob', cmd='stat-blob'))
 
         rest.delete('/document/' + guid_2)
 

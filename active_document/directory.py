@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012, Aleksey Lim
+# Copyright (C) 2011-2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -115,6 +115,7 @@ class Directory(object):
             if prop.default is not None:
                 props[prop_name] = prop.default
 
+        _logger.debug('Create %s[%s]: %r', self.metadata.name, guid, props)
         self.document_class.before_post(props)
         self._post(guid, props, True)
         return guid
@@ -130,6 +131,7 @@ class Directory(object):
         """
         if not props:
             return
+        _logger.debug('Update %s[%s]: %r', self.metadata.name, guid, props)
         self.document_class.before_update(props)
         self.document_class.before_post(props)
         self._post(guid, props, False)
@@ -141,16 +143,20 @@ class Directory(object):
             document GUID to delete
 
         """
+        _logger.debug('Delete %s[%s]', self.metadata.name, guid)
         event = {'event': 'delete', 'guid': guid}
         self._index.delete(guid, self._post_delete, event)
 
     def exists(self, guid):
-        return self._storage.exists(guid)
+        return self._storage.get(guid).consistent
 
     def get(self, guid):
         cached_props = self._index.get_cached(guid)
         record = self._storage.get(guid)
-        return self.document_class(guid, cached_props, record)
+        enforce(cached_props or record.exists, env.NotFound,
+                _('Document %r does not exist in %r'),
+                guid, self.metadata.name)
+        return self.document_class(guid, record, cached_props)
 
     def find(self, *args, **kwargs):
         """Search documents.
@@ -178,7 +184,7 @@ class Directory(object):
         def iterate():
             for guid, props in documents:
                 record = self._storage.get(guid)
-                yield self.document_class(guid, props, record)
+                yield self.document_class(guid, record, props)
 
         return iterate(), total
 
@@ -200,33 +206,21 @@ class Directory(object):
         enforce(isinstance(prop, BlobProperty),
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
+        record = self._storage.get(guid)
         seqno = self._next_seqno()
-        if self._storage.set_blob(seqno, guid, prop.name, data, size):
-            self._index.store(guid, {'seqno': seqno}, None,
-                    self._pre_store, self._post_store)
+
+        _logger.debug('Received %r BLOB property from %s[%s]',
+                prop.name, self.metadata.name, guid)
+        record.set_blob(prop.name, data, size, seqno=seqno)
+
+        if record.consistent:
+            self._post(guid, {'seqno': seqno}, False)
             event = {'event': 'update_blob',
                      'guid': guid,
                      'prop': prop.name,
                      'seqno': seqno,
                      }
             self._notify(event)
-
-    def stat_blob(self, guid, prop):
-        """Receive BLOB property information.
-
-        :param prop:
-            BLOB property name
-        :returns:
-            a dictionary of `size`, `sha1sum` keys
-
-        """
-        prop = self.metadata[prop]
-        enforce(isinstance(prop, BlobProperty),
-                _('Property %r in %r is not a BLOB'),
-                prop.name, self.metadata.name)
-        document = self.get(guid)
-        stat = self._storage.stat_blob(guid, prop.name)
-        return prop.on_get(document, stat or {})
 
     def populate(self):
         """Populate the index.
@@ -258,7 +252,7 @@ class Directory(object):
         """Return documents' properties for specified times range.
 
         :param accept_range:
-            sequence object with times to accept documents
+            seqno sequence to accept documents
         :param limit:
             number of documents to return at once
         :returns:
@@ -267,101 +261,126 @@ class Directory(object):
             for corresponding `guid`
 
         """
-        ranges = [None, None]
+        ranges = []
         if not accept_range:
             return ranges, []
+        return ranges, self._diff(ranges, accept_range, limit)
 
-        def patch():
-            # To make fetching more reliable, avoid using intermediate
-            # find's offsets (documents can be changed and offset will point
-            # to different document).
-            if hasattr(accept_range, 'first'):
-                start = accept_range.first
-            else:
-                start = accept_range[0]
-            ranges[0] = start
-
-            while True:
-                documents, total = self.find(
-                        query='seqno:%s..' % start,
-                        order_by='seqno', reply=['guid'],
-                        limit=limit, no_cache=True)
-                if not total.value:
-                    break
-
-                seqno = None
-                for i in documents:
-                    start = max(start, i.get('seqno'))
-                    diff, __ = self._storage.diff(i.guid, accept_range)
-                    if not diff:
-                        continue
-                    seqno = max(seqno, i.get('seqno'))
-                    yield i.guid, diff
-
-                if seqno:
-                    ranges[1] = seqno
-                start += 1
-
-        return ranges, patch()
-
-    def merge(self, guid, diff, touch=True):
+    def merge(self, diff, touch=True):
         """Apply changes for documents.
 
-        :param guid:
-            document's GUID to merge `diff` to
         :param diff:
             document changes
         :param touch:
             if `True`, touch local mtime
-        :returns:
-            seqno value for applied `diff`;
-            `None` if `diff` was not applied
 
         """
-        if touch:
-            seqno = self._next_seqno()
+        common_props = {}
+
+        def merge(record, fun, **meta):
+            orig_meta = record.get(meta['prop'])
+            if orig_meta is not None and orig_meta['mtime'] >= meta['mtime']:
+                return False
+            if touch and not common_props:
+                common_props['seqno'] = self._next_seqno()
+            meta.update(common_props)
+            fun(**meta)
+            return True
+
+        for header, data in diff:
+            guid = header.pop('guid')
+            record = self._storage.get(guid)
+            merged = False
+            if isinstance(data, dict):
+                for prop, meta in data.items():
+                    merged |= merge(record, record.set, prop=prop, **meta)
+            else:
+                merged |= merge(record, record.set_blob, data=data, **header)
+            if merged and record.consistent:
+                self._post(guid, common_props.copy(), False)
+
+    def _diff(self, ranges, accept_range, limit):
+        # To make fetching more reliable, avoid using intermediate
+        # find's offsets (documents can be changed and offset will point
+        # to different document).
+        if hasattr(accept_range, 'first'):
+            seqno = accept_range.first
         else:
-            seqno = None
-        if self._storage.merge(seqno, guid, diff):
-            self._index.store(guid, {}, None,
-                    self._pre_store, self._post_store)
-        # TODO Send "populate" event
-        return seqno
+            seqno = accept_range[0]
+        start = seqno
 
-    def _pre_store(self, guid, changes, is_new):
-        is_reindexing = not changes
-        record = []
+        while True:
+            documents, total = self.find(
+                    query='seqno:%s..' % seqno,
+                    order_by='seqno', reply=['guid'],
+                    limit=limit, no_cache=True)
+            if not total.value:
+                break
 
-        def get_prop_value(prop):
-            if not record:
-                record.append(self._storage.get(guid))
-            value = record[0].get(prop.name, prop.default)
-            if prop.localized and not isinstance(value, dict):
-                value = {env.DEFAULT_LANG: value or ''}
-            return value
-
-        if not is_new:
-            for prop_name, value in changes.items():
-                prop = self.metadata[prop_name]
-                if not prop.localized:
+            for doc in documents:
+                seqno = doc.get('seqno')
+                if seqno not in accept_range:
                     continue
-                if not isinstance(value, dict):
-                    value = {env.DEFAULT_LANG: value}
-                orig_value = get_prop_value(prop)
-                orig_value.update(value)
-                changes[prop_name] = orig_value
 
-        if is_reindexing or not is_new:
-            for prop_name, prop in self.metadata.items():
-                if prop_name not in changes and \
-                        isinstance(prop, StoredProperty):
-                    changes[prop_name] = get_prop_value(prop)
+                if not ranges:
+                    ranges[:] = [start, None]
+                ranges[1] = seqno
 
-        if is_new is not None:
-            changes['seqno'] = self._next_seqno()
+                diff = {}
+                for name in self.metadata.keys():
+                    if name == 'seqno':
+                        continue
+                    meta = doc.meta(name)
+                    if meta is None:
+                        continue
+                    if 'path' in meta:
+                        with file(meta['path'], 'rb') as f:
+                            item = {'guid': doc.guid,
+                                    'prop': name,
+                                    'mtime': meta['mtime'],
+                                    'digest': meta['digest'],
+                                    }
+                            yield item, f
+                    else:
+                        diff[name] = {
+                                'value': meta['value'],
+                                'mtime': meta['mtime'],
+                                }
+                yield {'guid': doc.guid}, diff
 
-    def _post_store(self, guid, changes, is_new, event=None):
-        self._storage.put(guid, changes)
+            seqno += 1
+
+    def _pre_store(self, guid, changes):
+        seqno = changes.get('seqno')
+        if not seqno:
+            seqno = changes['seqno'] = self._next_seqno()
+
+        record = self._storage.get(guid)
+        existed = record.exists
+
+        for name, prop in self.metadata.items():
+            if not isinstance(prop, StoredProperty):
+                continue
+            value = changes.get(name)
+            if value is None:
+                if existed:
+                    meta = record.get(name)
+                    if meta is not None:
+                        value = meta['value']
+                changes[name] = prop.default if value is None else value
+            else:
+                if prop.localized:
+                    if not isinstance(value, dict):
+                        value = {env.DEFAULT_LANG: value}
+                    if existed:
+                        meta = record.get(name)
+                        if meta is not None:
+                            meta['value'].update(value)
+                            value = meta['value']
+                    changes[name] = value
+                record.set(name, value=value, seqno=seqno)
+
+    def _post_store(self, guid, changes, event=None):
         if event:
             self._notify(event)
 
@@ -381,9 +400,6 @@ class Directory(object):
         return self._seqno
 
     def _post(self, guid, props, new):
-        if not props:
-            return
-
         for prop_name, value in props.items():
             prop = self.metadata[prop_name]
             enforce(isinstance(prop, StoredProperty),

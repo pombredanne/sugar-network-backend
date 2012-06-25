@@ -60,19 +60,17 @@ class VolumeTest(tests.Test):
 
     def test_Populate(self):
         self.touch(
-                ('document/1/1/.seqno', ''),
-                ('document/1/1/guid', '1'),
-                ('document/1/1/ctime', '1'),
-                ('document/1/1/mtime', '1'),
-                ('document/1/1/layer', '["public"]'),
-                ('document/1/1/user', '["me"]'),
+                ('document/1/1/guid', '{"value": "1"}'),
+                ('document/1/1/ctime', '{"value": 1}'),
+                ('document/1/1/mtime', '{"value": 1}'),
+                ('document/1/1/layer', '{"value": ["public"]}'),
+                ('document/1/1/user', '{"value": ["me"]}'),
 
-                ('document/2/2/.seqno', ''),
-                ('document/2/2/guid', '2'),
-                ('document/2/2/ctime', '2'),
-                ('document/2/2/mtime', '2'),
-                ('document/2/2/layer', '["public"]'),
-                ('document/2/2/user', '["me"]'),
+                ('document/2/2/guid', '{"value": "2"}'),
+                ('document/2/2/ctime', '{"value": 2}'),
+                ('document/2/2/mtime', '{"value": 2}'),
+                ('document/2/2/layer', '{"value": ["public"]}'),
+                ('document/2/2/user', '{"value": ["me"]}'),
                 )
 
         class Document(document.Document):
@@ -101,12 +99,11 @@ class VolumeTest(tests.Test):
 
     def test_UpdatedSchemeOnReindex(self):
         self.touch(
-                ('document/1/1/.seqno', ''),
-                ('document/1/1/guid', '1'),
-                ('document/1/1/ctime', '1'),
-                ('document/1/1/mtime', '1'),
-                ('document/1/1/layer', '["public"]'),
-                ('document/1/1/user', '["me"]'),
+                ('document/1/1/guid', '{"value": "1"}'),
+                ('document/1/1/ctime', '{"value": 1}'),
+                ('document/1/1/mtime', '{"value": 1}'),
+                ('document/1/1/layer', '{"value": ["public"]}'),
+                ('document/1/1/user', '{"value": ["me"]}'),
                 )
 
         class Document(document.Document):
@@ -183,15 +180,7 @@ class VolumeTest(tests.Test):
                 'value_3',
                 self.call('GET', document='testdocument', guid=guid_1, prop='prop'))
 
-        self.assertEqual(
-                None,
-                self.call('GET', cmd='stat-blob', document='testdocument', guid=guid_1, prop='blob'))
-
         self.call('PUT', document='testdocument', guid=guid_1, prop='blob', content_stream=StringIO('blob-value'))
-
-        self.assertEqual(
-                len('blob-value'),
-                self.call('GET', cmd='stat-blob', document='testdocument', guid=guid_1, prop='blob')['size'])
 
         stream = self.call('GET', document='testdocument', guid=guid_1, prop='blob')
         self.assertEqual('blob-value', ''.join([i for i in stream]))
@@ -202,10 +191,10 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={})
 
         blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
-        self.touch(blob_path + '.sha1')
-        self.touch((blob_path + '/1/2/3', 'a'))
-        self.touch((blob_path + '/4/5', 'b'))
-        self.touch((blob_path + '/6', 'c'))
+        self.touch((blob_path, '{}'))
+        self.touch((blob_path + '.blob/1/2/3', 'a'))
+        self.touch((blob_path + '.blob/4/5', 'b'))
+        self.touch((blob_path + '.blob/6', 'c'))
 
         stream = StringIO()
         for chunk in self.call('GET', document='testdocument', guid=guid, prop='blob'):
@@ -391,12 +380,11 @@ class VolumeTest(tests.Test):
         directory = self.volume['testdocument']
 
         self.touch(
-                ('testdocument/1/1/.seqno', ''),
-                ('testdocument/1/1/guid', '1'),
-                ('testdocument/1/1/ctime', '1'),
-                ('testdocument/1/1/mtime', '1'),
-                ('testdocument/1/1/layer', '["public"]'),
-                ('testdocument/1/1/user', '["me"]'),
+                ('testdocument/1/1/guid', '{"value": "1"}'),
+                ('testdocument/1/1/ctime', '{"value": 1}'),
+                ('testdocument/1/1/mtime', '{"value": 1}'),
+                ('testdocument/1/1/layer', '{"value": ["public"]}'),
+                ('testdocument/1/1/user', '{"value": ["me"]}'),
                 ('testdocument/1/1/localized_prop', '"orig"'),
                 )
 

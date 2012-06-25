@@ -15,7 +15,7 @@ from active_document import env
 from active_document import index_queue, document
 from active_document.index_proxy import IndexProxy
 from active_document.index import IndexReader, Total, IndexWriter
-from active_document.storage import Storage
+from active_document.storage import Storage as _Storage
 from active_document.metadata import active_property, Metadata
 
 
@@ -717,6 +717,15 @@ class TestIndexProxy(IndexProxy):
         return sorted(result)
 
         return sorted([props for __, props in self.find(query)[0]])
+
+
+class Storage(_Storage):
+
+    def put(self, guid, props):
+        record = self.get(guid)
+        for name, value in props.items():
+            record.set(name, value=value)
+        record.set('guid', value=guid)
 
 
 if __name__ == '__main__':

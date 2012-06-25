@@ -1,4 +1,4 @@
-# Copyright (C) 2012, Aleksey Lim
+# Copyright (C) 2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -67,10 +67,11 @@ class IndexProxy(IndexReader):
             else:
                 orig = self.get_cached(guid)
                 try:
+                    # XXX Avoid creating Storage every time
                     record = Storage(self._root, self.metadata).get(guid)
                     for prop in self._term_props.values():
                         if prop.name not in orig:
-                            orig[prop.name] = record.get(prop.name)
+                            orig[prop.name] = record.get(prop.name)['value']
                 except env.NotFound:
                     pass
             # Needs to be called before `index_queue.put()`

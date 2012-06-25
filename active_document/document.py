@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012, Aleksey Lim
+# Copyright (C) 2011-2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ from gettext import gettext as _
 
 from active_document import env
 from active_document.metadata import BrowsableProperty, StoredProperty
+from active_document.metadata import BlobProperty
 from active_document.metadata import active_property
 from active_toolkit import enforce
 
@@ -34,9 +35,9 @@ class Document(object):
     #: To invalidate existed index on stcuture changes
     LAYOUT_VERSION = 1
 
-    def __init__(self, guid, indexed_props=None, record=None):
+    def __init__(self, guid, record, cached_props=None):
         self._guid = guid
-        self._props = indexed_props or {}
+        self._props = cached_props or {}
         self._record = record
 
     @active_property(slot=1000, prefix='IC', typecast=int,
@@ -82,11 +83,11 @@ class Document(object):
 
         value = self._props.get(prop.name)
         if value is None:
-            if self._record is not None and isinstance(prop, StoredProperty):
-                value = self._record.get(prop.name, prop.default)
-            else:
-                raise RuntimeError(_('Property %r in %r cannot be get') % \
-                        (prop.name, self.metadata.name))
+            enforce(isinstance(prop, StoredProperty),
+                    _('No way to get %r property from %s[%s]'),
+                    prop.name, self.metadata.name, self.guid)
+            meta = self._record.get(prop.name)
+            value = prop.default if meta is None else meta['value']
             self._props[prop.name] = value
 
         if accept_language and prop.localized:
@@ -94,11 +95,12 @@ class Document(object):
 
         return value
 
-    def get_seqno(self, prop):
+    def meta(self, prop):
         prop = self.metadata[prop]
-        enforce(self._record is not None, _('Property %r in %r cannot be get'),
-                prop.name, self.metadata.name)
-        return self._record.get_seqno(prop.name)
+        result = self._record.get(prop.name)
+        if isinstance(prop, BlobProperty):
+            prop.on_get(self, result)
+        return result
 
     def properties(self, names=None, accept_language=None):
         result = {}

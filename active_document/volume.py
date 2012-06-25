@@ -191,7 +191,7 @@ class VolumeCommands(CommandsProcessor):
             content_stream = StringIO()
             json.dump(request.content, content_stream)
             content_stream.seek(0)
-            directory.set_blob(guid, prop.name, content_stream, None)
+            directory.set_blob(guid, prop.name, content_stream)
         else:
             directory.set_blob(guid, prop.name, request.content_stream,
                     request.content_length)
@@ -233,49 +233,25 @@ class VolumeCommands(CommandsProcessor):
         if not isinstance(directory.metadata[prop], BlobProperty):
             return doc.get(prop, request.accept_language)
 
+        meta = doc.meta(prop)
+        enforce(meta is not None, env.NotFound, _('BLOB does not exist'))
+
         seqno = _to_int('seqno', seqno)
-        if seqno is not None and seqno >= doc.get_seqno(prop):
+        if seqno is not None and seqno >= meta['seqno']:
             response.content_length = 0
             response.content_type = directory.metadata[prop].mime_type
             return None
 
-        stat = directory.stat_blob(guid, prop)
-        response.content_length = stat.get('size') or 0
-        response.content_type = directory.metadata[prop].mime_type
-
-        path = stat.get('path')
-        enforce(path, env.NotFound, _('Property does not exist'))
-
+        path = meta['path']
         if isdir(path):
             dir_info, dir_reader = sockets.encode_directory(path)
             response.content_length = dir_info.content_length
             response.content_type = dir_info.content_type
             return dir_reader
-
-        def file_reader(path):
-            with file(path, 'rb') as f:
-                while True:
-                    chunk = f.read(sockets.BUFFER_SIZE)
-                    if not chunk:
-                        break
-                    yield chunk
-
-        return file_reader(path)
-
-    @property_command(method='GET', cmd='stat-blob')
-    def stat_blob(self, document, guid, prop, request):
-        directory = self.volume[document]
-
-        directory.metadata[prop].assert_access(env.ACCESS_READ)
-
-        stat = directory.stat_blob(guid, prop)
-        if not stat:
-            return None
-
-        if request.access_level == env.ACCESS_LOCAL:
-            return stat
         else:
-            return {'size': stat['size'], 'sha1sum': stat['sha1sum']}
+            response.content_length = os.stat(path).st_size
+            response.content_type = directory.metadata[prop].mime_type
+            return _file_reader(path)
 
     def _prepost(self, request, prop, value):
         if prop.localized and request.accept_language:
@@ -296,3 +272,12 @@ def _to_list(value):
     if isinstance(value, basestring):
         value = value.split(',')
     return value
+
+
+def _file_reader(path):
+    with file(path, 'rb') as f:
+        while True:
+            chunk = f.read(sockets.BUFFER_SIZE)
+            if not chunk:
+                break
+            yield chunk

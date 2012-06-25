@@ -3,6 +3,8 @@
 
 import os
 import time
+import json
+import hashlib
 import threading
 from cStringIO import StringIO
 from os.path import exists
@@ -10,9 +12,11 @@ from os.path import exists
 from __init__ import tests
 
 from active_document import env
-from active_document.metadata import Metadata, ActiveProperty
+from active_document.metadata import Metadata, StoredProperty
 from active_document.metadata import BlobProperty
-from active_document.storage import Storage, _PAGE_SIZE
+from active_document.storage import Storage
+from active_toolkit.sockets import BUFFER_SIZE
+from active_toolkit import util
 
 
 class StorageTest(tests.Test):
@@ -28,264 +32,172 @@ class StorageTest(tests.Test):
             metadata[i.name] = i
         return Storage(tests.tmpdir, metadata)
 
-    def test_get(self):
-        storage = self.storage([ActiveProperty('prop', slot=1)])
-        self.assertRaises(env.NotFound, storage.get, '1')
-        storage.put('1', {'seqno': 1, 'prop': 'value'})
-        self.assertEqual('value', storage.get('1').get('prop'))
+    def test_Record_get(self):
+        storage = self.storage([StoredProperty('prop')])
 
-    def test_Walkthrough(self):
+        self.assertEqual(None, storage.get('guid').get('prop'))
+        self.touch(('gu/guid/prop', json.dumps({
+            'value': 'value',
+            'foo': 'bar',
+            })))
+        self.assertEqual({
+            'value': 'value',
+            'foo': 'bar',
+            'mtime': os.stat('gu/guid/prop').st_mtime,
+            },
+            storage.get('guid').get('prop'))
+
+    def test_Record_set(self):
+        storage = self.storage([StoredProperty('prop')])
+
+        storage.get('guid').set('prop', value='value', foo='bar')
+        self.assertEqual({
+            'value': 'value',
+            'foo': 'bar',
+            'mtime': os.stat('gu/guid/prop').st_mtime,
+            },
+            storage.get('guid').get('prop'))
+
+    def test_Record_set_blob_ByStream(self):
+        storage = self.storage([BlobProperty('prop')])
+
+        record = storage.get('guid1')
+        data = '!' * BUFFER_SIZE * 2
+        record.set_blob('prop', StringIO(data))
+        self.assertEqual({
+            'path': tests.tmpdir + '/gu/guid1/prop.blob',
+            'mtime': os.stat('gu/guid1/prop').st_mtime,
+            'digest': hashlib.sha1(data).hexdigest(),
+            },
+            record.get('prop'))
+        self.assertEqual(data, file('gu/guid1/prop.blob').read())
+
+        record = storage.get('guid2')
+        record.set_blob('prop', StringIO('12345'), 1)
+        self.assertEqual({
+            'path': tests.tmpdir + '/gu/guid2/prop.blob',
+            'mtime': os.stat('gu/guid2/prop').st_mtime,
+            'digest': hashlib.sha1('1').hexdigest(),
+            },
+            record.get('prop'))
+        self.assertEqual('1', file('gu/guid2/prop.blob').read())
+
+    def test_Record_set_blob_ByPath(self):
+        storage = self.storage([BlobProperty('prop')])
+
+        record = storage.get('guid1')
+        self.touch(('file', 'data'))
+        record.set_blob('prop', 'file')
+        self.assertEqual({
+            'path': tests.tmpdir + '/gu/guid1/prop.blob',
+            'mtime': os.stat('gu/guid1/prop').st_mtime,
+            'digest': hashlib.sha1('data').hexdigest(),
+            },
+            record.get('prop'))
+        self.assertEqual('data', file('gu/guid1/prop.blob').read())
+
+        record = storage.get('guid2')
+        self.touch(('directory/1', '1'))
+        self.touch(('directory/2/3', '3'))
+        self.touch(('directory/2/4/5', '5'))
+        record.set_blob('prop', 'directory')
+        self.assertEqual({
+            'path': tests.tmpdir + '/gu/guid2/prop.blob',
+            'mtime': os.stat('gu/guid2/prop').st_mtime,
+            'digest': hashlib.sha1(
+                '1' '1'
+                '2/3' '3'
+                '2/4/5' '5'
+                ).hexdigest(),
+            },
+            record.get('prop'))
+        util.assert_call('diff -r directory gu/guid2/prop.blob', shell=True)
+
+    def test_delete(self):
+        storage = self.storage([StoredProperty('prop')])
+
+        assert not exists('ab/absent')
+        storage.delete('absent')
+
+        record = storage.get('guid')
+        self.touch(('directory/1/2/3', '3'))
+        record.set_blob('prop', 'directory')
+        record.set('prop', value='value')
+        assert exists('gu/guid')
+        storage.delete('guid')
+        assert not exists('gu/guid')
+
+    def test_Record_consistent(self):
         storage = self.storage([
-            ActiveProperty('guid', slot=0),
-            ActiveProperty('prop_1', slot=1),
-            ActiveProperty('prop_2', slot=2),
+            StoredProperty('guid'),
+            StoredProperty('prop'),
             ])
+        record = storage.get('guid')
 
-        storage.put('1', {'seqno': 1, 'prop_1': 'value_1', 'prop_2': 'value_2', 'guid': '1'})
+        self.assertEqual(False, record.consistent)
 
-        record = storage.get('1')
-        self.assertEqual('value_1', record.get('prop_1'))
-        self.assertEqual('value_2', record.get('prop_2'))
+        record.set('prop', value='value')
+        self.assertEqual(False, record.consistent)
 
-        storage.put('1', {'seqno': 2, 'prop_2': 'value_3'})
-
-        record = storage.get('1')
-        self.assertEqual('value_1', record.get('prop_1'))
-        self.assertEqual('value_3', record.get('prop_2'))
-
-        storage.put('2', {'seqno': 3, 'prop_1': 'value_4', 'guid': '2'})
-
-        record = storage.get('2')
-        self.assertEqual('value_4', record.get('prop_1'))
-
-        self.assertEqual(
-                sorted(['1', '2']),
-                sorted([guid for guid, props in storage.walk(0)]))
-
-        storage.delete('1')
-
-        self.assertEqual(
-                sorted(['2']),
-                sorted([guid for guid, props in storage.walk(0)]))
-
-        storage.delete('2')
-
-        self.assertEqual(
-                sorted([]),
-                sorted([guid for guid, props in storage.walk(0)]))
-
-    def test_BLOBs(self):
-        storage = self.storage([BlobProperty('blob')])
-
-        stream = StringIO('foo')
-        self.assertEqual(False, storage.set_blob(1, 'guid', 'blob', stream))
-
-        path = storage.stat_blob('guid', 'blob')['path']
-        self.assertEqual('foo', file(path).read())
-
-        data = '!' * _PAGE_SIZE * 2
-        stream = StringIO(data)
-        self.assertEqual(False, storage.set_blob(2, 'guid', 'blob', stream))
-
-        path = storage.stat_blob('guid', 'blob')['path']
-        self.assertEqual(data, file(path).read())
-
-        stream = StringIO('12345')
-        self.assertEqual(False, storage.set_blob(3, 'guid', 'blob', stream, 1))
-        self.assertEqual('1', file('gu/guid/blob').read())
-
-        self.assertEqual(False, storage.set_blob(4, 'guid', 'blob', stream, 2))
-        self.assertEqual('23', file('gu/guid/blob').read())
-
-        storage.put('guid', {'seqno': 5, 'guid': 'guid'})
-        self.assertEqual(True, storage.set_blob(6, 'guid', 'blob', stream))
-
-    def test_BLOBsByPaths(self):
-        storage = self.storage([BlobProperty('blob')])
-
-        self.touch(('file1', 'data1'))
-        storage.set_blob(1, 'guid', 'blob', 'file1')
-
-        path = storage.stat_blob('guid', 'blob')['path']
-        self.assertEqual('data1', file(path).read())
-
-        self.touch(('file1', 'data2'))
-        storage.set_blob(1, 'guid', 'blob', 'file1')
-
-        path = storage.stat_blob('guid', 'blob')['path']
-        self.assertEqual('data2', file(path).read())
-
-    def test_diff(self):
-        storage = self.storage([
-            ActiveProperty('prop_1', slot=1),
-            BlobProperty('prop_3'),
-            ])
-
-        storage.put('guid', {'seqno': 1, 'prop_1': 'value'})
-        storage.set_blob(2, 'guid', 'prop_3', StringIO('blob'))
-
-        os.utime('gu/guid/prop_1', (1, 1))
-        os.utime('gu/guid/prop_3', (2, 2))
-
-        traits, blobs = storage.diff('guid', [1, 2, 3, 4])
-        self.assertEqual(
-                {
-                    'prop_1': ('value', 1),
-                    },
-                traits)
-        self.assertEqual(
-                {
-                    'prop_3': (tests.tmpdir + '/gu/guid/prop_3', 2),
-                    },
-                blobs)
-
-        traits, blobs = storage.diff('guid', [2, 3, 4])
-        self.assertEqual(
-                {},
-                traits)
-        self.assertEqual(
-                {
-                    'prop_3': (tests.tmpdir + '/gu/guid/prop_3', 2),
-                    },
-                blobs)
-
-        traits, blobs = storage.diff('guid', [3, 4])
-        self.assertEqual(
-                {},
-                traits)
-        self.assertEqual(
-                {},
-                blobs)
-
-    def test_merge(self):
-        storage = self.storage([
-            ActiveProperty('guid', slot=0),
-            ActiveProperty('prop_1', slot=1),
-            BlobProperty('prop_3'),
-            ])
-
-        diff = {
-                'prop_1': ('value', 1),
-                'prop_3': (StringIO('blob'), 4),
-                }
-
-        self.assertEqual(False, storage.merge(1, 'guid_1', diff))
-        assert exists('gu/guid_1/.seqno')
-        assert not exists('gu/guid_1/guid')
-        assert os.stat('gu/guid_1/prop_1').st_mtime == 1
-        self.assertEqual('"value"', file('gu/guid_1/prop_1').read())
-        assert os.stat('gu/guid_1/prop_3').st_mtime == 4
-        self.assertEqual('blob', file('gu/guid_1/prop_3').read())
-
-        diff['guid'] = ('fake', 5)
-        self.assertRaises(RuntimeError, storage.merge, 2, 'guid_2', diff)
-
-        diff['guid'] = ('guid_2', 5)
-        self.assertEqual(True, storage.merge(2, 'guid_2', diff))
-        assert exists('gu/guid_2/.seqno')
-        assert os.stat('gu/guid_2/guid').st_mtime == 5
-        self.assertEqual('"guid_2"', file('gu/guid_2/guid').read())
-
-        ts = int(time.time())
-        storage.put('guid_3', {'seqno': 3, 'prop_1': 'value_2'})
-        storage.set_blob(2, 'guid_3', 'prop_3', StringIO('blob_2'))
-
-        diff.pop('guid')
-        self.assertEqual(False, storage.merge(4, 'guid_3', diff))
-        assert os.stat('gu/guid_3/prop_1').st_mtime >= ts
-        self.assertEqual('"value_2"', file('gu/guid_3/prop_1').read())
-        assert os.stat('gu/guid_3/prop_3').st_mtime >= ts
-        self.assertEqual('blob_2', file('gu/guid_3/prop_3').read())
-
-    def test_put_Times(self):
-        storage = self.storage([
-            ActiveProperty('prop_1', slot=1),
-            BlobProperty('prop_3'),
-            ])
-
-        ts = int(time.time())
-
-        storage.put('guid', {'seqno': 1, 'prop_1': 'value'})
-        self.assertEqual(1, storage.get('guid').get('seqno'))
-        self.assertEqual(
-                int(os.stat('gu/guid/prop_1.seqno').st_mtime),
-                storage.get('guid').get('seqno'))
-        assert ts <= os.stat('gu/guid/prop_1').st_mtime
-
-        self.assertEqual(
-                int(os.stat('gu/guid/.seqno').st_mtime),
-                storage.get('guid').get('seqno'))
-
-        time.sleep(1)
-        ts += 1
-        storage.put('guid', {'seqno': 3, 'prop_1': 'value'})
-        self.assertEqual(3, storage.get('guid').get('seqno'))
-        self.assertEqual(
-                int(os.stat('gu/guid/prop_1.seqno').st_mtime),
-                storage.get('guid').get('seqno'))
-        assert ts <= os.stat('gu/guid/prop_1').st_mtime
-        self.assertEqual(
-                int(os.stat('gu/guid/.seqno').st_mtime),
-                storage.get('guid').get('seqno'))
+        record.set('guid', value='value')
+        self.assertEqual(True, record.consistent)
 
     def test_walk(self):
-        storage = self.storage([ActiveProperty('guid', slot=0)])
+        storage = self.storage([StoredProperty('guid')])
 
-        self.override(time, 'time', lambda: 0)
-        storage.merge(1, '1', {'guid': ['1', 0]})
-        storage.merge(2, '2', {'guid': ['2', 0]})
-        storage.merge(3, '3', {'guid': ['3', 0]})
+        storage.get('guid1').set('guid', value=1, mtime=1)
+        storage.get('guid2').set('guid', value=2, mtime=2)
+        storage.get('guid3').set('guid', value=3, mtime=3)
 
         self.assertEqual(
-                sorted(['1', '2', '3']),
-                sorted([i for i, __ in storage.walk(0)]))
-        self.assertEqual(
-                [],
-                [i for i, __ in storage.walk(1)])
+                sorted([
+                    ('guid1', {'guid': 1}),
+                    ('guid2', {'guid': 2}),
+                    ('guid3', {'guid': 3}),
+                    ]),
+                sorted([i for i in storage.walk(1)]))
 
-        self.override(time, 'time', lambda: 1)
-        storage.merge(4, '4', {'guid': ['4', 0]})
         self.assertEqual(
-                sorted(['1', '2', '3', '4']),
-                sorted([i for i, __ in storage.walk(0)]))
-        self.assertEqual(
-                sorted(['4']),
-                sorted([i for i, __ in storage.walk(1)]))
-        self.assertEqual(
-                [],
-                [i for i, __ in storage.walk(2)])
+                sorted([
+                    ('guid2', {'guid': 2}),
+                    ('guid3', {'guid': 3}),
+                    ]),
+                sorted([i for i in storage.walk(2)]))
 
-        self.override(time, 'time', lambda: 2)
-        storage.put('5', {'seqno': 1, 'guid': '5'})
         self.assertEqual(
-                sorted(['1', '2', '3', '4', '5']),
-                sorted([i for i, __ in storage.walk(0)]))
-        self.assertEqual(
-                sorted(['4', '5']),
-                sorted([i for i, __ in storage.walk(1)]))
-        self.assertEqual(
-                sorted(['5']),
-                sorted([i for i, __ in storage.walk(2)]))
-        self.assertEqual(
-                [],
-                [i for i, __ in storage.walk(3)])
+                sorted([
+                    ('guid3', {'guid': 3}),
+                    ]),
+                sorted([i for i in storage.walk(3)]))
 
-    def test_walk_seqno(self):
-        storage = self.storage([ActiveProperty('guid', slot=0)])
-        storage.put('1', {'seqno': 1, 'guid': '1'})
         self.assertEqual(
-                [{'guid': '1', 'seqno': storage.get('1').get('seqno')}],
-                [props for __, props in storage.walk(0)])
+                sorted([
+                    ]),
+                sorted([i for i in storage.walk(4)]))
 
     def test_walk_SkipGuidLess(self):
         storage = self.storage([
-            ActiveProperty('guid', slot=0),
-            ActiveProperty('prop', slot=1),
+            StoredProperty('guid'),
+            StoredProperty('prop'),
             ])
-        storage.merge(1, '1', {'prop': ['1', 0]})
+
+        record = storage.get('guid1')
+        record.set('guid', value=1)
+        record.set('prop', value=1)
+
+        record = storage.get('guid2')
+        record.set('prop', value=2)
+
+        record = storage.get('guid3')
+        record.set('guid', value=3)
+        record.set('prop', value=3)
+
         self.assertEqual(
-                [],
-                [props for __, props in storage.walk(0)])
+                sorted([
+                    ('guid1', {'guid': 1, 'prop': 1}),
+                    ('guid3', {'guid': 3, 'prop': 3}),
+                    ]),
+                sorted([i for i in storage.walk(0)]))
 
 
 if __name__ == '__main__':
