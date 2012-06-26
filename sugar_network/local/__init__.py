@@ -40,9 +40,16 @@ local_root = optparse.Option(
         _('path to the directory to keep all local data'),
         default=sugar.profile_path('network'))
 
-activities_root = optparse.Option(
-        _('path to the default directory with Sugar activities'),
-        default=expanduser('~/Activities'))
+activities = optparse.Option(
+        _('colon separated list of paths to the directories with Sugar ' \
+                'activities; first path will be used to keep check-in ' \
+                'activities'),
+        type_cast=optparse.Option.list_cast,
+        type_repr=optparse.Option.list_repr, default=[
+            expanduser('~/Activities'),
+            '/usr/share/sugar/activities',
+            '/opt/sweets',
+            ])
 
 server_mode = optparse.Option(
         _('start server to share local documents'),

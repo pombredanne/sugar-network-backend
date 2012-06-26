@@ -26,7 +26,7 @@ import sweets_recipe
 import active_document as ad
 from sugar_network.toolkit import sugar, http
 from sugar_network.node.mounts import NodeCommands
-from sugar_network.local import activities, zeroconf
+from sugar_network.local import activities_registry, zeroconf
 from sugar_network import local, checkin
 from active_toolkit import sockets, util, coroutine, enforce
 
@@ -159,7 +159,7 @@ class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
             directory.metadata[prop].assert_access(ad.ACCESS_READ)
             return self._get_feed(request)
         elif document == 'implementation' and prop == 'bundle':
-            path = activities.guid_to_path(guid)
+            path = activities_registry.guid_to_path(guid)
             if not exists(path):
                 return None
             dir_info, dir_reader = sockets.encode_directory(path)
@@ -185,7 +185,7 @@ class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
     def _get_feed(self, request):
         feed = {}
 
-        for path in activities.checkins(request['guid']):
+        for path in activities_registry.checkins(request['guid']):
             try:
                 spec = sweets_recipe.Spec(root=path)
             except Exception:
@@ -195,7 +195,7 @@ class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
             if request.access_level == ad.ACCESS_LOCAL:
                 impl_id = spec.root
             else:
-                impl_id = activities.path_to_guid(spec.root)
+                impl_id = activities_registry.path_to_guid(spec.root)
 
             feed[spec['version']] = {
                     '*-*': {
@@ -237,7 +237,7 @@ class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
             self._publish(event)
 
     def _checkout(self, guid):
-        for path in activities.checkins(guid):
+        for path in activities_registry.checkins(guid):
             _logger.info(_('Checkout %r implementation from %r'), guid, path)
             shutil.rmtree(path)
 
@@ -251,7 +251,7 @@ class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
                     'severity': 'error',
                     'message': _("Cannot check-in '%s' implementation") % guid,
                     })
-                for __ in activities.checkins(guid):
+                for __ in activities_registry.checkins(guid):
                     keep_impl = 2
                     break
                 else:

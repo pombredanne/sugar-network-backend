@@ -26,7 +26,7 @@ import sugar_network_webui as webui
 from sugar_network.client.bus import Request
 from sugar_network import local, node
 from sugar_network.toolkit import application, sugar
-from sugar_network.local import activities
+from sugar_network.local import activities_registry
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import Mounts
 from active_toolkit import optparse, coroutine, enforce
@@ -72,7 +72,6 @@ class Application(application.Daemon):
 
         new_root = (local.local_root.value != local.local_root.default)
         local.local_root.value = abspath(local.local_root.value)
-        local.activities_root.value = abspath(local.activities_root.value)
 
         if new_root:
             application.logdir.value = join(local.local_root.value, 'log')
@@ -81,28 +80,25 @@ class Application(application.Daemon):
         application.rundir.value = join(local.local_root.value, 'run')
 
     @application.command(
-            _('[PREFIX-PATH SYSTEM-USER USER-GUID]\n'
+            _('[PREFIX-PATH USER-GUID]\n'
                 'Index local Sugar Network database'))
     def index(self):
         enforce(not self.args or len(self.args) == 3,
                 _('Not all command arguments where specified'))
 
         if self.args:
-            prefix, user, uid = self.args
+            prefix, uid = self.args
             self._prefix = abspath(prefix)
-            if local.activities_root.value == local.activities_root.default:
-                local.activities_root.value = join(self._prefix, 'home',
-                        user, 'Activities')
-            if local.local_root.value == local.local_root.default:
-                local.local_root.value = join(self._prefix, 'home', user,
-                        '.sugar', 'default', 'network')
+            local.activities.value = [self._prefix + abspath(i) \
+                    for i in local.activities.value]
+            local.local_root.value = self._prefix + local.local_root.value
             sugar.uid = lambda: uid
 
         ad.index_lazy_open.value = False
         try:
             self._mount(False)
             self._populate_index()
-            activities.populate(self._mounts, self._activity_directories,
+            activities_registry.populate(self._mounts, local.activities.value,
                     self._prefix)
         finally:
             self._mounts.close()
@@ -159,19 +155,13 @@ class Application(application.Daemon):
     def _db_path(self):
         return join(local.local_root.value, 'local')
 
-    @property
-    def _activity_directories(self):
-        return [local.activities_root.value,
-                self._prefix + '/usr/share/sugar/activities',
-                self._prefix + '/opt/sweets']
-
     def _delayed_start(self):
         logging.info(_('Proceed delayed start'))
 
         self._reindexer = coroutine.spawn(self._populate_index)
 
-        self._monitor = coroutine.spawn(activities.monitor, self._home_volume,
-                self._activity_directories)
+        self._monitor = coroutine.spawn(activities_registry.monitor,
+                self._home_volume, local.activities.value)
 
         if webui.webui.value:
             # Point client API to `self._mounts` directly passing over IPC

@@ -27,7 +27,7 @@ from sugar_network import local
 from active_toolkit import util
 
 
-_logger = logging.getLogger('local.activities')
+_logger = logging.getLogger('local.activities_registry')
 
 
 def path_to_guid(path):

@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
     os.system('sugar-network-service -DD start ' \
               '--local-root=tmp ' \
-              '--activities-root=tmp/Activities ' \
+              '--activities=tmp/Activities ' \
               '--api-url=http://localhost:8000')
     try:
         local.local_root.value = 'tmp'

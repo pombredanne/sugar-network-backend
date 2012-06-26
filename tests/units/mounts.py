@@ -20,7 +20,7 @@ from active_toolkit import sockets, coroutine
 from sugar_network import Client
 from sugar_network.client.bus import ServerError, Request
 from sugar_network import local
-from sugar_network.local import mounts as mounts_, activities
+from sugar_network.local import mounts as mounts_, activities_registry
 from sugar_network.local.mounts import Mounts
 from sugar_network.local.bus import IPCServer
 from sugar_network.toolkit import sugar, http
@@ -650,7 +650,8 @@ class MountsTest(tests.Test):
         http_subscriber = rd.SubscribeSocket(mounts.home_volume, 'localhost', 8882)
         coroutine.spawn(http_subscriber.serve_forever)
 
-        monitor = coroutine.spawn(activities.monitor, mounts.home_volume, ['Activities'])
+        monitor = coroutine.spawn(activities_registry.monitor,
+                mounts.home_volume, ['Activities'])
 
         ipc_server = IPCServer(mounts)
         mounts.connect(ipc_server.publish)

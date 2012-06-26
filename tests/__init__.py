@@ -61,7 +61,7 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
         local.local_root.value = tmpdir
-        local.activities_root.value = tmpdir + '/Activities'
+        local.activities.value = [tmpdir + '/Activities']
         local.api_url.value = 'http://localhost:8800'
         local.server_mode.value = False
 
