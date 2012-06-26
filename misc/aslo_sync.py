@@ -29,7 +29,7 @@ import MySQLdb as mdb
 
 import active_document as ad
 from sweets_recipe import GOOD_LICENSES, Bundle
-from sugar_network_server import documents
+from sugar_network.node import documents
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
@@ -278,7 +278,7 @@ def release_from_aslo(context_guid, url, sugar_min, sugar_max, stability,
     # TODO
     #spec.lint()
 
-    feed_info = volume['context'].stat_blob(context_guid, 'feed')
+    feed_info = volume['context'].get(context_guid).meta('feed')
     if not feed_info:
         feed = {}
     else:

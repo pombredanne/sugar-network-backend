@@ -169,7 +169,7 @@ class Test(unittest.TestCase):
             self.forks.append(pid)
             return pid
 
-    def start_server(self, classes=None):
+    def start_server(self, classes=None, open=True):
 
         def server():
             self.server.serve_forever()
@@ -182,12 +182,13 @@ class Test(unittest.TestCase):
         self.server = IPCServer(self.mounts)
         self.mounts.connect(self.server.publish)
         coroutine.spawn(server)
+        if open:
+            self.mounts.open()
         coroutine.dispatch()
 
     def start_ipc_and_restful_server(self, classes=None):
         pid = self.fork(self.restful_server, classes)
-
-        self.start_server(classes)
+        self.start_server(classes, open=False)
 
         def wait_connect(event):
             if event['event'] == 'connect':
@@ -195,13 +196,13 @@ class Test(unittest.TestCase):
 
         connected = coroutine.Event()
         bus.Request('/').connect(wait_connect)
+        coroutine.dispatch()
+        self.mounts.open()
         connected.wait()
 
         return pid
 
     def restful_server(self, classes=None):
-        from restful_document import env as _env
-
         if not exists('remote'):
             os.makedirs('remote')
 

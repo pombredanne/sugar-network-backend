@@ -18,9 +18,10 @@ import restful_document as rd
 import active_document as ad
 from active_toolkit import sockets, coroutine
 from sugar_network import Client
-from sugar_network.client.bus import ServerError
+from sugar_network.client.bus import ServerError, Request
 from sugar_network import local
-from sugar_network.local import mounts, activities
+from sugar_network.local import mounts as mounts_, activities
+from sugar_network.local.mounts import Mounts
 from sugar_network.local.bus import IPCServer
 from sugar_network.toolkit import sugar, http
 from sugar_network.resources.user import User
@@ -32,7 +33,7 @@ class MountsTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         rd.only_sync_notification.value = False
-        mounts._RECONNECTION_TIMEOUT = 1
+        mounts_._RECONNECTION_TIMEOUT = 1
 
     def test_OfflineMount_create(self):
         self.start_server()
@@ -450,14 +451,18 @@ class MountsTest(tests.Test):
 
     def test_OnlineConnect(self):
         pid = self.fork(self.restful_server)
-        coroutine.sleep(1)
+        volume = ad.SingleVolume('local', [User, Context])
+        mounts = Mounts(volume)
+        ipc_server = IPCServer(mounts)
+        mounts.connect(ipc_server.publish)
+        coroutine.spawn(ipc_server.serve_forever)
 
-        self.start_server()
         client = Client('/')
-
         subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
         subscription.connect('run/subscribe')
-        coroutine.sleep(1)
+
+        mounts.open()
+        coroutine.dispatch()
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
@@ -637,21 +642,31 @@ class MountsTest(tests.Test):
     def test_ServerMode(self):
         local.api_url.value = 'http://localhost:8881'
         volume = ad.SingleVolume('local', [Context, User])
-        self.mounts = mounts.Mounts(volume)
+        mounts = Mounts(volume)
 
         http_server = coroutine.WSGIServer(
-                ('localhost', 8881), rd.Router(self.mounts['~']))
+                ('localhost', 8881), rd.Router(mounts['~']))
         coroutine.spawn(http_server.serve_forever)
-        http_subscriber = rd.SubscribeSocket(self.mounts.home_volume, 'localhost', 8882)
+        http_subscriber = rd.SubscribeSocket(mounts.home_volume, 'localhost', 8882)
         coroutine.spawn(http_subscriber.serve_forever)
 
-        monitor = coroutine.spawn(activities.monitor, self.mounts.home_volume, ['Activities'])
+        monitor = coroutine.spawn(activities.monitor, mounts.home_volume, ['Activities'])
 
-        self.server = IPCServer(self.mounts)
-        self.mounts.connect(self.server.publish)
-        coroutine.spawn(self.server.serve_forever)
+        ipc_server = IPCServer(mounts)
+        mounts.connect(ipc_server.publish)
+        coroutine.spawn(ipc_server.serve_forever)
+        coroutine.dispatch()
 
-        coroutine.sleep(1)
+        def wait_connect(event):
+            if event['event'] == 'connect':
+                connected.set()
+
+        connected = coroutine.Event()
+        Request('/').connect(wait_connect)
+        mounts.open()
+        connected.wait()
+
+        #coroutine.sleep(1)
         local_client = Client('~')
         remote = Client('/')
 

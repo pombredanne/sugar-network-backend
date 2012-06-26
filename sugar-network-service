@@ -31,10 +31,6 @@ from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import Mounts
 from active_toolkit import optparse, coroutine, enforce
 
-# Let toolkit.http work in concurrence
-# TODO Is it safe for the rest of code?
-from gevent.monkey import patch_socket
-patch_socket(dns=False)
 
 VERSION = '0.3'
 
@@ -140,6 +136,7 @@ class Application(application.Daemon):
             coroutine.spawn(self._api_subscriber.serve_forever)
 
         try:
+            self._mounts.open()
             self._ipc_server.serve_forever()
         finally:
             if self._reindexer is not None:

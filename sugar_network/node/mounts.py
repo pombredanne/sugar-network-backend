@@ -77,7 +77,7 @@ class Mount(ad.VolumeCommands, NodeCommands):
     def get_blob(self, document, guid, prop, request):
         directory = self.volume[document]
         directory.metadata[prop].assert_access(ad.ACCESS_READ)
-        return directory.stat_blob(guid, prop) or None
+        return directory.get(guid).stat(prop)
 
     def publish(self, event):
         # TODO Forward event to subscription socket

@@ -235,12 +235,10 @@ class OutPacket(object):
         self._addfile(arcname + '.meta', meta, True)
 
     def pop_content(self):
-        self._commit()
-        content = self._stream
-        length = content.tell()
-        content.seek(0)
         self.close()
-        return content, length
+        length = self._stream.tell()
+        self._stream.seek(0)
+        return self._stream, length
 
     def _commit(self):
         self._addfile('header', self.header, True)

@@ -32,8 +32,8 @@ class InjectorTest(tests.Test):
 
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
         self.touch(
-                (blob_path, json.dumps({})),
-                (blob_path + '.sha1', ''),
+                (blob_path, '{}'),
+                (blob_path + '.blob', json.dumps({})),
                 )
 
         pipe = checkin('/', context)
@@ -58,7 +58,8 @@ class InjectorTest(tests.Test):
 
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
         self.touch(
-                (blob_path, json.dumps({
+                (blob_path, '{}'),
+                (blob_path + '.blob', json.dumps({
                     '1': {
                         '*-*': {
                             'commands': {
@@ -72,7 +73,6 @@ class InjectorTest(tests.Test):
                             },
                         },
                     })),
-                (blob_path + '.sha1', ''),
                 )
         os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
 
@@ -91,8 +91,8 @@ class InjectorTest(tests.Test):
         os.unlink('cache/implementation/%s/%s/bundle.meta' % (impl[:2], impl))
 
         blob_path = 'remote/implementation/%s/%s/bundle' % (impl[:2], impl)
-        self.touch((blob_path + '.sha1', ''))
-        bundle = zipfile.ZipFile(blob_path, 'w')
+        self.touch((blob_path, '{}'))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('probe', 'probe')
         bundle.close()
 
@@ -125,7 +125,8 @@ class InjectorTest(tests.Test):
 
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
         self.touch(
-                (blob_path, json.dumps({
+                (blob_path, '{}'),
+                (blob_path + '.blob', json.dumps({
                     '1': {
                         '*-*': {
                             'commands': {
@@ -140,12 +141,11 @@ class InjectorTest(tests.Test):
                             },
                         },
                     })),
-                (blob_path + '.sha1', ''),
                 )
 
         blob_path = 'remote/implementation/%s/%s/bundle' % (impl[:2], impl)
-        self.touch((blob_path + '.sha1', ''))
-        bundle = zipfile.ZipFile(blob_path, 'w')
+        self.touch((blob_path, '{}'))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
             '[Activity]',
             'name = TestActivitry',
@@ -183,7 +183,8 @@ class InjectorTest(tests.Test):
         os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
         self.touch(
-                (blob_path, json.dumps({
+                (blob_path, '{}'),
+                (blob_path + '.blob', json.dumps({
                     '1': {
                         '*-*': {
                             'commands': {
@@ -211,12 +212,11 @@ class InjectorTest(tests.Test):
                             },
                         },
                     })),
-                (blob_path + '.sha1', ''),
                 )
 
         blob_path = 'remote/implementation/%s/%s/bundle' % (impl_2[:2], impl_2)
-        self.touch((blob_path + '.sha1', ''))
-        bundle = zipfile.ZipFile(blob_path, 'w')
+        self.touch((blob_path, '{}'))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
             '[Activity]',
             'name = TestActivitry',

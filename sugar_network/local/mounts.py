@@ -93,6 +93,10 @@ class Mounts(dict):
                 except Exception:
                     util.exception(_logger, _('Failed to dispatch %r'), event)
 
+    def open(self):
+        for mount in self.values():
+            mount.open()
+
     def close(self):
         while self:
             __, mount = self.popitem()
@@ -104,6 +108,12 @@ class _Mount(object):
 
     def __init__(self, mountpoint):
         self.mountpoint = mountpoint
+
+    def open(self):
+        pass
+
+    def close(self):
+        pass
 
 
 class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
@@ -119,9 +129,6 @@ class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
     def connected(self):
         return True
 
-    def close(self):
-        pass
-
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request):
         directory = self.volume[document]
@@ -130,7 +137,7 @@ class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
         if document == 'context' and prop == 'feed':
             return json.dumps(self._get_feed(request))
         else:
-            return directory.stat_blob(guid, prop) or None
+            return directory.get(guid).meta(prop)
 
     @ad.document_command(method='GET')
     def get(self, document, guid, request, response, reply=None):
@@ -260,7 +267,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
         _Mount.__init__(self, mountpoint)
         self._home_volume = volume
         self._publish = publish_cb
-        self._events_job = coroutine.spawn(self._events_listerner)
+        self._events_job = None
         self._connected = False
         self._seqno = {}
         self._remote_volume_guid = None
@@ -268,6 +275,9 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
     @property
     def connected(self):
         return self._connected
+
+    def open(self):
+        self._events_job = coroutine.spawn(self._events_listerner)
 
     def close(self):
         if self._events_job is not None:
@@ -494,9 +504,6 @@ class _StubMount(_Mount):
     @property
     def connected(self):
         return False
-
-    def close(self):
-        pass
 
     def call(self, request, response):
         raise Offline(_('Mount is empty'))

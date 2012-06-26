@@ -32,6 +32,11 @@ from active_toolkit.sockets import decode_multipart, BUFFER_SIZE
 from sugar_network.toolkit import sugar
 from sugar_network import local
 
+# Let toolkit.http work in concurrence
+# TODO Is it safe for the rest of code?
+from gevent.monkey import patch_socket
+patch_socket(dns=False)
+
 
 _logger = logging.getLogger('toolkit.http')
 _session = None

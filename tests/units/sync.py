@@ -27,38 +27,45 @@ class SyncTest(tests.Test):
     def test_Master_MisaddressedPacket(self):
         master = Master('master')
         master.volume = {}
-        request = ad.Request()
         response = ad.Response()
 
         packet = OutPacket('push')
+        request = ad.Request()
         request.content_stream, request.content_length = packet.pop_content()
         self.assertRaises(RuntimeError, master.sync, request, response)
 
         packet = OutPacket('push', sender='node')
+        request = ad.Request()
         request.content_stream, request.content_length = packet.pop_content()
         self.assertRaises(RuntimeError, master.sync, request, response)
 
         packet = OutPacket('push', receiver='master')
+        request = ad.Request()
         request.content_stream, request.content_length = packet.pop_content()
         self.assertRaises(RuntimeError, master.sync, request, response)
 
         packet = OutPacket('push', sender='node', receiver='fake')
+        request = ad.Request()
         request.content_stream, request.content_length = packet.pop_content()
         self.assertRaises(RuntimeError, master.sync, request, response)
 
         packet = OutPacket('push', sender='master', receiver='master')
+        request = ad.Request()
         request.content_stream, request.content_length = packet.pop_content()
         self.assertRaises(RuntimeError, master.sync, request, response)
 
         packet = OutPacket('push', sender='node', receiver='master', sequence={})
+        request = ad.Request()
         request.content_stream, request.content_length = packet.pop_content()
         master.sync(request, response)
 
         packet = OutPacket('pull', sender='node', receiver='master', sequence={})
+        request = ad.Request()
         request.content_stream, request.content_length = packet.pop_content()
         master.sync(request, response)
 
         packet = OutPacket('fake', sender='node', receiver='master')
+        request = ad.Request()
         request.content_stream, request.content_length = packet.pop_content()
         self.assertRaises(RuntimeError, master.sync, request, response)
 
