@@ -220,7 +220,8 @@ class Directory(object):
 
         _logger.debug('Received %r BLOB property from %s[%s]',
                 prop.name, self.metadata.name, guid)
-        record.set_blob(prop.name, data, size, seqno=seqno)
+        record.set_blob(prop.name, data, size, seqno=seqno,
+                mime_type=prop.mime_type)
 
         if record.consistent:
             self._post(guid, {'seqno': seqno}, False)

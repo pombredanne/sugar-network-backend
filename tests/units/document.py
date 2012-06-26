@@ -161,7 +161,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @active_property(BlobProperty)
+            @active_property(BlobProperty, mime_type='mime_type')
             def blob(self, value):
                 return value
 
@@ -183,6 +183,7 @@ class DocumentTest(tests.Test):
             'mtime': os.stat(join(tests.tmpdir, guid[:2], guid, 'blob')).st_mtime,
             'digest': hashlib.sha1(data).hexdigest(),
             'path': join(tests.tmpdir, guid[:2], guid, 'blob.blob'),
+            'mime_type': 'mime_type',
             },
             directory.get(guid).meta('blob'))
 
