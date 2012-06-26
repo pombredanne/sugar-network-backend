@@ -23,8 +23,7 @@ from gettext import gettext as _
 import active_document as ad
 import restful_document as rd
 import sugar_network_webui as webui
-from sugar_network.client.bus import Request
-from sugar_network import local, node
+from sugar_network import local, node, Client
 from sugar_network.toolkit import application, sugar
 from sugar_network.local import activities_registry
 from sugar_network.local.bus import IPCServer
@@ -118,7 +117,6 @@ class Application(application.Daemon):
             delayed_start = None
 
         self._ipc_server = IPCServer(self._mounts, delayed_start)
-        self._mounts.connect(self._ipc_server.publish)
 
         if local.server_mode.value:
             logging.info(_('Listening for remote requests on %s port'),
@@ -164,8 +162,8 @@ class Application(application.Daemon):
                 self._home_volume, local.activities.value)
 
         if webui.webui.value:
-            # Point client API to `self._mounts` directly passing over IPC
-            Request.connection = self._mounts
+            # Point clients to `self._mounts` directly passing over IPC
+            Client.connection = self._mounts
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info(_('Start Web server on %s:%s port'), *host)
             self._web_server = coroutine.WSGIServer(host, webui.get_app())
@@ -192,7 +190,6 @@ locale.setlocale(locale.LC_ALL, '')
 application.debug.value = sugar.logger_level()
 rd.only_sync_notification.value = False
 ad.index_lazy_open.value = True
-webui.webui.value = True
 # Use sugar key for server identification
 node.privkey.value = sugar.profile_path('owner.key')
 # It seems to be that most of users (on XO at least) don't have recent SSH

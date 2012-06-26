@@ -24,8 +24,7 @@ import restful_document as rd
 import sugar_network_webui as webui
 from active_toolkit import optparse, coroutine
 
-from sugar_network import node, local
-from sugar_network.client.bus import Request
+from sugar_network import node, local, Client
 from sugar_network.node import stats
 from sugar_network.node.mounts import Mount
 from sugar_network.toolkit import application, sugar
@@ -70,7 +69,7 @@ class Application(application.Daemon):
             sugar.color = lambda: '#000000,#000000'
 
             # Point client API to volume directly
-            Request.connection = mount
+            Client.connection = mount
 
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info(_('Start Web server on %s:%s port'), *host)

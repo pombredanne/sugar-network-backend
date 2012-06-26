@@ -66,9 +66,6 @@ class Mount(ad.VolumeCommands, NodeCommands):
 
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
 
-        self.connect = volume.connect
-        self.disconnect = volume.disconnect
-
     @ad.volume_command(cmd='is_connected', access_level=ad.ACCESS_LOCAL)
     def is_connected(self):
         return True
@@ -92,6 +89,12 @@ class Mount(ad.VolumeCommands, NodeCommands):
             if response is None:
                 response = ad.Response()
         return ad.VolumeCommands.call(self, request, response)
+
+    def connect(self, callback, condition=None):
+        return self.volume.connect(callback, condition)
+
+    def disconnect(self, callback):
+        return self.volume.disconnect(callback)
 
 
 def _load_pubkey(path):

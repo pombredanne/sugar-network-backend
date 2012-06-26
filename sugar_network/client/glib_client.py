@@ -17,7 +17,7 @@ import logging
 
 import gobject
 
-from sugar_network.client.bus import Request
+from sugar_network.client.bus import Client
 
 
 _logger = logging.getLogger('sugar_network')
@@ -47,7 +47,7 @@ class GlibClient(gobject.GObject):
     def __init__(self):
         gobject.GObject.__init__(self)
 
-        self._subscription = Request().connection.subscribe()
+        self._subscription = Client.subscribe()
         gobject.io_add_watch(self._subscription.fileno(),
                 gobject.IO_IN | gobject.IO_HUP, self.__subscription_cb)
 
@@ -57,18 +57,19 @@ class GlibClient(gobject.GObject):
             self._subscription = None
 
     def get(self, mountpoint, document, guid, reply):
-        request = Request(mountpoint, document)
-        return request.call('GET', guid=guid, reply=reply)
+        return Client.call('GET', mountpoint=mountpoint, document=document,
+                guid=guid, reply=reply)
 
     def find(self, mountpoint, document, offset, limit, reply):
-        params = {'limit': limit,
-                  'reply': reply,
-                  }
-        request = Request(mountpoint, document)
+        args = {'mountpoint': mountpoint,
+                'document': document,
+                'limit': limit,
+                'reply': reply,
+                }
 
         def fetch_chunk(offset):
-            params['offset'] = offset
-            response = request.call('GET', **params)
+            args['offset'] = offset
+            response = Client.call('GET', **args)
             return response['result'], response['total']
 
         items, total = fetch_chunk(offset)
@@ -81,14 +82,12 @@ class GlibClient(gobject.GObject):
             items, total = fetch_chunk(offset)
 
     def update(self, mountpoint, document, guid, **props):
-        request = Request(mountpoint, document)
-        request.call('PUT', guid=guid, content=props,
-                content_type='application/json')
+        Client.call('PUT', mountpoint=mountpoint, document=document,
+                guid=guid, content=props, content_type='application/json')
 
     def publish(self, event, **kwargs):
         kwargs['event'] = event
-        request = Request()
-        request.call('POST', 'publish', content=kwargs,
+        Client.call('POST', 'publish', content=kwargs,
                 content_type='application/json')
 
     def __subscription_cb(self, source, cb_condition):

@@ -12,7 +12,6 @@ from active_toolkit import coroutine
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network import Client
-from sugar_network.client.bus import Request
 from sugar_network.local import mounts
 
 
@@ -248,14 +247,13 @@ class IPCClientTest(tests.Test):
 
     def test_PublishEvents(self):
         self.start_server()
-        request = Request(None)
 
         events = []
-        request.connect(lambda event: events.append(event))
+        Client.connect(lambda event: events.append(event))
 
-        request.publish('probe', payload=1)
-        request.publish('probe', payload=2)
-        request.publish('probe', payload=3)
+        Client.publish('probe', payload=1)
+        Client.publish('probe', payload=2)
+        Client.publish('probe', payload=3)
         coroutine.sleep()
 
         self.assertEqual([
@@ -305,7 +303,7 @@ class IPCClientTest(tests.Test):
 
     def test_Direct(self):
         volume = ad.SingleVolume('local', [User, Context])
-        Request.connection = mounts.Mounts(volume)
+        Client._connection = mounts.Mounts(volume)
         client = Client('~')
 
         guid_1 = client.Context(

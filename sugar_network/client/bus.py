@@ -22,8 +22,6 @@ from gettext import gettext as _
 import active_document as ad
 from active_toolkit import util, coroutine, sockets
 from sugar_network import local
-from sugar_network.client.objects import Object
-from sugar_network.client.cursor import Cursor
 from sugar_network.toolkit import ipc, sugar
 
 
@@ -36,49 +34,11 @@ class ServerError(RuntimeError):
     pass
 
 
-class Request(dict):
+class classproperty(property):
 
-    connection = None
-    principal = None
-
-    def __init__(self, mountpoint=None, document=None):
-        dict.__init__(self)
-
-        if mountpoint:
-            self['mountpoint'] = mountpoint
-        if document:
-            self['document'] = document
-
-        if Request.connection is None:
-            Request.connection = _Connection()
-            Request.principal = sugar.uid()
-
-    @property
-    def online(self):
-        return self.get('mountpoint') == '/'
-
-    def call(self, method, cmd=None, content=None, content_type=None,
-            **kwargs):
-        request = ad.Request(kwargs)
-        request.access_level = ad.ACCESS_LOCAL
-        request.principal = self.principal
-        request.update(self)
-        request['method'] = method
-        if cmd:
-            request['cmd'] = cmd
-        request.content = content
-        request.content_type = content_type
-        return self.connection.call(request)
-
-    def publish(self, event, **kwargs):
-        kwargs['event'] = event
-        self.connection.publish(kwargs)
-
-    def connect(self, callback):
-        self.connection.connect(callback, self)
-
-    def disconnect(self, callback):
-        self.connection.disconnect(callback)
+    def __get__(self, obj, type_):
+        # pylint: disable-msg=E1101
+        return self.fget.__get__(None, type_)()
 
 
 class Client(object):
@@ -88,6 +48,66 @@ class Client(object):
     for detailed information.
 
     """
+    _connection = None
+    _principal = None
+
+    @classproperty
+    @classmethod
+    def connection(cls):
+        if cls._connection is None:
+            cls._connection = _Connection()
+        return cls._connection
+
+    @classproperty
+    @classmethod
+    def principal(cls):
+        if cls._principal is None:
+            cls._principal = sugar.uid()
+        return cls._principal
+
+    @classmethod
+    def close(cls):
+        cls._connection = None
+        cls._principal = None
+
+    @classmethod
+    def call(cls, method, cmd=None, content=None, content_type=None, **kwargs):
+        request = ad.Request(kwargs)
+        request.access_level = ad.ACCESS_LOCAL
+        request.principal = cls.principal
+        request['method'] = method
+        if cmd:
+            request['cmd'] = cmd
+        request.content = content
+        request.content_type = content_type
+        return cls.connection.call(request)
+
+    @classmethod
+    def publish(cls, event, **kwargs):
+        kwargs['event'] = event
+        cls.connection.publish(kwargs)
+
+    @classmethod
+    def connect(cls, callback, **condition):
+        cls.connection.connect(callback, condition)
+
+    @classmethod
+    def disconnect(cls, callback):
+        cls.connection.disconnect(callback)
+
+    @classmethod
+    def subscribe(cls):
+        """Start subscription session.
+
+        :returns:
+            `SocketFile` object connected to IPC server to read events from
+
+        """
+        ipc.rendezvous()
+        # pylint: disable-msg=E1101
+        conn = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
+        conn.connect(local.ensure_path('run', 'subscribe'))
+        return conn
 
     def __init__(self, mountpoint):
         self._mountpoint = mountpoint
@@ -95,8 +115,7 @@ class Client(object):
 
     @property
     def connected(self):
-        request = Request(self._mountpoint)
-        return request.call('GET', 'is_connected')
+        return self.call('GET', 'is_connected', mountpoint=self._mountpoint)
 
     def launch(self, context, command='activity', object_id=None, uri=None,
             args=None):
@@ -120,7 +139,7 @@ class Client(object):
 
         """
         # TODO Make a diference in launching from "~" and "/" mounts
-        Request().publish('launch', context=context, command=command,
+        self.publish('launch', context=context, command=command,
                 object_id=object_id, uri=uri, args=args)
 
     def __getattr__(self, name):
@@ -199,16 +218,6 @@ class _Connection(object):
             except Exception:
                 util.exception(_logger, _('Cannot close IPC connection'))
 
-    @staticmethod
-    def subscribe():
-        """Start subscription session.
-
-        :returns:
-            `SocketFile` object connected to IPC server to read events from
-
-        """
-        return _subscribe()
-
     @contextmanager
     def _pipe(self):
         if self._pool.qsize() or self._pool_size >= self._pool.maxsize:
@@ -228,7 +237,7 @@ class _Connection(object):
     def _subscribe(self):
         _logger.debug('Start waiting for events')
 
-        conn = _subscribe()
+        conn = Client.subscribe()
         try:
             while True:
                 coroutine.select([conn.fileno()], [], [])
@@ -248,7 +257,7 @@ class _Connection(object):
 class _Resource(object):
 
     def __init__(self, mountpoint, name):
-        self._request = Request(mountpoint, name)
+        self._request = {'mountpoint': mountpoint, 'document': name}
 
     def cursor(self, query=None, order_by=None, reply=None, page_size=18,
             **filters):
@@ -271,6 +280,7 @@ class _Resource(object):
             a dictionary of properties to filter resulting list
 
         """
+        from sugar_network.client.cursor import Cursor
         return Cursor(self._request, query, order_by, reply, page_size,
                 **filters)
 
@@ -281,15 +291,8 @@ class _Resource(object):
             resource object's GUID
 
         """
-        return self._request.call('DELETE', guid=guid)
+        return Client.call('DELETE', guid=guid, **self._request)
 
     def __call__(self, guid=None, reply=None, **kwargs):
+        from sugar_network.client.objects import Object
         return Object(self._request, reply or [], guid, **kwargs)
-
-
-def _subscribe():
-    ipc.rendezvous()
-    # pylint: disable-msg=E1101
-    conn = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
-    conn.connect(local.ensure_path('run', 'subscribe'))
-    return conn

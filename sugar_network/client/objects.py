@@ -13,12 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import json
 import logging
 from cStringIO import StringIO
 from os.path import isdir, abspath
 from gettext import gettext as _
 
+from sugar_network.client.bus import Client
 from sugar_network.toolkit import sugar
 from active_toolkit import enforce
 
@@ -67,7 +67,8 @@ class Object(object):
         if not to_fetch:
             return
 
-        response = self._request.call('GET', guid=self._guid, reply=to_fetch)
+        response = Client.call('GET', guid=self._guid, reply=to_fetch,
+                **self._request)
         response.update(self._props)
         self._props = response
 
@@ -80,12 +81,12 @@ class Object(object):
             props[i] = self._props.get(i)
 
         if self._guid:
-            self._request.call('PUT', guid=self._guid, content=props,
-                    content_type='application/json')
+            Client.call('PUT', guid=self._guid, content=props,
+                    content_type='application/json', **self._request)
         else:
             props['user'] = [sugar.uid()]
-            self._guid = self._request.call('POST', content=props,
-                    content_type='application/json')
+            self._guid = Client.call('POST', content=props,
+                    content_type='application/json', **self._request)
 
         self._dirty.clear()
         return self._guid
@@ -110,27 +111,17 @@ class Object(object):
         else:
             return _empty_blob
 
-    def set_blob(self, prop, data, mime_type='application/octet-stream'):
-        enforce(self._guid, _('Object needs to be posted first'))
-        if mime_type == 'application/json':
-            data = json.dumps(data)
-        self._request.call('PUT', guid=self._guid, prop=prop, content=data,
-                content_type=mime_type)
-
-    def set_blob_by_url(self, prop, url):
-        enforce(self._guid, _('Object needs to be posted first'))
-        self._request.call('PUT', guid=self._guid, prop=prop, url=url)
-
     def upload_blob(self, prop, path, pass_ownership=False):
         enforce(self._guid, _('Object needs to be posted first'))
-        self._request.call('PUT', 'upload_blob', guid=self._guid, prop=prop,
-                path=abspath(path), pass_ownership=pass_ownership)
+        Client.call('PUT', 'upload_blob', guid=self._guid, prop=prop,
+                path=abspath(path), pass_ownership=pass_ownership,
+                **self._request)
 
     def _get_blob(self, prop):
         blob = self._blobs.get(prop)
         if blob is None:
-            blob = self._request.call('GET', 'get_blob',
-                    guid=self._guid, prop=prop)
+            blob = Client.call('GET', 'get_blob', guid=self._guid, prop=prop,
+                    **self._request)
             self._blobs[prop] = blob
         return blob, type(blob) is dict and 'path' in blob
 

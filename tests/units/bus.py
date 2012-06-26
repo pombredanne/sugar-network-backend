@@ -10,8 +10,7 @@ from __init__ import tests
 import active_document as ad
 from active_toolkit import coroutine
 from sugar_network.client import bus
-from sugar_network import Client
-from sugar_network.client.bus import ServerError
+from sugar_network import Client, ServerError
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import Mounts
 

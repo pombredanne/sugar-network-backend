@@ -17,6 +17,7 @@ import logging
 import collections
 from gettext import gettext as _
 
+from sugar_network.client.bus import Client
 from sugar_network.client.objects import Object
 from active_toolkit import coroutine, util, enforce
 
@@ -44,10 +45,10 @@ class Cursor(object):
         self._offset = -1
         self._wait_session = None
 
-        self._request.connect(self.__event_cb)
+        Client.connect(self.__event_cb, **request)
 
     def close(self):
-        self._request.disconnect(self.__event_cb)
+        Client.disconnect(self.__event_cb)
 
     # pylint: disable-msg=E1101,E0102,E0202
     @property
@@ -210,12 +211,11 @@ class Cursor(object):
             params['reply'] = self._reply
 
         try:
-            response = self._request.call('GET', **params)
+            params.update(self._request)
+            response = Client.call('GET', **params)
             self._total = response['total']
         except Exception:
-            util.exception(_logger,
-                    _('Failed to fetch query result: resource=%r query=%r'),
-                    self._request, params)
+            util.exception(_logger, _('Failed to fetch %r query'), params)
             self._total = None
             return False
 

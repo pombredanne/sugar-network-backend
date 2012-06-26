@@ -6,6 +6,7 @@ import signal
 import shutil
 import logging
 import unittest
+import subprocess
 from os.path import dirname, join, exists, abspath
 
 import active_document as ad
@@ -77,7 +78,7 @@ class Test(unittest.TestCase):
         sys.stdout = sys.stderr = self._logfile
 
         bus._CONNECTION_POOL = 1
-        bus.Request.connection = None
+        bus.Client.close()
 
         http.reset()
 
@@ -89,6 +90,7 @@ class Test(unittest.TestCase):
         self.mounts = None
 
         self.forks = []
+        self.fork_num = 0
 
     def tearDown(self):
         self.stop_servers()
@@ -101,20 +103,20 @@ class Test(unittest.TestCase):
     def stop_servers(self):
         if self.mounts is not None:
             self.mounts.close()
-        if bus.Request.connection is not None:
-            bus.Request.connection.close()
-        bus.Request.connection = None
+        if bus.Client.connection is not None:
+            bus.Client.connection.close()
+        bus.Client.close()
         if self.server is not None:
             self.server.stop()
         while self.forks:
             pid = self.forks.pop()
             self.assertEqual(0, self.waitpid(pid))
 
-    def waitpid(self, pid):
+    def waitpid(self, pid, sig=signal.SIGTERM):
         if pid in self.forks:
             self.forks.remove(pid)
         try:
-            os.kill(pid, signal.SIGTERM)
+            os.kill(pid, sig)
         except Exception:
             pass
         try:
@@ -167,7 +169,16 @@ class Test(unittest.TestCase):
             os._exit(result)
         else:
             self.forks.append(pid)
+            coroutine.sleep(1)
             return pid
+
+    def popen(self, *args):
+        self.fork_num += 1
+        logfile = file('%s-%s.log' % (tmpdir, self.fork_num), 'w')
+        child = subprocess.Popen(*args, stdout=logfile, stderr=logfile)
+        self.forks.append(child.pid)
+        coroutine.sleep(1)
+        return child.pid
 
     def start_server(self, classes=None, open=True):
 
@@ -180,7 +191,6 @@ class Test(unittest.TestCase):
         self.mounts = Mounts(volume)
         node.volume = self.mounts.home_volume
         self.server = IPCServer(self.mounts)
-        self.mounts.connect(self.server.publish)
         coroutine.spawn(server)
         if open:
             self.mounts.open()
@@ -195,7 +205,7 @@ class Test(unittest.TestCase):
                 connected.set()
 
         connected = coroutine.Event()
-        bus.Request('/').connect(wait_connect)
+        bus.Client.connect(wait_connect)
         coroutine.dispatch()
         self.mounts.open()
         connected.wait()

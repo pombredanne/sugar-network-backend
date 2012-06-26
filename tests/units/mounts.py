@@ -17,9 +17,7 @@ from __init__ import tests
 import restful_document as rd
 import active_document as ad
 from active_toolkit import sockets, coroutine
-from sugar_network import Client
-from sugar_network.client.bus import ServerError, Request
-from sugar_network import local
+from sugar_network import Client, ServerError, local
 from sugar_network.local import mounts as mounts_, activities_registry
 from sugar_network.local.mounts import Mounts
 from sugar_network.local.bus import IPCServer
@@ -454,7 +452,6 @@ class MountsTest(tests.Test):
         volume = ad.SingleVolume('local', [User, Context])
         mounts = Mounts(volume)
         ipc_server = IPCServer(mounts)
-        mounts.connect(ipc_server.publish)
         coroutine.spawn(ipc_server.serve_forever)
 
         client = Client('/')
@@ -654,7 +651,6 @@ class MountsTest(tests.Test):
                 mounts.home_volume, ['Activities'])
 
         ipc_server = IPCServer(mounts)
-        mounts.connect(ipc_server.publish)
         coroutine.spawn(ipc_server.serve_forever)
         coroutine.dispatch()
 
@@ -663,7 +659,7 @@ class MountsTest(tests.Test):
                 connected.set()
 
         connected = coroutine.Event()
-        Request('/').connect(wait_connect)
+        Client.connect(wait_connect, mountpoint='/')
         mounts.open()
         connected.wait()
 

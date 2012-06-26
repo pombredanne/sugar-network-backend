@@ -41,6 +41,8 @@ class IPCServer(object):
         self._principal = sugar.uid()
         self._publish_lock = coroutine.Lock()
 
+        self._mounts.connect(self._republish)
+
     def serve_forever(self):
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
@@ -82,7 +84,7 @@ class IPCServer(object):
                     request.content = conn_file.read() or None
 
                 if request.get('cmd') == 'publish':
-                    self.publish(request.content)
+                    self._republish(request.content)
                     result = None
                 else:
                     response = ad.Response()
@@ -105,7 +107,7 @@ class IPCServer(object):
         self._subscriptions.append(conn_file)
         return True
 
-    def publish(self, event):
+    def _republish(self, event):
         if event.get('event') == 'delayed-start':
             if self._delayed_start is not None:
                 try:
