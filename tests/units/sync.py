@@ -161,9 +161,9 @@ class SyncTest(tests.Test):
         node.volume = {'document': Directory()}
         os.makedirs('sync')
 
-        node.sync('sync')
+        node.sync('sync', session='session')
         self.assertEqual([
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[1, 1]]}},
+            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[1, 1]]}, 'session': 'session'},
             {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': 'diff'},
             ],
             self.read_packets('sync'))
@@ -192,7 +192,8 @@ class SyncTest(tests.Test):
         our_push = OutPacket('push', root='sync',
                 sender='node',
                 receiver='master',
-                sequence={'document': [[9, 10]]})
+                sequence={'document': [[9, 10]]},
+                session='stale')
         our_push.push_messages(document='document', items=[
             {'guid': 1, 'diff': 'diff-1'},
             ])
@@ -215,7 +216,7 @@ class SyncTest(tests.Test):
             ])
         other_node_push.close()
 
-        node.sync('sync')
+        node.sync('sync', session='new')
 
         assert not exists(ack.path)
         assert exists(other_node_ack.path)
@@ -236,40 +237,63 @@ class SyncTest(tests.Test):
                     ]),
                 sorted(node.volume['document'].merged))
 
+    def test_Node_Import_DoNotDeletePacketsFromCurrentSession(self):
+        node = Node('node', 'master')
+        node.volume = {'document': Directory()}
+        os.makedirs('sync')
+
+        existing_push = OutPacket('push', root='sync',
+                sender='node',
+                receiver='master',
+                sequence={},
+                session='the same')
+        existing_push.close()
+
+        self.assertEqual(1, len(os.listdir('sync')))
+        node.sync('sync', session='the same')
+        files = set(os.listdir('sync'))
+        self.assertEqual(2, len(files))
+        assert exists(existing_push.path)
+
+        node.sync('sync', session='new one')
+        self.assertEqual(1, len(os.listdir('sync')))
+        assert not (set(os.listdir('sync')) & files)
+
     def test_Node_LimittedExport(self):
         node = Node('node', 'master')
         node.volume = {'document': Directory(diff=['0' * 100] * 5)}
         os.makedirs('sync')
 
-        sequence = node.sync('sync', accept_length=100)
-        self.assertEqual({'document': [[1, None]]}, sequence)
+        kwargs = node.sync('sync', accept_length=100, session=0)
+        self.assertEqual(0, kwargs['session'])
+        self.assertEqual({'document': [[1, None]]}, kwargs['sequence'])
         self.assertEqual([], self.read_packets('sync'))
 
-        sequence = node.sync('sync', accept_length=100, sequence=sequence)
-        self.assertEqual({'document': [[1, None]]}, sequence)
+        kwargs = node.sync('sync', accept_length=100, sequence=kwargs['sequence'])
+        self.assertEqual({'document': [[1, None]]}, kwargs['sequence'])
         self.assertEqual([], self.read_packets('sync'))
 
-        sequence = node.sync('sync', accept_length=200, sequence=sequence)
-        self.assertEqual({'document': [[2, None]]}, sequence)
+        kwargs = node.sync('sync', accept_length=200, sequence=kwargs['sequence'], session=1)
+        self.assertEqual({'document': [[2, None]]}, kwargs['sequence'])
         self.assertEqual([
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[1, 1]]}},
+            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[1, 1]]}, 'session': 1},
             {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 100},
             ],
             self.read_packets('sync'))
 
-        sequence = node.sync('sync', accept_length=300, sequence=sequence)
-        self.assertEqual({'document': [[4, None]]}, sequence)
+        kwargs = node.sync('sync', accept_length=300, sequence=kwargs['sequence'], session=2)
+        self.assertEqual({'document': [[4, None]]}, kwargs['sequence'])
         self.assertEqual([
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[2, 3]]}},
+            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[2, 3]]}, 'session': 2},
             {'type': 'messages', 'document': 'document', 'guid': 2, 'diff': '0' * 100},
             {'type': 'messages', 'document': 'document', 'guid': 3, 'diff': '0' * 100},
             ],
             self.read_packets('sync'))
 
-        sequence = node.sync('sync', sequence=sequence)
-        self.assertEqual(None, sequence)
+        kwargs = node.sync('sync', sequence=kwargs['sequence'], session=3)
+        self.assertEqual(None, kwargs)
         self.assertEqual([
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[4, 8]]}},
+            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[4, 8]]}, 'session': 3},
             {'type': 'messages', 'document': 'document', 'guid': 4, 'diff': '0' * 100},
             {'type': 'messages', 'document': 'document', 'guid': 5, 'diff': '0' * 100},
             {'type': 'messages', 'document': 'document', 'guid': 6, 'diff': '0' * 100},

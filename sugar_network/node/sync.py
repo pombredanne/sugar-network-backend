@@ -40,6 +40,7 @@ PULL packet:
 """
 import os
 import json
+import hashlib
 import logging
 from os.path import exists
 from gettext import gettext as _
@@ -66,17 +67,20 @@ class Node(object):
 
     @ad.volume_command(method='POST', cmd='sync',
             access_level=ad.ACCESS_LOCAL)
-    def sync(self, path, sequence=None, accept_length=None):
+    def sync(self, path, accept_length=None, sequence=None, session=None):
         to_push_seq = _Sequence(empty_value=[1, None])
-        if sequence is not None:
-            to_push_seq.update(sequence)
-        else:
+        if sequence is None:
             to_push_seq.update(self._push_seq)
+        else:
+            to_push_seq.update(sequence)
+        if session is None:
+            session = _volume_hash(self.volume)
 
         while True:
-            self._import(path)
+            self._import(path, session)
             with sneakernet.OutPacket('push', root=path, limit=accept_length,
-                    sender=self._guid, receiver=self._master_guid) as packet:
+                    sender=self._guid, receiver=self._master_guid,
+                    session=session) as packet:
                 packet.header['sequence'] = pushed_seq = _Sequence()
                 try:
                     self._export(to_push_seq, pushed_seq, packet)
@@ -84,14 +88,14 @@ class Node(object):
                     _logger.debug('Reach package size limit')
                     if not pushed_seq:
                         packet.clear()
-                    return to_push_seq
+                    return {'sequence': to_push_seq, 'session': session}
                 except Exception:
                     packet.clear()
                     raise
                 else:
                     break
 
-    def _import(self, path):
+    def _import(self, path, session):
         for packet in sneakernet.walk(path):
             if packet.header.get('type') == 'push':
                 if packet.header.get('sender') != self._guid:
@@ -102,8 +106,13 @@ class Node(object):
                     if packet.header.get('sender') == self._master_guid:
                         self._pull_seq.exclude(packet.header['sequence'])
                 else:
-                    _logger.debug('Remove our previous %r PUSH packet', packet)
-                    os.unlink(packet.path)
+                    if packet.header.get('session') == session:
+                        _logger.debug('Preserve %r PUSH packet ' \
+                                'from current session', packet)
+                    else:
+                        _logger.debug('Remove our previous %r PUSH packet',
+                                packet)
+                        os.unlink(packet.path)
             elif packet.header.get('type') == 'ack':
                 if packet.header.get('sender') == self._master_guid and \
                         packet.header.get('receiver') == self._guid:
@@ -230,3 +239,10 @@ class _PersistentSequence(_Sequence):
             json.dump(self, f)
             f.flush()
             os.fsync(f.fileno())
+
+
+def _volume_hash(volume):
+    stamp = []
+    for name, directory in volume.items():
+        stamp.append((name, directory.seqno))
+    return str(hashlib.sha1(json.dumps(stamp)).hexdigest())
