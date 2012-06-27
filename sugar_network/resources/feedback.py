@@ -15,16 +15,19 @@
 
 import active_document as ad
 
+from sugar_network.node import FEEDBACK_TYPES
 from sugar_network.resources.resource import Resource
 
 
-class Problem(Resource):
-
-    LAYOUT_VERSION = 2
+class Feedback(Resource):
 
     @ad.active_property(prefix='C',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def context(self, value):
+        return value
+
+    @ad.active_property(prefix='T', full_text=True, typecast=[FEEDBACK_TYPES])
+    def type(self, value):
         return value
 
     @ad.active_property(prefix='S', full_text=True, localized=True)

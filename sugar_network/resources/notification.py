@@ -21,8 +21,6 @@ from sugar_network.resources.resource import Resource
 
 class Notification(Resource):
 
-    LAYOUT_VERSION = 2
-
     @ad.active_property(slot=1, prefix='T',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
             typecast=node.NOTIFICATION_TYPES)

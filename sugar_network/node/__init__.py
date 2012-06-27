@@ -19,12 +19,12 @@ from active_toolkit import optparse
 
 
 CONTEXT_TYPES = ['application', 'library', 'activity', 'article']
-SOLUTION_PARENTS = ['question', 'idea', 'problem']
-COMMENT_PARENTS = ['question', 'idea', 'problem', 'review', 'solution']
+COMMENT_PARENTS = ['feedback', 'solution']
 NOTIFICATION_TYPES = ['create', 'update', 'delete', 'vote']
+FEEDBACK_TYPES = ['question', 'idea', 'problem', 'review']
+
 NOTIFICATION_OBJECT_TYPES = [
-        '', 'content', 'question', 'idea', 'problem', 'review', 'solution',
-        'artifact', 'version', 'report',
+        '', 'content', 'feedback', 'solution', 'artifact', 'version', 'report',
         ]
 STABILITIES = [
         'insecure', 'buggy', 'developer', 'testing', 'stable',

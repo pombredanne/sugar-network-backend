@@ -21,8 +21,6 @@ from sugar_network.resources.resource import Resource
 
 class Comment(Resource):
 
-    LAYOUT_VERSION = 2
-
     @ad.active_property(prefix='T',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
             typecast=node.COMMENT_PARENTS)

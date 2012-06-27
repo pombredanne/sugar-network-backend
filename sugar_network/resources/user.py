@@ -27,8 +27,6 @@ from sugar_network.toolkit.rrd import Rrd
 
 class User(ad.Document):
 
-    LAYOUT_VERSION = 2
-
     _rrd = {}
 
     @ad.active_property(slot=1, prefix='N', full_text=True)

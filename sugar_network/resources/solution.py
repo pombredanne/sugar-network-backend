@@ -15,23 +15,14 @@
 
 import active_document as ad
 
-from sugar_network import node
 from sugar_network.resources.resource import Resource
 
 
 class Solution(Resource):
 
-    LAYOUT_VERSION = 2
-
-    @ad.active_property(prefix='T',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
-            typecast=node.SOLUTION_PARENTS)
-    def parent_resource(self, value):
-        return value
-
     @ad.active_property(prefix='P',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
-    def parent(self, value):
+    def feedback(self, value):
         return value
 
     @ad.active_property(prefix='N', full_text=True, localized=True)

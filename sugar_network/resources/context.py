@@ -21,8 +21,6 @@ from sugar_network.resources.resource import Resource
 
 class Context(Resource):
 
-    LAYOUT_VERSION = 2
-
     @ad.active_property(prefix='T', full_text=True,
             typecast=[node.CONTEXT_TYPES])
     def type(self, value):

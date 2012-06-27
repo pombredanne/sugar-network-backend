@@ -24,8 +24,6 @@ from sugar_network.resources.resource import Resource
 
 class Implementation(Resource):
 
-    LAYOUT_VERSION = 2
-
     @ad.active_property(prefix='C',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def context(self, value):
