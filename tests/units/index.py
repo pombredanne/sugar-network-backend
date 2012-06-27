@@ -556,21 +556,6 @@ class IndexTest(tests.Test):
         gevent.sleep(1.5)
         self.assertEqual(2, len(commits))
 
-    def test_LazyOpen(self):
-        env.index_lazy_open.value = False
-        index = Index({})
-        assert exists('index')
-        index.close()
-        shutil.rmtree('index')
-
-        env.index_lazy_open.value = True
-        index = Index({})
-        assert not exists('index')
-        index._find()
-        assert exists('index')
-        index.close()
-        shutil.rmtree('index')
-
 
 class Index(index.IndexWriter):
 

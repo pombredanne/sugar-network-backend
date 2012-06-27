@@ -2,10 +2,11 @@
 # sugar-lint: disable
 
 import os
+import sys
 import shutil
 from cStringIO import StringIO
 from email.message import Message
-from os.path import dirname, join, abspath
+from os.path import dirname, join, abspath, exists
 
 src_root = abspath(dirname(__file__))
 
@@ -37,26 +38,6 @@ class VolumeTest(tests.Test):
                 return value
 
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
-
-    def test_AvoidParentClasses(self):
-
-        class Resource(Document):
-            pass
-
-        class Resource_1(Resource):
-            pass
-
-        class Resource_2(Resource):
-            pass
-
-        class Resource_3(Resource_2):
-            pass
-
-        self.volume = SingleVolume(tests.tmpdir,
-                [Resource, Resource_1, Resource_2, Resource_3])
-        self.assertEqual(
-                ['resource_1', 'resource_3'],
-                sorted([i for i in self.volume.keys()]))
 
     def test_Populate(self):
         self.touch(
@@ -376,6 +357,48 @@ class VolumeTest(tests.Test):
         self.assertEqual(
                 [{'guid': guid, 'localized_prop': 'value_%s' % fallback_lang}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
+
+    def test_LazyOpen(self):
+
+        class Document1(document.Document):
+            pass
+
+        class Document2(document.Document):
+            pass
+
+        env.index_lazy_open.value = True
+        volume = SingleVolume('.', [Document1, Document2])
+        assert not exists('document1/index')
+        assert not exists('document2/index')
+        volume['document1'].find()
+        volume['document2'].find()
+        assert exists('document1/index')
+        assert exists('document2/index')
+        volume.close()
+
+        shutil.rmtree('document1')
+        shutil.rmtree('document2')
+
+        env.index_lazy_open.value = False
+        volume = SingleVolume('.', [Document1, Document2])
+        assert exists('document1/index')
+        assert exists('document2/index')
+        volume.close()
+
+    def test_OpenByModuleName(self):
+        self.touch(
+                ('foo/bar.py', [
+                    'from active_document import Document',
+                    'class Bar(Document): pass',
+                    ]),
+                ('foo/__init__.py', ''),
+                )
+        sys.path.insert(0, '.')
+
+        volume = SingleVolume('.', ['foo.bar'])
+        assert exists('bar/index')
+        volume['bar'].find()
+        volume.close()
 
     def call(self, method, document=None, guid=None, prop=None,
             principal=None, accept_language=None, **kwargs):

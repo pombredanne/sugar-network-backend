@@ -36,24 +36,25 @@ _logger = logging.getLogger('active_document.volume')
 
 class _Volume(dict):
 
-    def __init__(self, root, document_classes, index_class):
-        self._subscriptions = {}
-
+    def __init__(self, root, documents, index_class):
         self._root = abspath(root)
         if not exists(root):
             os.makedirs(root)
+        self._index_class = index_class
+        self._subscriptions = {}
+        self._to_open = {}
 
         _logger.info(_('Opening %r volume'), self._root)
 
-        for cls in document_classes:
-            if [i for i in document_classes \
-                    if i is not cls and issubclass(i, cls)]:
-                _logger.warning(_('Skip not final %r document class'), cls)
-                continue
-            name = cls.__name__.lower()
-            directory = Directory(join(self._root, name), cls, index_class,
-                    partial(self._notification_cb, document=name))
-            self[name] = directory
+        for document in documents:
+            if isinstance(document, basestring):
+                name = document.split('.')[-1]
+            else:
+                name = document.__name__.lower()
+            if env.index_lazy_open.value:
+                self._to_open[name] = document
+            else:
+                self[name] = self._open(name, document)
 
     @property
     def root(self):
@@ -74,6 +75,19 @@ class _Volume(dict):
         if callback in self._subscriptions:
             del self._subscriptions[callback]
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def __getitem__(self, name):
+        directory = self.get(name)
+        if directory is None:
+            enforce(name in self._to_open, _('Unknow %r document'), name)
+            directory = self._open(name, self._to_open.pop(name))
+        return directory
+
     def _notification_cb(self, event, document):
         if event['event'] == 'update' and 'props' in event and \
                 'deleted' in event['props'].get('layer', []):
@@ -91,15 +105,15 @@ class _Volume(dict):
                 except Exception:
                     util.exception(_logger, _('Failed to dispatch %r'), event)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
-    def __getitem__(self, name):
-        enforce(name in self, _('Unknow %r document'), name)
-        return self.get(name)
+    def _open(self, name, document):
+        if isinstance(document, basestring):
+            mod = __import__(document, fromlist=[name])
+            cls = getattr(mod, name.capitalize())
+        else:
+            cls = document
+        directory = Directory(join(self._root, name), cls, self._index_class,
+                partial(self._notification_cb, document=name))
+        return directory
 
 
 class SingleVolume(_Volume):

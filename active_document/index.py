@@ -275,8 +275,7 @@ class IndexWriter(IndexReader):
         self._commit_cond = coroutine.Condition()
         self._commit_job = coroutine.spawn(self._commit_handler)
 
-        if not env.index_lazy_open.value:
-            self._do_open()
+        self._do_open()
 
     def close(self):
         """Flush index write pending queue and close the index."""
