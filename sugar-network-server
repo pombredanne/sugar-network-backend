@@ -42,7 +42,7 @@ class Application(application.Daemon):
         if node.certfile.value:
             ssl_args['certfile'] = node.certfile.value
 
-        volume = ad.SingleVolume(node.data_root.value, node.documents())
+        volume = ad.SingleVolume(node.data_root.value, node.DOCUMENTS)
         node.volume.update(volume)
 
         mount = Mount(volume)

@@ -18,6 +18,18 @@ from gettext import gettext as _
 from active_toolkit import optparse
 
 
+DOCUMENTS = (
+        'sugar_network.resources.artifact',
+        'sugar_network.resources.comment',
+        'sugar_network.resources.context',
+        'sugar_network.resources.implementation',
+        'sugar_network.resources.notification',
+        'sugar_network.resources.feedback',
+        'sugar_network.resources.report',
+        'sugar_network.resources.solution',
+        'sugar_network.resources.user',
+        )
+
 CONTEXT_TYPES = ['application', 'library', 'activity', 'article']
 COMMENT_PARENTS = ['feedback', 'solution']
 NOTIFICATION_TYPES = ['create', 'update', 'delete', 'vote']
@@ -78,18 +90,3 @@ privkey = optparse.Option(
 
 
 volume = {}
-
-
-def documents(include=None):
-    if not include:
-        include = (
-                'artifact', 'comment', 'context', 'idea', 'implementation',
-                'notification', 'problem', 'question', 'report', 'review',
-                'solution', 'user',
-                )
-    result = {}
-    for name in include:
-        mod = __import__('sugar_network.resources.%s' % name,
-                fromlist=[name])
-        result[name] = getattr(mod, name.capitalize())
-    return result.values()

@@ -44,15 +44,7 @@ class NullHandler(logging.Handler):
 
 class Application(application.Daemon):
 
-    _prefix = ''
-    _home_volume = None
-    _mounts = None
     _ipc_server = None
-    _api_server = None
-    _api_subscriber = None
-    _web_server = None
-    _monitor = None
-    _reindexer = None
 
     def __init__(self, **kwargs):
         application.Daemon.__init__(self, **kwargs)
@@ -79,28 +71,27 @@ class Application(application.Daemon):
         application.rundir.value = join(local.local_root.value, 'run')
 
     @application.command(
-            _('[PREFIX-PATH USER-GUID]\n'
+            _('[PREFIX-PATH] [USER-GUID]\n'
                 'Index local Sugar Network database'))
     def index(self):
-        enforce(not self.args or len(self.args) == 3,
-                _('Not all command arguments where specified'))
+        root = ''
+        if self.args:
+            root = abspath(self.args.pop(0))
+            local.activities.value = [root + abspath(i) \
+                    for i in local.activities.value]
+            local.local_root.value = root + local.local_root.value
 
         if self.args:
-            prefix, uid = self.args
-            self._prefix = abspath(prefix)
-            local.activities.value = [self._prefix + abspath(i) \
-                    for i in local.activities.value]
-            local.local_root.value = self._prefix + local.local_root.value
+            uid = self.args.pop(0)
             sugar.uid = lambda: uid
 
         ad.index_lazy_open.value = False
+        volume = ad.SingleVolume(self._db_path, node.DOCUMENTS)
         try:
-            self._mount(False)
-            self._populate_index()
-            activities_registry.populate(self._mounts, local.activities.value,
-                    self._prefix)
+            self._populate_index(volume)
+            activities_registry.populate(volume, local.activities.value, root)
         finally:
-            self._mounts.close()
+            volume.close()
 
     def run(self):
         while not exists(node.privkey.value):
@@ -108,42 +99,61 @@ class Application(application.Daemon):
                     SUGAR_REGISTRATION_TIMEOUT)
             coroutine.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        self._mount(local.server_mode.value)
+        volume = ad.SingleVolume(self._db_path, node.DOCUMENTS)
+        node.volume.update(volume)
+        mounts = Mounts(volume)
+        servers = []
+        jobs = []
+
+        def start_server(cls, *args):
+            server = cls(*args)
+            job = coroutine.spawn(server.serve_forever)
+            jobs.append(job.join)
+            servers.append(server)
+
+        def start_job(op, *args):
+            job = coroutine.spawn(op, *args)
+            jobs.append(job.kill)
+
+        def delayed_start():
+            logging.info(_('Proceed delayed start'))
+
+            start_job(activities_registry.monitor, volume,
+                    local.activities.value)
+            start_job(self._populate_index, volume)
+
+            if webui.webui.value:
+                # Point clients to `mounts` directly passing over IPC
+                Client.connection = mounts
+                host = (webui.webui_host.value, webui.webui_port.value)
+                logging.info(_('Start Web server on %s:%s'), *host)
+                start_server(coroutine.WSGIServer, host, webui.get_app())
 
         if local.delayed_start.value:
-            delayed_start = self._delayed_start
+            delayed_start_cb = delayed_start
         else:
-            self._delayed_start()
-            delayed_start = None
+            delayed_start()
+            delayed_start_cb = None
 
-        self._ipc_server = IPCServer(self._mounts, delayed_start)
+        self._ipc_server = IPCServer(mounts, delayed_start_cb)
 
         if local.server_mode.value:
             logging.info(_('Listening for remote requests on %s port'),
                     node.port.value)
-            self._api_server = coroutine.WSGIServer(
-                    ('0.0.0.0', node.port.value),
-                    rd.Router(self._mounts['~']))
-            coroutine.spawn(self._api_server.serve_forever)
-            self._api_subscriber = rd.SubscribeSocket(self._home_volume,
+            start_server(coroutine.WSGIServer,
+                    ('0.0.0.0', node.port.value), rd.Router(mounts['~']))
+            start_server(rd.SubscribeSocket, volume,
                     '0.0.0.0', node.subscribe_port.value)
-            coroutine.spawn(self._api_subscriber.serve_forever)
 
         try:
-            self._mounts.open()
+            mounts.open()
             self._ipc_server.serve_forever()
         finally:
-            if self._reindexer is not None:
-                self._reindexer.kill()
-            if self._monitor is not None:
-                self._monitor.kill()
-            if self._web_server is not None:
-                self._web_server.stop()
-            if self._api_server is not None:
-                self._api_server.stop()
-            if self._api_subscriber is not None:
-                self._api_subscriber.stop()
-            self._mounts.close()
+            while servers:
+                servers.pop().stop()
+            while jobs:
+                jobs.pop()()
+            mounts.close()
 
     def shutdown(self):
         if self._ipc_server is not None:
@@ -153,33 +163,8 @@ class Application(application.Daemon):
     def _db_path(self):
         return join(local.local_root.value, 'local')
 
-    def _delayed_start(self):
-        logging.info(_('Proceed delayed start'))
-
-        self._reindexer = coroutine.spawn(self._populate_index)
-
-        self._monitor = coroutine.spawn(activities_registry.monitor,
-                self._home_volume, local.activities.value)
-
-        if webui.webui.value:
-            # Point clients to `self._mounts` directly passing over IPC
-            Client.connection = self._mounts
-            host = (webui.webui_host.value, webui.webui_port.value)
-            logging.info(_('Start Web server on %s:%s port'), *host)
-            self._web_server = coroutine.WSGIServer(host, webui.get_app())
-            coroutine.spawn(self._web_server.serve_forever)
-
-    def _mount(self, server_mode):
-        if server_mode:
-            documents = node.documents()
-        else:
-            documents = node.documents(['context', 'report'])
-        self._home_volume = ad.SingleVolume(self._db_path, documents)
-        node.volume.update(self._home_volume)
-        self._mounts = Mounts(self._home_volume)
-
-    def _populate_index(self):
-        for cls in self._home_volume.values():
+    def _populate_index(self, volume):
+        for cls in volume.values():
             for __ in cls.populate():
                 coroutine.dispatch()
 

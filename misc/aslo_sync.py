@@ -29,7 +29,7 @@ import MySQLdb as mdb
 
 import active_document as ad
 from sweets_recipe import GOOD_LICENSES, Bundle
-from sugar_network.node import documents
+from sugar_network.node import DOCUMENTS
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
@@ -368,7 +368,7 @@ ad.index_flush_timeout.value = 0
 
 connection = mdb.connect('localhost',
         'root', getpass.getpass(), 'activities')
-volume = ad.SingleVolume('db', documents())
+volume = ad.SingleVolume('db', DOCUMENTS)
 
 try:
     main()
