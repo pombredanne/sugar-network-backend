@@ -3,6 +3,7 @@
 
 import os
 import json
+import hashlib
 from os.path import exists, join
 
 from __init__ import tests
@@ -157,6 +158,24 @@ class SyncTest(tests.Test):
             self.read_packet(InPacket(stream=reply)))
 
     def test_Node_Export(self):
+        self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
+        self.touch(('pull.sequence', json.dumps({'document': [[10, None]]})))
+        node = Node('node', 'master')
+        node.volume = {'document': Directory()}
+        os.makedirs('sync')
+
+        node.sync('sync')
+        session = str(hashlib.sha1(json.dumps([('document', 0)])).hexdigest())
+        self.assertEqual([
+            {'type': 'pull', 'sender': 'node', 'receiver': 'master', 'session': session, 'sequence': {'document': [[10, None]]}},
+            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'session': session, 'sequence': {'document': [[1, 1]]}},
+            {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': 'diff'},
+            ],
+            self.read_packets('sync'))
+
+    def test_Node_Export_NoPullForExistingSession(self):
+        self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
+        self.touch(('pull.sequence', json.dumps({'document': [[1, None]]})))
         node = Node('node', 'master')
         node.volume = {'document': Directory()}
         os.makedirs('sync')
@@ -269,7 +288,7 @@ class SyncTest(tests.Test):
         self.assertEqual({'document': [[1, None]]}, kwargs['sequence'])
         self.assertEqual([], self.read_packets('sync'))
 
-        kwargs = node.sync('sync', accept_length=100, sequence=kwargs['sequence'])
+        kwargs = node.sync('sync', accept_length=100, sequence=kwargs['sequence'], session=0)
         self.assertEqual({'document': [[1, None]]}, kwargs['sequence'])
         self.assertEqual([], self.read_packets('sync'))
 

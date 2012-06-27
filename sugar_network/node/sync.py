@@ -73,11 +73,22 @@ class Node(object):
             to_push_seq.update(self._push_seq)
         else:
             to_push_seq.update(sequence)
+
         if session is None:
+            session_is_new = True
             session = _volume_hash(self.volume)
+        else:
+            session_is_new = False
 
         while True:
             self._import(path, session)
+
+            if session_is_new:
+                with sneakernet.OutPacket('pull', root=path,
+                        sender=self._guid, receiver=self._master_guid,
+                        session=session) as packet:
+                    packet.header['sequence'] = self._pull_seq
+
             with sneakernet.OutPacket('push', root=path, limit=accept_length,
                     sender=self._guid, receiver=self._master_guid,
                     session=session) as packet:
