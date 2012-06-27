@@ -19,7 +19,7 @@ import time
 import json
 import shutil
 import hashlib
-from os.path import exists, join, isdir, basename, relpath
+from os.path import exists, join, isdir, basename, relpath, lexists
 from gettext import gettext as _
 
 from active_document import env
@@ -92,6 +92,7 @@ class Storage(object):
 
     def migrate(self, guid):
         root = self._path(guid)
+        record = self.get(guid)
 
         path = join(root, '.seqno')
         if exists(path):
@@ -103,26 +104,52 @@ class Storage(object):
         for name, prop in self.metadata.items():
             path = join(root, name)
             if exists(path + '.seqno'):
-                meta = {'seqno': int(os.stat(path + '.seqno').st_mtime)}
-                mtime = os.stat(path).st_mtime
+                self._migrate_to_1(path, prop)
+            elif not exists(path):
+                if not isinstance(prop, BlobProperty):
+                    record.set(name, seqno=0, value=prop.default)
 
-                if isinstance(prop, BlobProperty):
+    def _migrate_to_1(self, path, prop):
+        meta = {'seqno': int(os.stat(path + '.seqno').st_mtime)}
+
+        mtime = None
+        if lexists(path):
+            if exists(path):
+                mtime = os.stat(path).st_mtime
+            else:
+                os.unlink(path)
+
+        if isinstance(prop, BlobProperty):
+            if mtime is not None:
+                if exists(path + '.sha1'):
                     with file(path + '.sha1') as f:
                         meta['digest'] = f.read().strip()
-                    shutil.move(path, path + _BLOB_SUFFIX)
                     os.unlink(path + '.sha1')
                 else:
-                    with file(path) as f:
-                        value = json.load(f)
-                    if prop.localized and type(value) is not dict:
-                        value = {env.DEFAULT_LANG: value}
-                    meta['value'] = value
+                    # TODO calculate new digest
+                    meta['digest'] = ''
+                shutil.move(path, path + _BLOB_SUFFIX)
+            else:
+                if exists(path + '.sha1'):
+                    os.unlink(path + '.sha1')
+                meta = None
+        else:
+            if mtime is not None:
+                with file(path) as f:
+                    value = json.load(f)
+                if prop.localized and type(value) is not dict:
+                    value = {env.DEFAULT_LANG: value}
+            else:
+                value = prop.default
+            meta['value'] = value
 
-                with file(path, 'w') as f:
-                    json.dump(meta, f)
+        if meta is not None:
+            with file(path, 'w') as f:
+                json.dump(meta, f)
+            if mtime is not None:
                 os.utime(path, (mtime, mtime))
 
-                os.unlink(path + '.seqno')
+        os.unlink(path + '.seqno')
 
     def _path(self, guid, *args):
         return join(self._root, guid[:2], guid, *args)
