@@ -129,6 +129,7 @@ class Storage(object):
                     # TODO calculate new digest
                     meta['digest'] = ''
                 shutil.move(path, path + _BLOB_SUFFIX)
+                meta['mime_type'] = prop.mime_type
             else:
                 if exists(path + '.sha1'):
                     os.unlink(path + '.sha1')
