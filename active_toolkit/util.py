@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012, Aleksey Lim
+# Copyright (C) 2011-2012 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Data: 2012-05-20$
+$Date: 2012-06-27$
 
 """
 
@@ -27,6 +27,19 @@ import logging
 import subprocess
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
 from gettext import gettext as _
+
+
+if sys.version_info[:3] >= (2, 6, 5):
+    normalize_kwargs = lambda x: x
+else:
+
+    def normalize_kwargs(kwargs):
+        # To workaround issue when unicode might appear in kwargs' keys
+        # http://bugs.python.org/issue2646
+        result = {}
+        for key, value in kwargs.items():
+            result[str(key)] = value
+        return result
 
 
 def enforce(condition, error=None, *args):

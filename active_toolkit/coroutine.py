@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/coroutine.py$
-$Data: 2012-05-31$
+$Date: 2012-06-27$
 
 """
 # pylint: disable-msg=W0621

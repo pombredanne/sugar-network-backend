@@ -14,13 +14,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
-import sys
 import logging
 from copy import copy
 from gettext import gettext as _
 
 from active_document import env
-from active_toolkit import enforce
+from active_toolkit import util, enforce
 
 
 _logger = logging.getLogger('active_document.commands')
@@ -223,7 +222,7 @@ class _Command(object):
             request.pop('method')
         if 'cmd' in request:
             request.pop('cmd')
-        return self.callback(*self.args, **_normalize_kwargs(request))
+        return self.callback(*self.args, **util.normalize_kwargs(request))
 
     def __repr__(self):
         return '%s(method=%s, cmd=%s, document=%s)' % \
@@ -292,15 +291,3 @@ def _scan_class_for_commands(root_cls):
                 yield attr.commands_scope, callback, attr
             processed.add(name)
         cls = cls.__base__
-
-
-if sys.version_info[:3] >= (2, 6, 5):
-    _normalize_kwargs = lambda x: x
-else:
-
-    def _normalize_kwargs(kwargs):
-        # http://bugs.python.org/issue2646
-        result = {}
-        for key, value in kwargs.items():
-            result[str(key)] = value
-        return result
