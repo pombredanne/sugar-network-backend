@@ -189,7 +189,6 @@ class Test(unittest.TestCase):
             classes = [User, Context]
         volume = ad.SingleVolume('local', classes)
         self.mounts = Mounts(volume)
-        node.volume = self.mounts.home_volume
         self.server = IPCServer(self.mounts)
         coroutine.spawn(server)
         if open:
@@ -228,10 +227,10 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
-        node.volume = ad.SingleVolume('remote', classes or [User, Context])
-        cp = Commands(node.volume)
+        volume = ad.SingleVolume('remote', classes or [User, Context])
+        cp = Commands(volume)
         httpd = coroutine.WSGIServer(('localhost', 8800), rd.Router(cp))
-        subscriber = rd.SubscribeSocket(node.volume, 'localhost', 8801)
+        subscriber = rd.SubscribeSocket(volume, 'localhost', 8801)
         try:
             coroutine.joinall([
                 coroutine.spawn(httpd.serve_forever),
@@ -240,14 +239,13 @@ class Test(unittest.TestCase):
         finally:
             httpd.stop()
             subscriber.stop()
-            node.volume.close()
+            volume.close()
 
 
-class Commands(ad.VolumeCommands, NodeCommands):
+class Commands(NodeCommands):
 
     def __init__(self, volume):
-        ad.VolumeCommands.__init__(self, volume)
-        NodeCommands.__init__(self)
+        NodeCommands.__init__(self, volume)
 
 
 PUBKEY = """\

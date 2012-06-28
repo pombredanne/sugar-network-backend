@@ -43,9 +43,8 @@ class Application(application.Daemon):
             ssl_args['certfile'] = node.certfile.value
 
         volume = ad.SingleVolume(node.data_root.value, node.DOCUMENTS)
-        node.volume.update(volume)
-
         mount = Mount(volume)
+
         self.httpd = coroutine.WSGIServer((node.host.value, node.port.value),
                 rd.Router(mount), **ssl_args)
         self.subscriber = rd.SubscribeSocket(volume,

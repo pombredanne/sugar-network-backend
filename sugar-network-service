@@ -100,7 +100,6 @@ class Application(application.Daemon):
             coroutine.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
         volume = ad.SingleVolume(self._db_path, node.DOCUMENTS)
-        node.volume.update(volume)
         mounts = Mounts(volume)
         servers = []
         jobs = []

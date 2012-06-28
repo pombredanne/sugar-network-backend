@@ -20,19 +20,19 @@ from os.path import exists
 from gettext import gettext as _
 
 import active_document as ad
-from active_toolkit import util
 from sugar_network import node
 from sugar_network.toolkit import sugar
+from active_toolkit import util, enforce
 
 
 _logger = logging.getLogger('node.mounts')
 
 
-class NodeCommands(object):
+class NodeCommands(ad.ProxyCommands):
 
-    volume = None
+    def __init__(self, volume):
+        ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
 
-    def __init__(self):
         if not exists(node.privkey.value):
             _logger.info(_('Create DSA server key'))
             util.assert_call([
@@ -57,13 +57,46 @@ class NodeCommands(object):
                 'documents': documents,
                 }
 
+    @ad.directory_command(method='POST',
+            permissions=ad.ACCESS_AUTH)
+    def create(self, document, request):
+        self._set_author(document, request.content)
+        raise ad.CommandNotFound()
 
-class Mount(ad.VolumeCommands, NodeCommands):
+    @ad.document_command(method='PUT',
+            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
+    def update(self, document, guid, request):
+        self._set_author(document, request.content)
+        raise ad.CommandNotFound()
+
+    @ad.property_command(method='PUT',
+            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
+    def update_prop(self, document, guid, prop, request, url=None):
+        enforce(prop not in ('user', 'author'),
+                _('Direct property setting is forbidden'))
+        raise ad.CommandNotFound()
+
+    def _set_author(self, document, props):
+        if document == 'user' or 'user' not in props:
+            return
+        users = self.volume['user']
+        authors = []
+        for user_guid in props['user']:
+            if not users.exists(user_guid):
+                _logger.warning(_('No %s user to set author property'),
+                        user_guid)
+                continue
+            user = users.get(user_guid)
+            authors.append(user['nickname'])
+            if user['fullname']:
+                authors.append(user['fullname'])
+        props['author'] = authors
+
+
+class Mount(NodeCommands):
 
     def __init__(self, volume):
-        ad.VolumeCommands.__init__(self, volume)
-        NodeCommands.__init__(self)
-
+        NodeCommands.__init__(self, volume)
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
 
     @ad.volume_command(cmd='is_connected', access_level=ad.ACCESS_LOCAL)
@@ -88,7 +121,7 @@ class Mount(ad.VolumeCommands, NodeCommands):
             request.accept_language = [self._locale]
             if response is None:
                 response = ad.Response()
-        return ad.VolumeCommands.call(self, request, response)
+        return NodeCommands.call(self, request, response)
 
     def connect(self, callback, condition=None):
         return self.volume.connect(callback, condition)

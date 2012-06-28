@@ -116,12 +116,11 @@ class _Mount(object):
         pass
 
 
-class _LocalMount(ad.ProxyCommands, _Mount, NodeCommands):
+class _LocalMount(NodeCommands, _Mount):
 
     def __init__(self, mountpoint, volume, publish_cb):
-        ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
+        NodeCommands.__init__(self, volume)
         _Mount.__init__(self, mountpoint)
-        NodeCommands.__init__(self)
         self._publish = publish_cb
         volume.connect(self.__events_cb)
 
