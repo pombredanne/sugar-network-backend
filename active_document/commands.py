@@ -57,7 +57,9 @@ class Request(dict):
     access_level = env.ACCESS_REMOTE
     accept_language = None
 
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
+        if not args:
+            args = (kwargs,)
         dict.__init__(self, *args)
         self._pos = 0
 
