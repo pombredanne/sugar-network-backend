@@ -111,7 +111,7 @@ class GlibClient(gobject.GObject):
         elif event_type == 'alert':
             self.emit('alert', event.get('severity'), event.get('message'))
 
-        elif event.get('mountpoint') == '~' and \
+        elif event.get('mountpoint') in ('~', '*') and \
                 event.get('document') == 'context':
             if event_type in ('create', 'update'):
                 bundle_id = event['guid']

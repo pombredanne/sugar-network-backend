@@ -115,7 +115,7 @@ class Client(object):
 
     @property
     def connected(self):
-        return self.call('GET', 'is_connected', mountpoint=self._mountpoint)
+        return self.call('GET', 'mounted', mountpoint=self._mountpoint)
 
     def launch(self, context, command='activity', object_id=None, uri=None,
             args=None):

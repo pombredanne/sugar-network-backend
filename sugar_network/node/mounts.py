@@ -99,8 +99,8 @@ class Mount(NodeCommands):
         NodeCommands.__init__(self, volume)
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
 
-    @ad.volume_command(cmd='is_connected', access_level=ad.ACCESS_LOCAL)
-    def is_connected(self):
+    @ad.volume_command(cmd='mounted', access_level=ad.ACCESS_LOCAL)
+    def mounted(self):
         return True
 
     @ad.property_command(cmd='get_blob', access_level=ad.ACCESS_LOCAL)

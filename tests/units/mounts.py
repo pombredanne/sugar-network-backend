@@ -279,12 +279,8 @@ class MountsTest(tests.Test):
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'create', 'guid': guid},
+                {'mountpoint': '*', 'document': 'context', 'event': 'create', 'guid': guid},
                 event)
-        coroutine.select([subscription.fileno()], [], [])
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
-                subscription.read_message())
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'commit', 'seqno': 1},
                 subscription.read_message())
@@ -378,12 +374,8 @@ class MountsTest(tests.Test):
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
-                {'mountpoint': '~', 'document': 'context', 'event': 'update', 'guid': guid},
+                {'mountpoint': '*', 'document': 'context', 'event': 'update', 'guid': guid},
                 event)
-        coroutine.select([subscription.fileno()], [], [])
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
-                subscription.read_message())
 
     def test_OfflineConnect(self):
         self.start_server()

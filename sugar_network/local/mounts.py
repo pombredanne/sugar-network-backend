@@ -43,10 +43,6 @@ _LOCAL_PROPS = {
 _logger = logging.getLogger('local.mounts')
 
 
-class Offline(Exception):
-    pass
-
-
 class Mounts(dict):
 
     def __init__(self, home_volume):
@@ -54,7 +50,7 @@ class Mounts(dict):
         self._subscriptions = {}
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
 
-        self['~'] = _LocalMount('~', home_volume, self.publish)
+        self['~'] = _HomeMount('~', home_volume, self.publish)
         if local.server_mode.value:
             self['/'] = _StubMount('/')
         else:
@@ -65,15 +61,28 @@ class Mounts(dict):
         return self.get(mountpoint)
 
     def call(self, request, response=None):
+        request_repr = str(request)
+
         mountpoint = request.pop('mountpoint')
         mount = self[mountpoint]
-        if request.get('cmd') == 'is_connected':
-            return mount.connected
+        if request.get('cmd') == 'mounted':
+            return mount.mounted
+        enforce(mount.mounted, _('%r is not mounted'), mountpoint)
+
+        if response is None:
+            response = ad.Response()
+        request.accept_language = [self._locale]
+
+        try:
+            result = mount.call(request, response)
+        except Exception, error:
+            util.exception(_logger, _('Failed to process %s: %s'),
+                    request_repr, error)
+            raise
         else:
-            request.accept_language = [self._locale]
-            if response is None:
-                response = ad.Response()
-            return mount.call(request, response)
+            _logger.debug('Processed %s: %r', request_repr, result)
+
+        return result
 
     def connect(self, callback, condition=None):
         self._subscriptions[callback] = condition or {}
@@ -115,8 +124,12 @@ class _Mount(object):
     def close(self):
         pass
 
+    @property
+    def mounted(self):
+        return True
 
-class _LocalMount(NodeCommands, _Mount):
+
+class _HomeMount(NodeCommands, _Mount):
 
     def __init__(self, mountpoint, volume, publish_cb):
         NodeCommands.__init__(self, volume)
@@ -124,15 +137,10 @@ class _LocalMount(NodeCommands, _Mount):
         self._publish = publish_cb
         volume.connect(self.__events_cb)
 
-    @property
-    def connected(self):
-        return True
-
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request):
         directory = self.volume[document]
         directory.metadata[prop].assert_access(ad.ACCESS_READ)
-
         if document == 'context' and prop == 'feed':
             return json.dumps(self._get_feed(request))
         else:
@@ -171,8 +179,8 @@ class _LocalMount(NodeCommands, _Mount):
     @ad.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
         directory = self.volume[document]
-        directory.metadata[prop].assert_access(ad.ACCESS_WRITE)
 
+        directory.metadata[prop].assert_access(ad.ACCESS_WRITE)
         enforce(isabs(path), _('Path is not absolute'))
 
         try:
@@ -212,13 +220,14 @@ class _LocalMount(NodeCommands, _Mount):
 
     def __events_cb(self, event):
         event['mountpoint'] = self.mountpoint
-        self._publish(event)
 
         if 'props' not in event:
+            self._publish(event)
             return
-        props = event.pop('props')
 
         found_commons = False
+        props = event['props']
+
         for prop in _LOCAL_PROPS.keys():
             if prop not in props:
                 continue
@@ -230,10 +239,9 @@ class _LocalMount(NodeCommands, _Mount):
             found_commons = True
 
         if found_commons:
-            # These local properties exposed from "/" mount as well
-            event['mountpoint'] = '/'
-            event['event'] = 'update'
-            self._publish(event)
+            # These local properties exposed from _ProxyMount as well
+            event['mountpoint'] = '*'
+        self._publish(event)
 
     def _checkout(self, guid):
         for path in activities_registry.checkins(guid):
@@ -259,52 +267,27 @@ class _LocalMount(NodeCommands, _Mount):
                 break
 
 
-class _RemoteMount(ad.CommandsProcessor, _Mount):
+class _ProxyMount(ad.CommandsProcessor, _Mount):
 
-    def __init__(self, mountpoint, volume, publish_cb):
+    def __init__(self, mountpoint, home_volume):
         ad.CommandsProcessor.__init__(self)
         _Mount.__init__(self, mountpoint)
-        self._home_volume = volume
-        self._publish = publish_cb
-        self._events_job = None
-        self._connected = False
-        self._seqno = {}
-        self._remote_volume_guid = None
+        self._home_volume = home_volume
 
-    @property
-    def connected(self):
-        return self._connected
-
-    def open(self):
-        self._events_job = coroutine.spawn(self._events_listerner)
-
-    def close(self):
-        if self._events_job is not None:
-            self._events_job.kill()
-            self._events_job = None
+    def do_call(self, request, response):
+        raise NotImplementedError()
 
     def call(self, request, response):
-        enforce(self.connected, Offline, _('No connection to server'))
-
         try:
             return ad.CommandsProcessor.call(self, request, response)
         except ad.CommandNotFound:
             pass
 
-        method = request.pop('method')
-        document = request.pop('document')
-        guid = request.pop('guid') if 'guid' in request else None
-        prop = request.pop('prop') if 'prop' in request else None
-
-        path = [document]
-        if guid:
-            path.append(guid)
-        if prop:
-            path.append(prop)
-
         patch = {}
         result = None
-        command = method, request.get('cmd')
+        command = request['method'], request.get('cmd')
+        document = request['document']
+        guid = request.get('guid')
 
         if document == 'context':
             if command == ('GET', None):
@@ -323,12 +306,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                     result = guid
 
         if result is None:
-            result = http.request(method, path,
-                    data=request.content, params=request,
-                    headers={
-                        'Content-Type': 'application/json',
-                        'Accept-Language': ','.join(request.accept_language),
-                        })
+            result = self.do_call(request, response)
 
         if document == 'context' and patch:
             directory = self._home_volume['context']
@@ -353,19 +331,61 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                 if directory.exists(guid):
                     directory.update(guid, patch)
                 elif [True for prop, value in patch.items() if value]:
-                    props = http.request('GET', ['context', guid])
+                    clone_request = ad.Request(method='GET',
+                            document='context', guid=guid)
+                    clone_request.accept_language = request.accept_language
+                    props = self.do_call(clone_request, ad.Response())
                     props.update(patch)
                     props['user'] = [sugar.uid()]
                     directory.create_with_guid(guid, props)
                     for prop in ('icon', 'artifact_icon', 'preview'):
+                        # pylint: disable-msg=E1101
                         blob = self.get_blob('context', guid, prop)
                         if blob:
                             directory.set_blob(guid, prop, blob['path'])
 
-        _logger.debug('Called %r(%s): request=%r result=%r',
-                command, ', '.join(path), request, result)
-
         return result
+
+
+class _RemoteMount(_ProxyMount):
+
+    def __init__(self, mountpoint, home_volume, publish_cb):
+        _ProxyMount.__init__(self, mountpoint, home_volume)
+        self._publish = publish_cb
+        self._events_job = None
+        self._connected = False
+        self._seqno = {}
+        self._remote_volume_guid = None
+
+    @property
+    def mounted(self):
+        return self._connected
+
+    def open(self):
+        self._events_job = coroutine.spawn(self._events_listerner)
+
+    def close(self):
+        if self._events_job is not None:
+            self._events_job.kill()
+            self._events_job = None
+
+    def do_call(self, request, response):
+        method = request.pop('method')
+        document = request.pop('document')
+        guid = request.pop('guid') if 'guid' in request else None
+        prop = request.pop('prop') if 'prop' in request else None
+
+        path = [document]
+        if guid:
+            path.append(guid)
+        if prop:
+            path.append(prop)
+
+        return http.request(method, path, data=request.content, params=request,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Accept-Language': ','.join(request.accept_language),
+                    })
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop):
@@ -375,7 +395,7 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
         meta = {}
 
         def download(seqno):
-            if not self.connected:
+            if not self.mounted:
                 return
             mime_type = http.download([document, guid, prop], blob_path, seqno,
                     document == 'implementation' and prop == 'bundle')
@@ -495,22 +515,46 @@ class _RemoteMount(ad.CommandsProcessor, _Mount):
                     })
 
 
+class _LocalMount(_ProxyMount):
+
+    def __init__(self, volume, mountpoint, home_volume, publish_cb):
+        _ProxyMount.__init__(self, mountpoint, home_volume)
+        self._proxy = ad.VolumeCommands(volume)
+        self._publish = publish_cb
+        volume.connect(self.__events_cb)
+
+    def do_call(self, request, response):
+        return self._proxy.call(request, response)
+
+    @ad.property_command(method='GET', cmd='get_blob')
+    def get_blob(self, document, guid, prop, request):
+        directory = self._proxy.volume[document]
+        directory.metadata[prop].assert_access(ad.ACCESS_READ)
+        return directory.get(guid).meta(prop)
+
+    @ad.property_command(method='PUT', cmd='upload_blob')
+    def upload_blob(self, document, guid, prop, path, pass_ownership=False):
+        directory = self._proxy.volume[document]
+
+        directory.metadata[prop].assert_access(ad.ACCESS_WRITE)
+        enforce(isabs(path), _('Path is not absolute'))
+
+        try:
+            directory.set_blob(guid, prop, path)
+        finally:
+            if pass_ownership and exists(path):
+                os.unlink(path)
+
+    def __events_cb(self, event):
+        event['mountpoint'] = self.mountpoint
+        self._publish(event)
+
+
 class _StubMount(_Mount):
 
     def __init__(self, mountpoint):
         _Mount.__init__(self, mountpoint)
 
     @property
-    def connected(self):
+    def mounted(self):
         return False
-
-    def call(self, request, response):
-        raise Offline(_('Mount is empty'))
-
-    @ad.property_command(method='GET', cmd='get_blob')
-    def get_blob(self, document, guid, prop):
-        raise Offline(_('Mount is empty'))
-
-    @ad.property_command(method='PUT', cmd='upload_blob')
-    def upload_blob(self, document, guid, prop, path, pass_ownership=False):
-        raise Offline(_('Mount is empty'))

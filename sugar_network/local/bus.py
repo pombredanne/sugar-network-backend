@@ -18,13 +18,11 @@ import json
 import socket
 import logging
 from os.path import exists
-from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import local
 from sugar_network.toolkit import ipc, sugar
-from sugar_network.local.mounts import Offline
-from active_toolkit import util, coroutine, sockets
+from active_toolkit import coroutine, sockets
 
 
 _logger = logging.getLogger('local.bus')
@@ -73,8 +71,6 @@ class IPCServer(object):
                 request.principal = self._principal
                 request.access_level = ad.ACCESS_LOCAL
 
-                request_repr = str(request)
-
                 content_type = request.pop('content_type')
                 if content_type == 'application/json':
                     request.content = json.loads(conn_file.read())
@@ -90,18 +86,9 @@ class IPCServer(object):
                     response = ad.Response()
                     result = self._mounts.call(request, response)
 
-            except Exception, error:
-                if isinstance(error, Offline):
-                    _logger.debug('Ignore %r request: %s', request, error)
-                else:
-                    util.exception(_logger,
-                            _('Failed to process %s for %r connection: %s'),
-                            request_repr, conn_file, error)
-                conn_file.write_message({'error': str(error)})
-            else:
-                _logger.debug('Processed %s for %r connection: %r',
-                        request_repr, conn_file, result)
                 conn_file.write_message(result)
+            except Exception, error:
+                conn_file.write_message({'error': str(error)})
 
     def _serve_subscription(self, conn_file):
         self._subscriptions.append(conn_file)
