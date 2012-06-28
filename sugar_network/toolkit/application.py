@@ -98,10 +98,21 @@ class Application(object):
 
         def print_desc(term, desc):
             text = []
-            for line in desc.split('\n'):
+            for num, line in enumerate(desc.split('\n')):
+                if num == 0:
+                    for i in line:
+                        if i.isalpha() and not i.isupper():
+                            break
+                    else:
+                        term += ' ' + line
+                        continue
                 text.extend(textwrap.wrap(line, 54))
-            text = ('\n' + ' ' * 24).join(text)
-            print '  %-22s%s' % (term, text)
+            if len(term) < 24:
+                sys.stdout.write('  %-22s' % term)
+            else:
+                text.insert(0, '')
+                sys.stdout.write('  %s' % term)
+            print ('\n' + ' ' * 24).join(text)
 
         def print_commands():
             if not self._commands:

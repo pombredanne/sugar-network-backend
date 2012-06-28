@@ -59,10 +59,10 @@ def dispatch(paths, found_cb, lost_cb):
             roots.append(_Root(monitor, path))
 
         while True:
-            coroutine.select([monitor.fd], [], [])
+            coroutine.select([monitor.fileno()], [], [])
             if monitor.closed:
                 break
-            for filename, event, cb in monitor.dispatch():
+            for filename, event, cb in monitor.read():
                 try:
                     cb(filename, event)
                 except Exception:

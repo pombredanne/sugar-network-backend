@@ -20,21 +20,17 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/inotify.py$
-$Date: 2012-06-27$
+$Date: 2012-06-28$
 
 """
 import os
 import errno
-import fcntl
-import array
 import struct
-import termios
+import ctypes
+import ctypes.util
 import logging
 from os.path import abspath
 from gettext import gettext as _
-
-import ctypes
-import ctypes.util
 
 
 """
@@ -125,11 +121,8 @@ class Inotify(object):
 
         self._fd = self._libc.inotify_init()
         _assert(self._fd >= 0, _('Cannot initialize Inotify'))
-        flags = fcntl.fcntl(self.fd, fcntl.F_GETFL)
-        fcntl.fcntl(self.fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-    @property
-    def fd(self):
+    def fileno(self):
         return self._fd
 
     @property
@@ -137,10 +130,10 @@ class Inotify(object):
         return self._fd is None
 
     def close(self):
-        if self.fd is None:
+        if self._fd is None:
             return
 
-        os.close(self.fd)
+        os.close(self._fd)
         self._fd = None
 
         _logger.info(_('Monitor closed'))
@@ -152,7 +145,7 @@ class Inotify(object):
         path = abspath(path)
 
         cpath = ctypes.create_string_buffer(path)
-        wd = self._libc.inotify_add_watch(self.fd, cpath, mask)
+        wd = self._libc.inotify_add_watch(self._fd, cpath, mask)
         _assert(wd >= 0, _('Cannot add watch for %r'), path)
 
         if wd not in self._wds:
@@ -172,19 +165,15 @@ class Inotify(object):
         path, __ = self._wds[wd]
         _logger.debug('Remove %r watch of %s', wd, path)
 
-        self._libc.inotify_rm_watch(self.fd, wd)
+        self._libc.inotify_rm_watch(self._fd, wd)
         del self._wds[wd]
 
-    def dispatch(self):
+    def read(self):
         if self.closed:
             raise RuntimeError(_('Inotify is closed'))
 
-        queue_size = array.array('i', [0])
-        if fcntl.ioctl(self._fd, termios.FIONREAD, queue_size, 1) == -1:
-            return
-        queue_size = queue_size[0]
-
-        buf = os.read(self.fd, queue_size)
+        buf = os.read(self._fd, _EVENT_BUF_MAXSIZE)
+        queue_size = len(buf)
 
         pos = 0
         while pos < queue_size:
@@ -248,16 +237,10 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.DEBUG)
 
-    monitor = Inotify()
-    try:
+    with Inotify() as monitor:
         monitor.add_watch('/tmp', IN_MASK_ADD | IN_ALL_EVENTS)
-
         poll = select.poll()
-        poll.register(monitor.fd, select.POLLIN)
-        while True:
-            poll.poll()
-            for i in monitor.dispatch():
+        poll.register(monitor.fileno(), select.POLLIN)
+        while poll.poll():
+            for event in monitor.read():
                 pass
-
-    finally:
-        monitor.close()
