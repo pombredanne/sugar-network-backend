@@ -85,7 +85,7 @@ class _Volume(dict):
         directory = self.get(name)
         if directory is None:
             enforce(name in self._to_open, _('Unknow %r document'), name)
-            directory = self._open(name, self._to_open.pop(name))
+            directory = self[name] = self._open(name, self._to_open.pop(name))
         return directory
 
     def _notification_cb(self, event, document):

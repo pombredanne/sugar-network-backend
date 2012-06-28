@@ -374,6 +374,8 @@ class VolumeTest(tests.Test):
         volume['document2'].find()
         assert exists('document1/index')
         assert exists('document2/index')
+        volume['document1'].find()
+        volume['document2'].find()
         volume.close()
 
         shutil.rmtree('document1')
