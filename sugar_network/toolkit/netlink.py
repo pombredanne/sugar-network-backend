@@ -67,7 +67,6 @@ class Netlink(object):
         self._socket = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, proto)
         self._socket.bind((0, groups))
 
-    @property
     def fileno(self):
         if self._socket is not None:
             return self._socket.fileno()

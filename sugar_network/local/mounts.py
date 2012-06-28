@@ -17,6 +17,7 @@ import os
 import json
 import shutil
 import locale
+import socket
 import logging
 from urlparse import urlparse
 from os.path import isabs, exists, join
@@ -24,15 +25,12 @@ from gettext import gettext as _
 
 import sweets_recipe
 import active_document as ad
-from sugar_network.toolkit import sugar, http
+from sugar_network.toolkit import sugar, http, zeroconf, netlink
 from sugar_network.node.mounts import NodeCommands
-from sugar_network.local import activities_registry, zeroconf
-from sugar_network import local, checkin
+from sugar_network.local import activities_registry
+from sugar_network import local, checkin, node
 from active_toolkit import sockets, util, coroutine, enforce
 
-
-# TODO Incremental timeout
-_RECONNECTION_TIMEOUT = 3
 
 _LOCAL_PROPS = {
         'keep': False,
@@ -51,10 +49,13 @@ class Mounts(dict):
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
 
         self['~'] = _HomeMount('~', home_volume, self.publish)
-        if local.server_mode.value:
-            self['/'] = _StubMount('/')
+        self['/'] = _RemoteMount('/', home_volume, self.publish)
+
+        if local.api_url.value:
+            monitor = self._wait_for_master
         else:
-            self['/'] = _RemoteMount('/', home_volume, self.publish)
+            monitor = self._discover_masters
+        self._monitor_job = coroutine.spawn(monitor)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
@@ -102,24 +103,35 @@ class Mounts(dict):
                 except Exception:
                     util.exception(_logger, _('Failed to dispatch %r'), event)
 
-    def open(self):
-        for mount in self.values():
-            mount.open()
-
     def close(self):
+        self._monitor_job.kill()
         while self:
             __, mount = self.popitem()
             mount.close()
         self.home_volume.close()
+
+    def _discover_masters(self):
+        with zeroconf.ServiceBrowser() as monitor:
+            for host in monitor.browse():
+                url = 'http://%s:%s' % (host, node.port.default)
+                self['/'].mount(host, url)
+
+    def _wait_for_master(self):
+        url = urlparse(local.api_url.value)
+        with netlink.Netlink(socket.NETLINK_ROUTE, netlink.RTMGRP_IPV4_ROUTE |
+                netlink.RTMGRP_IPV6_ROUTE | netlink.RTMGRP_NOTIFY) as monitor:
+            while True:
+                self['/'].mount(url.hostname, local.api_url.value)
+                coroutine.select([monitor.fileno()], [], [])
+                message = monitor.read()
+                if message is None:
+                    break
 
 
 class _Mount(object):
 
     def __init__(self, mountpoint):
         self.mountpoint = mountpoint
-
-    def open(self):
-        pass
 
     def close(self):
         pass
@@ -352,22 +364,19 @@ class _RemoteMount(_ProxyMount):
     def __init__(self, mountpoint, home_volume, publish_cb):
         _ProxyMount.__init__(self, mountpoint, home_volume)
         self._publish = publish_cb
-        self._events_job = None
-        self._connected = False
+        self._mounted = False
         self._seqno = {}
         self._remote_volume_guid = None
+        self._subscription_job = None
 
     @property
     def mounted(self):
-        return self._connected
-
-    def open(self):
-        self._events_job = coroutine.spawn(self._events_listerner)
+        return self._mounted
 
     def close(self):
-        if self._events_job is not None:
-            self._events_job.kill()
-            self._events_job = None
+        if self._subscription_job is not None:
+            self._subscription_job.kill()
+            self._subscription_job = None
 
     def do_call(self, request, response):
         method = request.pop('method')
@@ -431,88 +440,68 @@ class _RemoteMount(_ProxyMount):
             if pass_ownership and exists(path):
                 os.unlink(path)
 
-    def _events_listerner(self):
+    def mount(self, host, url):
+        if self.mounted:
+            return
 
-        def connect(host):
+        local.api_url.value = url
+        try:
+            _logger.debug('Connecting to %r master', url)
             subscription = http.request('POST', [''],
                     params={'cmd': 'subscribe'},
                     headers={'Content-Type': 'application/json'})
             conn = sockets.SocketFile(coroutine.socket())
             conn.connect((host, subscription['port']))
-            conn = sockets.SocketFile(conn)
             conn.write_message({'ticket': subscription['ticket']})
-            return conn
+        except Exception:
+            util.exception(_logger, 'Cannot connect to %r master', url)
+            return
 
-        def dispatch(conn):
-            coroutine.select([conn.fileno()], [], [])
-            event = conn.read_message()
-            if event is None:
-                return False
+        if self._subscription_job is not None:
+            self._subscription_job.kill()
+        self._subscription_job = coroutine.spawn(self._subscription, conn)
 
-            seqno = event.get('seqno')
-            if seqno:
-                self._seqno[event['document']] = seqno
+    def _subscription(self, conn):
+        try:
+            stat = http.request('GET', [], params={'cmd': 'stat'},
+                    headers={'Content-Type': 'application/json'})
+            for document, props in stat['documents'].items():
+                self._seqno[document] = props.get('seqno') or 0
+            self._remote_volume_guid = stat.get('guid')
 
-            event['mountpoint'] = self.mountpoint
-            self._publish(event)
+            _logger.info(_('Connected to %r master'), local.api_url.value)
 
-            return True
+            self._publish({
+                'event': 'mount',
+                'mountpoint': self.mountpoint,
+                'document': '*',
+                })
+            self._mounted = True
 
-        def configured_host():
-            url = urlparse(local.api_url.value)
-            yield url.hostname, local.api_url.value
-
-        def discover_hosts():
-            for host in zeroconf.browse_workstation():
-                yield host, 'http://%s:8000' % host
-
-        get_hosts = configured_host if local.api_url.value else discover_hosts
-        while True:
-            for host, url in get_hosts():
-                local.api_url.value = url
-                try:
-                    _logger.debug('Connecting to %r remote server', url)
-                    conn = connect(host)
-                except Exception:
-                    util.exception(_logger, 'Cannot connect to %r node', url)
-                else:
+            while True:
+                coroutine.select([conn.fileno()], [], [])
+                event = conn.read_message()
+                if event is None:
                     break
-            else:
-                _logger.debug('Wait for %r seconds before trying to connect',
-                        _RECONNECTION_TIMEOUT)
-                coroutine.sleep(_RECONNECTION_TIMEOUT)
-                continue
 
-            try:
-                stat = http.request('GET', [], params={'cmd': 'stat'},
-                        headers={'Content-Type': 'application/json'})
-                for document, props in stat['documents'].items():
-                    self._seqno[document] = props.get('seqno') or 0
-                self._remote_volume_guid = stat.get('guid')
+                seqno = event.get('seqno')
+                if seqno:
+                    self._seqno[event['document']] = seqno
 
-                _logger.info(_('Connected to %r remote server'),
-                        self._remote_volume_guid)
+                event['mountpoint'] = self.mountpoint
+                self._publish(event)
 
-                self._publish({
-                    'event': 'connect',
-                    'mountpoint': self.mountpoint,
-                    'document': '*',
-                    })
-                self._connected = True
-
-                while dispatch(conn):
-                    pass
-
-            except Exception:
-                util.exception(_logger, _('Failed to dispatch remote event'))
-            finally:
-                _logger.info(_('Got disconnected from remote server'))
-                self._connected = False
-                self._publish({
-                    'event': 'disconnect',
-                    'mountpoint': self.mountpoint,
-                    'document': '*',
-                    })
+        except Exception:
+            util.exception(_logger, _('Failed to dispatch remote event'))
+        finally:
+            _logger.info(_('Got disconnected from %r master'),
+                    local.api_url.value)
+            self._mounted = False
+            self._publish({
+                'event': 'unmount',
+                'mountpoint': self.mountpoint,
+                'document': '*',
+                })
 
 
 class _LocalMount(_ProxyMount):
@@ -548,13 +537,3 @@ class _LocalMount(_ProxyMount):
     def __events_cb(self, event):
         event['mountpoint'] = self.mountpoint
         self._publish(event)
-
-
-class _StubMount(_Mount):
-
-    def __init__(self, mountpoint):
-        _Mount.__init__(self, mountpoint)
-
-    @property
-    def mounted(self):
-        return False

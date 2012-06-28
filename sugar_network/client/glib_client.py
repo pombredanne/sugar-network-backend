@@ -97,10 +97,10 @@ class GlibClient(gobject.GObject):
 
         event_type = event['event']
 
-        if event_type == 'connect':
+        if event_type == 'mount':
             self.emit('connect', event['mountpoint'], True)
 
-        elif event_type == 'disconnect':
+        elif event_type == 'unmount':
             self.emit('connect', event['mountpoint'], False)
 
         elif event_type == 'launch':

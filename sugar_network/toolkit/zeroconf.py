@@ -28,66 +28,68 @@ _IF_UNSPEC = -1
 _DBUS_NAME = 'org.freedesktop.Avahi'
 _DBUS_INTERFACE_SERVICE_BROWSER = 'org.freedesktop.Avahi.ServiceBrowser'
 
-_thread = None
-_job = None
-_cond = None
-_queue = None
-_pool = []
 
-_logger = logging.getLogger('local.zeroconf')
+_logger = logging.getLogger('zeroconf')
 
 
-def browse_workstation():
-    _init()
+class ServiceBrowser(object):
 
-    for address in _pool:
-        yield address
+    def __init__(self):
+        _logger.info(_('Start browsing hosts using Avahi'))
+        self._queue = Queue()
+        self._cond = coroutine.AsyncCondition()
+        self._thread = _Thread(self._queue, self._cond)
+        self._thread.daemon = True
+        self._thread.start()
 
+    def browse(self):
+        while True:
+            if self._thread is None:
+                break
+            self._cond.wait()
+            try:
+                while True:
+                    yield self._queue.get_nowait()
+            except Empty:
+                pass
 
-def _init():
-    global _thread, _job, _cond, _queue
+    def close(self):
+        if self._thread is not None:
+            _logger.info(_('Stop browsing hosts using Avahi'))
+            self._thread.kill()
+            self._thread.join()
+            self._thread = None
+        self._cond.notify()
 
-    if _job is not None:
-        return
+    def __enter__(self):
+        return self
 
-    _logger.info(_('Start browsing hosts using Avahi'))
-
-    _queue = Queue()
-    _cond = coroutine.AsyncCondition()
-    _thread = _Thread()
-    _thread.daemon = True
-    _thread.start()
-    _job = coroutine.spawn(_waiter)
-
-
-def _waiter():
-    while True:
-        _cond.wait()
-        try:
-            while True:
-                address = _queue.get_nowait()
-                if address not in _pool:
-                    _logger.debug('Add new %r address', address)
-                    _pool.append(address)
-        except Empty:
-            pass
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
 
 class _Thread(threading.Thread):
 
-    _server = None
+    def __init__(self, queue, cond):
+        import gobject
+
+        threading.Thread.__init__(self)
+
+        self._queue = queue
+        self._cond = cond
+        self._loop = gobject.MainLoop()
+        self._server = None
 
     def run(self):
-        import gobject
         import dbus
-        import dbus.glib
-        from dbus.mainloop.glib import DBusGMainLoop
+        from dbus.mainloop.glib import DBusGMainLoop, threads_init
+        import gobject
 
         gobject.threads_init()
-        dbus.glib.threads_init()
+        threads_init()
 
-        mainloop = DBusGMainLoop()
-        bus = dbus.SystemBus(mainloop=mainloop)
+        DBusGMainLoop(set_as_default=True)
+        bus = dbus.SystemBus()
 
         self._server = dbus.Interface(bus.get_object(_DBUS_NAME, '/'),
                 'org.freedesktop.Avahi.Server')
@@ -100,32 +102,36 @@ class _Thread(threading.Thread):
         sbrowser.connect_to_signal('ItemNew', self.__ItemNew_cb)
         sbrowser.connect_to_signal('ItemRemove', self.__ItemRemove_cb)
 
-        gobject.MainLoop().run()
+        self._loop.run()
+
+    def kill(self):
+        import gobject
+        gobject.idle_add(self._loop.quit)
 
     def __ItemNew_cb(self, interface, protocol, name, stype, domain, flags):
         if flags & _LOOKUP_RESULT_LOCAL:
             return
-
+        _logger.debug('Got new workstation: %s', name)
         self._server.ResolveService(interface, protocol, name, stype, domain,
                 _PROTO_UNSPEC, 0, reply_handler=self.__ResolveService_cb,
                 error_handler=self.__error_handler_cb)
 
     def __ResolveService_cb(self, interface, protocol, name, type_, domain,
             host, aprotocol, address, port, txt, flags):
-        _queue.put(str(address))
-        _cond.notify()
+        _logger.debug('Got new address: %s', address)
+        self._queue.put(str(address))
+        self._cond.notify()
 
     def __ItemRemove_cb(self, interface, protocol, name, type_, domain, *args):
-        pass
+        _logger.debug('Got removed workstation: %s', name)
 
     def __error_handler_cb(self, error, *args):
-        _logger.warning('Avahi browse failed: %s', error)
+        _logger.warning('ResolveService failed: %s', error)
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
-    while True:
-        for __ in browse_workstation():
-            print __
-        coroutine.sleep(3)
+    with ServiceBrowser() as monitor:
+        for i in monitor.browse():
+            pass
