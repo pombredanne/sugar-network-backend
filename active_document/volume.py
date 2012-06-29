@@ -28,7 +28,7 @@ from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
 from active_document.metadata import BlobProperty
-from active_toolkit import util, sockets, enforce
+from active_toolkit import coroutine, util, sockets, enforce
 
 
 _logger = logging.getLogger('active_document.volume')
@@ -74,6 +74,11 @@ class _Volume(dict):
     def disconnect(self, callback):
         if callback in self._subscriptions:
             del self._subscriptions[callback]
+
+    def populate(self):
+        for cls in self.values():
+            for __ in cls.populate():
+                coroutine.dispatch()
 
     def __enter__(self):
         return self

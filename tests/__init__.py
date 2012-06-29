@@ -22,8 +22,6 @@ from active_toolkit import coroutine, util
 from active_document import env as _env, index_queue as _index_queue
 from active_document import storage as _storage
 from active_document import directory as _directory
-from restful_document.router import Router
-from restful_document.subscribe_socket import SubscribeSocket
 
 
 root = abspath(dirname(__file__))
@@ -39,8 +37,6 @@ def main():
 
 
 class Test(unittest.TestCase):
-
-    httpd_pids = {}
 
     def setUp(self):
         self._overriden = []
@@ -71,11 +67,7 @@ class Test(unittest.TestCase):
 
         _storage._ensure_path_locker = _FakeLocker()
 
-        self.httpd_seqno = 0
-
     def tearDown(self):
-        while Test.httpd_pids:
-            self.httpdown(Test.httpd_pids.keys()[0])
         self.assertEqual(0, _index_queue.errnum)
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()
@@ -127,46 +119,6 @@ class Test(unittest.TestCase):
             f = file(path, 'w')
             f.write(str(content))
             f.close()
-
-    def httpd(self, port, classes):
-        if port in Test.httpd_pids:
-            self.httpdown(port)
-
-        self.httpd_seqno += 1
-
-        child_pid = os.fork()
-        if child_pid:
-            time.sleep(3)
-            Test.httpd_pids[port] = child_pid
-            return
-
-        for handler in logging.getLogger().handlers:
-            logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG, filename=tmpdir + '-%s.http.log' % self.httpd_seqno)
-
-        volume = ad.SingleVolume(tmpdir + '/db', classes)
-        for cls in volume.values():
-            for i in cls.populate():
-                pass
-        cp = ad.VolumeCommands(volume)
-        httpd = coroutine.WSGIServer(('localhost', port), Router(cp))
-        subscriber = SubscribeSocket(volume, 'localhost', port + 1)
-        try:
-            gevent.joinall([
-                gevent.spawn(httpd.serve_forever),
-                gevent.spawn(subscriber.serve_forever),
-                ])
-        finally:
-            httpd.stop()
-            subscriber.stop()
-            volume.close()
-
-    def httpdown(self, port):
-        pid = Test.httpd_pids[port]
-        del Test.httpd_pids[port]
-        os.kill(pid, signal.SIGINT)
-        sys.stdout.flush()
-        os.waitpid(pid, 0)
 
 
 class Resource(object):

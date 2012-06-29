@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/coroutine.py$
-$Date: 2012-06-27$
+$Date: 2012-06-29$
 
 """
 # pylint: disable-msg=W0621
@@ -135,3 +135,44 @@ class AsyncCondition(object):
 
     def notify(self):
         self._async.send()
+
+
+class Pool(gevent.pool.Pool):
+
+    def spawn(self, *args, **kwargs):
+        job = gevent.pool.Pool.spawn(self, *args, **kwargs)
+        _group.add(job)
+        return job
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.kill()
+
+
+class ServersPool(list):
+
+    def __init__(self):
+        list.__init__(self)
+        self._jobs = Pool()
+
+    def spawn(self, server, *args, **kwargs):
+        if not hasattr(server, 'serve_forever'):
+            server = server(*args, **kwargs)
+        self.append(server)
+        return self._jobs.spawn(server.serve_forever)
+
+    def stop(self):
+        while self:
+            self.pop().stop()
+
+    def join(self):
+        self._jobs.join()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()
+        self.join()
