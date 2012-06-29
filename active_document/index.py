@@ -275,6 +275,9 @@ class IndexWriter(IndexReader):
         self._commit_cond = coroutine.Condition()
         self._commit_job = coroutine.spawn(self._commit_handler)
 
+        # Let `_commit_handler()` call `wait()` to not miss immediate commit
+        coroutine.dispatch()
+
         self._do_open()
 
     def close(self):

@@ -8,12 +8,11 @@ import time
 import shutil
 from os.path import exists
 
-import gevent
-
 from __init__ import tests
 
 from active_document import index, env
 from active_document.metadata import Metadata, ActiveProperty
+from active_toolkit import coroutine
 
 
 class IndexTest(tests.Test):
@@ -496,31 +495,31 @@ class IndexTest(tests.Test):
         commits = []
 
         db = Index({}, lambda: commits.append(True))
-        gevent.sleep()
+        coroutine.dispatch()
         env.index_flush_threshold.value = 1
         db.store('1', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         db.store('2', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         db.store('3', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         self.assertEqual(3, len(commits))
         db.close()
 
         del commits[:]
         db = Index({}, lambda: commits.append(True))
-        gevent.sleep()
+        coroutine.dispatch()
         env.index_flush_threshold.value = 2
         db.store('4', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         db.store('5', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         db.store('6', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         db.store('7', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         db.store('8', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         self.assertEqual(2, len(commits))
         db.close()
 
@@ -531,30 +530,39 @@ class IndexTest(tests.Test):
         commits = []
 
         db = Index({}, lambda: commits.append(True))
-        gevent.sleep()
+        coroutine.dispatch()
 
         db.store('1', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         self.assertEqual(0, len(commits))
         db.store('2', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         self.assertEqual(0, len(commits))
 
-        gevent.sleep(1.5)
+        coroutine.sleep(1.5)
         self.assertEqual(1, len(commits))
 
         db.store('1', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         self.assertEqual(1, len(commits))
         db.store('2', {}, True)
-        gevent.sleep()
+        coroutine.dispatch()
         self.assertEqual(1, len(commits))
 
-        gevent.sleep(1.5)
+        coroutine.sleep(1.5)
         self.assertEqual(2, len(commits))
 
-        gevent.sleep(1.5)
+        coroutine.sleep(1.5)
         self.assertEqual(2, len(commits))
+
+    def test_DoNotMissImmediateCommitEvent(self):
+        env.index_flush_threshold.value = 1
+        commits = []
+        db = Index({}, lambda: commits.append(True))
+
+        db.store('1', {}, True)
+        coroutine.dispatch()
+        self.assertEqual(1, len(commits))
 
 
 class Index(index.IndexWriter):
