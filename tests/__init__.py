@@ -62,11 +62,16 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
         local.local_root.value = tmpdir
-        local.activities.value = [tmpdir + '/Activities']
+        local.activity_dirs.value = [tmpdir + '/Activities']
         local.api_url.value = 'http://localhost:8800'
         local.server_mode.value = False
+        local.mounts_root.value = None
 
         node.privkey.value = join(profile_dir, 'owner.key')
+        node.DOCUMENTS = [
+                'sugar_network.resources.user',
+                'sugar_network.resources.context',
+                ]
 
         sugar.nickname = lambda: 'test'
         sugar.color = lambda: '#000000,#000000'
@@ -156,21 +161,27 @@ class Test(unittest.TestCase):
 
     def fork(self, cb, *args):
         pid = os.fork()
-        if not pid:
-            coroutine.shutdown()
-            try:
-                cb(*args)
-                result = 0
-            except Exception:
-                logging.exception('Child failed')
-                result = 1
-            sys.stdout.flush()
-            sys.stderr.flush()
-            os._exit(result)
-        else:
+        if pid:
             self.forks.append(pid)
             coroutine.sleep(1)
             return pid
+
+        self.fork_num += 1
+        for handler in logging.getLogger().handlers:
+            logging.getLogger().removeHandler(handler)
+        logging.basicConfig(level=logging.DEBUG,
+                filename='%s-%s.log' % (tmpdir, self.fork_num))
+
+        coroutine.shutdown()
+        try:
+            cb(*args)
+            result = 0
+        except Exception:
+            logging.exception('Child failed')
+            result = 1
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(result)
 
     def popen(self, *args):
         self.fork_num += 1
@@ -200,7 +211,7 @@ class Test(unittest.TestCase):
         self.start_server(classes, open=False)
 
         def wait_connect(event):
-            if event['event'] == 'connect':
+            if event['event'] == 'mount':
                 connected.set()
 
         connected = coroutine.Event()

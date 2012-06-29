@@ -109,6 +109,10 @@ class Client(object):
         conn.connect(local.ensure_path('run', 'subscribe'))
         return conn
 
+    @classmethod
+    def mounts(cls):
+        return cls.call('GET', 'mounts')
+
     def __init__(self, mountpoint):
         self._mountpoint = mountpoint
         self._resources = {}

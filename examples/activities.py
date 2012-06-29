@@ -14,12 +14,12 @@ if __name__ == '__main__':
 
     os.system('sugar-network-service -DD start ' \
               '--local-root=tmp ' \
-              '--activities=tmp/Activities ' \
+              '--activity-dirs=tmp/Activities ' \
               '--api-url=http://localhost:8000')
     try:
         local.local_root.value = 'tmp'
         local.api_url.value = 'http://localhost:8000'
-        local.activities.value = ['tmp/Activities']
+        local.activity_dirs.value = ['tmp/Activities']
         main()
     finally:
         os.system('sugar-network-service --local-root=tmp stop')

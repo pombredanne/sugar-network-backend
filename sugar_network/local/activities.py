@@ -22,12 +22,13 @@ from gettext import gettext as _
 
 import sweets_recipe
 from active_document import DEFAULT_LANG
-from sugar_network.toolkit import crawler, sugar
+from sugar_network.toolkit import sugar
 from sugar_network import local
+from sugar_network.local import activities_crawler
 from active_toolkit import util
 
 
-_logger = logging.getLogger('local.activities_registry')
+_logger = logging.getLogger('local.activities')
 
 
 def path_to_guid(path):
@@ -67,10 +68,12 @@ class _Monitor(object):
         self._prefix = prefix
 
     def serve_forever(self):
-        crawler.dispatch(self._paths, self.__found_cb, self.__lost_cb)
+        activities_crawler.dispatch(self._paths,
+                self.__found_cb, self.__lost_cb)
 
     def populate(self):
-        crawler.populate(self._paths, self.__found_cb, self.__lost_cb)
+        activities_crawler.populate(self._paths,
+                self.__found_cb, self.__lost_cb)
 
     def __found_cb(self, impl_path):
         hashed_path, checkin_path = _checkin_path(impl_path)

@@ -184,7 +184,7 @@ def _checkin(mountpoint, context, command):
     try:
         for sel, __, __ in solution.walk():
             dst_path = util.unique_filename(
-                    local.activities.value[0], basename(sel.local_path))
+                    local.activity_dirs.value[0], basename(sel.local_path))
             checkedin.append(dst_path)
             _logger.info(_('Checkin implementation to %r'), dst_path)
             util.cptree(sel.local_path, dst_path)

@@ -15,7 +15,7 @@ from sugar_network import checkin, launch, Client
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.local import activities_registry
+from sugar_network.local import activities
 
 
 class InjectorTest(tests.Test):
@@ -259,7 +259,7 @@ class InjectorTest(tests.Test):
         self.start_server()
         client = Client('~')
 
-        monitor = coroutine.spawn(activities_registry.monitor,
+        monitor = coroutine.spawn(activities.monitor,
                 self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 

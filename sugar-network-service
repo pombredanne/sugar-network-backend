@@ -25,7 +25,7 @@ import restful_document as rd
 import sugar_network_webui as webui
 from sugar_network import local, node, Client
 from sugar_network.toolkit import application, sugar
-from sugar_network.local import activities_registry
+from sugar_network.local import activities
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import Mounts
 from active_toolkit import optparse, coroutine, enforce
@@ -78,8 +78,8 @@ class Application(application.Daemon):
         root = ''
         if self.args:
             root = abspath(self.args.pop(0))
-            local.activities.value = [root + abspath(i) \
-                    for i in local.activities.value]
+            local.activity_dirs.value = [root + abspath(i) \
+                    for i in local.activity_dirs.value]
             local.local_root.value = root + local.local_root.value
 
         if self.args:
@@ -90,7 +90,7 @@ class Application(application.Daemon):
         volume = ad.SingleVolume(self._db_path, node.DOCUMENTS)
         try:
             self._populate_index(volume)
-            activities_registry.populate(volume, local.activities.value, root)
+            activities.populate(volume, local.activity_dirs.value, root)
         finally:
             volume.close()
 
@@ -118,8 +118,7 @@ class Application(application.Daemon):
         def delayed_start():
             logging.info(_('Proceed delayed start'))
 
-            start_job(activities_registry.monitor, volume,
-                    local.activities.value)
+            start_job(activities.monitor, volume, local.activity_dirs.value)
             start_job(self._populate_index, volume)
 
             if webui.webui.value:
@@ -146,6 +145,7 @@ class Application(application.Daemon):
                     '0.0.0.0', node.subscribe_port.value)
 
         try:
+            mounts.open()
             self._ipc_server.serve_forever()
         finally:
             while servers:

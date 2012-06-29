@@ -13,7 +13,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from active_toolkit import coroutine, util
 from sugar_network.local.mounts import Mounts
-from sugar_network.local import activities_registry
+from sugar_network.local import activities
 from sugar_network.toolkit import sugar
 
 
@@ -23,6 +23,7 @@ class ActivitiesTest(tests.Test):
         tests.Test.setUp(self)
         volume = ad.SingleVolume('local', [User, Context])
         self.mounts = Mounts(volume)
+        self.mounts.open()
         self.job = None
 
     def tearDown(self):
@@ -32,7 +33,7 @@ class ActivitiesTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_Checkin_Create(self):
-        self.job = coroutine.spawn(activities_registry.monitor,
+        self.job = coroutine.spawn(activities.monitor,
                 self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
@@ -70,7 +71,7 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkin_Copy(self):
-        self.job = coroutine.spawn(activities_registry.monitor,
+        self.job = coroutine.spawn(activities.monitor,
                 self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
@@ -105,7 +106,7 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkin_Hardlink(self):
-        self.job = coroutine.spawn(activities_registry.monitor,
+        self.job = coroutine.spawn(activities.monitor,
                 self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
@@ -142,7 +143,7 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_OfflineCheckin(self):
-        self.job = coroutine.spawn(activities_registry.monitor,
+        self.job = coroutine.spawn(activities.monitor,
                 self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
@@ -168,7 +169,7 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkout(self):
-        self.job = coroutine.spawn(activities_registry.monitor,
+        self.job = coroutine.spawn(activities.monitor,
                 self.mounts.home_volume, ['Activities'])
 
         self.mounts.home_volume['context'].create_with_guid(

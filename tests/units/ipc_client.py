@@ -304,6 +304,7 @@ class IPCClientTest(tests.Test):
     def test_Direct(self):
         volume = ad.SingleVolume('local', [User, Context])
         Client._connection = mounts.Mounts(volume)
+        Client._connection.open()
         client = Client('~')
 
         guid_1 = client.Context(

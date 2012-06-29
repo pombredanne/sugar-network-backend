@@ -24,7 +24,7 @@ from sugar_network.toolkit.inotify import Inotify, \
         IN_MOVED_TO, IN_MOVED_FROM
 
 
-_logger = logging.getLogger('toolkit.crawler')
+_logger = logging.getLogger('local.activities_crawler')
 
 
 def populate(paths, found_cb, lost_cb):

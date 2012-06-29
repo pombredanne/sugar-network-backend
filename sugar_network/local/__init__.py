@@ -40,7 +40,7 @@ local_root = optparse.Option(
         _('path to the directory to keep all local data'),
         default=sugar.profile_path('network'))
 
-activities = optparse.Option(
+activity_dirs = optparse.Option(
         _('colon separated list of paths to the directories with Sugar ' \
                 'activities; first path will be used to keep check-in ' \
                 'activities'),
@@ -61,6 +61,10 @@ delayed_start = optparse.Option(
                 'notification from IPC client'),
         default=False, type_cast=optparse.Option.bool_cast,
         action='store_true')
+
+mounts_root = optparse.Option(
+        _('path to a directory with remote devices mounts'),
+        default='/media')
 
 
 def path(*args):

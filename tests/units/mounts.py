@@ -18,10 +18,10 @@ import restful_document as rd
 import active_document as ad
 from active_toolkit import sockets, coroutine
 from sugar_network import Client, ServerError, local
-from sugar_network.local import mounts as mounts_, activities_registry
+from sugar_network.local import mounts as mounts_, activities
 from sugar_network.local.mounts import Mounts
 from sugar_network.local.bus import IPCServer
-from sugar_network.toolkit import sugar, http
+from sugar_network.toolkit import sugar, http, inotify
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 
@@ -325,7 +325,7 @@ class MountsTest(tests.Test):
                 description='description').post()
 
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'connect', 'document': '*'},
+                {'mountpoint': '/', 'event': 'mount', 'document': '*'},
                 subscription.read_message())
         coroutine.select([subscription.fileno()], [], [])
         event = subscription.read_message()
@@ -455,7 +455,7 @@ class MountsTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'connect', 'document': '*'},
+                {'mountpoint': '/', 'event': 'mount', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(True, client.connected)
 
@@ -463,16 +463,17 @@ class MountsTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'disconnect', 'document': '*'},
+                {'mountpoint': '/', 'event': 'unmount', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 
         pid = self.fork(self.restful_server)
         coroutine.sleep(1)
 
+        self.assertEqual(False, client.connected)
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'connect', 'document': '*'},
+                {'mountpoint': '/', 'event': 'mount', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(True, client.connected)
 
@@ -480,7 +481,7 @@ class MountsTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'disconnect', 'document': '*'},
+                {'mountpoint': '/', 'event': 'unmount', 'document': '*'},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 
@@ -639,7 +640,7 @@ class MountsTest(tests.Test):
         http_subscriber = rd.SubscribeSocket(mounts.home_volume, 'localhost', 8882)
         coroutine.spawn(http_subscriber.serve_forever)
 
-        monitor = coroutine.spawn(activities_registry.monitor,
+        monitor = coroutine.spawn(activities.monitor,
                 mounts.home_volume, ['Activities'])
 
         ipc_server = IPCServer(mounts)
@@ -647,7 +648,7 @@ class MountsTest(tests.Test):
         coroutine.dispatch()
 
         def wait_connect(event):
-            if event['event'] == 'connect':
+            if event['event'] == 'mount':
                 connected.set()
 
         connected = coroutine.Event()

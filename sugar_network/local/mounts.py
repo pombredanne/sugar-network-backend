@@ -27,7 +27,7 @@ import sweets_recipe
 import active_document as ad
 from sugar_network.toolkit import sugar, http, zeroconf, netlink
 from sugar_network.node.mounts import NodeCommands
-from sugar_network.local import activities_registry
+from sugar_network.local import activities, mounts_crawler
 from sugar_network import local, checkin, node
 from active_toolkit import sockets, util, coroutine, enforce
 
@@ -47,15 +47,11 @@ class Mounts(dict):
         self.home_volume = home_volume
         self._subscriptions = {}
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
+        self._mounts_crawler_job = None
+        self._master_crawler_job = None
 
         self['~'] = _HomeMount('~', home_volume, self.publish)
         self['/'] = _RemoteMount('/', home_volume, self.publish)
-
-        if local.api_url.value:
-            monitor = self._wait_for_master
-        else:
-            monitor = self._discover_masters
-        self._monitor_job = coroutine.spawn(monitor)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
@@ -64,8 +60,13 @@ class Mounts(dict):
     def call(self, request, response=None):
         request_repr = str(request)
 
+        if request.get('cmd') == 'mounts':
+            return [path for path, mount in self.items() if mount.mounted]
+
         mountpoint = request.pop('mountpoint')
         mount = self[mountpoint]
+        if mountpoint == '/' and not mount.mounted:
+            mount.mount()
         if request.get('cmd') == 'mounted':
             return mount.mounted
         enforce(mount.mounted, _('%r is not mounted'), mountpoint)
@@ -103,12 +104,33 @@ class Mounts(dict):
                 except Exception:
                     util.exception(_logger, _('Failed to dispatch %r'), event)
 
+    def open(self):
+        if local.mounts_root.value:
+            self._mounts_crawler_job = coroutine.spawn(mounts_crawler.dispatch,
+                    local.mounts_root.value, self._mount_found,
+                    self._mount_lost)
+
+        if local.api_url.value:
+            crawler = self._wait_for_master
+        else:
+            crawler = self._discover_masters
+        self._master_crawler_job = coroutine.spawn(crawler)
+
     def close(self):
-        self._monitor_job.kill()
+        if self._mounts_crawler_job is not None:
+            self._mounts_crawler_job.kill()
+        self._master_crawler_job.kill()
         while self:
             __, mount = self.popitem()
             mount.close()
         self.home_volume.close()
+
+    def _mount_found(self, path, volume):
+        self[path] = _LocalMount(volume, path, self.home_volume, self.publish)
+
+    def _mount_lost(self, path):
+        self[path].close()
+        del self[path]
 
     def _discover_masters(self):
         with zeroconf.ServiceBrowser() as monitor:
@@ -130,24 +152,37 @@ class Mounts(dict):
 
 class _Mount(object):
 
-    def __init__(self, mountpoint):
+    def __init__(self, mountpoint, publish_cb):
         self.mountpoint = mountpoint
+        self.publish = publish_cb
+        self._mounted = False
 
     def close(self):
-        pass
+        self.mounted = False
 
-    @property
-    def mounted(self):
-        return True
+    def get_mounted(self):
+        return self._mounted
+
+    def set_mounted(self, value):
+        if self._mounted == value:
+            return
+        self._mounted = value
+        self.publish({
+            'event': 'mount' if value else 'unmount',
+            'mountpoint': self.mountpoint,
+            'document': '*',
+            })
+
+    mounted = property(get_mounted, set_mounted)
 
 
 class _HomeMount(NodeCommands, _Mount):
 
     def __init__(self, mountpoint, volume, publish_cb):
         NodeCommands.__init__(self, volume)
-        _Mount.__init__(self, mountpoint)
-        self._publish = publish_cb
+        _Mount.__init__(self, mountpoint, publish_cb)
         volume.connect(self.__events_cb)
+        self.mounted = True
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request):
@@ -178,7 +213,7 @@ class _HomeMount(NodeCommands, _Mount):
             directory.metadata[prop].assert_access(ad.ACCESS_READ)
             return self._get_feed(request)
         elif document == 'implementation' and prop == 'bundle':
-            path = activities_registry.guid_to_path(guid)
+            path = activities.guid_to_path(guid)
             if not exists(path):
                 return None
             dir_info, dir_reader = sockets.encode_directory(path)
@@ -204,7 +239,7 @@ class _HomeMount(NodeCommands, _Mount):
     def _get_feed(self, request):
         feed = {}
 
-        for path in activities_registry.checkins(request['guid']):
+        for path in activities.checkins(request['guid']):
             try:
                 spec = sweets_recipe.Spec(root=path)
             except Exception:
@@ -214,7 +249,7 @@ class _HomeMount(NodeCommands, _Mount):
             if request.access_level == ad.ACCESS_LOCAL:
                 impl_id = spec.root
             else:
-                impl_id = activities_registry.path_to_guid(spec.root)
+                impl_id = activities.path_to_guid(spec.root)
 
             feed[spec['version']] = {
                     '*-*': {
@@ -234,7 +269,7 @@ class _HomeMount(NodeCommands, _Mount):
         event['mountpoint'] = self.mountpoint
 
         if 'props' not in event:
-            self._publish(event)
+            self.publish(event)
             return
 
         found_commons = False
@@ -253,10 +288,10 @@ class _HomeMount(NodeCommands, _Mount):
         if found_commons:
             # These local properties exposed from _ProxyMount as well
             event['mountpoint'] = '*'
-        self._publish(event)
+        self.publish(event)
 
     def _checkout(self, guid):
-        for path in activities_registry.checkins(guid):
+        for path in activities.checkins(guid):
             _logger.info(_('Checkout %r implementation from %r'), guid, path)
             shutil.rmtree(path)
 
@@ -264,13 +299,13 @@ class _HomeMount(NodeCommands, _Mount):
         for phase, __ in checkin('/', guid, 'activity'):
             # TODO Publish checkin progress
             if phase == 'failure':
-                self._publish({
+                self.publish({
                     'event': 'alert',
                     'mountpoint': self.mountpoint,
                     'severity': 'error',
                     'message': _("Cannot check-in '%s' implementation") % guid,
                     })
-                for __ in activities_registry.checkins(guid):
+                for __ in activities.checkins(guid):
                     keep_impl = 2
                     break
                 else:
@@ -281,9 +316,9 @@ class _HomeMount(NodeCommands, _Mount):
 
 class _ProxyMount(ad.CommandsProcessor, _Mount):
 
-    def __init__(self, mountpoint, home_volume):
+    def __init__(self, mountpoint, home_volume, publish_cb):
         ad.CommandsProcessor.__init__(self)
-        _Mount.__init__(self, mountpoint)
+        _Mount.__init__(self, mountpoint, publish_cb)
         self._home_volume = home_volume
 
     def do_call(self, request, response):
@@ -362,21 +397,17 @@ class _ProxyMount(ad.CommandsProcessor, _Mount):
 class _RemoteMount(_ProxyMount):
 
     def __init__(self, mountpoint, home_volume, publish_cb):
-        _ProxyMount.__init__(self, mountpoint, home_volume)
-        self._publish = publish_cb
-        self._mounted = False
+        _ProxyMount.__init__(self, mountpoint, home_volume, publish_cb)
         self._seqno = {}
         self._remote_volume_guid = None
         self._subscription_job = None
-
-    @property
-    def mounted(self):
-        return self._mounted
+        self._last_api_url = None
 
     def close(self):
         if self._subscription_job is not None:
             self._subscription_job.kill()
             self._subscription_job = None
+        _ProxyMount.close(self)
 
     def do_call(self, request, response):
         method = request.pop('method')
@@ -404,8 +435,6 @@ class _RemoteMount(_ProxyMount):
         meta = {}
 
         def download(seqno):
-            if not self.mounted:
-                return
             mime_type = http.download([document, guid, prop], blob_path, seqno,
                     document == 'implementation' and prop == 'bundle')
             meta['mime_type'] = mime_type
@@ -440,9 +469,16 @@ class _RemoteMount(_ProxyMount):
             if pass_ownership and exists(path):
                 os.unlink(path)
 
-    def mount(self, host, url):
+    def mount(self, host=None, url=None):
         if self.mounted:
             return
+
+        if host is None:
+            if self._last_api_url is None:
+                return
+            host, url = self._last_api_url
+        else:
+            self._last_api_url = (host, url)
 
         local.api_url.value = url
         try:
@@ -453,12 +489,10 @@ class _RemoteMount(_ProxyMount):
             conn = sockets.SocketFile(coroutine.socket())
             conn.connect((host, subscription['port']))
             conn.write_message({'ticket': subscription['ticket']})
-        except Exception:
-            util.exception(_logger, 'Cannot connect to %r master', url)
+        except Exception, error:
+            _logger.warning('Cannot connect to %r master: %s', url, error)
             return
 
-        if self._subscription_job is not None:
-            self._subscription_job.kill()
         self._subscription_job = coroutine.spawn(self._subscription, conn)
 
     def _subscription(self, conn):
@@ -470,13 +504,7 @@ class _RemoteMount(_ProxyMount):
             self._remote_volume_guid = stat.get('guid')
 
             _logger.info(_('Connected to %r master'), local.api_url.value)
-
-            self._publish({
-                'event': 'mount',
-                'mountpoint': self.mountpoint,
-                'document': '*',
-                })
-            self._mounted = True
+            self.mounted = True
 
             while True:
                 coroutine.select([conn.fileno()], [], [])
@@ -489,34 +517,30 @@ class _RemoteMount(_ProxyMount):
                     self._seqno[event['document']] = seqno
 
                 event['mountpoint'] = self.mountpoint
-                self._publish(event)
+                self.publish(event)
 
         except Exception:
             util.exception(_logger, _('Failed to dispatch remote event'))
         finally:
             _logger.info(_('Got disconnected from %r master'),
                     local.api_url.value)
-            self._mounted = False
-            self._publish({
-                'event': 'unmount',
-                'mountpoint': self.mountpoint,
-                'document': '*',
-                })
+            self._subscription_job = None
+            self.mounted = False
 
 
 class _LocalMount(_ProxyMount):
 
     def __init__(self, volume, mountpoint, home_volume, publish_cb):
-        _ProxyMount.__init__(self, mountpoint, home_volume)
+        _ProxyMount.__init__(self, mountpoint, home_volume, publish_cb)
         self._proxy = ad.VolumeCommands(volume)
-        self._publish = publish_cb
         volume.connect(self.__events_cb)
+        self.mounted = True
 
     def do_call(self, request, response):
         return self._proxy.call(request, response)
 
     @ad.property_command(method='GET', cmd='get_blob')
-    def get_blob(self, document, guid, prop, request):
+    def get_blob(self, document, guid, prop):
         directory = self._proxy.volume[document]
         directory.metadata[prop].assert_access(ad.ACCESS_READ)
         return directory.get(guid).meta(prop)
@@ -536,4 +560,4 @@ class _LocalMount(_ProxyMount):
 
     def __events_cb(self, event):
         event['mountpoint'] = self.mountpoint
-        self._publish(event)
+        self.publish(event)

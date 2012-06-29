@@ -8,10 +8,10 @@ from os.path import exists
 from __init__ import tests
 
 from active_toolkit import coroutine
-from sugar_network.toolkit import crawler
+from sugar_network.local import activities_crawler
 
 
-class CrawlerTest(tests.Test):
+class ActivitiesCrawlerTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
@@ -39,7 +39,7 @@ class CrawlerTest(tests.Test):
         self.touch('activity-4/activity/activity.info')
         self.touch('activity-5/activity/activity.info')
 
-        self.job = coroutine.spawn(crawler.dispatch, ['.'],
+        self.job = coroutine.spawn(activities_crawler.dispatch, ['.'],
                 self.found_cb, self.lost_cb)
         coroutine.sleep(1)
 
@@ -99,7 +99,7 @@ class CrawlerTest(tests.Test):
     def test_Moves(self):
         self.touch('Activities/activity/activity/activity.info')
 
-        self.job = coroutine.spawn(crawler.dispatch, ['Activities'],
+        self.job = coroutine.spawn(activities_crawler.dispatch, ['Activities'],
                 self.found_cb, self.lost_cb)
         coroutine.sleep()
         del self.found[:]
@@ -146,7 +146,7 @@ class CrawlerTest(tests.Test):
 
     def test_NoPermissions(self):
         assert not exists('/foo/bar')
-        crawler.populate(['/foo/bar'], None, None)
+        activities_crawler.populate(['/foo/bar'], None, None)
         assert not exists('/foo/bar')
 
 
