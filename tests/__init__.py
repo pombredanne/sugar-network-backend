@@ -65,7 +65,6 @@ class Test(unittest.TestCase):
         _env.index_flush_timeout.value = 0
         _env.index_flush_threshold.value = 1
         _env.find_limit.value = 1024
-        _env.index_lazy_open.value = False
         _directory._DIFF_PAGE_SIZE = 256
 
         _index_queue.errnum = 0

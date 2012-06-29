@@ -189,7 +189,7 @@ class IndexReader(object):
             value = str(value).strip()
             prop = self._props.get(name)
             enforce(prop is not None and prop.prefix,
-                    _('Unknow search term %r for %r'),
+                    _('Unknown search term %r for %r'),
                     name, self.metadata.name)
             query = xapian.Query(_term(prop.prefix, value))
             if prop.boolean:

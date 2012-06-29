@@ -23,7 +23,6 @@ class IndexProxyTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        env.index_lazy_open.value = True
 
         class Document(document.Document):
 

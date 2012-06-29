@@ -366,8 +366,7 @@ class VolumeTest(tests.Test):
         class Document2(document.Document):
             pass
 
-        env.index_lazy_open.value = True
-        volume = SingleVolume('.', [Document1, Document2])
+        volume = SingleVolume('.', [Document1, Document2], lazy_open=True)
         assert not exists('document1/index')
         assert not exists('document2/index')
         volume['document1'].find()
@@ -381,8 +380,7 @@ class VolumeTest(tests.Test):
         shutil.rmtree('document1')
         shutil.rmtree('document2')
 
-        env.index_lazy_open.value = False
-        volume = SingleVolume('.', [Document1, Document2])
+        volume = SingleVolume('.', [Document1, Document2], lazy_open=False)
         assert exists('document1/index')
         assert exists('document2/index')
         volume.close()

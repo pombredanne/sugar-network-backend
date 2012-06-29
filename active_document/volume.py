@@ -36,7 +36,7 @@ _logger = logging.getLogger('active_document.volume')
 
 class _Volume(dict):
 
-    def __init__(self, root, documents, index_class):
+    def __init__(self, root, documents, index_class, lazy_open):
         self._root = abspath(root)
         if not exists(root):
             os.makedirs(root)
@@ -51,7 +51,7 @@ class _Volume(dict):
                 name = document.split('.')[-1]
             else:
                 name = document.__name__.lower()
-            if env.index_lazy_open.value:
+            if lazy_open:
                 self._to_open[name] = document
             else:
                 self[name] = self._open(name, document)
@@ -84,7 +84,7 @@ class _Volume(dict):
     def __getitem__(self, name):
         directory = self.get(name)
         if directory is None:
-            enforce(name in self._to_open, _('Unknow %r document'), name)
+            enforce(name in self._to_open, _('Unknown %r document'), name)
             directory = self[name] = self._open(name, self._to_open.pop(name))
         return directory
 
@@ -118,10 +118,10 @@ class _Volume(dict):
 
 class SingleVolume(_Volume):
 
-    def __init__(self, root, document_classes):
+    def __init__(self, root, document_classes, lazy_open=False):
         enforce(env.index_write_queue.value > 0,
                 _('The active_document.index_write_queue.value should be > 0'))
-        _Volume.__init__(self, root, document_classes, IndexWriter)
+        _Volume.__init__(self, root, document_classes, IndexWriter, lazy_open)
 
 
 class VolumeCommands(CommandsProcessor):

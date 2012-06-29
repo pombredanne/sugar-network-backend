@@ -58,11 +58,6 @@ LAYERS = ['public', 'deleted']
 ANONYMOUS = object()
 
 
-index_lazy_open = optparse.Option(
-        _('do not open all indexes at once on startup'),
-        default=False, type_cast=optparse.Option.bool_cast,
-        action='store_true')
-
 index_flush_timeout = optparse.Option(
         _('flush index index after specified seconds since the last change'),
         default=5, type_cast=int)
