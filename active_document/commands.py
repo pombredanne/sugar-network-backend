@@ -15,11 +15,10 @@
 
 import re
 import logging
-from copy import copy
 from gettext import gettext as _
 
 from active_document import env
-from active_toolkit import util, enforce
+from active_toolkit import enforce
 
 
 _logger = logging.getLogger('active_document.commands')
@@ -63,9 +62,6 @@ class Request(dict):
         dict.__init__(self, *args)
         self._pos = 0
 
-    def copy(self):
-        return copy(self)
-
     def __getitem__(self, key):
         enforce(key in self, _('Cannot find %r request argument'), key)
         return self.get(key)
@@ -100,7 +96,7 @@ class CommandsProcessor(object):
         self.volume = volume
 
         for scope, cb, attr in _scan_class_for_commands(self.__class__):
-            cmd = _Command(cb, [self], **attr.kwargs)
+            cmd = _Command(cb, (self,), **attr.kwargs)
             self._commands[scope].add(cmd)
 
         if volume is not None:
@@ -140,12 +136,7 @@ class CommandsProcessor(object):
                 enforce(request.principal in doc['user'], env.Forbidden,
                         _('Operation is permitted only for authors'))
 
-        if cmd.accept_request:
-            request['request'] = request
-        if cmd.accept_response:
-            request['response'] = response
-
-        result = cmd(request)
+        result = cmd(request, response)
 
         _logger.debug('Called %r: request=%r result=%r', cmd, request, result)
 
@@ -182,11 +173,10 @@ class ProxyCommands(CommandsProcessor):
         self.volume = parent.volume
 
     def call(self, request, response):
-        orig_request = request.copy()
         try:
             return CommandsProcessor.call(self, request, response)
         except CommandNotFound:
-            return self.parent.call(orig_request, response)
+            return self.parent.call(request, response)
 
     def super_call(self, method, cmd=None, content=None,
             access_level=env.ACCESS_REMOTE, principal=env.ANONYMOUS,
@@ -208,7 +198,7 @@ class ProxyCommands(CommandsProcessor):
 class _Command(object):
 
     def __init__(self, callback, args, method='GET', document=None, cmd=None,
-            mime_type='application/json', permissions=0,
+            mime_type='application/json', permissions=0, exclude_args=None,
             access_level=env.ACCESS_LEVELS):
         self.callback = callback
         self.args = args
@@ -218,13 +208,24 @@ class _Command(object):
         self.accept_request = 'request' in _function_arg_names(callback)
         self.accept_response = 'response' in _function_arg_names(callback)
         self.key = (method, cmd, document)
+        self.exclude_args = exclude_args or ('method', 'cmd')
 
-    def __call__(self, request):
-        if 'method' in request:
-            request.pop('method')
-        if 'cmd' in request:
-            request.pop('cmd')
-        return self.callback(*self.args, **util.normalize_kwargs(request))
+    def get_args(self, request):
+        return self.args, {}
+
+    def __call__(self, request, response):
+        args, kwargs = self.get_args(request)
+
+        for key, value in request.items():
+            if key not in self.exclude_args:
+                kwargs[str(key)] = value
+
+        if self.accept_request:
+            kwargs['request'] = request
+        if self.accept_response:
+            kwargs['response'] = response
+
+        return self.callback(*args, **kwargs)
 
     def __repr__(self):
         return '%s(method=%s, cmd=%s, document=%s)' % \
@@ -235,33 +236,23 @@ class _ClassCommand(_Command):
 
     def __init__(self, directory, callback, **kwargs):
         _Command.__init__(self, callback, [], document=directory.metadata.name,
-                **kwargs)
+                exclude_args=('method', 'cmd', 'document'), **kwargs)
         self._directory = directory
 
-    def __call__(self, request):
-        if 'method' in request:
-            request.pop('method')
-        if 'cmd' in request:
-            request.pop('cmd')
-        request.pop('document')
-        return self.callback(directory=self._directory, **request)
+    def get_args(self, request):
+        return (), {'directory': self._directory}
 
 
 class _ObjectCommand(_Command):
 
     def __init__(self, directory, callback, **kwargs):
         _Command.__init__(self, callback, [], document=directory.metadata.name,
-                **kwargs)
+                exclude_args=('method', 'cmd', 'document', 'guid'), **kwargs)
         self._directory = directory
 
-    def __call__(self, request):
-        if 'method' in request:
-            request.pop('method')
-        if 'cmd' in request:
-            request.pop('cmd')
-        request.pop('document')
-        document = self._directory.get(request.pop('guid'))
-        return self.callback(document, **request)
+    def get_args(self, request):
+        document = self._directory.get(request['guid'])
+        return (document,), {}
 
 
 class _Commands(dict):

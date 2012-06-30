@@ -462,6 +462,29 @@ class CommandsTest(tests.Test):
         self.assertEqual('2', request.read(1))
         self.assertEqual('3', request.read())
 
+    def test_ChangeRequestAndPassToUpperLevelCp(self):
+        calls = []
+
+        class TestCommandsProcessor(CommandsProcessor):
+
+            @volume_command(method='PROBE')
+            def probe(self, arg, request, **kwargs):
+                return request, kwargs
+
+        class TestProxyProcessor(ProxyCommands):
+
+            @volume_command(method='PROBE')
+            def probe(self, arg, request):
+                request['foo'] = 'bar'
+                raise CommandNotFound()
+
+        top = TestCommandsProcessor()
+        proxy = TestProxyProcessor(top)
+
+        self.assertEqual(
+                ({'foo': 'bar', 'method': 'PROBE', 'arg': -1}, {'foo': 'bar'}),
+                self.call(proxy, 'PROBE', arg=-1))
+
     def call(self, cp, method, document=None, guid=None, prop=None,
             principal=None, access_level=env.ACCESS_REMOTE, **kwargs):
 
