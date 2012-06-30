@@ -126,11 +126,7 @@ class User(ad.Document):
         return value
 
     @ad.active_property(ad.StoredProperty, default='')
-    def nickname(self, value):
-        return value
-
-    @ad.active_property(ad.StoredProperty, default='')
-    def fullname(self, value):
+    def name(self, value):
         return value
 
     @classmethod

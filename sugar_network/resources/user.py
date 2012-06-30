@@ -30,11 +30,7 @@ class User(ad.Document):
     _rrd = {}
 
     @ad.active_property(slot=1, prefix='N', full_text=True)
-    def nickname(self, value):
-        return value
-
-    @ad.active_property(slot=2, prefix='F', full_text=True, default='')
-    def fullname(self, value):
+    def name(self, value):
         return value
 
     @ad.active_property(ad.StoredProperty)

@@ -526,7 +526,7 @@
         <dia:point val="-2,10"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="-2.015,9.985;10.065,38.015"/>
+        <dia:rectangle val="-2.015,9.985;10.065,37.615"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="-2,10"/>
@@ -535,7 +535,7 @@
         <dia:real val="12.050000000000001"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="28.000000000000004"/>
+        <dia:real val="27.600000000000001"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#User#</dia:string>
@@ -653,39 +653,16 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#nickname#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#str [R S F]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>##</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#Sugar nickname#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#fullname#</dia:string>
+            <dia:string>#name#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
             <dia:string>#str [R WA S F]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
-            <dia:string>#""#</dia:string>
+            <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#Full user name#</dia:string>
+            <dia:string>#User name (the same as Sugar nickname); the only visible identifier of a user#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -1975,7 +1952,7 @@
         <dia:point val="17.6025,59.8"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="17.5849,59.7824;20.4413,64.7856"/>
+        <dia:rectangle val="17.5849,59.7824;20.4412,64.7856"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>

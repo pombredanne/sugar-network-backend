@@ -6,6 +6,7 @@
 - reuse gevent for HTTP requests
 - (?) avoid monitoring non activitis sweets
 - if webui startes from server, no way to pass webbrwosers's accept_langs to ad
+- move highlevel code from ad, eg, auth related
 
 1.0
 ===

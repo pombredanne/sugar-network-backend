@@ -182,7 +182,7 @@ def _register():
     _request('POST', ['user'],
             headers={'Content-Type': 'application/json'},
             data={
-                'nickname': sugar.nickname() or '',
+                'name': sugar.nickname() or '',
                 'color': sugar.color() or '#000000,#000000',
                 'machine_sn': sugar.machine_sn() or '',
                 'machine_uuid': sugar.machine_uuid() or '',

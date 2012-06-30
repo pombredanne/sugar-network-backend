@@ -103,9 +103,8 @@ class NodeCommands(ad.ProxyCommands):
                         user_guid)
                 continue
             user = users.get(user_guid)
-            authors.append(user['nickname'])
-            if user['fullname']:
-                authors.append(user['fullname'])
+            if user['name']:
+                authors.append(user['name'])
         props['author'] = authors
 
 

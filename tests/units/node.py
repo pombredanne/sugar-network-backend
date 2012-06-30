@@ -26,8 +26,7 @@ class NodeTest(tests.Test):
         cp = NodeCommands(volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
-            'nickname': 'user',
-            'fullname': 'User',
+            'name': 'user',
             'color': '',
             'machine_sn': '',
             'machine_uuid': '',
@@ -118,8 +117,7 @@ class NodeTest(tests.Test):
         cp = NodeCommands(volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
-            'nickname': 'user1',
-            'fullname': 'User 1',
+            'name': 'user1',
             'color': '',
             'machine_sn': '',
             'machine_uuid': '',
@@ -127,8 +125,7 @@ class NodeTest(tests.Test):
             })
 
         call(cp, method='POST', document='user', principal=tests.UID2, content={
-            'nickname': 'user1',
-            'fullname': 'User 1',
+            'name': 'user1',
             'color': '',
             'machine_sn': '',
             'machine_uuid': '',
@@ -143,7 +140,7 @@ class NodeTest(tests.Test):
             })
 
         self.assertEqual(
-                ['user1', 'User 1'],
+                ['user1'],
                 call(cp, method='GET', document='context', guid=context1, prop='author'))
 
         context2 = call(cp, method='POST', document='context', principal='fake', content={
