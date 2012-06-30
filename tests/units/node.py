@@ -2,19 +2,18 @@
 # sugar-lint: disable
 
 import time
-
-import gobject
+from os.path import exists
 
 from __init__ import tests
 
 import active_document as ad
-import restful_document as rd
-
 from sugar_network.node import stats
+from sugar_network.node.commands import NodeCommands
 from sugar_network.resources.user import User
+from sugar_network.resources.context import Context
 
 
-class PublicTest(tests.Test):
+class NodeTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
@@ -24,11 +23,11 @@ class PublicTest(tests.Test):
 
     def test_stats(self):
         volume = ad.SingleVolume('db', [User])
-        cp = ad.ProxyCommands(ad.VolumeCommands(volume))
+        cp = NodeCommands(volume)
 
-        cp.super_call('POST', document='user', principal=tests.UID, content={
-            'nickname': 'me',
-            'fullname': 'M. E.',
+        call(cp, method='POST', document='user', principal=tests.UID, content={
+            'nickname': 'user',
+            'fullname': 'User',
             'color': '',
             'machine_sn': '',
             'machine_uuid': '',
@@ -43,9 +42,9 @@ class PublicTest(tests.Test):
             'rras': stats.stats_client_rras.value,
             'step': stats.stats_step.value,
             },
-            cp.super_call('GET', 'stats-info', document='user', guid=tests.UID, principal=tests.UID))
+            call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
-        cp.super_call('POST', 'stats-upload', document='user', guid=tests.UID, principal=tests.UID, content={
+        call(cp, method='POST', cmd='stats-upload', document='user', guid=tests.UID, principal=tests.UID, content={
             'name': 'test',
             'values': [(ts + 1, {'field': '1'})],
             })
@@ -57,9 +56,9 @@ class PublicTest(tests.Test):
             'rras': stats.stats_client_rras.value,
             'step': stats.stats_step.value,
             },
-            cp.super_call('GET', 'stats-info', document='user', guid=tests.UID, principal=tests.UID))
+            call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
-        cp.super_call('POST', 'stats-upload', document='user', guid=tests.UID, principal=tests.UID, content={
+        call(cp, method='POST', cmd='stats-upload', document='user', guid=tests.UID, principal=tests.UID, content={
             'name': 'test',
             'values': [(ts + 2, {'field': '2'})],
             })
@@ -71,9 +70,9 @@ class PublicTest(tests.Test):
             'rras': stats.stats_client_rras.value,
             'step': stats.stats_step.value,
             },
-            cp.super_call('GET', 'stats-info', document='user', guid=tests.UID, principal=tests.UID))
+            call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
-        cp.super_call('POST', 'stats-upload', document='user', guid=tests.UID, principal=tests.UID, content={
+        call(cp, method='POST', cmd='stats-upload', document='user', guid=tests.UID, principal=tests.UID, content={
             'name': 'test2',
             'values': [(ts + 3, {'field': '3'})],
             })
@@ -86,7 +85,83 @@ class PublicTest(tests.Test):
             'rras': stats.stats_client_rras.value,
             'step': stats.stats_step.value,
             },
-            cp.super_call('GET', 'stats-info', document='user', guid=tests.UID, principal=tests.UID))
+            call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
+
+    def test_HandleDeletes(self):
+        volume = ad.SingleVolume('db', [User, Context])
+        cp = NodeCommands(volume)
+
+        guid = call(cp, method='POST', document='context', principal=tests.UID, content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        guid_path = 'db/context/%s/%s' % (guid[:2], guid)
+
+        assert exists(guid_path)
+        self.assertEqual({
+            'guid': guid,
+            'title': {'en': 'title'},
+            },
+            call(cp, method='GET', document='context', guid=guid, reply=['guid', 'title']))
+        self.assertEqual(['public'], volume['context'].get(guid)['layer'])
+
+        call(cp, method='DELETE', document='context', guid=guid, principal=tests.UID)
+
+        assert exists(guid_path)
+        self.assertRaises(ad.NotFound, call, cp, method='GET', document='context', guid=guid, reply=['guid', 'title'])
+        self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
+
+    def test_SetAuthor(self):
+        volume = ad.SingleVolume('db', [User, Context])
+        cp = NodeCommands(volume)
+
+        call(cp, method='POST', document='user', principal=tests.UID, content={
+            'nickname': 'user1',
+            'fullname': 'User 1',
+            'color': '',
+            'machine_sn': '',
+            'machine_uuid': '',
+            'pubkey': tests.PUBKEY,
+            })
+
+        call(cp, method='POST', document='user', principal=tests.UID2, content={
+            'nickname': 'user1',
+            'fullname': 'User 1',
+            'color': '',
+            'machine_sn': '',
+            'machine_uuid': '',
+            'pubkey': tests.PUBKEY2,
+            })
+
+        context1 = call(cp, method='POST', document='context', principal=tests.UID, content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertEqual(
+                ['user1', 'User 1'],
+                call(cp, method='GET', document='context', guid=context1, prop='author'))
+
+        context2 = call(cp, method='POST', document='context', principal='fake', content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual(
+                [],
+                call(cp, method='GET', document='context', guid=context2, prop='author'))
+
+
+def call(cp, principal=None, content=None, **kwargs):
+    request = ad.Request(**kwargs)
+    request.principal = principal
+    request.content = content
+    return cp.call(request, ad.Response())
 
 
 if __name__ == '__main__':

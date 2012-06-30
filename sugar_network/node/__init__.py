@@ -88,5 +88,28 @@ privkey = optparse.Option(
                 'path composed by adding ".pub" suffix'),
         default='/etc/sugar-network-server/id_dsa', name='privkey')
 
+only_sync_notification = optparse.Option(
+        _('subscribers can be notified only with "sync" events; ' \
+                'that is useful to minimize interactions between ' \
+                'server and clients'),
+        default=False, type_cast=optparse.Option.bool_cast,
+        action='store_true')
 
-volume = {}
+auto_sync = optparse.Option(
+        _('monitor --mounts-root directory for mounts, and, after getting ' \
+                'new mount with sugar-network-sync/ directory in its root, ' \
+                'start synchronization automatically'),
+        default=False, type_cast=optparse.Option.bool_cast,
+        action='store_true', name='auto-sync')
+
+
+class HTTPStatus(Exception):
+
+    status = None
+    headers = None
+    result = None
+
+
+class BadRequest(HTTPStatus):
+
+    status = '400 Bad Request'

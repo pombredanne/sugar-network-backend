@@ -20,20 +20,24 @@ import logging
 from gettext import gettext as _
 
 import active_document as ad
-import restful_document as rd
 import sugar_network_webui as webui
 from active_toolkit import optparse, coroutine
 
 from sugar_network import node, local, Client
+from sugar_network.local.mounts import LocalMount
+from sugar_network.local.mountset import Mountset
+from sugar_network.local.mounts import LocalMount
 from sugar_network.node import stats
-from sugar_network.node.mounts import Mount
+from sugar_network.node.router import Router
+from sugar_network.node.commands import NodeCommands
+from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.toolkit import application, sugar
 
 
 class Application(application.Daemon):
 
-    httpd = None
-    subscriber = None
+    servers = coroutine.ServersPool()
+    jobs = coroutine.Pool()
 
     def run(self):
         ssl_args = {}
@@ -43,23 +47,19 @@ class Application(application.Daemon):
             ssl_args['certfile'] = node.certfile.value
 
         volume = ad.SingleVolume(node.data_root.value, node.DOCUMENTS)
-        mount = Mount(volume)
-
-        self.httpd = coroutine.WSGIServer((node.host.value, node.port.value),
-                rd.Router(mount), **ssl_args)
-        self.subscriber = rd.SubscribeSocket(volume,
+        self.jobs.spawn(volume.populate)
+        subscriber = SubscribeSocket(volume,
                 node.host.value, node.subscribe_port.value)
-
-        def populate_index():
-            for cls in volume.values():
-                for __ in cls.populate():
-                    coroutine.dispatch()
-
-        reindexer = coroutine.spawn(populate_index)
-        web_server = None
+        cp = NodeCommands(volume, subscriber)
 
         logging.info(_('Listening for requests on %s:%s'),
                 node.host.value, node.port.value)
+        self.servers.spawn(coroutine.WSGIServer,
+                (node.host.value, node.port.value), Router(cp), **ssl_args)
+
+        logging.info(_('Listening for subscriptions on %s:%s'),
+                node.host.value, node.subscribe_port.value)
+        self.servers.spawn(subscriber)
 
         if webui.webui.value:
             # XXX Until implementing regular web users
@@ -68,29 +68,23 @@ class Application(application.Daemon):
             sugar.color = lambda: '#000000,#000000'
 
             # Point client API to volume directly
-            Client.connection = mount
+            local.mounts_root.value = None
+            mountset = Mountset(None)
+            mountset['/'] = LocalMount(volume)
+            Client.connection = mountset
 
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info(_('Start Web server on %s:%s port'), *host)
-            web_server = coroutine.WSGIServer(host, webui.get_app())
-            coroutine.spawn(web_server.serve_forever)
+            self.servers.spawn(coroutine.WSGIServer, host, webui.get_app())
 
         try:
-            coroutine.joinall([
-                coroutine.spawn(self.httpd.serve_forever),
-                coroutine.spawn(self.subscriber.serve_forever),
-                ])
+            self.servers.join()
         finally:
-            self.httpd.stop()
-            self.subscriber.stop()
-            reindexer.kill()
-            if web_server is not None:
-                web_server.stop()
+            self.jobs.kill()
             volume.close()
 
     def shutdown(self):
-        self.httpd.stop()
-        self.subscriber.stop()
+        self.servers.stop()
 
 
 locale.setlocale(locale.LC_ALL, '')
@@ -100,7 +94,6 @@ optparse.Option.seek('webui', webui)
 optparse.Option.seek('local', [local.api_url])
 optparse.Option.seek('node', node)
 optparse.Option.seek('stats', stats)
-optparse.Option.seek('restful-document', rd)
 optparse.Option.seek('active-document', ad)
 
 app = Application(

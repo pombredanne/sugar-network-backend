@@ -11,8 +11,9 @@ import active_document as ad
 from active_toolkit import coroutine
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
+from sugar_network.local.mounts import HomeMount
+from sugar_network.local.mountset import Mountset
 from sugar_network import Client
-from sugar_network.local import mounts
 
 
 class IPCClientTest(tests.Test):
@@ -213,7 +214,6 @@ class IPCClientTest(tests.Test):
         self.assertEqual('title-3', cursor[guid_3]['title'])
 
     def test_ConnectEventsInCursor(self):
-        mounts._RECONNECTION_TIMEOUT = .1
 
         def remote_server():
             coroutine.sleep(1)
@@ -303,7 +303,8 @@ class IPCClientTest(tests.Test):
 
     def test_Direct(self):
         volume = ad.SingleVolume('local', [User, Context])
-        Client._connection = mounts.Mounts(volume)
+        Client._connection = Mountset(volume)
+        Client._connection['~'] = HomeMount(volume)
         Client._connection.open()
         client = Client('~')
 

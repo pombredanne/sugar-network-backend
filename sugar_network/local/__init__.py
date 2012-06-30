@@ -66,6 +66,11 @@ mounts_root = optparse.Option(
         _('path to a directory with remote devices mounts'),
         default='/media')
 
+lazy_open = optparse.Option(
+        _('do not open all indexes at once on startup'),
+        default=True, type_cast=optparse.Option.bool_cast,
+        action='store_true')
+
 
 def path(*args):
     """Calculate a path from the root.

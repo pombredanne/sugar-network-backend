@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import locale
 import hashlib
 import logging
 from os.path import exists
@@ -21,17 +20,17 @@ from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import node
-from sugar_network.toolkit import sugar
 from active_toolkit import util, enforce
 
 
-_logger = logging.getLogger('node.mounts')
+_logger = logging.getLogger('node.commands')
 
 
 class NodeCommands(ad.ProxyCommands):
 
-    def __init__(self, volume):
+    def __init__(self, volume, subscriber=None):
         ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
+        self._subscriber = subscriber
 
         if not exists(node.privkey.value):
             _logger.info(_('Create DSA server key'))
@@ -57,17 +56,33 @@ class NodeCommands(ad.ProxyCommands):
                 'documents': documents,
                 }
 
+    @ad.volume_command(method='POST', cmd='subscribe',
+            permissions=ad.ACCESS_AUTH)
+    def subscribe(self):
+        enforce(self._subscriber is not None, _('Subscription is disabled'))
+        return self._subscriber.new_ticket()
+
     @ad.directory_command(method='POST',
             permissions=ad.ACCESS_AUTH)
     def create(self, document, request):
-        self._set_author(document, request.content)
+        user = [request.principal] if request.principal else []
+        request.content['user'] = user
+        self._set_author(document, request)
         raise ad.CommandNotFound()
 
     @ad.document_command(method='PUT',
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
     def update(self, document, guid, request):
-        self._set_author(document, request.content)
+        self._set_author(document, request)
         raise ad.CommandNotFound()
+
+    @ad.document_command(method='DELETE',
+            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
+    def delete(self, document, guid, request):
+        # Servers data should not be deleted immediately
+        # to let master-node synchronization possible
+        return self.super_call('PUT', 'hide', document=document, guid=guid,
+                principal=request.principal)
 
     @ad.property_command(method='PUT',
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
@@ -76,14 +91,15 @@ class NodeCommands(ad.ProxyCommands):
                 _('Direct property setting is forbidden'))
         raise ad.CommandNotFound()
 
-    def _set_author(self, document, props):
+    def _set_author(self, document, request):
+        props = request.content
         if document == 'user' or 'user' not in props:
             return
         users = self.volume['user']
         authors = []
         for user_guid in props['user']:
             if not users.exists(user_guid):
-                _logger.warning(_('No %s user to set author property'),
+                _logger.warning(_('No %r user to set author property'),
                         user_guid)
                 continue
             user = users.get(user_guid)
@@ -91,43 +107,6 @@ class NodeCommands(ad.ProxyCommands):
             if user['fullname']:
                 authors.append(user['fullname'])
         props['author'] = authors
-
-
-class Mount(NodeCommands):
-
-    def __init__(self, volume):
-        NodeCommands.__init__(self, volume)
-        self._locale = locale.getdefaultlocale()[0].replace('_', '-')
-
-    @ad.volume_command(cmd='mounted', access_level=ad.ACCESS_LOCAL)
-    def mounted(self):
-        return True
-
-    @ad.property_command(cmd='get_blob', access_level=ad.ACCESS_LOCAL)
-    def get_blob(self, document, guid, prop, request):
-        directory = self.volume[document]
-        directory.metadata[prop].assert_access(ad.ACCESS_READ)
-        return directory.get(guid).meta(prop)
-
-    def publish(self, event):
-        # TODO Forward event to subscription socket
-        _logger.warning(_('Ignore %r event, not implementated'), event)
-
-    def call(self, request, response=None):
-        if 'mountpoint' in request:
-            # In case if mount is being used for local clients
-            request.pop('mountpoint')
-            request.principal = sugar.uid()
-            request.accept_language = [self._locale]
-            if response is None:
-                response = ad.Response()
-        return NodeCommands.call(self, request, response)
-
-    def connect(self, callback, condition=None):
-        return self.volume.connect(callback, condition)
-
-    def disconnect(self, callback):
-        return self.volume.disconnect(callback)
 
 
 def _load_pubkey(path):

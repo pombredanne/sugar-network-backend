@@ -12,7 +12,7 @@ from active_toolkit import coroutine
 from sugar_network.client import bus
 from sugar_network import Client, ServerError
 from sugar_network.local.bus import IPCServer
-from sugar_network.local.mounts import Mounts
+from sugar_network.local.mountset import Mountset
 
 
 class IPCTest(tests.Test):
@@ -22,7 +22,7 @@ class IPCTest(tests.Test):
         def server():
             time.sleep(1)
             volume = ad.SingleVolume('local', [])
-            mounts = Mounts(volume)
+            mounts = Mountset(volume)
             server = IPCServer(mounts)
             mounts.call = lambda *args: None
             server.serve_forever()

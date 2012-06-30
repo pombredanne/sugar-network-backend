@@ -14,12 +14,12 @@ from os.path import join, exists
 
 from __init__ import tests
 
-import restful_document as rd
 import active_document as ad
 from active_toolkit import sockets, coroutine
-from sugar_network import Client, ServerError, local
+from sugar_network import Client, ServerError, local, node
 from sugar_network.local import mounts as mounts_, activities
-from sugar_network.local.mounts import Mounts
+from sugar_network.local.mounts import RemoteMount
+from sugar_network.local.mountset import Mountset
 from sugar_network.local.bus import IPCServer
 from sugar_network.toolkit import sugar, http, inotify
 from sugar_network.resources.user import User
@@ -30,7 +30,7 @@ class MountsTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        rd.only_sync_notification.value = False
+        node.only_sync_notification.value = False
         mounts_._RECONNECTION_TIMEOUT = 1
 
     def test_OfflineMount_create(self):
@@ -442,7 +442,8 @@ class MountsTest(tests.Test):
     def test_OnlineConnect(self):
         pid = self.fork(self.restful_server)
         volume = ad.SingleVolume('local', [User, Context])
-        mounts = Mounts(volume)
+        mounts = Mountset(volume)
+        mounts['/'] = RemoteMount(volume)
         ipc_server = IPCServer(mounts)
         coroutine.spawn(ipc_server.serve_forever)
 
@@ -629,93 +630,19 @@ class MountsTest(tests.Test):
         self.assertEqual('summary_ru', res['summary'])
         self.assertEqual('description_ru', res['description'])
 
-    def test_ServerMode(self):
-        local.api_url.value = 'http://localhost:8881'
-        volume = ad.SingleVolume('local', [Context, User])
-        mounts = Mounts(volume)
+    def test_LocalMount_SetAuthor(self):
+        self.start_server()
+        local = Client('~')
 
-        http_server = coroutine.WSGIServer(
-                ('localhost', 8881), rd.Router(mounts['~']))
-        coroutine.spawn(http_server.serve_forever)
-        http_subscriber = rd.SubscribeSocket(mounts.home_volume, 'localhost', 8882)
-        coroutine.spawn(http_subscriber.serve_forever)
-
-        monitor = coroutine.spawn(activities.monitor,
-                mounts.home_volume, ['Activities'])
-
-        ipc_server = IPCServer(mounts)
-        coroutine.spawn(ipc_server.serve_forever)
-        coroutine.dispatch()
-
-        def wait_connect(event):
-            if event['event'] == 'mount':
-                connected.set()
-
-        connected = coroutine.Event()
-        Client.connect(wait_connect, mountpoint='/')
-        mounts.open()
-        connected.wait()
-
-        #coroutine.sleep(1)
-        local_client = Client('~')
-        remote = Client('/')
-
-        guid = local_client.Context(
+        guid = local.Context(
                 type='activity',
                 title='title',
                 summary='summary',
                 description='description').post()
+
         self.assertEqual(
-                'title',
-                remote.Context(guid, reply=['title'])['title'])
-        self.assertEqual(
-                {'en-US': 'title'},
-                http.request('GET', ['context', guid])['title'])
-
-        self.touch(('Activities/activity/activity/activity.info', [
-            '[Activity]',
-            'name = HelloWorld',
-            'activity_version = 1',
-            'bundle_id = %s' % guid,
-            'exec = true',
-            'icon = icon',
-            'license = GPLv2+',
-            ]))
-        coroutine.sleep(1)
-
-        self.assertEqual(2, local_client.Context(guid, reply=['keep_impl'])['keep_impl'])
-        self.assertEqual(2, remote.Context(guid, reply=['keep_impl'])['keep_impl'])
-
-        feed = {
-                '1': {
-                    '*-*': {
-                        'guid': tests.tmpdir + '/Activities/activity',
-                        'stability': 'stable',
-                        'commands': {
-                            'activity': {
-                                'exec': 'true',
-                                },
-                            },
-                        },
-                    },
-                }
-        self.assertEqual(
-                feed,
-                json.loads(local_client.Context(guid).get_blob('feed').read()))
-        impl_id = feed['1']['*-*']['guid'] = \
-                hashlib.sha1(feed['1']['*-*']['guid']).hexdigest()
-        self.assertEqual(
-                feed,
-                json.loads(remote.Context(guid).get_blob('feed').read()))
-
-        self.touch('Activities/activity/1/2/3',
-                   'Activities/activity/4/5',
-                   'Activities/activity/6')
-
-        mime_type = http.download(['implementation', impl_id, 'bundle'], './downloaded_blob', False)
-        content_type, params = cgi.parse_header(mime_type)
-        self.assertEqual('multipart/mixed', content_type)
-        subprocess.check_call('diff -r downloaded_blob Activities/activity', shell=True)
+                [([sugar.uid()], [sugar.nickname()])],
+                [(i['user'], i['author']) for i in local.Context.cursor(reply=['user', 'author'])])
 
 
 if __name__ == '__main__':

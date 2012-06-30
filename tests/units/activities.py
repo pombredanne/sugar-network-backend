@@ -12,7 +12,8 @@ import active_document as ad
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from active_toolkit import coroutine, util
-from sugar_network.local.mounts import Mounts
+from sugar_network.local.mounts import HomeMount
+from sugar_network.local.mountset import Mountset
 from sugar_network.local import activities
 from sugar_network.toolkit import sugar
 
@@ -22,7 +23,8 @@ class ActivitiesTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         volume = ad.SingleVolume('local', [User, Context])
-        self.mounts = Mounts(volume)
+        self.mounts = Mountset(volume)
+        self.mounts['~'] = HomeMount(volume)
         self.mounts.open()
         self.job = None
 

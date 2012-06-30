@@ -11,14 +11,16 @@ from __init__ import tests
 import active_document as ad
 from active_toolkit import coroutine, sockets
 from sugar_network.local import activities_crawler
-from sugar_network.local.mounts import Mounts
+from sugar_network.local.mounts import HomeMount
+from sugar_network.local.mountset import Mountset
 from sugar_network.local.bus import IPCServer
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network import local, Client, ServerError, sugar
+from sugar_network.toolkit import http
+from sugar_network import local, Client, ServerError, sugar, node
 
 
-class MountsCrawlerTest(tests.Test):
+class MountsetTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
@@ -30,7 +32,7 @@ class MountsCrawlerTest(tests.Test):
         local.mounts_root.value = tests.tmpdir
 
         volume = ad.SingleVolume('local', [User, Context])
-        mounts = Mounts(volume)
+        mounts = Mountset(volume)
         ipc_server = IPCServer(mounts)
         coroutine.spawn(ipc_server.serve_forever)
         coroutine.dispatch()
@@ -78,7 +80,6 @@ class MountsCrawlerTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    '~',
                     tests.tmpdir + '/1',
                     tests.tmpdir + '/2',
                     ]),
@@ -95,7 +96,6 @@ class MountsCrawlerTest(tests.Test):
                 self.events)
         self.assertEqual(
                 sorted([
-                    '~',
                     tests.tmpdir + '/1',
                     ]),
                 sorted(Client.mounts()))
@@ -113,7 +113,6 @@ class MountsCrawlerTest(tests.Test):
                 self.events[1:])
         self.assertEqual(
                 sorted([
-                    '~',
                     tests.tmpdir + '/1',
                     tests.tmpdir + '/2',
                     ]),
@@ -135,7 +134,6 @@ class MountsCrawlerTest(tests.Test):
                 self.events)
         self.assertEqual(
                 sorted([
-                    '~',
                     tests.tmpdir + '/1',
                     ]),
                 sorted(Client.mounts()))
@@ -154,7 +152,6 @@ class MountsCrawlerTest(tests.Test):
                 self.events[1:])
         self.assertEqual(
                 sorted([
-                    '~',
                     tests.tmpdir + '/1',
                     tests.tmpdir + '/2',
                     ]),
@@ -174,7 +171,6 @@ class MountsCrawlerTest(tests.Test):
                 self.events[2:])
         self.assertEqual(
                 sorted([
-                    '~',
                     tests.tmpdir + '/2',
                     ]),
                 sorted(Client.mounts()))
@@ -193,7 +189,6 @@ class MountsCrawlerTest(tests.Test):
                 self.events[3:])
         self.assertEqual(
                 sorted([
-                    '~',
                     ]),
                 sorted(Client.mounts()))
         self.assertRaises(ServerError, Client(tests.tmpdir + '/2').Context(
@@ -242,7 +237,8 @@ class MountsCrawlerTest(tests.Test):
 
     def test_SetKeep(self):
         os.makedirs('mnt/.network')
-        self.start_server()
+        mounts = self.start_server()
+        mounts['~'] = HomeMount(mounts.home_volume)
         self.got_event.wait()
         remote = Client(tests.tmpdir + '/mnt')
         local = Client('~')
@@ -398,6 +394,26 @@ class MountsCrawlerTest(tests.Test):
         path, mime_type = client.Context(guid).get_blob_path('icon')
         self.assertEqual(None, path)
         self.assertEqual(True, client.Context(guid).get_blob('icon').closed)
+
+    def test_MountNode(self):
+        local.server_mode.value = True
+        self.start_server()
+
+        os.makedirs('mnt/.network')
+        self.got_event.wait()
+        self.got_event.clear()
+        client = Client(tests.tmpdir + '/mnt')
+
+        guid = client.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description').post()
+
+        local.api_url.value = 'http://localhost:%s' % node.port.value
+        self.assertEqual(
+                {'guid': guid, 'title': {'en-US': 'title'}},
+                http.request('GET', ['context', guid], params={'reply': 'guid,title'}))
 
 
 if __name__ == '__main__':

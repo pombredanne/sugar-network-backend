@@ -21,13 +21,14 @@ from os.path import join, abspath, exists
 from gettext import gettext as _
 
 import active_document as ad
-import restful_document as rd
 import sugar_network_webui as webui
+
 from sugar_network import local, node, Client
 from sugar_network.toolkit import application, sugar
 from sugar_network.local import activities
 from sugar_network.local.bus import IPCServer
-from sugar_network.local.mounts import Mounts
+from sugar_network.local.mounts import HomeMount, RemoteMount
+from sugar_network.local.mountset import Mountset
 from active_toolkit import optparse, coroutine, enforce
 
 
@@ -64,6 +65,7 @@ class Application(application.Daemon):
 
         new_root = (local.local_root.value != local.local_root.default)
         local.local_root.value = abspath(local.local_root.value)
+        local.mounts_root.value = abspath(local.mounts_root.value)
 
         if new_root:
             application.logdir.value = join(local.local_root.value, 'log')
@@ -86,7 +88,6 @@ class Application(application.Daemon):
             uid = self.args.pop(0)
             sugar.uid = lambda: uid
 
-        ad.index_lazy_open.value = False
         volume = ad.SingleVolume(self._db_path, node.DOCUMENTS)
         try:
             self._populate_index(volume)
@@ -100,33 +101,26 @@ class Application(application.Daemon):
                     SUGAR_REGISTRATION_TIMEOUT)
             coroutine.sleep(SUGAR_REGISTRATION_TIMEOUT)
 
-        volume = ad.SingleVolume(self._db_path, node.DOCUMENTS)
-        mounts = Mounts(volume)
-        servers = []
-        jobs = []
-
-        def start_server(cls, *args):
-            server = cls(*args)
-            job = coroutine.spawn(server.serve_forever)
-            jobs.append(job.join)
-            servers.append(server)
-
-        def start_job(op, *args):
-            job = coroutine.spawn(op, *args)
-            jobs.append(job.kill)
+        volume = ad.SingleVolume(self._db_path, node.DOCUMENTS,
+                lazy_open=local.lazy_open.value)
+        mountset = Mountset(volume)
+        mountset['~'] = HomeMount(volume)
+        mountset['/'] = RemoteMount(volume)
+        servers = coroutine.ServersPool()
+        jobs = coroutine.Pool()
 
         def delayed_start():
             logging.info(_('Proceed delayed start'))
 
-            start_job(activities.monitor, volume, local.activity_dirs.value)
-            start_job(self._populate_index, volume)
+            jobs.spawn(activities.monitor, volume, local.activity_dirs.value)
+            jobs.spawn(self._populate_index, volume)
 
             if webui.webui.value:
-                # Point clients to `mounts` directly passing over IPC
-                Client.connection = mounts
+                # Point clients to `mountset` directly passing over IPC
+                Client.connection = mountset
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info(_('Start Web server on %s:%s'), *host)
-                start_server(coroutine.WSGIServer, host, webui.get_app())
+                servers.spawn(coroutine.WSGIServer, host, webui.get_app())
 
         if local.delayed_start.value:
             delayed_start_cb = delayed_start
@@ -134,25 +128,15 @@ class Application(application.Daemon):
             delayed_start()
             delayed_start_cb = None
 
-        self._ipc_server = IPCServer(mounts, delayed_start_cb)
-
-        if local.server_mode.value:
-            logging.info(_('Listening for remote requests on %s port'),
-                    node.port.value)
-            start_server(coroutine.WSGIServer,
-                    ('0.0.0.0', node.port.value), rd.Router(mounts['~']))
-            start_server(rd.SubscribeSocket, volume,
-                    '0.0.0.0', node.subscribe_port.value)
+        self._ipc_server = IPCServer(mountset, delayed_start_cb)
 
         try:
-            mounts.open()
+            mountset.open()
             self._ipc_server.serve_forever()
         finally:
-            while servers:
-                servers.pop().stop()
-            while jobs:
-                jobs.pop()()
-            mounts.close()
+            servers.stop()
+            jobs.kill()
+            mountset.close()
 
     def shutdown(self):
         if self._ipc_server is not None:
@@ -172,8 +156,6 @@ locale.setlocale(locale.LC_ALL, '')
 
 # New defaults
 application.debug.value = sugar.logger_level()
-rd.only_sync_notification.value = False
-ad.index_lazy_open.value = True
 # Use sugar key for server identification
 node.privkey.value = sugar.profile_path('owner.key')
 # It seems to be that most of users (on XO at least) don't have recent SSH
@@ -183,7 +165,6 @@ optparse.Option.seek('main', [application.debug, application.foreground])
 optparse.Option.seek('webui', webui)
 optparse.Option.seek('local', local)
 optparse.Option.seek('node', [node.port, node.subscribe_port])
-optparse.Option.seek('restful-document', rd)
 optparse.Option.seek('active-document', ad)
 
 application = Application(
