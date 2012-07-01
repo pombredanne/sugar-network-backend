@@ -15,7 +15,6 @@
 
 import os
 import json
-import bisect
 import collections
 from os.path import exists
 from gettext import gettext as _
@@ -229,61 +228,42 @@ class PersistentSequences(Sequences):
             os.fsync(f.fileno())
 
 
-class MutableQueue(object):
-    """Queue that keeps its iterators correct after changing content."""
+class MutableStack(object):
+    """Stack that keeps its iterators correct after changing content."""
 
     def __init__(self):
         self._queue = collections.deque()
-        self._seqno = 0
 
     def add(self, value):
         self.remove(value)
-        self._queue.append(_MutableQueueItem(self._seqno, value))
-        self._seqno += 1
+        self._queue.appendleft([False, value])
 
     def remove(self, value):
-        for i, existing in enumerate(self._queue):
-            if existing.value == value:
+        for i, (__, existing) in enumerate(self._queue):
+            if existing == value:
                 del self._queue[i]
                 break
+
+    def rewind(self):
+        for i in self._queue:
+            i[0] = False
 
     def __len__(self):
         return len(self._queue)
 
     def __iter__(self):
-        return _MutableQueueIterator(self._queue, self._seqno)
+        return _MutableStackIterator(self._queue)
 
 
-class _MutableQueueItem(tuple):
+class _MutableStackIterator(object):
 
-    def __new__(cls, seqno, value):
-        return tuple.__new__(cls, (seqno, value))
-
-    @property
-    def seqno(self):
-        return self[0]
-
-    @property
-    def value(self):
-        return self[1]
-
-    def __cmp__(self, other):
-        if type(other) is _MutableQueueItem:
-            return cmp(self.seqno, other.seqno)
-        else:
-            return cmp(self.seqno, other)
-
-
-class _MutableQueueIterator(object):
-
-    def __init__(self, queue, seqno):
+    def __init__(self, queue):
         self._queue = queue
-        self._seqno = seqno
 
     def next(self):
-        i = bisect.bisect_left(self._queue, self._seqno)
-        if i == 0:
-            raise StopIteration()
-        item = self._queue[i - 1]
-        self._seqno = item.seqno
-        return item.value
+        for i in self._queue:
+            processed, value = i
+            if not processed:
+                i[0] = True
+                return value
+        raise StopIteration()

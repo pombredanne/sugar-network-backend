@@ -5,7 +5,7 @@ import copy
 
 from __init__ import tests
 
-from sugar_network.toolkit.collection import Sequence, MutableQueue
+from sugar_network.toolkit.collection import Sequence, MutableStack
 
 
 class CollectionTest(tests.Test):
@@ -299,74 +299,86 @@ class CollectionTest(tests.Test):
         rng.floor(1)
         self.assertEqual([], rng)
 
-    def test_MutableQueue_AddWhileIteration(self):
-        queue = MutableQueue()
+    def test_MutableStack_AddWhileIteration(self):
+        queue = MutableStack()
 
         queue.add(0)
         queue.add(1)
         queue.add(2)
 
         result = []
+        to_add = [3, 4, 5]
         for i in queue:
             result.append(i)
-            queue.add(len(queue))
-        self.assertEqual([2, 1, 0], result)
+            if to_add:
+                queue.add(to_add.pop(0))
+        self.assertEqual([2, 3, 4, 5, 1, 0], result)
+
+        self.assertEqual([], [i for i in queue])
+        queue.rewind()
         self.assertEqual([5, 4, 3, 2, 1, 0], [i for i in queue])
 
-    def test_MutableQueue_RemoveWhileIteration(self):
-        queue = MutableQueue()
+    def test_MutableStack_RemoveWhileIteration(self):
+        queue = MutableStack()
 
         queue.add(0)
         queue.add(1)
         queue.add(2)
-        queue.add(3)
-        queue.add(4)
-
         result = []
-        to_remove = [4]
+        to_remove = [2, 1, 0]
         for i in queue:
             result.append(i)
-            while to_remove:
+            if to_remove:
                 queue.remove(to_remove.pop(0))
-        self.assertEqual([4, 3, 2, 1, 0], result)
-        self.assertEqual([3, 2, 1, 0], [i for i in queue])
-
-        result = []
-        to_remove = [2]
-        for i in queue:
-            result.append(i)
-            while to_remove:
-                queue.remove(to_remove.pop(0))
-        self.assertEqual([3, 1, 0], result)
-        self.assertEqual([3, 1, 0], [i for i in queue])
-
-        result = []
-        to_remove = [3, 1, 0]
-        for i in queue:
-            result.append(i)
-            while to_remove:
-                queue.remove(to_remove.pop(0))
-        self.assertEqual([3], result)
+        self.assertEqual([2, 1, 0], result)
+        self.assertEqual([], [i for i in queue])
+        queue.rewind()
         self.assertEqual([], [i for i in queue])
 
-    def test_MutableQueue_RemoveAndAddWhileIteration(self):
-        queue = MutableQueue()
+        queue.add(0)
+        queue.add(1)
+        queue.add(2)
+        result = []
+        to_remove = [1]
+        for i in queue:
+            result.append(i)
+            if to_remove:
+                queue.remove(to_remove.pop(0))
+        self.assertEqual([2, 0], result)
+        self.assertEqual([], [i for i in queue])
+        queue.rewind()
+        self.assertEqual([2, 0], [i for i in queue])
 
         queue.add(0)
         queue.add(1)
         queue.add(2)
-
         result = []
-        to_remove = [0, 1, 2]
+        to_remove = [2, 1, 0]
         for i in queue:
             result.append(i)
             while to_remove:
                 queue.remove(to_remove.pop(0))
-            queue.add(3)
-            queue.add(4)
-            queue.add(5)
         self.assertEqual([2], result)
-        self.assertEqual([5, 4, 3], [i for i in queue])
+        self.assertEqual([], [i for i in queue])
+        queue.rewind()
+        self.assertEqual([], [i for i in queue])
+
+    def test_MutableStack_ReaddTheSameItem(self):
+        queue = MutableStack()
+
+        queue.add(-1)
+
+        result = []
+        to_add = [-1, -1]
+        for i in queue:
+            result.append(i)
+            if to_add:
+                queue.add(to_add.pop(0))
+        self.assertEqual([-1, -1, -1], result)
+        self.assertEqual([], [i for i in queue])
+
+        queue.rewind()
+        self.assertEqual([-1], [i for i in queue])
 
 
 if __name__ == '__main__':
