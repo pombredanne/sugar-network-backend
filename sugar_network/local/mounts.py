@@ -65,7 +65,7 @@ class _Mount(object):
             self.publisher(event)
 
 
-class _LocalMount(_Mount):
+class LocalMount(_Mount):
 
     volume = None
 
@@ -103,18 +103,18 @@ class _LocalMount(_Mount):
         self.publish(event)
 
 
-class HomeMount(ad.ProxyCommands, _LocalMount):
+class HomeMount(ad.ProxyCommands, LocalMount):
 
     def __init__(self, volume):
         ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
-        _LocalMount.__init__(self, volume)
+        LocalMount.__init__(self, volume)
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request=None):
         if document == 'context' and prop == 'feed':
             return json.dumps(self._get_feed(request))
         else:
-            return _LocalMount.get_blob(self, document, guid, prop, request)
+            return LocalMount.get_blob(self, document, guid, prop, request)
 
     @ad.document_command(method='GET')
     def get(self, document, guid, request, response, reply=None):
@@ -191,10 +191,10 @@ class HomeMount(ad.ProxyCommands, _LocalMount):
                 found_commons = True
 
             if found_commons:
-                # These local properties exposed from _ProxyCommands as well
+                # These local properties exposed from `ProxyCommands` as well
                 event['mountpoint'] = '*'
 
-        _LocalMount._events_cb(self, event)
+        LocalMount._events_cb(self, event)
 
     def _checkout(self, guid):
         for path in activities.checkins(guid):
@@ -220,7 +220,7 @@ class HomeMount(ad.ProxyCommands, _LocalMount):
                 break
 
 
-class _ProxyCommands(ad.CommandsProcessor):
+class ProxyCommands(ad.CommandsProcessor):
 
     def __init__(self, home_volume):
         ad.CommandsProcessor.__init__(self)
@@ -299,10 +299,10 @@ class _ProxyCommands(ad.CommandsProcessor):
         return result
 
 
-class RemoteMount(_ProxyCommands, _Mount):
+class RemoteMount(ProxyCommands, _Mount):
 
     def __init__(self, home_volume):
-        _ProxyCommands.__init__(self, home_volume)
+        ProxyCommands.__init__(self, home_volume)
         _Mount.__init__(self)
 
         self._seqno = {}
@@ -435,21 +435,8 @@ class RemoteMount(_ProxyCommands, _Mount):
                 _Mount.set_mounted(self, False)
 
 
-class LocalMount(ad.ProxyCommands, _LocalMount):
+class PrivateMount(ad.ProxyCommands, LocalMount):
 
     def __init__(self, volume):
         ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
-        _LocalMount.__init__(self, volume)
-
-
-class LocalProxyMount(_ProxyCommands, _LocalMount):
-
-    def __init__(self, volume, home_volume):
-        _ProxyCommands.__init__(self, home_volume)
-        _LocalMount.__init__(self, volume)
-
-        self.volume = volume
-        self._proxy = ad.VolumeCommands(volume)
-
-    def super_call(self, request, response):
-        return self._proxy.call(request, response)
+        LocalMount.__init__(self, volume)

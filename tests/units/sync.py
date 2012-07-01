@@ -9,9 +9,10 @@ from os.path import exists, join
 from __init__ import tests
 
 import active_document as ad
-from sugar_network.node.sneakernet import InPacket, OutPacket
-from sugar_network.node.sync import Master, Node
-from sugar_network.node import sneakernet
+from sugar_network.toolkit.sneakernet import InPacket, OutPacket
+from sugar_network.node.sync import Master
+from sugar_network.local.node_mount import NodeMount, _DEFAULT_MASTER
+from sugar_network.toolkit import sneakernet
 
 
 class SyncTest(tests.Test):
@@ -27,7 +28,7 @@ class SyncTest(tests.Test):
 
     def test_Master_MisaddressedPacket(self):
         master = Master('master')
-        master.volume = {}
+        master.volume = Volume({})
         response = ad.Response()
 
         packet = OutPacket('push')
@@ -72,7 +73,7 @@ class SyncTest(tests.Test):
 
     def test_Master_PushPacket(self):
         master = Master('master')
-        master.volume = {'document': Directory()}
+        master.volume = Volume({'document': Directory()})
         request = ad.Request()
         response = ad.Response()
 
@@ -102,7 +103,7 @@ class SyncTest(tests.Test):
 
     def test_Master_PullPacket(self):
         master = Master('master')
-        master.volume = {'document': Directory()}
+        master.volume = Volume({'document': Directory()})
         request = ad.Request()
         response = ad.Response()
 
@@ -121,7 +122,7 @@ class SyncTest(tests.Test):
 
     def test_Master_LimittedPull(self):
         master = Master('master')
-        master.volume = {'document': Directory(diff=['0' * 1024] * 10)}
+        master.volume = Volume({'document': Directory(diff=['0' * 1024] * 10)})
         response = ad.Response()
 
         def rewind():
@@ -160,15 +161,14 @@ class SyncTest(tests.Test):
     def test_Node_Export(self):
         self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
         self.touch(('pull.sequence', json.dumps({'document': [[10, None]]})))
-        node = Node('node', 'master')
-        node.volume = {'document': Directory()}
+        node = NodeMount(Volume({'document': Directory()}), None)
         os.makedirs('sync')
 
         node.sync('sync')
         session = str(hashlib.sha1(json.dumps([('document', 0)])).hexdigest())
         self.assertEqual([
-            {'type': 'pull', 'sender': 'node', 'receiver': 'master', 'session': session, 'sequence': {'document': [[10, None]]}},
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'session': session, 'sequence': {'document': [[1, 1]]}},
+            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {'document': [[10, None]]}},
+            {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {'document': [[1, 1]]}},
             {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': 'diff'},
             ],
             self.read_packets('sync'))
@@ -176,13 +176,12 @@ class SyncTest(tests.Test):
     def test_Node_Export_NoPullForExistingSession(self):
         self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
         self.touch(('pull.sequence', json.dumps({'document': [[1, None]]})))
-        node = Node('node', 'master')
-        node.volume = {'document': Directory()}
+        node = NodeMount(Volume({'document': Directory()}), None)
         os.makedirs('sync')
 
         node.sync('sync', session='session')
         self.assertEqual([
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[1, 1]]}, 'session': 'session'},
+            {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'sequence': {'document': [[1, 1]]}, 'session': 'session'},
             {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': 'diff'},
             ],
             self.read_packets('sync'))
@@ -190,27 +189,26 @@ class SyncTest(tests.Test):
     def test_Node_Import(self):
         self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
         self.touch(('pull.sequence', json.dumps({'document': [[1, None]]})))
-        node = Node('node', 'master')
-        node.volume = {'document': Directory()}
+        node = NodeMount(Volume({'document': Directory()}), None)
         os.makedirs('sync')
 
         ack = OutPacket('ack', root='sync',
-                sender='master',
-                receiver='node',
+                sender=_DEFAULT_MASTER,
+                receiver=tests.UID,
                 push_sequence={'document': [[1, 2]]},
                 pull_sequence={'document': [[3, 4]]})
         ack.close()
 
         other_node_ack = OutPacket('ack', root='sync',
-                sender='master',
+                sender=_DEFAULT_MASTER,
                 receiver='other',
                 push_sequence={'document': [[5, 6]]},
                 pull_sequence={'document': [[7, 8]]})
         other_node_ack.close()
 
         our_push = OutPacket('push', root='sync',
-                sender='node',
-                receiver='master',
+                sender=tests.UID,
+                receiver=_DEFAULT_MASTER,
                 sequence={'document': [[9, 10]]},
                 session='stale')
         our_push.push_messages(document='document', items=[
@@ -219,7 +217,7 @@ class SyncTest(tests.Test):
         our_push.close()
 
         master_push = OutPacket('push', root='sync',
-                sender='master',
+                sender=_DEFAULT_MASTER,
                 sequence={'document': [[11, 12]]})
         master_push.push_messages(document='document', items=[
             {'guid': 2, 'diff': 'diff-2'},
@@ -228,7 +226,7 @@ class SyncTest(tests.Test):
 
         other_node_push = OutPacket('push', root='sync',
                 sender='other',
-                receiver='master',
+                receiver=_DEFAULT_MASTER,
                 sequence={'document': [[13, 14]]})
         other_node_push.push_messages(document='document', items=[
             {'guid': 3, 'diff': 'diff-3'},
@@ -257,13 +255,12 @@ class SyncTest(tests.Test):
                 sorted(node.volume['document'].merged))
 
     def test_Node_Import_DoNotDeletePacketsFromCurrentSession(self):
-        node = Node('node', 'master')
-        node.volume = {'document': Directory()}
+        node = NodeMount(Volume({'document': Directory()}), None)
         os.makedirs('sync')
 
         existing_push = OutPacket('push', root='sync',
-                sender='node',
-                receiver='master',
+                sender=tests.UID,
+                receiver=_DEFAULT_MASTER,
                 sequence={},
                 session='the same')
         existing_push.close()
@@ -279,40 +276,39 @@ class SyncTest(tests.Test):
         assert not (set(os.listdir('sync')) & files)
 
     def test_Node_LimittedExport(self):
-        node = Node('node', 'master')
-        node.volume = {'document': Directory(diff=['0' * 100] * 5)}
+        node = NodeMount(Volume({'document': Directory(diff=['0' * 100] * 5)}), None)
         os.makedirs('sync')
 
         kwargs = node.sync('sync', accept_length=100, session=0)
         self.assertEqual(0, kwargs['session'])
-        self.assertEqual({'document': [[1, None]]}, kwargs['sequence'])
+        self.assertEqual({'document': [[1, None]]}, kwargs['push_sequence'])
         self.assertEqual([], self.read_packets('sync'))
 
-        kwargs = node.sync('sync', accept_length=100, sequence=kwargs['sequence'], session=0)
-        self.assertEqual({'document': [[1, None]]}, kwargs['sequence'])
+        kwargs = node.sync('sync', accept_length=100, push_sequence=kwargs['push_sequence'], session=0)
+        self.assertEqual({'document': [[1, None]]}, kwargs['push_sequence'])
         self.assertEqual([], self.read_packets('sync'))
 
-        kwargs = node.sync('sync', accept_length=200, sequence=kwargs['sequence'], session=1)
-        self.assertEqual({'document': [[2, None]]}, kwargs['sequence'])
+        kwargs = node.sync('sync', accept_length=200, push_sequence=kwargs['push_sequence'], session=1)
+        self.assertEqual({'document': [[2, None]]}, kwargs['push_sequence'])
         self.assertEqual([
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[1, 1]]}, 'session': 1},
+            {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'sequence': {'document': [[1, 1]]}, 'session': 1},
             {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 100},
             ],
             self.read_packets('sync'))
 
-        kwargs = node.sync('sync', accept_length=300, sequence=kwargs['sequence'], session=2)
-        self.assertEqual({'document': [[4, None]]}, kwargs['sequence'])
+        kwargs = node.sync('sync', accept_length=300, push_sequence=kwargs['push_sequence'], session=2)
+        self.assertEqual({'document': [[4, None]]}, kwargs['push_sequence'])
         self.assertEqual([
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[2, 3]]}, 'session': 2},
+            {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'sequence': {'document': [[2, 3]]}, 'session': 2},
             {'type': 'messages', 'document': 'document', 'guid': 2, 'diff': '0' * 100},
             {'type': 'messages', 'document': 'document', 'guid': 3, 'diff': '0' * 100},
             ],
             self.read_packets('sync'))
 
-        kwargs = node.sync('sync', sequence=kwargs['sequence'], session=3)
+        kwargs = node.sync('sync', push_sequence=kwargs['push_sequence'], session=3)
         self.assertEqual(None, kwargs)
         self.assertEqual([
-            {'type': 'push', 'sender': 'node', 'receiver': 'master', 'sequence': {'document': [[4, 8]]}, 'session': 3},
+            {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'sequence': {'document': [[4, 8]]}, 'session': 3},
             {'type': 'messages', 'document': 'document', 'guid': 4, 'diff': '0' * 100},
             {'type': 'messages', 'document': 'document', 'guid': 5, 'diff': '0' * 100},
             {'type': 'messages', 'document': 'document', 'guid': 6, 'diff': '0' * 100},
@@ -334,12 +330,23 @@ class SyncTest(tests.Test):
         return result
 
 
+class Volume(dict):
+
+    def __init__(self, default):
+        dict.__init__(self, default)
+        self.root = '.'
+
+    def connect(self, *args):
+        pass
+
+
 class Directory(object):
 
     def __init__(self, diff=None):
         self.seqno = 0
         self.merged = []
         self._diff = diff or ['diff']
+        self.document_class = None
 
     def diff(self, seq):
         seqno = seq[0][0]

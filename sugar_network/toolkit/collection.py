@@ -13,17 +13,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import json
+import bisect
 import collections
+from os.path import exists
 from gettext import gettext as _
 
-from active_toolkit import enforce
+from active_toolkit import util, enforce
 
 
 class Sequence(list):
-    """List of sorted, non-overlapping ranges on the same scale.
+    """List of sorted and non-overlapping ranges.
 
     List items are ranges, [`start`, `stop']. If `start` or `stop`
-    is `None`, it means the beginning or ending of the enire scale.
+    is `None`, it means the beginning or ending of the entire scale.
 
     """
 
@@ -181,3 +185,105 @@ class Sequence(list):
                 if range_start < range_end:
                     self.exclude(range_start, range_end)
             break
+
+
+class Sequences(dict):
+
+    def __init__(self, **kwargs):
+        dict.__init__(self)
+        self._new_item_kwargs = kwargs
+
+    def __getitem__(self, key):
+        value = self.get(key)
+        if value is None:
+            value = self[key] = Sequence(**self._new_item_kwargs)
+        return value
+
+    def exclude(self, other):
+        for key, seq in other.items():
+            if key in self:
+                self[key].exclude(seq)
+
+
+class PersistentSequences(Sequences):
+
+    def __init__(self, path, empty_value):
+        Sequences.__init__(self, empty_value=empty_value)
+        self._path = path
+        if exists(self._path):
+            with file(self._path) as f:
+                self.update(json.load(f))
+
+    def exclude(self, other):
+        Sequences.exclude(self, other)
+        self._commit()
+
+    def update(self, other):
+        for key, seq in other.items():
+            self[key] = Sequence(seq)
+
+    def _commit(self):
+        with util.new_file(self._path) as f:
+            json.dump(self, f)
+            f.flush()
+            os.fsync(f.fileno())
+
+
+class MutableQueue(object):
+    """Queue that keeps its iterators correct after changing content."""
+
+    def __init__(self):
+        self._queue = collections.deque()
+        self._seqno = 0
+
+    def add(self, value):
+        self.remove(value)
+        self._queue.append(_MutableQueueItem(self._seqno, value))
+        self._seqno += 1
+
+    def remove(self, value):
+        for i, existing in enumerate(self._queue):
+            if existing.value == value:
+                del self._queue[i]
+                break
+
+    def __len__(self):
+        return len(self._queue)
+
+    def __iter__(self):
+        return _MutableQueueIterator(self._queue, self._seqno)
+
+
+class _MutableQueueItem(tuple):
+
+    def __new__(cls, seqno, value):
+        return tuple.__new__(cls, (seqno, value))
+
+    @property
+    def seqno(self):
+        return self[0]
+
+    @property
+    def value(self):
+        return self[1]
+
+    def __cmp__(self, other):
+        if type(other) is _MutableQueueItem:
+            return cmp(self.seqno, other.seqno)
+        else:
+            return cmp(self.seqno, other)
+
+
+class _MutableQueueIterator(object):
+
+    def __init__(self, queue, seqno):
+        self._queue = queue
+        self._seqno = seqno
+
+    def next(self):
+        i = bisect.bisect_left(self._queue, self._seqno)
+        if i == 0:
+            raise StopIteration()
+        item = self._queue[i - 1]
+        self._seqno = item.seqno
+        return item.value

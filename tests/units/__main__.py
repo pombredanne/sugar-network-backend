@@ -2,7 +2,7 @@
 
 from __init__ import tests
 
-from sequence import *
+from collection import *
 from sneakernet import *
 from bus import *
 from mounts import *
@@ -14,6 +14,7 @@ from injector import *
 from node import *
 from sync import *
 from mountset import *
+from node_mount import *
 from subscribe_socket import *
 from router import *
 

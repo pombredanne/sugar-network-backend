@@ -13,143 +13,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Server synchronization routines.
-
-PUSH packet:
-
-    `type`: `push`
-    `sender`: sender's GUID to push from
-    `[receiver]`: reseiver's GUID to push to, optional for packets from master
-    `sequence`: `Sequence` associated with packet's payload
-
-ACK packet:
-
-    `type`: `ack`
-    `sender`: master's GUID
-    `receiver`: reseiver's GUID ack is intended for
-    `push_sequence`: original PUSH packet's `sequence`
-    `pull_sequence`: `Sequence` after merging original PUSH packet
-
-PULL packet:
-
-    `type`: `pull`
-    `sender`: sender's GUID to pull to
-    `receiver`: reseiver's GUID to pull from
-    `sequence`: `Sequence` to pull for
-
-"""
-import os
-import json
-import hashlib
 import logging
-from os.path import exists
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network import local
-from sugar_network.node.sequence import Sequence
-from sugar_network.node import sneakernet
-from active_toolkit import util, coroutine, enforce
+from sugar_network.toolkit import sneakernet
+from sugar_network.toolkit.collection import Sequences
+from active_toolkit import coroutine, enforce
 
 
 _logger = logging.getLogger('node.sync')
-
-
-class Node(object):
-
-    volume = None
-
-    def __init__(self, guid, master_guid):
-        self._guid = guid
-        self._master_guid = master_guid
-        self._push_seq = _PersistentSequence('push.sequence', [1, None])
-        self._pull_seq = _PersistentSequence('pull.sequence', [1, None])
-
-    @ad.volume_command(method='POST', cmd='sync',
-            access_level=ad.ACCESS_LOCAL)
-    def sync(self, path, accept_length=None, sequence=None, session=None):
-        to_push_seq = _Sequence(empty_value=[1, None])
-        if sequence is None:
-            to_push_seq.update(self._push_seq)
-        else:
-            to_push_seq.update(sequence)
-
-        if session is None:
-            session_is_new = True
-            session = _volume_hash(self.volume)
-        else:
-            session_is_new = False
-
-        while True:
-            self._import(path, session)
-
-            if session_is_new:
-                with sneakernet.OutPacket('pull', root=path,
-                        sender=self._guid, receiver=self._master_guid,
-                        session=session) as packet:
-                    packet.header['sequence'] = self._pull_seq
-
-            with sneakernet.OutPacket('push', root=path, limit=accept_length,
-                    sender=self._guid, receiver=self._master_guid,
-                    session=session) as packet:
-                packet.header['sequence'] = pushed_seq = _Sequence()
-                try:
-                    self._export(to_push_seq, pushed_seq, packet)
-                except sneakernet.DiskFull:
-                    _logger.debug('Reach package size limit')
-                    if not pushed_seq:
-                        packet.clear()
-                    return {'sequence': to_push_seq, 'session': session}
-                except Exception:
-                    packet.clear()
-                    raise
-                else:
-                    break
-
-    def _import(self, path, session):
-        for packet in sneakernet.walk(path):
-            if packet.header.get('type') == 'push':
-                if packet.header.get('sender') != self._guid:
-                    _logger.debug('Processing %r PUSH packet', packet)
-                    for msg in packet:
-                        directory = self.volume[msg['document']]
-                        directory.merge(msg['guid'], msg['diff'])
-                    if packet.header.get('sender') == self._master_guid:
-                        self._pull_seq.exclude(packet.header['sequence'])
-                else:
-                    if packet.header.get('session') == session:
-                        _logger.debug('Preserve %r PUSH packet ' \
-                                'from current session', packet)
-                    else:
-                        _logger.debug('Remove our previous %r PUSH packet',
-                                packet)
-                        os.unlink(packet.path)
-            elif packet.header.get('type') == 'ack':
-                if packet.header.get('sender') == self._master_guid and \
-                        packet.header.get('receiver') == self._guid:
-                    _logger.debug('Processing %r ACK packet', packet)
-                    self._push_seq.exclude(packet.header['push_sequence'])
-                    self._pull_seq.exclude(packet.header['pull_sequence'])
-                    _logger.debug('Remove processed %r ACK packet', packet)
-                    os.unlink(packet.path)
-                else:
-                    _logger.debug('Ignore misaddressed %r ACK packet', packet)
-            else:
-                _logger.debug('No need to process %r packet', packet)
-
-    def _export(self, to_push_seq, pushed_seq, packet):
-        _logger.debug('Generating %r PUSH packet', packet)
-        for document, directory in self.volume.items():
-
-            def patch():
-                for seq, guid, diff in directory.diff(to_push_seq[document]):
-                    coroutine.dispatch()
-                    yield {'guid': guid, 'diff': diff}
-                    to_push_seq[document].exclude(seq)
-                    pushed_seq[document].include(seq)
-
-            directory.commit()
-            packet.push_messages(patch(), document=document)
 
 
 class Master(object):
@@ -177,7 +50,7 @@ class Master(object):
                 out_packet.header['pull_sequence'] = self._push(packet)
             elif packet.header.get('type') == 'pull':
                 out_packet = sneakernet.OutPacket('push', limit=accept_length)
-                out_packet.header['sequence'] = out_seq = _Sequence()
+                out_packet.header['sequence'] = out_seq = Sequences()
                 self._pull(packet.header['sequence'], out_seq, out_packet)
             else:
                 raise RuntimeError(_('Unrecognized packet'))
@@ -187,7 +60,7 @@ class Master(object):
             return content
 
     def _push(self, packet):
-        merged_seq = _Sequence()
+        merged_seq = Sequences()
         for msg in packet:
             document = msg['document']
             seqno = self.volume[document].merge(msg['guid'], msg['diff'])
@@ -208,52 +81,3 @@ class Master(object):
                 packet.push_messages(patch(), document=document)
             except sneakernet.DiskFull:
                 _logger.debug('Reach package size limit')
-
-
-class _Sequence(dict):
-
-    def __init__(self, **kwargs):
-        dict.__init__(self)
-        self._new_item_kwargs = kwargs
-
-    def __getitem__(self, key):
-        value = self.get(key)
-        if value is None:
-            value = self[key] = Sequence(**self._new_item_kwargs)
-        return value
-
-    def exclude(self, other):
-        for key, seq in other.items():
-            if key in self:
-                self[key].exclude(seq)
-
-
-class _PersistentSequence(_Sequence):
-
-    def __init__(self, name, empty_value):
-        _Sequence.__init__(self, empty_value=empty_value)
-        self._path = local.path(name)
-        if exists(self._path):
-            with file(self._path) as f:
-                self.update(json.load(f))
-
-    def exclude(self, other):
-        _Sequence.exclude(self, other)
-        self._commit()
-
-    def update(self, other):
-        for key, seq in other.items():
-            self[key] = Sequence(seq)
-
-    def _commit(self):
-        with util.new_file(self._path) as f:
-            json.dump(self, f)
-            f.flush()
-            os.fsync(f.fileno())
-
-
-def _volume_hash(volume):
-    stamp = []
-    for name, directory in volume.items():
-        stamp.append((name, directory.seqno))
-    return str(hashlib.sha1(json.dumps(stamp)).hexdigest())

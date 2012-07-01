@@ -8,8 +8,8 @@ from cStringIO import StringIO
 
 from __init__ import tests
 
-from sugar_network.node import sneakernet
-from sugar_network.node.sneakernet import InPacket, OutPacket, DiskFull
+from sugar_network.toolkit import sneakernet
+from sugar_network.toolkit.sneakernet import InPacket, OutPacket, DiskFull
 
 
 class SneakernetTest(tests.Test):

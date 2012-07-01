@@ -25,15 +25,17 @@ import active_document as ad
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_MOVED_TO, IN_MOVED_FROM
 from sugar_network import local, node
-from sugar_network.toolkit import zeroconf, netlink
-from sugar_network.local.mounts import LocalProxyMount
+from sugar_network.toolkit import sugar, zeroconf, netlink
+from sugar_network.toolkit.collection import MutableQueue
+from sugar_network.local.node_mount import NodeMount
 from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.router import Router
 from active_toolkit import util, coroutine, enforce
 
 
-_DB_DIRECTORY = '.network'
+_DB_DIRNAME = 'sugar-network'
+_SYNC_DIRNAME = 'sugar-network-sync'
 
 _LOCAL_PROPS = {
         'keep': False,
@@ -44,13 +46,19 @@ _LOCAL_PROPS = {
 _logger = logging.getLogger('local.mountset')
 
 
-class Mountset(dict):
+class Mountset(dict, ad.CommandsProcessor):
 
     def __init__(self, home_volume):
+        dict.__init__(self)
+        ad.CommandsProcessor.__init__(self)
+
         self.home_volume = home_volume
         self._subscriptions = {}
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
         self._jobs = coroutine.Pool()
+        self._servers = coroutine.ServersPool()
+        self._sync_dirs = MutableQueue()
+        self._sync = coroutine.Pool()
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
@@ -67,21 +75,52 @@ class Mountset(dict):
         mount.set_mounted(False)
         dict.__delitem__(self, mountpoint)
 
-    def call(self, request, response=None):
-        if request.get('cmd') == 'mounts':
-            return [path for path, mount in self.items() if mount.mounted]
+    @ad.volume_command(method='GET', cmd='mounts')
+    def mounts(self):
+        result = []
+        for path, mount in self.items():
+            if mount.mounted:
+                result.append({'mountpoint': path})
+        return result
 
-        mountpoint = request.pop('mountpoint')
+    @ad.volume_command(method='GET', cmd='mounted')
+    def mounted(self, mountpoint):
         mount = self[mountpoint]
         if mountpoint == '/':
             mount.set_mounted(True)
-        if request.get('cmd') == 'mounted':
-            return mount.mounted
-        enforce(mount.mounted, _('%r is not mounted'), mountpoint)
+        return mount.mounted
 
+    @ad.volume_command(method='POST', cmd='start_sync')
+    def start_sync(self):
+        if self._sync:
+            return
+        for mount in self.values():
+            if isinstance(mount, NodeMount):
+                self._sync.spawn(mount.sync_session, self._sync_dirs)
+                break
+        else:
+            raise RuntimeError(_('No mounted servers'))
+
+    @ad.volume_command(method='POST', cmd='break_sync')
+    def break_sync(self):
+        self._sync.kill()
+
+    def call(self, request, response=None):
         if response is None:
             response = ad.Response()
         request.accept_language = [self._locale]
+
+        try:
+            return ad.CommandsProcessor.call(self, request, response)
+        except ad.CommandNotFound:
+            pass
+
+        mountpoint = request.pop('mountpoint')
+        mount = self[mountpoint]
+
+        if mountpoint == '/':
+            mount.set_mounted(True)
+        enforce(mount.mounted, _('%r is not mounted'), mountpoint)
 
         try:
             result = mount.call(request, response)
@@ -114,7 +153,7 @@ class Mountset(dict):
 
     def open(self):
         if local.mounts_root.value:
-            self._jobs.spawn(_MountsCrawler, self)
+            self._jobs.spawn(self._mounts_monitor)
         if '/' in self:
             if local.api_url.value:
                 crawler = self._wait_for_master
@@ -123,6 +162,8 @@ class Mountset(dict):
             self._jobs.spawn(crawler)
 
     def close(self):
+        self.break_sync()
+        self._servers.stop()
         self._jobs.kill()
         for mountpoint in self.keys():
             del self[mountpoint]
@@ -145,71 +186,63 @@ class Mountset(dict):
                 if message is None:
                     break
 
+    def _mounts_monitor(self):
+        root = local.mounts_root.value
 
-class _MountsCrawler(object):
+        for filename in os.listdir(root):
+            self._found_mount(join(root, filename))
 
-    def __init__(self, mountset):
-        self._mountset = mountset
-        self._root = local.mounts_root.value
-        self._volumes = {}
-        self._jobs = coroutine.Pool()
-        self._servers = coroutine.ServersPool()
-
-        self._jobs.spawn(self._populate)
-
-        _logger.info(_('Start monitoring %r for mounts'), self._root)
+        _logger.info(_('Start monitoring %r for mounts'), root)
         try:
-            self._dispatch()
+            with Inotify() as monitor:
+                monitor.add_watch(root, IN_DELETE_SELF | IN_CREATE | \
+                        IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM)
+                while not monitor.closed:
+                    coroutine.select([monitor.fileno()], [], [])
+                    for filename, event, __ in monitor.read():
+                        path = join(root, filename)
+                        try:
+                            if event & IN_DELETE_SELF:
+                                _logger.warning(
+                                    _('Lost %r, cannot monitor anymore'), root)
+                                monitor.close()
+                                break
+                            elif event & (IN_DELETE | IN_MOVED_FROM):
+                                self._lost_mount(path)
+                            elif event & (IN_CREATE | IN_MOVED_TO):
+                                self._found_mount(path)
+                        except Exception:
+                            util.exception(_logger,
+                                    _('Cannot process %r mount'), path)
         finally:
-            _logger.info(_('Stop monitoring %r for mounts'), self._root)
-            self._servers.stop()
-            self._jobs.kill()
+            _logger.info(_('Stop monitoring %r for mounts'), root)
 
-    def _dispatch(self):
-        with Inotify() as monitor:
-            monitor.add_watch(self._root, IN_DELETE_SELF | IN_CREATE | \
-                    IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM)
-            while not monitor.closed:
-                coroutine.select([monitor.fileno()], [], [])
-                for filename, event, __ in monitor.read():
-                    path = join(self._root, filename)
-                    try:
-                        if event & IN_DELETE_SELF:
-                            _logger.warning(
-                                _('Lost ourselves, cannot monitor anymore'))
-                            monitor.close()
-                            break
-                        elif event & (IN_DELETE | IN_MOVED_FROM):
-                            self._lost(path)
-                        elif event & (IN_CREATE | IN_MOVED_TO):
-                            self._found(path)
-                    except Exception:
-                        util.exception(_('Cannot process %r directoryr'), path)
-
-    def _populate(self):
-        for filename in os.listdir(self._root):
-            self._found(join(self._root, filename))
-
-    def _found(self, path):
-        db_path = join(path, _DB_DIRECTORY)
-        if not isdir(db_path) or path in self._volumes:
-            return
-
+    def _found_mount(self, path):
         _logger.debug('Found %r mount', path)
 
-        volume = self._mount_volume(db_path)
-        self._mountset[path] = LocalProxyMount(volume,
-                self._mountset.home_volume)
-        self._volumes[path] = volume
-
-    def _lost(self, path):
-        if path not in self._volumes:
+        sync_path = join(path, _SYNC_DIRNAME)
+        if isdir(sync_path):
+            self._sync_dirs.add(sync_path)
+            if self._sync_dirs and self._servers:
+                self.start_sync()
             return
 
+        sn_path = join(path, _DB_DIRNAME)
+        if isdir(sn_path):
+            if path not in self:
+                volume = self._mount_volume(sn_path)
+                self[path] = NodeMount(volume, self.home_volume)
+            return
+
+    def _lost_mount(self, path):
         _logger.debug('Lost %r mount', path)
 
-        self._volumes.pop(path)
-        del self._mountset[path]
+        self._sync_dirs.remove(join(path, _SYNC_DIRNAME))
+        if not self._sync_dirs:
+            self.break_sync()
+
+        if path in self:
+            del self[path]
 
     def _mount_volume(self, path):
         lazy_open = local.lazy_open.value
@@ -229,7 +262,8 @@ class _MountsCrawler(object):
         if server_mode:
             subscriber = SubscribeSocket(volume,
                     node.host.value, node.subscribe_port.value)
-            cp = NodeCommands(volume, subscriber)
+            cp = NodeCommands(sugar.profile_path('owner.key'), volume,
+                    subscriber)
 
             _logger.info('Start %r server on %s port',
                     volume.root, node.port.value)

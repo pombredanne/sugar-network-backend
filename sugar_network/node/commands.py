@@ -13,14 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import hashlib
 import logging
-from os.path import exists
 from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import node
-from active_toolkit import util, enforce
+from sugar_network.toolkit import crypto
+from active_toolkit import enforce
 
 
 _logger = logging.getLogger('node.commands')
@@ -28,16 +27,10 @@ _logger = logging.getLogger('node.commands')
 
 class NodeCommands(ad.ProxyCommands):
 
-    def __init__(self, volume, subscriber=None):
+    def __init__(self, keypath, volume, subscriber=None):
         ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
         self._subscriber = subscriber
-
-        if not exists(node.privkey.value):
-            _logger.info(_('Create DSA server key'))
-            util.assert_call([
-                '/usr/bin/ssh-keygen', '-q', '-t', 'dsa', '-f',
-                node.privkey.value, '-C', '', '-N', ''])
-        self._guid = _load_pubkey(node.privkey.value + '.pub')
+        self._guid = crypto.ensure_dsa_pubkey(keypath)
 
     @ad.volume_command(method='GET')
     def hello(self, response):
@@ -106,16 +99,6 @@ class NodeCommands(ad.ProxyCommands):
             if user['name']:
                 authors.append(user['name'])
         props['author'] = authors
-
-
-def _load_pubkey(path):
-    with file(path) as f:
-        for line in f.readlines():
-            line = line.strip()
-            if line.startswith('ssh-'):
-                key = line.split()[1]
-                return str(hashlib.sha1(key).hexdigest())
-    raise RuntimeError(_('No valid DSA public key in %r') % path)
 
 
 _HELLO_HTML = """\

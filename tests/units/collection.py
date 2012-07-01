@@ -5,12 +5,12 @@ import copy
 
 from __init__ import tests
 
-from sugar_network.node.sequence import Sequence
+from sugar_network.toolkit.collection import Sequence, MutableQueue
 
 
-class SequenceTest(tests.Test):
+class CollectionTest(tests.Test):
 
-    def test_empty(self):
+    def test_Sequence_empty(self):
         scale = Sequence(empty_value=[1, None])
         self.assertEqual(
                 [[1, None]],
@@ -27,7 +27,7 @@ class SequenceTest(tests.Test):
         scale.include(1, None)
         assert not scale.empty
 
-    def test_exclude(self):
+    def test_Sequence_exclude(self):
         scale = Sequence(empty_value=[1, None])
         scale.exclude(1, 10)
         self.assertEqual(
@@ -65,7 +65,7 @@ class SequenceTest(tests.Test):
                 [[22, None]],
                 scale)
 
-    def test_include_JoinExistingItems(self):
+    def test_Sequence_include_JoinExistingItems(self):
         scale = Sequence()
 
         scale.include(1, None)
@@ -124,7 +124,7 @@ class SequenceTest(tests.Test):
                 [[1, None]],
                 scale)
 
-    def test_include_InsertNewItems(self):
+    def test_Sequence_include_InsertNewItems(self):
         scale = Sequence()
 
         scale.include(8, 10)
@@ -171,7 +171,7 @@ class SequenceTest(tests.Test):
                 [[1, None]],
                 scale)
 
-    def teste_Invert(self):
+    def teste_Sequence_Invert(self):
         scale_1 = Sequence(empty_value=[1, None])
         scale_1.exclude(2, 2)
         scale_1.exclude(5, 10)
@@ -191,7 +191,7 @@ class SequenceTest(tests.Test):
                 [[21, None]],
                 scale_1)
 
-    def test_contains(self):
+    def test_Sequence_contains(self):
         scale = Sequence(empty_value=[1, None])
         scale.exclude(2, 2)
         scale.exclude(5, 10)
@@ -203,7 +203,7 @@ class SequenceTest(tests.Test):
         assert 10 not in scale
         assert 11 in scale
 
-    def test_first(self):
+    def test_Sequence_first(self):
         scale = Sequence()
         self.assertEqual(0, scale.first)
 
@@ -212,7 +212,7 @@ class SequenceTest(tests.Test):
         scale.exclude(1, 3)
         self.assertEqual(4, scale.first)
 
-    def test_include(self):
+    def test_Sequence_include(self):
         rng = Sequence()
         rng.include(2, 2)
         self.assertEqual(
@@ -253,7 +253,7 @@ class SequenceTest(tests.Test):
                 [[2, 2], [7, 8], [10, None]],
                 rng)
 
-    def test_floor(self):
+    def test_Sequence_floor(self):
         rng = Sequence()
         rng.include(2, None)
         rng.floor(1)
@@ -298,6 +298,75 @@ class SequenceTest(tests.Test):
         rng.include(10, 11)
         rng.floor(1)
         self.assertEqual([], rng)
+
+    def test_MutableQueue_AddWhileIteration(self):
+        queue = MutableQueue()
+
+        queue.add(0)
+        queue.add(1)
+        queue.add(2)
+
+        result = []
+        for i in queue:
+            result.append(i)
+            queue.add(len(queue))
+        self.assertEqual([2, 1, 0], result)
+        self.assertEqual([5, 4, 3, 2, 1, 0], [i for i in queue])
+
+    def test_MutableQueue_RemoveWhileIteration(self):
+        queue = MutableQueue()
+
+        queue.add(0)
+        queue.add(1)
+        queue.add(2)
+        queue.add(3)
+        queue.add(4)
+
+        result = []
+        to_remove = [4]
+        for i in queue:
+            result.append(i)
+            while to_remove:
+                queue.remove(to_remove.pop(0))
+        self.assertEqual([4, 3, 2, 1, 0], result)
+        self.assertEqual([3, 2, 1, 0], [i for i in queue])
+
+        result = []
+        to_remove = [2]
+        for i in queue:
+            result.append(i)
+            while to_remove:
+                queue.remove(to_remove.pop(0))
+        self.assertEqual([3, 1, 0], result)
+        self.assertEqual([3, 1, 0], [i for i in queue])
+
+        result = []
+        to_remove = [3, 1, 0]
+        for i in queue:
+            result.append(i)
+            while to_remove:
+                queue.remove(to_remove.pop(0))
+        self.assertEqual([3], result)
+        self.assertEqual([], [i for i in queue])
+
+    def test_MutableQueue_RemoveAndAddWhileIteration(self):
+        queue = MutableQueue()
+
+        queue.add(0)
+        queue.add(1)
+        queue.add(2)
+
+        result = []
+        to_remove = [0, 1, 2]
+        for i in queue:
+            result.append(i)
+            while to_remove:
+                queue.remove(to_remove.pop(0))
+            queue.add(3)
+            queue.add(4)
+            queue.add(5)
+        self.assertEqual([2], result)
+        self.assertEqual([5, 4, 3], [i for i in queue])
 
 
 if __name__ == '__main__':

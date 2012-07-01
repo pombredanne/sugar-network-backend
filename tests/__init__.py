@@ -18,14 +18,13 @@ from M2Crypto import DSA
 import active_document as ad
 from active_toolkit import coroutine
 from sugar_network.client import bus
-from sugar_network.toolkit import sugar, http
+from sugar_network.toolkit import sugar, http, sneakernet
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
 from sugar_network import local, node
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network.node import sneakernet
 from sugar_network.node.router import Router
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.subscribe_socket import SubscribeSocket
@@ -250,7 +249,7 @@ class Test(unittest.TestCase):
 
         volume = ad.SingleVolume('remote', classes or [User, Context])
         subscriber = SubscribeSocket(volume, 'localhost', 8801)
-        cp = NodeCommands(volume, subscriber)
+        cp = NodeCommands(node.privkey.value, volume, subscriber)
         httpd = coroutine.WSGIServer(('localhost', 8800), Router(cp))
         try:
             coroutine.joinall([

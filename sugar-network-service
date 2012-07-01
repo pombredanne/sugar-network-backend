@@ -32,9 +32,7 @@ from sugar_network.local.mountset import Mountset
 from active_toolkit import optparse, coroutine, enforce
 
 
-VERSION = '0.3'
-
-SUGAR_REGISTRATION_TIMEOUT = 5
+VERSION = '0.4'
 
 
 class NullHandler(logging.Handler):
@@ -95,12 +93,12 @@ class Application(application.Daemon):
         finally:
             volume.close()
 
-    def run(self):
-        while not exists(node.privkey.value):
-            logging.info(_('No Sugar SSH key, delay start for %s seconds'),
-                    SUGAR_REGISTRATION_TIMEOUT)
-            coroutine.sleep(SUGAR_REGISTRATION_TIMEOUT)
+    @application.command(
+            _('start synchronization with mount devices'))
+    def sync(self):
+        Client.call('POST', cmd='start_sync')
 
+    def run(self):
         volume = ad.SingleVolume(self._db_path, node.DOCUMENTS,
                 lazy_open=local.lazy_open.value)
         mountset = Mountset(volume)
@@ -156,20 +154,18 @@ locale.setlocale(locale.LC_ALL, '')
 
 # New defaults
 application.debug.value = sugar.logger_level()
-# Use sugar key for server identification
-node.privkey.value = sugar.profile_path('owner.key')
 # It seems to be that most of users (on XO at least) don't have recent SSH
 node.trust_users.value = True
 
 optparse.Option.seek('main', [application.debug, application.foreground])
 optparse.Option.seek('webui', webui)
 optparse.Option.seek('local', local)
-optparse.Option.seek('node', [node.port, node.subscribe_port])
+optparse.Option.seek('node', [node.port, node.subscribe_port, node.auto_sync])
 optparse.Option.seek('active-document', ad)
 
 application = Application(
         name='sugar-network-service',
-        description=_('Sugar Network service'),
+        description=_('Sugar Network service.'),
         epilog=_('See http://wiki.sugarlabs.org/go/Sugar_Network ' \
                  'for details.'),
         version=VERSION,
