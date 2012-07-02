@@ -18,10 +18,9 @@ import json
 import tarfile
 import logging
 import tempfile
-from glob import glob
 from cStringIO import StringIO
 from contextlib import contextmanager
-from os.path import join
+from os.path import join, exists
 from gettext import gettext as _
 
 import active_document as ad
@@ -36,9 +35,12 @@ _logger = logging.getLogger('node.sneakernet')
 
 
 def walk(path):
-    for path in glob(join(path, '*.packet')):
-        with InPacket(path) as packet:
-            yield packet
+    for root, __, files in os.walk(path):
+        for filename in files:
+            if not filename.endswith('.packet'):
+                continue
+            with InPacket(join(root, filename)) as packet:
+                yield packet
 
 
 class DiskFull(Exception):
@@ -146,9 +148,13 @@ class OutPacket(object):
         self.header['type'] = packet_type
         self._path = None
         self._size_to_flush = 0
+        self._file_num = 0
 
         if root is not None:
-            self._path = join(root, '%s-%s.packet' % (packet_type, ad.uuid()))
+            root = join(root, packet_type)
+            if not exists(root):
+                os.makedirs(root)
+            self._path = join(root, '%s.packet' % ad.uuid())
             self._file = stream = file(self._path, 'w')
         else:
             limit = min(_MAX_PACKET_SIZE, limit or _MAX_PACKET_SIZE)
@@ -191,7 +197,7 @@ class OutPacket(object):
             self._file = None
 
     @contextmanager
-    def push_messages(self, items, **meta):
+    def push_messages(self, items, arcname=None, **meta):
         if not hasattr(items, 'next'):
             items = iter(items)
         try:
@@ -224,21 +230,24 @@ class OutPacket(object):
                     break
 
                 arcfile.seek(0)
-                arcname = ad.uuid()
-                self._addfile(arcname, arcfile, False)
-                self._addfile(arcname + '.meta', meta, True)
+                self._add(arcname, arcfile, meta)
 
-    def push_blob(self, stream, **meta):
+    def push_blob(self, stream, arcname=None, **meta):
         meta['type'] = 'blob'
-        arcname = ad.uuid()
-        self._addfile(arcname, stream, False)
-        self._addfile(arcname + '.meta', meta, True)
+        self._add(arcname, stream, meta)
 
     def pop_content(self):
         self.close()
         length = self._stream.tell()
         self._stream.seek(0)
         return self._stream, length
+
+    def _add(self, arcname, data, meta):
+        if not arcname:
+            self._file_num += 1
+            arcname = '%08d' % self._file_num
+        self._addfile(arcname, data, False)
+        self._addfile(arcname + '.meta', meta, True)
 
     def _commit(self):
         self._addfile('header', self.header, True)

@@ -160,7 +160,6 @@ class SyncTest(tests.Test):
 
     def test_Node_Export(self):
         node = NodeMount(Volume({'document': Directory()}), None)
-        os.makedirs('sync')
 
         node.sync('sync')
         self.assertEqual([
@@ -180,7 +179,6 @@ class SyncTest(tests.Test):
         self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
         self.touch(('pull.sequence', json.dumps({'document': [[1, None]]})))
         node = NodeMount(Volume({'document': Directory()}), None)
-        os.makedirs('sync')
 
         node.sync('sync', session='session')
         self.assertEqual([
@@ -193,7 +191,6 @@ class SyncTest(tests.Test):
         self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
         self.touch(('pull.sequence', json.dumps({'document': [[1, None]]})))
         node = NodeMount(Volume({'document': Directory()}), None)
-        os.makedirs('sync')
 
         ack = OutPacket('ack', root='sync',
                 sender=_DEFAULT_MASTER,
@@ -259,7 +256,6 @@ class SyncTest(tests.Test):
 
     def test_Node_Import_DoNotDeletePacketsFromCurrentSession(self):
         node = NodeMount(Volume({'document': Directory()}), None)
-        os.makedirs('sync')
 
         existing_push = OutPacket('push', root='sync',
                 sender=tests.UID,
@@ -268,19 +264,19 @@ class SyncTest(tests.Test):
                 session='the same')
         existing_push.close()
 
-        self.assertEqual(1, len(os.listdir('sync')))
+        self.assertEqual(1, len([i for i in sneakernet.walk('sync')]))
         node.sync('sync', session='the same')
-        files = set(os.listdir('sync'))
+        files = [i.path for i in sneakernet.walk('sync')]
         self.assertEqual(2, len(files))
         assert exists(existing_push.path)
 
         node.sync('sync', session='new one')
-        self.assertEqual(1, len(os.listdir('sync')))
-        assert not (set(os.listdir('sync')) & files)
+        new_fiels = [i.path for i in sneakernet.walk('sync')]
+        self.assertEqual(1, len(new_fiels))
+        assert not (set(new_fiels) & set(files))
 
     def test_Node_LimittedExport(self):
         node = NodeMount(Volume({'document': Directory(diff=['0' * 100] * 5)}), None)
-        os.makedirs('sync')
 
         kwargs = node.sync('sync', accept_length=100, session=0)
         self.assertEqual(0, kwargs['session'])
@@ -322,7 +318,6 @@ class SyncTest(tests.Test):
 
     def test_Node_sync_session(self):
         node = NodeMount(Volume({'document': Directory(diff=['0' * 100])}), None)
-        os.makedirs('sync')
         node.publisher = lambda x: events.append(x)
 
         self.override(os, 'statvfs', lambda x: Statvfs(50))
@@ -369,9 +364,12 @@ class SyncTest(tests.Test):
 
     def read_packets(self, path):
         result = []
-        for filename in sorted(os.listdir(path)):
-            with InPacket(join(path, filename)) as packet:
-                result.extend(self.read_packet(packet))
+        for dirname in ('pull', 'push', 'ack'):
+            if not exists(join(path, dirname)):
+                continue
+            for filename in sorted(os.listdir(join(path, dirname))):
+                with InPacket(join(path, dirname, filename)) as packet:
+                    result.extend(self.read_packet(packet))
         return result
 
     def read_packet(self, packet):

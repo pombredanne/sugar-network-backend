@@ -157,17 +157,21 @@ class NodeMount(LocalMount):
                     to_push_seq[document], limit=_DIFF_CHUNK)
 
             def patch(diff):
-                for header, data in diff:
+                for meta, data in diff:
                     coroutine.dispatch()
                     if hasattr(data, 'fileno'):
-                        packet.push_blob(data, document=document, **header)
+                        packet.push_blob(data, document=document,
+                                arcname=join(document, 'blobs', meta['guid'],
+                                    meta['prop']),
+                                **meta)
                     else:
-                        header['diff'] = data
-                        yield header
+                        meta['diff'] = data
+                        yield meta
 
             try:
                 directory.commit()
-                packet.push_messages(patch(diff), document=document)
+                packet.push_messages(patch(diff), document=document,
+                        arcname=join(document, 'diff'))
             finally:
                 if seq:
                     to_push_seq[document].exclude(*seq)
