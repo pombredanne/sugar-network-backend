@@ -203,25 +203,24 @@ class Sequences(dict):
             if key in self:
                 self[key].exclude(seq)
 
+    def update(self, other):
+        for key, seq in other.items():
+            self[key] = Sequence(seq)
+
 
 class PersistentSequences(Sequences):
 
-    def __init__(self, path, empty_value):
+    def __init__(self, path, empty_value, keys):
         Sequences.__init__(self, empty_value=empty_value)
         self._path = path
         if exists(self._path):
             with file(self._path) as f:
                 self.update(json.load(f))
+        else:
+            for i in keys:
+                self[i].clear()
 
-    def exclude(self, other):
-        Sequences.exclude(self, other)
-        self._commit()
-
-    def update(self, other):
-        for key, seq in other.items():
-            self[key] = Sequence(seq)
-
-    def _commit(self):
+    def commit(self):
         with util.new_file(self._path) as f:
             json.dump(self, f)
             f.flush()

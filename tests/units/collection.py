@@ -5,7 +5,7 @@ import copy
 
 from __init__ import tests
 
-from sugar_network.toolkit.collection import Sequence, MutableStack
+from sugar_network.toolkit.collection import Sequence, Sequences, MutableStack
 
 
 class CollectionTest(tests.Test):
@@ -298,6 +298,19 @@ class CollectionTest(tests.Test):
         rng.include(10, 11)
         rng.floor(1)
         self.assertEqual([], rng)
+
+    def test_Sequences_DeepCopyWhileUpdating(self):
+        seq1 = Sequences()
+        seq1[0].include(1, 1)
+        self.assertEqual({0: [[1, 1]]}, seq1)
+
+        seq2 = Sequences()
+        seq2.update(seq1)
+        self.assertEqual({0: [[1, 1]]}, seq2)
+
+        seq2[0].include(2, 2)
+        self.assertEqual({0: [[1, 2]]}, seq2)
+        self.assertNotEqual({0: [[1, 2]]}, seq1)
 
     def test_MutableStack_AddWhileIteration(self):
         queue = MutableStack()
