@@ -14,13 +14,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import json
 import logging
-import hashlib
 from os.path import join, exists
 from gettext import gettext as _
 
-from sugar_network import local
+import active_document as ad
 from sugar_network.toolkit import crypto, sugar, sneakernet
 from sugar_network.local.mounts import LocalMount
 from sugar_network.toolkit.collection import Sequences, PersistentSequences
@@ -39,9 +37,9 @@ class NodeMount(LocalMount):
         LocalMount.__init__(self, volume, home_volume)
 
         self._push_seq = PersistentSequences(
-                local.path('push.sequence'), [1, None])
+                join(volume.root, 'push.sequence'), [1, None], volume.keys())
         self._pull_seq = PersistentSequences(
-                local.path('pull.sequence'), [1, None])
+                join(volume.root, 'pull.sequence'), [1, None], volume.keys())
         self._sync_session = None
 
         self._node_guid = crypto.ensure_dsa_pubkey(
@@ -64,12 +62,14 @@ class NodeMount(LocalMount):
 
         if session is None:
             session_is_new = True
-            session = _volume_hash(self.volume)
+            session = ad.uuid()
         else:
             session_is_new = False
 
         while True:
             self._import(path, session)
+            self._push_seq.commit()
+            self._pull_seq.commit()
 
             if session_is_new:
                 with sneakernet.OutPacket('pull', root=path,
@@ -114,38 +114,38 @@ class NodeMount(LocalMount):
             _logger.debug('Synchronization completed')
             self.publish({'event': 'sync_complete'})
         else:
-            _logger.debug('Pospone synchronization with %r session',
+            _logger.debug('Postpone synchronization with %r session',
                     self._sync_session)
             self.publish({'event': 'sync_continue'})
 
     def _import(self, path, session):
         for packet in sneakernet.walk(path):
-            if packet.header.get('type') == 'push':
-                if packet.header.get('sender') != self._node_guid:
-                    _logger.debug('Processing %r PUSH packet', packet)
-                    for msg in packet:
-                        directory = self.volume[msg['document']]
-                        directory.merge(msg['guid'], msg['diff'])
-                    if packet.header.get('sender') == self._master_guid:
-                        self._pull_seq.exclude(packet.header['sequence'])
+            if packet.header.get('type') == 'push' and \
+                    packet.header.get('sender') != self._node_guid:
+                _logger.debug('Processing %r PUSH packet', packet)
+                for msg in packet:
+                    directory = self.volume[msg['document']]
+                    directory.merge(msg['guid'], msg['diff'])
+                if packet.header.get('sender') == self._master_guid:
+                    self._pull_seq.exclude(packet.header['sequence'])
+
+            elif packet.header.get('type') == 'ack' and \
+                    packet.header.get('sender') == self._master_guid and \
+                    packet.header.get('receiver') == self._node_guid:
+                _logger.debug('Processing %r ACK packet', packet)
+                self._push_seq.exclude(packet.header['push_sequence'])
+                self._pull_seq.exclude(packet.header['pull_sequence'])
+                _logger.debug('Remove processed %r ACK packet', packet)
+                os.unlink(packet.path)
+
+            elif packet.header.get('type') in ('push', 'pull') and \
+                    packet.header.get('sender') == self._node_guid:
+                if packet.header.get('session') == session:
+                    _logger.debug('Keep current session %r packet', packet)
                 else:
-                    if packet.header.get('session') == session:
-                        _logger.debug('Preserve %r PUSH packet ' \
-                                'from current session', packet)
-                    else:
-                        _logger.debug('Remove our previous %r PUSH packet',
-                                packet)
-                        os.unlink(packet.path)
-            elif packet.header.get('type') == 'ack':
-                if packet.header.get('sender') == self._master_guid and \
-                        packet.header.get('receiver') == self._node_guid:
-                    _logger.debug('Processing %r ACK packet', packet)
-                    self._push_seq.exclude(packet.header['push_sequence'])
-                    self._pull_seq.exclude(packet.header['pull_sequence'])
-                    _logger.debug('Remove processed %r ACK packet', packet)
+                    _logger.debug('Remove our previous %r packet', packet)
                     os.unlink(packet.path)
-                else:
-                    _logger.debug('Ignore misaddressed %r ACK packet', packet)
+
             else:
                 _logger.debug('No need to process %r packet', packet)
 
@@ -172,10 +172,3 @@ class NodeMount(LocalMount):
                 if seq:
                     to_push_seq[document].exclude(*seq)
                     pushed_seq[document].include(*seq)
-
-
-def _volume_hash(volume):
-    stamp = []
-    for name, directory in volume.items():
-        stamp.append((name, directory.seqno))
-    return str(hashlib.sha1(json.dumps(stamp)).hexdigest())

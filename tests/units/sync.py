@@ -159,19 +159,22 @@ class SyncTest(tests.Test):
             self.read_packet(InPacket(stream=reply)))
 
     def test_Node_Export(self):
-        self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
-        self.touch(('pull.sequence', json.dumps({'document': [[10, None]]})))
         node = NodeMount(Volume({'document': Directory()}), None)
         os.makedirs('sync')
 
         node.sync('sync')
-        session = str(hashlib.sha1(json.dumps([('document', 0)])).hexdigest())
         self.assertEqual([
-            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {'document': [[10, None]]}},
-            {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {'document': [[1, 1]]}},
+            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': '1', 'sequence': {'document': [[1, None]]}},
+            {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': '1', 'sequence': {'document': [[1, 1]]}},
             {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': 'diff'},
             ],
             self.read_packets('sync'))
+
+        assert exists('push.sequence')
+        self.assertEqual({'document': [[1, None]]}, json.load(file('push.sequence')))
+
+        assert exists('pull.sequence')
+        self.assertEqual({'document': [[1, None]]}, json.load(file('pull.sequence')))
 
     def test_Node_Export_NoPullForExistingSession(self):
         self.touch(('push.sequence', json.dumps({'document': [[1, None]]})))
@@ -344,7 +347,7 @@ class SyncTest(tests.Test):
             ],
             events)
         self.assertEqual([
-            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {}},
+            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {'document': [[1, None]]}},
             ],
             self.read_packets('sync'))
 
@@ -358,7 +361,7 @@ class SyncTest(tests.Test):
             ],
             events)
         self.assertEqual([
-            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {}},
+            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {'document': [[1, None]]}},
             {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'sequence': {'document': [[1, 1]]}, 'session': session},
             {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 100},
             ],
@@ -366,7 +369,7 @@ class SyncTest(tests.Test):
 
     def read_packets(self, path):
         result = []
-        for filename in os.listdir(path):
+        for filename in sorted(os.listdir(path)):
             with InPacket(join(path, filename)) as packet:
                 result.extend(self.read_packet(packet))
         return result

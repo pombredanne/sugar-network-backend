@@ -12,3 +12,16 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+DOCUMENTS = (
+        'sugar_network.resources.artifact',
+        'sugar_network.resources.comment',
+        'sugar_network.resources.context',
+        'sugar_network.resources.implementation',
+        'sugar_network.resources.notification',
+        'sugar_network.resources.feedback',
+        'sugar_network.resources.report',
+        'sugar_network.resources.solution',
+        'sugar_network.resources.user',
+        )

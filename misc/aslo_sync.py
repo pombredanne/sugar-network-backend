@@ -29,7 +29,7 @@ import MySQLdb as mdb
 
 import active_document as ad
 from sweets_recipe import GOOD_LICENSES, Bundle
-from sugar_network.node import DOCUMENTS
+from sugar_network.resources import DOCUMENTS
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'

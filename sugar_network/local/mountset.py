@@ -24,7 +24,7 @@ import active_document as ad
 
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_MOVED_TO, IN_MOVED_FROM
-from sugar_network import local, node
+from sugar_network import local, node, resources
 from sugar_network.toolkit import sugar, zeroconf, netlink
 from sugar_network.toolkit.collection import MutableStack
 from sugar_network.local.sync import NodeMount
@@ -92,7 +92,7 @@ class Mountset(dict, ad.CommandsProcessor):
         return mount.mounted
 
     @ad.volume_command(method='POST', cmd='start_sync')
-    def start_sync(self):
+    def start_sync(self, rewind=False):
         if self._sync:
             return
 
@@ -100,6 +100,8 @@ class Mountset(dict, ad.CommandsProcessor):
 
         for mount in self.values():
             if isinstance(mount, NodeMount):
+                if rewind:
+                    self._sync_dirs.rewind()
                 self._sync.spawn(mount.sync_session, self._sync_dirs)
                 break
         else:
@@ -263,7 +265,8 @@ class Mountset(dict, ad.CommandsProcessor):
             else:
                 lazy_open = False
 
-        volume = ad.SingleVolume(path, node.DOCUMENTS, lazy_open=lazy_open)
+        volume = ad.SingleVolume(path, resources.DOCUMENTS,
+                lazy_open=lazy_open)
         self._jobs.spawn(volume.populate)
 
         if server_mode:
