@@ -347,10 +347,6 @@ class Directory(object):
                 if seqno not in accept_range:
                     continue
 
-                if not ranges:
-                    ranges[:] = [start, None]
-                ranges[1] = seqno
-
                 diff = {}
                 for name in self.metadata.keys():
                     if name == 'seqno':
@@ -378,6 +374,10 @@ class Directory(object):
                                 'mtime': meta['mtime'],
                                 }
                 yield {'guid': doc.guid}, diff
+
+                if not ranges:
+                    ranges[:] = [start, None]
+                ranges[1] = seqno
 
             seqno += 1
 

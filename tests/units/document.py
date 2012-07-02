@@ -660,6 +660,33 @@ class DocumentTest(tests.Test):
             ],
             read_diff(diff))
 
+    def test_diff_UpdateSequenceOnlyAfterProcessingDiffResults(self):
+
+        class Document(document.Document):
+            pass
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        self.override(time, 'time', lambda: 1)
+        directory.create_with_guid('1', {})
+        for i in os.listdir('1/1'):
+            os.utime('1/1/%s' % i, (1, 1))
+
+        sequence, diff = directory.diff(xrange(100), 2)
+        self.assertEqual([], sequence)
+
+        try:
+            for i in diff:
+                raise Exception()
+            assert False
+        except Exception:
+            pass
+        self.assertEqual([], sequence)
+
+        for i in diff:
+            pass
+        self.assertEqual([0, 1], sequence)
+
     def test_merge_New(self):
 
         class Document(document.Document):
