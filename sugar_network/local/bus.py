@@ -15,14 +15,16 @@
 
 import os
 import json
+import errno
 import socket
 import logging
 from os.path import exists
+from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import local
 from sugar_network.toolkit import ipc, sugar
-from active_toolkit import coroutine, sockets
+from active_toolkit import coroutine, sockets, util
 
 
 _logger = logging.getLogger('local.bus')
@@ -91,6 +93,7 @@ class IPCServer(object):
                 conn_file.write_message({'error': str(error)})
 
     def _serve_subscription(self, conn_file):
+        _logger.debug('Added new %r subscription', conn_file)
         self._subscriptions.append(conn_file)
         return True
 
@@ -106,8 +109,16 @@ class IPCServer(object):
         _logger.debug('Send notification: %r', event)
 
         with self._publish_lock:
-            for socket_file in self._subscriptions:
-                socket_file.write_message(event)
+            for sock in self._subscriptions[:]:
+                try:
+                    sock.write_message(event)
+                except socket.error, error:
+                    if error.errno == errno.EPIPE:
+                        _logger.debug('Lost %r subscription', sock)
+                        self._subscriptions.remove(sock)
+                    else:
+                        util.exception(_logger,
+                                _('Failed to deliver event via %r'), sock)
 
 
 def _start_server(name, serve_cb):
