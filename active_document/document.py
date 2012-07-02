@@ -95,7 +95,7 @@ class Document(object):
     def meta(self, prop):
         prop = self.metadata[prop]
         result = self._record.get(prop.name)
-        if isinstance(prop, BlobProperty):
+        if result is not None and isinstance(prop, BlobProperty):
             prop.on_get(self, result)
         return result
 

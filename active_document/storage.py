@@ -19,7 +19,7 @@ import time
 import json
 import shutil
 import hashlib
-from os.path import exists, join, isdir, basename, relpath, lexists
+from os.path import exists, join, isdir, basename, relpath, lexists, isabs
 from gettext import gettext as _
 
 from active_document import env
@@ -219,8 +219,11 @@ class Record(object):
                 if size is None:
                     size = sys.maxint
                 self._set_blob_by_stream(digest, data, size, path)
-            else:
+            elif isabs(data):
                 self._set_blob_by_path(digest, data, path)
+            else:
+                kwargs['url'] = data
+                digest = None
         except Exception, error:
             util.exception()
             raise RuntimeError(_('Fail to set BLOB %r property for %r: %s') % \

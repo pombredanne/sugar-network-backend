@@ -15,4 +15,3 @@
 - use read/write processes for master server
 - IndexProxy should be smarter to take into account sorting of cached documents
 - i18n for SN content
-- replace urllib2 with requests with greenlets enabled

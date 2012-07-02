@@ -7,6 +7,7 @@ import sys
 import stat
 import json
 import time
+import urllib2
 import hashlib
 from cStringIO import StringIO
 from os.path import join, exists
@@ -564,15 +565,6 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        def read_diff(diff):
-            result = []
-            for meta, data in diff:
-                if hasattr(data, 'read'):
-                    result.append((meta, data.read()))
-                else:
-                    result.append((meta, data))
-            return result
-
         self.override(time, 'time', lambda: 1)
         directory.create_with_guid('1', {'prop': '1'})
         directory.set_blob('1', 'blob', StringIO('1'))
@@ -638,6 +630,35 @@ class DocumentTest(tests.Test):
             ],
             read_diff(diff))
         self.assertEqual([], sequence)
+
+    def test_diff_WithBlobsSetByUrl(self):
+
+        class Document(document.Document):
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        self.override(time, 'time', lambda: 1)
+        directory.create_with_guid('1', {})
+        directory.set_blob('1', 'blob', 'http://sugarlabs.org')
+        for i in os.listdir('1/1'):
+            os.utime('1/1/%s' % i, (1, 1))
+
+        data = urllib2.urlopen('http://sugarlabs.org').read()
+        __, diff = directory.diff(xrange(100), 2)
+        self.assertEqual([
+            ({'guid': '1', 'prop': 'blob', 'mtime': 1}, data),
+            ({'guid': '1'}, {
+                'guid': {'value': '1', 'mtime': 1},
+                'layer': {'value': ['public'], 'mtime': 1},
+                'ctime': {'value': 1, 'mtime': 1},
+                'mtime': {'value': 1, 'mtime': 1},
+                'user': {'value': [], 'mtime': 1}}),
+            ],
+            read_diff(diff))
 
     def test_merge_New(self):
 
@@ -797,6 +818,16 @@ class DocumentTest(tests.Test):
         self.assertEqual(3, doc.meta('mtime')['mtime'])
         self.assertEqual(4, doc.meta('blob')['mtime'])
         self.assertEqual('1', file('document2/gu/guid/blob.blob').read())
+
+
+def read_diff(diff):
+    result = []
+    for meta, data in diff:
+        if hasattr(data, 'read'):
+            result.append((meta, data.read()))
+        else:
+            result.append((meta, data))
+    return result
 
 
 if __name__ == '__main__':

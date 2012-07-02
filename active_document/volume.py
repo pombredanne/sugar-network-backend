@@ -15,7 +15,6 @@
 
 import os
 import json
-import urllib2
 import logging
 from cStringIO import StringIO
 from functools import partial
@@ -144,7 +143,6 @@ class VolumeCommands(CommandsProcessor):
             prop = directory.metadata[name]
             prop.assert_access(env.ACCESS_CREATE)
             props[name] = self._prepost(request, prop, value)
-        props['user'] = [request.principal] if request.principal else []
         return directory.create(props)
 
     @directory_command(method='GET')
@@ -199,12 +197,7 @@ class VolumeCommands(CommandsProcessor):
             return
 
         if url is not None:
-            _logger.info(_('Download BLOB for %r from %r'), prop.name, url)
-            stream = urllib2.urlopen(url)
-            try:
-                directory.set_blob(guid, prop.name, stream)
-            finally:
-                stream.close()
+            directory.set_blob(guid, prop.name, url)
         elif request.content is not None:
             # TODO Avoid double JSON processins
             content_stream = StringIO()
@@ -254,6 +247,9 @@ class VolumeCommands(CommandsProcessor):
 
         meta = doc.meta(prop)
         enforce(meta is not None, env.NotFound, _('BLOB does not exist'))
+
+        if 'url' in meta:
+            raise env.Redirect(meta['url'])
 
         seqno = _to_int('seqno', seqno)
         if seqno is not None and seqno >= meta['seqno']:

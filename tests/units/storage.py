@@ -86,7 +86,7 @@ class StorageTest(tests.Test):
 
         record = storage.get('guid1')
         self.touch(('file', 'data'))
-        record.set_blob('prop', 'file')
+        record.set_blob('prop', tests.tmpdir + '/file')
         self.assertEqual({
             'path': tests.tmpdir + '/gu/guid1/prop.blob',
             'mtime': os.stat('gu/guid1/prop').st_mtime,
@@ -99,7 +99,7 @@ class StorageTest(tests.Test):
         self.touch(('directory/1', '1'))
         self.touch(('directory/2/3', '3'))
         self.touch(('directory/2/4/5', '5'))
-        record.set_blob('prop', 'directory')
+        record.set_blob('prop', tests.tmpdir + '/directory')
         self.assertEqual({
             'path': tests.tmpdir + '/gu/guid2/prop.blob',
             'mtime': os.stat('gu/guid2/prop').st_mtime,
@@ -111,6 +111,18 @@ class StorageTest(tests.Test):
             },
             record.get('prop'))
         util.assert_call('diff -r directory gu/guid2/prop.blob', shell=True)
+
+    def test_Record_set_blob_ByUrl(self):
+        storage = self.storage([BlobProperty('prop')])
+
+        record = storage.get('guid1')
+        record.set_blob('prop', 'http://sugarlabs.org')
+        self.assertEqual({
+            'url': 'http://sugarlabs.org',
+            'mtime': os.stat('gu/guid1/prop').st_mtime,
+            },
+            record.get('prop'))
+        assert not exists('gu/guid1/prop.blob')
 
     def test_delete(self):
         storage = self.storage([StoredProperty('prop')])

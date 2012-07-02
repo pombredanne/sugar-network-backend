@@ -14,7 +14,7 @@ from __init__ import tests
 
 from active_document import env, volume, document, SingleVolume, \
         Request, Response, Document, active_property, \
-        BlobProperty, NotFound
+        BlobProperty, NotFound, Redirect
 from active_toolkit import sockets, coroutine
 
 
@@ -399,6 +399,16 @@ class VolumeTest(tests.Test):
         assert exists('bar/index')
         volume['bar'].find()
         volume.close()
+
+    def test_Command_GetBlobSetByUrl(self):
+        guid = self.call('POST', document='testdocument', content={})
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', url='http://sugarlabs.org')
+
+        try:
+            self.call('GET', document='testdocument', guid=guid, prop='blob')
+            assert False
+        except Redirect, redirect:
+            self.assertEqual('http://sugarlabs.org', redirect.location)
 
     def call(self, method, document=None, guid=None, prop=None,
             principal=None, accept_language=None, **kwargs):

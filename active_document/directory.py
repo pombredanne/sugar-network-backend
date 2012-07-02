@@ -19,7 +19,7 @@ import logging
 from os.path import exists, join
 from gettext import gettext as _
 
-from active_document import env
+from active_document import env, http
 from active_document.storage import Storage
 from active_document.metadata import Metadata, BlobProperty, BrowsableProperty
 from active_document.metadata import ActiveProperty, StoredProperty
@@ -206,7 +206,7 @@ class Directory(object):
         :param prop:
             BLOB property name
         :param data:
-            stream to read BLOB content or path to file to copy
+            stream to read BLOB content, path to file to copy, or, web url
         :param size:
             read only specified number of bytes; otherwise, read until the EOF
 
@@ -358,14 +358,20 @@ class Directory(object):
                     meta = doc.meta(name)
                     if meta is None:
                         continue
-                    if 'path' in meta:
-                        with file(meta['path'], 'rb') as f:
-                            item = {'guid': doc.guid,
-                                    'prop': name,
-                                    'mtime': meta['mtime'],
-                                    'digest': meta['digest'],
-                                    }
-                            yield item, f
+                    if isinstance(self.metadata[name], BlobProperty):
+                        header = {
+                                'guid': doc.guid,
+                                'prop': name,
+                                'mtime': meta['mtime'],
+                                }
+                        if 'digest' in meta:
+                            header['digest'] = meta['digest']
+                        if 'path' in meta:
+                            with file(meta['path'], 'rb') as f:
+                                yield header, f
+                        elif 'url' in meta:
+                            with http.download(meta['url']) as f:
+                                yield header, f
                     else:
                         diff[name] = {
                                 'value': meta['value'],
