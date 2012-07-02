@@ -11,7 +11,7 @@ from __init__ import tests
 import active_document as ad
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket
 from sugar_network.node.sync import Master
-from sugar_network.local.node_mount import NodeMount, _DEFAULT_MASTER
+from sugar_network.local.sync import NodeMount, _DEFAULT_MASTER
 from sugar_network.toolkit import sneakernet
 
 
@@ -317,6 +317,53 @@ class SyncTest(tests.Test):
             ],
             self.read_packets('sync'))
 
+    def test_Node_sync_session(self):
+        node = NodeMount(Volume({'document': Directory(diff=['0' * 100])}), None)
+        os.makedirs('sync')
+        node.publisher = lambda x: events.append(x)
+
+        self.override(os, 'statvfs', lambda x: Statvfs(50))
+
+        events = []
+        node.sync_session(['sync'])
+        self.assertEqual([
+            {'path': 'sync', 'event': 'sync'},
+            {'event': 'sync_continue'},
+            ],
+            events)
+        records = self.read_packets('sync')
+        self.assertEqual(1, len(records))
+        self.assertEqual('pull', records[0]['type'])
+        session = records[0]['session']
+
+        events = []
+        node.sync_session(['sync'])
+        self.assertEqual([
+            {'path': 'sync', 'event': 'sync'},
+            {'event': 'sync_continue'},
+            ],
+            events)
+        self.assertEqual([
+            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {}},
+            ],
+            self.read_packets('sync'))
+
+        self.override(os, 'statvfs', lambda x: Statvfs(150))
+
+        events = []
+        node.sync_session(['sync'])
+        self.assertEqual([
+            {'path': 'sync', 'event': 'sync'},
+            {'event': 'sync_complete'},
+            ],
+            events)
+        self.assertEqual([
+            {'type': 'pull', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'session': session, 'sequence': {}},
+            {'type': 'push', 'sender': tests.UID, 'receiver': _DEFAULT_MASTER, 'sequence': {'document': [[1, 1]]}, 'session': session},
+            {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 100},
+            ],
+            self.read_packets('sync'))
+
     def read_packets(self, path):
         result = []
         for filename in os.listdir(path):
@@ -348,11 +395,20 @@ class Directory(object):
         self._diff = diff or ['diff']
         self.document_class = None
 
-    def diff(self, seq):
+    def diff(self, seq, limit=None):
         seqno = seq[0][0]
-        for diff in self._diff:
-            yield [[seqno, seqno]], seqno, diff
-            seqno += 1
+        sequence = []
+
+        def patch(seqno):
+            for diff in self._diff:
+                yield {'guid': seqno}, diff
+                if sequence:
+                    sequence[-1] = seqno
+                else:
+                    sequence[:] = [seqno, seqno]
+                seqno += 1
+
+        return sequence, patch(seqno)
 
     def merge(self, *args):
         self.merged.append(args)
@@ -361,6 +417,15 @@ class Directory(object):
 
     def commit(self):
         pass
+
+
+class Statvfs(object):
+
+    f_bfree = 0
+    f_frsize = 1
+
+    def __init__(self, f_bfree):
+        self.f_bfree = f_bfree
 
 
 if __name__ == '__main__':

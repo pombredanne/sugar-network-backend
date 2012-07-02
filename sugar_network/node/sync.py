@@ -71,10 +71,15 @@ class Master(object):
         for document, directory in self.volume.items():
 
             def patch():
-                for seq, guid, diff in directory.diff(in_seq[document]):
-                    coroutine.dispatch()
-                    yield {'guid': guid, 'diff': diff}
-                    out_seq[document].include(seq)
+                seq, patch = directory.diff(in_seq[document])
+                try:
+                    for header, diff in patch:
+                        coroutine.dispatch()
+                        header['diff'] = diff
+                        yield header
+                finally:
+                    if seq:
+                        out_seq[document].include(*seq)
 
             directory.commit()
             try:

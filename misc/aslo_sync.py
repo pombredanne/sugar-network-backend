@@ -102,8 +102,8 @@ def main():
 def import_versions():
     rows = sqlexec("""
         SELECT
-            addons.status,
             addons.id,
+            addons.status,
             addons.guid,
             licenses.name,
             (select max(localized_string) from translations where
@@ -115,7 +115,8 @@ def import_versions():
             (select version from appversions where
                 id=applications_versions.min),
             (select version from appversions where
-                id=applications_versions.max)
+                id=applications_versions.max),
+            CONVERT(versions.version, DECIMAL)
         FROM addons
             INNER JOIN versions ON versions.addon_id=addons.id
             LEFT JOIN licenses ON licenses.id=versions.license_id
@@ -128,9 +129,16 @@ def import_versions():
             addons.status > 0 AND addons.status < 5
         """)
         #    AND addons.id = 4037
+
+    grouped_rows = {}
     for row in rows:
-        status, addon_id, bundle_id, license_id, alicense, release_date, \
-                releasenotes, filename, sugar_min, sugar_max = row
+        grouped = grouped_rows.get(row[0])
+        if grouped is None or grouped[-1] < row[-1]:
+            grouped_rows[row[0]] = row
+
+    for row in grouped_rows.values():
+        addon_id, status, bundle_id, license_id, alicense, release_date, \
+                releasenotes, filename, sugar_min, sugar_max, __ = row
         if [i for i in EXCLUDE_BUNDLE_IDS if i in bundle_id]:
             continue
 
@@ -288,9 +296,9 @@ def release_from_aslo(context_guid, url, sugar_min, sugar_max, stability,
     kwargs['context'] = context_guid
     kwargs['version'] = spec['version']
     kwargs['stability'] = stability
-    kwargs['url'] = url
     kwargs['user'] = ['aslo']
     impl_guid = volume['implementation'].create(kwargs)
+    volume['implementation'].set_blob(impl_guid, 'data', url)
 
     if not feed or spec['version'] >= max(feed.keys()):
         volume['context'].update(context_guid, {
@@ -324,7 +332,6 @@ def release_from_aslo(context_guid, url, sugar_min, sugar_max, stability,
             'stability': stability,
             'commands': spec.commands,
             'requires': spec.requires,
-            'url': url,
             'extract': bundle.extract,
             'size': os.stat(path).st_size,
             }

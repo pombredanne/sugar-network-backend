@@ -65,7 +65,7 @@ class _Mount(object):
             self.publisher(event)
 
 
-class LocalMount(_Mount):
+class _LocalMount(_Mount):
 
     volume = None
 
@@ -103,18 +103,21 @@ class LocalMount(_Mount):
         self.publish(event)
 
 
-class HomeMount(ad.ProxyCommands, LocalMount):
+class PrivateMount(ad.ProxyCommands, _LocalMount):
 
     def __init__(self, volume):
         ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
-        LocalMount.__init__(self, volume)
+        _LocalMount.__init__(self, volume)
+
+
+class HomeMount(PrivateMount):
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request=None):
         if document == 'context' and prop == 'feed':
             return json.dumps(self._get_feed(request))
         else:
-            return LocalMount.get_blob(self, document, guid, prop, request)
+            return _LocalMount.get_blob(self, document, guid, prop, request)
 
     @ad.document_command(method='GET')
     def get(self, document, guid, request, response, reply=None):
@@ -126,7 +129,6 @@ class HomeMount(ad.ProxyCommands, LocalMount):
                 'date': 0,
                 'stability': 'stable',
                 'notes': '',
-                'url': '',
                 }
 
     @ad.property_command(method='GET')
@@ -135,7 +137,7 @@ class HomeMount(ad.ProxyCommands, LocalMount):
             directory = self.volume[document]
             directory.metadata[prop].assert_access(ad.ACCESS_READ)
             return self._get_feed(request)
-        elif document == 'implementation' and prop == 'bundle':
+        elif document == 'implementation' and prop == 'data':
             path = activities.guid_to_path(guid)
             if not exists(path):
                 return None
@@ -191,10 +193,10 @@ class HomeMount(ad.ProxyCommands, LocalMount):
                 found_commons = True
 
             if found_commons:
-                # These local properties exposed from `ProxyCommands` as well
+                # These local properties exposed from `_ProxyCommands` as well
                 event['mountpoint'] = '*'
 
-        LocalMount._events_cb(self, event)
+        PrivateMount._events_cb(self, event)
 
     def _checkout(self, guid):
         for path in activities.checkins(guid):
@@ -220,7 +222,7 @@ class HomeMount(ad.ProxyCommands, LocalMount):
                 break
 
 
-class ProxyCommands(ad.CommandsProcessor):
+class _ProxyCommands(ad.CommandsProcessor):
 
     def __init__(self, home_volume):
         ad.CommandsProcessor.__init__(self)
@@ -299,10 +301,10 @@ class ProxyCommands(ad.CommandsProcessor):
         return result
 
 
-class RemoteMount(ProxyCommands, _Mount):
+class RemoteMount(_ProxyCommands, _Mount):
 
     def __init__(self, home_volume):
-        ProxyCommands.__init__(self, home_volume)
+        _ProxyCommands.__init__(self, home_volume)
         _Mount.__init__(self)
 
         self._seqno = {}
@@ -346,7 +348,7 @@ class RemoteMount(ProxyCommands, _Mount):
 
         def download(seqno):
             mime_type = http.download([document, guid, prop], blob_path, seqno,
-                    document == 'implementation' and prop == 'bundle')
+                    document == 'implementation' and prop == 'data')
             meta['mime_type'] = mime_type
             meta['seqno'] = self._seqno[document]
             meta['volume'] = self._remote_volume_guid
@@ -435,8 +437,14 @@ class RemoteMount(ProxyCommands, _Mount):
                 _Mount.set_mounted(self, False)
 
 
-class PrivateMount(ad.ProxyCommands, LocalMount):
+class LocalMount(_ProxyCommands, _LocalMount):
 
-    def __init__(self, volume):
-        ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
-        LocalMount.__init__(self, volume)
+    def __init__(self, volume, home_volume):
+        _ProxyCommands.__init__(self, home_volume)
+        _LocalMount.__init__(self, volume)
+
+        self.volume = volume
+        self._proxy = ad.VolumeCommands(volume)
+
+    def super_call(self, request, response):
+        return self._proxy.call(request, response)

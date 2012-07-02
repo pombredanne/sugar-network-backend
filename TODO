@@ -7,6 +7,7 @@
 - (?) avoid monitoring non activitis sweets
 - if webui startes from server, no way to pass webbrwosers's accept_langs to ad
 - move highlevel code from ad, eg, auth related
+- restrict sync content, especially for actiivity versions
 
 1.0
 ===

@@ -82,15 +82,15 @@ class InjectorTest(tests.Test):
             ('download', {'progress': -1}),
             ('failure', {
                 'log_path': tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context,
-                'error': 'Cannot download bundle',
+                'error': 'Cannot download implementation',
                 'mountpoint': '/',
                 'context': context,
                 }),
             ],
             [i for i in pipe])
-        os.unlink('cache/implementation/%s/%s/bundle.meta' % (impl[:2], impl))
+        os.unlink('cache/implementation/%s/%s/data.meta' % (impl[:2], impl))
 
-        blob_path = 'remote/implementation/%s/%s/bundle' % (impl[:2], impl)
+        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, '{}'))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('probe', 'probe')
@@ -103,8 +103,8 @@ class InjectorTest(tests.Test):
             ],
             [i for i in pipe])
 
-        assert exists('Activities/bundle/probe')
-        self.assertEqual('probe', file('Activities/bundle/probe').read())
+        assert exists('Activities/data/probe')
+        self.assertEqual('probe', file('Activities/data/probe').read())
 
     def test_launch_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
@@ -143,7 +143,7 @@ class InjectorTest(tests.Test):
                     })),
                 )
 
-        blob_path = 'remote/implementation/%s/%s/bundle' % (impl[:2], impl)
+        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, '{}'))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
@@ -214,7 +214,7 @@ class InjectorTest(tests.Test):
                     })),
                 )
 
-        blob_path = 'remote/implementation/%s/%s/bundle' % (impl_2[:2], impl_2)
+        blob_path = 'remote/implementation/%s/%s/data' % (impl_2[:2], impl_2)
         self.touch((blob_path, '{}'))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([

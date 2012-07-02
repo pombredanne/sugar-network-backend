@@ -3026,7 +3026,7 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#bundle#</dia:string>
+            <dia:string>#data#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
             <dia:string>#blob [R WN]#</dia:string>
@@ -3035,7 +3035,7 @@
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#Contain implementation bundle#</dia:string>
+            <dia:string>#Contain implementation data#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>

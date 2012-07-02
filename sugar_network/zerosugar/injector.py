@@ -220,8 +220,8 @@ def _make(context, command):
         _progress('download', progress=-1)
 
         impl = sel.client.Implementation(sel.id)
-        impl_path, __ = impl.get_blob_path('bundle')
-        enforce(impl_path, _('Cannot download bundle'))
+        impl_path, __ = impl.get_blob_path('data')
+        enforce(impl_path, _('Cannot download implementation'))
 
         dl = sel.download_sources[0]
         if dl.extract is not None:

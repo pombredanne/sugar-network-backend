@@ -55,13 +55,6 @@ class Implementation(Resource):
     def notes(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty,
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ, default='')
-    def url(self, value):
-        return value
-
     @ad.active_property(ad.BlobProperty)
-    def bundle(self, stat):
-        if self.url:
-            raise ad.Redirect(self.url)
+    def data(self, stat):
         return stat

@@ -254,6 +254,9 @@ class MutableStack(object):
     def __iter__(self):
         return _MutableStackIterator(self._queue)
 
+    def __repr__(self):
+        return str([i[1] for i in self._queue])
+
 
 class _MutableStackIterator(object):
 

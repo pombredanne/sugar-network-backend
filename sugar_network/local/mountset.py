@@ -26,8 +26,9 @@ from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_MOVED_TO, IN_MOVED_FROM
 from sugar_network import local, node
 from sugar_network.toolkit import sugar, zeroconf, netlink
-from sugar_network.toolkit.collection import MutableQueue
-from sugar_network.local.node_mount import NodeMount
+from sugar_network.toolkit.collection import MutableStack
+from sugar_network.local.sync import NodeMount
+from sugar_network.local.mounts import LocalMount
 from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.router import Router
@@ -57,7 +58,7 @@ class Mountset(dict, ad.CommandsProcessor):
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
         self._jobs = coroutine.Pool()
         self._servers = coroutine.ServersPool()
-        self._sync_dirs = MutableQueue()
+        self._sync_dirs = MutableStack()
         self._sync = coroutine.Pool()
 
     def __getitem__(self, mountpoint):
@@ -94,6 +95,9 @@ class Mountset(dict, ad.CommandsProcessor):
     def start_sync(self):
         if self._sync:
             return
+
+        enforce(self._sync_dirs, _('No mounts to synchronize with'))
+
         for mount in self.values():
             if isinstance(mount, NodeMount):
                 self._sync.spawn(mount.sync_session, self._sync_dirs)
@@ -230,8 +234,11 @@ class Mountset(dict, ad.CommandsProcessor):
         sn_path = join(path, _DB_DIRNAME)
         if isdir(sn_path):
             if path not in self:
-                volume = self._mount_volume(sn_path)
-                self[path] = NodeMount(volume, self.home_volume)
+                volume, server_mode = self._mount_volume(sn_path)
+                if server_mode:
+                    self[path] = NodeMount(volume, self.home_volume)
+                else:
+                    self[path] = LocalMount(volume, self.home_volume)
             return
 
     def _lost_mount(self, path):
@@ -274,4 +281,4 @@ class Mountset(dict, ad.CommandsProcessor):
                     node.subscribe_port.value)
             self._servers.spawn(subscriber)
 
-        return volume
+        return volume, server_mode

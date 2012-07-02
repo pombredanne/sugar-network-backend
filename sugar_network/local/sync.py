@@ -18,32 +18,31 @@ import json
 import logging
 import hashlib
 from os.path import join, exists
+from gettext import gettext as _
 
-import active_document as ad
 from sugar_network import local
 from sugar_network.toolkit import crypto, sugar, sneakernet
-from sugar_network.local.mounts import ProxyCommands, LocalMount
+from sugar_network.local.mounts import LocalMount
 from sugar_network.toolkit.collection import Sequences, PersistentSequences
-from active_toolkit import coroutine
+from active_toolkit import coroutine, util
 
 
 _DEFAULT_MASTER = '67bc1da07c5642b5dfd1ec713de2cce811e1b0ec'
+_DIFF_CHUNK = 1024
 
-_logger = logging.getLogger('local.node_mount')
+_logger = logging.getLogger('local.sync')
 
 
-class NodeMount(ProxyCommands, LocalMount):
+class NodeMount(LocalMount):
 
     def __init__(self, volume, home_volume):
-        ProxyCommands.__init__(self, home_volume)
-        LocalMount.__init__(self, volume)
+        LocalMount.__init__(self, volume, home_volume)
 
-        self.volume = volume
-        self._proxy = ad.VolumeCommands(volume)
         self._push_seq = PersistentSequences(
                 local.path('push.sequence'), [1, None])
         self._pull_seq = PersistentSequences(
                 local.path('pull.sequence'), [1, None])
+        self._sync_session = None
 
         self._node_guid = crypto.ensure_dsa_pubkey(
                 sugar.profile_path('owner.key'))
@@ -55,9 +54,6 @@ class NodeMount(ProxyCommands, LocalMount):
             self._master_guid = _DEFAULT_MASTER
             with file(master_guid_path, 'w') as f:
                 f.write(self._master_guid)
-
-    def super_call(self, request, response):
-        return self._proxy.call(request, response)
 
     def sync(self, path, accept_length=None, push_sequence=None, session=None):
         to_push_seq = Sequences(empty_value=[1, None])
@@ -99,7 +95,28 @@ class NodeMount(ProxyCommands, LocalMount):
                     break
 
     def sync_session(self, mounts):
-        pass
+        _logger.debug('Start synchronization session with %r session ' \
+                'for %r mounts', self._sync_session, mounts)
+
+        try:
+            for path in mounts:
+                self.publish({'event': 'sync', 'path': path})
+                self._sync_session = \
+                        self.sync(path, **(self._sync_session or {}))
+                if self._sync_session is None:
+                    break
+        except Exception, error:
+            util.exception(_logger, _('Failed to complete synchronization'))
+            self.publish({'event': 'sync_failed', 'error': str(error)})
+            return
+
+        if self._sync_session is None:
+            _logger.debug('Synchronization completed')
+            self.publish({'event': 'sync_complete'})
+        else:
+            _logger.debug('Pospone synchronization with %r session',
+                    self._sync_session)
+            self.publish({'event': 'sync_continue'})
 
     def _import(self, path, session):
         for packet in sneakernet.walk(path):
@@ -134,17 +151,27 @@ class NodeMount(ProxyCommands, LocalMount):
 
     def _export(self, to_push_seq, pushed_seq, packet):
         _logger.debug('Generating %r PUSH packet', packet)
+
         for document, directory in self.volume.items():
+            seq, diff = directory.diff(
+                    to_push_seq[document], limit=_DIFF_CHUNK)
 
-            def patch():
-                for seq, guid, diff in directory.diff(to_push_seq[document]):
+            def patch(diff):
+                for header, data in diff:
                     coroutine.dispatch()
-                    yield {'guid': guid, 'diff': diff}
-                    to_push_seq[document].exclude(seq)
-                    pushed_seq[document].include(seq)
+                    if hasattr(data, 'fileno'):
+                        packet.push_blob(data, document=document, **header)
+                    else:
+                        header['diff'] = data
+                        yield header
 
-            directory.commit()
-            packet.push_messages(patch(), document=document)
+            try:
+                directory.commit()
+                packet.push_messages(patch(diff), document=document)
+            finally:
+                if seq:
+                    to_push_seq[document].exclude(*seq)
+                    pushed_seq[document].include(*seq)
 
 
 def _volume_hash(volume):
