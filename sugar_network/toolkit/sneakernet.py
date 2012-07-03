@@ -15,6 +15,7 @@
 
 import os
 import json
+import time
 import tarfile
 import logging
 import tempfile
@@ -256,6 +257,7 @@ class OutPacket(object):
 
     def _addfile(self, arcname, data, force):
         info = tarfile.TarInfo(arcname)
+        info.mtime = time.time()
 
         if hasattr(data, 'fileno'):
             info.size = os.fstat(data.fileno()).st_size
