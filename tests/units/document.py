@@ -718,9 +718,11 @@ class DocumentTest(tests.Test):
         for i in os.listdir('document1/3/3'):
             os.utime('document1/3/3/%s' % i, (3, 3))
 
-        __, diff = directory1.diff(xrange(100), 2)
+        __, patch = directory1.diff(xrange(100), 2)
         directory2 = Directory('document2', Document, IndexWriter)
-        directory2.merge(diff)
+        seqno = None
+        for header, diff in patch:
+            seqno = directory2.merge(diff=diff, seqno=seqno, **header)
 
         self.assertEqual(
                 sorted([
@@ -796,8 +798,10 @@ class DocumentTest(tests.Test):
         self.assertEqual(2, doc.meta('blob')['mtime'])
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
 
-        __, diff = directory1.diff(xrange(100), 2)
-        directory2.merge(diff)
+        __, patch = directory1.diff(xrange(100), 2)
+        seqno = None
+        for header, diff in patch:
+            seqno = directory2.merge(diff=diff, seqno=seqno, **header)
 
         self.assertEqual(
                 [{'layer': ['public'], 'ctime': 2, 'user': [], 'mtime': 2, 'guid': 'guid'}],
@@ -813,8 +817,10 @@ class DocumentTest(tests.Test):
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
 
         os.utime('document1/gu/guid/mtime', (3, 3))
-        __, diff = directory1.diff(xrange(100), 2)
-        directory2.merge(diff)
+        __, patch = directory1.diff(xrange(100), 2)
+        seqno = None
+        for header, diff in patch:
+            seqno = directory2.merge(diff=diff, seqno=seqno, **header)
 
         self.assertEqual(
                 [{'layer': ['public'], 'ctime': 2, 'user': [], 'mtime': 1, 'guid': 'guid'}],
@@ -830,8 +836,10 @@ class DocumentTest(tests.Test):
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
 
         os.utime('document1/gu/guid/blob', (4, 4))
-        __, diff = directory1.diff(xrange(100), 2)
-        directory2.merge(diff)
+        __, patch = directory1.diff(xrange(100), 2)
+        seqno = None
+        for header, diff in patch:
+            seqno = directory2.merge(diff=diff, seqno=seqno, **header)
 
         self.assertEqual(
                 [{'layer': ['public'], 'ctime': 2, 'user': [], 'mtime': 1, 'guid': 'guid'}],

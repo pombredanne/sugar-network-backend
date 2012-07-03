@@ -291,38 +291,33 @@ class Directory(object):
             return ranges, []
         return ranges, self._diff(ranges, accept_range, limit)
 
-    def merge(self, diff, touch=True):
-        """Apply changes for documents.
-
-        :param diff:
-            document changes
-        :param touch:
-            if `True`, touch local mtime
-
-        """
+    def merge(self, guid, diff, increment_seqno=True, seqno=None, **kwargs):
+        """Apply changes for documents."""
+        record = self._storage.get(guid)
         common_props = {}
+        if increment_seqno and seqno is not None:
+            common_props['seqno'] = seqno
 
-        def merge(record, fun, **meta):
+        def merge(fun, **meta):
             orig_meta = record.get(meta['prop'])
             if orig_meta is not None and orig_meta['mtime'] >= meta['mtime']:
                 return False
-            if touch and not common_props:
+            if increment_seqno and not common_props:
                 common_props['seqno'] = self._next_seqno()
             meta.update(common_props)
             fun(**meta)
             return True
 
-        for header, data in diff:
-            guid = header.pop('guid')
-            record = self._storage.get(guid)
-            merged = False
-            if isinstance(data, dict):
-                for prop, meta in data.items():
-                    merged |= merge(record, record.set, prop=prop, **meta)
-            else:
-                merged |= merge(record, record.set_blob, data=data, **header)
-            if merged and record.consistent:
-                self._post(guid, common_props.copy(), False)
+        merged = False
+        if isinstance(diff, dict):
+            for prop, meta in diff.items():
+                merged |= merge(record.set, prop=prop, **meta)
+        else:
+            merged = merge(record.set_blob, data=diff, **kwargs)
+        if merged and record.consistent:
+            self._post(guid, common_props.copy(), False)
+
+        return common_props.get('seqno')
 
     def _diff(self, ranges, accept_range, limit):
         # To make fetching more reliable, avoid using intermediate
