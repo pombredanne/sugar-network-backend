@@ -13,6 +13,7 @@ from sugar_network.client import bus
 from sugar_network import Client, ServerError
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mountset import Mountset
+from sugar_network.resources.volume import Volume
 
 
 class IPCTest(tests.Test):
@@ -21,7 +22,7 @@ class IPCTest(tests.Test):
 
         def server():
             time.sleep(1)
-            volume = ad.SingleVolume('local', [])
+            volume = Volume('local', [])
             mounts = Mountset(volume)
             server = IPCServer(mounts)
             mounts.call = lambda *args: None

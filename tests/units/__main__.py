@@ -17,6 +17,7 @@ from mountset import *
 from node_mount import *
 from subscribe_socket import *
 from router import *
+from volume import *
 
 
 tests.main()

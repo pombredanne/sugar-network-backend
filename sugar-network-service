@@ -23,12 +23,13 @@ from gettext import gettext as _
 import active_document as ad
 import sugar_network_webui as webui
 
-from sugar_network import local, node, resources, Client
+from sugar_network import local, node, Client
 from sugar_network.toolkit import application, sugar, printf
 from sugar_network.local import activities
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
+from sugar_network.resources.volume import Volume
 from active_toolkit import optparse, coroutine, enforce
 
 
@@ -86,7 +87,7 @@ class Application(application.Daemon):
             uid = self.args.pop(0)
             sugar.uid = lambda: uid
 
-        volume = ad.SingleVolume(self._db_path, resources.DOCUMENTS)
+        volume = Volume(self._db_path)
         try:
             self._populate_index(volume)
             activities.populate(volume, local.activity_dirs.value, root)
@@ -118,8 +119,7 @@ class Application(application.Daemon):
         finished.wait()
 
     def run(self):
-        volume = ad.SingleVolume(self._db_path, resources.DOCUMENTS,
-                lazy_open=local.lazy_open.value)
+        volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
         mountset = Mountset(volume)
         mountset['~'] = HomeMount(volume)
         mountset['/'] = RemoteMount(volume)

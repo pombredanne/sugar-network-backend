@@ -11,6 +11,7 @@ from sugar_network.node import stats
 from sugar_network.node.commands import NodeCommands
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
+from sugar_network.resources.volume import Volume
 
 
 class NodeTest(tests.Test):
@@ -22,7 +23,7 @@ class NodeTest(tests.Test):
         stats.stats_step.value = 1
 
     def test_stats(self):
-        volume = ad.SingleVolume('db', [User])
+        volume = Volume('db', [User])
         cp = NodeCommands('master', volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
@@ -87,7 +88,7 @@ class NodeTest(tests.Test):
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
     def test_HandleDeletes(self):
-        volume = ad.SingleVolume('db', [User, Context])
+        volume = Volume('db', [User, Context])
         cp = NodeCommands('master', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -113,7 +114,7 @@ class NodeTest(tests.Test):
         self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
 
     def test_SetAuthor(self):
-        volume = ad.SingleVolume('db', [User, Context])
+        volume = Volume('db', [User, Context])
         cp = NodeCommands('master', volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={

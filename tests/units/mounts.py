@@ -24,6 +24,7 @@ from sugar_network.local.bus import IPCServer
 from sugar_network.toolkit import sugar, http, inotify
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
+from sugar_network.resources.volume import Volume
 
 
 class MountsTest(tests.Test):
@@ -441,7 +442,7 @@ class MountsTest(tests.Test):
 
     def test_OnlineConnect(self):
         pid = self.fork(self.restful_server)
-        volume = ad.SingleVolume('local', [User, Context])
+        volume = Volume('local', [User, Context])
         mounts = Mountset(volume)
         mounts['/'] = RemoteMount(volume)
         ipc_server = IPCServer(mounts)

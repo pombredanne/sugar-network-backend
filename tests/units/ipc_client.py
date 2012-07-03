@@ -14,6 +14,7 @@ from sugar_network.resources.context import Context
 from sugar_network.local.mounts import HomeMount
 from sugar_network.local.mountset import Mountset
 from sugar_network import Client
+from sugar_network.resources.volume import Volume
 
 
 class IPCClientTest(tests.Test):
@@ -302,7 +303,7 @@ class IPCClientTest(tests.Test):
         self.assertEqual('value', blob.read())
 
     def test_Direct(self):
-        volume = ad.SingleVolume('local', [User, Context])
+        volume = Volume('local', [User, Context])
         Client._connection = Mountset(volume)
         Client._connection['~'] = HomeMount(volume)
         Client._connection.open()

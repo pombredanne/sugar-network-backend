@@ -19,10 +19,8 @@ from gettext import gettext as _
 import active_document as ad
 from sugar_network.toolkit import sneakernet
 from sugar_network.toolkit.collection import Sequences
-from active_toolkit import coroutine, enforce
+from active_toolkit import enforce
 
-
-_DIFF_CHUNK = 1024
 
 _logger = logging.getLogger('node.sync')
 
@@ -49,11 +47,15 @@ class SyncCommands(object):
                 out_packet = sneakernet.OutPacket('ack')
                 out_packet.header['dst'] = packet.header['src']
                 out_packet.header['push_sequence'] = packet.header['sequence']
-                out_packet.header['pull_sequence'] = self._push(packet)
+                out_packet.header['pull_sequence'] = self.volume.merge(packet)
             elif packet.header.get('type') == 'pull':
                 out_packet = sneakernet.OutPacket('push', limit=accept_length)
-                out_packet.header['sequence'] = out_seq = Sequences()
-                self._pull(packet.header['sequence'], out_seq, out_packet)
+                out_seq = out_packet.header['sequence'] = Sequences()
+                try:
+                    in_seq = Sequences(packet.header['sequence'])
+                    self.volume.diff(in_seq, out_seq, out_packet)
+                except sneakernet.DiskFull:
+                    pass
             else:
                 raise RuntimeError(_('Unrecognized packet'))
 
@@ -64,34 +66,3 @@ class SyncCommands(object):
             out_packet.header['src'] = self._api_url
             content, response.content_length = out_packet.pop_content()
             return content
-
-    def _push(self, packet):
-        merged_seq = Sequences()
-        for msg in packet:
-            document = msg['document']
-            seqno = self.volume[document].merge(msg['guid'], msg['diff'])
-            merged_seq[document].include(seqno, seqno)
-        return merged_seq
-
-    def _pull(self, in_seq, out_seq, packet):
-        for document, directory in self.volume.items():
-
-            def patch():
-                seq, patch = directory.diff(in_seq[document],
-                        limit=_DIFF_CHUNK)
-                try:
-                    for header, diff in patch:
-                        coroutine.dispatch()
-                        header['diff'] = diff
-                        yield header
-                finally:
-                    if seq:
-                        out_seq[document].include(*seq)
-                    else:
-                        packet.clear()
-
-            directory.commit()
-            try:
-                packet.push_messages(patch(), document=document)
-            except sneakernet.DiskFull:
-                _logger.debug('Reach package size limit')

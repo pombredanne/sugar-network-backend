@@ -15,6 +15,7 @@ from sugar_network.local.bus import IPCServer
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network import local, Client, ServerError, sugar
+from sugar_network.resources.volume import Volume
 
 
 class NodeMountTest(tests.Test):
@@ -28,7 +29,7 @@ class NodeMountTest(tests.Test):
     def start_server(self):
         local.mounts_root.value = tests.tmpdir
 
-        volume = ad.SingleVolume('local', [User, Context])
+        volume = Volume('local', [User, Context])
         mounts = Mountset(volume)
         ipc_server = IPCServer(mounts)
         coroutine.spawn(ipc_server.serve_forever)

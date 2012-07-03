@@ -91,7 +91,7 @@ class InPacket(object):
             return relpath(self.path, join(self.path, '..', '..'))
 
     def __repr__(self):
-        return str(self.header)
+        return '<InPacket path=%r header=%r>' % (self.path, self.header)
 
     def __enter__(self):
         return self
@@ -154,6 +154,7 @@ class OutPacket(object):
         self._path = None
         self._size_to_flush = 0
         self._file_num = 0
+        self._empty = True
 
         if root is not None:
             root = join(root, packet_type)
@@ -184,8 +185,12 @@ class OutPacket(object):
     def closed(self):
         return self._tarball is None
 
+    @property
+    def empty(self):
+        return self._empty
+
     def __repr__(self):
-        return str(self.header)
+        return '<OutPacket path=%r header=%r>' % (self.path, self.header)
 
     def __enter__(self):
         return self
@@ -240,7 +245,9 @@ class OutPacket(object):
                         break
 
                 if not arcfile.tell():
-                    enforce(chunk is None, DiskFull)
+                    if chunk is not None:
+                        _logger.debug('Reach size limit for %r packet', self)
+                        raise DiskFull()
                     break
 
                 arcfile.seek(0)
@@ -262,6 +269,7 @@ class OutPacket(object):
             arcname = '%08d' % self._file_num
         self._addfile(arcname, data, False)
         self._addfile(arcname + '.meta', meta, True)
+        self._empty = False
 
     def _commit(self):
         self._addfile('header', self.header, True)
@@ -299,5 +307,7 @@ class OutPacket(object):
         else:
             free = self._limit - self._stream.tell()
         free -= _RESERVED_SIZE
-        enforce(free - size > 0, DiskFull)
+        if free - size <= 0:
+            _logger.debug('Reach size limit for %r packet', self)
+            raise DiskFull()
         return free

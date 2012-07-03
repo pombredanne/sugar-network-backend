@@ -188,9 +188,11 @@ class Sequence(list):
 
 class Sequences(dict):
 
-    def __init__(self, **kwargs):
+    def __init__(self, value=None, **kwargs):
         dict.__init__(self)
         self._new_item_kwargs = kwargs
+        if value:
+            self.update(value)
 
     def __getitem__(self, key):
         value = self.get(key)

@@ -16,7 +16,7 @@
 import active_document as ad
 
 from sugar_network import node
-from sugar_network.resources.resource import Resource
+from sugar_network.resources.volume import Resource
 
 
 class Comment(Resource):

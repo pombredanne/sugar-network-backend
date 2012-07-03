@@ -24,7 +24,7 @@ import active_document as ad
 
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_MOVED_TO, IN_MOVED_FROM
-from sugar_network import local, node, resources
+from sugar_network import local, node
 from sugar_network.toolkit import sugar, zeroconf, netlink
 from sugar_network.toolkit.collection import MutableStack
 from sugar_network.local.sync import NodeMount
@@ -32,6 +32,7 @@ from sugar_network.local.mounts import LocalMount
 from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.router import Router
+from sugar_network.resources.volume import Volume
 from active_toolkit import util, coroutine, enforce
 
 
@@ -271,8 +272,7 @@ class Mountset(dict, ad.CommandsProcessor):
             else:
                 lazy_open = False
 
-        volume = ad.SingleVolume(path, resources.DOCUMENTS,
-                lazy_open=lazy_open)
+        volume = Volume(path, lazy_open=lazy_open)
         self._jobs.spawn(volume.populate)
 
         if server_mode:

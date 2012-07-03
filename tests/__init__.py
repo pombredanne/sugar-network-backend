@@ -22,12 +22,13 @@ from sugar_network.toolkit import sugar, http, sneakernet
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
-from sugar_network import local, node, resources
+from sugar_network import local, node
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.node.router import Router
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.subscribe_socket import SubscribeSocket
+from sugar_network.resources.volume import Volume
 
 
 root = abspath(dirname(__file__))
@@ -74,7 +75,7 @@ class Test(unittest.TestCase):
         local.server_mode.value = False
         local.mounts_root.value = None
 
-        resources.DOCUMENTS = [
+        Volume.RESOURCES = [
                 'sugar_network.resources.user',
                 'sugar_network.resources.context',
                 ]
@@ -204,7 +205,7 @@ class Test(unittest.TestCase):
 
         if classes is None:
             classes = [User, Context]
-        volume = ad.SingleVolume('local', classes)
+        volume = Volume('local', classes)
         self.mounts = Mountset(volume)
         self.mounts['~'] = HomeMount(volume)
         self.mounts['/'] = RemoteMount(volume)
@@ -246,7 +247,7 @@ class Test(unittest.TestCase):
         ad.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
-        volume = ad.SingleVolume('remote', classes or [User, Context])
+        volume = Volume('remote', classes or [User, Context])
         subscriber = SubscribeSocket(volume, 'localhost', 8801)
         cp = NodeCommands('http://localhost:8800', volume, subscriber)
         httpd = coroutine.WSGIServer(('localhost', 8800), Router(cp))

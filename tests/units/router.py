@@ -11,6 +11,7 @@ from __init__ import tests
 import active_document as ad
 from sugar_network.node.router import Router, _Request, _parse_accept_language
 from active_toolkit import util
+from sugar_network.resources.volume import Volume
 
 
 class RouterTest(tests.Test):
@@ -188,7 +189,7 @@ class RouterTest(tests.Test):
         rest = tests.Request('http://localhost:8800')
         self.waitpid(pid)
 
-        with ad.SingleVolume(tests.tmpdir + '/remote', [User]) as documents:
+        with Volume(tests.tmpdir + '/remote', [User]) as documents:
             cp = ad.VolumeCommands(documents)
             router = Router(cp)
 

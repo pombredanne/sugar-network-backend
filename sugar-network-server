@@ -23,7 +23,7 @@ import active_document as ad
 import sugar_network_webui as webui
 from active_toolkit import optparse, coroutine
 
-from sugar_network import resources, node, local, Client
+from sugar_network import node, local, Client
 from sugar_network.local.mounts import LocalMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.mounts import LocalMount
@@ -31,6 +31,7 @@ from sugar_network.node import stats
 from sugar_network.node.router import Router
 from sugar_network.node.commands import MasterCommands
 from sugar_network.node.subscribe_socket import SubscribeSocket
+from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import application, sugar
 
 
@@ -46,7 +47,7 @@ class Application(application.Daemon):
         if node.certfile.value:
             ssl_args['certfile'] = node.certfile.value
 
-        volume = ad.SingleVolume(node.data_root.value, resources.DOCUMENTS)
+        volume = Volume(node.data_root.value)
         self.jobs.spawn(volume.populate)
         subscriber = SubscribeSocket(volume,
                 node.host.value, node.subscribe_port.value)

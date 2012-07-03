@@ -15,7 +15,7 @@
 
 import active_document as ad
 
-from sugar_network.resources.resource import Resource
+from sugar_network.resources.volume import Resource
 
 
 class Report(Resource):

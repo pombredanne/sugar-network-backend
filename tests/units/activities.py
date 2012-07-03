@@ -16,13 +16,14 @@ from sugar_network.local.mounts import HomeMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local import activities
 from sugar_network.toolkit import sugar
+from sugar_network.resources.volume import Volume
 
 
 class ActivitiesTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        volume = ad.SingleVolume('local', [User, Context])
+        volume = Volume('local', [User, Context])
         self.mounts = Mountset(volume)
         self.mounts['~'] = HomeMount(volume)
         self.mounts.open()

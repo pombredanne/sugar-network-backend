@@ -22,12 +22,10 @@ import active_document as ad
 from sugar_network.toolkit import crypto, sugar, sneakernet
 from sugar_network.local.mounts import LocalMount
 from sugar_network.toolkit.collection import Sequences, PersistentSequences
-from active_toolkit import coroutine, util
+from active_toolkit import util
 
 
 _DEFAULT_MASTER = 'http://api-testing.network.sugarlabs.org'
-
-_DIFF_CHUNK = 1024
 
 _logger = logging.getLogger('local.sync')
 
@@ -82,17 +80,19 @@ class NodeMount(LocalMount):
             with sneakernet.OutPacket('push', root=path, limit=accept_length,
                     src=self._node_guid, dst=self._master,
                     session=session) as packet:
-                packet.header['sequence'] = pushed_seq = Sequences()
+                _logger.debug('Generating %r PUSH packet to %r',
+                        packet, packet.path)
+                self.publish({
+                    'event': 'sync_progress',
+                    'progress': _('Generating %r PUSH packet') % \
+                            packet.basename,
+                    })
+
+                out_seq = packet.header['sequence'] = Sequences()
                 try:
-                    self._export(to_push_seq, pushed_seq, packet)
+                    self.volume.diff(to_push_seq, out_seq, packet)
                 except sneakernet.DiskFull:
-                    _logger.debug('Reach package size limit')
-                    if not pushed_seq:
-                        packet.clear()
                     return {'push_sequence': to_push_seq, 'session': session}
-                except Exception:
-                    packet.clear()
-                    raise
                 else:
                     break
 
@@ -130,9 +130,7 @@ class NodeMount(LocalMount):
                     })
                 _logger.debug('Processing %r PUSH packet from %r',
                         packet, packet.path)
-                for msg in packet:
-                    directory = self.volume[msg['document']]
-                    directory.merge(msg['guid'], msg['diff'])
+                self.volume.merge(packet, increment_seqno=False)
                 if packet.header.get('src') == self._master:
                     self._pull_seq.exclude(packet.header['sequence'])
 
@@ -160,35 +158,3 @@ class NodeMount(LocalMount):
 
             else:
                 _logger.debug('No need to process %r packet', packet)
-
-    def _export(self, to_push_seq, pushed_seq, packet):
-        self.publish({
-            'event': 'sync_progress',
-            'progress': _('Generating %r PUSH packet') % packet.basename,
-            })
-        _logger.debug('Generating %r PUSH packet to %r', packet, packet.path)
-
-        for document, directory in self.volume.items():
-            seq, diff = directory.diff(
-                    to_push_seq[document], limit=_DIFF_CHUNK)
-
-            def patch(diff):
-                for meta, data in diff:
-                    coroutine.dispatch()
-                    if hasattr(data, 'fileno'):
-                        packet.push_blob(data, document=document,
-                                arcname=join(document, 'blobs', meta['guid'],
-                                    meta['prop']),
-                                **meta)
-                    else:
-                        meta['diff'] = data
-                        yield meta
-
-            try:
-                directory.commit()
-                packet.push_messages(patch(diff), document=document,
-                        arcname=join(document, 'diff'))
-            finally:
-                if seq:
-                    to_push_seq[document].exclude(*seq)
-                    pushed_seq[document].include(*seq)
