@@ -23,8 +23,8 @@ from gettext import gettext as _
 import active_document as ad
 import sugar_network_webui as webui
 
-from sugar_network import local, node, Client
-from sugar_network.toolkit import application, sugar
+from sugar_network import local, node, resources, Client
+from sugar_network.toolkit import application, sugar, printf
 from sugar_network.local import activities
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
@@ -86,7 +86,7 @@ class Application(application.Daemon):
             uid = self.args.pop(0)
             sugar.uid = lambda: uid
 
-        volume = ad.SingleVolume(self._db_path, node.DOCUMENTS)
+        volume = ad.SingleVolume(self._db_path, resources.DOCUMENTS)
         try:
             self._populate_index(volume)
             activities.populate(volume, local.activity_dirs.value, root)
@@ -96,10 +96,29 @@ class Application(application.Daemon):
     @application.command(
             _('start synchronization with mount devices'))
     def sync(self):
-        Client.call('POST', cmd='start_sync')
+        finished = coroutine.Event()
+
+        def events_cb(event):
+            if event['event'] == 'sync_start':
+                printf.info(_('Synchronize with %(path)s directory') % event)
+            elif event['event'] == 'sync_progress':
+                printf.progress(event['progress'])
+            elif event['event'] == 'sync_continue':
+                printf.info(_('Mounted synchronization disk(s) is full, ' \
+                        'mount new one to %s'), local.mounts_root.value)
+            elif event['event'] == 'sync_error':
+                printf.info(_('Failed to sync, %(error)s') % event)
+            elif event['event'] == 'sync_complete':
+                finished.set()
+
+        Client.connect(events_cb)
+        coroutine.dispatch()
+
+        Client.call('POST', cmd='start_sync', rewind=True)
+        finished.wait()
 
     def run(self):
-        volume = ad.SingleVolume(self._db_path, node.DOCUMENTS,
+        volume = ad.SingleVolume(self._db_path, resources.DOCUMENTS,
                 lazy_open=local.lazy_open.value)
         mountset = Mountset(volume)
         mountset['~'] = HomeMount(volume)
@@ -160,7 +179,7 @@ node.trust_users.value = True
 optparse.Option.seek('main', [application.debug, application.foreground])
 optparse.Option.seek('webui', webui)
 optparse.Option.seek('local', local)
-optparse.Option.seek('node', [node.port, node.subscribe_port, node.auto_sync])
+optparse.Option.seek('node', [node.port, node.subscribe_port])
 optparse.Option.seek('active-document', ad)
 
 application = Application(

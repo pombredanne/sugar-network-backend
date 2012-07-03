@@ -21,11 +21,12 @@ import logging
 import tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
-from os.path import join, exists
+from os.path import join, exists, relpath
 from gettext import gettext as _
 
 import active_document as ad
-from active_toolkit import sockets, util, enforce
+from active_toolkit.sockets import BUFFER_SIZE
+from active_toolkit import util, enforce
 
 
 _RESERVED_SIZE = 1024 * 1024
@@ -62,7 +63,7 @@ class InPacket(object):
                 # tarfile/gzip/zip might require seeking
                 self._file = tempfile.TemporaryFile()
                 while True:
-                    chunk = stream.read(sockets.BUFFER_SIZE)
+                    chunk = stream.read(BUFFER_SIZE)
                     if not chunk:
                         self._file.flush()
                         self._file.seek(0)
@@ -81,13 +82,16 @@ class InPacket(object):
 
     @property
     def path(self):
-        if self._file is None:
-            return None
-        else:
+        if self._file is not None:
             return self._file.name
 
+    @property
+    def basename(self):
+        if self.path is not None:
+            return relpath(self.path, join(self.path, '..', '..'))
+
     def __repr__(self):
-        return str(self.path)
+        return str(self.header)
 
     def __enter__(self):
         return self
@@ -171,8 +175,13 @@ class OutPacket(object):
     def path(self):
         return self._path
 
+    @property
+    def basename(self):
+        if self._path is not None:
+            return relpath(self._path, join(self._path, '..', '..'))
+
     def __repr__(self):
-        return str(self.path)
+        return str(self.header)
 
     def __enter__(self):
         return self

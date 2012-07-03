@@ -22,6 +22,8 @@ from sugar_network.toolkit.collection import Sequences
 from active_toolkit import coroutine, enforce
 
 
+_DIFF_CHUNK = 1024
+
 _logger = logging.getLogger('node.sync')
 
 
@@ -71,7 +73,8 @@ class SyncCommands(object):
         for document, directory in self.volume.items():
 
             def patch():
-                seq, patch = directory.diff(in_seq[document])
+                seq, patch = directory.diff(in_seq[document],
+                        limit=_DIFF_CHUNK)
                 try:
                     for header, diff in patch:
                         coroutine.dispatch()

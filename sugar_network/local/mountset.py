@@ -86,7 +86,9 @@ class Mountset(dict, ad.CommandsProcessor):
 
     @ad.volume_command(method='GET', cmd='mounted')
     def mounted(self, mountpoint):
-        mount = self[mountpoint]
+        mount = self.get(mountpoint)
+        if mount is None:
+            return False
         if mountpoint == '/':
             mount.set_mounted(True)
         return mount.mounted
@@ -224,17 +226,19 @@ class Mountset(dict, ad.CommandsProcessor):
             _logger.info(_('Stop monitoring %r for mounts'), root)
 
     def _found_mount(self, path):
-        _logger.debug('Found %r mount', path)
-
         sync_path = join(path, _SYNC_DIRNAME)
         if isdir(sync_path):
             self._sync_dirs.add(sync_path)
-            if self._sync_dirs and self._servers:
+            if self._servers:
+                _logger.debug('Found sync %r mount', path)
                 self.start_sync()
+            else:
+                _logger.debug('Found sync %r mount but no servers', path)
             return
 
         sn_path = join(path, _DB_DIRNAME)
         if isdir(sn_path):
+            _logger.debug('Found server %r mount', path)
             if path not in self:
                 volume, server_mode = self._mount_volume(sn_path)
                 if server_mode:
@@ -242,6 +246,8 @@ class Mountset(dict, ad.CommandsProcessor):
                 else:
                     self[path] = LocalMount(volume, self.home_volume)
             return
+
+        _logger.debug('Ignore %r mount', path)
 
     def _lost_mount(self, path):
         _logger.debug('Lost %r mount', path)

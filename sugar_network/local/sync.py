@@ -102,15 +102,15 @@ class NodeMount(LocalMount):
 
         try:
             for path in mounts:
-                self.publish({'event': 'sync', 'path': path})
+                self.publish({'event': 'sync_start', 'path': path})
                 self._sync_session = \
                         self.sync(path, **(self._sync_session or {}))
                 if self._sync_session is None:
                     break
         except Exception, error:
             util.exception(_logger, _('Failed to complete synchronization'))
-            self.publish({'event': 'sync_failed', 'error': str(error)})
-            return
+            self.publish({'event': 'sync_error', 'error': str(error)})
+            self._sync_session = None
 
         if self._sync_session is None:
             _logger.debug('Synchronization completed')
@@ -124,7 +124,12 @@ class NodeMount(LocalMount):
         for packet in sneakernet.walk(path):
             if packet.header.get('type') == 'push' and \
                     packet.header.get('src') != self._node_guid:
-                _logger.debug('Processing %r PUSH packet', packet)
+                self.publish({
+                    'event': 'sync_progress',
+                    'progress': _('Reading %r PUSH packet') % packet.basename,
+                    })
+                _logger.debug('Processing %r PUSH packet from %r',
+                        packet, packet.path)
                 for msg in packet:
                     directory = self.volume[msg['document']]
                     directory.merge(msg['guid'], msg['diff'])
@@ -134,7 +139,12 @@ class NodeMount(LocalMount):
             elif packet.header.get('type') == 'ack' and \
                     packet.header.get('src') == self._master and \
                     packet.header.get('dst') == self._node_guid:
-                _logger.debug('Processing %r ACK packet', packet)
+                self.publish({
+                    'event': 'sync_progress',
+                    'progress': _('Reading %r ACK packet') % packet.basename,
+                    })
+                _logger.debug('Processing %r ACK packet from %r',
+                        packet, packet.path)
                 self._push_seq.exclude(packet.header['push_sequence'])
                 self._pull_seq.exclude(packet.header['pull_sequence'])
                 _logger.debug('Remove processed %r ACK packet', packet)
@@ -152,7 +162,11 @@ class NodeMount(LocalMount):
                 _logger.debug('No need to process %r packet', packet)
 
     def _export(self, to_push_seq, pushed_seq, packet):
-        _logger.debug('Generating %r PUSH packet', packet)
+        self.publish({
+            'event': 'sync_progress',
+            'progress': _('Generating %r PUSH packet') % packet.basename,
+            })
+        _logger.debug('Generating %r PUSH packet to %r', packet, packet.path)
 
         for document, directory in self.volume.items():
             seq, diff = directory.diff(
