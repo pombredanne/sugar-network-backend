@@ -25,6 +25,7 @@ from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import node
+from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, enforce
 
 
@@ -79,14 +80,17 @@ class Router(object):
                           }
                 response.content_type = 'application/json'
 
-        if not isinstance(result, types.GeneratorType) and \
-                response.content_type == 'application/json':
+        if hasattr(result, 'read'):
+            result = _stream_reader(result)
+        result_streamed = isinstance(result, types.GeneratorType)
+
+        if not result_streamed and response.content_type == 'application/json':
             result = json.dumps(result)
             response.content_length = len(result)
 
         start_response(response.status, response.items())
 
-        if isinstance(result, types.GeneratorType):
+        if result_streamed:
             for i in result:
                 yield i
         else:
@@ -212,3 +216,11 @@ def _parse_accept_language(accept_language):
         langs.insert(len(langs) - index, lang)
 
     return langs
+
+
+def _stream_reader(stream):
+    while True:
+        chunk = stream.read(BUFFER_SIZE)
+        if not chunk:
+            break
+        yield chunk

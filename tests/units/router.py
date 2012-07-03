@@ -4,6 +4,7 @@
 import time
 import hashlib
 import tempfile
+from cStringIO import StringIO
 
 from __init__ import tests
 
@@ -115,6 +116,24 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 {'foo': None},
                 rest.get('/document/' + guid + '/json'))
+
+    def test_StreamedResponse(self):
+
+        class CommandsProcessor(ad.CommandsProcessor):
+
+            @ad.volume_command()
+            def get_stream(self, response):
+                return StringIO('stream')
+
+        cp = CommandsProcessor()
+        router = Router(cp)
+
+        response = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda *args: None)
+        self.assertEqual('stream', ''.join([i for i in response]))
 
     def test_Register(self):
         self.fork(self.restful_server, [User, Document])
