@@ -154,7 +154,7 @@ class OutPacket(object):
             root = join(root, packet_type)
             if not exists(root):
                 os.makedirs(root)
-            self._path = join(root, '%s.packet' % ad.uuid())
+            self._path = join(root, '%s.%s.packet' % (ad.uuid(), packet_type))
             self._file = stream = file(self._path, 'w')
         else:
             limit = min(_MAX_PACKET_SIZE, limit or _MAX_PACKET_SIZE)

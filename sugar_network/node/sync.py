@@ -36,16 +36,16 @@ class Master(object):
     def sync(self, request, response, accept_length=None):
         _logger.debug('Pushing %s bytes length packet', request.content_length)
         with sneakernet.InPacket(stream=request) as packet:
-            enforce('sender' in packet.header and \
-                    packet.header['sender'] != self._guid,
+            enforce('src' in packet.header and \
+                    packet.header['src'] != self._guid,
                     _('Misaddressed packet'))
-            enforce('receiver' in packet.header and \
-                    packet.header['receiver'] == self._guid,
+            enforce('dst' in packet.header and \
+                    packet.header['dst'] == self._guid,
                     _('Misaddressed packet'))
 
             if packet.header.get('type') == 'push':
                 out_packet = sneakernet.OutPacket('ack')
-                out_packet.header['receiver'] = packet.header['sender']
+                out_packet.header['dst'] = packet.header['src']
                 out_packet.header['push_sequence'] = packet.header['sequence']
                 out_packet.header['pull_sequence'] = self._push(packet)
             elif packet.header.get('type') == 'pull':
@@ -55,7 +55,7 @@ class Master(object):
             else:
                 raise RuntimeError(_('Unrecognized packet'))
 
-            out_packet.header['sender'] = self._guid
+            out_packet.header['src'] = self._guid
             content, response.content_length = out_packet.pop_content()
             return content
 

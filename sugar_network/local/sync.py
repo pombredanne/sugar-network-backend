@@ -25,7 +25,8 @@ from sugar_network.toolkit.collection import Sequences, PersistentSequences
 from active_toolkit import coroutine, util
 
 
-_DEFAULT_MASTER = '67bc1da07c5642b5dfd1ec713de2cce811e1b0ec'
+_DEFAULT_MASTER = 'http://api-testing.network.sugarlabs.org'
+
 _DIFF_CHUNK = 1024
 
 _logger = logging.getLogger('local.sync')
@@ -44,14 +45,15 @@ class NodeMount(LocalMount):
 
         self._node_guid = crypto.ensure_dsa_pubkey(
                 sugar.profile_path('owner.key'))
-        master_guid_path = join(volume.root, 'master')
-        if exists(master_guid_path):
-            with file(master_guid_path) as f:
-                self._master_guid = f.read().strip()
+
+        master_path = join(volume.root, 'master')
+        if exists(master_path):
+            with file(master_path) as f:
+                self._master = f.read().strip()
         else:
-            self._master_guid = _DEFAULT_MASTER
-            with file(master_guid_path, 'w') as f:
-                f.write(self._master_guid)
+            self._master = _DEFAULT_MASTER
+            with file(master_path, 'w') as f:
+                f.write(self._master)
 
     def sync(self, path, accept_length=None, push_sequence=None, session=None):
         to_push_seq = Sequences(empty_value=[1, None])
@@ -73,12 +75,12 @@ class NodeMount(LocalMount):
 
             if session_is_new:
                 with sneakernet.OutPacket('pull', root=path,
-                        sender=self._node_guid, receiver=self._master_guid,
+                        src=self._node_guid, dst=self._master,
                         session=session) as packet:
                     packet.header['sequence'] = self._pull_seq
 
             with sneakernet.OutPacket('push', root=path, limit=accept_length,
-                    sender=self._node_guid, receiver=self._master_guid,
+                    src=self._node_guid, dst=self._master,
                     session=session) as packet:
                 packet.header['sequence'] = pushed_seq = Sequences()
                 try:
@@ -121,17 +123,17 @@ class NodeMount(LocalMount):
     def _import(self, path, session):
         for packet in sneakernet.walk(path):
             if packet.header.get('type') == 'push' and \
-                    packet.header.get('sender') != self._node_guid:
+                    packet.header.get('src') != self._node_guid:
                 _logger.debug('Processing %r PUSH packet', packet)
                 for msg in packet:
                     directory = self.volume[msg['document']]
                     directory.merge(msg['guid'], msg['diff'])
-                if packet.header.get('sender') == self._master_guid:
+                if packet.header.get('src') == self._master:
                     self._pull_seq.exclude(packet.header['sequence'])
 
             elif packet.header.get('type') == 'ack' and \
-                    packet.header.get('sender') == self._master_guid and \
-                    packet.header.get('receiver') == self._node_guid:
+                    packet.header.get('src') == self._master and \
+                    packet.header.get('dst') == self._node_guid:
                 _logger.debug('Processing %r ACK packet', packet)
                 self._push_seq.exclude(packet.header['push_sequence'])
                 self._pull_seq.exclude(packet.header['pull_sequence'])
@@ -139,7 +141,7 @@ class NodeMount(LocalMount):
                 os.unlink(packet.path)
 
             elif packet.header.get('type') in ('push', 'pull') and \
-                    packet.header.get('sender') == self._node_guid:
+                    packet.header.get('src') == self._node_guid:
                 if packet.header.get('session') == session:
                     _logger.debug('Keep current session %r packet', packet)
                 else:

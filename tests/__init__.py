@@ -22,7 +22,7 @@ from sugar_network.toolkit import sugar, http, sneakernet
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
-from sugar_network import local, node
+from sugar_network import local, node, resources
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.node.router import Router
@@ -75,7 +75,7 @@ class Test(unittest.TestCase):
         local.mounts_root.value = None
 
         node.privkey.value = join(profile_dir, 'owner.key')
-        node.DOCUMENTS = [
+        resources.DOCUMENTS = [
                 'sugar_network.resources.user',
                 'sugar_network.resources.context',
                 ]
