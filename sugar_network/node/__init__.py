@@ -62,19 +62,10 @@ data_root = optparse.Option(
                 'data and indexes'),
         default='/var/lib/sugar-network/db', name='data_root')
 
-master = optparse.Option(
-        _('is server a master or a node'),
-        default=False, type_cast=optparse.Option.bool_cast,
-        action='store_true', name='master')
-
 master_url = optparse.Option(
-        _('if server is a node, url to connect to master\'s api site'),
-        default='http://api.network.sugarlabs.org', name='master_url')
-
-privkey = optparse.Option(
-        _('path to DSA private key to identify the server; pubkey will use ' \
-                'path composed by adding ".pub" suffix'),
-        default='/etc/sugar-network-server/id_dsa', name='privkey')
+        _('master API url to share with nodes; ' \
+                'if omitted, node is not a master'),
+        name='master-url')
 
 only_sync_notification = optparse.Option(
         _('subscribers can be notified only with "sync" events; ' \
@@ -82,13 +73,6 @@ only_sync_notification = optparse.Option(
                 'server and clients'),
         default=False, type_cast=optparse.Option.bool_cast,
         action='store_true')
-
-auto_sync = optparse.Option(
-        _('monitor --mounts-root directory for mounts, and, after getting ' \
-                'new mount with sugar-network-sync/ directory in its root, ' \
-                'start synchronization automatically'),
-        default=False, type_cast=optparse.Option.bool_cast,
-        action='store_true', name='auto-sync')
 
 
 class HTTPStatus(Exception):

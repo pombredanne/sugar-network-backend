@@ -74,7 +74,6 @@ class Test(unittest.TestCase):
         local.server_mode.value = False
         local.mounts_root.value = None
 
-        node.privkey.value = join(profile_dir, 'owner.key')
         resources.DOCUMENTS = [
                 'sugar_network.resources.user',
                 'sugar_network.resources.context',
@@ -249,7 +248,7 @@ class Test(unittest.TestCase):
 
         volume = ad.SingleVolume('remote', classes or [User, Context])
         subscriber = SubscribeSocket(volume, 'localhost', 8801)
-        cp = NodeCommands(node.privkey.value, volume, subscriber)
+        cp = NodeCommands('http://localhost:8800', volume, subscriber)
         httpd = coroutine.WSGIServer(('localhost', 8800), Router(cp))
         try:
             coroutine.joinall([

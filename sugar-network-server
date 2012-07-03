@@ -23,13 +23,13 @@ import active_document as ad
 import sugar_network_webui as webui
 from active_toolkit import optparse, coroutine
 
-from sugar_network import node, local, Client
+from sugar_network import resources, node, local, Client
 from sugar_network.local.mounts import LocalMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.mounts import LocalMount
 from sugar_network.node import stats
 from sugar_network.node.router import Router
-from sugar_network.node.commands import NodeCommands
+from sugar_network.node.commands import MasterCommands
 from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.toolkit import application, sugar
 
@@ -46,11 +46,11 @@ class Application(application.Daemon):
         if node.certfile.value:
             ssl_args['certfile'] = node.certfile.value
 
-        volume = ad.SingleVolume(node.data_root.value, node.DOCUMENTS)
+        volume = ad.SingleVolume(node.data_root.value, resources.DOCUMENTS)
         self.jobs.spawn(volume.populate)
         subscriber = SubscribeSocket(volume,
                 node.host.value, node.subscribe_port.value)
-        cp = NodeCommands(volume, subscriber)
+        cp = MasterCommands(node.master_url.value, volume, subscriber)
 
         logging.info(_('Listening for requests on %s:%s'),
                 node.host.value, node.port.value)
@@ -91,7 +91,6 @@ locale.setlocale(locale.LC_ALL, '')
 
 optparse.Option.seek('main', application)
 optparse.Option.seek('webui', webui)
-optparse.Option.seek('local', [local.api_url])
 optparse.Option.seek('node', node)
 optparse.Option.seek('stats', stats)
 optparse.Option.seek('active-document', ad)

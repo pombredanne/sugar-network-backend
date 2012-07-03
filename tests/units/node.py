@@ -7,7 +7,7 @@ from os.path import exists
 from __init__ import tests
 
 import active_document as ad
-from sugar_network.node import stats, privkey
+from sugar_network.node import stats
 from sugar_network.node.commands import NodeCommands
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
@@ -23,7 +23,7 @@ class NodeTest(tests.Test):
 
     def test_stats(self):
         volume = ad.SingleVolume('db', [User])
-        cp = NodeCommands(privkey.value, volume)
+        cp = NodeCommands('master', volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
             'name': 'user',
@@ -88,7 +88,7 @@ class NodeTest(tests.Test):
 
     def test_HandleDeletes(self):
         volume = ad.SingleVolume('db', [User, Context])
-        cp = NodeCommands(privkey.value, volume)
+        cp = NodeCommands('master', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
@@ -114,7 +114,7 @@ class NodeTest(tests.Test):
 
     def test_SetAuthor(self):
         volume = ad.SingleVolume('db', [User, Context])
-        cp = NodeCommands(privkey.value, volume)
+        cp = NodeCommands('master', volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
             'name': 'user1',

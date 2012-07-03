@@ -24,7 +24,7 @@ from sugar_network.toolkit import sugar
 
 api_url = optparse.Option(
         _('url to connect to Sugar Network server API'),
-        default='http://18.85.44.120:8000', short_option='-a',
+        default='http://api-testing.network.sugarlabs.org', short_option='-a',
         name='api-url')
 
 certfile = optparse.Option(

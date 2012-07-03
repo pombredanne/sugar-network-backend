@@ -10,7 +10,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket
-from sugar_network.node.sync import Master
+from sugar_network.node.sync import SyncCommands
 from sugar_network.local.sync import NodeMount, _DEFAULT_MASTER
 from sugar_network.toolkit import sneakernet
 
@@ -27,7 +27,7 @@ class SyncTest(tests.Test):
         return str(self.uuid)
 
     def test_Master_MisaddressedPacket(self):
-        master = Master('master')
+        master = SyncCommands('master')
         master.volume = Volume({})
         response = ad.Response()
 
@@ -72,7 +72,7 @@ class SyncTest(tests.Test):
         self.assertRaises(RuntimeError, master.sync, request, response)
 
     def test_Master_PushPacket(self):
-        master = Master('master')
+        master = SyncCommands('master')
         master.volume = Volume({'document': Directory()})
         request = ad.Request()
         response = ad.Response()
@@ -102,7 +102,7 @@ class SyncTest(tests.Test):
         self.assertEqual({'document': [[1, 3]]}, packet.header['pull_sequence'])
 
     def test_Master_PullPacket(self):
-        master = Master('master')
+        master = SyncCommands('master')
         master.volume = Volume({'document': Directory()})
         request = ad.Request()
         response = ad.Response()
@@ -121,7 +121,7 @@ class SyncTest(tests.Test):
             self.read_packet(InPacket(stream=reply)))
 
     def test_Master_LimittedPull(self):
-        master = Master('master')
+        master = SyncCommands('master')
         master.volume = Volume({'document': Directory(diff=['0' * 1024] * 10)})
         response = ad.Response()
 

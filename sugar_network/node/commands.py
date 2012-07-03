@@ -14,11 +14,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+from os.path import exists, join
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network import node
-from sugar_network.toolkit import crypto
+from sugar_network.node.sync import SyncCommands
 from active_toolkit import enforce
 
 
@@ -27,10 +27,22 @@ _logger = logging.getLogger('node.commands')
 
 class NodeCommands(ad.ProxyCommands):
 
-    def __init__(self, keypath, volume, subscriber=None):
+    def __init__(self, master_url, volume, subscriber=None):
         ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
         self._subscriber = subscriber
-        self._guid = crypto.ensure_dsa_pubkey(keypath)
+        self._is_master = bool(master_url)
+
+        if self._is_master:
+            self._guid = master_url
+        else:
+            guid_path = join(volume.root, 'node')
+            if exists(guid_path):
+                with file(guid_path) as f:
+                    self._guid = f.read().strip()
+            else:
+                self._guid = ad.uuid()
+                with file(guid_path, 'w') as f:
+                    f.write(self._guid)
 
     @ad.volume_command(method='GET')
     def hello(self, response):
@@ -45,7 +57,7 @@ class NodeCommands(ad.ProxyCommands):
                     'seqno': directory.seqno,
                     }
         return {'guid': self._guid,
-                'master': node.master.value,
+                'master': self._is_master,
                 'documents': documents,
                 }
 
@@ -99,6 +111,13 @@ class NodeCommands(ad.ProxyCommands):
             if user['name']:
                 authors.append(user['name'])
         props['author'] = authors
+
+
+class MasterCommands(NodeCommands, SyncCommands):
+
+    def __init__(self, master_url, volume, subscriber=None):
+        NodeCommands.__init__(self, master_url, volume, subscriber)
+        SyncCommands.__init__(self, master_url)
 
 
 _HELLO_HTML = """\

@@ -25,22 +25,22 @@ from active_toolkit import coroutine, enforce
 _logger = logging.getLogger('node.sync')
 
 
-class Master(object):
+class SyncCommands(object):
 
     volume = None
 
-    def __init__(self, guid):
-        self._guid = guid
+    def __init__(self, api_url):
+        self._api_url = api_url
 
     @ad.volume_command(method='POST', cmd='sync')
     def sync(self, request, response, accept_length=None):
         _logger.debug('Pushing %s bytes length packet', request.content_length)
         with sneakernet.InPacket(stream=request) as packet:
             enforce('src' in packet.header and \
-                    packet.header['src'] != self._guid,
+                    packet.header['src'] != self._api_url,
                     _('Misaddressed packet'))
             enforce('dst' in packet.header and \
-                    packet.header['dst'] == self._guid,
+                    packet.header['dst'] == self._api_url,
                     _('Misaddressed packet'))
 
             if packet.header.get('type') == 'push':
@@ -55,7 +55,7 @@ class Master(object):
             else:
                 raise RuntimeError(_('Unrecognized packet'))
 
-            out_packet.header['src'] = self._guid
+            out_packet.header['src'] = self._api_url
             content, response.content_length = out_packet.pop_content()
             return content
 
