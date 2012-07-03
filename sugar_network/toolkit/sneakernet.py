@@ -180,6 +180,10 @@ class OutPacket(object):
         if self._path is not None:
             return relpath(self._path, join(self._path, '..', '..'))
 
+    @property
+    def closed(self):
+        return self._tarball is None
+
     def __repr__(self):
         return str(self.header)
 

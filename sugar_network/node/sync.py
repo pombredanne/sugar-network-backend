@@ -57,6 +57,10 @@ class SyncCommands(object):
             else:
                 raise RuntimeError(_('Unrecognized packet'))
 
+            if out_packet.closed:
+                response.content_type = 'application/octet-stream'
+                return
+
             out_packet.header['src'] = self._api_url
             content, response.content_length = out_packet.pop_content()
             return content
@@ -83,6 +87,8 @@ class SyncCommands(object):
                 finally:
                     if seq:
                         out_seq[document].include(*seq)
+                    else:
+                        packet.clear()
 
             directory.commit()
             try:

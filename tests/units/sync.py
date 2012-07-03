@@ -120,9 +120,24 @@ class SyncTest(tests.Test):
             ],
             self.read_packet(InPacket(stream=reply)))
 
+    def test_Master_AvoidEmptyPacketsOnPull(self):
+        master = SyncCommands('master')
+        master.volume = Volume({'document': Directory([])})
+        request = ad.Request()
+        response = ad.Response()
+
+        packet = OutPacket('pull',
+                src='node',
+                dst='master',
+                sequence={'document': [[1, None]]})
+        request.content_stream, request.content_length = packet.pop_content()
+
+        reply = master.sync(request, response)
+        self.assertEqual(None, reply)
+
     def test_Master_LimittedPull(self):
         master = SyncCommands('master')
-        master.volume = Volume({'document': Directory(diff=['0' * 1024] * 10)})
+        master.volume = Volume({'document': Directory(diff=['0' * 100] * 10)})
         response = ad.Response()
 
         def rewind():
@@ -135,26 +150,19 @@ class SyncTest(tests.Test):
             return request
 
         request = rewind()
-        reply = master.sync(request, response, accept_length=1024)
-        self.assertEqual([
-            {'type': 'push', 'src': 'master', 'sequence': {}},
-            ],
-            self.read_packet(InPacket(stream=reply)))
-
-        request = rewind()
-        reply = master.sync(request, response, accept_length=1024 * 2)
+        reply = master.sync(request, response, accept_length=100 * 2)
         self.assertEqual([
             {'type': 'push', 'src': 'master', 'sequence': {'document': [[1, 1]]}},
-            {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 1024},
+            {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 100},
             ],
             self.read_packet(InPacket(stream=reply)))
 
         request = rewind()
-        reply = master.sync(request, response, accept_length=1024 * 3)
+        reply = master.sync(request, response, accept_length=100 * 3)
         self.assertEqual([
             {'type': 'push', 'src': 'master', 'sequence': {'document': [[1, 2]]}},
-            {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 1024},
-            {'type': 'messages', 'document': 'document', 'guid': 2, 'diff': '0' * 1024},
+            {'type': 'messages', 'document': 'document', 'guid': 1, 'diff': '0' * 100},
+            {'type': 'messages', 'document': 'document', 'guid': 2, 'diff': '0' * 100},
             ],
             self.read_packet(InPacket(stream=reply)))
 
@@ -396,7 +404,7 @@ class Directory(object):
     def __init__(self, diff=None):
         self.seqno = 0
         self.merged = []
-        self._diff = diff or ['diff']
+        self._diff = ['diff'] if diff is None else diff
         self.document_class = None
 
     def diff(self, seq, limit=None):

@@ -135,6 +135,37 @@ class RouterTest(tests.Test):
             lambda *args: None)
         self.assertEqual('stream', ''.join([i for i in response]))
 
+    def test_EmptyResponse(self):
+
+        class CommandsProcessor(ad.CommandsProcessor):
+
+            @ad.volume_command(cmd='1', mime_type='application/octet-stream')
+            def get_binary(self, response):
+                pass
+
+            @ad.volume_command(cmd='2')
+            def get_json(self, response):
+                pass
+
+        cp = CommandsProcessor()
+        router = Router(cp)
+
+        response = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'cmd=1',
+            },
+            lambda *args: None)
+        self.assertEqual('', ''.join([i for i in response]))
+
+        response = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'cmd=2',
+            },
+            lambda *args: None)
+        self.assertEqual('null', ''.join([i for i in response]))
+
     def test_Register(self):
         self.fork(self.restful_server, [User, Document])
 

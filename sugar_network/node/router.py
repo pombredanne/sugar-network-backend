@@ -93,7 +93,7 @@ class Router(object):
         if result_streamed:
             for i in result:
                 yield i
-        else:
+        elif result is not None:
             yield result
 
     def _authenticate(self, request):
