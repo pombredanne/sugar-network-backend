@@ -84,12 +84,13 @@ class Application(application.Daemon):
             local.local_root.value = root + local.local_root.value
 
         if self.args:
-            uid = self.args.pop(0)
-            sugar.uid = lambda: uid
+            user = self.args.pop(0)
+            sugar.uid = lambda: user
+            sugar.nickname = lambda: user
 
         volume = Volume(self._db_path)
         try:
-            self._populate_index(volume)
+            volume.populate()
             activities.populate(volume, local.activity_dirs.value, root)
         finally:
             volume.close()
@@ -130,7 +131,7 @@ class Application(application.Daemon):
             logging.info(_('Proceed delayed start'))
 
             jobs.spawn(activities.monitor, volume, local.activity_dirs.value)
-            jobs.spawn(self._populate_index, volume)
+            jobs.spawn(volume.populate)
 
             if webui.webui.value:
                 # Point clients to `mountset` directly passing over IPC
@@ -162,11 +163,6 @@ class Application(application.Daemon):
     @property
     def _db_path(self):
         return join(local.local_root.value, 'local')
-
-    def _populate_index(self, volume):
-        for cls in volume.values():
-            for __ in cls.populate():
-                coroutine.dispatch()
 
 
 locale.setlocale(locale.LC_ALL, '')
