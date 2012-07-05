@@ -313,7 +313,10 @@ class Directory(object):
             for prop, meta in diff.items():
                 merged |= merge(record.set, prop=prop, **meta)
         else:
-            merged = merge(record.set_blob, data=diff, **kwargs)
+            merged = merge(record.set_blob, prop=kwargs['prop'], data=diff,
+                    mime_type=kwargs.get('mime_type'),
+                    digest=kwargs.get('digest'),
+                    mtime=kwargs.get('mtime'))
         if merged and record.consistent:
             self._post(guid, common_props.copy(), False)
 
@@ -353,6 +356,8 @@ class Directory(object):
                         header = {
                                 'guid': doc.guid,
                                 'prop': name,
+                                'mime_type': meta['mime_type'],
+                                'digest': meta.get('digest'),
                                 'mtime': meta['mtime'],
                                 }
                         if 'digest' in meta:

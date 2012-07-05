@@ -584,7 +584,7 @@ class DocumentTest(tests.Test):
 
         sequence, diff = directory.diff(xrange(100), 2)
         self.assertEqual([
-            ({'guid': '1', 'prop': 'blob', 'mtime': 1, 'digest': hashlib.sha1('1').hexdigest()}, '1'),
+            ({'guid': '1', 'prop': 'blob', 'mtime': 1, 'digest': hashlib.sha1('1').hexdigest(), 'mime_type': 'application/octet-stream'}, '1'),
             ({'guid': '1'}, {
                 'guid': {'value': '1', 'mtime': 1},
                 'layer': {'value': ['public'], 'mtime': 1},
@@ -592,7 +592,7 @@ class DocumentTest(tests.Test):
                 'prop': {'value': '1', 'mtime': 1},
                 'mtime': {'value': 1, 'mtime': 1},
                 'user': {'value': [], 'mtime': 1}}),
-            ({'guid': '2', 'prop': 'blob', 'mtime': 2, 'digest': hashlib.sha1('2').hexdigest()}, '2'),
+            ({'guid': '2', 'prop': 'blob', 'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream'}, '2'),
             ({'guid': '2'}, {
                 'guid': {'value': '2', 'mtime': 2},
                 'layer': {'value': ['public'], 'mtime': 2},
@@ -613,7 +613,7 @@ class DocumentTest(tests.Test):
 
         sequence, diff = directory.diff([3, 4], 2)
         self.assertEqual([
-            ({'guid': '2', 'prop': 'blob', 'mtime': 2, 'digest': hashlib.sha1('2').hexdigest()}, '2'),
+            ({'guid': '2', 'prop': 'blob', 'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream'}, '2'),
             ({'guid': '2'}, {
                 'guid': {'value': '2', 'mtime': 2},
                 'layer': {'value': ['public'], 'mtime': 2},
@@ -650,7 +650,7 @@ class DocumentTest(tests.Test):
         data = urllib2.urlopen('http://sugarlabs.org').read()
         __, diff = directory.diff(xrange(100), 2)
         self.assertEqual([
-            ({'guid': '1', 'prop': 'blob', 'mtime': 1}, data),
+            ({'guid': '1', 'prop': 'blob', 'mtime': 1, 'digest': None, 'mime_type': 'application/octet-stream'}, data),
             ({'guid': '1'}, {
                 'guid': {'value': '1', 'mtime': 1},
                 'layer': {'value': ['public'], 'mtime': 1},
