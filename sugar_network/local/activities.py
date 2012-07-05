@@ -96,11 +96,13 @@ class _Monitor(object):
         else:
             _logger.debug('Register unknown local activity, %r', context)
 
+            mtime = os.stat(impl_path).st_mtime
             directory.create(guid=context, type='activity',
                     title={DEFAULT_LANG: spec['name']},
                     summary={DEFAULT_LANG: spec['summary']},
                     description={DEFAULT_LANG: spec['description']},
-                    keep_impl=2, user=[sugar.uid()])
+                    keep_impl=2, user=[sugar.uid()], author=[sugar.nickname()],
+                    ctime=mtime, mtime=mtime)
 
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):
