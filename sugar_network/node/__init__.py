@@ -85,3 +85,9 @@ class HTTPStatus(Exception):
 class BadRequest(HTTPStatus):
 
     status = '400 Bad Request'
+
+
+class Unauthorized(HTTPStatus):
+
+    status = '401 Unauthorized'
+    headers = {'WWW-Authenticate': 'Sugar'}

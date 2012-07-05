@@ -1,3 +1,4 @@
+- check if moon icon is uptodate
 - reuse the same data dir for all SN resources for the same context
 - GC BLOBs cache
 - synchronize local "keep" resources

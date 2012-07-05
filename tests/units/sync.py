@@ -11,8 +11,8 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket
-from sugar_network.node.sync import SyncCommands
-from sugar_network.local.sync import NodeMount, _DEFAULT_MASTER
+from sugar_network.node.commands import MasterCommands
+from sugar_network.local.mounts import NodeMount, _DEFAULT_MASTER
 from sugar_network.toolkit import sneakernet
 from sugar_network.toolkit.collection import Sequences
 from sugar_network.resources.volume import Volume
@@ -25,7 +25,6 @@ class SyncTest(tests.Test):
         tests.Test.setUp(self)
         self.uuid = 0
         self.override(ad, 'uuid', self.next_uuid)
-        self.override(time, 'time', lambda: -1)
 
     def new_volume(self, root):
 
@@ -42,8 +41,7 @@ class SyncTest(tests.Test):
         return str(self.uuid)
 
     def test_Master_MisaddressedPacket(self):
-        master = SyncCommands('master')
-        master.volume = self.new_volume('db')
+        master = MasterCommands('master', self.new_volume('db'))
         response = ad.Response()
 
         packet = OutPacket('push')
@@ -87,8 +85,7 @@ class SyncTest(tests.Test):
         self.assertRaises(RuntimeError, master.sync, request, response)
 
     def test_Master_PushPacket(self):
-        master = SyncCommands('master')
-        master.volume = self.new_volume('db')
+        master = MasterCommands('master', self.new_volume('db'))
         request = ad.Request()
         response = ad.Response()
 
@@ -115,13 +112,12 @@ class SyncTest(tests.Test):
         self.assertEqual({'document': [[1, 1]]}, packet.header['pull_sequence'])
 
     def test_Master_PullPacket(self):
-        master = SyncCommands('master')
-        master.volume = self.new_volume('db')
+        master = MasterCommands('master', self.new_volume('db'))
         request = ad.Request()
         response = ad.Response()
 
-        master.volume['document'].create_with_guid('1', {})
-        master.volume['document'].create_with_guid('2', {})
+        master.volume['document'].create(guid='1')
+        master.volume['document'].create(guid='2')
 
         packet = OutPacket('pull',
                 src='node',
@@ -136,24 +132,23 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/1/1/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/1/1/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             {'type': 'messages', 'document': 'document', 'guid': '2', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/2/2/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/2/2/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             ],
             self.read_packet(InPacket(stream=reply)))
 
     def test_Master_AvoidEmptyPacketsOnPull(self):
-        master = SyncCommands('master')
-        master.volume = self.new_volume('db')
+        master = MasterCommands('master', self.new_volume('db'))
         request = ad.Request()
         response = ad.Response()
 
@@ -167,12 +162,11 @@ class SyncTest(tests.Test):
         self.assertEqual(None, reply)
 
     def test_Master_LimittedPull(self):
-        master = SyncCommands('master')
-        master.volume = self.new_volume('db')
+        master = MasterCommands('master', self.new_volume('db'))
         response = ad.Response()
 
-        master.volume['document'].create_with_guid('1', {'prop': '*' * 1024})
-        master.volume['document'].create_with_guid('2', {'prop': '*' * 1024})
+        master.volume['document'].create(guid='1', prop='*' * 1024)
+        master.volume['document'].create(guid='2', prop='*' * 1024)
 
         def rewind():
             request = ad.Request()
@@ -191,8 +185,8 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/1/1/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/1/1/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             ],
@@ -206,16 +200,16 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/1/1/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/1/1/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             {'type': 'messages', 'document': 'document', 'guid': '2', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/2/2/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/2/2/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
             ],
@@ -224,8 +218,8 @@ class SyncTest(tests.Test):
     def test_Node_Export(self):
         node = NodeMount(self.new_volume('db'), None)
 
-        node.volume['document'].create_with_guid('1', {'prop': 'value1'})
-        node.volume['document'].create_with_guid('2', {'prop': 'value2'})
+        node.volume['document'].create(guid='1', prop='value1')
+        node.volume['document'].create(guid='2', prop='value2')
 
         node.sync('sync')
         self.assertEqual([
@@ -235,16 +229,16 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/1/1/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/1/1/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': 'value1',    'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             {'type': 'messages', 'document': 'document', 'guid': '2', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/2/2/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/2/2/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
                 'prop':  {'value': 'value2',    'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
             ],
@@ -259,7 +253,7 @@ class SyncTest(tests.Test):
     def test_Node_Export_NoPullForExistingSession(self):
         node = NodeMount(self.new_volume('db'), None)
 
-        node.volume['document'].create_with_guid('1', {})
+        node.volume['document'].create(guid='1')
 
         node.sync('sync', session='session')
         self.assertEqual([
@@ -268,8 +262,8 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/1/1/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/1/1/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             ],
@@ -339,7 +333,7 @@ class SyncTest(tests.Test):
 
     def test_Node_Import_DoNotDeletePacketsFromCurrentSession(self):
         node = NodeMount(self.new_volume('db'), None)
-        node.volume['document'].create_with_guid('1', {})
+        node.volume['document'].create(guid='1')
 
         existing_push = OutPacket('push', root='sync',
                 src=tests.UID,
@@ -362,12 +356,12 @@ class SyncTest(tests.Test):
     def test_Node_LimittedExport(self):
         node = NodeMount(self.new_volume('db'), None)
 
-        node.volume['document'].create_with_guid('1', {'prop': '*' * 1024})
-        node.volume['document'].create_with_guid('2', {'prop': '*' * 1024})
-        node.volume['document'].create_with_guid('3', {'prop': '*' * 1024})
-        node.volume['document'].create_with_guid('4', {'prop': '*' * 1024})
-        node.volume['document'].create_with_guid('5', {'prop': '*' * 1024})
-        node.volume['document'].create_with_guid('6', {'prop': '*' * 1024})
+        node.volume['document'].create(guid='1', prop='*' * 1024)
+        node.volume['document'].create(guid='2', prop='*' * 1024)
+        node.volume['document'].create(guid='3', prop='*' * 1024)
+        node.volume['document'].create(guid='4', prop='*' * 1024)
+        node.volume['document'].create(guid='5', prop='*' * 1024)
+        node.volume['document'].create(guid='6', prop='*' * 1024)
 
         kwargs = node.sync('sync', accept_length=1024, session=0)
         self.assertEqual(0, kwargs['session'])
@@ -386,8 +380,8 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/1/1/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/1/1/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             ],
@@ -401,16 +395,16 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/2/2/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/2/2/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
             {'type': 'messages', 'document': 'document', 'guid': '3', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/3/3/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/3/3/layer').st_mtime},
                 'guid':  {'value': '3',         'mtime': os.stat('db/document/3/3/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/3/3/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/3/3/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/3/3/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/3/3/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/3/3/prop').st_mtime},
                 }},
             ],
@@ -424,24 +418,24 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/4/4/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/4/4/layer').st_mtime},
                 'guid':  {'value': '4',         'mtime': os.stat('db/document/4/4/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/4/4/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/4/4/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/4/4/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/4/4/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/4/4/prop').st_mtime},
                 }},
             {'type': 'messages', 'document': 'document', 'guid': '5', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/5/5/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/5/5/layer').st_mtime},
                 'guid':  {'value': '5',         'mtime': os.stat('db/document/5/5/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/5/5/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/5/5/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/5/5/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/5/5/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/5/5/prop').st_mtime},
                 }},
             {'type': 'messages', 'document': 'document', 'guid': '6', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/6/6/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/6/6/layer').st_mtime},
                 'guid':  {'value': '6',         'mtime': os.stat('db/document/6/6/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/6/6/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/6/6/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/6/6/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/6/6/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/6/6/prop').st_mtime},
                 }},
             ],
@@ -449,7 +443,7 @@ class SyncTest(tests.Test):
 
     def test_Node_sync_session(self):
         node = NodeMount(self.new_volume('db'), None)
-        node.volume['document'].create_with_guid('1', {'prop': '*' * 1024})
+        node.volume['document'].create(guid='1', prop='*' * 1024)
         coroutine.dispatch()
 
         node.publisher = lambda x: events.append(x)
@@ -498,8 +492,8 @@ class SyncTest(tests.Test):
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
-                'ctime': {'value': -1,          'mtime': os.stat('db/document/1/1/ctime').st_mtime},
-                'mtime': {'value': -1,          'mtime': os.stat('db/document/1/1/mtime').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             ],

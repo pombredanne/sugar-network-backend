@@ -27,8 +27,7 @@ from sugar_network.toolkit.inotify import Inotify, \
 from sugar_network import local, node
 from sugar_network.toolkit import sugar, zeroconf, netlink
 from sugar_network.toolkit.collection import MutableStack
-from sugar_network.local.sync import NodeMount
-from sugar_network.local.mounts import LocalMount
+from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.router import Router
@@ -245,7 +244,7 @@ class Mountset(dict, ad.CommandsProcessor):
                 if server_mode:
                     self[path] = NodeMount(volume, self.home_volume)
                 else:
-                    self[path] = LocalMount(volume, self.home_volume)
+                    self[path] = LocalMount(volume)
             return
 
         _logger.debug('Ignore %r mount', path)

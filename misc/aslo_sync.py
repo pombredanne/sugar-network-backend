@@ -64,37 +64,26 @@ volume = None
 
 def main():
     if not volume['context'].exists(SN_GUID):
-        volume['context'].create_with_guid(SN_GUID, {
-            'type': 'application',
-            'title': 'Sugar Network',
-            'summary': 'Sugar Network',
-            'description': 'Sugar Network',
-            'user': ['aslo'],
-            })
+        volume['context'].create(guid=SN_GUID, type='application',
+                title='Sugar Network', summary='Sugar Network',
+                description='Sugar Network', user=['aslo'],
+                layer=['public'], ctime=time.time(), mtime=time.time())
 
     if not volume['context'].exists(SUGAR_GUID):
-        volume['context'].create_with_guid(SUGAR_GUID, {
-            'type': 'application',
-            'title': 'Sugar',
-            'summary': 'Sugar',
-            'description': 'Sugar',
-            'user': ['aslo'],
-            })
+        volume['context'].create(guid=SUGAR_GUID, type='application',
+                title='Sugar', summary='Sugar', description='Sugar',
+                user=['aslo'],
+                layer=['public'], ctime=time.time(), mtime=time.time())
 
     for version in ['0.82', '0.84', '0.86', '0.88', '0.90', '0.92',
             '0.94', '0.96']:
         guid = '%s-%s' % (SUGAR_GUID, version)
         if volume['context'].exists(guid):
             continue
-        volume['implementation'].create_with_guid(guid, {
-            'context': SUGAR_GUID,
-            'license': ['GPLv3+'],
-            'version': version,
-            'date': 0,
-            'stability': 'stable',
-            'notes': '',
-            'user': ['aslo'],
-            })
+        volume['implementation'].create(guid=guid, context=SUGAR_GUID,
+                license=['GPLv3+'], version=version, date=0,
+                stability='stable', notes='', user=['aslo'],
+                layer=['public'], ctime=time.time(), mtime=time.time())
 
     import_versions()
 
@@ -230,17 +219,11 @@ def context_new(addon_id, bundle_id):
     if name:
         authors.append(name)
 
-    volume['context'].create_with_guid(bundle_id, {
-        'type': 'activity',
-        'implement': bundle_id,
-        'title': title,
-        'summary': summary or title,
-        'description': description or title,
-        'homepage': homepage or '',
-        'tags': list(tags),
-        'user': ['aslo'],
-        'author': authors,
-        })
+    volume['context'].create(guid=bundle_id, type='activity',
+            implement=bundle_id, title=title, summary=summary or title,
+            description=description or title, homepage=homepage or '',
+            tags=list(tags), user= ['aslo'], author=authors,
+            layer=['public'], ctime=time.time(), mtime=time.time())
 
     if icondata:
         volume['context'].set_blob(bundle_id, 'icon', StringIO(icondata))

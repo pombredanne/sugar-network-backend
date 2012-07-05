@@ -23,11 +23,14 @@ from gettext import gettext as _
 
 import sweets_recipe
 import active_document as ad
-from sugar_network.toolkit import http
+from sugar_network.toolkit.collection import Sequences, PersistentSequences
+from sugar_network.toolkit import crypto, sugar, sneakernet, http
 from sugar_network.local import activities
 from sugar_network import local, checkin, sugar
 from active_toolkit import sockets, util, coroutine, enforce
 
+
+_DEFAULT_MASTER = 'http://api-testing.network.sugarlabs.org'
 
 _LOCAL_PROPS = {
         'keep': False,
@@ -65,20 +68,13 @@ class _Mount(object):
             self.publisher(event)
 
 
-class _LocalMount(_Mount):
-
-    volume = None
+class LocalMount(ad.VolumeCommands, _Mount):
 
     def __init__(self, volume):
+        ad.VolumeCommands.__init__(self, volume)
         _Mount.__init__(self)
-        volume.connect(self._events_cb)
 
-    @ad.directory_command(method='POST',
-            permissions=ad.ACCESS_AUTH)
-    def create(self, document, request):
-        request.content['user'] = [sugar.uid()]
-        request.content['author'] = [sugar.nickname()]
-        raise ad.CommandNotFound()
+        volume.connect(self._events_cb)
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request=None):
@@ -97,42 +93,28 @@ class _LocalMount(_Mount):
             if pass_ownership and exists(path):
                 os.unlink(path)
 
+    def before_create(self, request, props):
+        props['user'] = [sugar.uid()]
+        props['author'] = [sugar.nickname()]
+        ad.VolumeCommands.before_create(self, request, props)
+
     def _events_cb(self, event):
         if 'mountpoint' not in event:
             event['mountpoint'] = self.mountpoint
         self.publish(event)
 
 
-class PrivateMount(ad.ProxyCommands, _LocalMount):
-
-    def __init__(self, volume):
-        ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
-        _LocalMount.__init__(self, volume)
-
-
-class HomeMount(PrivateMount):
+class HomeMount(LocalMount):
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request=None):
         if document == 'context' and prop == 'feed':
             return json.dumps(self._get_feed(request))
         else:
-            return _LocalMount.get_blob(self, document, guid, prop, request)
-
-    @ad.document_command(method='GET')
-    def get(self, document, guid, request, response, reply=None):
-        enforce(document == 'implementation', ad.CommandNotFound)
-        return {'guid': guid,
-                'context': '',
-                'license': '',
-                'version': '',
-                'date': 0,
-                'stability': 'stable',
-                'notes': '',
-                }
+            return LocalMount.get_blob(self, document, guid, prop, request)
 
     @ad.property_command(method='GET')
-    def get_prop(self, document, guid, prop, request, response):
+    def get_prop(self, document, guid, prop, request, response, seqno=None):
         if document == 'context' and prop == 'feed':
             directory = self.volume[document]
             directory.metadata[prop].assert_access(ad.ACCESS_READ)
@@ -146,7 +128,8 @@ class HomeMount(PrivateMount):
             response.content_type = dir_info.content_type
             return dir_reader
         else:
-            raise ad.CommandNotFound()
+            return LocalMount.get_prop(self, document, guid, prop, request,
+                    response, seqno)
 
     def _get_feed(self, request):
         feed = {}
@@ -193,10 +176,10 @@ class HomeMount(PrivateMount):
                 found_commons = True
 
             if found_commons:
-                # These local properties exposed from `_ProxyCommands` as well
+                # These local properties exposed from `_proxy_call` as well
                 event['mountpoint'] = '*'
 
-        PrivateMount._events_cb(self, event)
+        LocalMount._events_cb(self, event)
 
     def _checkout(self, guid):
         for path in activities.checkins(guid):
@@ -222,91 +205,13 @@ class HomeMount(PrivateMount):
                 break
 
 
-class _ProxyCommands(ad.CommandsProcessor):
+class RemoteMount(ad.CommandsProcessor, _Mount):
 
     def __init__(self, home_volume):
         ad.CommandsProcessor.__init__(self)
-        self.home_volume = home_volume
-
-    def super_call(self, request, response):
-        raise NotImplementedError()
-
-    def call(self, request, response):
-        try:
-            return ad.CommandsProcessor.call(self, request, response)
-        except ad.CommandNotFound:
-            pass
-
-        patch = {}
-        result = None
-        command = request['method'], request.get('cmd')
-        document = request['document']
-        guid = request.get('guid')
-
-        if document == 'context':
-            if command == ('GET', None):
-                if 'reply' in request:
-                    reply = request.get('reply', [])[:]
-                    for prop, default in _LOCAL_PROPS.items():
-                        if prop in reply:
-                            patch[prop] = default
-                            reply.remove(prop)
-                    request['reply'] = reply
-            elif command in (('POST', None), ('PUT', None)):
-                for prop in _LOCAL_PROPS.keys():
-                    if prop in request.content:
-                        patch[prop] = request.content.pop(prop)
-                if not request.content:
-                    result = guid
-
-        if result is None:
-            result = self.super_call(request, response)
-
-        if document == 'context' and patch:
-            directory = self.home_volume['context']
-            if command == ('GET', None):
-                if guid:
-                    if directory.exists(guid):
-                        to_patch = directory.get(guid).properties(patch.keys())
-                    else:
-                        to_patch = patch
-                    result.update(to_patch)
-                else:
-                    for props in result['result']:
-                        if directory.exists(props['guid']):
-                            to_patch = directory.get(props['guid']).properties(
-                                    patch.keys())
-                        else:
-                            to_patch = patch
-                        props.update(to_patch)
-            else:
-                if command == ('POST', None):
-                    guid = result
-                if directory.exists(guid):
-                    directory.update(guid, patch)
-                elif [True for prop, value in patch.items() if value]:
-                    clone_request = ad.Request(method='GET',
-                            document='context', guid=guid)
-                    clone_request.accept_language = request.accept_language
-                    props = self.super_call(clone_request, ad.Response())
-                    props.update(patch)
-                    props['user'] = [sugar.uid()]
-                    directory.create_with_guid(guid, props)
-                    for prop in ('icon', 'artifact_icon', 'preview'):
-                        # pylint: disable-msg=E1101
-                        blob = self.get_blob('context', guid, prop)
-                        if blob:
-                            directory.set_blob(guid, prop, blob['path'])
-
-        return result
-
-
-class RemoteMount(_ProxyCommands, _Mount):
-
-    def __init__(self, home_volume):
-        _ProxyCommands.__init__(self, home_volume)
         _Mount.__init__(self)
 
+        self._home_volume = home_volume
         self._seqno = {}
         self._remote_volume_guid = None
         self._api_urls = []
@@ -314,30 +219,40 @@ class RemoteMount(_ProxyCommands, _Mount):
             self._api_urls.append(local.api_url.value)
         self._connections = coroutine.Pool()
 
+    def call(self, request, response):
+
+        def super_call(request, response):
+            try:
+                return ad.CommandsProcessor.call(self, request, response)
+            except ad.CommandNotFound:
+                pass
+
+            method = request.pop('method')
+            document = request.pop('document')
+            guid = request.pop('guid') if 'guid' in request else None
+            prop = request.pop('prop') if 'prop' in request else None
+
+            path = [document]
+            if guid:
+                path.append(guid)
+            if prop:
+                path.append(prop)
+
+            return http.request(method, path, data=request.content,
+                    params=request, headers={
+                        'Content-Type': 'application/json',
+                        'Accept-Language': ','.join(request.accept_language),
+                        })
+
+        return _proxy_call(self._home_volume, request, response, super_call,
+                self.get_blob)
+
     def set_mounted(self, value):
         if value != self.mounted:
             if value:
                 self.mount()
             else:
                 self._connections.kill()
-
-    def super_call(self, request, response):
-        method = request.pop('method')
-        document = request.pop('document')
-        guid = request.pop('guid') if 'guid' in request else None
-        prop = request.pop('prop') if 'prop' in request else None
-
-        path = [document]
-        if guid:
-            path.append(guid)
-        if prop:
-            path.append(prop)
-
-        return http.request(method, path, data=request.content, params=request,
-                headers={
-                    'Content-Type': 'application/json',
-                    'Accept-Language': ','.join(request.accept_language),
-                    })
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop):
@@ -437,14 +352,200 @@ class RemoteMount(_ProxyCommands, _Mount):
                 _Mount.set_mounted(self, False)
 
 
-class LocalMount(_ProxyCommands, _LocalMount):
+class NodeMount(LocalMount):
 
     def __init__(self, volume, home_volume):
-        _ProxyCommands.__init__(self, home_volume)
-        _LocalMount.__init__(self, volume)
+        LocalMount.__init__(self, volume)
 
-        self.volume = volume
-        self._proxy = ad.VolumeCommands(volume)
+        self._home_volume = home_volume
+        self._push_seq = PersistentSequences(
+                join(volume.root, 'push.sequence'), [1, None], volume.keys())
+        self._pull_seq = PersistentSequences(
+                join(volume.root, 'pull.sequence'), [1, None], volume.keys())
+        self._sync_session = None
 
-    def super_call(self, request, response):
-        return self._proxy.call(request, response)
+        self._node_guid = crypto.ensure_dsa_pubkey(
+                sugar.profile_path('owner.key'))
+
+        master_path = join(volume.root, 'master')
+        if exists(master_path):
+            with file(master_path) as f:
+                self._master = f.read().strip()
+        else:
+            self._master = _DEFAULT_MASTER
+            with file(master_path, 'w') as f:
+                f.write(self._master)
+
+    def call(self, request, response):
+        return _proxy_call(self._home_volume, request, response,
+                super(NodeMount, self).call, self.get_blob)
+
+    def sync(self, path, accept_length=None, push_sequence=None, session=None):
+        to_push_seq = Sequences(empty_value=[1, None])
+        if push_sequence is None:
+            to_push_seq.update(self._push_seq)
+        else:
+            to_push_seq.update(push_sequence)
+
+        if session is None:
+            session_is_new = True
+            session = ad.uuid()
+        else:
+            session_is_new = False
+
+        while True:
+            self._import(path, session)
+            self._push_seq.commit()
+            self._pull_seq.commit()
+
+            if session_is_new:
+                with sneakernet.OutPacket('pull', root=path,
+                        src=self._node_guid, dst=self._master,
+                        session=session) as packet:
+                    packet.header['sequence'] = self._pull_seq
+
+            with sneakernet.OutPacket('push', root=path, limit=accept_length,
+                    src=self._node_guid, dst=self._master,
+                    session=session) as packet:
+                _logger.debug('Generating %r PUSH packet to %r',
+                        packet, packet.path)
+                self.publish({
+                    'event': 'sync_progress',
+                    'progress': _('Generating %r PUSH packet') % \
+                            packet.basename,
+                    })
+
+                out_seq = packet.header['sequence'] = Sequences()
+                try:
+                    self.volume.diff(to_push_seq, out_seq, packet)
+                except sneakernet.DiskFull:
+                    return {'push_sequence': to_push_seq, 'session': session}
+                else:
+                    break
+
+    def sync_session(self, mounts):
+        _logger.debug('Start synchronization session with %r session ' \
+                'for %r mounts', self._sync_session, mounts)
+
+        try:
+            for path in mounts:
+                self.publish({'event': 'sync_start', 'path': path})
+                self._sync_session = \
+                        self.sync(path, **(self._sync_session or {}))
+                if self._sync_session is None:
+                    break
+        except Exception, error:
+            util.exception(_logger, _('Failed to complete synchronization'))
+            self.publish({'event': 'sync_error', 'error': str(error)})
+            self._sync_session = None
+
+        if self._sync_session is None:
+            _logger.debug('Synchronization completed')
+            self.publish({'event': 'sync_complete'})
+        else:
+            _logger.debug('Postpone synchronization with %r session',
+                    self._sync_session)
+            self.publish({'event': 'sync_continue'})
+
+    def _import(self, path, session):
+        for packet in sneakernet.walk(path):
+            if packet.header.get('type') == 'push' and \
+                    packet.header.get('src') != self._node_guid:
+                self.publish({
+                    'event': 'sync_progress',
+                    'progress': _('Reading %r PUSH packet') % packet.basename,
+                    })
+                _logger.debug('Processing %r PUSH packet from %r',
+                        packet, packet.path)
+                self.volume.merge(packet, increment_seqno=False)
+                if packet.header.get('src') == self._master:
+                    self._pull_seq.exclude(packet.header['sequence'])
+
+            elif packet.header.get('type') == 'ack' and \
+                    packet.header.get('src') == self._master and \
+                    packet.header.get('dst') == self._node_guid:
+                self.publish({
+                    'event': 'sync_progress',
+                    'progress': _('Reading %r ACK packet') % packet.basename,
+                    })
+                _logger.debug('Processing %r ACK packet from %r',
+                        packet, packet.path)
+                self._push_seq.exclude(packet.header['push_sequence'])
+                self._pull_seq.exclude(packet.header['pull_sequence'])
+                _logger.debug('Remove processed %r ACK packet', packet)
+                os.unlink(packet.path)
+
+            elif packet.header.get('type') in ('push', 'pull') and \
+                    packet.header.get('src') == self._node_guid:
+                if packet.header.get('session') == session:
+                    _logger.debug('Keep current session %r packet', packet)
+                else:
+                    _logger.debug('Remove our previous %r packet', packet)
+                    os.unlink(packet.path)
+
+            else:
+                _logger.debug('No need to process %r packet', packet)
+
+
+def _proxy_call(home_volume, request, response, super_call, get_blob):
+    patch = {}
+    result = None
+    command = request['method'], request.get('cmd')
+    document = request['document']
+    guid = request.get('guid')
+
+    if document == 'context':
+        if command == ('GET', None):
+            if 'reply' in request:
+                reply = request.get('reply', [])[:]
+                for prop, default in _LOCAL_PROPS.items():
+                    if prop in reply:
+                        patch[prop] = default
+                        reply.remove(prop)
+                request['reply'] = reply
+        elif command in (('POST', None), ('PUT', None)):
+            for prop in _LOCAL_PROPS.keys():
+                if prop in request.content:
+                    patch[prop] = request.content.pop(prop)
+            if not request.content:
+                result = guid
+
+    if result is None:
+        result = super_call(request, response)
+
+    if document == 'context' and patch:
+        directory = home_volume['context']
+        if command == ('GET', None):
+            if guid:
+                if directory.exists(guid):
+                    to_patch = directory.get(guid).properties(patch.keys())
+                else:
+                    to_patch = patch
+                result.update(to_patch)
+            else:
+                for props in result['result']:
+                    if directory.exists(props['guid']):
+                        to_patch = directory.get(props['guid']).properties(
+                                patch.keys())
+                    else:
+                        to_patch = patch
+                    props.update(to_patch)
+        else:
+            if command == ('POST', None):
+                guid = result
+            if directory.exists(guid):
+                directory.update(guid, patch)
+            elif [True for prop, value in patch.items() if value]:
+                clone = ad.Request(method='GET', document='context', guid=guid)
+                clone.accept_language = request.accept_language
+                props = super_call(clone, ad.Response())
+                props.update(patch)
+                props['guid'] = guid
+                props['user'] = [sugar.uid()]
+                directory.create(props)
+                for prop in ('icon', 'artifact_icon', 'preview'):
+                    blob = get_blob('context', guid, prop)
+                    if blob:
+                        directory.set_blob(guid, prop, blob['path'])
+
+    return result

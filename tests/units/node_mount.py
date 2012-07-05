@@ -22,6 +22,7 @@ class NodeMountTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+        local.server_mode.value = True
 
     def tearDown(self):
         tests.Test.tearDown(self)
@@ -37,7 +38,8 @@ class NodeMountTest(tests.Test):
         self.got_event = coroutine.Event()
 
         def events_cb(event):
-            if event['event'] in ('mount', 'unmount'):
+            if event['event'] in ('mount', 'unmount') and \
+                    event['mountpoint'].startswith(local.mounts_root.value):
                 self.events.append((event['event'], event['mountpoint']))
                 self.got_event.set()
 
@@ -68,15 +70,10 @@ class NodeMountTest(tests.Test):
                 [(guid, False, False)],
                 [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
-        mounts.home_volume['context'].create_with_guid(guid, {
-            'type': 'activity',
-            'title': {'en': 'local'},
-            'summary': {'en': 'summary'},
-            'description': {'en': 'description'},
-            'keep': True,
-            'keep_impl': 2,
-            'user': [sugar.uid()],
-            })
+        mounts.home_volume['context'].create(guid=guid, type='activity',
+                title={'en': 'local'}, summary={'en': 'summary'},
+                description={'en': 'description'}, keep=True, keep_impl=2,
+                user=[sugar.uid()])
 
         context = remote.Context(guid, ['keep', 'keep_impl'])
         self.assertEqual(True, context['keep'])

@@ -29,7 +29,8 @@ _logger = logging.getLogger('resources.volume')
 
 class Resource(ad.Document):
 
-    @ad.active_property(prefix='RA', full_text=True, default=[], typecast=[])
+    @ad.active_property(prefix='RA', full_text=True, default=[], typecast=[],
+            permissions=ad.ACCESS_READ)
     def author(self, value):
         return value
 
@@ -69,7 +70,8 @@ class Volume(ad.SingleVolume):
 
             if 'blob' in msg:
                 msg['diff'] = msg['blob']
-            seqno = self[document].merge(seqno=seqno, **msg)
+            seqno = self[document].merge(seqno=seqno,
+                    increment_seqno=increment_seqno, **msg)
 
             if increment_seqno:
                 out_seq[document].include(seqno, seqno)

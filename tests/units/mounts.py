@@ -171,15 +171,10 @@ class MountsTest(tests.Test):
                 [(guid, False, False)],
                 [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
-        self.mounts.home_volume['context'].create_with_guid(guid, {
-            'type': 'activity',
-            'title': {'en': 'local'},
-            'summary': {'en': 'summary'},
-            'description': {'en': 'description'},
-            'keep': True,
-            'keep_impl': 2,
-            'user': [sugar.uid()],
-            })
+        self.mounts.home_volume['context'].create(guid=guid, type='activity',
+                title={'en': 'local'}, summary={'en': 'summary'},
+                description={'en': 'description'}, keep=True, keep_impl=2,
+                user=[sugar.uid()])
 
         context = remote.Context(guid, ['keep', 'keep_impl'])
         self.assertEqual(True, context['keep'])
@@ -630,20 +625,6 @@ class MountsTest(tests.Test):
         self.assertEqual('title_ru', res['title'])
         self.assertEqual('summary_ru', res['summary'])
         self.assertEqual('description_ru', res['description'])
-
-    def test_LocalMount_SetAuthor(self):
-        self.start_server()
-        local = Client('~')
-
-        guid = local.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
-
-        self.assertEqual(
-                [([sugar.uid()], [sugar.nickname()])],
-                [(i['user'], i['author']) for i in local.Context.cursor(reply=['user', 'author'])])
 
 
 if __name__ == '__main__':

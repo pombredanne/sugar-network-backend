@@ -14,21 +14,25 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import hashlib
+import tempfile
 from os.path import exists, join
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network.node.sync import SyncCommands
-from active_toolkit import enforce
+from sugar_network import node
+from sugar_network.toolkit import sneakernet
+from sugar_network.toolkit.collection import Sequences
+from active_toolkit import util, enforce
 
 
 _logger = logging.getLogger('node.commands')
 
 
-class NodeCommands(ad.ProxyCommands):
+class NodeCommands(ad.VolumeCommands):
 
     def __init__(self, master_url, volume, subscriber=None):
-        ad.ProxyCommands.__init__(self, ad.VolumeCommands(volume))
+        ad.VolumeCommands.__init__(self, volume)
         self._subscriber = subscriber
         self._is_master = bool(master_url)
 
@@ -67,39 +71,45 @@ class NodeCommands(ad.ProxyCommands):
         enforce(self._subscriber is not None, _('Subscription is disabled'))
         return self._subscriber.new_ticket()
 
-    @ad.directory_command(method='POST',
-            permissions=ad.ACCESS_AUTH)
-    def create(self, document, request):
-        user = [request.principal] if request.principal else []
-        request.content['user'] = user
-        self._set_author(document, request)
-        raise ad.CommandNotFound()
-
-    @ad.document_command(method='PUT',
-            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
-    def update(self, document, guid, request):
-        self._set_author(document, request)
-        raise ad.CommandNotFound()
-
     @ad.document_command(method='DELETE',
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
-    def delete(self, document, guid, request):
+    def delete(self, document, guid):
         # Servers data should not be deleted immediately
         # to let master-node synchronization possible
-        return self.super_call('PUT', 'hide', document=document, guid=guid,
-                principal=request.principal)
+        directory = self.volume[document]
+        directory.update(guid, {'layer': ['deleted']})
 
-    @ad.property_command(method='PUT',
-            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
-    def update_prop(self, document, guid, prop, request, url=None):
-        enforce(prop not in ('user', 'author'),
-                _('Direct property setting is forbidden'))
-        raise ad.CommandNotFound()
-
-    def _set_author(self, document, request):
-        props = request.content
-        if document == 'user' or 'user' not in props:
+    def resolve(self, request):
+        cmd = ad.VolumeCommands.resolve(self, request)
+        if cmd is None:
             return
+
+        if cmd.permissions & ad.ACCESS_AUTH:
+            enforce(request.principal is not None, node.Unauthorized,
+                    _('User is not authenticated'))
+
+        if cmd.permissions & ad.ACCESS_AUTHOR and 'guid' in request:
+            doc = self.volume[request['document']].get(request['guid'])
+            enforce(request.principal in doc['user'], ad.Forbidden,
+                    _('Operation is permitted only for authors'))
+
+        return cmd
+
+    def before_create(self, request, props):
+        if request['document'] == 'user':
+            props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
+            props['user'] = [props['guid']]
+        else:
+            props['user'] = [request.principal]
+            self._set_author(props)
+        ad.VolumeCommands.before_create(self, request, props)
+
+    def before_update(self, request, props):
+        if 'user' in props:
+            self._set_author(props)
+        ad.VolumeCommands.before_update(self, request, props)
+
+    def _set_author(self, props):
         users = self.volume['user']
         authors = []
         for user_guid in props['user']:
@@ -113,11 +123,69 @@ class NodeCommands(ad.ProxyCommands):
         props['author'] = authors
 
 
-class MasterCommands(NodeCommands, SyncCommands):
+class MasterCommands(NodeCommands):
 
     def __init__(self, master_url, volume, subscriber=None):
         NodeCommands.__init__(self, master_url, volume, subscriber)
-        SyncCommands.__init__(self, master_url)
+        self._api_url = master_url
+
+    @ad.volume_command(method='POST', cmd='sync')
+    def sync(self, request, response, accept_length=None):
+        _logger.debug('Pushing %s bytes length packet', request.content_length)
+        with sneakernet.InPacket(stream=request) as packet:
+            enforce('src' in packet.header and \
+                    packet.header['src'] != self._api_url,
+                    _('Misaddressed packet'))
+            enforce('dst' in packet.header and \
+                    packet.header['dst'] == self._api_url,
+                    _('Misaddressed packet'))
+
+            if packet.header.get('type') == 'push':
+                out_packet = sneakernet.OutPacket('ack')
+                out_packet.header['dst'] = packet.header['src']
+                out_packet.header['push_sequence'] = packet.header['sequence']
+                out_packet.header['pull_sequence'] = self.volume.merge(packet)
+            elif packet.header.get('type') == 'pull':
+                out_packet = sneakernet.OutPacket('push', limit=accept_length)
+                out_seq = out_packet.header['sequence'] = Sequences()
+                try:
+                    in_seq = Sequences(packet.header['sequence'])
+                    self.volume.diff(in_seq, out_seq, out_packet)
+                except sneakernet.DiskFull:
+                    pass
+            else:
+                raise RuntimeError(_('Unrecognized packet'))
+
+            if out_packet.closed:
+                response.content_type = 'application/octet-stream'
+                return
+
+            out_packet.header['src'] = self._api_url
+            content, response.content_length = out_packet.pop_content()
+            return content
+
+
+def _load_pubkey(pubkey):
+    pubkey = pubkey.strip()
+    try:
+        with tempfile.NamedTemporaryFile() as key_file:
+            key_file.file.write(pubkey)
+            key_file.file.flush()
+            # SSH key needs to be converted to PKCS8 to ket M2Crypto read it
+            pubkey_pkcs8 = util.assert_call(
+                    ['ssh-keygen', '-f', key_file.name, '-e', '-m', 'PKCS8'])
+    except Exception:
+        message = _('Cannot read DSS public key gotten for registeration')
+        util.exception(message)
+        if node.trust_users.value:
+            logging.warning(_('Failed to read registration pubkey, ' \
+                    'but we trust users'))
+            # Keep SSH key for further converting to PKCS8
+            pubkey_pkcs8 = pubkey
+        else:
+            raise ad.Forbidden(message)
+
+    return str(hashlib.sha1(pubkey.split()[1]).hexdigest()), pubkey_pkcs8
 
 
 _HELLO_HTML = """\

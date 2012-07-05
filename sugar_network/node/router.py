@@ -57,22 +57,19 @@ class Router(object):
             response['Location'] = error.location
             result = ''
         except Exception, error:
-            if isinstance(error, ad.Unauthorized):
-                response.status = '401 Unauthorized'
-                response['WWW-Authenticate'] = 'Sugar'
-            elif isinstance(error, ad.NotFound):
+            util.exception(_('Error while processing %r request'),
+                    environ['PATH_INFO'] or '/')
+
+            if isinstance(error, ad.NotFound):
                 response.status = '404 Not Found'
+            elif isinstance(error, ad.Forbidden):
+                response.status = '403 Forbidden'
+            elif isinstance(error, node.HTTPStatus):
+                response.status = error.status
+                response.update(error.headers or {})
+                result = error.result
             else:
-                util.exception(_('Error while processing %r request'),
-                        environ['PATH_INFO'] or '/')
-                if isinstance(error, ad.Forbidden):
-                    response.status = '403 Forbidden'
-                elif isinstance(error, node.HTTPStatus):
-                    response.status = error.status
-                    response.update(error.headers or {})
-                    result = error.result
-                else:
-                    response.status = '500 Internal Server Error'
+                response.status = '500 Internal Server Error'
 
             if result is None:
                 result = {'error': str(error),
@@ -98,16 +95,15 @@ class Router(object):
 
     def _authenticate(self, request):
         user = request.environ.get('HTTP_SUGAR_USER')
-
-        if not user:
-            return ad.ANONYMOUS
+        if user is None:
+            return None
 
         if user not in self._authenticated and \
                 (request.path != ['user'] or request['method'] != 'POST'):
             _logger.debug('Logging %r user', user)
             request = ad.Request(method='GET', cmd='exists',
                     document='user', guid=user)
-            enforce(self._cp.call(request, ad.Response()), ad.Unauthorized,
+            enforce(self._cp.call(request, ad.Response()), node.Unauthorized,
                     _('Principal user does not exist'))
             self._authenticated.add(user)
 
@@ -132,6 +128,7 @@ class _Request(ad.Request):
         self.content_length = 0
         self.accept_language = _parse_accept_language(
                 environ.get('HTTP_ACCEPT_LANGUAGE'))
+        self.principal = None
 
         query = environ.get('QUERY_STRING') or ''
         for attr, value in parse_qsl(query):

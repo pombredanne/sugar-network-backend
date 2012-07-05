@@ -40,14 +40,10 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
-        self.mounts.home_volume['context'].create_with_guid(
-                'org.sugarlabs.HelloWorld', {
-                    'type': 'activity',
-                    'title': {'en': 'title'},
-                    'summary': {'en': 'summary'},
-                    'description': {'en': 'description'},
-                    'user': [sugar.uid()],
-                    })
+        self.mounts.home_volume['context'].create(
+                guid='org.sugarlabs.HelloWorld', type='activity',
+                title={'en': 'title'}, summary={'en': 'summary'},
+                description={'en': 'description'}, user=[sugar.uid()])
 
         os.makedirs('Activities/activity/activity')
         coroutine.sleep(1)
@@ -78,14 +74,10 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
-        self.mounts.home_volume['context'].create_with_guid(
-                'org.sugarlabs.HelloWorld', {
-                    'type': 'activity',
-                    'title': {'en': 'title'},
-                    'summary': {'en': 'summary'},
-                    'description': {'en': 'description'},
-                    'user': [sugar.uid()],
-                    })
+        self.mounts.home_volume['context'].create(
+                guid='org.sugarlabs.HelloWorld', type='activity',
+                title={'en': 'title'}, summary={'en': 'summary'},
+                description={'en': 'description'}, user=[sugar.uid()])
 
         self.touch(('activity/activity/activity.info', [
             '[Activity]',
@@ -113,14 +105,10 @@ class ActivitiesTest(tests.Test):
                 self.mounts.home_volume, ['Activities'])
         coroutine.sleep()
 
-        self.mounts.home_volume['context'].create_with_guid(
-                'org.sugarlabs.HelloWorld', {
-                    'type': 'activity',
-                    'title': {'en': 'title'},
-                    'summary': {'en': 'summary'},
-                    'description': {'en': 'description'},
-                    'user': [sugar.uid()],
-                    })
+        self.mounts.home_volume['context'].create(
+                guid='org.sugarlabs.HelloWorld', type='activity',
+                title={'en': 'title'}, summary={'en': 'summary'},
+                description={'en': 'description'}, user=[sugar.uid()])
 
         self.touch(('activity/activity/activity.info', [
             '[Activity]',
@@ -175,14 +163,10 @@ class ActivitiesTest(tests.Test):
         self.job = coroutine.spawn(activities.monitor,
                 self.mounts.home_volume, ['Activities'])
 
-        self.mounts.home_volume['context'].create_with_guid(
-                'org.sugarlabs.HelloWorld', {
-                    'type': 'activity',
-                    'title': {'en': 'title'},
-                    'summary': {'en': 'summary'},
-                    'description': {'en': 'description'},
-                    'user': [sugar.uid()],
-                    })
+        self.mounts.home_volume['context'].create(
+                guid='org.sugarlabs.HelloWorld', type='activity',
+                title={'en': 'title'}, summary={'en': 'summary'},
+                description={'en': 'description'}, user=[sugar.uid()])
 
         self.touch(('Activities/activity/activity/activity.info', [
             '[Activity]',

@@ -96,14 +96,11 @@ class _Monitor(object):
         else:
             _logger.debug('Register unknown local activity, %r', context)
 
-            directory.create_with_guid(context, {
-                'type': 'activity',
-                'title': {DEFAULT_LANG: spec['name']},
-                'summary': {DEFAULT_LANG: spec['summary']},
-                'description': {DEFAULT_LANG: spec['description']},
-                'keep_impl': 2,
-                'user': [sugar.uid()],
-                })
+            directory.create(guid=context, type='activity',
+                    title={DEFAULT_LANG: spec['name']},
+                    summary={DEFAULT_LANG: spec['summary']},
+                    description={DEFAULT_LANG: spec['description']},
+                    keep_impl=2, user=[sugar.uid()])
 
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):

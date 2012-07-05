@@ -28,7 +28,7 @@ class VolumeTest(tests.Test):
                 return value
 
         volume = Volume('node1', [Document])
-        volume['document'].create_with_guid('1', {'prop': 'prop'})
+        volume['document'].create(guid='1', prop='prop')
         volume['document'].set_blob('1', 'blob', StringIO('blob'))
 
         packet = OutPacket('push', root='sync')

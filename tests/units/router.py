@@ -9,6 +9,7 @@ from cStringIO import StringIO
 from __init__ import tests
 
 import active_document as ad
+from sugar_network import node
 from sugar_network.node.router import Router, _Request, _parse_accept_language
 from active_toolkit import util
 from sugar_network.resources.volume import Volume
@@ -199,7 +200,7 @@ class RouterTest(tests.Test):
                 'PATH_INFO': '/foo',
                 'REQUEST_METHOD': 'GET',
                 })
-            self.assertRaises(ad.Unauthorized, router._authenticate, request)
+            self.assertRaises(node.Unauthorized, router._authenticate, request)
 
             request.environ['HTTP_SUGAR_USER'] = tests.UID
             request.environ['HTTP_SUGAR_USER_SIGNATURE'] = tests.sign(tests.PRIVKEY, tests.UID)
