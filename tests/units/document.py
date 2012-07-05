@@ -335,7 +335,7 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create_with_guid('guid', {'prop': 'foo', 'user': []})
+        guid = directory.create(guid='guid', prop='foo', user=[])
         self.assertEqual(
                 [('guid', 'foo', [], ['public'])],
                 [(i.guid, i.prop, i.user, i.layer) for i in directory.find(0, 1024)[0]])
@@ -441,7 +441,7 @@ class DocumentTest(tests.Test):
         for i in directory.populate():
             pass
 
-        directory.create_with_guid('guid', {'prop': 'prop', 'user': []})
+        directory.create(guid='guid', prop='prop', user=[])
         directory.set_blob('guid', 'blob', StringIO('blob'))
         directory.update('guid', {'prop': 'prop2'})
         directory.delete('guid')
@@ -473,17 +473,17 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        directory.create_with_guid('1', {'prop': '1', 'ctime': 1, 'mtime': 1})
+        directory.create(guid='1', prop='1', ctime=1, mtime=1)
         directory.set_blob('1', 'blob', StringIO('1'))
         for i in os.listdir('1/1'):
             os.utime('1/1/%s' % i, (1, 1))
 
-        directory.create_with_guid('2', {'prop': '2', 'ctime': 2, 'mtime': 2})
+        directory.create(guid='2', prop='2', ctime=2, mtime=2)
         directory.set_blob('2', 'blob', StringIO('2'))
         for i in os.listdir('2/2'):
             os.utime('2/2/%s' % i, (2, 2))
 
-        directory.create_with_guid('3', {'prop': '3', 'ctime': 3, 'mtime': 3})
+        directory.create(guid='3', prop='3', ctime=3, mtime=3)
         for i in os.listdir('3/3'):
             os.utime('3/3/%s' % i, (3, 3))
 
@@ -546,7 +546,7 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        directory.create_with_guid('1', {'ctime': 1, 'mtime': 1})
+        directory.create(guid='1', ctime=1, mtime=1)
         directory.set_blob('1', 'blob', 'http://sugarlabs.org')
         for i in os.listdir('1/1'):
             os.utime('1/1/%s' % i, (1, 1))
@@ -571,7 +571,7 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        directory.create_with_guid('1', {'ctime': 1, 'mtime': 1})
+        directory.create(guid='1', ctime=1, mtime=1)
         for i in os.listdir('1/1'):
             os.utime('1/1/%s' % i, (1, 1))
 
@@ -604,17 +604,17 @@ class DocumentTest(tests.Test):
 
         directory1 = Directory('document1', Document, IndexWriter)
 
-        directory1.create_with_guid('1', {'prop': '1', 'ctime': 1, 'mtime': 1})
+        directory1.create(guid='1', prop='1', ctime=1, mtime=1)
         directory1.set_blob('1', 'blob', StringIO('1'))
         for i in os.listdir('document1/1/1'):
             os.utime('document1/1/1/%s' % i, (1, 1))
 
-        directory1.create_with_guid('2', {'prop': '2', 'ctime': 2, 'mtime': 2})
+        directory1.create(guid='2', prop='2', ctime=2, mtime=2)
         directory1.set_blob('2', 'blob', StringIO('2'))
         for i in os.listdir('document1/2/2'):
             os.utime('document1/2/2/%s' % i, (2, 2))
 
-        directory1.create_with_guid('3', {'prop': '3', 'ctime': 3, 'mtime': 3})
+        directory1.create(guid='3', prop='3', ctime=3, mtime=3)
         for i in os.listdir('document1/3/3'):
             os.utime('document1/3/3/%s' % i, (3, 3))
 
@@ -673,12 +673,12 @@ class DocumentTest(tests.Test):
         directory1 = Directory('document1', Document, IndexWriter)
         directory2 = Directory('document2', Document, IndexWriter)
 
-        directory1.create_with_guid('guid', {'ctime': 1, 'mtime': 1})
+        directory1.create(guid='guid', ctime=1, mtime=1)
         directory1.set_blob('guid', 'blob', StringIO('1'))
         for i in os.listdir('document1/gu/guid'):
             os.utime('document1/gu/guid/%s' % i, (1, 1))
 
-        directory2.create_with_guid('guid', {'ctime': 2, 'mtime': 2})
+        directory2.create(guid='guid', ctime=2, mtime=2)
         directory2.set_blob('guid', 'blob', StringIO('2'))
         for i in os.listdir('document2/gu/guid'):
             os.utime('document2/gu/guid/%s' % i, (2, 2))

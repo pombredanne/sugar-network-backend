@@ -87,30 +87,24 @@ class Directory(object):
         """Flush pending chnages to disk."""
         self._index.commit()
 
-    def create(self, props):
+    def create(self, props=None, **kwargs):
         """Create new document.
 
-        :param props:
+        If `guid` property is not specified, it will be auto set.
+
+        :param kwargs:
             new document properties
+        :returns:
+            GUID of newly created document
 
         """
-        enforce('guid' not in props,
-                _('Cannot create new document if "guid" is specified'))
-        return self.create_with_guid(env.uuid(), props)
+        if props is None:
+            props = kwargs
 
-    def create_with_guid(self, guid, props):
-        """Create new document for specified GUID.
-
-        :param guid:
-            GUID value to create document for
-        :param props:
-            new document properties
-
-        """
         if 'guid' in props:
             guid = props['guid']
         else:
-            props['guid'] = guid
+            guid = props['guid'] = env.uuid()
 
         for prop_name, prop in self.metadata.items():
             if isinstance(prop, StoredProperty):
@@ -127,15 +121,17 @@ class Directory(object):
         self._post(guid, props, True)
         return guid
 
-    def update(self, guid, props):
+    def update(self, guid, props=None, **kwargs):
         """Update properties for an existing document.
 
         :param guid:
             document GUID to store
-        :param props:
+        :param kwargs:
             properties to store, not necessary all document's properties
 
         """
+        if props is None:
+            props = kwargs
         if not props:
             return
         _logger.debug('Update %s[%s]: %r', self.metadata.name, guid, props)

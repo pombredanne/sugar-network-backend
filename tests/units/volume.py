@@ -113,7 +113,7 @@ class VolumeTest(tests.Test):
             self.assertEqual('default', volume['document'].get('1')['prop'])
 
     def test_Commands(self):
-        self.volume['testdocument'].create_with_guid('guid', {'user': []})
+        self.volume['testdocument'].create(guid='guid', user=[])
 
         self.assertEqual({
             'total': 1,
@@ -466,6 +466,11 @@ class VolumeTest(tests.Test):
         request.content = {'prop': 'bar'}
         cp.call(request, Response())
         self.assertEqual('overriden', self.volume['testdocument'].get(guid)['prop'])
+
+    def test_DoNotPassGuidsForCreate(self):
+        self.assertRaises(env.Forbidden, self.call, method='POST', document='testdocument', content={'guid': 'foo'})
+        guid = self.call(method='POST', document='testdocument', content={})
+        assert guid
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):

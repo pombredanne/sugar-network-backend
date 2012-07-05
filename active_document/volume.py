@@ -140,6 +140,8 @@ class VolumeCommands(CommandsProcessor):
     def create(self, document, request):
         directory = self.volume[document]
         props = request.content
+        enforce('guid' not in props, env.Forbidden,
+                _('Property "guid" cannot be set manually'))
         for name, value in props.items():
             prop = directory.metadata[name]
             prop.assert_access(env.ACCESS_CREATE)

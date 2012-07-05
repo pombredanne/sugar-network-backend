@@ -114,7 +114,7 @@ class CommandsProcessor(object):
                         self._commands[scope].add(cmd)
 
     def call(self, request, response):
-        cmd = self._resolve(request)
+        cmd = self.resolve(request)
         enforce(cmd is not None, CommandNotFound, _('Unsupported command'))
 
         guid = request.get('guid')
@@ -133,7 +133,7 @@ class CommandsProcessor(object):
 
         return result
 
-    def _resolve(self, request):
+    def resolve(self, request):
         key = (request.get('method', 'GET'), request.get('cmd'), None)
 
         if 'document' not in request:
