@@ -15,6 +15,7 @@
 
 import os
 import json
+import time
 import logging
 from cStringIO import StringIO
 from functools import partial
@@ -143,6 +144,7 @@ class VolumeCommands(CommandsProcessor):
             prop = directory.metadata[name]
             prop.assert_access(env.ACCESS_CREATE)
             props[name] = self._prepost(request, prop, value)
+        self.before_create(request, props)
         return directory.create(props)
 
     @directory_command(method='GET')
@@ -181,6 +183,7 @@ class VolumeCommands(CommandsProcessor):
             prop = directory.metadata[name]
             prop.assert_access(env.ACCESS_WRITE)
             props[name] = self._prepost(request, prop, value)
+        self.before_update(request, props)
         directory.update(guid, props)
 
     @property_command(method='PUT',
@@ -193,6 +196,7 @@ class VolumeCommands(CommandsProcessor):
 
         if not isinstance(prop, BlobProperty):
             props = {prop.name: self._prepost(request, prop, request.content)}
+            self.before_update(request, props)
             directory.update(guid, props)
             return
 
@@ -213,12 +217,6 @@ class VolumeCommands(CommandsProcessor):
     def delete(self, document, guid):
         directory = self.volume[document]
         directory.delete(guid)
-
-    @document_command(method='PUT', cmd='hide',
-            permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
-    def hide(self, document, guid):
-        directory = self.volume[document]
-        directory.update(guid, {'layer': ['deleted']})
 
     @document_command(method='GET')
     def get(self, document, guid, request, reply=None):
@@ -267,6 +265,16 @@ class VolumeCommands(CommandsProcessor):
             response.content_length = os.stat(path).st_size
             response.content_type = directory.metadata[prop].mime_type
             return _file_reader(path)
+
+    def before_create(self, request, props):
+        ts = int(time.time())
+        props['ctime'] = ts
+        props['mtime'] = ts
+        # TODO until implementing layers support
+        props['layer'] = ['public']
+
+    def before_update(self, request, props):
+        props['mtime'] = int(time.time())
 
     def _prepost(self, request, prop, value):
         if prop.localized and request.accept_language:

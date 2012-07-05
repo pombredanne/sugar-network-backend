@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
 import logging
 from gettext import gettext as _
 
@@ -119,47 +118,6 @@ class Document(object):
                 result[prop_name] = value
 
         return result
-
-    @classmethod
-    def before_create(cls, props):
-        """Callback to call on document creation.
-
-        Function needs to be re-implemented in child classes.
-
-        :param props:
-            dictionary with new document properties values
-
-        """
-        ts = int(time.time())
-        props['ctime'] = ts
-        props['mtime'] = ts
-
-        # TODO until implementing layers support
-        props['layer'] = ['public']
-
-    @classmethod
-    def before_update(cls, props):
-        """Callback to call on existing document modification.
-
-        Function needs to be re-implemented in child classes.
-
-        :param props:
-            dictionary with document properties updates
-
-        """
-        props['mtime'] = int(time.time())
-
-    @classmethod
-    def before_post(cls, props):
-        """Callback to call on existing document before posting changes.
-
-        Function needs to be re-implemented in child classes.
-
-        :param props:
-            dictionary with document properties updates
-
-        """
-        pass
 
     def __getitem__(self, prop):
         return self.get(prop)

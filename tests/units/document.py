@@ -345,98 +345,6 @@ class DocumentTest(tests.Test):
                 [('guid', 'probe')],
                 [(i.guid, i.prop) for i in directory.find(0, 1024)[0]])
 
-    def test_on_create(self):
-
-        class Document(document.Document):
-
-            @active_property(slot=1)
-            def prop(self, value):
-                return value
-
-            @classmethod
-            def before_create(cls, props):
-                super(Document, cls).before_create(props)
-                props['prop'] = 'foo'
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        directory.create({'user': []})
-        self.assertEqual(
-                ['foo'],
-                [i.prop for i in directory.find(0, 1024)[0]])
-
-        directory.create({'prop': 'bar', 'user': []})
-        self.assertEqual(
-                ['foo', 'foo'],
-                [i.prop for i in directory.find(0, 1024)[0]])
-
-    def test_on_create_ReplaceGuid(self):
-
-        class Document(document.Document):
-
-            @classmethod
-            def before_create(cls, props):
-                props['guid'] = props.pop('uid')
-                super(Document, cls).before_create(props)
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        directory.create({'uid': 'guid', 'user': []})
-        self.assertEqual(
-                ['guid'],
-                [i.guid for i in directory.find(0, 1024)[0]])
-
-    def test_on_update(self):
-
-        class Document(document.Document):
-
-            @active_property(slot=1)
-            def prop(self, value):
-                return value
-
-            @classmethod
-            def before_update(cls, props):
-                super(Document, cls).before_update(props)
-                props['prop'] = 'foo'
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        guid = directory.create({'prop': 'bar', 'user': []})
-        self.assertEqual(
-                ['bar'],
-                [i.prop for i in directory.find(0, 1024)[0]])
-
-        directory.update(guid, {'prop': 'probe'})
-        self.assertEqual(
-                ['foo'],
-                [i.prop for i in directory.find(0, 1024)[0]])
-
-    def test_times(self):
-
-        class Document(document.Document):
-
-            @active_property(slot=1)
-            def prop(self, value):
-                return value
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        guid = directory.create({'prop': '1', 'user': []})
-        doc = directory.get(guid)
-        self.assertNotEqual(0, doc['ctime'])
-        self.assertNotEqual(0, doc['mtime'])
-        assert doc['ctime'] == doc['mtime']
-
-        time.sleep(1)
-
-        directory.update(guid, {})
-        doc = directory.get(guid)
-        assert doc['ctime'] == doc['mtime']
-
-        directory.update(guid, {'prop': '2'})
-        doc = directory.get(guid)
-        assert doc['ctime'] < doc['mtime']
-
     def test_seqno(self):
 
         class Document(document.Document):
@@ -565,20 +473,17 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        self.override(time, 'time', lambda: 1)
-        directory.create_with_guid('1', {'prop': '1'})
+        directory.create_with_guid('1', {'prop': '1', 'ctime': 1, 'mtime': 1})
         directory.set_blob('1', 'blob', StringIO('1'))
         for i in os.listdir('1/1'):
             os.utime('1/1/%s' % i, (1, 1))
 
-        self.override(time, 'time', lambda: 2)
-        directory.create_with_guid('2', {'prop': '2'})
+        directory.create_with_guid('2', {'prop': '2', 'ctime': 2, 'mtime': 2})
         directory.set_blob('2', 'blob', StringIO('2'))
         for i in os.listdir('2/2'):
             os.utime('2/2/%s' % i, (2, 2))
 
-        self.override(time, 'time', lambda: 3)
-        directory.create_with_guid('3', {'prop': '3'})
+        directory.create_with_guid('3', {'prop': '3', 'ctime': 3, 'mtime': 3})
         for i in os.listdir('3/3'):
             os.utime('3/3/%s' % i, (3, 3))
 
@@ -641,8 +546,7 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        self.override(time, 'time', lambda: 1)
-        directory.create_with_guid('1', {})
+        directory.create_with_guid('1', {'ctime': 1, 'mtime': 1})
         directory.set_blob('1', 'blob', 'http://sugarlabs.org')
         for i in os.listdir('1/1'):
             os.utime('1/1/%s' % i, (1, 1))
@@ -667,8 +571,7 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        self.override(time, 'time', lambda: 1)
-        directory.create_with_guid('1', {})
+        directory.create_with_guid('1', {'ctime': 1, 'mtime': 1})
         for i in os.listdir('1/1'):
             os.utime('1/1/%s' % i, (1, 1))
 
@@ -701,20 +604,17 @@ class DocumentTest(tests.Test):
 
         directory1 = Directory('document1', Document, IndexWriter)
 
-        self.override(time, 'time', lambda: 1)
-        directory1.create_with_guid('1', {'prop': '1'})
+        directory1.create_with_guid('1', {'prop': '1', 'ctime': 1, 'mtime': 1})
         directory1.set_blob('1', 'blob', StringIO('1'))
         for i in os.listdir('document1/1/1'):
             os.utime('document1/1/1/%s' % i, (1, 1))
 
-        self.override(time, 'time', lambda: 2)
-        directory1.create_with_guid('2', {'prop': '2'})
+        directory1.create_with_guid('2', {'prop': '2', 'ctime': 2, 'mtime': 2})
         directory1.set_blob('2', 'blob', StringIO('2'))
         for i in os.listdir('document1/2/2'):
             os.utime('document1/2/2/%s' % i, (2, 2))
 
-        self.override(time, 'time', lambda: 3)
-        directory1.create_with_guid('3', {'prop': '3'})
+        directory1.create_with_guid('3', {'prop': '3', 'ctime': 3, 'mtime': 3})
         for i in os.listdir('document1/3/3'):
             os.utime('document1/3/3/%s' % i, (3, 3))
 
@@ -773,14 +673,12 @@ class DocumentTest(tests.Test):
         directory1 = Directory('document1', Document, IndexWriter)
         directory2 = Directory('document2', Document, IndexWriter)
 
-        self.override(time, 'time', lambda: 1)
-        directory1.create_with_guid('guid', {})
+        directory1.create_with_guid('guid', {'ctime': 1, 'mtime': 1})
         directory1.set_blob('guid', 'blob', StringIO('1'))
         for i in os.listdir('document1/gu/guid'):
             os.utime('document1/gu/guid/%s' % i, (1, 1))
 
-        self.override(time, 'time', lambda: 2)
-        directory2.create_with_guid('guid', {})
+        directory2.create_with_guid('guid', {'ctime': 2, 'mtime': 2})
         directory2.set_blob('guid', 'blob', StringIO('2'))
         for i in os.listdir('document2/gu/guid'):
             os.utime('document2/gu/guid/%s' % i, (2, 2))

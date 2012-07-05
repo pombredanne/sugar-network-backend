@@ -107,7 +107,6 @@ class Directory(object):
             new document properties
 
         """
-        self.document_class.before_create(props)
         if 'guid' in props:
             guid = props['guid']
         else:
@@ -125,7 +124,6 @@ class Directory(object):
                 props[prop_name] = prop.default
 
         _logger.debug('Create %s[%s]: %r', self.metadata.name, guid, props)
-        self.document_class.before_post(props)
         self._post(guid, props, True)
         return guid
 
@@ -141,8 +139,6 @@ class Directory(object):
         if not props:
             return
         _logger.debug('Update %s[%s]: %r', self.metadata.name, guid, props)
-        self.document_class.before_update(props)
-        self.document_class.before_post(props)
         self._post(guid, props, False)
 
     def delete(self, guid):
