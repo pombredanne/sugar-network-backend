@@ -411,18 +411,16 @@ class VolumeTest(tests.Test):
             self.assertEqual('http://sugarlabs.org', redirect.location)
 
     def call(self, method, document=None, guid=None, prop=None,
-            principal=None, accept_language=None, **kwargs):
+            accept_language=None, **kwargs):
 
         class TestRequest(Request):
 
             content_stream = None
             content_length = 0
-            principal = None
 
         request = TestRequest(kwargs)
         request.accept_language = accept_language
         request['method'] = method
-        request.principal = principal
         if 'content' in kwargs:
             request.content = request.pop('content')
         if document:

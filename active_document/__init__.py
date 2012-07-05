@@ -17,10 +17,10 @@ from active_document.document import Document
 
 from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         ACCESS_DELETE, ACCESS_AUTHOR, ACCESS_AUTH, ACCESS_PUBLIC, \
-        ACCESS_LEVELS, ACCESS_SYSTEM, ACCESS_LOCAL, ACCESS_REMOTE, ANONYMOUS, \
+        ACCESS_LEVELS, ACCESS_SYSTEM, ACCESS_LOCAL, ACCESS_REMOTE, \
         index_flush_timeout, index_flush_threshold, \
         index_write_queue, find_limit, \
-        NotFound, Forbidden, Unauthorized, Redirect, DEFAULT_LANG, \
+        NotFound, Forbidden, Redirect, DEFAULT_LANG, \
         uuid
 
 from active_document.metadata import Metadata, Property, \

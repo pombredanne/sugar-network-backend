@@ -26,23 +26,15 @@ class CommandsTest(tests.Test):
             def command_2(self, **kwargs):
                 calls.append(('command_2', kwargs))
 
-            @volume_command(method='PROBE', cmd='command_3',
-                    permissions=env.ACCESS_AUTH)
-            def command_3(self, **kwargs):
-                calls.append(('command_3', kwargs))
-
         cp = TestCommandsProcessor()
 
         self.call(cp, 'PROBE')
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1')
         self.call(cp, 'PROBE', cmd='command_2')
-        self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', principal=env.ANONYMOUS)
-        self.call(cp, 'PROBE', cmd='command_3', principal='me')
 
         self.assertEqual([
             ('command_1', {}),
             ('command_2', {}),
-            ('command_3', {}),
             ],
             calls)
 
@@ -59,11 +51,6 @@ class CommandsTest(tests.Test):
             def command_2(self, **kwargs):
                 calls.append(('command_2', kwargs))
 
-            @directory_command(method='PROBE', cmd='command_3',
-                    permissions=env.ACCESS_AUTH)
-            def command_3(self, **kwargs):
-                calls.append(('command_3', kwargs))
-
         cp = TestCommandsProcessor()
 
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
@@ -72,15 +59,12 @@ class CommandsTest(tests.Test):
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument')
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument')
-        self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', principal=env.ANONYMOUS)
-        self.call(cp, 'PROBE', cmd='command_3', document='testdocument', principal='me')
 
         self.assertEqual([
             ('command_1', {'document': 'testdocument'}),
             ('command_1', {'document': 'fakedocument'}),
             ('command_2', {'document': 'testdocument'}),
             ('command_2', {'document': 'fakedocument'}),
-            ('command_3', {'document': 'testdocument'}),
             ],
             calls)
 
@@ -97,15 +81,6 @@ class CommandsTest(tests.Test):
             def command_2(self, **kwargs):
                 calls.append(('command_2', kwargs))
 
-            @document_command(method='PROBE', cmd='command_3',
-                    permissions=env.ACCESS_AUTH)
-            def command_3(self, **kwargs):
-                calls.append(('command_3', kwargs))
-
-            @document_command(permissions=env.ACCESS_AUTHOR)
-            def command_4(self, **kwargs):
-                calls.append(('command_4', kwargs))
-
         class TestDocument(Document):
             pass
 
@@ -119,20 +94,12 @@ class CommandsTest(tests.Test):
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument', guid='guid')
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid')
-        self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal=env.ANONYMOUS)
-        self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal='me')
-
-        volume['testdocument'].create_with_guid('guid', {'user': ['me']})
-        self.assertRaises(env.Forbidden, self.call, cp, 'GET', document='testdocument', guid='guid', principal=env.ANONYMOUS)
-        self.call(cp, 'GET', document='testdocument', guid='guid', principal='me')
 
         self.assertEqual([
             ('command_1', {'document': 'testdocument', 'guid': 'guid'}),
             ('command_1', {'document': 'fakedocument', 'guid': 'guid'}),
             ('command_2', {'document': 'testdocument', 'guid': 'guid'}),
             ('command_2', {'document': 'fakedocument', 'guid': 'guid'}),
-            ('command_3', {'document': 'testdocument', 'guid': 'guid'}),
-            ('command_4', {'document': 'testdocument', 'guid': 'guid'}),
             ],
             calls)
 
@@ -149,15 +116,6 @@ class CommandsTest(tests.Test):
             def command_2(self, **kwargs):
                 calls.append(('command_2', kwargs))
 
-            @property_command(method='PROBE', cmd='command_3',
-                    permissions=env.ACCESS_AUTH)
-            def command_3(self, **kwargs):
-                calls.append(('command_3', kwargs))
-
-            @property_command(permissions=env.ACCESS_AUTHOR)
-            def command_4(self, **kwargs):
-                calls.append(('command_4', kwargs))
-
         class TestDocument(Document):
             pass
 
@@ -172,20 +130,12 @@ class CommandsTest(tests.Test):
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid', prop='prop')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument', guid='guid', prop='prop')
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid', prop='prop')
-        self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal=env.ANONYMOUS)
-        self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal='me')
-
-        volume['testdocument'].create_with_guid('guid', {'user': ['me']})
-        self.assertRaises(env.Forbidden, self.call, cp, 'GET', document='testdocument', guid='guid', prop='prop', principal=env.ANONYMOUS)
-        self.call(cp, 'GET', document='testdocument', guid='guid', prop='prop', principal='me')
 
         self.assertEqual([
             ('command_1', {'document': 'testdocument', 'guid': 'guid', 'prop': 'prop'}),
             ('command_1', {'document': 'fakedocument', 'guid': 'guid', 'prop': 'prop'}),
             ('command_2', {'document': 'testdocument', 'guid': 'guid', 'prop': 'prop'}),
             ('command_2', {'document': 'fakedocument', 'guid': 'guid', 'prop': 'prop'}),
-            ('command_3', {'document': 'testdocument', 'guid': 'guid', 'prop': 'prop'}),
-            ('command_4', {'document': 'testdocument', 'guid': 'guid', 'prop': 'prop'}),
             ],
             calls)
 
@@ -204,12 +154,6 @@ class CommandsTest(tests.Test):
             def command_2(cls, directory, **kwargs):
                 calls.append(('command_2', kwargs))
 
-            @classmethod
-            @directory_command(method='PROBE', cmd='command_3',
-                    permissions=env.ACCESS_AUTH)
-            def command_3(cls, directory, **kwargs):
-                calls.append(('command_3', kwargs))
-
         volume = SingleVolume(tests.tmpdir, [TestDocument])
         cp = CommandsProcessor(volume)
 
@@ -219,13 +163,10 @@ class CommandsTest(tests.Test):
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument')
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument')
-        self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', principal=env.ANONYMOUS)
-        self.call(cp, 'PROBE', cmd='command_3', document='testdocument', principal='me')
 
         self.assertEqual([
             ('command_1', {}),
             ('command_2', {}),
-            ('command_3', {}),
             ],
             calls)
 
@@ -242,15 +183,6 @@ class CommandsTest(tests.Test):
             def command_2(cls, **kwargs):
                 calls.append(('command_2', kwargs))
 
-            @document_command(method='PROBE', cmd='command_3',
-                    permissions=env.ACCESS_AUTH)
-            def command_3(cls, **kwargs):
-                calls.append(('command_3', kwargs))
-
-            @document_command(permissions=env.ACCESS_AUTHOR)
-            def command_4(self, **kwargs):
-                calls.append(('command_4', kwargs))
-
         volume = SingleVolume(tests.tmpdir, [TestDocument])
         cp = CommandsProcessor(volume)
 
@@ -263,17 +195,10 @@ class CommandsTest(tests.Test):
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument', guid='guid')
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid')
-        self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal=env.ANONYMOUS)
-        self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', principal='me')
-
-        self.assertRaises(env.Forbidden, self.call, cp, 'GET', document='testdocument', guid='guid', principal=env.ANONYMOUS)
-        self.call(cp, 'GET', document='testdocument', guid='guid', principal='me')
 
         self.assertEqual([
             ('command_1', {}),
             ('command_2', {}),
-            ('command_3', {}),
-            ('command_4', {}),
             ],
             calls)
 
@@ -290,15 +215,6 @@ class CommandsTest(tests.Test):
             def command_2(cls, **kwargs):
                 calls.append(('command_2', kwargs))
 
-            @property_command(method='PROBE', cmd='command_3',
-                    permissions=env.ACCESS_AUTH)
-            def command_3(cls, **kwargs):
-                calls.append(('command_3', kwargs))
-
-            @property_command(permissions=env.ACCESS_AUTHOR)
-            def command_4(self, **kwargs):
-                calls.append(('command_4', kwargs))
-
         volume = SingleVolume(tests.tmpdir, [TestDocument])
         cp = CommandsProcessor(volume)
 
@@ -312,18 +228,10 @@ class CommandsTest(tests.Test):
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument', guid='guid', prop='prop')
         self.call(cp, 'PROBE', cmd='command_2', document='testdocument', guid='guid', prop='prop')
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid', prop='prop')
-        self.assertRaises(env.Unauthorized, self.call, cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal=env.ANONYMOUS)
-        self.call(cp, 'PROBE', cmd='command_3', document='testdocument', guid='guid', prop='prop', principal='me')
-
-        volume['testdocument'].create_with_guid('guid', {'user': ['me']})
-        self.assertRaises(env.Forbidden, self.call, cp, 'GET', document='testdocument', guid='guid', prop='prop', principal=env.ANONYMOUS)
-        self.call(cp, 'GET', document='testdocument', guid='guid', prop='prop', principal='me')
 
         self.assertEqual([
             ('command_1', {'prop': 'prop'}),
             ('command_2', {'prop': 'prop'}),
-            ('command_3', {'prop': 'prop'}),
-            ('command_4', {'prop': 'prop'}),
             ],
             calls)
 
@@ -486,17 +394,15 @@ class CommandsTest(tests.Test):
                 self.call(proxy, 'PROBE', arg=-1))
 
     def call(self, cp, method, document=None, guid=None, prop=None,
-            principal=None, access_level=env.ACCESS_REMOTE, **kwargs):
+            access_level=env.ACCESS_REMOTE, **kwargs):
 
         class TestRequest(Request):
 
             content_stream = None
             content_length = 0
-            principal = None
 
         request = TestRequest(kwargs)
         request['method'] = method
-        request.principal = principal
         request.access_level = access_level
         if document:
             request['document'] = document

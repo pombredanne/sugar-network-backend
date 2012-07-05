@@ -52,7 +52,6 @@ class Request(dict):
     content = None
     content_stream = None
     content_length = None
-    principal = env.ANONYMOUS
     access_level = env.ACCESS_REMOTE
     accept_language = None
 
@@ -126,18 +125,7 @@ class CommandsProcessor(object):
         enforce(request.access_level & cmd.access_level, env.Forbidden,
                 _('Operation is permitted on requester\'s level'))
 
-        if request.principal is not None:
-            if cmd.permissions & env.ACCESS_AUTH:
-                enforce(request.principal is not env.ANONYMOUS,
-                        env.Unauthorized, _('User is not authenticated'))
-            if cmd.permissions & env.ACCESS_AUTHOR:
-                enforce(self.volume is not None)
-                doc = self.volume[request['document']].get(request['guid'])
-                enforce(request.principal in doc['user'], env.Forbidden,
-                        _('Operation is permitted only for authors'))
-
         result = cmd(request, response)
-
         _logger.debug('Called %r: request=%r result=%r', cmd, request, result)
 
         if not response.content_type:
@@ -179,15 +167,13 @@ class ProxyCommands(CommandsProcessor):
             return self.parent.call(request, response)
 
     def super_call(self, method, cmd=None, content=None,
-            access_level=env.ACCESS_REMOTE, principal=env.ANONYMOUS,
-            response=None, **kwargs):
+            access_level=env.ACCESS_REMOTE, response=None, **kwargs):
         request = Request(kwargs)
         request['method'] = method
         if cmd:
             request['cmd'] = cmd
         request.content = content
         request.access_level = access_level
-        request.principal = principal
 
         if response is None:
             response = Response()

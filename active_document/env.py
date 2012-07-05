@@ -55,8 +55,6 @@ ACCESS_NAMES = {
 
 LAYERS = ['public', 'deleted']
 
-ANONYMOUS = object()
-
 
 index_flush_timeout = optparse.Option(
         _('flush index index after specified seconds since the last change'),
@@ -99,10 +97,6 @@ class NotFound(Exception):
 
 class Forbidden(Exception):
     """Caller does not have permissions to get access."""
-    pass
-
-
-class Unauthorized(Exception):
     pass
 
 
