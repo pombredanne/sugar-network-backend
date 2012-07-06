@@ -205,21 +205,6 @@ class DocumentTest(tests.Test):
         directory.set_blob(guid, 'blob', StringIO('old-blob'))
         self.assertEqual('new-blob', file(doc.meta('blob')['path']).read())
 
-    def test_find_MaxLimit(self):
-
-        class Document(document.Document):
-            pass
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        directory.create({'user': []})
-        directory.create({'user': []})
-        directory.create({'user': []})
-
-        env.find_limit.value = 1
-        docs, total = directory.find(0, 1024)
-        self.assertEqual(1, len([i for i in docs]))
-
     def test_update(self):
 
         class Document(document.Document):

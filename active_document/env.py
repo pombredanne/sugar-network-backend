@@ -70,10 +70,6 @@ index_write_queue = optparse.Option(
             'the writer\'s queue size'),
         default=256, type_cast=int)
 
-find_limit = optparse.Option(
-        _('limit the resulting list for search requests'),
-        default=32, type_cast=int)
-
 
 def uuid():
     """Generate GUID value.
@@ -138,13 +134,7 @@ class Query(object):
             offset = 0
         self.offset = offset
 
-        if limit is None:
-            limit = find_limit.value
-        elif limit > find_limit.value:
-            _logger.warning(_('The find limit is restricted to %s'),
-                    find_limit.value)
-            limit = find_limit.value
-        self.limit = limit
+        self.limit = limit or 16
 
         if reply is None:
             reply = ['guid']
