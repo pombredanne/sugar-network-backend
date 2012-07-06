@@ -1,0 +1,109 @@
+#!/bin/sh
+
+# Copyright (C) 2012 Aleksey Lim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+debug() {
+    [ "${V}" ] && echo $@
+}
+
+info() {
+    echo $@
+}
+
+warning() {
+    echo $@
+}
+
+help() {
+    cat <<EOF
+Usage: $(basename $0) [PATH]
+
+Sugar Network sneakernet synchronization utility.
+
+If PATH is specified, utility will try to recursive search for synchronization
+packet files (files with ".packet" suffix). Using wget or curl utility, each
+packet will be uploaded to the targeting Sugar Network server with downloading
+resulting packets. On success, uploaded packets will be removed and resulting
+packets will be placed to PATH instead.
+
+See http://wiki.sugarlabs.org/go/Sugar_Network for details.
+EOF
+}
+
+get_header_key() {
+    packet="$1"
+    key="$2"
+
+    tar -xf "${packet}" header --to-stdout | \
+        grep -o "\"${key}\": *\"[^\"]*\"" | \
+        awk -F\" '{print $4}'
+}
+
+upload() {
+    packet="$1"
+    src_suffix="$2"
+    dst_suffix="$3"
+    url="$(get_header_key "${packet}" dst)?cmd=sync"
+    dst_packet="$(dirname "${packet}")/$(basename "${packet}" "${src_suffix}")"${dst_suffix}""
+
+    info "-- Upload ${packet}"
+
+    if [ -e "${dst_packet}" ]; then
+        warning "-- Destination ${dst_packet} already exists"
+        return 1
+    fi
+
+    if which wget >/dev/null 2>&1; then
+        cmd="wget --post-file '${packet}' '${url}' -O '${dst_packet}'"
+        [ "${V}" ] || cmd="${cmd} -q"
+    else
+        cmd="curl -XPOST --data-binary @'${packet}' '${url}' -o '${dst_packet}'"
+        [ "${V}" ] || cmd="${cmd} -s"
+    fi
+
+    debug "-- Run \"${cmd}\" upload command"
+    if ! sh -c "$cmd"; then
+        rm -f "${dst_packet}"
+        warning "-- Cannot upload packet using \"$cmd\" command, ignore \"${packet}\""
+        return 1
+    fi
+
+    if [ -e "${dst_packet}" -a $(stat -c %s "${dst_packet}") -eq 0 ]; then
+        rm "${dst_packet}"
+    fi
+}
+
+if [ $# -ne 1 ]; then
+    help
+    exit 0
+fi
+
+sync_path="$1"
+FS=
+
+# Look for PUSH packets at first to upload them and save free space
+for packet in $(find "${sync_path}" -name '*.push.packet'); do
+    upload "${packet}" .push.packet .ack.packet || continue
+    info "-- Remove processed ${packet}"
+    rm "${packet}"
+done
+
+# Then, process PULL packets that are assumed to overload PATH's free space
+for packet in $(find "${sync_path}" -name '*.pull.packet'); do
+    upload "${packet}" .pull.packet .push.packet || continue
+    info "-- Remove processed ${packet}"
+    rm "${packet}"
+done
