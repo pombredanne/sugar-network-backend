@@ -7,6 +7,7 @@ from os.path import exists
 from __init__ import tests
 
 import active_document as ad
+from sugar_network import node
 from sugar_network.node import stats, Unauthorized
 from sugar_network.node.commands import NodeCommands
 from sugar_network.resources.volume import Volume
@@ -227,6 +228,35 @@ class NodeTest(tests.Test):
         self.assertEqual(
                 [],
                 call(cp, method='GET', document='context', guid=context2, prop='author'))
+
+    def test_find_MaxLimit(self):
+        cp = NodeCommands('master', Volume('db'))
+
+        call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title1',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title2',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title3',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        node.find_limit.value = 3
+        self.assertEqual(3, len(call(cp, method='GET', document='context', limit=1024)['result']))
+        node.find_limit.value = 2
+        self.assertEqual(2, len(call(cp, method='GET', document='context', limit=1024)['result']))
+        node.find_limit.value = 1
+        self.assertEqual(1, len(call(cp, method='GET', document='context', limit=1024)['result']))
 
 
 def call(cp, principal=None, content=None, **kwargs):

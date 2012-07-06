@@ -74,6 +74,10 @@ only_sync_notification = optparse.Option(
         default=False, type_cast=optparse.Option.bool_cast,
         action='store_true')
 
+find_limit = optparse.Option(
+        _('limit the resulting list for search requests'),
+        default=32, type_cast=int)
+
 
 class HTTPStatus(Exception):
 

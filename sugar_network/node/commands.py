@@ -79,6 +79,18 @@ class NodeCommands(ad.VolumeCommands):
         directory = self.volume[document]
         directory.update(guid, {'layer': ['deleted']})
 
+    @ad.directory_command(method='GET')
+    def find(self, document, request, offset=None, limit=None, query=None,
+            reply=None, order_by=None, **kwargs):
+        if limit is None:
+            limit = node.find_limit.value
+        elif limit > node.find_limit.value:
+            _logger.warning(_('The find limit is restricted to %s'),
+                    node.find_limit.value)
+            limit = node.find_limit.value
+        return ad.VolumeCommands.find(self, document, request, offset, limit,
+                query, reply, order_by, **kwargs)
+
     def resolve(self, request):
         cmd = ad.VolumeCommands.resolve(self, request)
         if cmd is None:

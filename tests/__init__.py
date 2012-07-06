@@ -67,7 +67,7 @@ class Test(unittest.TestCase):
 
         ad.index_flush_timeout.value = 0
         ad.index_flush_threshold.value = 1
-        ad.find_limit.value = 1024
+        node.find_limit.value = 1024
         ad.index_write_queue.value = 10
         local.local_root.value = tmpdir
         local.activity_dirs.value = [tmpdir + '/Activities']
@@ -190,10 +190,10 @@ class Test(unittest.TestCase):
         sys.stderr.flush()
         os._exit(result)
 
-    def popen(self, *args):
+    def popen(self, *args, **kwargs):
         self.fork_num += 1
         logfile = file('%s-%s.log' % (tmpdir, self.fork_num), 'w')
-        child = subprocess.Popen(*args, stdout=logfile, stderr=logfile)
+        child = subprocess.Popen(*args, stdout=logfile, stderr=logfile, **kwargs)
         self.forks.append(child.pid)
         coroutine.sleep(1)
         return child.pid
@@ -244,7 +244,7 @@ class Test(unittest.TestCase):
 
         ad.index_flush_timeout.value = 0
         ad.index_flush_threshold.value = 1
-        ad.find_limit.value = 1024
+        node.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
         volume = Volume('remote', classes or [User, Context])
