@@ -294,9 +294,12 @@ class Directory(object):
             orig_meta = record.get(meta['prop'])
             if orig_meta is not None and orig_meta['mtime'] >= meta['mtime']:
                 return False
-            if increment_seqno and not common_props:
-                common_props['seqno'] = self._next_seqno()
-            meta.update(common_props)
+            if increment_seqno:
+                if not common_props:
+                    common_props['seqno'] = self._next_seqno()
+                meta.update(common_props)
+            else:
+                meta['seqno'] = (orig_meta or {}).get('seqno') or 0
             fun(**meta)
             return True
 
@@ -309,8 +312,11 @@ class Directory(object):
                     mime_type=kwargs.get('mime_type'),
                     digest=kwargs.get('digest'),
                     mtime=kwargs.get('mtime'))
+
         if merged and record.consistent:
-            self._post(guid, common_props.copy(), False)
+            event = {'event': 'sync', 'seqno': common_props.get('seqno') or 0}
+            self._index.store(guid, common_props, False,
+                    self._pre_store, self._post_store, event, increment_seqno)
 
         return common_props.get('seqno')
 
@@ -373,9 +379,9 @@ class Directory(object):
 
             seqno += 1
 
-    def _pre_store(self, guid, changes):
+    def _pre_store(self, guid, changes, event, increment_seqno):
         seqno = changes.get('seqno')
-        if not seqno:
+        if increment_seqno and not seqno:
             seqno = changes['seqno'] = self._next_seqno()
 
         record = self._storage.get(guid)
@@ -403,7 +409,7 @@ class Directory(object):
                     changes[name] = value
                 record.set(name, value=value, seqno=seqno)
 
-    def _post_store(self, guid, changes, event=None):
+    def _post_store(self, guid, changes, event, increment_seqno):
         if event:
             self._notify(event)
 
@@ -441,7 +447,7 @@ class Directory(object):
                  'guid': guid,
                  }
         self._index.store(guid, props, new,
-                self._pre_store, self._post_store, event)
+                self._pre_store, self._post_store, event, True)
 
     def _notify(self, even):
         if self._notification_cb is not None:

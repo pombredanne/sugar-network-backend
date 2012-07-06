@@ -737,6 +737,69 @@ class DocumentTest(tests.Test):
         self.assertEqual(4, doc.meta('blob')['mtime'])
         self.assertEqual('1', file('document2/gu/guid/blob.blob').read())
 
+    def test_merge_SeqnoLessMode(self):
+
+        class Document(document.Document):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        directory1 = Directory('document1', Document, IndexWriter)
+        directory1.create(guid='1', prop='1', ctime=1, mtime=1)
+
+        __, patch = directory1.diff(xrange(100), 2)
+        directory2 = Directory('document2', Document, IndexWriter)
+        for header, diff in patch:
+            directory2.merge(diff=diff, increment_seqno=False, **header)
+        self.assertEqual(
+                [{'layer': ['public'], 'ctime': 1, 'user': [], 'mtime': 1, 'guid': '1', 'prop': '1'}],
+                [i.properties() for i in directory2.find(0, 1024)[0]])
+        doc = directory2.get('1')
+        self.assertEqual(0, doc.get('seqno'))
+        self.assertEqual(0, doc.meta('guid')['seqno'])
+        self.assertEqual(0, doc.meta('prop')['seqno'])
+
+        __, patch = directory1.diff(xrange(100), 2)
+        directory3 = Directory('document3', Document, IndexWriter)
+        for header, diff in patch:
+            directory3.merge(diff=diff, **header)
+        self.assertEqual(
+                [{'layer': ['public'], 'ctime': 1, 'user': [], 'mtime': 1, 'guid': '1', 'prop': '1'}],
+                [i.properties() for i in directory3.find(0, 1024)[0]])
+        doc = directory3.get('1')
+        self.assertEqual(1, doc.get('seqno'))
+        self.assertEqual(1, doc.meta('guid')['seqno'])
+        self.assertEqual(1, doc.meta('prop')['seqno'])
+
+        directory1.update(guid='1', prop='2', ctime=2, mtime=2)
+
+        __, patch = directory1.diff(xrange(100), 2)
+        for header, diff in patch:
+            directory3.merge(diff=diff, increment_seqno=False, **header)
+        self.assertEqual(
+                [{'layer': ['public'], 'ctime': 2, 'user': [], 'mtime': 2, 'guid': '1', 'prop': '2'}],
+                [i.properties() for i in directory3.find(0, 1024)[0]])
+        doc = directory3.get('1')
+        self.assertEqual(1, doc.get('seqno'))
+        self.assertEqual(1, doc.meta('guid')['seqno'])
+        self.assertEqual(1, doc.meta('prop')['seqno'])
+
+        time.sleep(1)
+        directory1.update(guid='1', prop='3', ctime=3, mtime=3)
+
+        __, patch = directory1.diff(xrange(100), 2)
+        for header, diff in patch:
+            print diff
+            directory3.merge(diff=diff, **header)
+        self.assertEqual(
+                [{'layer': ['public'], 'ctime': 3, 'user': [], 'mtime': 3, 'guid': '1', 'prop': '3'}],
+                [i.properties() for i in directory3.find(0, 1024)[0]])
+        doc = directory3.get('1')
+        self.assertEqual(2, doc.get('seqno'))
+        self.assertEqual(1, doc.meta('guid')['seqno'])
+        self.assertEqual(2, doc.meta('prop')['seqno'])
+
 
 def read_diff(diff):
     result = []

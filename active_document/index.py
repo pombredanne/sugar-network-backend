@@ -299,7 +299,7 @@ class IndexWriter(IndexReader):
             self._do_open()
 
         if pre_cb is not None:
-            pre_cb(guid, properties)
+            pre_cb(guid, properties, *args)
 
         _logger.debug('Index %r object: %r', self.metadata.name, properties)
 
