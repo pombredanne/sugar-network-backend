@@ -48,10 +48,7 @@ class Router(object):
         try:
             request = _Request(environ)
             request.principal = self._authenticate(request)
-
-            _logger.debug('Processing %s', request)
             result = self._cp.call(request, response)
-
         except ad.Redirect, error:
             response.status = '303 See Other'
             response['Location'] = error.location
@@ -84,6 +81,9 @@ class Router(object):
         if not result_streamed and response.content_type == 'application/json':
             result = json.dumps(result)
             response.content_length = len(result)
+
+        _logger.debug('Process request=%r response=%r result=%r streamed=%r',
+                request, response, result, result_streamed)
 
         start_response(response.status, response.items())
 

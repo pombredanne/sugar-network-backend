@@ -143,8 +143,10 @@ class MasterCommands(NodeCommands):
 
     @ad.volume_command(method='POST', cmd='sync')
     def sync(self, request, response, accept_length=None):
-        _logger.debug('Pushing %s bytes length packet', request.content_length)
         with sneakernet.InPacket(stream=request) as packet:
+            _logger.debug('Processing %s lenght %r sync packet',
+                    request.content_length, packet)
+
             enforce('src' in packet.header and \
                     packet.header['src'] != self._api_url,
                     _('Misaddressed packet'))
@@ -173,6 +175,8 @@ class MasterCommands(NodeCommands):
                 return
 
             out_packet.header['src'] = self._api_url
+            _logger.debug('Reply with %r sync packet', out_packet)
+
             content, response.content_length = out_packet.pop_content()
             return content
 

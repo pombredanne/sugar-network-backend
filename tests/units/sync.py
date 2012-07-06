@@ -331,6 +331,54 @@ class SyncTest(tests.Test):
                 ['2', '3'],
                 [i.guid for i in node.volume['document'].find()[0]])
 
+    def test_Node_TakeIntoAccountJustReadAckPacket(self):
+        node = NodeMount(self.new_volume('db'), None)
+
+        node.volume['document'].create(guid='1', prop='prop1')
+        node.volume['document'].create(guid='2', prop='prop2')
+        node.volume['document'].create(guid='3', prop='prop3')
+
+        ack = OutPacket('ack', root='sync',
+                src=_DEFAULT_MASTER,
+                dst=tests.UID,
+                push_sequence={'document': [[1, 2]]},
+                pull_sequence={})
+        ack.close()
+
+        node.sync('sync', session='session')
+
+        self.assertEqual([
+            {'type': 'push', 'src': tests.UID, 'dst': _DEFAULT_MASTER, 'sequence': {'document': [[3, 3]]}, 'session': 'session'},
+            {'type': 'messages', 'document': 'document', 'guid': '3', 'diff': {
+                'user':  {'value': [],          'mtime': os.stat('db/document/3/3/user').st_mtime},
+                'layer': {'value': ['public'],  'mtime': os.stat('db/document/3/3/layer').st_mtime},
+                'guid':  {'value': '3',         'mtime': os.stat('db/document/3/3/guid').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/3/3/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/3/3/mtime').st_mtime},
+                'prop':  {'value': 'prop3',     'mtime': os.stat('db/document/3/3/prop').st_mtime},
+                }},
+            ],
+            self.read_packets('sync'))
+
+    def test_Node_DoNotPushNotOurOwnChanges(self):
+        node = NodeMount(self.new_volume('db'), None)
+
+        master_push = OutPacket('push', root='sync',
+                src=_DEFAULT_MASTER,
+                sequence={'document': [[1, 1]]})
+        master_push.push_messages(document='document', items=[
+            {'guid': '1', 'diff': {'guid': {'value': '1', 'mtime': 1}}},
+            ])
+        master_push.close()
+
+        node.sync('sync', session='session')
+
+        self.assertEqual(
+                ['1'],
+                [i.guid for i in node.volume['document'].find()[0]])
+        os.unlink(master_push.path)
+        self.assertEqual([], self.read_packets('sync'))
+
     def test_Node_Import_DoNotDeletePacketsFromCurrentSession(self):
         node = NodeMount(self.new_volume('db'), None)
         node.volume['document'].create(guid='1')

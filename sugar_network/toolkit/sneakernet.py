@@ -78,7 +78,7 @@ class InPacket(object):
         except Exception, error:
             self.close()
             util.exception()
-            raise RuntimeError(_('Malformed packet: %s') % error)
+            raise RuntimeError(_('Malformed %r packet: %s') % (self, error))
 
     @property
     def path(self):

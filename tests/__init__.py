@@ -127,10 +127,11 @@ class Test(unittest.TestCase):
     def waitpid(self, pid, sig=signal.SIGTERM):
         if pid in self.forks:
             self.forks.remove(pid)
-        try:
-            os.kill(pid, sig)
-        except Exception:
-            pass
+        if sig:
+            try:
+                os.kill(pid, sig)
+            except Exception:
+                pass
         try:
             __, status = os.waitpid(pid, 0)
             return os.WEXITSTATUS(status)

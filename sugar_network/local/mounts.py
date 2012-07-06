@@ -394,7 +394,7 @@ class NodeMount(LocalMount):
             session_is_new = False
 
         while True:
-            self._import(path, session)
+            self._import(path, session, to_push_seq)
             self._push_seq.commit()
             self._pull_seq.commit()
 
@@ -447,7 +447,7 @@ class NodeMount(LocalMount):
                     self._sync_session)
             self.publish({'event': 'sync_continue'})
 
-    def _import(self, path, session):
+    def _import(self, path, session, to_push_seq):
         for packet in sneakernet.walk(path):
             if packet.header.get('type') == 'push' and \
                     packet.header.get('src') != self._node_guid:
@@ -472,6 +472,7 @@ class NodeMount(LocalMount):
                         packet, packet.path)
                 self._push_seq.exclude(packet.header['push_sequence'])
                 self._pull_seq.exclude(packet.header['pull_sequence'])
+                to_push_seq.exclude(packet.header['push_sequence'])
                 _logger.debug('Remove processed %r ACK packet', packet)
                 os.unlink(packet.path)
 
