@@ -143,42 +143,55 @@ class MasterCommands(NodeCommands):
 
     @ad.volume_command(method='POST', cmd='sync')
     def sync(self, request, response, accept_length=None):
-        with sneakernet.InPacket(stream=request) as packet:
-            _logger.debug('Processing %s lenght %r sync packet',
-                    request.content_length, packet)
+        if not request.content_length:
+            all_items = Sequences(empty_value=[1, None])
+            out_packet = self._process_pull(all_items, None)
+        else:
+            with sneakernet.InPacket(stream=request) as packet:
+                _logger.debug('Processing %s lenght %r sync packet',
+                        request.content_length, packet)
 
-            enforce('src' in packet.header and \
-                    packet.header['src'] != self._api_url,
-                    _('Misaddressed packet'))
-            enforce('dst' in packet.header and \
-                    packet.header['dst'] == self._api_url,
-                    _('Misaddressed packet'))
+                enforce('src' in packet.header and \
+                        packet.header['src'] != self._api_url,
+                        _('Misaddressed packet'))
+                enforce('dst' in packet.header and \
+                        packet.header['dst'] == self._api_url,
+                        _('Misaddressed packet'))
 
-            if packet.header.get('type') == 'push':
-                out_packet = sneakernet.OutPacket('ack')
-                out_packet.header['dst'] = packet.header['src']
-                out_packet.header['push_sequence'] = packet.header['sequence']
-                out_packet.header['pull_sequence'] = self.volume.merge(packet)
-            elif packet.header.get('type') == 'pull':
-                out_packet = sneakernet.OutPacket('push', limit=accept_length)
-                out_seq = out_packet.header['sequence'] = Sequences()
-                try:
-                    in_seq = Sequences(packet.header['sequence'])
-                    self.volume.diff(in_seq, out_seq, out_packet)
-                except sneakernet.DiskFull:
-                    pass
-            else:
-                raise RuntimeError(_('Unrecognized packet'))
+                if packet.header.get('type') == 'push':
+                    out_packet = self._process_push(packet)
+                elif packet.header.get('type') == 'pull':
+                    out_packet = self._process_pull(
+                            Sequences(packet.header['sequence']),
+                            accept_length)
+                else:
+                    raise RuntimeError(_('Unrecognized packet'))
 
-            if out_packet.closed:
-                response.content_type = 'application/octet-stream'
-                return
+        if out_packet.closed:
+            response.content_type = 'application/octet-stream'
+            return
 
-            out_packet.header['src'] = self._api_url
-            _logger.debug('Reply with %r sync packet', out_packet)
+        out_packet.header['src'] = self._api_url
+        _logger.debug('Reply with %r sync packet', out_packet)
 
-            content, response.content_length = out_packet.pop_content()
-            return content
+        content, response.content_length = out_packet.pop_content()
+        return content
+
+    def _process_push(self, in_packet):
+        out_packet = sneakernet.OutPacket('ack')
+        out_packet.header['dst'] = in_packet.header['src']
+        out_packet.header['push_sequence'] = in_packet.header['sequence']
+        out_packet.header['pull_sequence'] = self.volume.merge(in_packet)
+        return out_packet
+
+    def _process_pull(self, in_seq, accept_length):
+        out_packet = sneakernet.OutPacket('push', limit=accept_length)
+        out_seq = out_packet.header['sequence'] = Sequences()
+        try:
+            self.volume.diff(in_seq, out_seq, out_packet)
+        except sneakernet.DiskFull:
+            pass
+        return out_packet
 
 
 def _load_pubkey(pubkey):
