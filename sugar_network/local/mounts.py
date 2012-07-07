@@ -18,7 +18,7 @@ import json
 import shutil
 import logging
 from urlparse import urlparse
-from os.path import isabs, exists, join
+from os.path import isabs, exists, join, basename
 from gettext import gettext as _
 
 import sweets_recipe
@@ -49,6 +49,10 @@ class _Mount(object):
         self._mounted = False
 
     @property
+    def name(self):
+        return basename(self.mountpoint)
+
+    @property
     def mounted(self):
         return self._mounted
 
@@ -59,6 +63,7 @@ class _Mount(object):
         self.publish({
             'event': 'mount' if value else 'unmount',
             'mountpoint': self.mountpoint,
+            'name': self.name,
             'document': '*',
             })
 
@@ -105,6 +110,10 @@ class LocalMount(ad.VolumeCommands, _Mount):
 
 
 class HomeMount(LocalMount):
+
+    @property
+    def name(self):
+        return _('Home')
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request=None):
@@ -206,6 +215,10 @@ class HomeMount(LocalMount):
 
 
 class RemoteMount(ad.CommandsProcessor, _Mount):
+
+    @property
+    def name(self):
+        return _('Network')
 
     def __init__(self, home_volume):
         ad.CommandsProcessor.__init__(self)

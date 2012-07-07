@@ -64,13 +64,13 @@ volume = None
 
 def main():
     if not volume['context'].exists(SN_GUID):
-        volume['context'].create(guid=SN_GUID, type='application',
+        volume['context'].create(guid=SN_GUID, type='project',
                 title='Sugar Network', summary='Sugar Network',
                 description='Sugar Network', user=['aslo'],
                 layer=['public'], ctime=time.time(), mtime=time.time())
 
     if not volume['context'].exists(SUGAR_GUID):
-        volume['context'].create(guid=SUGAR_GUID, type='application',
+        volume['context'].create(guid=SUGAR_GUID, type='project',
                 title='Sugar', summary='Sugar', description='Sugar',
                 user=['aslo'],
                 layer=['public'], ctime=time.time(), mtime=time.time())

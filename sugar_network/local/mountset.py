@@ -81,7 +81,7 @@ class Mountset(dict, ad.CommandsProcessor):
         result = []
         for path, mount in self.items():
             if mount.mounted:
-                result.append({'mountpoint': path})
+                result.append({'mountpoint': path, 'name': mount.name})
         return result
 
     @ad.volume_command(method='GET', cmd='mounted')

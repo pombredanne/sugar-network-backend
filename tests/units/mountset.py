@@ -80,8 +80,8 @@ class MountsetTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    {'mountpoint': tests.tmpdir + '/1'},
-                    {'mountpoint': tests.tmpdir + '/2'},
+                    {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
+                    {'mountpoint': tests.tmpdir + '/2', 'name': '2'},
                     ]),
                 sorted(Client.mounts()))
 
@@ -96,7 +96,7 @@ class MountsetTest(tests.Test):
                 self.events)
         self.assertEqual(
                 sorted([
-                    {'mountpoint': tests.tmpdir + '/1'},
+                    {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
                     ]),
                 sorted(Client.mounts()))
         Client(tests.tmpdir + '/1').Context(
@@ -113,8 +113,8 @@ class MountsetTest(tests.Test):
                 self.events[1:])
         self.assertEqual(
                 sorted([
-                    {'mountpoint': tests.tmpdir + '/1'},
-                    {'mountpoint': tests.tmpdir + '/2'},
+                    {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
+                    {'mountpoint': tests.tmpdir + '/2', 'name': '2'},
                     ]),
                 sorted(Client.mounts()))
         Client(tests.tmpdir + '/2').Context(
@@ -134,7 +134,7 @@ class MountsetTest(tests.Test):
                 self.events)
         self.assertEqual(
                 sorted([
-                    {'mountpoint': tests.tmpdir + '/1'},
+                    {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
                     ]),
                 sorted(Client.mounts()))
         Client(tests.tmpdir + '/1').Context(
@@ -152,8 +152,8 @@ class MountsetTest(tests.Test):
                 self.events[1:])
         self.assertEqual(
                 sorted([
-                    {'mountpoint': tests.tmpdir + '/1'},
-                    {'mountpoint': tests.tmpdir + '/2'},
+                    {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
+                    {'mountpoint': tests.tmpdir + '/2', 'name': '2'},
                     ]),
                 sorted(Client.mounts()))
         Client(tests.tmpdir + '/2').Context(
@@ -171,7 +171,7 @@ class MountsetTest(tests.Test):
                 self.events[2:])
         self.assertEqual(
                 sorted([
-                    {'mountpoint': tests.tmpdir + '/2'},
+                    {'mountpoint': tests.tmpdir + '/2', 'name': '2'},
                     ]),
                 sorted(Client.mounts()))
         self.assertRaises(ServerError, Client(tests.tmpdir + '/1').Context(

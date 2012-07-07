@@ -2,3 +2,5 @@
 *.tar.*
 doc/build
 tmp
+misc/db/**
+misc/log

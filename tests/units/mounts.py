@@ -321,7 +321,7 @@ class MountsTest(tests.Test):
                 description='description').post()
 
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'document': '*'},
+                {'mountpoint': '/', 'event': 'mount', 'document': '*', 'name': 'Network'},
                 subscription.read_message())
         coroutine.select([subscription.fileno()], [], [])
         event = subscription.read_message()
@@ -452,7 +452,7 @@ class MountsTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'document': '*'},
+                {'mountpoint': '/', 'event': 'mount', 'document': '*', 'name': 'Network'},
                 subscription.read_message())
         self.assertEqual(True, client.connected)
 
@@ -460,7 +460,7 @@ class MountsTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'unmount', 'document': '*'},
+                {'mountpoint': '/', 'event': 'unmount', 'document': '*', 'name': 'Network'},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 
@@ -470,7 +470,7 @@ class MountsTest(tests.Test):
         self.assertEqual(False, client.connected)
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'document': '*'},
+                {'mountpoint': '/', 'event': 'mount', 'document': '*', 'name': 'Network'},
                 subscription.read_message())
         self.assertEqual(True, client.connected)
 
@@ -478,7 +478,7 @@ class MountsTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'unmount', 'document': '*'},
+                {'mountpoint': '/', 'event': 'unmount', 'document': '*', 'name': 'Network'},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 
