@@ -370,8 +370,6 @@ class IndexWriter(IndexReader):
             self._db = xapian.WritableDatabase(self._path,
                     xapian.DB_CREATE_OR_OPEN)
 
-        _logger.info(_('Opened %r index'), self.metadata.name)
-
     def _commit(self):
         if self._pending_updates <= 0:
             return

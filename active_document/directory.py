@@ -314,9 +314,11 @@ class Directory(object):
                     mtime=kwargs.get('mtime'))
 
         if merged and record.consistent:
-            event = {'event': 'sync', 'seqno': common_props.get('seqno') or 0}
             self._index.store(guid, common_props, False,
-                    self._pre_store, self._post_store, event, increment_seqno)
+                    self._pre_store, self._post_store,
+                    # No need in after-merge event, further commit event
+                    # is enough to avoid events flow on nodes synchronization
+                    None, increment_seqno)
 
         return common_props.get('seqno')
 
