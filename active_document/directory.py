@@ -35,7 +35,7 @@ _logger = logging.getLogger('active_document.document')
 class Directory(object):
 
     def __init__(self, root, document_class, index_class,
-            notification_cb=None):
+            notification_cb=None, seqno=None):
         """
         :param index_class:
             what class to use to access to indexes, for regular casses
@@ -56,13 +56,8 @@ class Directory(object):
 
         self.document_class = document_class
         self._root = root
-        self._seqno = 0
         self._notification_cb = notification_cb
-
-        seqno_path = join(root, 'seqno')
-        if exists(seqno_path):
-            with file(seqno_path) as f:
-                self._seqno = int(f.read().strip())
+        self._seqno = _SessionSeqno() if seqno is None else seqno
 
         index_path = join(root, 'index')
         if self._is_layout_stale():
@@ -72,10 +67,6 @@ class Directory(object):
         self._index = index_class(index_path, self.metadata, self._post_commit)
 
         _logger.debug('Initiated %r document', document_class)
-
-    @property
-    def seqno(self):
-        return self._seqno
 
     def close(self):
         """Flush index write pending queue and close the index."""
@@ -208,7 +199,7 @@ class Directory(object):
                 _('Property %r in %r is not a BLOB'),
                 prop.name, self.metadata.name)
         record = self._storage.get(guid)
-        seqno = self._next_seqno()
+        seqno = self._seqno.next()
 
         _logger.debug('Received %r BLOB property from %s[%s]',
                 prop.name, self.metadata.name, guid)
@@ -263,7 +254,7 @@ class Directory(object):
         if found:
             self._save_layout()
             self.commit()
-            self._notify({'event': 'sync', 'seqno': self._seqno})
+            self._notify({'event': 'sync', 'seqno': self._seqno.value})
 
     def diff(self, accept_range, limit):
         """Return documents' properties for specified times range.
@@ -283,21 +274,18 @@ class Directory(object):
             return ranges, []
         return ranges, self._diff(ranges, accept_range, limit)
 
-    def merge(self, guid, diff, increment_seqno=True, seqno=None, **kwargs):
+    def merge(self, guid, diff, seqno=None, **kwargs):
         """Apply changes for documents."""
         record = self._storage.get(guid)
-        common_props = {}
-        if increment_seqno and seqno is not None:
-            common_props['seqno'] = seqno
+        if seqno is not None:
+            seqno = {'seqno': seqno}
 
         def merge(fun, **meta):
             orig_meta = record.get(meta['prop'])
             if orig_meta is not None and orig_meta['mtime'] >= meta['mtime']:
                 return False
-            if increment_seqno:
-                if not common_props:
-                    common_props['seqno'] = self._next_seqno()
-                meta.update(common_props)
+            if seqno:
+                meta.update(seqno)
             else:
                 meta['seqno'] = (orig_meta or {}).get('seqno') or 0
             fun(**meta)
@@ -314,13 +302,11 @@ class Directory(object):
                     mtime=kwargs.get('mtime'))
 
         if merged and record.consistent:
-            self._index.store(guid, common_props, False,
+            self._index.store(guid, seqno or {}, False,
                     self._pre_store, self._post_store,
                     # No need in after-merge event, further commit event
                     # is enough to avoid events flow on nodes synchronization
-                    None, increment_seqno)
-
-        return common_props.get('seqno')
+                    None, bool(seqno))
 
     def _diff(self, ranges, accept_range, limit):
         # To make fetching more reliable, avoid using intermediate
@@ -384,7 +370,7 @@ class Directory(object):
     def _pre_store(self, guid, changes, event, increment_seqno):
         seqno = changes.get('seqno')
         if increment_seqno and not seqno:
-            seqno = changes['seqno'] = self._next_seqno()
+            seqno = changes['seqno'] = self._seqno.next()
 
         record = self._storage.get(guid)
         existed = record.exists
@@ -420,15 +406,8 @@ class Directory(object):
         self._notify(event)
 
     def _post_commit(self):
-        with util.new_file(join(self._root, 'seqno')) as f:
-            f.write(str(self._seqno))
-            f.flush()
-            os.fsync(f.fileno())
-        self._notify({'event': 'commit', 'seqno': self._seqno})
-
-    def _next_seqno(self):
-        self._seqno += 1
-        return self._seqno
+        self._seqno.commit()
+        self._notify({'event': 'commit', 'seqno': self._seqno.value})
 
     def _post(self, guid, props, new):
         for prop_name, value in props.items():
@@ -467,3 +446,20 @@ class Directory(object):
         with file(path) as f:
             version = f.read()
         return not version.isdigit() or int(version) != _LAYOUT_VERSION
+
+
+class _SessionSeqno(object):
+
+    def __init__(self):
+        self._value = 0
+
+    @property
+    def value(self):
+        return self._value
+
+    def next(self):
+        self._value += 1
+        return self._value
+
+    def commit(self):
+        pass

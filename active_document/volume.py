@@ -38,13 +38,14 @@ class _Volume(dict):
 
     def __init__(self, root, documents, index_class, lazy_open):
         self._root = abspath(root)
+        _logger.info(_('Opening %r volume'), self._root)
+
         if not exists(root):
             os.makedirs(root)
         self._index_class = index_class
         self._subscriptions = {}
         self._to_open = {}
-
-        _logger.info(_('Opening %r volume'), self._root)
+        self.seqno = _Seqno(join(self._root, 'seqno'))
 
         for document in documents:
             if isinstance(document, basestring):
@@ -117,7 +118,7 @@ class _Volume(dict):
         else:
             cls = document
         directory = Directory(join(self._root, name), cls, self._index_class,
-                partial(self._notification_cb, document=name))
+                partial(self._notification_cb, document=name), self.seqno)
         return directory
 
 
@@ -283,6 +284,31 @@ class VolumeCommands(CommandsProcessor):
             return {request.accept_language[0]: value}
         else:
             return value
+
+
+class _Seqno(object):
+
+    def __init__(self, path):
+        self._path = path
+        self._value = 0
+
+        if exists(path):
+            with file(path) as f:
+                self._value = int(f.read().strip())
+
+    @property
+    def value(self):
+        return self._value
+
+    def next(self):
+        self._value += 1
+        return self._value
+
+    def commit(self):
+        with util.new_file(self._path) as f:
+            f.write(str(self._value))
+            f.flush()
+            os.fsync(f.fileno())
 
 
 def _to_int(name, value):

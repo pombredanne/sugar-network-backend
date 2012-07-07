@@ -472,6 +472,35 @@ class VolumeTest(tests.Test):
         guid = self.call(method='POST', document='testdocument', content={})
         assert guid
 
+    def test_seqno(self):
+
+        class Document1(Document):
+            pass
+
+        class Document2(Document):
+            pass
+
+        volume = SingleVolume(tests.tmpdir, [Document1, Document2])
+
+        assert not exists('seqno')
+        self.assertEqual(0, volume.seqno.value)
+
+        volume['document1'].create(guid='1')
+        self.assertEqual(1, volume['document1'].get('1')['seqno'])
+        volume['document2'].create(guid='1')
+        self.assertEqual(2, volume['document2'].get('1')['seqno'])
+        volume['document1'].create(guid='2')
+        self.assertEqual(3, volume['document1'].get('2')['seqno'])
+        volume['document2'].create(guid='2')
+        self.assertEqual(4, volume['document2'].get('2')['seqno'])
+
+        self.assertEqual(4, volume.seqno.value)
+        assert not exists('seqno')
+        volume.seqno.commit()
+        assert exists('seqno')
+        volume = SingleVolume(tests.tmpdir, [Document1, Document2])
+        self.assertEqual(4, volume.seqno.value)
+
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):
 
