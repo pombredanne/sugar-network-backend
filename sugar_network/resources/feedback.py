@@ -15,7 +15,7 @@
 
 import active_document as ad
 
-from sugar_network.node import FEEDBACK_TYPES
+from sugar_network import resources
 from sugar_network.resources.volume import Resource
 
 
@@ -26,7 +26,8 @@ class Feedback(Resource):
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='T', full_text=True, typecast=[FEEDBACK_TYPES])
+    @ad.active_property(prefix='T', full_text=True,
+            typecast=[resources.FEEDBACK_TYPES])
     def type(self, value):
         return value
 

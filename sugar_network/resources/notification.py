@@ -15,7 +15,7 @@
 
 import active_document as ad
 
-from sugar_network import node
+from sugar_network import resources
 from sugar_network.resources.volume import Resource
 
 
@@ -23,13 +23,13 @@ class Notification(Resource):
 
     @ad.active_property(slot=1, prefix='T',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
-            typecast=node.NOTIFICATION_TYPES)
+            typecast=resources.NOTIFICATION_TYPES)
     def type(self, value):
         return value
 
     @ad.active_property(slot=2, prefix='K',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
-            default='', typecast=node.NOTIFICATION_OBJECT_TYPES)
+            default='', typecast=resources.NOTIFICATION_OBJECT_TYPES)
     def resource(self, value):
         return value
 

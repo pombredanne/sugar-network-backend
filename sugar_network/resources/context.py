@@ -15,14 +15,14 @@
 
 import active_document as ad
 
-from sugar_network import node
+from sugar_network import resources
 from sugar_network.resources.volume import Resource
 
 
 class Context(Resource):
 
     @ad.active_property(prefix='T', full_text=True,
-            typecast=[node.CONTEXT_TYPES])
+            typecast=[resources.CONTEXT_TYPES])
     def type(self, value):
         return value
 

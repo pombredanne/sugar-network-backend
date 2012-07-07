@@ -12,3 +12,16 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+CONTEXT_TYPES = ['activity', 'project']
+COMMENT_PARENTS = ['feedback', 'solution']
+NOTIFICATION_TYPES = ['create', 'update', 'delete', 'vote']
+FEEDBACK_TYPES = ['question', 'idea', 'problem', 'review']
+
+NOTIFICATION_OBJECT_TYPES = [
+        '', 'content', 'feedback', 'solution', 'artifact', 'version', 'report',
+        ]
+
+STABILITIES = [
+        'insecure', 'buggy', 'developer', 'testing', 'stable',
+        ]

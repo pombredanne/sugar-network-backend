@@ -15,7 +15,7 @@
 
 import active_document as ad
 
-from sugar_network import node
+from sugar_network import resources
 from sugar_network.resources.volume import Resource
 
 
@@ -23,7 +23,7 @@ class Comment(Resource):
 
     @ad.active_property(prefix='T',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
-            typecast=node.COMMENT_PARENTS)
+            typecast=resources.COMMENT_PARENTS)
     def parent_resource(self, value):
         return value
 

@@ -18,19 +18,6 @@ from gettext import gettext as _
 from active_toolkit import optparse
 
 
-CONTEXT_TYPES = ['application', 'library', 'activity', 'article']
-COMMENT_PARENTS = ['feedback', 'solution']
-NOTIFICATION_TYPES = ['create', 'update', 'delete', 'vote']
-FEEDBACK_TYPES = ['question', 'idea', 'problem', 'review']
-
-NOTIFICATION_OBJECT_TYPES = [
-        '', 'content', 'feedback', 'solution', 'artifact', 'version', 'report',
-        ]
-STABILITIES = [
-        'insecure', 'buggy', 'developer', 'testing', 'stable',
-        ]
-
-
 host = optparse.Option(
         _('hostname to listen incomming connections'),
         default='0.0.0.0', name='host')

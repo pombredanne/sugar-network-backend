@@ -18,7 +18,7 @@
 import active_document as ad
 from sweets_recipe import GOOD_LICENSES
 
-from sugar_network import node
+from sugar_network import resources
 from sugar_network.resources.volume import Resource
 
 
@@ -46,7 +46,7 @@ class Implementation(Resource):
 
     @ad.active_property(slot=4, prefix='S', full_text=True,
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
-            typecast=node.STABILITIES)
+            typecast=resources.STABILITIES)
     def stability(self, value):
         return value
 
