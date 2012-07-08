@@ -21,9 +21,10 @@ from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import node
-from sugar_network.toolkit import sneakernet
-from sugar_network.toolkit.collection import Sequences
-from active_toolkit import util, enforce
+from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
+        OutFilePacket, DiskFull
+from sugar_network.toolkit.collection import Sequence
+from active_toolkit import sockets, util, enforce
 
 
 _logger = logging.getLogger('node.commands')
@@ -55,14 +56,9 @@ class NodeCommands(ad.VolumeCommands):
 
     @ad.volume_command(method='GET', cmd='stat')
     def stat(self):
-        documents = {}
-        for name, directory in self.volume.items():
-            documents[name] = {
-                    'seqno': directory.seqno,
-                    }
         return {'guid': self._guid,
                 'master': self._is_master,
-                'documents': documents,
+                'seqno': self.volume.seqno.value,
                 }
 
     @ad.volume_command(method='POST', cmd='subscribe',
@@ -141,57 +137,95 @@ class MasterCommands(NodeCommands):
         NodeCommands.__init__(self, master_url, volume, subscriber)
         self._api_url = master_url
 
-    @ad.volume_command(method='POST', cmd='sync')
-    def sync(self, request, response, accept_length=None):
-        if not request.content_length:
-            all_items = Sequences(empty_value=[1, None])
-            out_packet = self._process_pull(all_items, None)
-        else:
-            with sneakernet.InPacket(stream=request) as packet:
-                _logger.debug('Processing %s lenght %r sync packet',
-                        request.content_length, packet)
+    @ad.volume_command(method='POST', cmd='push')
+    def push(self, request, response):
+        with InPacket(stream=request) as in_packet:
+            enforce('src' in in_packet.header and \
+                    in_packet.header['src'] != self._api_url,
+                    _('Misaddressed packet'))
+            enforce('dst' in in_packet.header and \
+                    in_packet.header['dst'] == self._api_url,
+                    _('Misaddressed packet'))
 
-                enforce('src' in packet.header and \
-                        packet.header['src'] != self._api_url,
-                        _('Misaddressed packet'))
-                enforce('dst' in packet.header and \
-                        packet.header['dst'] == self._api_url,
-                        _('Misaddressed packet'))
+            out_packet = OutBufferPacket(src=self._api_url,
+                    dst=in_packet.header['src'])
+            continue_packet = OutBufferPacket(
+                    src=in_packet.header['src'], dst=self._api_url)
+            pull_to_forward = Sequence()
+            merged_in_seq = Sequence()
+            merged_out_seq = Sequence()
 
-                if packet.header.get('type') == 'push':
-                    out_packet = self._process_push(packet)
-                elif packet.header.get('type') == 'pull':
-                    out_packet = self._process_pull(
-                            Sequences(packet.header['sequence']),
-                            accept_length)
-                else:
-                    raise RuntimeError(_('Unrecognized packet'))
+            for record in in_packet.records(dst=self._api_url):
+                cmd = record.get('cmd')
+                if cmd == 'sn_push':
+                    if record.get('content_type') == 'blob':
+                        record['diff'] = record['blob']
+                    seqno = self.volume[record['document']].merge(**record)
+                    merged_out_seq.include(seqno, seqno)
+                    if 'range' in record:
+                        merged_in_seq.include(*record['range'])
+                elif cmd == 'sn_pull':
+                    # Nodes create singular packet, forward PULLs
+                    # to process them in `pull()` later
+                    pull_to_forward.include(record['sequence'])
 
-        if out_packet.closed:
-            response.content_type = 'application/octet-stream'
-            return
+            if merged_out_seq:
+                _logger.debug('Merged push with %r seqnos', merged_out_seq)
+                out_packet.push(cmd='sn_ack', in_sequence=merged_in_seq,
+                        out_sequence=merged_out_seq)
+                pull_to_forward.exclude(merged_out_seq)
 
-        out_packet.header['src'] = self._api_url
-        _logger.debug('Reply with %r sync packet', out_packet)
+            if pull_to_forward:
+                _logger.debug('Forward %r pull', pull_to_forward)
+                continue_packet.push(cmd='sn_pull', sequence=pull_to_forward)
 
-        content, response.content_length = out_packet.pop_content()
-        return content
+        return self._reply(response, out_packet, continue_packet)
 
-    def _process_push(self, in_packet):
-        out_packet = sneakernet.OutPacket('ack')
-        out_packet.header['dst'] = in_packet.header['src']
-        out_packet.header['push_sequence'] = in_packet.header['sequence']
-        out_packet.header['pull_sequence'] = self.volume.merge(in_packet)
-        return out_packet
+    @ad.volume_command(method='POST', cmd='pull')
+    def pull(self, request, response, accept_length=None):
+        with OutFilePacket(src=self._api_url,
+                limit=accept_length) as out_packet:
+            continue_packet = OutBufferPacket(dst=self._api_url)
+            pull_seq = Sequence()
 
-    def _process_pull(self, in_seq, accept_length):
-        out_packet = sneakernet.OutPacket('push', limit=accept_length)
-        out_seq = out_packet.header['sequence'] = Sequences()
-        try:
-            self.volume.diff(in_seq, out_seq, out_packet)
-        except sneakernet.DiskFull:
-            pass
-        return out_packet
+            if not request.content_length:
+                _logger.debug('Return full synchronization dump')
+                pull_seq.include(1, None)
+            else:
+                with InPacket(stream=request) as in_packet:
+                    enforce(in_packet.header.get('src') != self._api_url,
+                            _('Misaddressed packet'))
+                    enforce('dst' in in_packet.header and \
+                            in_packet.header['dst'] == self._api_url,
+                            _('Misaddressed packet'))
+                    for record in in_packet.records():
+                        if record.get('cmd') == 'sn_pull':
+                            pull_seq.include(record['sequence'])
+
+            _logger.debug('Writing %r pull', pull_seq)
+            try:
+                self.volume.diff(pull_seq, out_packet)
+            except DiskFull:
+                _logger.debug('Postpone %r pull', pull_seq)
+                continue_packet.push(cmd='sn_pull', sequence=pull_seq)
+
+            return self._reply(response, out_packet, continue_packet)
+
+    def _reply(self, response, out_packet, continue_packet):
+        if not out_packet.empty and not continue_packet.empty:
+            multipart = sockets.MultipartEncoder(files=[
+                (out_packet.basename, out_packet.pop()),
+                ('continue', continue_packet.pop()),
+                ])
+            response.content_type = multipart.content_type
+            response.content_length = multipart.content_length
+            return multipart.encode()
+        elif not out_packet.empty:
+            response.content_type = out_packet.content_type
+            return out_packet.pop()
+        elif not continue_packet.empty:
+            response.content_type = continue_packet.content_type
+            return continue_packet.pop()
 
 
 def _load_pubkey(pubkey):

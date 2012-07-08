@@ -21,7 +21,7 @@ import logging
 import tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
-from os.path import join, exists, relpath, basename
+from os.path import join, exists, basename
 from gettext import gettext as _
 
 import active_document as ad
@@ -29,13 +29,15 @@ from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, enforce
 
 
+TMPDIR = None
+
 _RESERVED_SIZE = 1024 * 1024
 _MAX_PACKET_SIZE = 1024 * 1024 * 100
 _PACKET_COMPRESS_MODE = 'gz'
 _RECORD_SUFFIX = '.record'
 _PACKET_SUFFIX = '.packet'
 
-_logger = logging.getLogger('node.sneakernet')
+_logger = logging.getLogger('sneakernet')
 
 
 def walk(path):
@@ -63,14 +65,20 @@ class InPacket(object):
                 self._file = stream = file(path, 'rb')
             elif not hasattr(stream, 'seek'):
                 # tarfile/gzip/zip might require seeking
-                self._file = tempfile.TemporaryFile()
-                while True:
-                    chunk = stream.read(BUFFER_SIZE)
-                    if not chunk:
-                        self._file.flush()
-                        self._file.seek(0)
-                        break
-                    self._file.write(chunk)
+                self._file = tempfile.TemporaryFile(dir=TMPDIR)
+
+                if hasattr(stream, 'read'):
+                    while True:
+                        chunk = stream.read(BUFFER_SIZE)
+                        if not chunk:
+                            break
+                        self._file.write(chunk)
+                else:
+                    for chunk in stream:
+                        self._file.write(chunk)
+
+                self._file.flush()
+                self._file.seek(0)
                 stream = self._file
 
             self._tarball = tarfile.open('r', fileobj=stream)
@@ -82,15 +90,12 @@ class InPacket(object):
             util.exception()
             raise RuntimeError(_('Malformed %r packet: %s') % (self, error))
 
+        _logger.debug('Reading %r input packet', self)
+
     @property
     def path(self):
         if self._file is not None:
             return self._file.name
-
-    @property
-    def basename(self):
-        if self.path is not None:
-            return relpath(self.path, join(self.path, '..', '..'))
 
     def records(self, **filters):
         for info in self._tarball:
@@ -98,6 +103,7 @@ class InPacket(object):
                 continue
 
             if info.name.endswith(_PACKET_SUFFIX):
+                _logger.debug('Reading %r sub packet from %r', info.name, self)
                 with self._extract(info) as f:
                     with InPacket(stream=f) as sub_packet:
                         for sub_record in sub_packet.records(**filters):
@@ -119,12 +125,14 @@ class InPacket(object):
                 continue
 
             if meta.get('content_type') == 'records':
+                _logger.debug('Reading %r records from %r', info.name, self)
                 with self._extract(info.name[: - len(_RECORD_SUFFIX)]) as f:
                     for line in f:
                         item = json.loads(line)
                         item.update(meta)
                         yield item
             elif meta.get('content_type') == 'blob':
+                _logger.debug('Reading %r blob from %r', info.name, self)
                 with self._extract(info.name[: - len(_RECORD_SUFFIX)]) as f:
                     meta['blob'] = f
                     yield meta
@@ -163,39 +171,53 @@ class InPacket(object):
 
 class OutPacket(object):
 
-    def __init__(self, root=None, stream=None, limit=None, **kwargs):
+    def __init__(self, root=None, stream=None, limit=None, compress_mode=None,
+            **kwargs):
+        if compress_mode is None:
+            compress_mode = _PACKET_COMPRESS_MODE
+
         self._stream = None
         self._file = None
+        self._path = None
         self._tarball = None
         self.header = kwargs
-        self._path = None
         self._size_to_flush = 0
         self._file_num = 0
         self._empty = True
+        self._basename = ad.uuid() + _PACKET_SUFFIX
 
         if root is not None:
             if not exists(root):
                 os.makedirs(root)
-            self._path = join(root, ad.uuid() + _PACKET_SUFFIX)
-            self._file = stream = file(self._path, 'w')
+            self._path = join(root, self._basename)
+            self._file = stream = file(self._path, 'wb+')
+        elif hasattr(stream, 'fileno'):
+            self._file = stream
+            self._path = stream.name
         else:
             limit = limit or _MAX_PACKET_SIZE
         self._limit = limit
 
-        if stream is None:
-            stream = StringIO()
-        self._tarball = tarfile.open(
-                mode='w:' + _PACKET_COMPRESS_MODE, fileobj=stream)
+        enforce(stream is not None)
+        self._tarball = tarfile.open(mode='w:' + compress_mode, fileobj=stream)
         self._stream = stream
 
-    @property
-    def path(self):
-        return self._path
+        if compress_mode == 'gz':
+            self.content_type = 'application/x-compressed-tar'
+        elif compress_mode == 'bz2':
+            self.content_type = 'application/x-bzip-compressed-tar'
+        else:
+            self.content_type = 'application/x-tar'
+
+        _logger.debug('Writing %r output packet', self)
 
     @property
     def basename(self):
-        if self._path is not None:
-            return relpath(self._path, join(self._path, '..', '..'))
+        return self._basename
+
+    @property
+    def path(self):
+        return self._path or self._basename
 
     @property
     def closed(self):
@@ -221,36 +243,46 @@ class OutPacket(object):
     def close(self, clear=False):
         if self.empty:
             clear = True
-
-        if self._tarball is not None:
-            if not clear:
-                self._addfile('header', self.header, True)
-            self._tarball.close()
-            self._tarball = None
-
+        self._commit(clear)
         if self._file is not None:
             self._file.close()
             if clear:
-                os.unlink(self._file.name)
+                if exists(self._file.name):
+                    os.unlink(self._file.name)
             self._file = None
-
-        self._empty = True
 
     def clear(self):
         self.close(clear=True)
 
+    def pop(self):
+        self._commit(False)
+        if self._file is not None:
+            stream = self._file
+            self._file = None
+        else:
+            stream = self._stream
+        self._stream = None
+        if stream is not None:
+            stream.seek(0)
+        return stream
+
     def push(self, data=None, arcname=None, **meta):
         if isinstance(data, OutPacket):
+            _logger.debug('Writing %r sub packet to %r', data.path, self)
             with file(data.path) as f:
                 self._addfile(basename(data.path), f, False)
             return
         elif data is None:
+            _logger.debug('Writing %r record to %r', data, self)
             self._add(arcname, None, meta)
             return
         elif hasattr(data, 'fileno'):
+            _logger.debug('Writing %r blob to %r', data.name, self)
             meta['content_type'] = 'blob'
             self._add(arcname, data, meta)
             return
+
+        _logger.debug('Writing %r records to %r', data, self)
 
         if not hasattr(data, 'next'):
             data = iter(data)
@@ -265,7 +297,7 @@ class OutPacket(object):
             self._flush(0, True)
             limit = self._enforce_limit()
 
-            with tempfile.TemporaryFile() as arcfile:
+            with tempfile.TemporaryFile(dir=TMPDIR) as arcfile:
                 while True:
                     limit -= len(chunk)
                     if limit <= 0:
@@ -287,12 +319,6 @@ class OutPacket(object):
 
                 arcfile.seek(0)
                 self._add(arcname, arcfile, meta)
-
-    def pop_content(self):
-        self.close()
-        length = self._stream.tell()
-        self._stream.seek(0)
-        return self._stream, length
 
     def _add(self, arcname, data, meta):
         if not arcname:
@@ -338,3 +364,28 @@ class OutPacket(object):
             _logger.debug('Reach size limit for %r packet', self)
             raise DiskFull()
         return free
+
+    def _commit(self, clear):
+        if self._tarball is None:
+            return
+        _logger.debug('Closing %r output packet, clear=%r', self, clear)
+        if not clear:
+            self._addfile('header', self.header, True)
+        self._tarball.close()
+        self._tarball = None
+        self._empty = True
+
+
+class OutFilePacket(OutPacket):
+
+    def __init__(self, root=None, **kwargs):
+        stream = None
+        if root is None:
+            stream = tempfile.NamedTemporaryFile(dir=TMPDIR)
+        OutPacket.__init__(self, root=root, stream=stream, **kwargs)
+
+
+class OutBufferPacket(OutPacket):
+
+    def __init__(self, **kwargs):
+        OutPacket.__init__(self, root=None, stream=StringIO(), **kwargs)

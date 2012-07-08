@@ -65,6 +65,10 @@ find_limit = optparse.Option(
         _('limit the resulting list for search requests'),
         default=32, type_cast=int)
 
+tmpdir = optparse.Option(
+        _('if specified, use this directory for temporary files, such files ' \
+                'might take hunder of megabytes while node synchronizing'))
+
 
 class HTTPStatus(Exception):
 

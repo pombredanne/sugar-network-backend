@@ -186,41 +186,14 @@ class Sequence(list):
             break
 
 
-class Sequences(dict):
+class PersistentSequence(Sequence):
 
-    def __init__(self, value=None, **kwargs):
-        dict.__init__(self)
-        self._new_item_kwargs = kwargs
-        if value:
-            self.update(value)
-
-    def __getitem__(self, key):
-        value = self.get(key)
-        if value is None:
-            value = self[key] = Sequence(**self._new_item_kwargs)
-        return value
-
-    def exclude(self, other):
-        for key, seq in other.items():
-            if key in self:
-                self[key].exclude(seq)
-
-    def update(self, other):
-        for key, seq in other.items():
-            self[key] = Sequence(seq)
-
-
-class PersistentSequences(Sequences):
-
-    def __init__(self, path, empty_value, keys):
-        Sequences.__init__(self, empty_value=empty_value)
+    def __init__(self, path, empty_value=None):
+        Sequence.__init__(self, empty_value=empty_value)
         self._path = path
         if exists(self._path):
             with file(self._path) as f:
-                self.update(json.load(f))
-        else:
-            for i in keys:
-                self[i].clear()
+                self.include(json.load(f))
 
     def commit(self):
         with util.new_file(self._path) as f:

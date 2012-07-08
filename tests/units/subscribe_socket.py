@@ -83,7 +83,7 @@ class SubscribeSocketTest(tests.Test):
             self.assertEqual({
                 'document': 'document',
                 'event': 'sync',
-                'seqno': 1,
+                'seqno': 2,
                 },
                 subscription.read_message())
 
@@ -92,7 +92,7 @@ class SubscribeSocketTest(tests.Test):
             self.assertEqual({
                 'document': 'document',
                 'event': 'sync',
-                'seqno': 2,
+                'seqno': 3,
                 },
                 subscription.read_message())
 
@@ -101,7 +101,7 @@ class SubscribeSocketTest(tests.Test):
             self.assertEqual({
                 'document': 'document',
                 'event': 'sync',
-                'seqno': 3,
+                'seqno': 4,
                 },
                 subscription.read_message())
 

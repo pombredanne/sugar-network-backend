@@ -24,7 +24,7 @@ import active_document as ad
 import sugar_network_webui as webui
 
 from sugar_network import local, node, Client
-from sugar_network.toolkit import application, sugar, printf
+from sugar_network.toolkit import application, sugar, printf, sneakernet
 from sugar_network.local import activities
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
@@ -57,6 +57,7 @@ class Application(application.Daemon):
                     'requests.packages.urllib3',
                     'inotify',
                     'netlink',
+                    'sneakernet',
                     ):
                 logger = logging.getLogger(log_name)
                 logger.propagate = False
@@ -71,6 +72,8 @@ class Application(application.Daemon):
         else:
             application.logdir.value = sugar.profile_path('logs')
         application.rundir.value = join(local.local_root.value, 'run')
+
+        sneakernet.TMPDIR = local.tmpdir.value
 
     @application.command(
             _('[PREFIX-PATH] [USER-GUID]\n'

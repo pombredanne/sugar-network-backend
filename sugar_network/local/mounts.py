@@ -23,8 +23,9 @@ from gettext import gettext as _
 
 import sweets_recipe
 import active_document as ad
-from sugar_network.toolkit.collection import Sequences, PersistentSequences
-from sugar_network.toolkit import crypto, sugar, sneakernet, http
+from sugar_network.toolkit.collection import Sequence, PersistentSequence
+from sugar_network.toolkit.sneakernet import OutFilePacket, DiskFull
+from sugar_network.toolkit import crypto, sugar, http, sneakernet
 from sugar_network.local import activities
 from sugar_network import local, checkin, sugar
 from active_toolkit import sockets, util, coroutine, enforce
@@ -225,7 +226,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
         _Mount.__init__(self)
 
         self._home_volume = home_volume
-        self._seqno = {}
+        self._seqno = 0
         self._remote_volume_guid = None
         self._api_urls = []
         if local.api_url.value:
@@ -278,7 +279,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
             mime_type = http.download([document, guid, prop], blob_path, seqno,
                     document == 'implementation' and prop == 'data')
             meta['mime_type'] = mime_type
-            meta['seqno'] = self._seqno[document]
+            meta['seqno'] = self._seqno
             meta['volume'] = self._remote_volume_guid
             with file(meta_path, 'w') as f:
                 json.dump(meta, f)
@@ -288,7 +289,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
                 meta = json.load(f)
             if meta.get('volume') != self._remote_volume_guid:
                 download(None)
-            elif meta.get('seqno') < self._seqno[document]:
+            elif meta.get('seqno') < self._seqno:
                 download(meta['seqno'])
         else:
             download(None)
@@ -330,8 +331,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
         def listen_events(url, conn):
             stat = http.request('GET', [], params={'cmd': 'stat'},
                     headers={'Content-Type': 'application/json'})
-            for document, props in stat['documents'].items():
-                self._seqno[document] = props.get('seqno') or 0
+            self._seqno = stat.get('seqno') or 0
             self._remote_volume_guid = stat.get('guid')
 
             _logger.info(_('Connected to %r master'), url)
@@ -345,7 +345,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
 
                 seqno = event.get('seqno')
                 if seqno:
-                    self._seqno[event['document']] = seqno
+                    self._seqno = seqno
 
                 event['mountpoint'] = self.mountpoint
                 self.publish(event)
@@ -371,10 +371,10 @@ class NodeMount(LocalMount):
         LocalMount.__init__(self, volume)
 
         self._home_volume = home_volume
-        self._push_seq = PersistentSequences(
-                join(volume.root, 'push.sequence'), [1, None], volume.keys())
-        self._pull_seq = PersistentSequences(
-                join(volume.root, 'pull.sequence'), [1, None], volume.keys())
+        self._push_seq = PersistentSequence(
+                join(volume.root, 'push.sequence'), [1, None])
+        self._pull_seq = PersistentSequence(
+                join(volume.root, 'pull.sequence'), [1, None])
         self._sync_session = None
 
         self._node_guid = crypto.ensure_dsa_pubkey(
@@ -394,11 +394,11 @@ class NodeMount(LocalMount):
                 super(NodeMount, self).call, self.get_blob)
 
     def sync(self, path, accept_length=None, push_sequence=None, session=None):
-        to_push_seq = Sequences(empty_value=[1, None])
+        to_push_seq = Sequence(empty_value=[1, None])
         if push_sequence is None:
-            to_push_seq.update(self._push_seq)
+            to_push_seq.include(self._push_seq)
         else:
-            to_push_seq.update(push_sequence)
+            to_push_seq = Sequence(push_sequence)
 
         if session is None:
             session_is_new = True
@@ -407,31 +407,34 @@ class NodeMount(LocalMount):
             session_is_new = False
 
         while True:
-            self._import(path, session, to_push_seq)
-            self._push_seq.commit()
-            self._pull_seq.commit()
+            for packet in sneakernet.walk(path):
+                if packet.header.get('src') == self._node_guid:
+                    if packet.header.get('session') == session:
+                        _logger.debug('Keep current session %r packet', packet)
+                    else:
+                        _logger.debug('Remove our previous %r packet', packet)
+                        os.unlink(packet.path)
+                else:
+                    self._import(packet, to_push_seq)
+                    self._push_seq.commit()
+                    self._pull_seq.commit()
 
             if session_is_new:
-                with sneakernet.OutPacket('pull', root=path,
-                        src=self._node_guid, dst=self._master,
+                with OutFilePacket(path, src=self._node_guid, dst=self._master,
                         session=session) as packet:
-                    packet.header['sequence'] = self._pull_seq
+                    packet.push(cmd='sn_pull', sequence=self._pull_seq)
 
-            with sneakernet.OutPacket('push', root=path, limit=accept_length,
-                    src=self._node_guid, dst=self._master,
-                    session=session) as packet:
+            with OutFilePacket(path, limit=accept_length, src=self._node_guid,
+                    dst=self._master, session=session) as packet:
                 _logger.debug('Generating %r PUSH packet to %r',
                         packet, packet.path)
                 self.publish({
                     'event': 'sync_progress',
-                    'progress': _('Generating %r PUSH packet') % \
-                            packet.basename,
+                    'progress': _('Generating %r packet') % packet.basename,
                     })
-
-                out_seq = packet.header['sequence'] = Sequences()
                 try:
-                    self.volume.diff(to_push_seq, out_seq, packet)
-                except sneakernet.DiskFull:
+                    self.volume.diff(to_push_seq, packet)
+                except DiskFull:
                     return {'push_sequence': to_push_seq, 'session': session}
                 else:
                     break
@@ -460,45 +463,32 @@ class NodeMount(LocalMount):
                     self._sync_session)
             self.publish({'event': 'sync_continue'})
 
-    def _import(self, path, session, to_push_seq):
-        for packet in sneakernet.walk(path):
-            if packet.header.get('type') == 'push' and \
-                    packet.header.get('src') != self._node_guid:
-                self.publish({
-                    'event': 'sync_progress',
-                    'progress': _('Reading %r PUSH packet') % packet.basename,
-                    })
-                _logger.debug('Processing %r PUSH packet from %r',
-                        packet, packet.path)
-                self.volume.merge(packet, increment_seqno=False)
-                if packet.header.get('src') == self._master:
-                    self._pull_seq.exclude(packet.header['sequence'])
+    def _import(self, packet, to_push_seq):
+        self.publish({
+            'event': 'sync_progress',
+            'progress': _('Reading %r packet') % basename(packet.path),
+            })
+        _logger.debug('Processing %r PUSH packet from %r', packet, packet.path)
 
-            elif packet.header.get('type') == 'ack' and \
-                    packet.header.get('src') == self._master and \
-                    packet.header.get('dst') == self._node_guid:
-                self.publish({
-                    'event': 'sync_progress',
-                    'progress': _('Reading %r ACK packet') % packet.basename,
-                    })
-                _logger.debug('Processing %r ACK packet from %r',
-                        packet, packet.path)
-                self._push_seq.exclude(packet.header['push_sequence'])
-                self._pull_seq.exclude(packet.header['pull_sequence'])
-                to_push_seq.exclude(packet.header['push_sequence'])
-                _logger.debug('Remove processed %r ACK packet', packet)
-                os.unlink(packet.path)
+        from_master = (packet.header.get('src') == self._master)
 
-            elif packet.header.get('type') in ('push', 'pull') and \
-                    packet.header.get('src') == self._node_guid:
-                if packet.header.get('session') == session:
-                    _logger.debug('Keep current session %r packet', packet)
-                else:
-                    _logger.debug('Remove our previous %r packet', packet)
-                    os.unlink(packet.path)
+        for record in packet.records():
+            cmd = record.get('cmd')
 
-            else:
-                _logger.debug('No need to process %r packet', packet)
+            if cmd == 'sn_push':
+                if record.get('content_type') == 'blob':
+                    record['diff'] = record['blob']
+                self.volume[record['document']].merge(increment_seqno=False,
+                        **record)
+                if 'range' in record and from_master:
+                    self._pull_seq.exclude(*record['range'])
+
+            elif cmd == 'sn_ack' and from_master and \
+                    record['dst'] == self._node_guid:
+                _logger.debug('Processing %r ACK from %r', record, packet)
+                self._push_seq.exclude(record['in_sequence'])
+                self._pull_seq.exclude(record['out_sequence'])
+                to_push_seq.exclude(record['in_sequence'])
 
 
 def _proxy_call(home_volume, request, response, super_call, get_blob):

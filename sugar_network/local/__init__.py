@@ -71,6 +71,10 @@ lazy_open = optparse.Option(
         default=True, type_cast=optparse.Option.bool_cast,
         action='store_true')
 
+tmpdir = optparse.Option(
+        _('if specified, use this directory for temporary files, such files ' \
+                'might take hunder of megabytes while node synchronizing'))
+
 
 def path(*args):
     """Calculate a path from the root.

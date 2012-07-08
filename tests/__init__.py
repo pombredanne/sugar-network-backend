@@ -85,6 +85,8 @@ class Test(unittest.TestCase):
 
         sneakernet._RESERVED_SIZE = 0
         sneakernet._PACKET_COMPRESS_MODE = ''
+        sneakernet.TMPDIR = tmpdir + '/tmp'
+        os.makedirs('tmp')
 
         self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile

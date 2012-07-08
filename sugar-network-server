@@ -32,7 +32,7 @@ from sugar_network.node.router import Router
 from sugar_network.node.commands import MasterCommands
 from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit import application, sugar
+from sugar_network.toolkit import application, sugar, sneakernet
 
 
 class Application(application.Daemon):
@@ -41,6 +41,8 @@ class Application(application.Daemon):
     jobs = coroutine.Pool()
 
     def run(self):
+        sneakernet.TMPDIR = local.tmpdir.value
+
         ssl_args = {}
         if node.keyfile.value:
             ssl_args['keyfile'] = node.keyfile.value

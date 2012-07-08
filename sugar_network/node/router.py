@@ -75,6 +75,13 @@ class Router(object):
                 response.content_type = 'application/json'
 
         if hasattr(result, 'read'):
+            # pylint: disable-msg=E1103
+            if hasattr(result, 'fileno'):
+                response.content_length = os.fstat(result.fileno()).st_size
+            elif hasattr(result, 'seek'):
+                result.seek(0, 2)
+                response.content_length = result.tell()
+                result.seek(0)
             result = _stream_reader(result)
         result_streamed = isinstance(result, types.GeneratorType)
 
@@ -216,8 +223,11 @@ def _parse_accept_language(accept_language):
 
 
 def _stream_reader(stream):
-    while True:
-        chunk = stream.read(BUFFER_SIZE)
-        if not chunk:
-            break
-        yield chunk
+    try:
+        while True:
+            chunk = stream.read(BUFFER_SIZE)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        stream.close()

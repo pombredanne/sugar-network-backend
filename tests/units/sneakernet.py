@@ -10,7 +10,7 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network.toolkit import sneakernet
-from sugar_network.toolkit.sneakernet import InPacket, OutPacket, DiskFull
+from sugar_network.toolkit.sneakernet import InPacket, OutPacket, DiskFull, OutBufferPacket, OutFilePacket
 
 
 class SneakernetTest(tests.Test):
@@ -181,13 +181,12 @@ class SneakernetTest(tests.Test):
             self.assertEqual('2', in_packet.header['b'])
             self.assertEqual(None, in_packet.header['c'])
 
-        with OutPacket(a=1) as out_packet:
+        with OutBufferPacket(a=1) as out_packet:
             out_packet.header['b'] = '2'
             out_packet.header['c'] = None
             out_packet.push()
-            stream, length = out_packet.pop_content()
-            assert length > 0
-            with InPacket(stream=stream) as in_packet:
+
+            with InPacket(stream=out_packet.pop()) as in_packet:
                 self.assertEqual(1, in_packet.header['a'])
                 self.assertEqual('2', in_packet.header['b'])
                 self.assertEqual(None, in_packet.header['c'])
@@ -217,6 +216,24 @@ class SneakernetTest(tests.Test):
             {'content_type': 'blob', 'num': 2, 'blob': 'blob'},
             {'content_type': 'records', 'num': 3, 'g': 5, 'h': '6',  'i': None},
             ], records)
+
+    def test_OutPacket_Pop(self):
+        with OutFilePacket('.') as packet:
+            packet.push(foo='bar')
+            content = packet.pop()
+            assert packet.pop() is None
+        assert not content.closed
+        assert exists(content.name)
+        with InPacket(stream=content) as in_packet:
+            self.assertEqual([{'foo': 'bar'}], [i for i in in_packet])
+
+        with OutBufferPacket() as packet:
+            packet.push(foo='bar')
+            content = packet.pop()
+            assert packet.pop() is None
+        assert not content.closed
+        with InPacket(stream=content) as in_packet:
+            self.assertEqual([{'foo': 'bar'}], [i for i in in_packet])
 
     def test_OutPacket_LimitOnPushBlobs(self):
         self.touch(('blob', '0' * 100))

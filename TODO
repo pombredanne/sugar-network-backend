@@ -9,6 +9,7 @@
 - if webui startes from server, no way to pass webbrwosers's accept_langs to ad
 - move highlevel code from ad, eg, auth related
 - restrict sync content, especially for actiivity versions
+- after switching to global seqno, tweek blobs chaching model
 
 1.0
 ===
