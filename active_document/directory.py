@@ -329,18 +329,19 @@ class Directory(object):
 
             seqno += 1
 
-    def merge(self, guid, diff, seqno=None, **kwargs):
+    def merge(self, guid, diff, increment_seqno=True, **kwargs):
         """Apply changes for documents."""
         record = self._storage.get(guid)
-        if seqno is not None:
-            seqno = {'seqno': seqno}
+        props = {}
 
         def merge(fun, **meta):
             orig_meta = record.get(meta['prop'])
             if orig_meta is not None and orig_meta['mtime'] >= meta['mtime']:
                 return False
-            if seqno:
-                meta.update(seqno)
+            if increment_seqno:
+                if not props:
+                    props['seqno'] = self._seqno.next()
+                meta.update(props)
             else:
                 meta['seqno'] = (orig_meta or {}).get('seqno') or 0
             fun(**meta)
@@ -357,11 +358,13 @@ class Directory(object):
                     mtime=kwargs.get('mtime'))
 
         if merged and record.consistent:
-            self._index.store(guid, seqno or {}, False,
+            self._index.store(guid, props, False,
                     self._pre_store, self._post_store,
                     # No need in after-merge event, further commit event
                     # is enough to avoid events flow on nodes synchronization
-                    None, bool(seqno))
+                    None, increment_seqno)
+
+        return props.get('seqno')
 
     def _pre_store(self, guid, changes, event, increment_seqno):
         seqno = changes.get('seqno')
