@@ -21,7 +21,7 @@ import logging
 import tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
-from os.path import join, exists, relpath
+from os.path import join, exists, relpath, basename
 from gettext import gettext as _
 
 import active_document as ad
@@ -32,6 +32,8 @@ from active_toolkit import util, enforce
 _RESERVED_SIZE = 1024 * 1024
 _MAX_PACKET_SIZE = 1024 * 1024 * 100
 _PACKET_COMPRESS_MODE = 'gz'
+_RECORD_SUFFIX = '.record'
+_PACKET_SUFFIX = '.packet'
 
 _logger = logging.getLogger('node.sneakernet')
 
@@ -39,7 +41,7 @@ _logger = logging.getLogger('node.sneakernet')
 def walk(path):
     for root, __, files in os.walk(path):
         for filename in files:
-            if not filename.endswith('.packet'):
+            if not filename.endswith(_PACKET_SUFFIX):
                 continue
             with InPacket(join(root, filename)) as packet:
                 yield packet
@@ -72,7 +74,7 @@ class InPacket(object):
                 stream = self._file
 
             self._tarball = tarfile.open('r', fileobj=stream)
-            with self._extractfile('header') as f:
+            with self._extract('header') as f:
                 self.header = json.load(f)
             enforce(type(self.header) is dict, _('Incorrect header'))
         except Exception, error:
@@ -90,40 +92,44 @@ class InPacket(object):
         if self.path is not None:
             return relpath(self.path, join(self.path, '..', '..'))
 
-    def __repr__(self):
-        return '<InPacket path=%r header=%r>' % (self.path, self.header)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
-    def __iter__(self):
+    def records(self, **filters):
         for info in self._tarball:
-            if not info.isfile() or info.name == 'header' or \
-                    info.name.endswith('.meta'):
+            if not info.isfile():
                 continue
 
-            try:
-                with self._extractfile(info.name + '.meta') as f:
-                    meta = json.load(f)
-            except KeyError:
-                _logger.debug('No .meta file for %r', info.name)
+            if info.name.endswith(_PACKET_SUFFIX):
+                with self._extract(info) as f:
+                    with InPacket(stream=f) as sub_packet:
+                        for sub_record in sub_packet.records(**filters):
+                            yield sub_record
+                continue
+            elif not info.name.endswith(_RECORD_SUFFIX):
                 continue
 
-            if meta.get('type') == 'messages':
-                with self._extractfile(info) as f:
+            with self._extract(info) as f:
+                meta = json.load(f)
+            meta.update(self.header)
+
+            skip = False
+            for key, value in filters.items():
+                if meta.get(key) != value:
+                    skip = True
+                    break
+            if skip:
+                continue
+
+            if meta.get('content_type') == 'records':
+                with self._extract(info.name[: - len(_RECORD_SUFFIX)]) as f:
                     for line in f:
                         item = json.loads(line)
                         item.update(meta)
                         yield item
-            elif meta.get('type') == 'blob':
-                with self._extractfile(info) as f:
+            elif meta.get('content_type') == 'blob':
+                with self._extract(info.name[: - len(_RECORD_SUFFIX)]) as f:
                     meta['blob'] = f
                     yield meta
             else:
-                _logger.info(_('Ignore unknown %r record'), meta)
+                yield meta
 
     def close(self):
         if self._tarball is not None:
@@ -133,8 +139,21 @@ class InPacket(object):
             self._file.close()
             self._file = None
 
+    def __repr__(self):
+        header = ['%s=%r' % i for i in self.header.items()]
+        return '<InPacket %s>' % (' '.join(['path=%r' % self.path] + header))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def __iter__(self):
+        return self.records()
+
     @contextmanager
-    def _extractfile(self, arcname):
+    def _extract(self, arcname):
         f = self._tarball.extractfile(arcname)
         try:
             yield f
@@ -144,26 +163,23 @@ class InPacket(object):
 
 class OutPacket(object):
 
-    def __init__(self, packet_type, root=None, stream=None, limit=None,
-            **kwargs):
+    def __init__(self, root=None, stream=None, limit=None, **kwargs):
         self._stream = None
         self._file = None
         self._tarball = None
         self.header = kwargs
-        self.header['type'] = packet_type
         self._path = None
         self._size_to_flush = 0
         self._file_num = 0
         self._empty = True
 
         if root is not None:
-            root = join(root, packet_type)
             if not exists(root):
                 os.makedirs(root)
-            self._path = join(root, '%s.%s.packet' % (ad.uuid(), packet_type))
+            self._path = join(root, ad.uuid() + _PACKET_SUFFIX)
             self._file = stream = file(self._path, 'w')
         else:
-            limit = min(_MAX_PACKET_SIZE, limit or _MAX_PACKET_SIZE)
+            limit = limit or _MAX_PACKET_SIZE
         self._limit = limit
 
         if stream is None:
@@ -190,41 +206,60 @@ class OutPacket(object):
         return self._empty
 
     def __repr__(self):
-        return '<OutPacket path=%r header=%r>' % (self.path, self.header)
+        header = ['%s=%r' % i for i in self.header.items()]
+        return '<OutPacket %s>' % (' '.join(['path=%r' % self.path] + header))
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is not None:
+            if exc_type is not DiskFull:
+                self.clear()
         self.close()
 
-    def close(self):
-        if self._tarball is not None:
-            self._commit()
-            self._tarball = None
-        if self._file is not None:
-            self._file.close()
-            self._file = None
+    def close(self, clear=False):
+        if self.empty:
+            clear = True
 
-    def clear(self):
         if self._tarball is not None:
+            if not clear:
+                self._addfile('header', self.header, True)
             self._tarball.close()
             self._tarball = None
+
         if self._file is not None:
             self._file.close()
-            os.unlink(self._file.name)
+            if clear:
+                os.unlink(self._file.name)
             self._file = None
 
-    @contextmanager
-    def push_messages(self, items, arcname=None, **meta):
-        if not hasattr(items, 'next'):
-            items = iter(items)
+        self._empty = True
+
+    def clear(self):
+        self.close(clear=True)
+
+    def push(self, data=None, arcname=None, **meta):
+        if isinstance(data, OutPacket):
+            with file(data.path) as f:
+                self._addfile(basename(data.path), f, False)
+            return
+        elif data is None:
+            self._add(arcname, None, meta)
+            return
+        elif hasattr(data, 'fileno'):
+            meta['content_type'] = 'blob'
+            self._add(arcname, data, meta)
+            return
+
+        if not hasattr(data, 'next'):
+            data = iter(data)
         try:
-            chunk = json.dumps(items.next())
+            chunk = json.dumps(data.next())
         except StopIteration:
             return
 
-        meta['type'] = 'messages'
+        meta['content_type'] = 'records'
 
         while chunk is not None:
             self._flush(0, True)
@@ -239,7 +274,7 @@ class OutPacket(object):
                     arcfile.write('\n')
 
                     try:
-                        chunk = json.dumps(items.next())
+                        chunk = json.dumps(data.next())
                     except StopIteration:
                         chunk = None
                         break
@@ -253,10 +288,6 @@ class OutPacket(object):
                 arcfile.seek(0)
                 self._add(arcname, arcfile, meta)
 
-    def push_blob(self, stream, arcname=None, **meta):
-        meta['type'] = 'blob'
-        self._add(arcname, stream, meta)
-
     def pop_content(self):
         self.close()
         length = self._stream.tell()
@@ -267,14 +298,9 @@ class OutPacket(object):
         if not arcname:
             self._file_num += 1
             arcname = '%08d' % self._file_num
-        self._addfile(arcname, data, False)
-        self._addfile(arcname + '.meta', meta, True)
-        self._empty = False
-
-    def _commit(self):
-        self._addfile('header', self.header, True)
-        self._tarball.close()
-        self._tarball = None
+        if data is not None:
+            self._addfile(arcname, data, False)
+        self._addfile(arcname + _RECORD_SUFFIX, meta, True)
 
     def _addfile(self, arcname, data, force):
         info = tarfile.TarInfo(arcname)
@@ -293,6 +319,7 @@ class OutPacket(object):
             self._enforce_limit(info.size)
 
         self._tarball.addfile(info, fileobj=fileobj)
+        self._empty = False
 
     def _flush(self, size, force):
         if force or self._size_to_flush >= _RESERVED_SIZE:
