@@ -269,10 +269,65 @@ class Directory(object):
             for corresponding `guid`
 
         """
-        ranges = []
         if not accept_range:
-            return ranges, []
-        return ranges, self._diff(ranges, accept_range, limit)
+            return
+
+        # To make fetching more reliable, avoid using intermediate
+        # find's offsets (documents can be changed and offset will point
+        # to different document).
+        if hasattr(accept_range, 'first'):
+            seqno = accept_range.first
+        else:
+            seqno = accept_range[0]
+        start = seqno
+
+        while True:
+            documents, total = self.find(
+                    query='seqno:%s..' % seqno,
+                    order_by='seqno', reply=['guid'],
+                    limit=limit, no_cache=True)
+            if not total.value:
+                break
+
+            for doc in documents:
+                seqno = doc.get('seqno')
+                if seqno not in accept_range:
+                    continue
+
+                diff = {}
+                for name in self.metadata.keys():
+                    if name == 'seqno':
+                        continue
+                    meta = doc.meta(name)
+                    if meta is None:
+                        continue
+
+                    if isinstance(self.metadata[name], BlobProperty):
+                        header = {
+                                'guid': doc.guid,
+                                'prop': name,
+                                'mime_type': meta['mime_type'],
+                                'digest': meta.get('digest'),
+                                'mtime': meta['mtime'],
+                                }
+                        if 'digest' in meta:
+                            header['digest'] = meta['digest']
+                        if 'path' in meta:
+                            with file(meta['path'], 'rb') as f:
+                                yield header, f
+                        elif 'url' in meta:
+                            with http.download(meta['url']) as f:
+                                yield header, f
+                    else:
+                        diff[name] = {
+                                'value': meta['value'],
+                                'mtime': meta['mtime'],
+                                }
+
+                yield {'guid': doc.guid, 'range': [start, seqno]}, diff
+                start = seqno + 1
+
+            seqno += 1
 
     def merge(self, guid, diff, seqno=None, **kwargs):
         """Apply changes for documents."""
@@ -307,65 +362,6 @@ class Directory(object):
                     # No need in after-merge event, further commit event
                     # is enough to avoid events flow on nodes synchronization
                     None, bool(seqno))
-
-    def _diff(self, ranges, accept_range, limit):
-        # To make fetching more reliable, avoid using intermediate
-        # find's offsets (documents can be changed and offset will point
-        # to different document).
-        if hasattr(accept_range, 'first'):
-            seqno = accept_range.first
-        else:
-            seqno = accept_range[0]
-        start = seqno
-
-        while True:
-            documents, total = self.find(
-                    query='seqno:%s..' % seqno,
-                    order_by='seqno', reply=['guid'],
-                    limit=limit, no_cache=True)
-            if not total.value:
-                break
-
-            for doc in documents:
-                seqno = doc.get('seqno')
-                if seqno not in accept_range:
-                    continue
-
-                diff = {}
-                for name in self.metadata.keys():
-                    if name == 'seqno':
-                        continue
-                    meta = doc.meta(name)
-                    if meta is None:
-                        continue
-                    if isinstance(self.metadata[name], BlobProperty):
-                        header = {
-                                'guid': doc.guid,
-                                'prop': name,
-                                'mime_type': meta['mime_type'],
-                                'digest': meta.get('digest'),
-                                'mtime': meta['mtime'],
-                                }
-                        if 'digest' in meta:
-                            header['digest'] = meta['digest']
-                        if 'path' in meta:
-                            with file(meta['path'], 'rb') as f:
-                                yield header, f
-                        elif 'url' in meta:
-                            with http.download(meta['url']) as f:
-                                yield header, f
-                    else:
-                        diff[name] = {
-                                'value': meta['value'],
-                                'mtime': meta['mtime'],
-                                }
-                yield {'guid': doc.guid}, diff
-
-                if not ranges:
-                    ranges[:] = [start, None]
-                ranges[1] = seqno
-
-            seqno += 1
 
     def _pre_store(self, guid, changes, event, increment_seqno):
         seqno = changes.get('seqno')
