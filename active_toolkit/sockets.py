@@ -155,42 +155,6 @@ class SocketFile(object):
         return getattr(self._socket, name)
 
 
-def encode_multipart(data, boundary=None):
-    """Encode data into a multipart encoded stream.
-
-    :param data:
-        a `dict` with filename and data object (stream or buffer), or,
-        an iterator that returns the same tuples
-    :param boundary:
-        boundary string to separate multipart portions; if not specified,
-        will be set default one
-    :returns:
-        an iterator that returns encoded data by chunks
-
-    """
-    if boundary is None:
-        boundary = _MULTIPART_BOUNDARY % random.randrange(sys.maxint)
-
-    if type(data) is dict:
-        data = data.items()
-
-    for filename, content in data:
-        yield _multipart_header(boundary, filename)
-        if hasattr(content, 'read'):
-            while True:
-                chunk = content.read(BUFFER_SIZE)
-                if not chunk:
-                    break
-                yield chunk
-        else:
-            if isinstance(content, unicode):
-                content = content.encode('utf-8')
-            yield content
-        yield '\r\n'
-
-    yield _multipart_tail(boundary)
-
-
 def encode_directory(path, boundary=None):
     """Encode directory content as a multipart stream.
 
@@ -203,17 +167,11 @@ def encode_directory(path, boundary=None):
         boundary string to separate multipart portions; if not specified,
         will be set default one
     :returns:
-        a tuple of `MultipartInfo` object and an iterator that returns
+        a tuple of `MultipartEncoder` object and an iterator that returns
         encoded data by chunks
 
     """
-    if boundary is None:
-        boundary = _MULTIPART_BOUNDARY % random.randrange(sys.maxint)
-
-    info = MultipartInfo()
-    info.boundary = boundary
-    info.content_type = 'multipart/mixed; boundary="%s"' % boundary
-
+    multipart = MultipartEncoder(boundary)
     to_encode = []
 
     for root, __, files in os.walk(path):
@@ -222,18 +180,15 @@ def encode_directory(path, boundary=None):
             if not isfile(filename_path):
                 continue
             name = relpath(filename_path, path)
-            info.content_length += len(_multipart_header(boundary, name)) + \
-                    os.stat(filename_path).st_size + 2
-            info.files_number += 1
+            multipart.count_file(name, os.stat(filename_path).st_size)
             to_encode.append((filename_path, name))
-    info.content_length += len(_multipart_tail(boundary))
 
     def feeder():
         for path, filename in to_encode:
             with file(path, 'rb') as f:
                 yield filename, f
 
-    return info, encode_multipart(feeder(), boundary)
+    return multipart, multipart.encode(feeder())
 
 
 def decode_multipart(stream, size, boundary):
@@ -265,12 +220,70 @@ def decode_multipart(stream, size, boundary):
         chunk.close()
 
 
-class MultipartInfo(object):
+class MultipartEncoder(object):
 
-    content_length = 0
-    files_number = 0
-    boundary = None
-    content_type = None
+    def __init__(self, boundary=None, files=None):
+        if boundary is None:
+            rnd = '%020d' % random.randrange(sys.maxint)
+            boundary = ('=' * 15) + rnd + '=='
+
+        self.boundary = boundary
+        self.content_length = 0
+        self.content_type = 'multipart/mixed; boundary="%s"' % boundary
+        self._files = files
+
+        for filename, content in (files or []):
+            if hasattr(content, 'fileno'):
+                file_size = os.fstat(content.fileno()).st_size
+            elif hasattr(content, 'seek'):
+                content.seek(0, 2)
+                file_size = content.tell()
+                content.seek(0)
+            else:
+                file_size = len(content)
+            self.count_file(filename, file_size)
+
+    def count_file(self, name, size):
+        if self.content_length == 0:
+            self.content_length += len(_multipart_tail(self.boundary))
+        self.content_length += len(_multipart_header(self.boundary, name)) + \
+                size + 2
+
+    def encode(self, files=None):
+        """Encode data into a multipart encoded stream.
+
+        :param files:
+            a `dict` with filename and data object (stream or buffer), or,
+            an iterator that returns the same tuples
+        :returns:
+            an iterator that returns encoded data by chunks
+
+        """
+        if files is None:
+            files = self._files
+        if type(files) is dict:
+            files = files.items()
+
+        for filename, content in files:
+            yield _multipart_header(self.boundary, filename)
+
+            if hasattr(content, 'read'):
+                try:
+                    while True:
+                        chunk = content.read(BUFFER_SIZE)
+                        if not chunk:
+                            break
+                        yield chunk
+                finally:
+                    content.close()
+            else:
+                if isinstance(content, unicode):
+                    content = content.encode('utf-8')
+                yield content
+
+            yield '\r\n'
+
+        yield _multipart_tail(self.boundary)
 
 
 def _multipart_header(boundary, filename):
@@ -284,6 +297,3 @@ Content-Type: application/octet-stream\r
 
 def _multipart_tail(boundary):
     return '--%s--\r\n' % boundary
-
-
-_MULTIPART_BOUNDARY = ('=' * 15) + '%%0%dd' % len(repr(sys.maxint-1)) + '=='
