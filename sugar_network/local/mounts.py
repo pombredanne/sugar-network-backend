@@ -419,19 +419,18 @@ class NodeMount(LocalMount):
                     self._push_seq.commit()
                     self._pull_seq.commit()
 
-            if session_is_new:
-                with OutFilePacket(path, src=self._node_guid, dst=self._master,
-                        session=session) as packet:
-                    packet.push(cmd='sn_pull', sequence=self._pull_seq)
-
             with OutFilePacket(path, limit=accept_length, src=self._node_guid,
                     dst=self._master, session=session) as packet:
+                if session_is_new:
+                    packet.push(cmd='sn_pull', sequence=self._pull_seq)
+
                 _logger.debug('Generating %r PUSH packet to %r',
                         packet, packet.path)
                 self.publish({
                     'event': 'sync_progress',
                     'progress': _('Generating %r packet') % packet.basename,
                     })
+
                 try:
                     self.volume.diff(to_push_seq, packet)
                 except DiskFull:

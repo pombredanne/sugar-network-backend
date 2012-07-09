@@ -563,7 +563,7 @@ class SyncTest(tests.Test):
         node.sync_session(['sync'])
         self.assertEqual([
             {'event': 'sync_start', 'path': 'sync'},
-            {'event': 'sync_progress', 'progress': "Generating '3.packet' packet"},
+            {'event': 'sync_progress', 'progress': "Generating '2.packet' packet"},
             {'event': 'sync_continue'},
             ],
             events)
@@ -576,7 +576,7 @@ class SyncTest(tests.Test):
         node.sync_session(['sync'])
         self.assertEqual([
             {'path': 'sync', 'event': 'sync_start'},
-            {'event': 'sync_progress', 'progress': "Generating '4.packet' packet"},
+            {'event': 'sync_progress', 'progress': "Generating '3.packet' packet"},
             {'event': 'sync_continue'},
             ],
             events)
@@ -591,7 +591,7 @@ class SyncTest(tests.Test):
         node.sync_session(['sync'])
         self.assertEqual([
             {'path': 'sync', 'event': 'sync_start'},
-            {'event': 'sync_progress', 'progress': "Generating '5.packet' packet"},
+            {'event': 'sync_progress', 'progress': "Generating '4.packet' packet"},
             {'event': 'sync_complete'},
             ],
             events)
