@@ -24,7 +24,7 @@ class NodeTest(tests.Test):
 
     def test_stats(self):
         volume = Volume('db')
-        cp = NodeCommands('master', volume)
+        cp = NodeCommands(volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
             'name': 'user',
@@ -89,7 +89,7 @@ class NodeTest(tests.Test):
 
     def test_HandleDeletes(self):
         volume = Volume('db')
-        cp = NodeCommands('master', volume)
+        cp = NodeCommands(volume)
 
         guid = call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
@@ -114,7 +114,7 @@ class NodeTest(tests.Test):
         self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
 
     def test_RegisterUser(self):
-        cp = NodeCommands('master', Volume('db', [User]))
+        cp = NodeCommands(Volume('db', [User]))
 
         guid = call(cp, method='POST', document='user', principal='fake', content={
             'name': 'user',
@@ -141,7 +141,7 @@ class NodeTest(tests.Test):
             def probe2(self, directory):
                 pass
 
-        cp = NodeCommands('master', Volume('db', [Document]))
+        cp = NodeCommands(Volume('db', [Document]))
         self.assertRaises(Unauthorized, call, cp, method='GET', cmd='probe1', document='document')
         call(cp, method='GET', cmd='probe1', document='document', principal='user')
         call(cp, method='GET', cmd='probe2', document='document')
@@ -170,7 +170,7 @@ class NodeTest(tests.Test):
         class User(ad.Document):
             pass
 
-        cp = NodeCommands('master', Volume('db', [User, Document]))
+        cp = NodeCommands(Volume('db', [User, Document]))
         guid = call(cp, method='POST', document='document', principal='principal', content={'user': ['principal']})
 
         self.assertRaises(ad.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
@@ -179,7 +179,7 @@ class NodeTest(tests.Test):
         call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
     def test_SetUser(self):
-        cp = NodeCommands('master', Volume('db'))
+        cp = NodeCommands(Volume('db'))
 
         guid = call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
@@ -190,7 +190,7 @@ class NodeTest(tests.Test):
         self.assertEqual(['principal'], call(cp, method='GET', document='context', guid=guid, prop='user'))
 
     def test_SetAuthor(self):
-        cp = NodeCommands('master', Volume('db'))
+        cp = NodeCommands(Volume('db'))
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
             'name': 'user1',
@@ -230,7 +230,7 @@ class NodeTest(tests.Test):
                 call(cp, method='GET', document='context', guid=context2, prop='author'))
 
     def test_find_MaxLimit(self):
-        cp = NodeCommands('master', Volume('db'))
+        cp = NodeCommands(Volume('db'))
 
         call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',

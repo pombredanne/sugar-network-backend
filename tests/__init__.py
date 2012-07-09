@@ -252,7 +252,7 @@ class Test(unittest.TestCase):
 
         volume = Volume('remote', classes or [User, Context])
         subscriber = SubscribeSocket(volume, 'localhost', 8801)
-        cp = NodeCommands('http://localhost:8800', volume, subscriber)
+        cp = NodeCommands(volume, subscriber)
         httpd = coroutine.WSGIServer(('localhost', 8800), Router(cp))
         try:
             coroutine.joinall([

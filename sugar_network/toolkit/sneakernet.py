@@ -21,7 +21,7 @@ import logging
 import tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
-from os.path import join, exists, basename
+from os.path import join, exists
 from gettext import gettext as _
 
 import active_document as ad
@@ -266,11 +266,16 @@ class OutPacket(object):
             stream.seek(0)
         return stream
 
-    def push(self, data=None, arcname=None, **meta):
+    def push(self, data=None, arcname=None, force=False, **meta):
         if isinstance(data, OutPacket):
             _logger.debug('Writing %r sub packet to %r', data.path, self)
-            with file(data.path) as f:
-                self._addfile(basename(data.path), f, False)
+            if not arcname:
+                arcname = data.basename
+            f = data.pop()
+            try:
+                self._addfile(arcname, f, force)
+            finally:
+                f.close()
             return
         elif data is None:
             _logger.debug('Writing %r record to %r', data, self)
@@ -334,6 +339,11 @@ class OutPacket(object):
 
         if hasattr(data, 'fileno'):
             info.size = os.fstat(data.fileno()).st_size
+            fileobj = data
+        elif hasattr(data, 'seek'):
+            data.seek(0, 2)
+            info.size = data.tell()
+            data.seek(0)
             fileobj = data
         else:
             data = json.dumps(data)

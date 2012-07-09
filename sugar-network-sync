@@ -16,15 +16,20 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 debug() {
-    [ "${V}" ] && echo $@
+    [ "${V}" ] && echo "-- $@"
 }
 
 info() {
-    echo $@
+    echo "-- $@"
 }
 
 warning() {
-    echo $@
+    echo "-- $@"
+}
+
+abort() {
+    echo "-- ERROR $@"
+    exit 1
 }
 
 help() {
@@ -53,40 +58,59 @@ get_header_key() {
 }
 
 upload() {
-    packet="$1"
-    src_suffix="$2"
-    dst_suffix="$3"
-    url="$(get_header_key "${packet}" dst)?cmd=sync"
-    dst_packet="$(dirname "${packet}")/$(basename "${packet}" "${src_suffix}")"${dst_suffix}""
-
-    info "-- Upload ${packet}"
-
-    if [ -e "${dst_packet}" ]; then
-        warning "-- Destination ${dst_packet} already exists"
-        return 1
+    in_packet="$1"
+    cmd="$2"
+    dst="$3"
+    if [ "${dst}" ]; then
+        [ -e "${in_packet}" ] && abort "Destination ${in_packet} already exists"
+        touch "${in_packet}"
+    else
+        dst="$(get_header_key "${in_packet}" dst)"
+        if [ -z "${dst}" ]; then
+            info "Packet '${in_packet}' is not intended to upload to server, skipped"
+            return 1
+        fi
     fi
+    url="${dst}?cmd=${cmd}"
+    out_packet="${in_packet}.out"
+
+    info "Upload ${in_packet}"
+    [ -e "${out_packet}" ] && abort "Destination ${out_packet} already exists"
 
     if which wget >/dev/null 2>&1; then
-        cmd="wget --post-file '${packet}' '${url}' -O '${dst_packet}'"
+        cmd="wget --post-file '${in_packet}' '${url}' -O '${out_packet}'"
         [ "${V}" ] || cmd="${cmd} -q"
     else
-        cmd="curl -XPOST --data-binary @'${packet}' '${url}' -o '${dst_packet}'"
+        cmd="curl -XPOST --data-binary @'${in_packet}' '${url}' -o '${out_packet}'"
         [ "${V}" ] || cmd="${cmd} -s"
     fi
 
-    debug "-- Run \"${cmd}\" upload command"
-    if ! sh -c "$cmd"; then
-        rm -f "${dst_packet}"
-        warning "-- Cannot upload packet using \"$cmd\" command, ignore \"${packet}\""
-        return 1
+    debug "Run '${cmd}' upload command"
+    sh -c "$cmd" || abort "Cannot upload using '$cmd' command"
+
+    if [ -e "${out_packet}" ]; then
+        if [ $(stat -c %s "${out_packet}") -eq 0 ]; then
+            rm "${out_packet}"
+        else
+            if [ "$(get_header_key "${out_packet}" continue)" = "true" ]; then
+                tar xf "${out_packet}" continue || abort "Cannot exatract 'continue' file"
+                tar uf continue.packet continue || abort "Cannot update 'continue.packet'"
+                rm continue
+            fi
+            [ "$(get_header_key "${out_packet}" empty)" = "true" ] && rm "${out_packet}"
+        fi
     fi
 
-    if [ -e "${dst_packet}" -a $(stat -c %s "${dst_packet}") -eq 0 ]; then
-        rm "${dst_packet}"
+    if [ -e "${out_packet}" ]; then
+        info "Replace '${in_packet}' packet by server response"
+        mv "${out_packet}" "${in_packet}" || abort
+    else
+        info "Remove uploaded '${in_packet}' packet"
+        rm "${in_packet}"
     fi
 }
 
-if [ $# -ne 1 ]; then
+if [ $# -eq 0 ]; then
     help
     exit 0
 fi
@@ -94,16 +118,21 @@ fi
 sync_path="$1"
 FS=
 
-# Look for PUSH packets at first to upload them and save free space
-for packet in $(find "${sync_path}" -name '*.push.packet'); do
-    upload "${packet}" .push.packet .ack.packet || continue
-    info "-- Remove processed ${packet}"
-    rm "${packet}"
+cd "${sync_path}" || abort "Cannot cd to '${sync_path}' sync directory"
+
+# Push packet and collect "continue.packet" to pull afterwards
+for packet in $(find . -name '*.packet' -a ! -name 'continue.packet'); do
+    upload "${packet}" pull || continue
+    found=1
 done
 
-# Then, process PULL packets that are assumed to overload PATH's free space
-for packet in $(find "${sync_path}" -name '*.pull.packet'); do
-    upload "${packet}" .pull.packet .push.packet || continue
-    info "-- Remove processed ${packet}"
-    rm "${packet}"
-done
+if [ -z "${found}" ]; then
+    if [ -z "$2" ]; then
+        info "No packets found in '${sync_path}', pass API url to fetch initial server dump"
+    else
+        info "No packets found in '${sync_path}', will clone initial server dump"
+        upload clone.packet pull "$2"
+    fi
+else
+    echo
+fi

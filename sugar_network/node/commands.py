@@ -24,7 +24,7 @@ from sugar_network import node
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
         OutFilePacket, DiskFull
 from sugar_network.toolkit.collection import Sequence
-from active_toolkit import sockets, util, enforce
+from active_toolkit import util, enforce
 
 
 _logger = logging.getLogger('node.commands')
@@ -32,7 +32,7 @@ _logger = logging.getLogger('node.commands')
 
 class NodeCommands(ad.VolumeCommands):
 
-    def __init__(self, master_url, volume, subscriber=None):
+    def __init__(self, volume, subscriber=None, master_url=None):
         ad.VolumeCommands.__init__(self, volume)
         self._subscriber = subscriber
         self._is_master = bool(master_url)
@@ -134,7 +134,7 @@ class NodeCommands(ad.VolumeCommands):
 class MasterCommands(NodeCommands):
 
     def __init__(self, master_url, volume, subscriber=None):
-        NodeCommands.__init__(self, master_url, volume, subscriber)
+        NodeCommands.__init__(self, volume, subscriber, master_url=master_url)
         self._api_url = master_url
 
     @ad.volume_command(method='POST', cmd='push')
@@ -212,20 +212,14 @@ class MasterCommands(NodeCommands):
             return self._reply(response, out_packet, continue_packet)
 
     def _reply(self, response, out_packet, continue_packet):
-        if not out_packet.empty and not continue_packet.empty:
-            multipart = sockets.MultipartEncoder(files=[
-                (out_packet.basename, out_packet.pop()),
-                ('continue', continue_packet.pop()),
-                ])
-            response.content_type = multipart.content_type
-            response.content_length = multipart.content_length
-            return multipart.encode()
-        elif not out_packet.empty:
-            response.content_type = out_packet.content_type
-            return out_packet.pop()
-        elif not continue_packet.empty:
-            response.content_type = continue_packet.content_type
-            return continue_packet.pop()
+        if out_packet.empty and continue_packet.empty:
+            return
+        out_packet.header['empty'] = out_packet.empty
+        out_packet.header['continue'] = not continue_packet.empty
+        if not continue_packet.empty:
+            out_packet.push(continue_packet, arcname='continue', force=True)
+        response.content_type = out_packet.content_type
+        return out_packet.pop()
 
 
 def _load_pubkey(pubkey):

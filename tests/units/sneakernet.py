@@ -140,17 +140,13 @@ class SneakernetTest(tests.Test):
     def test_InPacket_SubPackets(self):
         with OutPacket(root='.') as packet:
             packet.push(num=1, packet=1)
-
             with OutPacket(root='.') as sub_packet_1:
                 sub_packet_1.push(num=2, packet=2)
-
                 with OutPacket(root='.') as sub_packet_2:
                     sub_packet_2.push(num=3, packet=3)
-                sub_packet_1.push(sub_packet_2)
-
+                    sub_packet_1.push(sub_packet_2)
                 sub_packet_1.push(num=4, packet=2)
-            packet.push(sub_packet_1)
-
+                packet.push(sub_packet_1)
             packet.push(num=5, packet=1)
 
         self.assertEqual([

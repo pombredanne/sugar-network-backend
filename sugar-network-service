@@ -208,6 +208,9 @@ locale.setlocale(locale.LC_ALL, '')
 application.debug.value = sugar.logger_level()
 # It seems to be that most of users (on XO at least) don't have recent SSH
 node.trust_users.value = True
+# If tmpfs is mounted to /tmp, `os.fstat()` will return 0 free space
+# and will brake offline synchronization logic
+local.tmpdir.value = sugar.profile_path('tmp')
 
 optparse.Option.seek('main', [application.debug, application.foreground])
 optparse.Option.seek('webui', webui)

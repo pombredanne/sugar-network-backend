@@ -41,7 +41,7 @@ class Application(application.Daemon):
     jobs = coroutine.Pool()
 
     def run(self):
-        sneakernet.TMPDIR = local.tmpdir.value
+        sneakernet.TMPDIR = node.tmpdir.value
 
         ssl_args = {}
         if node.keyfile.value:

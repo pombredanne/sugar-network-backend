@@ -25,7 +25,7 @@ import active_document as ad
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_MOVED_TO, IN_MOVED_FROM
 from sugar_network import local, node
-from sugar_network.toolkit import sugar, zeroconf, netlink
+from sugar_network.toolkit import zeroconf, netlink
 from sugar_network.toolkit.collection import MutableStack
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.subscribe_socket import SubscribeSocket
@@ -135,11 +135,12 @@ class Mountset(dict, ad.CommandsProcessor):
         try:
             result = mount.call(request, response)
         except Exception, error:
-            util.exception(_logger, _('Failed to process %s: %s'),
-                    request, error)
+            util.exception(_logger, _('Failed to process %s on %r mount: %s'),
+                    request, mountpoint, error)
             raise
         else:
-            _logger.debug('Processed %s: %r', request, result)
+            _logger.debug('Processed %s on %r mount: %r',
+                    request, mountpoint, result)
 
         return result
 
@@ -283,8 +284,7 @@ class Mountset(dict, ad.CommandsProcessor):
         if server_mode:
             subscriber = SubscribeSocket(volume,
                     node.host.value, node.subscribe_port.value)
-            cp = NodeCommands(sugar.profile_path('owner.key'), volume,
-                    subscriber)
+            cp = NodeCommands(volume, subscriber)
 
             _logger.info('Start %r server on %s port',
                     volume.root, node.port.value)
