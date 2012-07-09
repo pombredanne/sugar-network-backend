@@ -53,6 +53,8 @@ class Mountset(dict, ad.CommandsProcessor):
         dict.__init__(self)
         ad.CommandsProcessor.__init__(self)
 
+        self.opened = coroutine.Event()
+
         self.home_volume = home_volume
         self._subscriptions = {}
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
@@ -160,14 +162,21 @@ class Mountset(dict, ad.CommandsProcessor):
                     util.exception(_logger, _('Failed to dispatch %r'), event)
 
     def open(self):
-        if local.mounts_root.value:
-            self._jobs.spawn(self._mounts_monitor)
-        if '/' in self:
-            if local.api_url.value:
-                crawler = self._wait_for_master
-            else:
-                crawler = self._discover_masters
-            self._jobs.spawn(crawler)
+        try:
+            mounts_root = local.mounts_root.value
+            if mounts_root:
+                for filename in os.listdir(mounts_root):
+                    self._found_mount(join(mounts_root, filename))
+                self._jobs.spawn(self._mounts_monitor)
+
+            if '/' in self:
+                if local.api_url.value:
+                    crawler = self._wait_for_master
+                else:
+                    crawler = self._discover_masters
+                self._jobs.spawn(crawler)
+        finally:
+            self.opened.set()
 
     def close(self):
         self.break_sync()
@@ -196,9 +205,6 @@ class Mountset(dict, ad.CommandsProcessor):
 
     def _mounts_monitor(self):
         root = local.mounts_root.value
-
-        for filename in os.listdir(root):
-            self._found_mount(join(root, filename))
 
         _logger.info(_('Start monitoring %r for mounts'), root)
         try:
@@ -288,5 +294,8 @@ class Mountset(dict, ad.CommandsProcessor):
             _logger.info('Listen for client subscribtions on %s port',
                     node.subscribe_port.value)
             self._servers.spawn(subscriber)
+
+            # Let servers start before publishing mount event
+            coroutine.dispatch()
 
         return volume, server_mode

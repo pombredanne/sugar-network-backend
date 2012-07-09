@@ -36,22 +36,23 @@ class IPCServer(object):
         self._subscriptions = []
         self._mounts = mounts
         self._delayed_start = delayed_start
-        self._acceptor = _start_server('accept', self._serve_client)
-        self._subscriber = _start_server('subscribe', self._serve_subscription)
         self._principal = sugar.uid()
         self._publish_lock = coroutine.Lock()
+        self._servers = coroutine.ServersPool()
 
         self._mounts.connect(self._republish)
+
+        self._servers.spawn(
+                _start_server('accept', self._serve_client))
+        self._servers.spawn(
+                _start_server('subscribe', self._serve_subscription))
 
     def serve_forever(self):
         # Clients write to rendezvous named pipe, in block mode,
         # to make sure that server is started
         rendezvous = ipc.rendezvous(server=True)
         try:
-            coroutine.joinall([
-                coroutine.spawn(self._acceptor.serve_forever),
-                coroutine.spawn(self._subscriber.serve_forever),
-                ])
+            self._servers.join()
         except KeyboardInterrupt:
             pass
         finally:
@@ -60,8 +61,7 @@ class IPCServer(object):
     def stop(self):
         while self._subscriptions:
             self._subscriptions.pop().close()
-        self._acceptor.stop()
-        self._subscriber.stop()
+        self._servers.stop()
 
     def _serve_client(self, conn_file):
         while True:

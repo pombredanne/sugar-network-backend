@@ -17,6 +17,7 @@
 
 import locale
 import logging
+from contextlib import contextmanager
 from os.path import join, abspath, exists
 from gettext import gettext as _
 
@@ -24,7 +25,7 @@ import active_document as ad
 import sugar_network_webui as webui
 
 from sugar_network import local, node, Client
-from sugar_network.toolkit import application, sugar, printf, sneakernet
+from sugar_network.toolkit import application, sugar, printf, sneakernet, ipc
 from sugar_network.local import activities
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
@@ -44,7 +45,9 @@ class NullHandler(logging.Handler):
 
 class Application(application.Daemon):
 
+    _mountset = None
     _ipc_server = None
+    _events = {}
 
     def __init__(self, **kwargs):
         application.Daemon.__init__(self, **kwargs)
@@ -79,6 +82,10 @@ class Application(application.Daemon):
             _('[PREFIX-PATH] [USER-GUID]\n'
                 'Index local Sugar Network database'))
     def index(self):
+        if ipc.server_exists():
+            printf.info(_('%s already started, no need in index'), self.name)
+            return
+
         root = ''
         if self.args:
             root = abspath(self.args.pop(0))
@@ -101,7 +108,54 @@ class Application(application.Daemon):
     @application.command(
             _('start synchronization with mount devices'))
     def sync(self):
-        finished = coroutine.Event()
+        with self._rendezvous():
+            Client.call('POST', cmd='start_sync', rewind=True)
+            self._events['sync_complete'].wait()
+
+    def run(self, local_run=False):
+        volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
+        self._mountset = Mountset(volume)
+        self._mountset['~'] = HomeMount(volume)
+        self._mountset['/'] = RemoteMount(volume)
+        servers = coroutine.ServersPool()
+        jobs = coroutine.Pool()
+
+        if local_run or webui.webui.value:
+            # Point clients to `self._mountset` directly passing over IPC
+            Client.connection = self._mountset
+
+        def delayed_start():
+            logging.info(_('Proceed delayed start'))
+
+            jobs.spawn(activities.monitor, volume, local.activity_dirs.value)
+            jobs.spawn(volume.populate)
+
+            if webui.webui.value:
+                host = (webui.webui_host.value, webui.webui_port.value)
+                logging.info(_('Start Web server on %s:%s'), *host)
+                servers.spawn(coroutine.WSGIServer, host, webui.get_app())
+
+        if local.delayed_start.value:
+            delayed_start_cb = delayed_start
+        else:
+            delayed_start()
+            delayed_start_cb = None
+
+        self._ipc_server = IPCServer(self._mountset, delayed_start_cb)
+        try:
+            self._mountset.open()
+            self._ipc_server.serve_forever()
+        finally:
+            servers.stop()
+            jobs.kill()
+            self._mountset.close()
+
+    def shutdown(self):
+        if self._ipc_server is not None:
+            self._ipc_server.stop()
+
+    @contextmanager
+    def _rendezvous(self):
 
         def events_cb(event):
             if event['event'] == 'sync_start':
@@ -114,54 +168,25 @@ class Application(application.Daemon):
             elif event['event'] == 'sync_error':
                 printf.info(_('Failed to sync, %(error)s') % event)
             elif event['event'] == 'sync_complete':
-                finished.set()
+                self._events['sync_complete'].set()
 
-        Client.connect(events_cb)
-        coroutine.dispatch()
+        self._events['sync_complete'] = coroutine.Event()
 
-        Client.call('POST', cmd='start_sync', rewind=True)
-        finished.wait()
-
-    def run(self):
-        volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
-        mountset = Mountset(volume)
-        mountset['~'] = HomeMount(volume)
-        mountset['/'] = RemoteMount(volume)
-        servers = coroutine.ServersPool()
-        jobs = coroutine.Pool()
-
-        def delayed_start():
-            logging.info(_('Proceed delayed start'))
-
-            jobs.spawn(activities.monitor, volume, local.activity_dirs.value)
-            jobs.spawn(volume.populate)
-
-            if webui.webui.value:
-                # Point clients to `mountset` directly passing over IPC
-                Client.connection = mountset
-                host = (webui.webui_host.value, webui.webui_port.value)
-                logging.info(_('Start Web server on %s:%s'), *host)
-                servers.spawn(coroutine.WSGIServer, host, webui.get_app())
-
-        if local.delayed_start.value:
-            delayed_start_cb = delayed_start
-        else:
-            delayed_start()
-            delayed_start_cb = None
-
-        self._ipc_server = IPCServer(mountset, delayed_start_cb)
-
+        server = None
         try:
-            mountset.open()
-            self._ipc_server.serve_forever()
-        finally:
-            servers.stop()
-            jobs.kill()
-            mountset.close()
+            if not ipc.server_exists():
+                printf.info(_('%s is not started, ' \
+                        'launch it for this command only'), self.name)
+                server = coroutine.spawn(self.run, True)
+                coroutine.dispatch()
+                self._mountset.opened.wait()
 
-    def shutdown(self):
-        if self._ipc_server is not None:
-            self._ipc_server.stop()
+            Client.connect(events_cb)
+            yield
+
+        finally:
+            if server is not None:
+                server.kill()
 
     @property
     def _db_path(self):

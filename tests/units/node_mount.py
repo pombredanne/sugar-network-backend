@@ -14,7 +14,7 @@ from sugar_network.local.mountset import Mountset
 from sugar_network.local.bus import IPCServer
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network import local, Client, ServerError, sugar
+from sugar_network import local, Client, sugar
 from sugar_network.resources.volume import Volume
 
 
@@ -32,9 +32,7 @@ class NodeMountTest(tests.Test):
 
         volume = Volume('local', [User, Context])
         mounts = Mountset(volume)
-        ipc_server = IPCServer(mounts)
-        coroutine.spawn(ipc_server.serve_forever)
-        coroutine.dispatch()
+        Client.connection = mounts
         self.got_event = coroutine.Event()
 
         def events_cb(event):
@@ -45,8 +43,11 @@ class NodeMountTest(tests.Test):
 
         self.events = []
         Client.connect(events_cb)
-        coroutine.sleep(.1)
+
         mounts.open()
+        mounts.opened.wait()
+        # Let `open()` start processing spawned jobs
+        coroutine.dispatch()
 
         return mounts
 
@@ -101,8 +102,8 @@ class NodeMountTest(tests.Test):
                 summary='summary',
                 description='description').post()
 
-        self.assertRaises(ServerError, lambda: local.Context(guid_1, reply=['title'])['title'])
-        self.assertRaises(ServerError, lambda: local.Context(guid_2, reply=['title'])['title'])
+        self.assertRaises(ad.NotFound, lambda: local.Context(guid_1, reply=['title'])['title'])
+        self.assertRaises(ad.NotFound, lambda: local.Context(guid_2, reply=['title'])['title'])
 
         remote.Context(guid_1, keep=True).post()
 
@@ -158,52 +159,57 @@ class NodeMountTest(tests.Test):
                     ]),
                 sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
 
-    def test_OnlineSubscription(self):
+    def test_Events(self):
         os.makedirs('mnt/sugar-network')
         self.start_server()
         self.got_event.wait()
+        self.got_event.clear()
         client = Client(tests.tmpdir + '/mnt')
 
-        subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
-        subscription.connect('run/subscribe')
-        coroutine.sleep(1)
+        def events_cb(event):
+            if 'props' in event:
+                event.pop('props')
+            events.append(event)
+            got_commit.set()
+            got_commit.clear()
+
+        events = []
+        got_commit = coroutine.Event()
+        Client.connect(events_cb)
 
         guid = client.Context(
                 type='activity',
                 title='title',
                 summary='summary',
                 description='description').post()
-
-        event = subscription.read_message()
-        event.pop('props')
-        self.assertEqual(
-                {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'create', 'guid': guid},
-                event)
-        self.assertEqual(
-                {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 1},
-                subscription.read_message())
+        got_commit.wait()
+        self.assertEqual([
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'create', 'guid': guid},
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 1},
+            ],
+            events)
+        del events[:]
 
         client.Context(guid, title='new-title').post()
-
-        coroutine.select([subscription.fileno()], [], [])
-        event = subscription.read_message()
-        event.pop('props')
-        self.assertEqual(
-                {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'update', 'guid': guid},
-                event)
-        self.assertEqual(
-                {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 2},
-                subscription.read_message())
+        got_commit.wait()
+        self.assertEqual([
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'update', 'guid': guid},
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 2},
+            ],
+            events)
+        del events[:]
 
         guid_path = 'mnt/sugar-network/context/%s/%s' % (guid[:2], guid)
         assert exists(guid_path)
         client.Context.delete(guid)
         assert not exists(guid_path)
-
-        coroutine.select([subscription.fileno()], [], [])
-        self.assertEqual(
-                {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'delete', 'guid': guid},
-                subscription.read_message())
+        got_commit.wait()
+        self.assertEqual([
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'delete', 'guid': guid},
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 2},
+            ],
+            events)
+        del events[:]
 
     def test_upload_blob(self):
         os.makedirs('mnt/sugar-network')

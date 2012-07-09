@@ -42,12 +42,35 @@ def rendezvous(server=False):
             raise
 
     if server:
-        _logger.debug('Start accepting clients on %r', rendezvous_path)
+        _logger.info('Start accepting clients on %r', rendezvous_path)
         return os.open(rendezvous_path, os.O_RDONLY | os.O_NONBLOCK)
     else:
         _logger.debug('Connecting to %r IPC server', rendezvous_path)
         # Will be blocked until server will call `rendezvous(server=True)`
         fd = os.open(rendezvous_path, os.O_WRONLY)
-        _logger.debug('Connected successfully')
+        _logger.info('Connected successfully')
         # No need in fd any more
         os.close(fd)
+
+
+def server_exists(server=False):
+    """The same as `rendezvous()` but for client side and without waiting."""
+    rendezvous_path = local.ensure_path('run', 'rendezvous')
+
+    try:
+        os.mkfifo(rendezvous_path)
+    except OSError, error:
+        if error.errno != errno.EEXIST:
+            raise
+
+    try:
+        fd = os.open(rendezvous_path, os.O_WRONLY | os.O_NONBLOCK)
+    except OSError, error:
+        if error.errno == errno.ENXIO:
+            _logger.debug('No server launched')
+            return False
+
+    _logger.info('Connected successfully')
+    # No need in fd any more
+    os.close(fd)
+    return True
