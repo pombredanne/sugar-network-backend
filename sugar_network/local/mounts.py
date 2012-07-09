@@ -411,7 +411,9 @@ class NodeMount(LocalMount):
                     self._pull_seq.commit()
 
             with OutFilePacket(path, limit=accept_length, src=self._node_guid,
-                    dst=self._master_guid, session=session) as packet:
+                    dst=self._master_guid, session=session,
+                    seqno=self.volume.seqno.value,
+                    api_url=local.api_url.value) as packet:
                 if session_is_new:
                     packet.push(cmd='sn_pull', sequence=self._pull_seq)
 
@@ -485,6 +487,8 @@ class NodeMount(LocalMount):
                 self._push_seq.exclude(record['in_sequence'])
                 self._pull_seq.exclude(record['out_sequence'])
                 to_push_seq.exclude(record['in_sequence'])
+                self.volume.seqno.next()
+                self.volume.seqno.commit()
 
 
 def _proxy_call(home_volume, request, response, super_call, get_blob):

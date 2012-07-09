@@ -172,7 +172,7 @@ class InPacket(object):
 class OutPacket(object):
 
     def __init__(self, root=None, stream=None, limit=None, compress_mode=None,
-            **kwargs):
+            seqno=None, filename=None, **kwargs):
         if compress_mode is None:
             compress_mode = _PACKET_COMPRESS_MODE
 
@@ -184,12 +184,23 @@ class OutPacket(object):
         self._size_to_flush = 0
         self._file_num = 0
         self._empty = True
-        self._basename = ad.uuid() + _PACKET_SUFFIX
+
+        if filename:
+            self._basename = filename
+        else:
+            if 'src' in kwargs:
+                self._basename = kwargs['src']
+                if seqno is not None:
+                    self._basename += '-%s' % seqno
+            else:
+                self._basename = ad.uuid()
+            self._basename += _PACKET_SUFFIX
+        kwargs['filename'] = self._basename
 
         if root is not None:
             if not exists(root):
                 os.makedirs(root)
-            self._path = join(root, self._basename)
+            self._path = util.unique_filename(root, self._basename)
             self._file = stream = file(self._path, 'wb+')
         elif hasattr(stream, 'fileno'):
             self._file = stream

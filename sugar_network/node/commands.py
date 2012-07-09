@@ -153,7 +153,8 @@ class MasterCommands(NodeCommands):
                     _('Misaddressed packet'))
 
             out_packet = OutBufferPacket(src=self._guid,
-                    dst=in_packet.header['src'])
+                    dst=in_packet.header['src'],
+                    filename=in_packet.header.get('filename'))
             continue_packet = OutBufferPacket(
                     src=in_packet.header['src'], dst=self._guid)
             pull_to_forward = Sequence()
@@ -188,7 +189,8 @@ class MasterCommands(NodeCommands):
 
     @ad.volume_command(method='POST', cmd='pull')
     def pull(self, request, response, accept_length=None):
-        with OutFilePacket(src=self._guid, limit=accept_length) as out_packet:
+        with OutFilePacket(src=self._guid, seqno=self.volume.seqno.value,
+                limit=accept_length) as out_packet:
             continue_packet = OutBufferPacket(dst=self._guid)
             pull_seq = Sequence()
 

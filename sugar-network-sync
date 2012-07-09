@@ -34,15 +34,20 @@ abort() {
 
 help() {
     cat <<EOF
-Usage: $(basename $0) [PATH]
+Usage: $(basename $0) [PATH] [URL]
 
 Sugar Network sneakernet synchronization utility.
 
-If PATH is specified, utility will try to recursive search for synchronization
-packet files (files with ".packet" suffix). Using wget or curl utility, each
-packet will be uploaded to the targeting Sugar Network server with downloading
-resulting packets. On success, uploaded packets will be removed and resulting
-packets will be placed to PATH instead.
+Arguments:
+  PATH      if specified, utility will try to recursive search for
+            synchronization packet files (files with ".packet" suffix);
+            using wget or curl utility, each packet will be uploaded
+            to the targeting Sugar Network server with downloading resulting
+            packets; on success, uploaded packets will be removed and resulting
+            packets will be placed to PATH instead
+  URL       if specified, should be Sugar Network API url, e.g.,
+            http://api-testing.network.sugarlabs.org; script will download
+            full data dump from the server
 
 See http://wiki.sugarlabs.org/go/Sugar_Network for details.
 EOF
@@ -60,21 +65,18 @@ get_header_key() {
 upload() {
     in_packet="$1"
     cmd="$2"
-    dst="$3"
-    if [ "${dst}" ]; then
-        [ -e "${in_packet}" ] && abort "Destination ${in_packet} already exists"
-        touch "${in_packet}"
-    else
-        dst="$(get_header_key "${in_packet}" dst)"
-        if [ -z "${dst}" ]; then
+    api_url="$3"
+    if [ -z "${api_url}" ]; then
+        api_url="$(get_header_key "${in_packet}" api_url)"
+        if [ -z "${api_url}" ]; then
             info "Packet '${in_packet}' is not intended to upload to server, skipped"
             return 1
         fi
     fi
-    url="${dst}?cmd=${cmd}"
+    url="${api_url}?cmd=${cmd}"
     out_packet="${in_packet}.out"
 
-    info "Upload ${in_packet}"
+    info "Upload '${in_packet}'"
     [ -e "${out_packet}" ] && abort "Destination ${out_packet} already exists"
 
     if which wget >/dev/null 2>&1; then
@@ -101,12 +103,14 @@ upload() {
         fi
     fi
 
+    info "Remove uploaded '${in_packet}' packet"
+    rm "${in_packet}"
+
     if [ -e "${out_packet}" ]; then
-        info "Replace '${in_packet}' packet by server response"
-        mv "${out_packet}" "${in_packet}" || abort
-    else
-        info "Remove uploaded '${in_packet}' packet"
-        rm "${in_packet}"
+        out_filename="$(get_header_key "${out_packet}" filename)"
+        [ "${out_filename}" ] || out_filename="${in_packet}"
+        info "Store resulting packet in '${out_filename}'"
+        mv "${out_packet}" "${out_filename}" || abort
     fi
 }
 
@@ -116,6 +120,7 @@ if [ $# -eq 0 ]; then
 fi
 
 sync_path="$1"
+clone_url="$2"
 FS=
 
 cd "${sync_path}" || abort "Cannot cd to '${sync_path}' sync directory"
@@ -123,16 +128,12 @@ cd "${sync_path}" || abort "Cannot cd to '${sync_path}' sync directory"
 # Push packet and collect "continue.packet" to pull afterwards
 for packet in $(find . -name '*.packet' -a ! -name 'continue.packet'); do
     upload "${packet}" pull || continue
-    found=1
 done
 
-if [ -z "${found}" ]; then
-    if [ -z "$2" ]; then
-        info "No packets found in '${sync_path}', pass API url to fetch initial server dump"
-    else
-        info "No packets found in '${sync_path}', will clone initial server dump"
-        upload clone.packet pull "$2"
-    fi
-else
-    echo
+if [ "${clone_url}" ]; then
+    info "Clone initial server dump from ${clone_url}"
+    in_packet="clone.packet"
+    [ -e ${in_packet} ] && abort "Destination ${in_packet} already exists"
+    touch ${in_packet}
+    upload ${in_packet} pull "${clone_url}"
 fi
