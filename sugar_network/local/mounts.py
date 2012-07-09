@@ -438,17 +438,23 @@ class NodeMount(LocalMount):
                 else:
                     break
 
-    def sync_session(self, mounts):
+    def sync_session(self, mounts, path=None):
         _logger.debug('Start synchronization session with %r session ' \
                 'for %r mounts', self._sync_session, mounts)
 
+        def sync(path):
+            self.publish({'event': 'sync_start', 'path': path})
+            self._sync_session = self.sync(path, **(self._sync_session or {}))
+            return self._sync_session is None
+
         try:
-            for path in mounts:
-                self.publish({'event': 'sync_start', 'path': path})
-                self._sync_session = \
-                        self.sync(path, **(self._sync_session or {}))
-                if self._sync_session is None:
+            while True:
+                if path and sync(path):
                     break
+                for mountpoint in mounts:
+                    if sync(mountpoint):
+                        break
+                break
         except Exception, error:
             util.exception(_logger, _('Failed to complete synchronization'))
             self.publish({'event': 'sync_error', 'error': str(error)})

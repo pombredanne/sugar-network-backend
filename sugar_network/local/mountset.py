@@ -96,17 +96,17 @@ class Mountset(dict, ad.CommandsProcessor):
         return mount.mounted
 
     @ad.volume_command(method='POST', cmd='start_sync')
-    def start_sync(self, rewind=False):
+    def start_sync(self, rewind=False, path=None):
         if self._sync:
             return
 
-        enforce(self._sync_dirs, _('No mounts to synchronize with'))
+        enforce(path or self._sync_dirs, _('No mounts to synchronize with'))
 
         for mount in self.values():
             if isinstance(mount, NodeMount):
                 if rewind:
                     self._sync_dirs.rewind()
-                self._sync.spawn(mount.sync_session, self._sync_dirs)
+                self._sync.spawn(mount.sync_session, self._sync_dirs, path)
                 break
         else:
             raise RuntimeError(_('No mounted servers'))

@@ -98,6 +98,8 @@ class Application(application.Daemon):
             sugar.uid = lambda: user
             sugar.nickname = lambda: user
 
+        printf.info(_('Index database in %r'), local.local_root.value)
+
         volume = Volume(self._db_path)
         try:
             volume.populate()
@@ -106,10 +108,17 @@ class Application(application.Daemon):
             volume.close()
 
     @application.command(
-            _('start synchronization with mount devices'))
-    def sync(self):
+            _('[PATH]\n'
+                'start sneakernet synchronization; if PATH is specified, '
+                'use it as a synchronization directory; otherwise, '
+                'look for mounts (in --mounts-root) that contain '
+                'sugar-network-sync/ subdirectory'))
+    def offline_sync(self):
         with self._rendezvous():
-            Client.call('POST', cmd='start_sync', rewind=True)
+            path = None
+            if self.args:
+                path = self.args.pop(0)
+            Client.call('POST', cmd='start_sync', rewind=True, path=path)
             self._events['sync_complete'].wait()
 
     def run(self, local_run=False):
