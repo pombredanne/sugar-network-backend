@@ -212,13 +212,13 @@ class MasterCommands(NodeCommands):
             return self._reply(response, out_packet, continue_packet)
 
     def _reply(self, response, out_packet, continue_packet):
+        response.content_type = out_packet.content_type
         if out_packet.empty and continue_packet.empty:
             return
         out_packet.header['empty'] = out_packet.empty
         out_packet.header['continue'] = not continue_packet.empty
         if not continue_packet.empty:
             out_packet.push(continue_packet, arcname='continue', force=True)
-        response.content_type = out_packet.content_type
         return out_packet.pop()
 
 

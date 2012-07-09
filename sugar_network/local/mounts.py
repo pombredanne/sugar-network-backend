@@ -31,8 +31,6 @@ from sugar_network import local, checkin, sugar
 from active_toolkit import sockets, util, coroutine, enforce
 
 
-_DEFAULT_MASTER = 'http://api-testing.network.sugarlabs.org'
-
 _LOCAL_PROPS = {
         'keep': False,
         'keep_impl': 0,
@@ -385,7 +383,7 @@ class NodeMount(LocalMount):
             with file(master_path) as f:
                 self._master = f.read().strip()
         else:
-            self._master = _DEFAULT_MASTER
+            self._master = local.api_url.value.rstrip('/')
             with file(master_path, 'w') as f:
                 f.write(self._master)
 
