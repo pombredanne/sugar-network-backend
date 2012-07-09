@@ -191,9 +191,10 @@ class PersistentSequence(Sequence):
     def __init__(self, path, empty_value=None):
         Sequence.__init__(self, empty_value=empty_value)
         self._path = path
+
         if exists(self._path):
             with file(self._path) as f:
-                self.include(json.load(f))
+                self[:] = json.load(f)
 
     def commit(self):
         with util.new_file(self._path) as f:

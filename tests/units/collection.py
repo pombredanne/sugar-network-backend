@@ -5,7 +5,7 @@ import copy
 
 from __init__ import tests
 
-from sugar_network.toolkit.collection import Sequence, MutableStack
+from sugar_network.toolkit.collection import Sequence, MutableStack, PersistentSequence
 
 
 class CollectionTest(tests.Test):
@@ -335,6 +335,15 @@ class CollectionTest(tests.Test):
         self.assertEqual(
                 [[1, None]],
                 seq_1)
+
+    def test_PersistentSequence_Restore(self):
+        seq_1 = PersistentSequence('file', [1, None])
+        seq_1.exclude(1, 10)
+        self.assertEqual([[11, None]], seq_1)
+        seq_1.commit()
+
+        seq_2 = PersistentSequence('file', [1, None])
+        self.assertEqual([[11, None]], seq_2)
 
     def test_MutableStack_AddWhileIteration(self):
         queue = MutableStack()
