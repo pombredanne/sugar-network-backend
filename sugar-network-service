@@ -26,6 +26,7 @@ import sugar_network_webui as webui
 
 from sugar_network import local, node, Client
 from sugar_network.toolkit import application, sugar, printf, sneakernet, ipc
+from sugar_network.toolkit import crypto
 from sugar_network.local import activities
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
@@ -122,6 +123,9 @@ class Application(application.Daemon):
             self._events['sync_complete'].wait()
 
     def run(self, local_run=False):
+        # In case if it is new Sugar Shell profile
+        crypto.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+
         volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
         self._mountset = Mountset(volume)
         self._mountset['~'] = HomeMount(volume)
