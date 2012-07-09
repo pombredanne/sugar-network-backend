@@ -82,7 +82,7 @@ class Mountset(dict, ad.CommandsProcessor):
     def mounts(self):
         result = []
         for path, mount in self.items():
-            if mount.mounted:
+            if path == '/' or mount.mounted:
                 result.append({'mountpoint': path, 'name': mount.name})
         return result
 

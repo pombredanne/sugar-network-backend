@@ -18,6 +18,7 @@ from sugar_network.resources.context import Context
 from sugar_network.toolkit import http
 from sugar_network import local, Client, ServerError, sugar, node
 from sugar_network.resources.volume import Volume
+from sugar_network.local.mounts import HomeMount, RemoteMount
 
 
 class MountsetTest(tests.Test):
@@ -28,20 +29,21 @@ class MountsetTest(tests.Test):
     def tearDown(self):
         tests.Test.tearDown(self)
 
-    def start_server(self):
+    def mountset(self):
         local.mounts_root.value = tests.tmpdir
 
         volume = Volume('local', [User, Context])
         mounts = Mountset(volume)
         Client.connection = mounts
-        self.got_event = coroutine.Event()
+        self.mounted = coroutine.Event()
 
         def events_cb(event):
+            print event
             if event['event'] in ('mount', 'unmount'):
-                self.events.append((event['event'], event['mountpoint']))
-                self.got_event.set()
+                self.mount_events.append((event['event'], event['mountpoint']))
+                self.mounted.set()
 
-        self.events = []
+        self.mount_events = []
         Client.connect(events_cb)
 
         mounts.open()
@@ -55,15 +57,15 @@ class MountsetTest(tests.Test):
         os.makedirs('1/sugar-network')
         os.makedirs('2/sugar-network')
 
-        self.start_server()
+        self.mountset()
 
-        self.got_event.wait()
-        self.got_event.clear()
+        self.mounted.wait()
+        self.mounted.clear()
         self.assertEqual([
             ('mount', tests.tmpdir + '/1'),
             ('mount', tests.tmpdir + '/2'),
             ],
-            self.events)
+            self.mount_events)
 
         Client(tests.tmpdir + '/1').Context(
                 type='activity',
@@ -84,16 +86,16 @@ class MountsetTest(tests.Test):
                 sorted(Client.mounts()))
 
     def test_Mount(self):
-        self.start_server()
+        self.mountset()
 
         os.makedirs('tmp/1/sugar-network')
         shutil.move('tmp/1', '.')
 
-        self.got_event.wait()
-        self.got_event.clear()
+        self.mounted.wait()
+        self.mounted.clear()
         self.assertEqual(
                 [('mount', tests.tmpdir + '/1')],
-                self.events)
+                self.mount_events)
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
@@ -108,11 +110,11 @@ class MountsetTest(tests.Test):
         os.makedirs('tmp/2/sugar-network')
         shutil.move('tmp/2', '.')
 
-        self.got_event.wait()
-        self.got_event.clear()
+        self.mounted.wait()
+        self.mounted.clear()
         self.assertEqual(
                 [('mount', tests.tmpdir + '/2')],
-                self.events[1:])
+                self.mount_events[1:])
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
@@ -128,12 +130,12 @@ class MountsetTest(tests.Test):
     def test_Unmount(self):
         os.makedirs('1/sugar-network')
 
-        self.start_server()
-        self.got_event.wait()
-        self.got_event.clear()
+        self.mountset()
+        self.mounted.wait()
+        self.mounted.clear()
         self.assertEqual(
                 [('mount', tests.tmpdir + '/1')],
-                self.events)
+                self.mount_events)
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
@@ -149,11 +151,11 @@ class MountsetTest(tests.Test):
         os.makedirs('tmp/2/sugar-network')
         shutil.move('tmp/2', '.')
 
-        self.got_event.wait()
-        self.got_event.clear()
+        self.mounted.wait()
+        self.mounted.clear()
         self.assertEqual(
                 [('mount', tests.tmpdir + '/2')],
-                self.events[1:])
+                self.mount_events[1:])
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1'},
@@ -168,11 +170,11 @@ class MountsetTest(tests.Test):
         self.assertEqual(1, Client(tests.tmpdir + '/2').Context.cursor().total)
 
         shutil.rmtree('1')
-        self.got_event.wait()
-        self.got_event.clear()
+        self.mounted.wait()
+        self.mounted.clear()
         self.assertEqual(
                 [('unmount', tests.tmpdir + '/1')],
-                self.events[2:])
+                self.mount_events[2:])
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/2', 'name': '2'},
@@ -186,11 +188,11 @@ class MountsetTest(tests.Test):
         self.assertEqual(0, Client(tests.tmpdir + '/1').Context.cursor().total)
 
         shutil.rmtree('2')
-        self.got_event.wait()
-        self.got_event.clear()
+        self.mounted.wait()
+        self.mounted.clear()
         self.assertEqual(
                 [('unmount', tests.tmpdir + '/2')],
-                self.events[3:])
+                self.mount_events[3:])
         self.assertEqual(
                 sorted([
                     ]),
@@ -204,13 +206,13 @@ class MountsetTest(tests.Test):
 
     def test_MountNode(self):
         local.server_mode.value = True
-        self.start_server()
+        self.mountset()
 
         os.makedirs('tmp/mnt/sugar-network')
         shutil.move('tmp/mnt', '.')
 
-        self.got_event.wait()
-        self.got_event.clear()
+        self.mounted.wait()
+        self.mounted.clear()
         client = Client(tests.tmpdir + '/mnt')
 
         guid = client.Context(
@@ -223,6 +225,58 @@ class MountsetTest(tests.Test):
         self.assertEqual(
                 {'guid': guid, 'title': {'en-US': 'title'}},
                 http.request('GET', ['context', guid], params={'reply': 'guid,title'}))
+
+    def test_RootRemount(self):
+        mountset = self.mountset()
+        client = Client('/')
+
+        mountset['/'] = RemoteMount(mountset.home_volume)
+        self.assertEqual(['/'], [i['mountpoint'] for i in mountset.mounts()])
+        assert not mountset['/'].mounted
+        self.assertEqual(0, client.Context.cursor().total)
+        self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
+
+        pid = self.fork(self.restful_server)
+        coroutine.sleep(1)
+
+        self.assertEqual([], self.mount_events)
+        self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
+        self.mounted.wait()
+        self.mounted.clear()
+        assert mountset['/'].mounted
+        self.assertEqual([('mount', '/')], self.mount_events)
+        del self.mount_events[:]
+
+        guid = client.Context(
+                type='activity',
+                title='title',
+                summary='summary',
+                description='description',
+                ).post()
+        self.assertEqual(
+                [guid],
+                [i['guid'] for i in client.Context.cursor()])
+
+        self.waitpid(pid)
+
+        self.mounted.wait()
+        self.mounted.clear()
+        assert not mountset['/'].mounted
+        self.assertEqual([('unmount', '/')], self.mount_events)
+        del self.mount_events[:]
+        self.assertEqual(0, client.Context.cursor().total)
+        self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
+
+        pid = self.fork(self.restful_server)
+        coroutine.sleep(1)
+
+        self.assertEqual([], self.mount_events)
+        self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
+        self.mounted.wait()
+        self.mounted.clear()
+        assert mountset['/'].mounted
+        self.assertEqual([('mount', '/')], self.mount_events)
+        del self.mount_events[:]
 
 
 if __name__ == '__main__':
