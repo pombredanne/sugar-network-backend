@@ -49,11 +49,6 @@ data_root = optparse.Option(
                 'data and indexes'),
         default='/var/lib/sugar-network/db', name='data_root')
 
-master_url = optparse.Option(
-        _('master API url to share with nodes; ' \
-                'if omitted, node is not a master'),
-        name='master-url')
-
 only_sync_notification = optparse.Option(
         _('subscribers can be notified only with "sync" events; ' \
                 'that is useful to minimize interactions between ' \

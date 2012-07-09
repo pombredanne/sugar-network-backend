@@ -13,9 +13,8 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket, OutBufferPacket, OutFilePacket
-from sugar_network.node.commands import MasterCommands
-from sugar_network.local.mounts import NodeMount
-from sugar_network.local import api_url
+from sugar_network.node import commands
+from sugar_network.local import mounts
 from sugar_network.toolkit import sneakernet
 from sugar_network.resources.volume import Volume
 from active_toolkit import coroutine, sockets
@@ -28,22 +27,12 @@ class SyncTest(tests.Test):
         self.uuid = 0
         self.override(ad, 'uuid', self.next_uuid)
 
-    def new_volume(self, root):
-
-        class Document(ad.Document):
-
-            @ad.active_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-        return Volume(root, [Document])
-
     def next_uuid(self):
         self.uuid += 1
         return str(self.uuid)
 
     def test_Master_push_MisaddressedPackets(self):
-        master = MasterCommands('master', self.new_volume('db'))
+        master = MasterCommands('master')
         response = ad.Response()
 
         packet = OutBufferPacket()
@@ -83,7 +72,7 @@ class SyncTest(tests.Test):
         master.push(request, response)
 
     def test_Master_push_ProcessPushes(self):
-        master = MasterCommands('master', self.new_volume('db'))
+        master = MasterCommands('master')
         request = ad.Request()
         response = ad.Response()
 
@@ -113,7 +102,7 @@ class SyncTest(tests.Test):
             [i for i in packet])
 
     def test_Master_push_ProcessPulls(self):
-        master = MasterCommands('master', self.new_volume('db'))
+        master = MasterCommands('master')
         request = ad.Request()
         response = ad.Response()
 
@@ -150,7 +139,7 @@ class SyncTest(tests.Test):
             [i for i in packet])
 
     def test_Master_push_ProcessPushesAndPulls(self):
-        master = MasterCommands('master', self.new_volume('db'))
+        master = MasterCommands('master')
         request = ad.Request()
         response = ad.Response()
 
@@ -188,7 +177,7 @@ class SyncTest(tests.Test):
             [i for i in packet])
 
     def test_Master_pull_MisaddressedPackets(self):
-        master = MasterCommands('master', self.new_volume('db'))
+        master = MasterCommands('master')
         response = ad.Response()
 
         packet = OutBufferPacket()
@@ -228,7 +217,7 @@ class SyncTest(tests.Test):
         master.pull(request, response)
 
     def test_Master_pull_ProcessPulls(self):
-        master = MasterCommands('master', self.new_volume('db'))
+        master = MasterCommands('master')
         request = ad.Request()
         response = ad.Response()
 
@@ -271,7 +260,7 @@ class SyncTest(tests.Test):
             [i for i in packet])
 
     def test_Master_pull_AvoidEmptyPacketsOnPull(self):
-        master = MasterCommands('master', self.new_volume('db'))
+        master = MasterCommands('master')
         request = ad.Request()
         response = ad.Response()
 
@@ -287,7 +276,7 @@ class SyncTest(tests.Test):
         self.assertEqual(None, reply)
 
     def test_Master_pull_LimittedPull(self):
-        master = MasterCommands('master', self.new_volume('db'))
+        master = MasterCommands('master')
         response = ad.Response()
 
         master.volume['document'].create(guid='1', prop='*' * 1024)
@@ -366,15 +355,15 @@ class SyncTest(tests.Test):
             [i for i in packet])
 
     def test_Node_Export(self):
-        node = NodeMount(self.new_volume('db'), None)
+        node = NodeMount('node', 'master')
 
         node.volume['document'].create(guid='1', prop='value1')
         node.volume['document'].create(guid='2', prop='value2')
 
         node.sync('sync')
         self.assertEqual([
-            {'cmd': 'sn_pull', 'src': tests.UID, 'dst': api_url.value, 'session': '1', 'sequence': [[1, None]]},
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [1, 1], 'document': 'document', 'guid': '1', 'session': '1', 'diff': {
+            {'cmd': 'sn_pull', 'src': 'node', 'dst': 'master', 'session': '1', 'sequence': [[1, None]]},
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [1, 1], 'document': 'document', 'guid': '1', 'session': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -382,7 +371,7 @@ class SyncTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': 'value1',    'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [2, 2], 'document': 'document', 'guid': '2', 'session': '1', 'diff': {
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [2, 2], 'document': 'document', 'guid': '2', 'session': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -394,13 +383,13 @@ class SyncTest(tests.Test):
             self.read_packets('sync'))
 
     def test_Node_Export_NoPullForExistingSession(self):
-        node = NodeMount(self.new_volume('db'), None)
+        node = NodeMount('node', 'master')
 
         node.volume['document'].create(guid='1')
 
         node.sync('sync', session='session')
         self.assertEqual([
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [1, 1], 'document': 'document', 'guid': '1', 'session': 'session', 'diff': {
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [1, 1], 'document': 'document', 'guid': '1', 'session': 'session', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -412,7 +401,7 @@ class SyncTest(tests.Test):
             self.read_packets('sync'))
 
     def test_Node_LimittedExport(self):
-        node = NodeMount(self.new_volume('db'), None)
+        node = NodeMount('node', 'master')
 
         node.volume['document'].create(guid='1', prop='*' * 1024)
         node.volume['document'].create(guid='2', prop='*' * 1024)
@@ -433,7 +422,7 @@ class SyncTest(tests.Test):
         kwargs = node.sync('sync', accept_length=1024 * 2, push_sequence=kwargs['push_sequence'], session=1)
         self.assertEqual([[2, None]], kwargs['push_sequence'])
         self.assertEqual([
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [1, 1], 'document': 'document', 'guid': '1', 'session': 1, 'diff': {
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [1, 1], 'document': 'document', 'guid': '1', 'session': 1, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -447,7 +436,7 @@ class SyncTest(tests.Test):
         kwargs = node.sync('sync', accept_length=1024 * 3, push_sequence=kwargs['push_sequence'], session=2)
         self.assertEqual([[4, None]], kwargs['push_sequence'])
         self.assertEqual([
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [2, 2], 'document': 'document', 'guid': '2', 'session': 2, 'diff': {
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [2, 2], 'document': 'document', 'guid': '2', 'session': 2, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
@@ -455,7 +444,7 @@ class SyncTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [3, 3], 'document': 'document', 'guid': '3', 'session': 2, 'diff': {
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [3, 3], 'document': 'document', 'guid': '3', 'session': 2, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/3/3/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/3/3/layer').st_mtime},
                 'guid':  {'value': '3',         'mtime': os.stat('db/document/3/3/guid').st_mtime},
@@ -469,7 +458,7 @@ class SyncTest(tests.Test):
         kwargs = node.sync('sync', push_sequence=kwargs['push_sequence'], session=3)
         self.assertEqual(None, kwargs)
         self.assertEqual([
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [4, 4], 'document': 'document', 'guid': '4', 'session': 3, 'diff': {
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [4, 4], 'document': 'document', 'guid': '4', 'session': 3, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/4/4/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/4/4/layer').st_mtime},
                 'guid':  {'value': '4',         'mtime': os.stat('db/document/4/4/guid').st_mtime},
@@ -477,7 +466,7 @@ class SyncTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/4/4/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/4/4/prop').st_mtime},
                 }},
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [5, 5], 'document': 'document', 'guid': '5', 'session': 3, 'diff': {
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [5, 5], 'document': 'document', 'guid': '5', 'session': 3, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/5/5/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/5/5/layer').st_mtime},
                 'guid':  {'value': '5',         'mtime': os.stat('db/document/5/5/guid').st_mtime},
@@ -485,7 +474,7 @@ class SyncTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/5/5/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/5/5/prop').st_mtime},
                 }},
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [6, 6], 'document': 'document', 'guid': '6', 'session': 3, 'diff': {
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [6, 6], 'document': 'document', 'guid': '6', 'session': 3, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/6/6/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/6/6/layer').st_mtime},
                 'guid':  {'value': '6',         'mtime': os.stat('db/document/6/6/guid').st_mtime},
@@ -497,23 +486,23 @@ class SyncTest(tests.Test):
             self.read_packets('sync'))
 
     def test_Node_Import(self):
-        node = NodeMount(self.new_volume('db'), None)
+        node = NodeMount('node', 'master')
 
-        master_packet = OutFilePacket('sync', src=api_url.value)
+        master_packet = OutFilePacket('sync', src='master')
         master_packet.push(data=[
-            {'cmd': 'sn_ack', 'dst': tests.UID, 'in_sequence': [[1, 2]], 'out_sequence': [[3, 4]]},
+            {'cmd': 'sn_ack', 'dst': 'node', 'in_sequence': [[1, 2]], 'out_sequence': [[3, 4]]},
             {'cmd': 'sn_ack', 'dst': 'other', 'in_sequence': [[5, 6]], 'out_sequence': [[7, 8]]},
             {'cmd': 'sn_push', 'document': 'document', 'range': [11, 12], 'guid': '2', 'diff': {'guid': {'value': '2', 'mtime': 2}}},
             ])
         master_packet.close()
 
-        our_packet = OutFilePacket('sync', src=tests.UID, dst=api_url.value, session='stale')
+        our_packet = OutFilePacket('sync', src='node', dst='master', session='stale')
         our_packet.push(data=[
             {'cmd': 'sn_push', 'document': 'document', 'range': [9, 10], 'guid': '1', 'diff': {'guid': {'value': '1', 'mtime': 1}}},
             ])
         our_packet.close()
 
-        other_node_packet = OutFilePacket('sync', src='other', dst=api_url.value)
+        other_node_packet = OutFilePacket('sync', src='other', dst='master')
         other_node_packet.push(data=[
             {'cmd': 'sn_push', 'document': 'document', 'range': [13, 14], 'guid': '3', 'diff': {'guid': {'value': '3', 'mtime': 3}}},
             ])
@@ -536,23 +525,23 @@ class SyncTest(tests.Test):
                 [i.guid for i in node.volume['document'].find()[0]])
 
     def test_Node_TakeIntoAccountJustReadAckPacket(self):
-        node = NodeMount(self.new_volume('db'), None)
+        node = NodeMount('node', 'master')
 
         node.volume['document'].create(guid='1', prop='prop1')
         node.volume['document'].create(guid='2', prop='prop2')
         node.volume['document'].create(guid='3', prop='prop3')
 
-        master_packet = OutFilePacket('sync', src=api_url.value)
+        master_packet = OutFilePacket('sync', src='master')
         master_packet.push(data=[
-            {'cmd': 'sn_ack', 'dst': tests.UID, 'in_sequence': [[1, 2]], 'out_sequence': []},
+            {'cmd': 'sn_ack', 'dst': 'node', 'in_sequence': [[1, 2]], 'out_sequence': []},
             ])
         master_packet.close()
 
         node.sync('sync', session='session')
 
         self.assertEqual([
-            {'content_type': 'records', 'src': api_url.value, 'dst': tests.UID, 'cmd': 'sn_ack', 'in_sequence': [[1, 2]], 'out_sequence': []},
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [3, 3], 'document': 'document', 'guid': '3', 'session': 'session', 'diff': {
+            {'content_type': 'records', 'src': 'master', 'dst': 'node', 'cmd': 'sn_ack', 'in_sequence': [[1, 2]], 'out_sequence': []},
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [3, 3], 'document': 'document', 'guid': '3', 'session': 'session', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/3/3/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/3/3/layer').st_mtime},
                 'guid':  {'value': '3',         'mtime': os.stat('db/document/3/3/guid').st_mtime},
@@ -564,10 +553,10 @@ class SyncTest(tests.Test):
             self.read_packets('sync'))
 
     def test_Node_Import_DoNotDeletePacketsFromCurrentSession(self):
-        node = NodeMount(self.new_volume('db'), None)
+        node = NodeMount('node', 'master')
         node.volume['document'].create(guid='1')
 
-        existing_session = OutFilePacket('sync', src=tests.UID, dst=api_url.value, session='the same')
+        existing_session = OutFilePacket('sync', src='node', dst='master', session='the same')
         existing_session.push(data=[
             {'cmd': 'sn_push', 'document': 'document', 'range': [1, 1], 'guid': '1', 'diff': {'guid': {'value': '1', 'mtime': 1}}},
             ])
@@ -585,7 +574,7 @@ class SyncTest(tests.Test):
         assert not (set(new_fiels) & set(files))
 
     def test_Node_sync_session(self):
-        node = NodeMount(self.new_volume('db'), None)
+        node = NodeMount('node', 'master')
         node.volume['document'].create(guid='1', prop='*' * 1024)
         coroutine.dispatch()
 
@@ -614,7 +603,7 @@ class SyncTest(tests.Test):
             ],
             events)
         self.assertEqual([
-            {'cmd': 'sn_pull', 'src': tests.UID, 'dst': api_url.value, 'session': session, 'sequence': [[1, None]]},
+            {'cmd': 'sn_pull', 'src': 'node', 'dst': 'master', 'session': session, 'sequence': [[1, None]]},
             ],
             self.read_packets('sync'))
 
@@ -629,8 +618,8 @@ class SyncTest(tests.Test):
             ],
             events)
         self.assertEqual([
-            {'cmd': 'sn_pull', 'src': tests.UID, 'dst': api_url.value, 'session': session, 'sequence': [[1, None]]},
-            {'content_type': 'records', 'cmd': 'sn_push', 'src': tests.UID, 'dst': api_url.value, 'range': [1, 1], 'document': 'document', 'guid': '1', 'session': session, 'diff': {
+            {'cmd': 'sn_pull', 'src': 'node', 'dst': 'master', 'session': session, 'sequence': [[1, None]]},
+            {'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'range': [1, 1], 'document': 'document', 'guid': '1', 'session': session, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -656,6 +645,37 @@ class Statvfs(object):
 
     def __init__(self, f_bfree):
         self.f_bfree = f_bfree
+
+
+class MasterCommands(commands.MasterCommands):
+
+    def __init__(self, master):
+        os.makedirs('db')
+        with file('db/master', 'w') as f:
+            f.write(master)
+        commands.MasterCommands.__init__(self, new_volume('db'))
+
+
+class NodeMount(mounts.NodeMount):
+
+    def __init__(self, node, master):
+        os.makedirs('db')
+        with file('db/node', 'w') as f:
+            f.write(node)
+        with file('db/master', 'w') as f:
+            f.write(master)
+        mounts.NodeMount.__init__(self, new_volume('db'), None)
+
+
+def new_volume(root):
+
+    class Document(ad.Document):
+
+        @ad.active_property(slot=1, default='')
+        def prop(self, value):
+            return value
+
+    return Volume(root, [Document])
 
 
 if __name__ == '__main__':

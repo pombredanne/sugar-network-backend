@@ -17,7 +17,7 @@ import os
 import locale
 import socket
 import logging
-from os.path import join, isdir
+from os.path import join, isdir, exists
 from gettext import gettext as _
 
 import active_document as ad
@@ -233,16 +233,6 @@ class Mountset(dict, ad.CommandsProcessor):
             _logger.info(_('Stop monitoring %r for mounts'), root)
 
     def _found_mount(self, path):
-        sync_path = join(path, _SYNC_DIRNAME)
-        if isdir(sync_path):
-            self._sync_dirs.add(sync_path)
-            if self._servers:
-                _logger.debug('Found sync %r mount', path)
-                self.start_sync()
-            else:
-                _logger.debug('Found sync %r mount but no servers', path)
-            return
-
         sn_path = join(path, _DB_DIRNAME)
         if isdir(sn_path):
             _logger.debug('Found server %r mount', path)
@@ -252,9 +242,15 @@ class Mountset(dict, ad.CommandsProcessor):
                     self[path] = NodeMount(volume, self.home_volume)
                 else:
                     self[path] = LocalMount(volume)
-            return
 
-        _logger.debug('Ignore %r mount', path)
+        sync_path = join(path, _SYNC_DIRNAME)
+        if isdir(sync_path):
+            self._sync_dirs.add(sync_path)
+            if self._servers:
+                _logger.debug('Found sync %r mount', path)
+                self.start_sync()
+            else:
+                _logger.debug('Found sync %r mount but no servers', path)
 
     def _lost_mount(self, path):
         _logger.debug('Lost %r mount', path)
@@ -268,7 +264,7 @@ class Mountset(dict, ad.CommandsProcessor):
 
     def _mount_volume(self, path):
         lazy_open = local.lazy_open.value
-        server_mode = local.server_mode.value
+        server_mode = local.server_mode.value and exists(join(path, 'node'))
 
         if server_mode:
             if self._servers:

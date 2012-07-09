@@ -25,7 +25,7 @@ import sweets_recipe
 import active_document as ad
 from sugar_network.toolkit.collection import Sequence, PersistentSequence
 from sugar_network.toolkit.sneakernet import OutFilePacket, DiskFull
-from sugar_network.toolkit import crypto, sugar, http, sneakernet
+from sugar_network.toolkit import sugar, http, sneakernet
 from sugar_network.local import activities
 from sugar_network import local, checkin, sugar
 from active_toolkit import sockets, util, coroutine, enforce
@@ -375,17 +375,10 @@ class NodeMount(LocalMount):
                 join(volume.root, 'pull.sequence'), [1, None])
         self._sync_session = None
 
-        self._node_guid = crypto.ensure_dsa_pubkey(
-                sugar.profile_path('owner.key'))
-
-        master_path = join(volume.root, 'master')
-        if exists(master_path):
-            with file(master_path) as f:
-                self._master = f.read().strip()
-        else:
-            self._master = local.api_url.value.rstrip('/')
-            with file(master_path, 'w') as f:
-                f.write(self._master)
+        with file(join(volume.root, 'node')) as f:
+            self._node_guid = f.read().strip()
+        with file(join(volume.root, 'master')) as f:
+            self._master_guid = f.read().strip()
 
     def call(self, request, response):
         return _proxy_call(self._home_volume, request, response,
@@ -418,7 +411,7 @@ class NodeMount(LocalMount):
                     self._pull_seq.commit()
 
             with OutFilePacket(path, limit=accept_length, src=self._node_guid,
-                    dst=self._master, session=session) as packet:
+                    dst=self._master_guid, session=session) as packet:
                 if session_is_new:
                     packet.push(cmd='sn_pull', sequence=self._pull_seq)
 
@@ -473,7 +466,7 @@ class NodeMount(LocalMount):
             })
         _logger.debug('Processing %r PUSH packet from %r', packet, packet.path)
 
-        from_master = (packet.header.get('src') == self._master)
+        from_master = (packet.header.get('src') == self._master_guid)
 
         for record in packet.records():
             cmd = record.get('cmd')

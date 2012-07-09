@@ -27,27 +27,36 @@ from sugar_network.toolkit.collection import Sequence
 from active_toolkit import util, enforce
 
 
+_DEFAULT_MASTER_GUID = 'api-testing.network.sugarlabs.org'
+
 _logger = logging.getLogger('node.commands')
 
 
 class NodeCommands(ad.VolumeCommands):
 
-    def __init__(self, volume, subscriber=None, master_url=None):
+    def __init__(self, volume, subscriber=None):
         ad.VolumeCommands.__init__(self, volume)
         self._subscriber = subscriber
-        self._is_master = bool(master_url)
+        self._is_master = False
 
-        if self._is_master:
-            self._guid = master_url
+        node_path = join(volume.root, 'node')
+        master_path = join(volume.root, 'master')
+
+        if exists(node_path):
+            with file(node_path) as f:
+                self._guid = f.read().strip()
+        elif exists(master_path):
+            with file(master_path) as f:
+                self._guid = f.read().strip()
+            self._is_master = True
         else:
-            guid_path = join(volume.root, 'node')
-            if exists(guid_path):
-                with file(guid_path) as f:
-                    self._guid = f.read().strip()
-            else:
-                self._guid = ad.uuid()
-                with file(guid_path, 'w') as f:
-                    f.write(self._guid)
+            self._guid = ad.uuid()
+            with file(node_path, 'w') as f:
+                f.write(self._guid)
+
+        if not self._is_master and not exists(master_path):
+            with file(master_path, 'w') as f:
+                f.write(_DEFAULT_MASTER_GUID)
 
     @ad.volume_command(method='GET')
     def hello(self, response):
@@ -133,29 +142,25 @@ class NodeCommands(ad.VolumeCommands):
 
 class MasterCommands(NodeCommands):
 
-    def __init__(self, master_url, volume, subscriber=None):
-        NodeCommands.__init__(self, volume, subscriber, master_url=master_url)
-        self._api_url = master_url
-
     @ad.volume_command(method='POST', cmd='push')
     def push(self, request, response):
         with InPacket(stream=request) as in_packet:
             enforce('src' in in_packet.header and \
-                    in_packet.header['src'] != self._api_url,
+                    in_packet.header['src'] != self._guid,
                     _('Misaddressed packet'))
             enforce('dst' in in_packet.header and \
-                    in_packet.header['dst'] == self._api_url,
+                    in_packet.header['dst'] == self._guid,
                     _('Misaddressed packet'))
 
-            out_packet = OutBufferPacket(src=self._api_url,
+            out_packet = OutBufferPacket(src=self._guid,
                     dst=in_packet.header['src'])
             continue_packet = OutBufferPacket(
-                    src=in_packet.header['src'], dst=self._api_url)
+                    src=in_packet.header['src'], dst=self._guid)
             pull_to_forward = Sequence()
             merged_in_seq = Sequence()
             merged_out_seq = Sequence()
 
-            for record in in_packet.records(dst=self._api_url):
+            for record in in_packet.records(dst=self._guid):
                 cmd = record.get('cmd')
                 if cmd == 'sn_push':
                     if record.get('content_type') == 'blob':
@@ -183,9 +188,8 @@ class MasterCommands(NodeCommands):
 
     @ad.volume_command(method='POST', cmd='pull')
     def pull(self, request, response, accept_length=None):
-        with OutFilePacket(src=self._api_url,
-                limit=accept_length) as out_packet:
-            continue_packet = OutBufferPacket(dst=self._api_url)
+        with OutFilePacket(src=self._guid, limit=accept_length) as out_packet:
+            continue_packet = OutBufferPacket(dst=self._guid)
             pull_seq = Sequence()
 
             if not request.content_length:
@@ -193,10 +197,10 @@ class MasterCommands(NodeCommands):
                 pull_seq.include(1, None)
             else:
                 with InPacket(stream=request) as in_packet:
-                    enforce(in_packet.header.get('src') != self._api_url,
+                    enforce(in_packet.header.get('src') != self._guid,
                             _('Misaddressed packet'))
                     enforce('dst' in in_packet.header and \
-                            in_packet.header['dst'] == self._api_url,
+                            in_packet.header['dst'] == self._guid,
                             _('Misaddressed packet'))
                     for record in in_packet.records():
                         if record.get('cmd') == 'sn_pull':

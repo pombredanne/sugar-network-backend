@@ -52,7 +52,7 @@ class NodeMountTest(tests.Test):
         return mounts
 
     def test_GetKeep(self):
-        os.makedirs('mnt/sugar-network')
+        self.touch(('mnt/sugar-network/node', 'node'))
         mounts = self.start_server()
         self.got_event.wait()
 
@@ -84,7 +84,7 @@ class NodeMountTest(tests.Test):
                 [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
     def test_SetKeep(self):
-        os.makedirs('mnt/sugar-network')
+        self.touch(('mnt/sugar-network/node', 'node'))
         mounts = self.start_server()
         mounts['~'] = HomeMount(mounts.home_volume)
         self.got_event.wait()
@@ -160,7 +160,7 @@ class NodeMountTest(tests.Test):
                 sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
 
     def test_Events(self):
-        os.makedirs('mnt/sugar-network')
+        self.touch(('mnt/sugar-network/node', 'node'))
         self.start_server()
         self.got_event.wait()
         self.got_event.clear()
@@ -212,7 +212,7 @@ class NodeMountTest(tests.Test):
         del events[:]
 
     def test_upload_blob(self):
-        os.makedirs('mnt/sugar-network')
+        self.touch(('mnt/sugar-network/node', 'node'))
         self.start_server()
         self.got_event.wait()
         remote = Client(tests.tmpdir + '/mnt')
@@ -233,7 +233,7 @@ class NodeMountTest(tests.Test):
         assert not exists('file2')
 
     def test_GetAbsetnBLOB(self):
-        os.makedirs('mnt/sugar-network')
+        self.touch(('mnt/sugar-network/node', 'node'))
         self.start_server()
         self.got_event.wait()
         client = Client(tests.tmpdir + '/mnt')

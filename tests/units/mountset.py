@@ -208,7 +208,7 @@ class MountsetTest(tests.Test):
         local.server_mode.value = True
         self.mountset()
 
-        os.makedirs('tmp/mnt/sugar-network')
+        self.touch(('tmp/mnt/sugar-network/node', 'node'))
         shutil.move('tmp/mnt', '.')
 
         self.mounted.wait()
