@@ -89,7 +89,7 @@ class Sequence(list):
         if issubclass(type(start), collections.Iterable):
             for range_start, range_end in start:
                 self._include(range_start, range_end)
-        else:
+        elif start is not None:
             self._include(start, end)
 
     def exclude(self, start, end=None):

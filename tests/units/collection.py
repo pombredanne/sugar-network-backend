@@ -336,6 +336,22 @@ class CollectionTest(tests.Test):
                 [[1, None]],
                 seq_1)
 
+        seq_1 = Sequence()
+        seq_2 = Sequence()
+        seq_2.include(seq_1)
+        self.assertEqual([], seq_2)
+
+        seq_1 = Sequence()
+        seq_2 = Sequence()
+        seq_2.include(1, None)
+        seq_2.include(seq_1)
+        self.assertEqual([[1, None]], seq_2)
+
+        seq = Sequence()
+        seq.include(10, 11)
+        seq.include(None)
+        self.assertEqual([[10, 11]], seq)
+
     def test_Sequence_last(self):
         seq = Sequence()
         self.assertEqual(None, seq.last)

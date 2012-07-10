@@ -13,9 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
+import base64
 import logging
 import hashlib
 import tempfile
+from Cookie import SimpleCookie
 from os.path import exists, join
 from gettext import gettext as _
 
@@ -154,9 +157,7 @@ class MasterCommands(NodeCommands):
 
             out_packet = OutBufferPacket(src=self._guid,
                     dst=in_packet.header['src'],
-                    filename=in_packet.header.get('filename'))
-            continue_packet = OutBufferPacket(
-                    src=in_packet.header['src'], dst=self._guid)
+                    filename='ack.' + in_packet.header.get('filename'))
             pull_to_forward = Sequence()
             pushed = Sequence()
             merged = Sequence()
@@ -184,22 +185,27 @@ class MasterCommands(NodeCommands):
                 out_packet.push(cmd='sn_ack', sequence=pushed, merged=merged)
 
             pull_to_forward.exclude(merged)
+            pull_to_forward.include(_cookie_get(request, 'sn_pull'))
             if pull_to_forward:
-                _logger.debug('Forward %r pull', pull_to_forward)
-                continue_packet.push(cmd='sn_pull', sequence=pull_to_forward)
+                _logger.debug('Forward %r pull in cookies', pull_to_forward)
+                _cookie_set(response, 'sn_pull', pull_to_forward)
 
-        return self._reply(response, out_packet, continue_packet)
+            response.content_type = out_packet.content_type
+            if not out_packet.empty:
+                return out_packet.pop()
 
     @ad.volume_command(method='POST', cmd='pull')
     def pull(self, request, response, accept_length=None):
         with OutFilePacket(src=self._guid, seqno=self.volume.seqno.value,
                 limit=accept_length) as out_packet:
-            continue_packet = OutBufferPacket(dst=self._guid)
-            pull_seq = Sequence()
+            pull_seq = Sequence(_cookie_get(request, 'sn_pull'))
+            if pull_seq:
+                _logger.debug('Reuse %r pull from cookies', pull_seq)
 
             if not request.content_length:
-                _logger.debug('Return full synchronization dump')
-                pull_seq.include(1, None)
+                if not pull_seq:
+                    _logger.debug('Return full synchronization dump')
+                    pull_seq.include(1, None)
             else:
                 with InPacket(stream=request) as in_packet:
                     enforce(in_packet.header.get('src') != self._guid,
@@ -215,20 +221,28 @@ class MasterCommands(NodeCommands):
             try:
                 self.volume.diff(pull_seq, out_packet)
             except DiskFull:
-                _logger.debug('Postpone %r pull', pull_seq)
-                continue_packet.push(cmd='sn_pull', sequence=pull_seq)
+                _logger.debug('Postpone %r pull in cookies', pull_seq)
+                _cookie_set(response, 'sn_pull', pull_seq)
 
-            return self._reply(response, out_packet, continue_packet)
+            response.content_type = out_packet.content_type
+            if not out_packet.empty:
+                return out_packet.pop()
 
-    def _reply(self, response, out_packet, continue_packet):
-        response.content_type = out_packet.content_type
-        if out_packet.empty and continue_packet.empty:
-            return
-        out_packet.header['empty'] = out_packet.empty
-        out_packet.header['continue'] = not continue_packet.empty
-        if not continue_packet.empty:
-            out_packet.push(continue_packet, arcname='continue', force=True)
-        return out_packet.pop()
+
+def _cookie_get(request, name):
+    cookie_str = request.environ.get('HTTP_COOKIE')
+    if not cookie_str:
+        return
+    cookie = SimpleCookie()
+    cookie.load(cookie_str)
+    if name in cookie:
+        value = cookie.get(name).value
+        return json.loads(base64.b64decode(value))
+
+
+def _cookie_set(response, name, value):
+    value = base64.b64encode(json.dumps(value))
+    response['Set-Cookie'] = '%s=%s; Max-Age=3600; HttpOnly' % (name, value)
 
 
 def _load_pubkey(pubkey):

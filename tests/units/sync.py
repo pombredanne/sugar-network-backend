@@ -5,6 +5,7 @@ import os
 import time
 import json
 import shutil
+import base64
 import hashlib
 from cStringIO import StringIO
 from os.path import exists, join
@@ -36,44 +37,44 @@ class SyncTest(tests.Test):
         response = ad.Response()
 
         packet = OutBufferPacket()
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.push, request, response)
 
         packet = OutBufferPacket(src='node')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.push, request, response)
 
         packet = OutBufferPacket(dst='master')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.push, request, response)
 
         packet = OutBufferPacket(src='node', dst='fake')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.push, request, response)
 
         packet = OutBufferPacket(src='master', dst='master')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.push, request, response)
 
         packet = OutBufferPacket(src='node', dst='master')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         master.push(request, response)
 
     def test_Master_push_ProcessPushes(self):
         master = MasterCommands('master')
-        request = ad.Request()
+        request = Request()
         response = ad.Response()
 
         packet = OutBufferPacket(src='node', dst='master')
@@ -87,6 +88,7 @@ class SyncTest(tests.Test):
         request.content_length = len(request.content_stream.getvalue())
 
         reply = master.push(request, response)
+        assert 'Set-Cookie' not in response
 
         self.assertEqual(
                 ['1', '2', '3'],
@@ -95,16 +97,14 @@ class SyncTest(tests.Test):
         packet = InPacket(stream=reply)
         self.assertEqual('master', packet.header['src'])
         self.assertEqual('node', packet.header.get('dst'))
-        self.assertEqual(False, packet.header.get('empty'))
-        self.assertEqual(False, packet.header.get('continue'))
         self.assertEqual([
-            {'filename': 'node.packet', 'empty': False, 'continue': False, 'src': 'master', 'dst': 'node', 'cmd': 'sn_ack', 'sequence': [[1, 3]],'merged': [[1, 3]]},
+            {'filename': 'ack.node.packet', 'src': 'master', 'dst': 'node', 'cmd': 'sn_ack', 'sequence': [[1, 3]],'merged': [[1, 3]]},
             ],
             [i for i in packet])
 
     def test_Master_push_ProcessPulls(self):
         master = MasterCommands('master')
-        request = ad.Request()
+        request = Request()
         response = ad.Response()
 
         packet = OutBufferPacket(src='node', dst='master')
@@ -117,31 +117,14 @@ class SyncTest(tests.Test):
         request.content_length = len(request.content_stream.getvalue())
 
         reply = master.push(request, response)
-
-        packet = InPacket(stream=reply)
-        self.assertEqual('master', packet.header['src'])
-        self.assertEqual('node', packet.header.get('dst'))
-        self.assertEqual(True, packet.header.get('empty'))
-        self.assertEqual(True, packet.header.get('continue'))
-        self.assertEqual([
-            ],
-            [i for i in packet])
-
-        with packet._extract('continue') as stream:
-            with file('continue', 'wb') as f:
-                f.write(stream.read())
-
-        packet = InPacket('continue')
-        self.assertEqual('node', packet.header['src'])
-        self.assertEqual('master', packet.header.get('dst'))
-        self.assertEqual([
-            {'filename': 'node.packet', 'src': 'node', 'dst': 'master', 'cmd': 'sn_pull', 'sequence': [[1, 1], [3, 4], [7, None]]},
-            ],
-            [i for i in packet])
+        assert reply is None
+        self.assertEqual(
+                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1], [3, 4], [7, None]])),
+                response.get('Set-Cookie'))
 
     def test_Master_push_ProcessPushesAndPulls(self):
         master = MasterCommands('master')
-        request = ad.Request()
+        request = Request()
         response = ad.Response()
 
         packet = OutBufferPacket(src='node', dst='master')
@@ -159,68 +142,78 @@ class SyncTest(tests.Test):
         packet = InPacket(stream=reply)
         self.assertEqual('master', packet.header['src'])
         self.assertEqual('node', packet.header.get('dst'))
-        self.assertEqual(True, packet.header.get('continue'))
-        self.assertEqual(False, packet.header.get('empty'))
         self.assertEqual([
-            {'filename': 'node.packet', 'src': 'master', 'dst': 'node', 'continue': True, 'empty': False, 'cmd': 'sn_ack', 'sequence': [[1, 3]], 'merged': [[1, 2]]},
+            {'filename': 'ack.node.packet', 'src': 'master', 'dst': 'node', 'cmd': 'sn_ack', 'sequence': [[1, 3]], 'merged': [[1, 2]]},
             ],
             [i for i in packet])
+        self.assertEqual(
+                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[3, None]])),
+                response.get('Set-Cookie'))
 
-        with packet._extract('continue') as stream:
-            with file('continue', 'wb') as f:
-                f.write(stream.read())
+    def test_Master_push_ReusePullSeqFromCookies(self):
+        master = MasterCommands('master')
+        request = Request()
+        response = ad.Response()
 
-        packet = InPacket('continue')
-        self.assertEqual('node', packet.header['src'])
-        self.assertEqual('master', packet.header.get('dst'))
-        self.assertEqual([
-            {'filename': 'node.packet', 'src': 'node', 'dst': 'master', 'cmd': 'sn_pull', 'sequence': [[3, None]]},
-            ],
-            [i for i in packet])
+        packet = OutBufferPacket(src='node', dst='master')
+        packet.push(document='document', data=[
+            {'cmd': 'sn_pull', 'sequence': [[10, None]]},
+            ])
+        request.content_stream = packet.pop()
+        request.content_length = len(request.content_stream.getvalue())
+
+        request.environ['HTTP_COOKIE'] = \
+                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 2]]))
+
+        reply = master.push(request, response)
+        assert reply is None
+        self.assertEqual(
+                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 2], [10, None]])),
+                response.get('Set-Cookie'))
 
     def test_Master_pull_MisaddressedPackets(self):
         master = MasterCommands('master')
         response = ad.Response()
 
         packet = OutBufferPacket()
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.pull, request, response)
 
         packet = OutBufferPacket(src='node')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.pull, request, response)
 
         packet = OutBufferPacket(dst='master')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         master.pull(request, response)
 
         packet = OutBufferPacket(src='node', dst='fake')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.pull, request, response)
 
         packet = OutBufferPacket(src='master', dst='master')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         self.assertRaises(RuntimeError, master.pull, request, response)
 
         packet = OutBufferPacket(src='node', dst='master')
-        request = ad.Request()
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
         master.pull(request, response)
 
     def test_Master_pull_ProcessPulls(self):
         master = MasterCommands('master')
-        request = ad.Request()
+        request = Request()
         response = ad.Response()
 
         master.volume['document'].create(guid='1')
@@ -235,14 +228,13 @@ class SyncTest(tests.Test):
 
         reply = master.pull(request, response)
         self.assertEqual('application/x-tar', response.content_type)
+        assert 'Set-Cookie' not in response
 
         packet = InPacket(stream=reply)
         self.assertEqual('master', packet.header['src'])
         self.assertEqual(None, packet.header.get('dst'))
-        self.assertEqual(False, packet.header.get('continue'))
-        self.assertEqual(False, packet.header.get('empty'))
         self.assertEqual([
-            {'filename': 'master-2.packet', 'empty': False, 'continue': False, 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+            {'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -250,21 +242,21 @@ class SyncTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'filename': 'master-2.packet', 'empty': False, 'continue': False, 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
+            {'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
-                'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
+                'prop':  {'value': '',          'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
-            {'filename': 'master-2.packet', 'empty': False, 'continue': False, 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
+            {'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
             ],
             [i for i in packet])
 
     def test_Master_pull_AvoidEmptyPacketsOnPull(self):
         master = MasterCommands('master')
-        request = ad.Request()
+        request = Request()
         response = ad.Response()
 
         packet = OutBufferPacket(src='node', dst='master')
@@ -277,6 +269,7 @@ class SyncTest(tests.Test):
         reply = master.pull(request, response)
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual(None, reply)
+        assert 'Set-Cookie' not in response
 
     def test_Master_pull_LimittedPull(self):
         master = MasterCommands('master')
@@ -286,7 +279,7 @@ class SyncTest(tests.Test):
         master.volume['document'].create(guid='2', prop='*' * 1024)
 
         def rewind():
-            request = ad.Request()
+            request = Request()
             packet = OutBufferPacket(src='node', dst='master')
             packet.push(data=[
                 {'cmd': 'sn_pull', 'sequence': [[1, None]]},
@@ -302,10 +295,8 @@ class SyncTest(tests.Test):
         packet = InPacket(stream=reply)
         self.assertEqual('master', packet.header['src'])
         self.assertEqual(None, packet.header.get('dst'))
-        self.assertEqual(True, packet.header.get('continue'))
-        self.assertEqual(False, packet.header.get('empty'))
         self.assertEqual([
-            {'filename': 'master-2.packet', 'continue': True, 'empty': False, 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+            {'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -313,33 +304,24 @@ class SyncTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'filename': 'master-2.packet', 'empty': False, 'continue': True, 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 1]]},
+            {'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 1]]},
             ],
             [i for i in packet])
-
-        with packet._extract('continue') as stream:
-            with file('continue', 'wb') as f:
-                f.write(stream.read())
-
-        packet = InPacket('continue')
-        self.assertEqual(None, packet.header.get('src'))
-        self.assertEqual('master', packet.header.get('dst'))
-        self.assertEqual([
-            {'filename': '1.packet', 'dst': 'master', 'cmd': 'sn_pull', 'sequence': [[2, None]]},
-            ],
-            [i for i in packet])
+        self.assertEqual(
+                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
+                response.get('Set-Cookie'))
 
         request = rewind()
+        response = ad.Response()
         reply = master.pull(request, response, accept_length=1024 * 3)
         self.assertEqual('application/x-tar', response.content_type)
+        assert 'Set-Cookie' not in response
 
         packet = InPacket(stream=reply)
         self.assertEqual('master', packet.header['src'])
         self.assertEqual(None, packet.header.get('dst'))
-        self.assertEqual(False, packet.header.get('continue'))
-        self.assertEqual(False, packet.header.get('empty'))
         self.assertEqual([
-            {'filename': 'master-2.packet', 'continue': False, 'empty': False, 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+            {'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -347,7 +329,7 @@ class SyncTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'filename': 'master-2.packet', 'continue': False, 'empty': False, 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
+            {'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
@@ -355,7 +337,53 @@ class SyncTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
                 'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
-            {'filename': 'master-2.packet', 'empty': False, 'continue': False, 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
+            {'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
+            ],
+            [i for i in packet])
+
+    def test_Master_pull_ReusePullSeqFromCookies(self):
+        master = MasterCommands('master')
+        request = Request()
+        response = ad.Response()
+
+        master.volume['document'].create(guid='1')
+        master.volume['document'].create(guid='2')
+
+        packet = OutBufferPacket(src='node', dst='master')
+        packet.push(data=[
+            {'cmd': 'sn_pull', 'sequence': [[2, 2]]},
+            ])
+        request.content_stream = packet.pop()
+        request.content_length = len(request.content_stream.getvalue())
+
+        request.environ['HTTP_COOKIE'] = \
+                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1]]))
+
+        reply = master.pull(request, response)
+        self.assertEqual('application/x-tar', response.content_type)
+        assert 'Set-Cookie' not in response
+
+        packet = InPacket(stream=reply)
+        self.assertEqual('master', packet.header['src'])
+        self.assertEqual(None, packet.header.get('dst'))
+        self.assertEqual([
+            {'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+                'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
+                'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
+                'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
+                'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
+                }},
+            {'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
+                'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
+                'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
+                'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
+                'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
+                'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
+                'prop':  {'value': '',          'mtime': os.stat('db/document/2/2/prop').st_mtime},
+                }},
+            {'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
             ],
             [i for i in packet])
 
@@ -652,6 +680,13 @@ class SyncTest(tests.Test):
             with InPacket(join(path, filename)) as packet:
                 result.extend([i for i in packet])
         return result
+
+
+class Request(ad.Request):
+
+    def __init__(self, environ=None):
+        ad.Request.__init__(self)
+        self.environ = environ or {}
 
 
 class Statvfs(object):
