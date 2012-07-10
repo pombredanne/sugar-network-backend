@@ -199,7 +199,7 @@ class MasterCommands(NodeCommands):
     @ad.volume_command(method='POST', cmd='pull')
     def pull(self, request, response, accept_length=None):
         with OutFilePacket(src=self._guid, seqno=self.volume.seqno.value,
-                limit=accept_length) as out_packet:
+                limit=_to_int('accept_length', accept_length)) as out_packet:
             pull_seq = Sequence(_cookie_get(request, 'sn_pull'))
             if pull_seq:
                 _logger.debug('Reuse %r pull from cookies', pull_seq)
@@ -227,10 +227,10 @@ class MasterCommands(NodeCommands):
             if not out_packet.empty:
                 return out_packet.pop()
 
-    @ad.volume_command(method='GET', cmd='clone')
+    @ad.volume_command(method='POST', cmd='clone')
     def clone(self, request, response, accept_length=None):
         with OutFilePacket(src=self._guid, seqno=self.volume.seqno.value,
-                limit=accept_length) as out_packet:
+                limit=_to_int('accept_length', accept_length)) as out_packet:
             pull_seq = Sequence()
             pull_seq.include(1, None)
 
@@ -290,6 +290,14 @@ def _load_pubkey(pubkey):
             raise ad.Forbidden(message)
 
     return str(hashlib.sha1(pubkey.split()[1]).hexdigest()), pubkey_pkcs8
+
+
+def _to_int(name, value):
+    if isinstance(value, basestring):
+        enforce(value.isdigit(),
+                _('Argument %r should be an integer value'), name)
+        value = int(value)
+    return value
 
 
 _HELLO_HTML = """\

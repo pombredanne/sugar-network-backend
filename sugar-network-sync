@@ -62,6 +62,14 @@ See http://wiki.sugarlabs.org/go/Sugar_Network for details.
 EOF
 }
 
+disk_free() {
+    disk_free=$(df . --block-size=1 | tail -n1 | awk '{print $4}')
+    [ $disk_free -gt $disk_limit ] || abort \
+        "No free disk space on $PWD, copy all *.cookie files" \
+        "to directory with more free space and re-run $0 from there"
+    echo $disk_free
+}
+
 get_header_key() {
     packet="$1"
     key="$2"
@@ -121,12 +129,13 @@ sync_path="$1"
 clone_url="$2"
 cmdline="$@"
 FS=
+disk_limit=$(expr 1024 \* 1024 \* 10)
 
 cd "${sync_path}" || abort "Cannot switch to ${sync_path} sync directory"
 
 if [ "${clone_url}" ]; then
     info "Clone initial master dump"
-    upload "${clone_url}?cmd=pull" clone.out
+    upload "${clone_url}?cmd=clone&accept_length=$(disk_free)" clone.out
     exit 0
 fi
 
@@ -142,18 +151,12 @@ for packet in $(find -type f -name '*.packet'); do
     fi
 done
 
-limit=$(expr 1024 \* 1024 \* 10)
 while true; do
     found=
     for cookie in $(find -type f -name '*.cookie'); do
-        disk_free=$(df . --block-size=1 | tail -n1 | awk '{print $4}')
-        [ $disk_free -gt $limit ] || abort \
-            "No free disk space on $PWD, copy all *.cookie files" \
-            "to directory with more free space and re-run $0 from there"
-
         api_url="http://$(basename "${cookie}" .cookie)"
         info "Pull updates from ${api_url}"
-        upload "${api_url}?cmd=pull" pull.out "${cookie}"
+        upload "${api_url}?cmd=pull&accept_length=$(disk_free)" pull.out "${cookie}"
         found=1
     done
     [ "${found}" ] || break
