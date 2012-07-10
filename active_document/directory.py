@@ -298,7 +298,7 @@ class Directory(object):
                     if name == 'seqno':
                         continue
                     meta = doc.meta(name)
-                    if meta is None:
+                    if meta is None or meta['seqno'] not in accept_range:
                         continue
 
                     if isinstance(self.metadata[name], BlobProperty):

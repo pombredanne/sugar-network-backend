@@ -515,6 +515,17 @@ class DocumentTest(tests.Test):
             ],
             read_diff(directory, [3], 2))
 
+        self.assertEqual([
+            ],
+            read_diff(directory, xrange(6, 100), 2))
+        directory.update(guid='2', prop='22')
+        self.assertEqual([
+            ({'seqno': 6, 'guid': '2'}, {
+                'prop': {'value': '22', 'mtime': os.stat('2/2/prop').st_mtime},
+                }),
+            ],
+            read_diff(directory, xrange(6, 100), 2))
+
     def test_diff_WithBlobsSetByUrl(self):
 
         class Document(document.Document):
