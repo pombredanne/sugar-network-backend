@@ -279,7 +279,6 @@ class Directory(object):
             seqno = accept_range.first
         else:
             seqno = accept_range[0]
-        start = seqno
 
         while True:
             documents, total = self.find(
@@ -324,8 +323,7 @@ class Directory(object):
                                 'mtime': meta['mtime'],
                                 }
 
-                yield {'guid': doc.guid, 'range': [start, seqno]}, diff
-                start = seqno + 1
+                yield {'guid': doc.guid, 'seqno': seqno}, diff
 
             seqno += 1
 

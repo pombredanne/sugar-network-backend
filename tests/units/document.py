@@ -474,7 +474,7 @@ class DocumentTest(tests.Test):
 
         self.assertEqual([
             ({'guid': '1', 'prop': 'blob', 'mtime': 1, 'digest': hashlib.sha1('1').hexdigest(), 'mime_type': 'application/octet-stream'}, '1'),
-            ({'range': [0, 2], 'guid': '1'}, {
+            ({'seqno': 2, 'guid': '1'}, {
                 'guid': {'value': '1', 'mtime': 1},
                 'layer': {'value': ['public'], 'mtime': 1},
                 'ctime': {'value': 1, 'mtime': 1},
@@ -482,14 +482,14 @@ class DocumentTest(tests.Test):
                 'mtime': {'value': 1, 'mtime': 1},
                 'user': {'value': [], 'mtime': 1}}),
             ({'guid': '2', 'prop': 'blob', 'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream'}, '2'),
-            ({'range': [3, 4], 'guid': '2'}, {
+            ({'seqno': 4, 'guid': '2'}, {
                 'guid': {'value': '2', 'mtime': 2},
                 'layer': {'value': ['public'], 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
                 'user': {'value': [], 'mtime': 2}}),
-            ({'range': [5, 5], 'guid': '3'}, {
+            ({'seqno': 5, 'guid': '3'}, {
                 'guid': {'value': '3', 'mtime': 3},
                 'layer': {'value': ['public'], 'mtime': 3},
                 'ctime': {'value': 3, 'mtime': 3},
@@ -501,7 +501,7 @@ class DocumentTest(tests.Test):
 
         self.assertEqual([
             ({'guid': '2', 'prop': 'blob', 'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream'}, '2'),
-            ({'range': [3, 4], 'guid': '2'}, {
+            ({'seqno': 4, 'guid': '2'}, {
                 'guid': {'value': '2', 'mtime': 2},
                 'layer': {'value': ['public'], 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
@@ -533,7 +533,7 @@ class DocumentTest(tests.Test):
         data = urllib2.urlopen('http://sugarlabs.org').read()
         self.assertEqual([
             ({'guid': '1', 'prop': 'blob', 'mtime': 1, 'digest': None, 'mime_type': 'application/octet-stream'}, data),
-            ({'range': [0, 2], 'guid': '1'}, {
+            ({'seqno': 2, 'guid': '1'}, {
                 'guid': {'value': '1', 'mtime': 1},
                 'layer': {'value': ['public'], 'mtime': 1},
                 'ctime': {'value': 1, 'mtime': 1},

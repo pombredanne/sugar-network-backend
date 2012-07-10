@@ -4,6 +4,7 @@
 - do not sync objects that were created and deleted before syncing
 - more relibale db update on schema changes
 - implement authentication
+- make `Directory.diff()` more precise for and avoid using `seqno..` searches if there are closed ranges
 
 1.0
 ===
