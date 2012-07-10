@@ -189,6 +189,8 @@ class MasterCommands(NodeCommands):
             if pull_to_forward:
                 _logger.debug('Forward %r pull in cookies', pull_to_forward)
                 _cookie_set(response, 'sn_pull', pull_to_forward)
+            else:
+                _cookie_unset(response, 'sn_pull')
 
             response.content_type = out_packet.content_type
             if not out_packet.empty:
@@ -202,11 +204,7 @@ class MasterCommands(NodeCommands):
             if pull_seq:
                 _logger.debug('Reuse %r pull from cookies', pull_seq)
 
-            if not request.content_length:
-                if not pull_seq:
-                    _logger.debug('Return full synchronization dump')
-                    pull_seq.include(1, None)
-            else:
+            if request.content_length:
                 with InPacket(stream=request) as in_packet:
                     enforce(in_packet.header.get('src') != self._guid,
                             _('Misaddressed packet'))
@@ -220,6 +218,26 @@ class MasterCommands(NodeCommands):
             _logger.debug('Writing %r pull', pull_seq)
             try:
                 self.volume.diff(pull_seq, out_packet)
+                _cookie_unset(response, 'sn_pull')
+            except DiskFull:
+                _logger.debug('Postpone %r pull in cookies', pull_seq)
+                _cookie_set(response, 'sn_pull', pull_seq)
+
+            response.content_type = out_packet.content_type
+            if not out_packet.empty:
+                return out_packet.pop()
+
+    @ad.volume_command(method='GET', cmd='clone')
+    def clone(self, request, response, accept_length=None):
+        with OutFilePacket(src=self._guid, seqno=self.volume.seqno.value,
+                limit=accept_length) as out_packet:
+            pull_seq = Sequence()
+            pull_seq.include(1, None)
+
+            _logger.debug('Writing %r pull', pull_seq)
+            try:
+                self.volume.diff(pull_seq, out_packet)
+                _cookie_unset(response, 'sn_pull')
             except DiskFull:
                 _logger.debug('Postpone %r pull in cookies', pull_seq)
                 _cookie_set(response, 'sn_pull', pull_seq)
@@ -235,14 +253,20 @@ def _cookie_get(request, name):
         return
     cookie = SimpleCookie()
     cookie.load(cookie_str)
-    if name in cookie:
-        value = cookie.get(name).value
+    if name not in cookie:
+        return
+    value = cookie.get(name).value
+    if value != '%s_unset' % name:
         return json.loads(base64.b64decode(value))
 
 
 def _cookie_set(response, name, value):
     value = base64.b64encode(json.dumps(value))
     response['Set-Cookie'] = '%s=%s; Max-Age=3600; HttpOnly' % (name, value)
+
+
+def _cookie_unset(response, name):
+    response['Set-Cookie'] = '%s=%s_unset; Max-Age=1; HttpOnly' % (name, name)
 
 
 def _load_pubkey(pubkey):
