@@ -24,22 +24,25 @@ class SyncTest(tests.Test):
 
         self.node_mountpoint = tests.tmpdir + '/mnt/node'
         local_root.value = 'node'
-        self.touch(('mnt/node/sugar-network/master', 'http://localhost:8100'))
+
+        self.touch(('master/db/master', 'master'))
+        self.touch(('mnt/node/sugar-network/node', 'node'))
+        self.touch(('mnt/node/sugar-network/master', 'master'))
 
         self.master_pid = self.popen([
             'sugar-network-server', '--port=8100', '--subscribe-port=8101',
-            '--master-url=http://localhost:8100', '--data-root=master/db',
-            '--index-flush-threshold=1024', '--index-flush-timeout=3',
-            '--only-sync-notification', '-DDF', 'start',
+            '--data-root=master/db', '--index-flush-threshold=1024',
+            '--index-flush-timeout=3', '--only-sync-notification',
+            '--tmpdir=tmp', '-DDF', 'start',
             ])
         self.node_pid = self.popen([
             'sugar-network-service', '--port=8200', '--subscribe-port=8201',
             '--activity-dirs=node/Activities', '--local-root=node',
-            '--mounts-root=mnt', '--server-mode',
+            '--mounts-root=mnt', '--server-mode', '--tmpdir=tmp',
             '--api-url=http://localhost:8100', '-DDF', 'start',
             ])
 
-        self.wait_for_events({'event': 'mount', 'mountpoint': self.node_mountpoint})
+        self.wait_for_events({'event': 'mount', 'mountpoint': '/'})
 
         with Client('/') as client:
             if not client.connected:
@@ -78,7 +81,7 @@ class SyncTest(tests.Test):
         self.wait_for_events({'event': 'sync_complete'})
 
         shutil.copytree('mnt/sync1', 'sync2')
-        pid = self.popen('V=1 sugar-network-sync sync2', shell=True)
+        pid = self.popen('V=1 sugar-network-sync sync2/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
 
         shutil.copytree('sync2', 'sync3')
@@ -110,6 +113,7 @@ class SyncTest(tests.Test):
         connected = coroutine.Event()
 
         def wait_connect(event):
+            print '>', event
             for i in events[:]:
                 for k, v in i.items():
                     if event.get(k) != v:
