@@ -22,12 +22,9 @@ class SyncTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
 
-        self.node_mountpoint = tests.tmpdir + '/mnt/node'
         local_root.value = 'node'
-
         self.touch(('master/db/master', 'master'))
-        self.touch(('mnt/node/sugar-network/node', 'node'))
-        self.touch(('mnt/node/sugar-network/master', 'master'))
+        os.makedirs('mnt')
 
         self.master_pid = self.popen([
             'sugar-network-server', '--port=8100', '--subscribe-port=8101',
@@ -42,8 +39,7 @@ class SyncTest(tests.Test):
             '--api-url=http://localhost:8100', '-DDF', 'start',
             ])
 
-        self.wait_for_events({'event': 'mount', 'mountpoint': '/'})
-
+        coroutine.sleep(1)
         with Client('/') as client:
             if not client.connected:
                 self.wait_for_events({'event': 'mount', 'mountpoint': '/'})
@@ -54,7 +50,8 @@ class SyncTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_Sneakernet(self):
-        with Client(self.node_mountpoint) as client:
+        # Create initial data on master
+        with Client('/') as client:
             context = client.Context(type='activity', title='title_1', summary='summary', description='description')
             guid_1 = context.post()
             self.touch(('preview_1', 'preview_1'))
@@ -65,7 +62,23 @@ class SyncTest(tests.Test):
             self.touch(('preview_2', 'preview_2'))
             context.upload_blob('preview', 'preview_2')
 
-        with Client('/') as client:
+        # Clone initial dump
+        os.makedirs('mnt_1/sugar-network-sync')
+        pid = self.popen('V=1 sugar-network-sync mnt_1/sugar-network-sync http://localhost:8100', shell=True)
+        self.waitpid(pid, 0)
+
+        # Start node and import cloned data
+        self.touch(('mnt_1/sugar-network/node', 'node'))
+        self.touch(('mnt_1/sugar-network/master', 'master'))
+        os.rename('mnt_1', 'mnt/mnt_1')
+        self.wait_for_events({'event': 'sync_complete'})
+        mountpoint = tests.tmpdir + '/mnt/mnt_1'
+
+        # Create data on node
+        with Client(mountpoint) as client:
+            if not client.connected:
+                self.wait_for_events({'event': 'mount', 'mountpoint': mountpoint})
+
             context = client.Context(type='activity', title='title_3', summary='summary', description='description')
             guid_3 = context.post()
             self.touch(('preview_3', 'preview_3'))
@@ -76,19 +89,21 @@ class SyncTest(tests.Test):
             self.touch(('preview_4', 'preview_4'))
             context.upload_blob('preview', 'preview_4')
 
-        os.makedirs('sync1/sugar-network-sync')
-        os.rename('sync1', 'mnt/sync1')
+        # Create node push packets with newly create data
+        os.makedirs('mnt_2/sugar-network-sync')
+        os.rename('mnt_2', 'mnt/mnt_2')
         self.wait_for_events({'event': 'sync_complete'})
 
-        shutil.copytree('mnt/sync1', 'sync2')
-        pid = self.popen('V=1 sugar-network-sync sync2/sugar-network-sync', shell=True)
+        # Upload node data to master
+        shutil.copytree('mnt/mnt_2', 'mnt_3')
+        pid = self.popen('V=1 sugar-network-sync mnt_3/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
 
-        shutil.copytree('sync2', 'sync3')
-        os.rename('sync3', 'mnt/sync3')
+        # Process master's reply
+        os.rename('mnt_3', 'mnt/mnt_3')
         self.wait_for_events({'event': 'sync_complete'})
 
-        with Client(self.node_mountpoint) as client:
+        with Client(mountpoint) as client:
             self.assertEqual(
                     sorted([
                         (guid_1, 'title_1', 'preview_1'),
