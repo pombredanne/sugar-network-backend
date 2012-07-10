@@ -18,6 +18,8 @@ from os.path import join
 
 import active_document as ad
 from active_toolkit import coroutine
+from sugar_network.toolkit.sneakernet import DiskFull
+from sugar_network.toolkit.collection import Sequence
 
 
 _DIFF_CHUNK = 1024
@@ -57,13 +59,24 @@ class Volume(ad.SingleVolume):
         ad.SingleVolume.__init__(self, root, document_classes, lazy_open)
 
     def diff(self, in_seq, out_packet):
+        # Since `in_seq` will be changed in `patch()`, original sequence
+        # should be passed as-is to every document's `diff()` because
+        # seqno handling is common for all documents
+        orig_seq = Sequence(in_seq)
+        push_seq = Sequence()
+
         for document, directory in self.items():
             coroutine.dispatch()
             directory.commit()
 
             def patch():
-                for meta, data in directory.diff(in_seq, limit=_DIFF_CHUNK):
+                for meta, data in directory.diff(orig_seq, limit=_DIFF_CHUNK):
                     coroutine.dispatch()
+
+                    seqno = None
+                    if 'seqno' in meta:
+                        seqno = meta.pop('seqno')
+
                     if hasattr(data, 'fileno'):
                         arcname = join(document, 'blobs', meta['guid'],
                                 meta['prop'])
@@ -72,8 +85,26 @@ class Volume(ad.SingleVolume):
                     else:
                         meta['diff'] = data
                         yield meta
-                    if 'range' in meta:
-                        in_seq.exclude(*meta['range'])
 
-            out_packet.push(patch(), arcname=join(document, 'diff'),
-                    cmd='sn_push', document=document)
+                    # Process `seqno` only after processing yield'ed data
+                    if seqno:
+                        # Update `in_seq`, it might be reused by caller
+                        in_seq.exclude(seqno, seqno)
+                        push_seq.include(seqno, seqno)
+
+            try:
+                out_packet.push(patch(), arcname=join(document, 'diff'),
+                        cmd='sn_push', document=document)
+            except DiskFull:
+                if push_seq:
+                    out_packet.push(arcname=join(document, 'commit'),
+                            force=True, cmd='sn_commit', sequence=push_seq)
+                raise
+
+        if push_seq:
+            # Only here we can collapse `push_seq` since seqno handling
+            # is common for all documents; if there was an exception before
+            # this place, `push_seq` should contain not-collapsed sequence
+            push_seq[:] = [[orig_seq.first, push_seq.last]]
+            out_packet.push(arcname='commit', force=True,
+                    cmd='sn_commit', sequence=push_seq)

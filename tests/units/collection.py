@@ -336,6 +336,20 @@ class CollectionTest(tests.Test):
                 [[1, None]],
                 seq_1)
 
+    def test_Sequence_last(self):
+        seq = Sequence()
+        self.assertEqual(None, seq.last)
+
+        seq = Sequence()
+        seq.include(10, None)
+        self.assertEqual(None, seq.last)
+
+        seq = Sequence()
+        seq.include(1, 1)
+        seq.include(3, 5)
+        seq.include(10, 11)
+        self.assertEqual(11, seq.last)
+
     def test_PersistentSequence_Restore(self):
         seq_1 = PersistentSequence('file', [1, None])
         seq_1.exclude(1, 10)

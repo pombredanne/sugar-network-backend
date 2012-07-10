@@ -63,6 +63,11 @@ class Sequence(list):
             return 0
 
     @property
+    def last(self):
+        if self:
+            return self[-1][-1]
+
+    @property
     def empty(self):
         """Is timeline in the initial state."""
         return self == self._empty_value

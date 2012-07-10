@@ -158,8 +158,8 @@ class MasterCommands(NodeCommands):
             continue_packet = OutBufferPacket(
                     src=in_packet.header['src'], dst=self._guid)
             pull_to_forward = Sequence()
-            merged_in_seq = Sequence()
-            merged_out_seq = Sequence()
+            pushed = Sequence()
+            merged = Sequence()
 
             for record in in_packet.records(dst=self._guid):
                 cmd = record.get('cmd')
@@ -167,20 +167,23 @@ class MasterCommands(NodeCommands):
                     if record.get('content_type') == 'blob':
                         record['diff'] = record['blob']
                     seqno = self.volume[record['document']].merge(**record)
-                    merged_out_seq.include(seqno, seqno)
-                    if 'range' in record:
-                        merged_in_seq.include(*record['range'])
+                    merged.include(seqno, seqno)
+
+                elif cmd == 'sn_commit':
+                    _logger.debug('Merged %r commit', record)
+                    pushed.include(record['sequence'])
+
                 elif cmd == 'sn_pull':
                     # Nodes create singular packet, forward PULLs
                     # to process them in `pull()` later
                     pull_to_forward.include(record['sequence'])
 
-            if merged_out_seq:
-                _logger.debug('Merged push with %r seqnos', merged_out_seq)
-                out_packet.push(cmd='sn_ack', in_sequence=merged_in_seq,
-                        out_sequence=merged_out_seq)
-                pull_to_forward.exclude(merged_out_seq)
+            enforce(not merged or pushed,
+                    _('"sn_push" record without "sn_commit"'))
+            if pushed:
+                out_packet.push(cmd='sn_ack', sequence=pushed, merged=merged)
 
+            pull_to_forward.exclude(merged)
             if pull_to_forward:
                 _logger.debug('Forward %r pull', pull_to_forward)
                 continue_packet.push(cmd='sn_pull', sequence=pull_to_forward)

@@ -478,15 +478,17 @@ class NodeMount(LocalMount):
                     record['diff'] = record['blob']
                 self.volume[record['document']].merge(increment_seqno=False,
                         **record)
-                if 'range' in record and from_master:
-                    self._pull_seq.exclude(*record['range'])
+
+            elif cmd == 'sn_commit' and from_master:
+                _logger.debug('Processing %r COMMIT from %r', record, packet)
+                self._pull_seq.exclude(record['sequence'])
 
             elif cmd == 'sn_ack' and from_master and \
                     record['dst'] == self._node_guid:
                 _logger.debug('Processing %r ACK from %r', record, packet)
-                self._push_seq.exclude(record['in_sequence'])
-                self._pull_seq.exclude(record['out_sequence'])
-                to_push_seq.exclude(record['in_sequence'])
+                self._push_seq.exclude(record['sequence'])
+                self._pull_seq.exclude(record['merged'])
+                to_push_seq.exclude(record['sequence'])
                 self.volume.seqno.next()
                 self.volume.seqno.commit()
 

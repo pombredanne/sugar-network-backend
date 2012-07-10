@@ -110,26 +110,26 @@ class SneakernetTest(tests.Test):
         self.assertEqual('ok', packet.header['probe'])
 
     def test_InPacket_FilterRecords(self):
-        with OutPacket(root='.') as packet:
+        with OutPacket(root='.', filename='packet') as packet:
             packet.push(a=1, b=1)
             packet.push(a=2, b=2)
             packet.push(a=1, b=3)
 
         self.assertEqual([
-            {'a': 1, 'b': 1},
-            {'a': 2, 'b': 2},
-            {'a': 1, 'b': 3},
+            {'a': 1, 'b': 1, 'filename': 'packet'},
+            {'a': 2, 'b': 2, 'filename': 'packet'},
+        {'a': 1, 'b': 3, 'filename': 'packet'},
             ],
             [i for i in InPacket(packet.path).records()])
 
         self.assertEqual([
-            {'a': 1, 'b': 1},
-            {'a': 1, 'b': 3},
+            {'a': 1, 'b': 1, 'filename': 'packet'},
+            {'a': 1, 'b': 3, 'filename': 'packet'},
             ],
             [i for i in InPacket(packet.path).records(a=1)])
 
         self.assertEqual([
-            {'a': 1, 'b': 3},
+            {'a': 1, 'b': 3, 'filename': 'packet'},
             ],
             [i for i in InPacket(packet.path).records(a=1, b=3)])
 
@@ -138,11 +138,11 @@ class SneakernetTest(tests.Test):
             [i for i in InPacket(packet.path).records(foo='bar')])
 
     def test_InPacket_SubPackets(self):
-        with OutPacket(root='.') as packet:
+        with OutPacket(root='.', filename='packet1.packet') as packet:
             packet.push(num=1, packet=1)
-            with OutPacket(root='.') as sub_packet_1:
+            with OutPacket(root='.', filename='packet2.packet') as sub_packet_1:
                 sub_packet_1.push(num=2, packet=2)
-                with OutPacket(root='.') as sub_packet_2:
+                with OutPacket(root='.', filename='packet3.packet') as sub_packet_2:
                     sub_packet_2.push(num=3, packet=3)
                     sub_packet_1.push(sub_packet_2)
                 sub_packet_1.push(num=4, packet=2)
@@ -150,20 +150,20 @@ class SneakernetTest(tests.Test):
             packet.push(num=5, packet=1)
 
         self.assertEqual([
-            {'num': 1, 'packet': 1},
-            {'num': 2, 'packet': 2},
-            {'num': 3, 'packet': 3},
-            {'num': 4, 'packet': 2},
-            {'num': 5, 'packet': 1},
+            {'num': 1, 'packet': 1, 'filename': 'packet1.packet'},
+            {'num': 2, 'packet': 2, 'filename': 'packet2.packet'},
+            {'num': 3, 'packet': 3, 'filename': 'packet3.packet'},
+            {'num': 4, 'packet': 2, 'filename': 'packet2.packet'},
+            {'num': 5, 'packet': 1, 'filename': 'packet1.packet'},
             ],
             [i for i in InPacket(packet.path)])
 
     def test_InPacket_MixingHeaderToRecords(self):
-        with OutPacket(root='.', header_prop=1) as packet:
+        with OutPacket(root='.', header_prop=1, filename='packet') as packet:
             packet.push(record_prop=2)
 
         self.assertEqual([
-            {'header_prop': 1, 'record_prop': 2},
+            {'header_prop': 1, 'record_prop': 2, 'filename': 'packet'},
             ],
             [i for i in InPacket(packet.path)])
 
@@ -188,7 +188,7 @@ class SneakernetTest(tests.Test):
                 self.assertEqual(None, in_packet.header['c'])
 
     def test_OutPacket_Content(self):
-        packet = OutPacket(root='.')
+        packet = OutPacket(root='.', filename='packet')
         packet.push(num=1, data=[
             {'a': 1, 'b': '2', 'c': None},
             {'d': 3, 'e': '4', 'f': None},
@@ -207,29 +207,35 @@ class SneakernetTest(tests.Test):
             records.append(i)
 
         self.assertEqual([
-            {'content_type': 'records', 'num': 1, 'a': 1, 'b': '2',  'c': None},
-            {'content_type': 'records', 'num': 1, 'd': 3, 'e': '4',  'f': None},
-            {'content_type': 'blob', 'num': 2, 'blob': 'blob'},
-            {'content_type': 'records', 'num': 3, 'g': 5, 'h': '6',  'i': None},
+            {'content_type': 'records', 'num': 1, 'a': 1, 'b': '2',  'c': None, 'filename': 'packet'},
+            {'content_type': 'records', 'num': 1, 'd': 3, 'e': '4',  'f': None, 'filename': 'packet'},
+            {'content_type': 'blob', 'num': 2, 'blob': 'blob', 'filename': 'packet'},
+            {'content_type': 'records', 'num': 3, 'g': 5, 'h': '6',  'i': None, 'filename': 'packet'},
             ], records)
 
     def test_OutPacket_Pop(self):
-        with OutFilePacket('.') as packet:
+        with OutFilePacket('.', filename='packet') as packet:
             packet.push(foo='bar')
             content = packet.pop()
             assert packet.pop() is None
         assert not content.closed
         assert exists(content.name)
         with InPacket(stream=content) as in_packet:
-            self.assertEqual([{'foo': 'bar'}], [i for i in in_packet])
+            self.assertEqual([
+                {'foo': 'bar', 'filename': 'packet'}
+                ]
+                , [i for i in in_packet])
 
-        with OutBufferPacket() as packet:
+        with OutBufferPacket(filename='packet') as packet:
             packet.push(foo='bar')
             content = packet.pop()
             assert packet.pop() is None
         assert not content.closed
         with InPacket(stream=content) as in_packet:
-            self.assertEqual([{'foo': 'bar'}], [i for i in in_packet])
+            self.assertEqual([
+                {'foo': 'bar', 'filename': 'packet'}
+                ],
+                [i for i in in_packet])
 
     def test_OutPacket_LimitOnPushBlobs(self):
         self.touch(('blob', '0' * 100))
@@ -253,27 +259,26 @@ class SneakernetTest(tests.Test):
         packet.close()
         assert not exists(packet.path)
 
-        packet = OutPacket(root='.', limit=200)
+        packet = OutPacket(root='.', limit=200, filename='packet')
         packet.push([{'probe': '1' * 100}])
         self.assertRaises(DiskFull, packet.push, ['1' * 100])
         packet.close()
         self.assertEqual(
-                [{'content_type': 'records', 'probe': '1' * 100}],
+                [{'content_type': 'records', 'probe': '1' * 100, 'filename': 'packet'}],
                 [i for i in InPacket(packet.path)])
 
-        packet = OutPacket(root='.', limit=300)
+        packet = OutPacket(root='.', limit=300, filename='packet')
         packet.push([
             {'probe': '1' * 100},
             {'probe': '2' * 100},
             ])
         self.assertRaises(DiskFull, packet.push, ['3' * 100])
         packet.close()
-        self.assertEqual(
-                [
-                    {'content_type': 'records', 'probe': '1' * 100},
-                    {'content_type': 'records', 'probe': '2' * 100},
-                    ],
-                [i for i in InPacket(packet.path)])
+        self.assertEqual([
+            {'content_type': 'records', 'probe': '1' * 100, 'filename': 'packet'},
+            {'content_type': 'records', 'probe': '2' * 100, 'filename': 'packet'},
+            ],
+            [i for i in InPacket(packet.path)])
 
     def test_OutPacket_DiskFull(self):
         self.touch(('blob', '0' * 100))
