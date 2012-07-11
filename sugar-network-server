@@ -21,8 +21,8 @@ from gettext import gettext as _
 
 import active_document as ad
 import sugar_network_webui as webui
-from active_toolkit import optparse, coroutine
-
+from active_toolkit import coroutine
+from active_toolkit.options import Option
 from sugar_network import node, local, Client
 from sugar_network.local.mounts import LocalMount
 from sugar_network.local.mountset import Mountset
@@ -92,11 +92,11 @@ class Application(application.Daemon):
 
 locale.setlocale(locale.LC_ALL, '')
 
-optparse.Option.seek('main', application)
-optparse.Option.seek('webui', webui)
-optparse.Option.seek('node', node)
-optparse.Option.seek('stats', stats)
-optparse.Option.seek('active-document', ad)
+Option.seek('main', application)
+Option.seek('webui', webui)
+Option.seek('node', node)
+Option.seek('stats', stats)
+Option.seek('active-document', ad)
 
 app = Application(
         name='sugar-network-server',

@@ -15,29 +15,28 @@
 
 from gettext import gettext as _
 
-from active_toolkit import optparse
+from active_toolkit.options import Option
 
 
-stats = optparse.Option(
+stats = Option(
         _('enable stats collecting'),
-        default=False, type_cast=optparse.Option.bool_cast,
-        action='store_true')
+        default=False, type_cast=Option.bool_cast, action='store_true')
 
-stats_root = optparse.Option(
+stats_root = Option(
         _('path to the root directory for placing stats'),
         default='/var/lib/sugar-network/stats')
 
-stats_step = optparse.Option(
+stats_step = Option(
         _('step interval in seconds for RRD databases'),
         default=60, type_cast=int)
 
-stats_server_rras = optparse.Option(
+stats_server_rras = Option(
         _('space separated list of RRAs for RRD databases on a server side'),
         default='RRA:AVERAGE:0.5:1:4320 RRA:AVERAGE:0.5:5:2016',
         type_cast=lambda x: [i for i in x.split() if i],
         type_repr=lambda x: ' '.join(x))
 
-stats_client_rras = optparse.Option(
+stats_client_rras = Option(
         _('space separated list of RRAs for RRD databases on client side'),
         default='RRA:AVERAGE:0.5:1:4320 RRA:AVERAGE:0.5:5:2016',
         type_cast=lambda x: [i for i in x.split() if i],

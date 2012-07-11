@@ -17,11 +17,12 @@
 
 from gettext import gettext as _
 
-from active_toolkit import optparse, enforce
 from sugar_network.toolkit import application, sugar
+from active_toolkit.options import Option
+from active_toolkit import enforce
 
 
-command = optparse.Option(
+command = Option(
         _('if context implementation supports several commands, ' \
                 'specify one of them to launch'),
         default='activity', short_option='-C')
@@ -59,8 +60,8 @@ class Application(application.Application):
 # New defaults
 application.debug.value = sugar.logger_level()
 
-optparse.Option.seek('sugar-network')
-optparse.Option.seek('sugar-network', [application.debug])
+Option.seek('sugar-network')
+Option.seek('sugar-network', [application.debug])
 
 app = Application(
         name='sugar-network',

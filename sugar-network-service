@@ -25,14 +25,15 @@ import active_document as ad
 import sugar_network_webui as webui
 
 from sugar_network import local, node, Client
-from sugar_network.toolkit import application, sugar, printf, sneakernet, ipc
+from sugar_network.toolkit import sugar, sneakernet, ipc
 from sugar_network.toolkit import crypto
 from sugar_network.local import activities
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.resources.volume import Volume
-from active_toolkit import optparse, coroutine, enforce
+from active_toolkit.options import Option
+from active_toolkit import printf, application, coroutine, enforce
 
 
 VERSION = '0.4'
@@ -216,11 +217,11 @@ node.trust_users.value = True
 # and will brake offline synchronization logic
 local.tmpdir.value = sugar.profile_path('tmp')
 
-optparse.Option.seek('main', [application.debug, application.foreground])
-optparse.Option.seek('webui', webui)
-optparse.Option.seek('local', local)
-optparse.Option.seek('node', [node.port, node.subscribe_port])
-optparse.Option.seek('active-document', ad)
+Option.seek('main', [application.debug, application.foreground])
+Option.seek('webui', webui)
+Option.seek('local', local)
+Option.seek('node', [node.port, node.subscribe_port])
+Option.seek('active-document', ad)
 
 application = Application(
         name='sugar-network-service',

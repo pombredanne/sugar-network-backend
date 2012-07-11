@@ -15,52 +15,51 @@
 
 from gettext import gettext as _
 
-from active_toolkit import optparse
+from active_toolkit.options import Option
 
 
-host = optparse.Option(
+host = Option(
         _('hostname to listen incomming connections'),
         default='0.0.0.0', name='host')
 
-port = optparse.Option(
+port = Option(
         _('port number to listen incomming connections'),
         default=8000, type_cast=int, name='port')
 
-subscribe_port = optparse.Option(
+subscribe_port = Option(
         _('port number to listen incomming subscribtion requests'),
         default=8001, type_cast=int, name='subscribe_port')
 
-keyfile = optparse.Option(
+keyfile = Option(
         _('path to SSL certificate keyfile to serve requests via HTTPS'),
         name='keyfile')
 
-certfile = optparse.Option(
+certfile = Option(
         _('path to SSL certificate file to serve requests via HTTPS'),
         name='certfile')
 
-trust_users = optparse.Option(
+trust_users = Option(
         _('switch off user credentials check; disabling this option will ' \
                 'require OpenSSH-5.6 or later'),
-        default=False, type_cast=optparse.Option.bool_cast,
+        default=False, type_cast=Option.bool_cast,
         action='store_true', name='trust_users')
 
-data_root = optparse.Option(
+data_root = Option(
         _('path to the root directory for placing documents\' ' \
                 'data and indexes'),
         default='/var/lib/sugar-network/db', name='data_root')
 
-only_sync_notification = optparse.Option(
+only_sync_notification = Option(
         _('subscribers can be notified only with "sync" events; ' \
                 'that is useful to minimize interactions between ' \
                 'server and clients'),
-        default=False, type_cast=optparse.Option.bool_cast,
-        action='store_true')
+        default=False, type_cast=Option.bool_cast, action='store_true')
 
-find_limit = optparse.Option(
+find_limit = Option(
         _('limit the resulting list for search requests'),
         default=32, type_cast=int)
 
-tmpdir = optparse.Option(
+tmpdir = Option(
         _('if specified, use this directory for temporary files, such files ' \
                 'might take hunder of megabytes while node synchronizing'))
 

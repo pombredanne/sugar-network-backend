@@ -13,8 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from active_toolkit import optparse
-from sugar_network.toolkit import sugar, application
+from sugar_network.toolkit import sugar
 from sugar_network.client.bus import Client, ServerError
 from sugar_network.local.activities import checkins
 from sugar_network.local import api_url, server_mode
