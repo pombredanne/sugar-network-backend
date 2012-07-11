@@ -119,6 +119,12 @@ class Client(object):
 
     @property
     def connected(self):
+        _logger.warning('Client.connected is depecated, ' \
+                'use Client.mounted instead')
+        return self.call('GET', 'mounted', mountpoint=self._mountpoint)
+
+    @property
+    def mounted(self):
         return self.call('GET', 'mounted', mountpoint=self._mountpoint)
 
     def launch(self, context, command='activity', object_id=None, uri=None,
