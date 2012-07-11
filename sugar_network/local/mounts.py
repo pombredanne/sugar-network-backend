@@ -52,6 +52,10 @@ class _Mount(object):
         return basename(self.mountpoint)
 
     @property
+    def private(self):
+        return type(self) in (LocalMount, HomeMount)
+
+    @property
     def mounted(self):
         return self._mounted
 
@@ -63,6 +67,7 @@ class _Mount(object):
             'event': 'mount' if value else 'unmount',
             'mountpoint': self.mountpoint,
             'name': self.name,
+            'private': self.private,
             'document': '*',
             })
 
