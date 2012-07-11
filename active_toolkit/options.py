@@ -16,8 +16,8 @@
 """Command-line options parsing utilities.
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
-$File: src/optparse.py$
-$Date: 2012-06-27$
+$File: src/options.py$
+$Date: 2012-07-11$
 
 """
 
@@ -135,9 +135,9 @@ class Option(object):
 
         for name in sorted(options):
             attr = options[name]
-            # Options might be from different `optparse` modules
+            # Options might be from different `options` modules
             if not (type(attr).__name__ == 'Option' and \
-                    type(attr).__module__.split('.')[-1] == 'optparse'):
+                    type(attr).__module__.split('.')[-1] == 'options'):
                 continue
 
             attr.attr_name = name
@@ -382,9 +382,9 @@ class Command(object):
 
         for name in sorted(dir(mod)):
             attr = getattr(mod, name)
-            # Commands might be from different `optparse` modules
+            # Commands might be from different `options` modules
             if not (type(attr).__name__ == 'Command' and \
-                    type(attr).__module__.split('.')[-1] == 'optparse'):
+                    type(attr).__module__.split('.')[-1] == 'options'):
                 continue
 
             attr.name = name.replace('_', '-')

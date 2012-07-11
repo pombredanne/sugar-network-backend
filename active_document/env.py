@@ -17,7 +17,7 @@ import logging
 from uuid import uuid1
 from gettext import gettext as _
 
-from active_toolkit import optparse
+from active_toolkit.options import Option
 
 
 _logger = logging.getLogger('active_document')
@@ -56,15 +56,15 @@ ACCESS_NAMES = {
 LAYERS = ['public', 'deleted']
 
 
-index_flush_timeout = optparse.Option(
+index_flush_timeout = Option(
         _('flush index index after specified seconds since the last change'),
         default=5, type_cast=int)
 
-index_flush_threshold = optparse.Option(
+index_flush_threshold = Option(
         _('flush index every specified changes'),
         default=32, type_cast=int)
 
-index_write_queue = optparse.Option(
+index_write_queue = Option(
         _('if active-document is being used for the scheme with one writer '
             'process and multiple reader processes, this option specifies '
             'the writer\'s queue size'),
