@@ -198,6 +198,8 @@ class Option(object):
         # Update default values accoriding to current values
         # to expose them while processing --help
         for prop in [Option._config] + Option.items.values():
+            if prop is None:
+                continue
             parser.set_default(prop.name.replace('-', '_'), prop)
 
         return options, args
@@ -296,6 +298,8 @@ class Option(object):
             Option._config.value = ':'.join(config_files)
 
         for prop in [Option._config] + Option.items.values():
+            if prop is None:
+                continue
             desc = prop.description
             if prop.value is not None:
                 desc += ' [%default]'
@@ -309,14 +313,11 @@ class Option(object):
     def _merge(options, config_files):
         from ConfigParser import ConfigParser
 
-        if config_files is None:
-            if Option._config is None:
-                raise RuntimeError(_('Method Option.bind was not called or ' \
-                        'its config_files argument was None'))
+        if not config_files and Option._config is not None:
             config_files = Option._config.value
 
         configs = [ConfigParser()]
-        for config in config_files:
+        for config in config_files or []:
             if isinstance(config, ConfigParser):
                 configs.append(config)
             else:

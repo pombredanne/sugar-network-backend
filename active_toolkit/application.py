@@ -58,12 +58,13 @@ rundir = Option(
 _LOGFILE_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
-def command(description, name=None):
+def command(description, name=None, **options):
 
     def decorator(func):
         func._is_command = True
         func.name = name
         func.description = description
+        func.options = options
         return func
 
     return decorator
@@ -79,7 +80,8 @@ class Application(object):
         self._commands = {}
         for attr in dir(self):
             attr = getattr(self, attr)
-            if hasattr(attr, '_is_command'):
+            if hasattr(attr, '_is_command') and \
+                    (attr.name != 'config' or 'config_files' in parse_args):
                 self._commands[attr.name or attr.__name__] = attr
 
         parser = OptionParser(usage='%prog [OPTIONS]', description=description,
@@ -164,14 +166,18 @@ class Application(object):
         logging.basicConfig(level=logging_level, format=logging_format)
 
     def start(self):
-        if Option.config_files:
-            logging.info(_('Load configuration from %s file(s)'),
-                    ', '.join(Option.config_files))
-
         cmd_name = self.args.pop(0)
         try:
             cmd = self._commands.get(cmd_name)
             enforce(cmd is not None, _('Unknown command "%s"') % cmd_name)
+
+            if Option.config_files:
+                logging.info(_('Load configuration from %s file(s)'),
+                        ', '.join(Option.config_files))
+
+            if cmd.options.get('keep_stdout'):
+                self._keep_stdout()
+
             exit(cmd() or 0)
         except Exception:
             printf.exception(_('Aborted %s'), self.name)
@@ -189,10 +195,23 @@ class Application(object):
         else:
             print '\n'.join(Option.export())
 
+    def _keep_stdout(self):
+        log_dir = logdir.value or '/var/log'
+        if not exists(log_dir):
+            os.makedirs(log_dir)
+        enforce(os.access(log_dir, os.W_OK),
+                _('No write access to %s'), log_dir)
+        log_path = abspath(join(log_dir, '%s.log' % self.name))
+        sys.stdout.flush()
+        sys.stderr.flush()
+        logfile = file(log_path, 'a+')
+        os.dup2(logfile.fileno(), sys.stdout.fileno())
+        os.dup2(logfile.fileno(), sys.stderr.fileno())
+        logfile.close()
+
 
 class Daemon(Application):
 
-    _logdir = None
     _rundir = None
 
     def run(self):
@@ -205,11 +224,10 @@ class Daemon(Application):
         pass
 
     def start(self):
-        self._logdir = logdir.value or '/var/log/' + self.name
         self._rundir = rundir.value or '/var/run/' + self.name
         Application.start(self)
 
-    @command(_('start in daemon mode'), name='start')
+    @command(_('start in daemon mode'), name='start', keep_stdout=True)
     def _cmd_start(self):
         pidfile, pid = self._check_for_instance()
         if pid:
@@ -218,15 +236,10 @@ class Daemon(Application):
         if foreground.value:
             self._launch()
         else:
-            if not exists(self._logdir):
-                os.makedirs(self._logdir)
-            enforce(os.access(self._logdir, os.W_OK),
-                    _('No write access to %s'), self._logdir)
             if not exists(self._rundir):
                 os.makedirs(self._rundir)
             enforce(os.access(self._rundir, os.W_OK),
                     _('No write access to %s'), self._rundir)
-            self._forward_stdout()
             self._daemonize(pidfile)
         return 0
 
@@ -268,7 +281,7 @@ class Daemon(Application):
 
         def sighup_cb(signum, frame):
             logging.info(_('Reload %s on SIGHUP signal'), self.name)
-            self._forward_stdout()
+            self._keep_stdout()
 
         signal.signal(signal.SIGINT, sigterm_cb)
         signal.signal(signal.SIGTERM, sigterm_cb)
@@ -328,15 +341,6 @@ class Daemon(Application):
             status = 0
 
         exit(status)
-
-    def _forward_stdout(self):
-        log_path = abspath(join(self._logdir, '%s.log' % self.name))
-        sys.stdout.flush()
-        sys.stderr.flush()
-        logfile = file(log_path, 'a+')
-        os.dup2(logfile.fileno(), sys.stdout.fileno())
-        os.dup2(logfile.fileno(), sys.stderr.fileno())
-        logfile.close()
 
 
 def _get_cmdline(pid):
