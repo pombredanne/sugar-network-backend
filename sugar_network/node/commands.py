@@ -249,21 +249,26 @@ class MasterCommands(NodeCommands):
             del self._pull_queue[pull_hash]
             raise pull.exception
 
-        if pull.sequence:
-            _logger.debug('Postpone %r pull in cookies', pull.sequence)
-            _cookie_set(response, 'sn_pull', pull.sequence)
-        else:
-            _cookie_unset(response, 'sn_pull')
-
         response.content_type = pull.content_type
+        content = None
+
         if pull.ready:
             _logger.debug('Response with ready %r pull', pull_seq)
             _cookie_unset(response, 'sn_delay')
-            return pull.content
+            pull_seq = pull.sequence
+            content = pull.content
         else:
             _logger.debug('Pull %r is not yet ready', pull_seq)
             _cookie_set_raw(response, 'sn_delay',
                     'sn_delay:%s' % pull.seconds_remained)
+
+        if pull_seq:
+            _logger.debug('Postpone %r pull in cookies', pull_seq)
+            _cookie_set(response, 'sn_pull', pull_seq)
+        else:
+            _cookie_unset(response, 'sn_pull')
+
+        return content
 
 
 class _Pull(object):
