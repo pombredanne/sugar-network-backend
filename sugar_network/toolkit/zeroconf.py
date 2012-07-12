@@ -16,7 +16,6 @@
 import logging
 import threading
 from Queue import Queue, Empty
-from gettext import gettext as _
 
 from active_toolkit import coroutine
 
@@ -35,7 +34,7 @@ _logger = logging.getLogger('zeroconf')
 class ServiceBrowser(object):
 
     def __init__(self):
-        _logger.info(_('Start browsing hosts using Avahi'))
+        _logger.info('Start browsing hosts using Avahi')
         self._queue = Queue()
         self._cond = coroutine.AsyncCondition()
         self._thread = _Thread(self._queue, self._cond)
@@ -55,7 +54,7 @@ class ServiceBrowser(object):
 
     def close(self):
         if self._thread is not None:
-            _logger.info(_('Stop browsing hosts using Avahi'))
+            _logger.info('Stop browsing hosts using Avahi')
             self._thread.kill()
             self._thread.join()
             self._thread = None

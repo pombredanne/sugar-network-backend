@@ -13,55 +13,53 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from gettext import gettext as _
-
 from active_toolkit.options import Option
 
 
 host = Option(
-        _('hostname to listen incomming connections'),
+        'hostname to listen incomming connections',
         default='0.0.0.0', name='host')
 
 port = Option(
-        _('port number to listen incomming connections'),
+        'port number to listen incomming connections',
         default=8000, type_cast=int, name='port')
 
 subscribe_port = Option(
-        _('port number to listen incomming subscribtion requests'),
+        'port number to listen incomming subscribtion requests',
         default=8001, type_cast=int, name='subscribe_port')
 
 keyfile = Option(
-        _('path to SSL certificate keyfile to serve requests via HTTPS'),
+        'path to SSL certificate keyfile to serve requests via HTTPS',
         name='keyfile')
 
 certfile = Option(
-        _('path to SSL certificate file to serve requests via HTTPS'),
+        'path to SSL certificate file to serve requests via HTTPS',
         name='certfile')
 
 trust_users = Option(
-        _('switch off user credentials check; disabling this option will ' \
-                'require OpenSSH-5.6 or later'),
+        'switch off user credentials check; disabling this option will ' \
+                'require OpenSSH-5.6 or later',
         default=False, type_cast=Option.bool_cast,
         action='store_true', name='trust_users')
 
 data_root = Option(
-        _('path to the root directory for placing documents\' ' \
-                'data and indexes'),
+        'path to the root directory for placing documents\' ' \
+                'data and indexes',
         default='/var/lib/sugar-network/db', name='data_root')
 
 only_sync_notification = Option(
-        _('subscribers can be notified only with "sync" events; ' \
+        'subscribers can be notified only with "sync" events; ' \
                 'that is useful to minimize interactions between ' \
-                'server and clients'),
+                'server and clients',
         default=False, type_cast=Option.bool_cast, action='store_true')
 
 find_limit = Option(
-        _('limit the resulting list for search requests'),
+        'limit the resulting list for search requests',
         default=32, type_cast=int)
 
 tmpdir = Option(
-        _('if specified, use this directory for temporary files, such files ' \
-                'might take hunder of megabytes while node synchronizing'))
+        'if specified, use this directory for temporary files, such files ' \
+                'might take hunder of megabytes while node synchronizing')
 
 
 class HTTPStatus(Exception):

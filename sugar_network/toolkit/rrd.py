@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/rrd.py$
-$Date: 2012-06-27$
+$Date: 2012-07-12$
 
 """
 
@@ -28,7 +28,6 @@ import bisect
 import logging
 from datetime import datetime
 from os.path import exists, join
-from gettext import gettext as _
 
 import rrdtool
 
@@ -121,7 +120,7 @@ class _DbSet(object):
             return
 
         if timestamp <= db.last_update:
-            _logger.warning(_('Database %s updated at %s, %s in the past'),
+            _logger.warning('Database %s updated at %s, %s in the past',
                     db.path, db.last_update, timestamp)
             return
 
@@ -178,7 +177,7 @@ class _DbSet(object):
                 db = self._revisions[-1]
                 if db.last_update >= timestamp:
                     _logger.warning(
-                            _('Database %s updated at %s, %s in the past'),
+                            'Database %s updated at %s, %s in the past',
                             db.path, db.last_update, timestamp)
                     return None
                 if db.step != self._step or db.rras != self._rras or \

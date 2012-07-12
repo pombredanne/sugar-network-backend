@@ -16,7 +16,6 @@
 import logging
 from cStringIO import StringIO
 from os.path import isdir, abspath
-from gettext import gettext as _
 
 from sugar_network.client.bus import Client
 from sugar_network.toolkit import sugar
@@ -51,14 +50,14 @@ class Object(object):
         result = self._props.get(prop)
         if result is None:
             enforce(prop in self._reply,
-                    _('Access to not requested %r property in \'%s\''),
+                    'Access to not requested %r property in \'%s\'',
                     prop, self._request)
             self.fetch()
             result = self._props.get(prop)
         return result
 
     def fetch(self, props=None):
-        enforce(self._guid, _('Object needs to be posted first'))
+        enforce(self._guid, 'Object needs to be posted first')
 
         to_fetch = []
         for prop in (props or self._reply):
@@ -104,7 +103,7 @@ class Object(object):
             path = blob['path']
             if path is None:
                 return _empty_blob
-            enforce(not isdir(path), _('Requested BLOB is a dictionary'))
+            enforce(not isdir(path), 'Requested BLOB is a dictionary')
             return _Blob(path, blob['mime_type'])
         elif blob is not None:
             return _StringIO(blob.encode('utf8'))
@@ -112,7 +111,7 @@ class Object(object):
             return _empty_blob
 
     def upload_blob(self, prop, path, pass_ownership=False):
-        enforce(self._guid, _('Object needs to be posted first'))
+        enforce(self._guid, 'Object needs to be posted first')
         Client.call('PUT', 'upload_blob', guid=self._guid, prop=prop,
                 path=abspath(path), pass_ownership=pass_ownership,
                 **self._request)
@@ -128,12 +127,12 @@ class Object(object):
     def __getitem__(self, prop):
         result = self.get(prop)
         enforce(result is not None, KeyError,
-                _('Property %r is absent in %r resource'),
+                'Property %r is absent in %r resource',
                 prop, self._request)
         return result
 
     def __setitem__(self, prop, value):
-        enforce(prop != 'guid', _('Property "guid" is read-only'))
+        enforce(prop != 'guid', 'Property "guid" is read-only')
         if self._props.get(prop) == value:
             return
         self._props[prop] = value

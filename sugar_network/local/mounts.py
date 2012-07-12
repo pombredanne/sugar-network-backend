@@ -95,7 +95,7 @@ class LocalMount(ad.VolumeCommands, _Mount):
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
         directory = self.volume[document]
         directory.metadata[prop].assert_access(ad.ACCESS_WRITE)
-        enforce(isabs(path), _('Path is not absolute'))
+        enforce(isabs(path), 'Path is not absolute')
         try:
             directory.set_blob(guid, prop, path)
         finally:
@@ -151,7 +151,7 @@ class HomeMount(LocalMount):
             try:
                 spec = sweets_recipe.Spec(root=path)
             except Exception:
-                util.exception(_logger, _('Failed to read %r spec file'), path)
+                util.exception(_logger, 'Failed to read %r spec file', path)
                 continue
 
             if request.access_level == ad.ACCESS_LOCAL:
@@ -196,7 +196,7 @@ class HomeMount(LocalMount):
 
     def _checkout(self, guid):
         for path in activities.checkins(guid):
-            _logger.info(_('Checkout %r implementation from %r'), guid, path)
+            _logger.info('Checkout %r implementation from %r', guid, path)
             shutil.rmtree(path)
 
     def _checkin(self, guid):
@@ -207,7 +207,7 @@ class HomeMount(LocalMount):
                     'event': 'alert',
                     'mountpoint': self.mountpoint,
                     'severity': 'error',
-                    'message': _("Cannot check-in '%s' implementation") % guid,
+                    'message': _('Cannot check-in %r implementation') % guid,
                     })
                 for __ in activities.checkins(guid):
                     keep_impl = 2
@@ -304,7 +304,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
 
     @ad.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
-        enforce(isabs(path), _('Path is not absolute'))
+        enforce(isabs(path), 'Path is not absolute')
 
         try:
             with file(path, 'rb') as f:
@@ -337,7 +337,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
             self._seqno = stat.get('seqno') or 0
             self._remote_volume_guid = stat.get('guid')
 
-            _logger.info(_('Connected to %r master'), url)
+            _logger.info('Connected to %r master', url)
             _Mount.set_mounted(self, True)
 
             while True:
@@ -362,9 +362,9 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
             try:
                 listen_events(url, conn)
             except Exception:
-                util.exception(_logger, _('Failed to dispatch remote event'))
+                util.exception(_logger, 'Failed to dispatch remote event')
             finally:
-                _logger.info(_('Got disconnected from %r master'), url)
+                _logger.info('Got disconnected from %r master', url)
                 _Mount.set_mounted(self, False)
 
 
@@ -454,7 +454,7 @@ class NodeMount(LocalMount):
                         break
                 break
         except Exception, error:
-            util.exception(_logger, _('Failed to complete synchronization'))
+            util.exception(_logger, 'Failed to complete synchronization')
             self.publish({'event': 'sync_error', 'error': str(error)})
             self._sync_session = None
 
@@ -479,10 +479,7 @@ class NodeMount(LocalMount):
             cmd = record.get('cmd')
 
             if cmd == 'sn_push':
-                if record.get('content_type') == 'blob':
-                    record['diff'] = record['blob']
-                self.volume[record['document']].merge(increment_seqno=False,
-                        **record)
+                self.volume.merge(record, increment_seqno=False)
 
             elif cmd == 'sn_commit' and from_master:
                 _logger.debug('Processing %r COMMIT from %r', record, packet)

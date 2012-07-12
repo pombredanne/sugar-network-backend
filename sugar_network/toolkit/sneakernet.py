@@ -22,7 +22,6 @@ import tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
 from os.path import join, exists
-from gettext import gettext as _
 
 import active_document as ad
 from active_toolkit.sockets import BUFFER_SIZE
@@ -84,11 +83,11 @@ class InPacket(object):
             self._tarball = tarfile.open('r', fileobj=stream)
             with self._extract('header') as f:
                 self.header = json.load(f)
-            enforce(type(self.header) is dict, _('Incorrect header'))
+            enforce(type(self.header) is dict, 'Incorrect header')
         except Exception, error:
             self.close()
             util.exception()
-            raise RuntimeError(_('Malformed %r packet: %s') % (self, error))
+            raise RuntimeError('Malformed %r packet: %s' % (self, error))
 
         _logger.debug('Reading %r input packet', self)
 

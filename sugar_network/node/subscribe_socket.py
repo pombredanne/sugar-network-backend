@@ -16,7 +16,6 @@
 import os
 import socket
 import logging
-from gettext import gettext as _
 
 from sugar_network import node
 from active_toolkit import sockets, coroutine, util, enforce
@@ -42,7 +41,7 @@ class SubscribeSocket(object):
         return {'host': self._host, 'port': self._port, 'ticket': ticket}
 
     def serve_forever(self):
-        _logger.info(_('Listening for subscriptions on %s port'), self._port)
+        _logger.info('Listening for subscriptions on %s port', self._port)
 
         conn = coroutine.socket(socket.AF_INET, socket.SOCK_STREAM)
         # pylint: disable-msg=E1101
@@ -67,21 +66,20 @@ class SubscribeSocket(object):
         try:
             handshake = sockets.SocketFile(conn).read_message()
             ticket = handshake.get('ticket')
-            enforce(ticket and ticket in self._tickets, _('Unknown request'))
+            enforce(ticket and ticket in self._tickets, 'Unknown request')
             self._tickets.remove(ticket)
         except Exception, error:
-            _logger.warning(_('Handshake failed, discard the request: %s'),
-                    error)
+            _logger.warning('Handshake failed, discard the request: %s', error)
             return
 
         _logger.debug('Accepted %r subscriber', host)
         self._subscribers.add(conn)
         try:
             data = conn.recv(sockets.BUFFER_SIZE)
-            enforce(not data, _('Subscriber misused connection ' \
-                    'by sending %s bytes, discard it'), len(data))
+            enforce(not data, 'Subscriber misused connection ' \
+                    'by sending %s bytes, discard it', len(data))
         except Exception:
-            util.exception(_('Failed to handle subscription from %r'), host)
+            util.exception('Failed to handle subscription from %r', host)
         finally:
             _logger.debug('Close subscription from %r', host)
             self._subscribers.remove(conn)

@@ -16,7 +16,6 @@
 import hashlib
 import logging
 from os.path import exists
-from gettext import gettext as _
 
 from active_toolkit import util
 
@@ -26,7 +25,7 @@ _logger = logging.getLogger('crypto')
 
 def ensure_dsa_pubkey(path):
     if not exists(path):
-        _logger.info(_('Create DSA server key'))
+        _logger.info('Create DSA server key')
         util.assert_call([
             '/usr/bin/ssh-keygen', '-q', '-t', 'dsa', '-f', path,
             '-C', '', '-N', ''])
@@ -38,4 +37,4 @@ def ensure_dsa_pubkey(path):
                 key = line.split()[1]
                 return str(hashlib.sha1(key).hexdigest())
 
-    raise RuntimeError(_('No valid DSA public key in %r') % path)
+    raise RuntimeError('No valid DSA public key in %r' % path)

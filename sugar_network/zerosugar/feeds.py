@@ -16,7 +16,6 @@
 import json
 import logging
 from os.path import isabs
-from gettext import gettext as _
 
 from zeroinstall.injector import model
 
@@ -36,16 +35,16 @@ def read(context):
     for client in config.clients:
         try:
             with client.Context(context).get_blob('feed') as f:
-                enforce(not f.closed, _('No feed for %r context'), context)
+                enforce(not f.closed, 'No feed for %r context', context)
                 feed_content = json.load(f)
             if feed_content:
                 break
         except Exception:
             util.exception(_logger,
-                    _('Failed to fetch feed for %r context'), context)
+                    'Failed to fetch feed for %r context', context)
 
     if feed_content is None:
-        _logger.warning(_('No feed for %r context'), context)
+        _logger.warning('No feed for %r context', context)
         return None
 
     for version, version_data in feed_content.items():

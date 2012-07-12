@@ -16,7 +16,6 @@
 import os
 import logging
 from os.path import join, exists, isdir, dirname, abspath
-from gettext import gettext as _
 
 from active_toolkit import coroutine, util
 from sugar_network.toolkit.inotify import Inotify, \
@@ -52,8 +51,8 @@ def dispatch(paths, found_cb, lost_cb):
             path = abspath(path)
             if not exists(path):
                 if not os.access(dirname(path), os.W_OK):
-                    _logger.warning(_('No permissions to create %s ' \
-                            'directory, do not monitor it'), path)
+                    _logger.warning('No permissions to create %s ' \
+                            'directory, do not monitor it', path)
                     continue
                 os.makedirs(path)
             roots.append(_Root(monitor, path))
@@ -66,7 +65,7 @@ def dispatch(paths, found_cb, lost_cb):
                 try:
                     cb(filename, event)
                 except Exception:
-                    util.exception(_('Cannot dispatch 0x%X event for %r'),
+                    util.exception('Cannot dispatch 0x%X event for %r',
                             event, filename)
                 coroutine.dispatch()
 
@@ -100,7 +99,7 @@ class _Root(object):
 
     def __watch_cb(self, filename, event):
         if event & IN_DELETE_SELF:
-            _logger.warning(_('Lost ourselves, cannot monitor anymore'))
+            _logger.warning('Lost ourselves, cannot monitor anymore')
             self._nodes.clear()
             return
 

@@ -17,7 +17,6 @@ import os
 import json
 import collections
 from os.path import exists
-from gettext import gettext as _
 
 from active_toolkit import util, enforce
 
@@ -164,7 +163,7 @@ class Sequence(list):
             range_start = 1
         enforce(range_end is not None)
         enforce(range_start <= range_end and range_start > 0,
-                _('Start value %r is less than 0 or not less than %r'),
+                'Start value %r is less than 0 or not less than %r',
                 range_start, range_end)
 
         for i, interval in enumerate(self):

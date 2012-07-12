@@ -15,7 +15,6 @@
 
 import logging
 import collections
-from gettext import gettext as _
 
 from sugar_network.client.bus import Client
 from sugar_network.client.objects import Object
@@ -191,7 +190,7 @@ class Cursor(object):
 
         """
         result = self.get(key)
-        enforce(result is not None, KeyError, _('Key is out of range'))
+        enforce(result is not None, KeyError, 'Key is out of range')
         return result
 
     def _fetch_page(self, page):
@@ -215,7 +214,7 @@ class Cursor(object):
             response = Client.call('GET', **params)
             self._total = response['total']
         except Exception:
-            util.exception(_logger, _('Failed to fetch %r query'), params)
+            util.exception(_logger, 'Failed to fetch %r query', params)
             self._total = None
             return False
 

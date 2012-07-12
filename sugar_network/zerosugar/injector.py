@@ -23,7 +23,6 @@ import shutil
 import logging
 import threading
 from os.path import join, exists, basename, isabs
-from gettext import gettext as _
 
 from zeroinstall.injector import model
 from zeroinstall.injector.requirements import Requirements
@@ -169,7 +168,7 @@ def _launch(mountpoint, context, command, args):
     cmd = solution.commands[0]
     args = cmd.path.split() + args
 
-    _logger.info(_('Executing %s: %s'), solution.interface, args)
+    _logger.info('Executing %s: %s', solution.interface, args)
     _progress('exec')
 
     if command == 'activity':
@@ -186,7 +185,7 @@ def _checkin(mountpoint, context, command):
             dst_path = util.unique_filename(
                     local.activity_dirs.value[0], basename(sel.local_path))
             checkedin.append(dst_path)
-            _logger.info(_('Checkin implementation to %r'), dst_path)
+            _logger.info('Checkin implementation to %r', dst_path)
             util.cptree(sel.local_path, dst_path)
     except Exception:
         while checkedin:
@@ -213,7 +212,7 @@ def _make(context, command):
             continue
 
         enforce(sel.download_sources, \
-                _('No sources to download implementation for %r context'),
+                'No sources to download implementation for %r context',
                 sel.interface)
 
         # TODO Per download progress
@@ -221,7 +220,7 @@ def _make(context, command):
 
         impl = sel.client.Implementation(sel.id)
         impl_path, __ = impl.get_blob_path('data')
-        enforce(impl_path, _('Cannot download implementation'))
+        enforce(impl_path, 'Cannot download implementation')
 
         dl = sel.download_sources[0]
         if dl.extract is not None:
@@ -296,12 +295,12 @@ def _decode_exit_failure(status):
     if os.WIFEXITED(status):
         status = os.WEXITSTATUS(status)
         if status:
-            failure = _('Exited with status %s') % status
+            failure = 'Exited with status %s' % status
     elif os.WIFSIGNALED(status):
         signum = os.WTERMSIG(status)
         if signum not in (signal.SIGINT, signal.SIGKILL, signal.SIGTERM):
-            failure = _('Terminated by signal %s') % signum
+            failure = 'Terminated by signal %s' % signum
     else:
         signum = os.WTERMSIG(status)
-        failure = _('Undefined status with signal %s') % signum
+        failure = 'Undefined status with signal %s' % signum
     return failure

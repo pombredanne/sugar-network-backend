@@ -18,7 +18,6 @@ import locale
 import socket
 import logging
 from os.path import join, isdir, exists
-from gettext import gettext as _
 
 import active_document as ad
 
@@ -64,7 +63,7 @@ class Mountset(dict, ad.CommandsProcessor):
         self._sync = coroutine.Pool()
 
     def __getitem__(self, mountpoint):
-        enforce(mountpoint in self, _('Unknown mountpoint %r'), mountpoint)
+        enforce(mountpoint in self, 'Unknown mountpoint %r', mountpoint)
         return self.get(mountpoint)
 
     def __setitem__(self, mountpoint, mount):
@@ -104,7 +103,7 @@ class Mountset(dict, ad.CommandsProcessor):
         if self._sync:
             return
 
-        enforce(path or self._sync_dirs, _('No mounts to synchronize with'))
+        enforce(path or self._sync_dirs, 'No mounts to synchronize with')
 
         for mount in self.values():
             if isinstance(mount, NodeMount):
@@ -113,7 +112,7 @@ class Mountset(dict, ad.CommandsProcessor):
                 self._sync.spawn(mount.sync_session, self._sync_dirs, path)
                 break
         else:
-            raise RuntimeError(_('No mounted servers'))
+            raise RuntimeError('No mounted servers')
 
     @ad.volume_command(method='POST', cmd='break_sync')
     def break_sync(self):
@@ -134,12 +133,12 @@ class Mountset(dict, ad.CommandsProcessor):
 
         if mountpoint == '/':
             mount.set_mounted(True)
-        enforce(mount.mounted, _('%r is not mounted'), mountpoint)
+        enforce(mount.mounted, '%r is not mounted', mountpoint)
 
         try:
             result = mount.call(request, response)
         except Exception, error:
-            util.exception(_logger, _('Failed to process %s on %r mount: %s'),
+            util.exception(_logger, 'Failed to process %s on %r mount: %s',
                     request, mountpoint, error)
             raise
         else:
@@ -164,7 +163,7 @@ class Mountset(dict, ad.CommandsProcessor):
                 try:
                     callback(event)
                 except Exception:
-                    util.exception(_logger, _('Failed to dispatch %r'), event)
+                    util.exception(_logger, 'Failed to dispatch %r', event)
 
     def open(self):
         try:
@@ -211,7 +210,7 @@ class Mountset(dict, ad.CommandsProcessor):
     def _mounts_monitor(self):
         root = local.mounts_root.value
 
-        _logger.info(_('Start monitoring %r for mounts'), root)
+        _logger.info('Start monitoring %r for mounts', root)
         try:
             with Inotify() as monitor:
                 monitor.add_watch(root, IN_DELETE_SELF | IN_CREATE | \
@@ -223,7 +222,7 @@ class Mountset(dict, ad.CommandsProcessor):
                         try:
                             if event & IN_DELETE_SELF:
                                 _logger.warning(
-                                    _('Lost %r, cannot monitor anymore'), root)
+                                    'Lost %r, cannot monitor anymore', root)
                                 monitor.close()
                                 break
                             elif event & (IN_DELETE | IN_MOVED_FROM):
@@ -232,9 +231,9 @@ class Mountset(dict, ad.CommandsProcessor):
                                 self._found_mount(path)
                         except Exception:
                             util.exception(_logger,
-                                    _('Cannot process %r mount'), path)
+                                    'Cannot process %r mount', path)
         finally:
-            _logger.info(_('Stop monitoring %r for mounts'), root)
+            _logger.info('Stop monitoring %r for mounts', root)
 
     def _found_mount(self, path):
         sn_path = join(path, _DB_DIRNAME)

@@ -21,7 +21,6 @@ import hashlib
 import tempfile
 from Cookie import SimpleCookie
 from os.path import exists, join
-from gettext import gettext as _
 
 from pylru import lrucache
 
@@ -80,7 +79,7 @@ class NodeCommands(ad.VolumeCommands):
     @ad.volume_command(method='POST', cmd='subscribe',
             permissions=ad.ACCESS_AUTH)
     def subscribe(self):
-        enforce(self._subscriber is not None, _('Subscription is disabled'))
+        enforce(self._subscriber is not None, 'Subscription is disabled')
         return self._subscriber.new_ticket()
 
     @ad.document_command(method='DELETE',
@@ -97,7 +96,7 @@ class NodeCommands(ad.VolumeCommands):
         if limit is None:
             limit = node.find_limit.value
         elif limit > node.find_limit.value:
-            _logger.warning(_('The find limit is restricted to %s'),
+            _logger.warning('The find limit is restricted to %s',
                     node.find_limit.value)
             limit = node.find_limit.value
         return ad.VolumeCommands.find(self, document, request, offset, limit,
@@ -110,12 +109,12 @@ class NodeCommands(ad.VolumeCommands):
 
         if cmd.permissions & ad.ACCESS_AUTH:
             enforce(request.principal is not None, node.Unauthorized,
-                    _('User is not authenticated'))
+                    'User is not authenticated')
 
         if cmd.permissions & ad.ACCESS_AUTHOR and 'guid' in request:
             doc = self.volume[request['document']].get(request['guid'])
             enforce(request.principal in doc['user'], ad.Forbidden,
-                    _('Operation is permitted only for authors'))
+                    'Operation is permitted only for authors')
 
         return cmd
 
@@ -138,7 +137,7 @@ class NodeCommands(ad.VolumeCommands):
         authors = []
         for user_guid in props['user']:
             if not users.exists(user_guid):
-                _logger.warning(_('No %r user to set author property'),
+                _logger.warning('No %r user to set author property',
                         user_guid)
                 continue
             user = users.get(user_guid)
@@ -158,10 +157,10 @@ class MasterCommands(NodeCommands):
         with InPacket(stream=request) as in_packet:
             enforce('src' in in_packet.header and \
                     in_packet.header['src'] != self._guid,
-                    _('Misaddressed packet'))
+                    'Misaddressed packet')
             enforce('dst' in in_packet.header and \
                     in_packet.header['dst'] == self._guid,
-                    _('Misaddressed packet'))
+                    'Misaddressed packet')
 
             out_packet = OutBufferPacket(src=self._guid,
                     dst=in_packet.header['src'],
@@ -173,9 +172,7 @@ class MasterCommands(NodeCommands):
             for record in in_packet.records(dst=self._guid):
                 cmd = record.get('cmd')
                 if cmd == 'sn_push':
-                    if record.get('content_type') == 'blob':
-                        record['diff'] = record['blob']
-                    seqno = self.volume[record['document']].merge(**record)
+                    seqno = self.volume.merge(record)
                     merged.include(seqno, seqno)
 
                 elif cmd == 'sn_commit':
@@ -188,7 +185,7 @@ class MasterCommands(NodeCommands):
                     pull_to_forward.include(record['sequence'])
 
             enforce(not merged or pushed,
-                    _('"sn_push" record without "sn_commit"'))
+                    '"sn_push" record without "sn_commit"')
             if pushed:
                 out_packet.push(cmd='sn_ack', sequence=pushed, merged=merged)
 
@@ -214,10 +211,10 @@ class MasterCommands(NodeCommands):
         if request.content_length:
             with InPacket(stream=request) as in_packet:
                 enforce(in_packet.header.get('src') != self._guid,
-                        _('Misaddressed packet'))
+                        'Misaddressed packet')
                 enforce('dst' in in_packet.header and \
                         in_packet.header['dst'] == self._guid,
-                        _('Misaddressed packet'))
+                        'Misaddressed packet')
                 for record in in_packet.records():
                     if record.get('cmd') == 'sn_pull':
                         pull_seq.include(record['sequence'])
@@ -357,11 +354,11 @@ def _load_pubkey(pubkey):
             pubkey_pkcs8 = util.assert_call(
                     ['ssh-keygen', '-f', key_file.name, '-e', '-m', 'PKCS8'])
     except Exception:
-        message = _('Cannot read DSS public key gotten for registeration')
+        message = 'Cannot read DSS public key gotten for registeration'
         util.exception(message)
         if node.trust_users.value:
-            logging.warning(_('Failed to read registration pubkey, ' \
-                    'but we trust users'))
+            logging.warning('Failed to read registration pubkey, ' \
+                    'but we trust users')
             # Keep SSH key for further converting to PKCS8
             pubkey_pkcs8 = pubkey
         else:
@@ -373,7 +370,7 @@ def _load_pubkey(pubkey):
 def _to_int(name, value):
     if isinstance(value, basestring):
         enforce(value.isdigit(),
-                _('Argument %r should be an integer value'), name)
+                'Argument %r should be an integer value', name)
         value = int(value)
     return value
 

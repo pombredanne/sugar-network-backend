@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-from gettext import gettext as _
 
 from zeroinstall.injector import model
 from zeroinstall.injector.driver import Driver
@@ -44,8 +43,8 @@ def solve(req, record_details=False):
         if not failure_reason:
             missed_ifaces = [iface.uri for iface, impl in \
                     driver.solver.selections.items() if impl is None]
-            failure_reason = _('Cannot find requireed implementations ' \
-                    'for %s') % ', '.join(missed_ifaces)
+            failure_reason = 'Cannot find requireed implementations ' \
+                    'for %s' % ', '.join(missed_ifaces)
         result.failure_reason = model.SafeException(failure_reason)
 
     return result

@@ -20,7 +20,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/inotify.py$
-$Date: 2012-06-28$
+$Date: 2012-07-12$
 
 """
 import os
@@ -30,7 +30,6 @@ import ctypes
 import ctypes.util
 import logging
 from os.path import abspath
-from gettext import gettext as _
 
 
 """
@@ -117,10 +116,10 @@ class Inotify(object):
         self._wds = {}
 
         self._init_ctypes()
-        _logger.info(_('Monitor initialized'))
+        _logger.info('Monitor initialized')
 
         self._fd = self._libc.inotify_init()
-        _assert(self._fd >= 0, _('Cannot initialize Inotify'))
+        _assert(self._fd >= 0, 'Cannot initialize Inotify')
 
     def fileno(self):
         return self._fd
@@ -136,17 +135,17 @@ class Inotify(object):
         os.close(self._fd)
         self._fd = None
 
-        _logger.info(_('Monitor closed'))
+        _logger.info('Monitor closed')
 
     def add_watch(self, path, mask, data=None):
         if self.closed:
-            raise RuntimeError(_('Inotify is closed'))
+            raise RuntimeError('Inotify is closed')
 
         path = abspath(path)
 
         cpath = ctypes.create_string_buffer(path)
         wd = self._libc.inotify_add_watch(self._fd, cpath, mask)
-        _assert(wd >= 0, _('Cannot add watch for %r'), path)
+        _assert(wd >= 0, 'Cannot add watch for %r', path)
 
         if wd not in self._wds:
             _logger.debug('Added %r watch of %r with 0x%X mask',
@@ -157,7 +156,7 @@ class Inotify(object):
 
     def rm_watch(self, wd):
         if self.closed:
-            raise RuntimeError(_('Inotify is closed'))
+            raise RuntimeError('Inotify is closed')
 
         if wd not in self._wds:
             return
@@ -170,7 +169,7 @@ class Inotify(object):
 
     def read(self):
         if self.closed:
-            raise RuntimeError(_('Inotify is closed'))
+            raise RuntimeError('Inotify is closed')
 
         buf = os.read(self._fd, _EVENT_BUF_MAXSIZE)
         queue_size = len(buf)
@@ -204,7 +203,7 @@ class Inotify(object):
         if not hasattr(self._libc, 'inotify_init') or \
                 not hasattr(self._libc, 'inotify_add_watch') or \
                 not hasattr(self._libc, 'inotify_rm_watch'):
-            raise RuntimeError(_('Inotify is not found in libc'))
+            raise RuntimeError('Inotify is not found in libc')
 
         self._libc.inotify_init.argtypes = []
         self._libc.inotify_init.restype = ctypes.c_int

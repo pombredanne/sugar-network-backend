@@ -18,7 +18,6 @@ import hashlib
 import logging
 import tempfile
 from os.path import join, exists, lexists, relpath, dirname, basename
-from gettext import gettext as _
 
 import sweets_recipe
 from active_document import DEFAULT_LANG
@@ -85,7 +84,7 @@ class _Monitor(object):
         try:
             spec = sweets_recipe.Spec(root=impl_path)
         except Exception, error:
-            util.exception(_logger, _('Cannot read %r spec: %s'),
+            util.exception(_logger, 'Cannot read %r spec: %s',
                     impl_path, error)
             return
 

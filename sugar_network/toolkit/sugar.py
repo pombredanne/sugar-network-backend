@@ -19,7 +19,6 @@ import uuid
 import random
 import hashlib
 from os.path import join, exists, dirname
-from gettext import gettext as _
 
 from active_toolkit import enforce
 
@@ -68,14 +67,14 @@ def profile_path(*args):
 def pubkey():
     pubkey_path = profile_path('owner.key.pub')
     enforce(exists(pubkey_path),
-            _('Sugar session was never started, no pubkey'))
+            'Sugar session was never started, no pubkey')
 
     with file(pubkey_path) as f:
         for line in f.readlines():
             line = line.strip()
             if line.startswith('ssh-'):
                 return line
-    raise RuntimeError(_('Valid SSH public key was not found in %s') % \
+    raise RuntimeError('Valid SSH public key was not found in %s' % \
             pubkey_path)
 
 

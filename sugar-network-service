@@ -19,7 +19,6 @@ import locale
 import logging
 from contextlib import contextmanager
 from os.path import join, abspath, exists
-from gettext import gettext as _
 
 import active_document as ad
 import sugar_network_webui as webui
@@ -81,11 +80,11 @@ class Application(application.Daemon):
         sneakernet.TMPDIR = local.tmpdir.value
 
     @application.command(
-            _('[PREFIX-PATH] [USER-GUID]\n'
-                'Index local Sugar Network database'))
+            '[PREFIX-PATH] [USER-GUID]\n'
+                'Index local Sugar Network database')
     def index(self):
         if ipc.server_exists():
-            printf.info(_('%s already started, no need in index'), self.name)
+            printf.info('%s already started, no need in index', self.name)
             return
 
         root = ''
@@ -100,7 +99,7 @@ class Application(application.Daemon):
             sugar.uid = lambda: user
             sugar.nickname = lambda: user
 
-        printf.info(_('Index database in %r'), local.local_root.value)
+        printf.info('Index database in %r', local.local_root.value)
 
         volume = Volume(self._db_path)
         try:
@@ -110,11 +109,11 @@ class Application(application.Daemon):
             volume.close()
 
     @application.command(
-            _('[PATH]\n'
+            '[PATH]\n'
                 'start sneakernet synchronization; if PATH is specified, '
                 'use it as a synchronization directory; otherwise, '
                 'look for mounts (in --mounts-root) that contain '
-                'sugar-network-sync/ subdirectory'))
+                'sugar-network-sync/ subdirectory')
     def offline_sync(self):
         with self._rendezvous():
             path = None
@@ -139,14 +138,14 @@ class Application(application.Daemon):
             Client.connection = self._mountset
 
         def delayed_start():
-            logging.info(_('Proceed delayed start'))
+            logging.info('Proceed delayed start')
 
             jobs.spawn(activities.monitor, volume, local.activity_dirs.value)
             jobs.spawn(volume.populate)
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
-                logging.info(_('Start Web server on %s:%s'), *host)
+                logging.info('Start Web server on %s:%s', *host)
                 servers.spawn(coroutine.WSGIServer, host, webui.get_app())
 
         if local.delayed_start.value:
@@ -173,14 +172,14 @@ class Application(application.Daemon):
 
         def events_cb(event):
             if event['event'] == 'sync_start':
-                printf.info(_('Synchronize with %(path)s directory') % event)
+                printf.info('Synchronize with %(path)s directory' % event)
             elif event['event'] == 'sync_progress':
                 printf.progress(event['progress'])
             elif event['event'] == 'sync_continue':
-                printf.info(_('Mounted synchronization disk(s) is full, ' \
-                        'mount new one to %s'), local.mounts_root.value)
+                printf.info('Mounted synchronization disk(s) is full, ' \
+                        'mount new one to %s', local.mounts_root.value)
             elif event['event'] == 'sync_error':
-                printf.info(_('Failed to sync, %(error)s') % event)
+                printf.info('Failed to sync, %(error)s' % event)
             elif event['event'] == 'sync_complete':
                 self._events['sync_complete'].set()
 
@@ -189,8 +188,8 @@ class Application(application.Daemon):
         server = None
         try:
             if not ipc.server_exists():
-                printf.info(_('%s is not started, ' \
-                        'launch it for this command only'), self.name)
+                printf.info('%s is not started, ' \
+                        'launch it for this command only', self.name)
                 server = coroutine.spawn(self.run, True)
                 coroutine.dispatch()
                 self._mountset.opened.wait()
@@ -225,9 +224,9 @@ Option.seek('active-document', ad)
 
 application = Application(
         name='sugar-network-service',
-        description=_('Sugar Network service.'),
-        epilog=_('See http://wiki.sugarlabs.org/go/Sugar_Network ' \
-                 'for details.'),
+        description='Sugar Network service.',
+        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
+                 'for details.',
         version=VERSION,
         config_files=[
             '/etc/sweets.conf',

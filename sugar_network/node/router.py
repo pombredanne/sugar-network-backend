@@ -21,7 +21,6 @@ import urllib
 import logging
 from urlparse import parse_qsl
 from bisect import bisect_left
-from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import node
@@ -54,7 +53,7 @@ class Router(object):
             response['Location'] = error.location
             result = ''
         except Exception, error:
-            util.exception(_('Error while processing %r request'),
+            util.exception('Error while processing %r request',
                     environ['PATH_INFO'] or '/')
 
             if isinstance(error, ad.NotFound):
@@ -111,7 +110,7 @@ class Router(object):
             request = ad.Request(method='GET', cmd='exists',
                     document='user', guid=user)
             enforce(self._cp.call(request, ad.Response()), node.Unauthorized,
-                    _('Principal user does not exist'))
+                    'Principal user does not exist')
             self._authenticated.add(user)
 
         return user
@@ -161,12 +160,12 @@ class _Request(ad.Request):
                 files = cgi.FieldStorage(fp=environ['wsgi.input'],
                         environ=environ)
                 enforce(len(files.list) == 1,
-                        _('Multipart request should contain only one file'))
+                        'Multipart request should contain only one file')
                 self.content_stream = files.list[0].file
 
         scope = len(self.path)
         enforce(scope >= 0 and scope < 4, node.BadRequest,
-                _('Incorrect requested path'))
+                'Incorrect requested path')
         if scope == 3:
             self['document'], self['guid'], self['prop'] = self.path
         elif scope == 2:

@@ -17,7 +17,6 @@
 
 import locale
 import logging
-from gettext import gettext as _
 
 import active_document as ad
 import sugar_network_webui as webui
@@ -55,12 +54,12 @@ class Application(application.Daemon):
                 node.host.value, node.subscribe_port.value)
         cp = MasterCommands(volume, subscriber)
 
-        logging.info(_('Listening for requests on %s:%s'),
+        logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)
         self.servers.spawn(coroutine.WSGIServer,
                 (node.host.value, node.port.value), Router(cp), **ssl_args)
 
-        logging.info(_('Listening for subscriptions on %s:%s'),
+        logging.info('Listening for subscriptions on %s:%s',
                 node.host.value, node.subscribe_port.value)
         self.servers.spawn(subscriber)
 
@@ -77,7 +76,7 @@ class Application(application.Daemon):
             Client.connection = mountset
 
             host = (webui.webui_host.value, webui.webui_port.value)
-            logging.info(_('Start Web server on %s:%s port'), *host)
+            logging.info('Start Web server on %s:%s port', *host)
             self.servers.spawn(coroutine.WSGIServer, host, webui.get_app())
 
         try:
@@ -100,9 +99,9 @@ Option.seek('active-document', ad)
 
 app = Application(
         name='sugar-network-server',
-        description=_('Sugar Network server'),
-        epilog=_('See http://wiki.sugarlabs.org/go/Sugar_Network ' \
-                 'for details.'),
+        description='Sugar Network server',
+        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
+                 'for details.',
         config_files=[
             '/etc/sugar-network-server/config',
             '~/.config/sugar-network-server/config',

@@ -16,33 +16,32 @@
 import os
 import errno
 from os.path import join, exists, abspath, dirname, expanduser
-from gettext import gettext as _
 
 from active_toolkit.options import Option
 from sugar_network.toolkit import sugar
 
 
 api_url = Option(
-        _('url to connect to Sugar Network server API'),
+        'url to connect to Sugar Network server API',
         default='http://api-testing.network.sugarlabs.org', short_option='-a',
         name='api-url')
 
 certfile = Option(
-        _('path to SSL certificate file to connect to server via HTTPS'))
+        'path to SSL certificate file to connect to server via HTTPS')
 
 no_check_certificate = Option(
-        _('do not check the server certificate against the available ' \
-                'certificate authorities'),
+        'do not check the server certificate against the available ' \
+                'certificate authorities',
         default=False, type_cast=Option.bool_cast, action='store_true')
 
 local_root = Option(
-        _('path to the directory to keep all local data'),
+        'path to the directory to keep all local data',
         default=sugar.profile_path('network'))
 
 activity_dirs = Option(
-        _('colon separated list of paths to the directories with Sugar ' \
+        'colon separated list of paths to the directories with Sugar ' \
                 'activities; first path will be used to keep check-in ' \
-                'activities'),
+                'activities',
         type_cast=Option.list_cast, type_repr=Option.list_repr, default=[
             expanduser('~/Activities'),
             '/usr/share/sugar/activities',
@@ -50,26 +49,26 @@ activity_dirs = Option(
             ])
 
 server_mode = Option(
-        _('start server to share local documents'),
+        'start server to share local documents',
         default=False, type_cast=Option.bool_cast,
         action='store_true', name='server-mode')
 
 delayed_start = Option(
-        _('immediate start only database and the rest on getting ' \
-                'notification from IPC client'),
+        'immediate start only database and the rest on getting ' \
+                'notification from IPC client',
         default=False, type_cast=Option.bool_cast, action='store_true')
 
 mounts_root = Option(
-        _('path to a directory with remote devices mounts'),
+        'path to a directory with remote devices mounts',
         default='/media')
 
 lazy_open = Option(
-        _('do not open all indexes at once on startup'),
+        'do not open all indexes at once on startup',
         default=True, type_cast=Option.bool_cast, action='store_true')
 
 tmpdir = Option(
-        _('if specified, use this directory for temporary files, such files ' \
-                'might take hunder of megabytes while node synchronizing'))
+        'if specified, use this directory for temporary files, such files ' \
+                'might take hunder of megabytes while node synchronizing')
 
 
 def path(*args):

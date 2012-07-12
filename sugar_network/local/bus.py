@@ -19,7 +19,6 @@ import errno
 import socket
 import logging
 from os.path import exists
-from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import local
@@ -118,7 +117,7 @@ class IPCServer(object):
                         self._subscriptions.remove(sock)
                     else:
                         util.exception(_logger,
-                                _('Failed to deliver event via %r'), sock)
+                                'Failed to deliver event via %r', sock)
 
 
 def _start_server(name, serve_cb):

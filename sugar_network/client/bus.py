@@ -17,7 +17,6 @@ import json
 import socket
 import logging
 from contextlib import contextmanager
-from gettext import gettext as _
 
 import active_document as ad
 from active_toolkit import util, coroutine, sockets
@@ -226,7 +225,7 @@ class _Connection(object):
                 _logger.debug('Close IPC connection: %r', conn)
                 conn.close()
             except Exception:
-                util.exception(_logger, _('Cannot close IPC connection'))
+                util.exception(_logger, 'Cannot close IPC connection')
 
     @contextmanager
     def _pipe(self):

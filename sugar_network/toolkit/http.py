@@ -21,7 +21,6 @@ import logging
 import hashlib
 import tempfile
 from os.path import isdir, exists, dirname, join
-from gettext import gettext as _
 
 import requests
 from requests.sessions import Session
@@ -153,14 +152,13 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
             response = requests.request(method, path, data=data,
                     headers=headers, session=_session, **kwargs)
         except requests.exceptions.SSLError:
-            _logger.warning(_('Pass --no-check-certificate ' \
-                    'to avoid SSL checks'))
+            _logger.warning('Pass --no-check-certificate to avoid SSL checks')
             raise
 
         if response.status_code != 200:
             if response.status_code == 401:
-                _logger.info(_('User is not registered on the server, ' \
-                        'registering'))
+                _logger.info('User is not registered on the server, ' \
+                        'registering')
                 _register()
                 continue
             if allowed_response and response.status_code in allowed_response:

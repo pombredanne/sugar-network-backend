@@ -15,16 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from gettext import gettext as _
-
 from sugar_network.toolkit import application, sugar
 from active_toolkit.options import Option
 from active_toolkit import enforce
 
 
 command = Option(
-        _('if context implementation supports several commands, ' \
-                'specify one of them to launch'),
+        'if context implementation supports several commands, ' \
+                'specify one of them to launch',
         default='activity', short_option='-C')
 
 
@@ -35,7 +33,7 @@ class Application(application.Application):
             'if context is associatad with software, launch one of its '
             'implementations')
     def launch(self):
-        enforce(self.args, _('Context is not specified'))
+        enforce(self.args, 'Context is not specified')
         #context = self.args.pop(0)
         raise NotImplementedError()
 
@@ -44,7 +42,7 @@ class Application(application.Application):
             'if context is associatad with software, download one of its '
             'implementations and place it to ~/Activities')
     def checkin(self):
-        enforce(self.args, _('Context is not specified'))
+        enforce(self.args, 'Context is not specified')
         #context = self.args.pop(0)
         raise NotImplementedError()
 
@@ -52,7 +50,7 @@ class Application(application.Application):
             'CONTEXT\n'
             'delete all implementations downloaded by "checkin" command')
     def checkout(self):
-        enforce(self.args, _('Context is not specified'))
+        enforce(self.args, 'Context is not specified')
         #context = self.args.pop(0)
         raise NotImplementedError()
 
@@ -65,18 +63,18 @@ Option.seek('sugar-network', [application.debug])
 
 app = Application(
         name='sugar-network',
-        description=_('Sugar Network client utility'),
-        epilog=_('See http://wiki.sugarlabs.org/go/Sugar_Network ' \
-                 'for details.'),
+        description='Sugar Network client utility',
+        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
+                 'for details.',
         where={
             'CONTEXT':
-                _('context GUID or name context should implement'),
+                'context GUID or name context should implement',
             'RESTRICTION':
-                _('particular context implementation in form of:\n' \
-                        '=|>=|< VERSION'),
+                'particular context implementation in form of:\n' \
+                        '=|>=|< VERSION',
             'ARGS':
-                _('arbitrary command-line arguments to pass as-is to ' \
-                        'launching context implementation'),
+                'arbitrary command-line arguments to pass as-is to ' \
+                        'launching context implementation',
                 },
         config_files=[
             '/etc/sweets.conf',

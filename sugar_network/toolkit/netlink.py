@@ -17,14 +17,13 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/netlink.py$
-$Date: 2012-06-28$
+$Date: 2012-07-12$
 
 """
 import os
 import socket
 import struct
 import logging
-from gettext import gettext as _
 
 
 # RTnetlink multicast groups - backwards compatibility for userspace
@@ -62,7 +61,7 @@ _logger = logging.getLogger('netlink')
 class Netlink(object):
 
     def __init__(self, proto, groups):
-        _logger.info(_('Start reading Netlink messages'))
+        _logger.info('Start reading Netlink messages')
 
         self._socket = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, proto)
         self._socket.bind((0, groups))
@@ -82,11 +81,11 @@ class Netlink(object):
         self._socket.close()
         self._socket = None
 
-        _logger.info(_('Stop reading Netlink messages'))
+        _logger.info('Stop reading Netlink messages')
 
     def read(self):
         if self.closed:
-            raise RuntimeError(_('Netlink is closed'))
+            raise RuntimeError('Netlink is closed')
 
         data = self._socket.recv(_MESSAGE_MAX_SIZE)
         if not data:
@@ -103,7 +102,7 @@ class Netlink(object):
         if msg.type == NLMSG_ERROR:
             errno = - struct.unpack('i', msg.payload[:4])[0]
             if errno:
-                error = OSError(_('Netlink error, %s(%d)') % \
+                error = OSError('Netlink error, %s(%d)' % \
                         (os.strerror(errno), errno))
                 error.errno = errno
                 raise error

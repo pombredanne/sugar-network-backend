@@ -58,6 +58,13 @@ class Volume(ad.SingleVolume):
             document_classes = Volume.RESOURCES
         ad.SingleVolume.__init__(self, root, document_classes, lazy_open)
 
+    def merge(self, record, increment_seqno=True):
+        coroutine.dispatch()
+        if record.get('content_type') == 'blob':
+            record['diff'] = record['blob']
+        return self[record['document']].merge(increment_seqno=increment_seqno,
+                **record)
+
     def diff(self, in_seq, out_packet, clone=False):
         # Since `in_seq` will be changed in `patch()`, original sequence
         # should be passed as-is to every document's `diff()` because
