@@ -21,7 +21,7 @@ from gettext import gettext as _
 
 import active_document as ad
 import sugar_network_webui as webui
-from active_toolkit import coroutine
+from active_toolkit import coroutine, application
 from active_toolkit.options import Option
 from sugar_network import node, local, Client
 from sugar_network.local.mounts import LocalMount
@@ -32,7 +32,7 @@ from sugar_network.node.router import Router
 from sugar_network.node.commands import MasterCommands
 from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit import application, sugar, sneakernet
+from sugar_network.toolkit import sugar, sneakernet
 
 
 class Application(application.Daemon):
