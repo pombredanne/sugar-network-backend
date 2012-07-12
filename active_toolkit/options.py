@@ -17,13 +17,12 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/options.py$
-$Date: 2012-07-11$
+$Date: 2012-07-12$
 
 """
 
 import sys
 from os.path import exists, expanduser
-from gettext import gettext as _
 
 
 class Option(object):
@@ -244,7 +243,7 @@ class Option(object):
     def save(path=None):
         if not path:
             if not Option._config_files_to_save:
-                raise RuntimeError(_('No configure files to save'))
+                raise RuntimeError('No configure files to save')
             path = Option._config_files_to_save[-1]
         with file(path, 'w') as f:
             f.write('\n'.join(Option.export()))
@@ -288,8 +287,8 @@ class Option(object):
             Option._config.name = 'config'
             Option._config.attr_name = 'config'
             Option._config.description = \
-                    _('colon separated list of paths to alternative ' \
-                    'configuration file(s)')
+                    'colon separated list of paths to alternative ' \
+                    'configuration file(s)'
             Option._config.short_option = '-c'
             Option._config.type_cast = \
                     lambda x: [i for i in re.split('[\s:;,]+', x) if i]
@@ -416,11 +415,11 @@ class Command(object):
         """
         cmd = Command.items.get(name)
         if cmd is None:
-            raise RuntimeError(_('No such command, %s') % name)
+            raise RuntimeError('No such command, %s' % name)
 
         func_name = 'CMD_%s' % cmd.attr_name
         if not hasattr(mod, func_name):
-            raise RuntimeError(_('No such command, %s, in module %s') % \
+            raise RuntimeError('No such command, %s, in module %s' % \
                     (name, mod.__name__))
         getattr(mod, func_name)(*args, **kwargs)
 

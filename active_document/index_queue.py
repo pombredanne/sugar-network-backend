@@ -18,7 +18,6 @@ import thread
 import logging
 import threading
 import collections
-from gettext import gettext as _
 
 from active_document import env
 from active_document.index import IndexWriter
@@ -129,14 +128,14 @@ class _WriteThread(threading.Thread):
             global errnum
             errnum += 1
             util.exception(
-                    _('Write queue died, will abort the whole application'))
+                    'Write queue died, will abort the whole application')
             thread.interrupt_main()
         finally:
             _logger.debug('Stop processing queue')
 
     def _run(self):
         for cls in self._document_classes:
-            _logger.info(_('Open %r index'), cls.metadata.name)
+            _logger.info('Open %r index', cls.metadata.name)
             self._writers[cls.metadata.name] = \
                     IndexWriter(self._root, cls.metadata)
 
@@ -160,7 +159,7 @@ class _WriteThread(threading.Thread):
                     global errnum
                     errnum += 1
                     util.exception(_logger,
-                            _('Cannot process %r(%r) for %r index'),
+                            'Cannot process %r(%r) for %r index',
                             op, args, document)
             if to_commit:
                 writer.commit()
@@ -170,13 +169,13 @@ class _WriteThread(threading.Thread):
     def _close(self):
         while self._writers:
             name, writer = self._writers.popitem()
-            _logger.info(_('Closing %r index'), name)
+            _logger.info('Closing %r index', name)
             try:
                 writer.close()
             except Exception:
                 global errnum
                 errnum += 1
-                util.exception(_logger, _('Fail to close %r index'), name)
+                util.exception(_logger, 'Fail to close %r index', name)
 
 
 class _Queue(object):

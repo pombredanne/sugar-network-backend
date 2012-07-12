@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import types
-from gettext import gettext as _
 
 from active_document import env
 from active_toolkit import enforce
@@ -36,7 +35,7 @@ def active_property(property_class=None, *args, **kwargs):
 
     def decorate_getter(func):
         enforce(func.__name__ != 'guid',
-                _("Active property should not have 'guid' name"))
+                "Active property should not have 'guid' name")
         attr = lambda self: getter(func, self)
         attr.setter = lambda func: decorate_setter(func, attr)
         attr._is_active_property = True
@@ -75,15 +74,13 @@ class Metadata(dict):
 
             if hasattr(prop, 'slot'):
                 enforce(prop.slot is None or prop.slot not in slots,
-                        _('Property %r has a slot already defined ' \
-                                'for %r in %r'),
+                        'Property %r has a slot already defined for %r in %r',
                         prop.name, slots.get(prop.slot), self.name)
                 slots[prop.slot] = prop.name
 
             if hasattr(prop, 'prefix'):
                 enforce(not prop.prefix or prop.prefix not in prefixes,
-                        _('Property %r has a prefix already defined ' \
-                                'for %r'),
+                        'Property %r has a prefix already defined for %r',
                         prop.name, prefixes.get(prop.prefix))
                 prefixes[prop.prefix] = prop.name
 
@@ -100,7 +97,7 @@ class Metadata(dict):
         return self._name
 
     def __getitem__(self, prop_name):
-        enforce(prop_name in self, _('There is no %r property in %r'),
+        enforce(prop_name in self, 'There is no %r property in %r',
                 prop_name, self.name)
         return dict.__getitem__(self, prop_name)
 
@@ -193,7 +190,7 @@ class Property(object):
 
         """
         enforce(mode & self.permissions, env.Forbidden,
-                _('%s access is disabled for %r property'),
+                '%s access is disabled for %r property',
                 env.ACCESS_NAMES[mode], self.name)
 
 
@@ -211,9 +208,9 @@ class StoredProperty(Property, BrowsableProperty):
 
         if localized:
             enforce(typecast is None,
-                    _('typecast should be None for localized properties'))
+                    'typecast should be None for localized properties')
             enforce(reprcast is None,
-                    _('reprcast should be None for localized properties'))
+                    'reprcast should be None for localized properties')
             typecast = _localized_typecast
             reprcast = _localized_reprcast
 
@@ -232,22 +229,22 @@ class ActiveProperty(StoredProperty):
     def __init__(self, name, slot=None, prefix=None, full_text=False,
             boolean=False, **kwargs):
         enforce(name == 'guid' or slot != 0,
-                _('For %r property, ' \
-                        "the slot '0' is reserved for internal needs"),
+                'For %r property, ' \
+                        "the slot '0' is reserved for internal needs",
                 name)
         enforce(name == 'guid' or prefix != env.GUID_PREFIX,
-                _('For %r property, ' \
-                        'the prefix %r is reserved for internal needs'),
+                'For %r property, ' \
+                        'the prefix %r is reserved for internal needs',
                 name, env.GUID_PREFIX)
         enforce(slot is not None or prefix or full_text,
-                _('For %r property, ' \
-                        'either slot, prefix or full_text need to be set'),
+                'For %r property, ' \
+                        'either slot, prefix or full_text need to be set',
                 name)
         enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')),
-                _('Slot can be set only for properties for str, int, float, ' \
-                        'bool types, or, for list of these types'))
+                'Slot can be set only for properties for str, int, float, ' \
+                        'bool types, or, for list of these types')
         enforce(not kwargs.get('localized') or slot is None,
-                _('Localized property cannot be sloted'))
+                'Localized property cannot be sloted')
 
         StoredProperty.__init__(self, name, **kwargs)
         self._slot = slot
@@ -311,20 +308,20 @@ def _is_composite(typecast):
 
 
 def _decode(typecast, value):
-    enforce(value is not None, ValueError, _('Property value cannot be None'))
+    enforce(value is not None, ValueError, 'Property value cannot be None')
 
     is_composite, is_enum = _is_composite(typecast)
 
     if is_composite:
         enforce(len(typecast) <= 1, ValueError,
-                _('List values should contain values of the same type'))
+                'List values should contain values of the same type')
         if type(value) not in _LIST_TYPES:
             value = (value,)
         typecast, = typecast or [str]
         value = tuple([_decode(typecast, i) for i in value])
     elif is_enum:
         enforce(value in typecast, ValueError,
-                _("Value %r is not in '%s' list"),
+                "Value %r is not in '%s' list",
                 value, ', '.join([str(i) for i in typecast]))
     elif type(typecast) is types.FunctionType:
         value = typecast(value)
@@ -342,7 +339,7 @@ def _decode(typecast, value):
     elif typecast is dict:
         value = dict(value)
     else:
-        raise ValueError(_('Unknown typecast'))
+        raise ValueError('Unknown typecast')
     return value
 
 

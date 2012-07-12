@@ -20,7 +20,6 @@ import logging
 from cStringIO import StringIO
 from functools import partial
 from os.path import exists, join, abspath, isdir
-from gettext import gettext as _
 
 from active_document import env
 from active_document.directory import Directory
@@ -38,7 +37,7 @@ class _Volume(dict):
 
     def __init__(self, root, documents, index_class, lazy_open):
         self._root = abspath(root)
-        _logger.info(_('Opening %r volume'), self._root)
+        _logger.info('Opening %r volume', self._root)
 
         if not exists(root):
             os.makedirs(root)
@@ -63,7 +62,7 @@ class _Volume(dict):
 
     def close(self):
         """Close operations with the server."""
-        _logger.info(_('Closing documents in %r'), self._root)
+        _logger.info('Closing documents in %r', self._root)
 
         while self:
             __, cls = self.popitem()
@@ -90,7 +89,7 @@ class _Volume(dict):
     def __getitem__(self, name):
         directory = self.get(name)
         if directory is None:
-            enforce(name in self._to_open, _('Unknown %r document'), name)
+            enforce(name in self._to_open, 'Unknown %r document', name)
             directory = self[name] = self._open(name, self._to_open.pop(name))
         return directory
 
@@ -109,7 +108,7 @@ class _Volume(dict):
                 try:
                     callback(event)
                 except Exception:
-                    util.exception(_logger, _('Failed to dispatch %r'), event)
+                    util.exception(_logger, 'Failed to dispatch %r', event)
 
     def _open(self, name, document):
         if isinstance(document, basestring):
@@ -126,7 +125,7 @@ class SingleVolume(_Volume):
 
     def __init__(self, root, document_classes, lazy_open=False):
         enforce(env.index_write_queue.value > 0,
-                _('The active_document.index_write_queue.value should be > 0'))
+                'The active_document.index_write_queue.value should be > 0')
         _Volume.__init__(self, root, document_classes, IndexWriter, lazy_open)
 
 
@@ -142,7 +141,7 @@ class VolumeCommands(CommandsProcessor):
         directory = self.volume[document]
         props = request.content
         enforce('guid' not in props, env.Forbidden,
-                _('Property "guid" cannot be set manually'))
+                'Property "guid" cannot be set manually')
         for name, value in props.items():
             prop = directory.metadata[name]
             prop.assert_access(env.ACCESS_CREATE)
@@ -232,7 +231,7 @@ class VolumeCommands(CommandsProcessor):
                 directory.metadata[i].assert_access(env.ACCESS_READ)
 
         enforce('deleted' not in doc['layer'], env.NotFound,
-                _('Document is not found'))
+                'Document is not found')
 
         return doc.properties(reply, request.accept_language)
 
@@ -247,7 +246,7 @@ class VolumeCommands(CommandsProcessor):
             return doc.get(prop, request.accept_language)
 
         meta = doc.meta(prop)
-        enforce(meta is not None, env.NotFound, _('BLOB does not exist'))
+        enforce(meta is not None, env.NotFound, 'BLOB does not exist')
 
         if 'url' in meta:
             raise env.Redirect(meta['url'])
@@ -314,7 +313,7 @@ class _Seqno(object):
 def _to_int(name, value):
     if isinstance(value, basestring):
         enforce(value.isdigit(),
-                _('Argument %r should be an integer value'), name)
+                'Argument %r should be an integer value', name)
         value = int(value)
     return value
 

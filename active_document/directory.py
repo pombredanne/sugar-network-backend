@@ -17,7 +17,6 @@ import os
 import shutil
 import logging
 from os.path import exists, join
-from gettext import gettext as _
 
 from active_document import env, http
 from active_document.storage import Storage
@@ -102,8 +101,7 @@ class Directory(object):
                 if prop_name in props:
                     continue
                 enforce(prop.default is not None,
-                        _('Property %r should be passed for ' \
-                                'new %r document'),
+                        'Property %r should be passed for new %r document',
                         prop_name, self.metadata.name)
             if prop.default is not None:
                 props[prop_name] = prop.default
@@ -146,7 +144,7 @@ class Directory(object):
         cached_props = self._index.get_cached(guid)
         record = self._storage.get(guid)
         enforce(cached_props or record.exists, env.NotFound,
-                _('Document %r does not exist in %r'),
+                'Document %r does not exist in %r',
                 guid, self.metadata.name)
         return self.document_class(guid, record, cached_props)
 
@@ -168,7 +166,7 @@ class Directory(object):
         for prop_name in query.reply:
             prop = self.metadata[prop_name]
             enforce(isinstance(prop, BrowsableProperty),
-                    _('Property %r in %r is not suitable for find requests'),
+                    'Property %r in %r is not suitable for find requests',
                     prop_name, self.metadata.name)
 
         documents, total = self._index.find(query)
@@ -196,7 +194,7 @@ class Directory(object):
         """
         prop = self.metadata[prop]
         enforce(isinstance(prop, BlobProperty),
-                _('Property %r in %r is not a BLOB'),
+                'Property %r in %r is not a BLOB',
                 prop.name, self.metadata.name)
         record = self._storage.get(guid)
         seqno = self._seqno.next()
@@ -232,8 +230,7 @@ class Directory(object):
 
         for guid in self._storage.walk(self._index.mtime):
             if not found:
-                _logger.info(_('Start populating %r index'),
-                        self.metadata.name)
+                _logger.info('Start populating %r index', self.metadata.name)
                 found = True
 
             if migrate:
@@ -418,12 +415,12 @@ class Directory(object):
         for prop_name, value in props.items():
             prop = self.metadata[prop_name]
             enforce(isinstance(prop, StoredProperty),
-                    _('Property %r in %r cannot be set'),
+                    'Property %r in %r cannot be set',
                     prop_name, self.metadata.name)
             try:
                 props[prop_name] = prop.decode(value)
             except Exception:
-                error = _('Value %r for %r property for %r is invalid') % \
+                error = 'Value %r for %r property for %r is invalid' % \
                         (value, prop_name, self.metadata.name)
                 util.exception(error)
                 raise RuntimeError(error)

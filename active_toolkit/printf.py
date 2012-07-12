@@ -17,13 +17,12 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/printf.py$
-$Date: 2012-06-27$
+$Date: 2012-07-12$
 
 """
 
 import sys
 import logging
-from gettext import gettext as _
 
 
 #: Disable/enable non-status output.
@@ -99,7 +98,7 @@ def exception(message=None, *args):
     if message and args:
         message = message % args
 
-    error = str(error) or _('Something weird happened')
+    error = str(error) or 'Something weird happened'
     if message:
         message += ': %s' % error
     else:
@@ -107,10 +106,10 @@ def exception(message=None, *args):
     _dump(True, sys.stdout, None, message, '\n')
 
     if logging.getLogger().level > logging.INFO:
-        hint(_('Use -D argument for debug info, ' \
-                '-DD for full debuging output and tracebacks'))
+        hint('Use -D argument for debug info, ' \
+                '-DD for full debuging output and tracebacks')
     elif logging.getLogger().level > logging.DEBUG:
-        hint(_('Use -DD argument for full debuging output and tracebacks'))
+        hint('Use -DD argument for full debuging output and tracebacks')
     else:
         for i in tb_list:
             _dump(True, sys.stdout, '   ', i, '\n')

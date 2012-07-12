@@ -15,7 +15,6 @@
 
 import logging
 from uuid import uuid1
-from gettext import gettext as _
 
 from active_toolkit.options import Option
 
@@ -47,27 +46,27 @@ ACCESS_REMOTE = 256
 ACCESS_LEVELS = ACCESS_SYSTEM | ACCESS_LOCAL | ACCESS_REMOTE
 
 ACCESS_NAMES = {
-        ACCESS_CREATE: _('Create'),
-        ACCESS_WRITE: _('Write'),
-        ACCESS_READ: _('Read'),
-        ACCESS_DELETE: _('Delete'),
+        ACCESS_CREATE: 'Create',
+        ACCESS_WRITE: 'Write',
+        ACCESS_READ: 'Read',
+        ACCESS_DELETE: 'Delete',
         }
 
 LAYERS = ['public', 'deleted']
 
 
 index_flush_timeout = Option(
-        _('flush index index after specified seconds since the last change'),
+        'flush index index after specified seconds since the last change',
         default=5, type_cast=int)
 
 index_flush_threshold = Option(
-        _('flush index every specified changes'),
+        'flush index every specified changes',
         default=32, type_cast=int)
 
 index_write_queue = Option(
-        _('if active-document is being used for the scheme with one writer '
+        'if active-document is being used for the scheme with one writer '
             'process and multiple reader processes, this option specifies '
-            'the writer\'s queue size'),
+            'the writer\'s queue size',
         default=256, type_cast=int)
 
 

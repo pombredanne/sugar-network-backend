@@ -19,7 +19,6 @@ import time
 import shutil
 import logging
 from os.path import exists, join
-from gettext import gettext as _
 
 import xapian
 
@@ -189,7 +188,7 @@ class IndexReader(object):
             value = str(value).strip()
             prop = self._props.get(name)
             enforce(prop is not None and prop.prefix,
-                    _('Unknown search term %r for %r'),
+                    'Unknown search term %r for %r',
                     name, self.metadata.name)
             query = xapian.Query(_term(prop.prefix, value))
             if prop.boolean:
@@ -224,15 +223,15 @@ class IndexReader(object):
                     reverse = False
                 prop = self._props.get(order_by)
                 enforce(prop is not None and prop.slot is not None,
-                        _('Cannot sort using %r property of %r'),
+                        'Cannot sort using %r property of %r',
                         order_by, self.metadata.name)
                 sorter.add_value(prop.slot, reverse)
             # Sort by ascending GUID to make order predictable all time
             sorter.add_value(0, False)
             enquire.set_sort_by_key(sorter, reverse=False)
         else:
-            _logger.warning(_('In order to support sorting, ' \
-                    'Xapian should be at least 1.2.0'))
+            _logger.warning('In order to support sorting, ' \
+                    'Xapian should be at least 1.2.0')
 
         return enquire
 
@@ -243,7 +242,7 @@ class IndexReader(object):
                 return op(*args)
             except xapian.DatabaseError, error:
                 if tries >= _REOPEN_LIMIT:
-                    _logger.warning(_('Cannot open %r index'),
+                    _logger.warning('Cannot open %r index',
                             self.metadata.name)
                     raise
                 _logger.debug('Fail to %r %r index, will reopen it %sth ' \
@@ -364,8 +363,8 @@ class IndexWriter(IndexReader):
             self._db = xapian.WritableDatabase(self._path,
                     xapian.DB_CREATE_OR_OPEN)
         except xapian.DatabaseError:
-            util.exception(_('Cannot open Xapian index in %r, ' \
-                    'will rebuild it'), self.metadata.name)
+            util.exception('Cannot open Xapian index in %r, will rebuild it',
+                    self.metadata.name)
             shutil.rmtree(self._path, ignore_errors=True)
             self._db = xapian.WritableDatabase(self._path,
                     xapian.DB_CREATE_OR_OPEN)

@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-from gettext import gettext as _
 
 from active_document import env
 from active_document.metadata import BrowsableProperty, StoredProperty
@@ -80,7 +79,7 @@ class Document(object):
         value = self._props.get(prop.name)
         if value is None:
             enforce(isinstance(prop, StoredProperty),
-                    _('No way to get %r property from %s[%s]'),
+                    'No way to get %r property from %s[%s]',
                     prop.name, self.metadata.name, self.guid)
             meta = self._record.get(prop.name)
             value = prop.default if meta is None else meta['value']

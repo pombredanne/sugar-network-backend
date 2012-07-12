@@ -20,7 +20,6 @@ import json
 import shutil
 import hashlib
 from os.path import exists, join, isdir, basename, relpath, lexists, isabs
-from gettext import gettext as _
 
 from active_document import env
 from active_document.metadata import BlobProperty
@@ -63,7 +62,7 @@ class Storage(object):
             shutil.rmtree(path)
         except Exception, error:
             util.exception()
-            raise RuntimeError(_('Cannot delete %r document from %r: %s') % \
+            raise RuntimeError('Cannot delete %r document from %r: %s' % \
                     (guid, self.metadata.name, error))
 
     def walk(self, mtime):
@@ -226,7 +225,7 @@ class Record(object):
                 digest = None
         except Exception, error:
             util.exception()
-            raise RuntimeError(_('Fail to set BLOB %r property for %r: %s') % \
+            raise RuntimeError('Fail to set BLOB %r property for %r: %s' % \
                     (prop, self.guid, error))
 
         if digest is not None:

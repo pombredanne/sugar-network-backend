@@ -29,7 +29,6 @@ import logging
 import textwrap
 from optparse import OptionParser
 from os.path import join, abspath, exists, basename
-from gettext import gettext as _
 
 from .options import Option
 from . import printf, util
@@ -37,21 +36,21 @@ enforce = util.enforce
 
 
 debug = Option(
-        _('debug logging level; multiple argument'),
+        'debug logging level; multiple argument',
         default=0, type_cast=int, short_option='-D', action='count',
         name='debug')
 
 foreground = Option(
-        _('Do not send the application into the background'),
+        'do not send the application into the background',
         default=False, type_cast=Option.bool_cast, short_option='-F',
         action='store_true', name='foreground')
 
 logdir = Option(
-        _('path to the directory to place log files'),
+        'path to the directory to place log files',
         name='logdir')
 
 rundir = Option(
-        _('path to the directory to place pid files'),
+        'path to the directory to place pid files',
         name='rundir')
 
 
@@ -89,12 +88,12 @@ class Application(object):
 
         if version:
             parser.add_option('-V', '--version',
-                    help=_('show version number and exit'),
+                    help='show version number and exit',
                     action='version')
             parser.print_version = lambda: sys.stdout.write('%s\n' % version)
 
         parser.add_option('-h', '--help',
-                help=_('show this help message and exit'),
+                help='show this help message and exit',
                 action='store_true')
 
         options, self.args = Option.parse_args(parser, **parse_args)
@@ -121,7 +120,7 @@ class Application(object):
             if not self._commands:
                 return
             print ''
-            print _('Commands') + ':'
+            print 'Commands:'
             for name, attr in sorted(self._commands.items(),
                     lambda x, y: cmp(x[0], y[0])):
                 print_desc(name, attr.description)
@@ -143,7 +142,7 @@ class Application(object):
             print_commands()
             if where:
                 print ''
-                print _('Where') + ':'
+                print 'Where:'
                 for term in sorted(where):
                     print_desc(term, where[term])
             if epilog:
@@ -169,10 +168,10 @@ class Application(object):
         cmd_name = self.args.pop(0)
         try:
             cmd = self._commands.get(cmd_name)
-            enforce(cmd is not None, _('Unknown command "%s"') % cmd_name)
+            enforce(cmd is not None, 'Unknown command "%s"' % cmd_name)
 
             if Option.config_files:
-                logging.info(_('Load configuration from %s file(s)'),
+                logging.info('Load configuration from %s file(s)',
                         ', '.join(Option.config_files))
 
             if cmd.options.get('keep_stdout') and not foreground.value:
@@ -180,17 +179,16 @@ class Application(object):
 
             exit(cmd() or 0)
         except Exception:
-            printf.exception(_('Aborted %s'), self.name)
+            printf.exception('Aborted %s', self.name)
             exit(1)
         finally:
             printf.flush_hints()
 
-    @command(_('output current configuration'), name='config')
+    @command('output current configuration', name='config')
     def _cmd_config(self):
         if self.args:
             opt = self.args.pop(0)
-            enforce(opt in Option.items,
-                    _('Unknown option "%s"'), opt)
+            enforce(opt in Option.items, 'Unknown option "%s"', opt)
             exit(0 if bool(Option.items[opt].value) else 1)
         else:
             print '\n'.join(Option.export())
@@ -199,8 +197,7 @@ class Application(object):
         log_dir = logdir.value or '/var/log'
         if not exists(log_dir):
             os.makedirs(log_dir)
-        enforce(os.access(log_dir, os.W_OK),
-                _('No write access to %s'), log_dir)
+        enforce(os.access(log_dir, os.W_OK), 'No write access to %s', log_dir)
         log_path = abspath(join(log_dir, '%s.log' % self.name))
         sys.stdout.flush()
         sys.stderr.flush()
@@ -227,11 +224,11 @@ class Daemon(Application):
         self._rundir = rundir.value or '/var/run/' + self.name
         Application.start(self)
 
-    @command(_('start in daemon mode'), name='start', keep_stdout=True)
+    @command('start in daemon mode', name='start', keep_stdout=True)
     def _cmd_start(self):
         pidfile, pid = self._check_for_instance()
         if pid:
-            printf.info(_('%s is already run with pid %s'), self.name, pid)
+            printf.info('%s is already run with pid %s', self.name, pid)
             return 1
         if foreground.value:
             self._launch()
@@ -239,48 +236,48 @@ class Daemon(Application):
             if not exists(self._rundir):
                 os.makedirs(self._rundir)
             enforce(os.access(self._rundir, os.W_OK),
-                    _('No write access to %s'), self._rundir)
+                    'No write access to %s', self._rundir)
             self._daemonize(pidfile)
         return 0
 
-    @command(_('stop daemon'), name='stop')
+    @command('stop daemon', name='stop')
     def _cmd_stop(self):
         __, pid = self._check_for_instance()
         if pid:
             os.kill(pid, signal.SIGTERM)
             return 0
         else:
-            printf.info(_('%s is not run'), self.name)
+            printf.info('%s is not run', self.name)
             return 1
 
-    @command(_('check for launched daemon'), name='status')
+    @command('check for launched daemon', name='status')
     def _cmd_status(self):
         __, pid = self._check_for_instance()
         if pid:
-            printf.info(_('%s started'), self.name)
+            printf.info('%s started', self.name)
             return 0
         else:
-            printf.info(_('%s stopped'), self.name)
+            printf.info('%s stopped', self.name)
             return 1
 
-    @command(_('reopen log files in daemon mode'), name='reload')
+    @command('reopen log files in daemon mode', name='reload')
     def _cmd_reload(self):
         __, pid = self._check_for_instance()
         if not pid:
-            printf.info(_('%s is not run'), self.name)
+            printf.info('%s is not run', self.name)
             return 1
         os.kill(pid, signal.SIGHUP)
-        logging.info(_('Reload %s process'), self.name)
+        logging.info('Reload %s process', self.name)
 
     def _launch(self):
-        logging.info(_('Start %s'), self.name)
+        logging.info('Start %s', self.name)
 
         def sigterm_cb(signum, frame):
-            logging.info(_('Got signal %s to stop %s'), signum, self.name)
+            logging.info('Got signal %s to stop %s', signum, self.name)
             self.shutdown()
 
         def sighup_cb(signum, frame):
-            logging.info(_('Reload %s on SIGHUP signal'), self.name)
+            logging.info('Reload %s on SIGHUP signal', self.name)
             self._keep_stdout()
 
         signal.signal(signal.SIGINT, sigterm_cb)
@@ -334,10 +331,10 @@ class Daemon(Application):
         try:
             self._launch()
         except Exception:
-            logging.exception(_('Aborted %s'), self.name)
+            logging.exception('Aborted %s', self.name)
             status = 1
         else:
-            logging.info(_('Stopped %s'), self.name)
+            logging.info('Stopped %s', self.name)
             status = 0
 
         exit(status)

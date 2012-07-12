@@ -15,7 +15,6 @@
 
 import re
 import logging
-from gettext import gettext as _
 
 from active_document import env
 from active_toolkit import enforce
@@ -62,7 +61,7 @@ class Request(dict):
         self._pos = 0
 
     def __getitem__(self, key):
-        enforce(key in self, _('Cannot find %r request argument'), key)
+        enforce(key in self, 'Cannot find %r request argument', key)
         return self.get(key)
 
     def read(self, size=None):
@@ -104,26 +103,26 @@ class CommandsProcessor(object):
                         _scan_class_for_commands(directory.document_class):
                     if scope == 'directory':
                         enforce(attr.im_self is not None,
-                                _('Command should be a @classmethod'))
+                                'Command should be a @classmethod')
                         cmd = _ClassCommand(directory, cb, **attr.kwargs)
                         self._commands[scope].add(cmd)
                     elif scope in ('document', 'property'):
                         enforce(attr.im_self is None,
-                                _('Command should not be a @classmethod'))
+                                'Command should not be a @classmethod')
                         cmd = _ObjectCommand(directory, cb, **attr.kwargs)
                         self._commands[scope].add(cmd)
 
     def call(self, request, response):
         cmd = self.resolve(request)
-        enforce(cmd is not None, CommandNotFound, _('Unsupported command'))
+        enforce(cmd is not None, CommandNotFound, 'Unsupported command')
 
         guid = request.get('guid')
         if guid is not None:
             enforce(_GUID_RE.match(guid) is not None,
-                    _('Specified malformed GUID'))
+                    'Specified malformed GUID')
 
         enforce(request.access_level & cmd.access_level, env.Forbidden,
-                _('Operation is permitted on requester\'s level'))
+                'Operation is permitted on requester\'s level')
 
         result = cmd(request, response)
         _logger.debug('Called %r: request=%r result=%r', cmd, request, result)
@@ -244,7 +243,7 @@ class _ObjectCommand(_Command):
 class _Commands(dict):
 
     def add(self, cmd):
-        enforce(cmd.key not in self, _('Command %r already exists'), cmd)
+        enforce(cmd.key not in self, 'Command %r already exists', cmd)
         self[cmd.key] = cmd
 
 

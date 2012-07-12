@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Date: 2012-06-27$
+$Date: 2012-07-12$
 
 """
 
@@ -26,7 +26,6 @@ import sys
 import logging
 import subprocess
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
-from gettext import gettext as _
 
 
 if sys.version_info[:3] >= (2, 6, 5):
@@ -76,7 +75,7 @@ def enforce(condition, error=None, *args):
     elif not error:
         # pylint: disable-msg=W0212
         frame = sys._getframe(1)
-        error = _('Runtime assertion failed at %s:%s') % \
+        error = 'Runtime assertion failed at %s:%s' % \
                 (frame.f_globals['__file__'], frame.f_lineno - 1)
 
     raise exception_class(error)
@@ -105,7 +104,7 @@ def exception(*args):
     import traceback
     tb = [i.rstrip() for i in traceback.format_exception(klass, error, tb)]
 
-    error = str(error) or _('Something weird happened')
+    error = str(error) or 'Something weird happened'
     if args:
         if len(args) == 1:
             message = args[0]
@@ -165,7 +164,7 @@ def call(cmd, stdin=None, asserts=False, raw=False, error_cb=None, **kwargs):
             stdout = stdout.strip()
             stderr = stderr.strip()
         returncode = process.returncode
-        enforce(returncode == 0, _('Exit status is an error'))
+        enforce(returncode == 0, 'Exit status is an error')
         logging.debug('Successfully executed stdout=%r stderr=%r',
                 stdout.split('\n'), stderr.split('\n'))
         return stdout
@@ -175,7 +174,7 @@ def call(cmd, stdin=None, asserts=False, raw=False, error_cb=None, **kwargs):
         if asserts:
             if type(cmd) not in (str, unicode):
                 cmd = ' '.join(cmd)
-            raise RuntimeError(_('Failed to execute "%s" command: %s') % \
+            raise RuntimeError('Failed to execute "%s" command: %s' % \
                     (cmd, error))
         elif error_cb is not None:
             error_cb(returncode, stdout, stderr)
@@ -269,7 +268,7 @@ def unique_filename(root, filename):
             if not exists(path):
                 break
         else:
-            raise RuntimeError(_('Cannot find unique filename for %r') % \
+            raise RuntimeError('Cannot find unique filename for %r' % \
                     join(root, filename))
     return path
 
