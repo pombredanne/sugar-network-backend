@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-07-11$
+$Date: 2012-07-12$
 
 """
 
@@ -175,7 +175,7 @@ class Application(object):
                 logging.info(_('Load configuration from %s file(s)'),
                         ', '.join(Option.config_files))
 
-            if cmd.options.get('keep_stdout'):
+            if cmd.options.get('keep_stdout') and not foreground.value:
                 self._keep_stdout()
 
             exit(cmd() or 0)
