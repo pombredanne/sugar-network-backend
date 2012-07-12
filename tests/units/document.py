@@ -553,6 +553,40 @@ class DocumentTest(tests.Test):
             ],
             read_diff(directory, xrange(100), 2))
 
+    def test_diff_Clone(self):
+
+        class Document(document.Document):
+            pass
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        directory.create(guid='1', ctime=1, mtime=1)
+        directory.create(guid='2', ctime=2, mtime=2)
+        directory.create(guid='3', ctime=3, mtime=3)
+
+        self.assertEqual(
+                sorted(['1', '2', '3']),
+                sorted([meta['guid'] for meta, diff in read_diff(directory, xrange(100), 2)]))
+
+        directory.update(guid='2', layer=['deleted'])
+
+        self.assertEqual(
+                sorted(['1', '2', '3']),
+                sorted([meta['guid'] for meta, diff in read_diff(directory, xrange(100), 2)]))
+        self.assertEqual(
+                sorted(['1', '3']),
+                sorted([meta['guid'] for meta, diff in read_diff(directory, xrange(100), 2, clone=True)]))
+
+        directory.update(guid='1', layer=['deleted'])
+        directory.update(guid='3', layer=['deleted'])
+
+        self.assertEqual(
+                sorted(['1', '2', '3']),
+                sorted([meta['guid'] for meta, diff in read_diff(directory, xrange(100), 2)]))
+        self.assertEqual(
+                sorted([]),
+                sorted([meta['guid'] for meta, diff in read_diff(directory, xrange(100), 2, clone=True)]))
+
     def test_merge_New(self):
 
         class Document(document.Document):
@@ -767,9 +801,9 @@ class DocumentTest(tests.Test):
         self.assertEqual(2, doc.meta('prop')['seqno'])
 
 
-def read_diff(directory, *args):
+def read_diff(directory, *args, **kwargs):
     result = []
-    for header, data in directory.diff(*args):
+    for header, data in directory.diff(*args, **kwargs):
         if hasattr(data, 'read'):
             result.append((header, data.read()))
         else:

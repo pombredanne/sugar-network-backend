@@ -256,13 +256,16 @@ class Directory(object):
             self.commit()
             self._notify({'event': 'sync', 'seqno': self._seqno.value})
 
-    def diff(self, accept_range, limit):
+    def diff(self, accept_range, limit, clone=False):
         """Return documents' properties for specified times range.
 
         :param accept_range:
             seqno sequence to accept documents
         :param limit:
             number of documents to return at once
+        :param clone:
+            is `diff()` call is inteded for initial clonning, e.g.,
+            cloning does not assume fetching deleted objects
         :returns:
             a tuple of ((`left-seqno`, `right-seqno`), [(`guid`, `patch`)]),
             where `patch` is a resulting dictionary from `Document.diff()`
@@ -280,11 +283,16 @@ class Directory(object):
         else:
             seqno = accept_range[0]
 
+        query = {'limit': limit,
+                 'no_cache': True,
+                 'reply': ['guid'],
+                 'order_by': 'seqno',
+                 }
+        if clone:
+            query['layer'] = 'public'
+
         while True:
-            documents, total = self.find(
-                    query='seqno:%s..' % seqno,
-                    order_by='seqno', reply=['guid'],
-                    limit=limit, no_cache=True)
+            documents, total = self.find(query='seqno:%s..' % seqno, **query)
             if not total.value:
                 break
 
