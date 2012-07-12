@@ -195,6 +195,14 @@ class _Response(ad.Response):
 
     content_type = property(get_content_type, set_content_type)
 
+    def items(self):
+        for key, value in dict.items(self):
+            if type(value) in (list, tuple):
+                for i in value:
+                    yield key, i
+            else:
+                yield key, value
+
 
 def _parse_accept_language(accept_language):
     if not accept_language:
