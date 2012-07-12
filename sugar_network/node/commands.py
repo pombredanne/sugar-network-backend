@@ -223,7 +223,7 @@ class MasterCommands(NodeCommands):
                         pull_seq.include(record['sequence'])
 
         accept_length = _to_int('accept_length', accept_length)
-        return self._pull(response, pull_seq, accept_length)
+        return self._pull(response, pull_seq, accept_length, False)
 
     @ad.volume_command(method='GET', cmd='clone',
             mime_type='application/octet-stream')
@@ -231,9 +231,9 @@ class MasterCommands(NodeCommands):
         pull_seq = Sequence()
         pull_seq.include(1, None)
         accept_length = _to_int('accept_length', accept_length)
-        return self._pull(response, pull_seq, accept_length)
+        return self._pull(response, pull_seq, accept_length, True)
 
-    def _pull(self, response, pull_seq, accept_length):
+    def _pull(self, response, pull_seq, accept_length, clone):
         pull_hash = hashlib.sha1(json.dumps(pull_seq)).hexdigest()
 
         if pull_hash in self._pull_queue:
@@ -241,7 +241,7 @@ class MasterCommands(NodeCommands):
             _logger.debug('Reuse existing %r pull', pull_seq)
         else:
             pull = self._pull_queue[pull_hash] = _Pull(self.volume, pull_seq,
-                    src=self._guid, seqno=self.volume.seqno.value,
+                    clone, src=self._guid, seqno=self.volume.seqno.value,
                     limit=accept_length)
             _logger.debug('Preparing %r pull', pull_seq)
 
@@ -268,7 +268,7 @@ class MasterCommands(NodeCommands):
 
 class _Pull(object):
 
-    def __init__(self, volume, sequence, **packet_args):
+    def __init__(self, volume, sequence, clone, **packet_args):
         self.sequence = sequence
         self.exception = None
         # TODO Might be useful to set meaningful value here
@@ -278,7 +278,7 @@ class _Pull(object):
         os.close(fd)
         self._packet = OutPacket(stream=file(path, 'wb+'), **packet_args)
 
-        self._job = coroutine.spawn(self._diff, volume)
+        self._job = coroutine.spawn(self._diff, volume, clone)
 
     def __del__(self):
         self._packet.close()
@@ -299,9 +299,9 @@ class _Pull(object):
         if exists(self._packet.path):
             return file(self._packet.path, 'rb')
 
-    def _diff(self, volume):
+    def _diff(self, volume, clone):
         try:
-            volume.diff(self.sequence, self._packet)
+            volume.diff(self.sequence, self._packet, clone=clone)
         except DiskFull:
             pass
         except Exception, exception:

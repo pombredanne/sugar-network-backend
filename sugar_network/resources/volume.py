@@ -58,7 +58,7 @@ class Volume(ad.SingleVolume):
             document_classes = Volume.RESOURCES
         ad.SingleVolume.__init__(self, root, document_classes, lazy_open)
 
-    def diff(self, in_seq, out_packet):
+    def diff(self, in_seq, out_packet, clone=False):
         # Since `in_seq` will be changed in `patch()`, original sequence
         # should be passed as-is to every document's `diff()` because
         # seqno handling is common for all documents
@@ -70,7 +70,8 @@ class Volume(ad.SingleVolume):
             directory.commit()
 
             def patch():
-                for meta, data in directory.diff(orig_seq, limit=_DIFF_CHUNK):
+                for meta, data in directory.diff(orig_seq, limit=_DIFF_CHUNK,
+                        clone=clone):
                     coroutine.dispatch()
 
                     seqno = None
