@@ -128,7 +128,6 @@ class SyncTest(tests.Test):
         connected = coroutine.Event()
 
         def wait_connect(event):
-            print '>', event
             for i in events[:]:
                 for k, v in i.items():
                     if event.get(k) != v:

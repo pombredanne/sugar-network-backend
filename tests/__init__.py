@@ -68,6 +68,7 @@ class Test(unittest.TestCase):
         ad.index_flush_timeout.value = 0
         ad.index_flush_threshold.value = 1
         node.find_limit.value = 1024
+        node.tmpdir.value = tmpdir + '/tmp'
         ad.index_write_queue.value = 10
         local.local_root.value = tmpdir
         local.activity_dirs.value = [tmpdir + '/Activities']

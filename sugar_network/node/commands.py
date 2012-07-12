@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import json
 import base64
 import logging
@@ -22,14 +23,17 @@ from Cookie import SimpleCookie
 from os.path import exists, join
 from gettext import gettext as _
 
+from pylru import lrucache
+
 import active_document as ad
 from sugar_network import node
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
-        OutFilePacket, DiskFull
+        OutPacket, DiskFull
 from sugar_network.toolkit.collection import Sequence
-from active_toolkit import util, enforce
+from active_toolkit import coroutine, util, enforce
 
 
+_PULL_QUEUE_SIZE = 256
 _DEFAULT_MASTER_GUID = 'api-testing.network.sugarlabs.org'
 
 _logger = logging.getLogger('node.commands')
@@ -145,6 +149,10 @@ class NodeCommands(ad.VolumeCommands):
 
 class MasterCommands(NodeCommands):
 
+    def __init__(self, volume, subscriber=None):
+        NodeCommands.__init__(self, volume, subscriber)
+        self._pull_queue = lrucache(_PULL_QUEUE_SIZE)
+
     @ad.volume_command(method='POST', cmd='push')
     def push(self, request, response):
         with InPacket(stream=request) as in_packet:
@@ -196,55 +204,114 @@ class MasterCommands(NodeCommands):
             if not out_packet.empty:
                 return out_packet.pop()
 
-    @ad.volume_command(method='POST', cmd='pull')
+    @ad.volume_command(method='POST', cmd='pull',
+            mime_type='application/octet-stream')
     def pull(self, request, response, accept_length=None):
-        with OutFilePacket(src=self._guid, seqno=self.volume.seqno.value,
-                limit=_to_int('accept_length', accept_length)) as out_packet:
-            pull_seq = Sequence(_cookie_get(request, 'sn_pull'))
-            if pull_seq:
-                _logger.debug('Reuse %r pull from cookies', pull_seq)
+        pull_seq = Sequence(_cookie_get(request, 'sn_pull'))
+        if pull_seq:
+            _logger.debug('Reuse %r pull from cookies', pull_seq)
 
-            if request.content_length:
-                with InPacket(stream=request) as in_packet:
-                    enforce(in_packet.header.get('src') != self._guid,
-                            _('Misaddressed packet'))
-                    enforce('dst' in in_packet.header and \
-                            in_packet.header['dst'] == self._guid,
-                            _('Misaddressed packet'))
-                    for record in in_packet.records():
-                        if record.get('cmd') == 'sn_pull':
-                            pull_seq.include(record['sequence'])
+        if request.content_length:
+            with InPacket(stream=request) as in_packet:
+                enforce(in_packet.header.get('src') != self._guid,
+                        _('Misaddressed packet'))
+                enforce('dst' in in_packet.header and \
+                        in_packet.header['dst'] == self._guid,
+                        _('Misaddressed packet'))
+                for record in in_packet.records():
+                    if record.get('cmd') == 'sn_pull':
+                        pull_seq.include(record['sequence'])
 
-            _logger.debug('Writing %r pull', pull_seq)
-            try:
-                self.volume.diff(pull_seq, out_packet)
-                _cookie_unset(response, 'sn_pull')
-            except DiskFull:
-                _logger.debug('Postpone %r pull in cookies', pull_seq)
-                _cookie_set(response, 'sn_pull', pull_seq)
+        accept_length = _to_int('accept_length', accept_length)
+        return self._pull(response, pull_seq, accept_length)
 
-            response.content_type = out_packet.content_type
-            if not out_packet.empty:
-                return out_packet.pop()
-
-    @ad.volume_command(method='POST', cmd='clone')
+    @ad.volume_command(method='GET', cmd='clone',
+            mime_type='application/octet-stream')
     def clone(self, request, response, accept_length=None):
-        with OutFilePacket(src=self._guid, seqno=self.volume.seqno.value,
-                limit=_to_int('accept_length', accept_length)) as out_packet:
-            pull_seq = Sequence()
-            pull_seq.include(1, None)
+        pull_seq = Sequence()
+        pull_seq.include(1, None)
+        accept_length = _to_int('accept_length', accept_length)
+        return self._pull(response, pull_seq, accept_length)
 
-            _logger.debug('Writing %r pull', pull_seq)
-            try:
-                self.volume.diff(pull_seq, out_packet)
-                _cookie_unset(response, 'sn_pull')
-            except DiskFull:
-                _logger.debug('Postpone %r pull in cookies', pull_seq)
-                _cookie_set(response, 'sn_pull', pull_seq)
+    def _pull(self, response, pull_seq, accept_length):
+        pull_hash = hashlib.sha1(json.dumps(pull_seq)).hexdigest()
 
-            response.content_type = out_packet.content_type
-            if not out_packet.empty:
-                return out_packet.pop()
+        if pull_hash in self._pull_queue:
+            pull = self._pull_queue[pull_hash]
+            _logger.debug('Reuse existing %r pull', pull_seq)
+        else:
+            pull = self._pull_queue[pull_hash] = _Pull(self.volume, pull_seq,
+                    src=self._guid, seqno=self.volume.seqno.value,
+                    limit=accept_length)
+            _logger.debug('Preparing %r pull', pull_seq)
+
+        if pull.exception is not None:
+            del self._pull_queue[pull_hash]
+            raise pull.exception
+
+        if pull.sequence:
+            _logger.debug('Postpone %r pull in cookies', pull.sequence)
+            _cookie_set(response, 'sn_pull', pull.sequence)
+        else:
+            _cookie_unset(response, 'sn_pull')
+
+        response.content_type = pull.content_type
+        if pull.ready:
+            _logger.debug('Response with ready %r pull', pull_seq)
+            _cookie_unset(response, 'sn_delay')
+            return pull.content
+        else:
+            _logger.debug('Pull %r is not yet ready', pull_seq)
+            _cookie_set_raw(response, 'sn_delay',
+                    'sn_delay:%s' % pull.seconds_remained)
+
+
+class _Pull(object):
+
+    def __init__(self, volume, sequence, **packet_args):
+        self.sequence = sequence
+        self.exception = None
+        # TODO Might be useful to set meaningful value here
+        self.seconds_remained = 30
+
+        fd, path = tempfile.mkstemp(dir=node.tmpdir.value)
+        os.close(fd)
+        self._packet = OutPacket(stream=file(path, 'wb+'), **packet_args)
+
+        self._job = coroutine.spawn(self._diff, volume)
+
+    def __del__(self):
+        self._packet.close()
+        if exists(self._packet.path):
+            os.unlink(self._packet.path)
+
+    @property
+    def ready(self):
+        # pylint: disable-msg=E1101
+        return self._job.dead
+
+    @property
+    def content_type(self):
+        return self._packet.content_type
+
+    @property
+    def content(self):
+        if exists(self._packet.path):
+            return file(self._packet.path, 'rb')
+
+    def _diff(self, volume):
+        try:
+            volume.diff(self.sequence, self._packet)
+        except DiskFull:
+            pass
+        except Exception, exception:
+            util.exception('Error while preparing pull')
+            self.exception = exception
+            self._packet.clear()
+        else:
+            self.sequence.clear()
+        self.seconds_remained = 0
+        self._packet.close()
 
 
 def _cookie_get(request, name):
@@ -262,11 +329,17 @@ def _cookie_get(request, name):
 
 def _cookie_set(response, name, value):
     value = base64.b64encode(json.dumps(value))
-    response['Set-Cookie'] = '%s=%s; Max-Age=3600; HttpOnly' % (name, value)
+    _cookie_set_raw(response, name, value)
 
 
 def _cookie_unset(response, name):
-    response['Set-Cookie'] = '%s=%s_unset; Max-Age=1; HttpOnly' % (name, name)
+    _cookie_set_raw(response, name, '%s_unset' % name, 1)
+
+
+def _cookie_set_raw(response, name, value, age=3600):
+    response.setdefault('Set-Cookie', [])
+    cookie = '%s=%s; Max-Age=%s; HttpOnly' % (name, value, age)
+    response['Set-Cookie'].append(cookie)
 
 
 def _load_pubkey(pubkey):

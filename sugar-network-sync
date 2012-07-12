@@ -31,7 +31,7 @@ warning() {
 }
 
 abort() {
-    rm -f *.out
+    rm -f *.sync
     echo "-- $@"
     echo "   run \"V=1 $0 ${cmdline}\" to get full debugging output"
     exit 1
@@ -62,17 +62,9 @@ See http://wiki.sugarlabs.org/go/Sugar_Network for details.
 EOF
 }
 
-disk_free() {
-    disk_free=$(df . --block-size=1 | tail -n1 | awk '{print $4}')
-    [ $disk_free -gt $disk_limit ] || abort \
-        "No free disk space on $PWD, copy all *.cookie files" \
-        "to directory with more free space and re-run $0 from there"
-    echo $disk_free
-}
-
 get_header_key() {
-    packet="$1"
-    key="$2"
+    local packet="$1"
+    local key="$2"
 
     tar -xf "${packet}" header --to-stdout | \
         grep -o "\"${key}\":[^,}]\+" | \
@@ -80,24 +72,24 @@ get_header_key() {
 }
 
 upload() {
-    url="$1"
-    in_packet="$2"
-    cookie="$3"
-    out_packet="${in_packet}.out"
+    local url="$1"
+    local cookie="$2"
+    local in_packet="$3"
+    local out_packet="${in_packet}.sync"
 
-    [ -e "${in_packet}" ] || touch "${in_packet}"
     [ -e "${out_packet}" ] && abort "Destination ${out_packet} already exists"
 
     if which wget >/dev/null 2>&1; then
-        cmd="wget --post-file='${in_packet}' --output-document='${out_packet}' --load-cookies='${cookie}' --save-cookies='${cookie}'"
-        [ "${V}" ] || cmd="${cmd} -q"
+        cmd="wget --output-document=${out_packet} --load-cookies=${cookie} --save-cookies=${cookie}"
+        [ "${in_packet}" ] && cmd="${cmd} --post-file=${in_packet}"
+        [ "${V}" ] && cmd="${cmd} --server-response" || cmd="${cmd} --quiet"
     else
-        cmd="curl -XPOST --data-binary=@'${in_packet}' --output='${out_packet}' --cookie-jar='${cookie}'"
-        [ "${V}" ] || cmd="${cmd} -s"
+        cmd="curl --output=${out_packet} --cookie-jar=${cookie}"
+        [ "${in_packet}" ] && cmd="${cmd} -XPOST --data-binary=@${in_packet}"
+        [ "${V}" ] || cmd="${cmd} --silent"
     fi
 
-    sh -c "${cmd} '${url}'" || abort "Cannot run upload command"
-    rm "${in_packet}"
+    ${cmd} "${url}" || abort "Cannot run upload command"
 
     if [ -e "${out_packet}" ]; then
         if [ $(stat -c %s "${out_packet}") -eq 0 ]; then
@@ -118,6 +110,29 @@ upload() {
             rm "${cookie}"
         fi
     fi
+
+    if [ "${in_packet}" ]; then
+        phase "Remove uploaded file"
+        rm "${in_packet}"
+    fi
+}
+
+pull() {
+    local api_url="$1"
+    local cookie="$2"
+
+    while true; do
+        local disk_free=$(df . --block-size=1 | tail -n1 | awk '{print $4}')
+        [ $disk_free -gt $disk_limit ] || abort \
+            "No free disk space on $PWD, copy all *.cookie files" \
+            "to directory with more free space and re-run $0 from there"
+
+        upload "${api_url}&accept_length=${disk_free}" "${cookie}"
+        delay=$(grep -o 'sn_delay:[0-9]\+' "${cookie}" 2>/dev/null | awk -F: '{print $2}')
+        [ "${delay}" ] || break
+        phase "Server started processing pull, check for results in ${delay} seconds"
+        sleep ${delay}
+    done
 }
 
 if [ $# -eq 0 ]; then
@@ -135,7 +150,7 @@ cd "${sync_path}" || abort "Cannot switch to ${sync_path} sync directory"
 
 if [ "${clone_url}" ]; then
     info "Clone initial master dump"
-    upload "${clone_url}?cmd=clone&accept_length=$(disk_free)" clone.out
+    pull "${clone_url}?cmd=clone" clone.cookie
     exit 0
 fi
 
@@ -147,7 +162,7 @@ for packet in $(find -type f -name '*.packet'); do
     else
         info "Push ${packet} to ${api_url}"
         hostname="$(echo "${api_url}" | awk -F/ '{print $3}')"
-        upload "${api_url}?cmd=push" "${packet}" "${hostname}.cookie"
+        upload "${api_url}?cmd=push" "${hostname}.cookie" "${packet}"
     fi
 done
 
@@ -156,7 +171,7 @@ while true; do
     for cookie in $(find -type f -name '*.cookie'); do
         api_url="http://$(basename "${cookie}" .cookie)"
         info "Pull updates from ${api_url}"
-        upload "${api_url}?cmd=pull&accept_length=$(disk_free)" pull.out "${cookie}"
+        pull "${api_url}?cmd=pull" "${cookie}"
         found=1
     done
     [ "${found}" ] || break
