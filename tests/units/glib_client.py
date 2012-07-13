@@ -92,8 +92,6 @@ class GlibClientTest(tests.Test):
             ('keep', guid, True),
             ('keep', guid, False),
             ('keep', guid, True),
-            # This `False` is due to reverting keep_impl=1 to 0 on checkin fail
-            ('keep_impl', guid, False),
             ('keep_impl', guid, True),
             ('keep_impl', guid, False),
             ('keep_impl', guid, False),

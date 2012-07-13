@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import os
+import json
 import socket
 import zipfile
 from os.path import exists, abspath, join
@@ -13,6 +14,7 @@ from active_toolkit import coroutine, sockets
 from sugar_network.local.mounts import HomeMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.bus import IPCServer
+from sugar_network.local import activities
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network import local, Client, sugar
@@ -28,12 +30,17 @@ class NodeMountTest(tests.Test):
     def tearDown(self):
         tests.Test.tearDown(self)
 
-    def start_server(self):
+    def start_server(self, ipc=False):
         local.mounts_root.value = tests.tmpdir
 
         volume = Volume('local', [User, Context])
         mounts = Mountset(volume)
-        Client._connection = mounts
+        if ipc:
+            self.server = IPCServer(mounts)
+            coroutine.spawn(self.server.serve_forever)
+            coroutine.dispatch()
+        else:
+            Client._connection = mounts
         self.got_event = coroutine.Event()
 
         def events_cb(event):
@@ -159,6 +166,77 @@ class NodeMountTest(tests.Test):
                     (guid_2, 'remote-2', False, 0),
                     ]),
                 sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+
+    def test_SetKeepImpl(self):
+        Volume.RESOURCES = [
+                'sugar_network.resources.user',
+                'sugar_network.resources.context',
+                'sugar_network.resources.implementation',
+                ]
+
+        self.touch(('mnt/sugar-network/node', 'node'))
+        mounts = self.start_server(ipc=True)
+        mounts['~'] = HomeMount(mounts.home_volume)
+        self.got_event.wait()
+        remote = Client(tests.tmpdir + '/mnt')
+        local = Client('~')
+        coroutine.spawn(activities.monitor, mounts.home_volume, ['Activities'])
+
+        context = remote.Context(
+                type=['activity'],
+                title='remote',
+                summary='summary',
+                description='description').post()
+        impl = remote.Implementation(
+                context=context,
+                license=['GPLv3+'],
+                version='1',
+                date=0,
+                stability='stable',
+                notes='').post()
+        with file('mnt/sugar-network/context/%s/%s/feed' % (context[:2], context), 'w') as f:
+            json.dump({
+                'seqno': 0,
+                'mime_type': 'application/octet-stream',
+                'digest': 'digest',
+                }, f)
+        with file('mnt/sugar-network/context/%s/%s/feed.blob' % (context[:2], context), 'w') as f:
+            json.dump({
+                '1': {
+                    '*-*': {
+                        'commands': {
+                            'activity': {
+                                'exec': 'echo',
+                                },
+                            },
+                        'stability': 'stable',
+                        'guid': impl,
+                        'size': 0,
+                        'extract': 'TestActivitry',
+                        },
+                    },
+                }, f)
+        bundle = zipfile.ZipFile('bundle', 'w')
+        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = %s' % context,
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license=Public Domain',
+            ]))
+        bundle.close()
+        remote.Implementation(impl).upload_blob('data', 'bundle')
+
+        remote.Context(context, keep_impl=1).post()
+
+        cursor = local.Context.cursor(reply=['keep_impl', 'title'])
+        self.assertEqual([
+            (context, 'remote', 2),
+            ],
+            [(i.guid, i['title'], i['keep_impl']) for i in cursor])
+        assert exists('Activities/TestActivitry/activity/activity.info')
 
     def test_Events(self):
         self.touch(('mnt/sugar-network/node', 'node'))
