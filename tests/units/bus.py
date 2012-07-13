@@ -16,7 +16,7 @@ from sugar_network.local.mountset import Mountset
 from sugar_network.resources.volume import Volume
 
 
-class IPCTest(tests.Test):
+class BusTest(tests.Test):
 
     def test_Rendezvous(self):
 

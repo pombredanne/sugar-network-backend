@@ -47,8 +47,8 @@ data_root = Option(
                 'data and indexes',
         default='/var/lib/sugar-network/db', name='data_root')
 
-only_sync_notification = Option(
-        'subscribers can be notified only with "sync" events; ' \
+only_commit_events = Option(
+        'subscribers can be notified only with "commit" events; ' \
                 'that is useful to minimize interactions between ' \
                 'server and clients',
         default=False, type_cast=Option.bool_cast, action='store_true')

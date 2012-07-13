@@ -34,7 +34,7 @@ class MountsetTest(tests.Test):
 
         volume = Volume('local', [User, Context])
         mounts = Mountset(volume)
-        Client.connection = mounts
+        Client._connection = mounts
         self.mounted = coroutine.Event()
 
         def events_cb(event):

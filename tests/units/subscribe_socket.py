@@ -25,7 +25,7 @@ class SubscribeSocketTest(tests.Test):
         return result
 
     def test_Subscribe(self):
-        node.only_sync_notification.value = False
+        node.only_commit_events.value = False
 
         self.fork(self.restful_server, [User, Document])
         rest = tests.Request('http://localhost:8800')
@@ -38,6 +38,7 @@ class SubscribeSocketTest(tests.Test):
 
             event = subscription.read_message()
             event.pop('props')
+            event.pop('seqno')
             self.assertEqual({
                 'guid': guid,
                 'document': 'document',
@@ -52,6 +53,7 @@ class SubscribeSocketTest(tests.Test):
 
             event = subscription.read_message()
             event.pop('props')
+            event.pop('seqno')
             self.assertEqual({
                 'event': 'update',
                 'document': 'document',
@@ -61,18 +63,19 @@ class SubscribeSocketTest(tests.Test):
 
             rest.delete('/document/' + guid)
             self.assertRaises(RuntimeError, rest.get, '/document/' + guid)
-
+            event = subscription.read_message()
+            event.pop('seqno')
             self.assertEqual({
                 'event': 'delete',
                 'document': 'document',
                 'guid': guid,
                 },
-                subscription.read_message())
+                event)
 
             self.assertRaises(socket.timeout, socket.wait_read, subscription.fileno(), 1)
 
     def test_OnlySyncEvents(self):
-        node.only_sync_notification.value = True
+        node.only_commit_events.value = True
 
         self.fork(self.restful_server, [User, Document])
         rest = tests.Request('http://localhost:8800')
@@ -82,7 +85,7 @@ class SubscribeSocketTest(tests.Test):
 
             self.assertEqual({
                 'document': 'document',
-                'event': 'sync',
+                'event': 'commit',
                 'seqno': 2,
                 },
                 subscription.read_message())
@@ -91,7 +94,7 @@ class SubscribeSocketTest(tests.Test):
 
             self.assertEqual({
                 'document': 'document',
-                'event': 'sync',
+                'event': 'commit',
                 'seqno': 3,
                 },
                 subscription.read_message())
@@ -100,7 +103,7 @@ class SubscribeSocketTest(tests.Test):
 
             self.assertEqual({
                 'document': 'document',
-                'event': 'sync',
+                'event': 'commit',
                 'seqno': 4,
                 },
                 subscription.read_message())

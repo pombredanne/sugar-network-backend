@@ -32,7 +32,7 @@ class NodeMountTest(tests.Test):
 
         volume = Volume('local', [User, Context])
         mounts = Mountset(volume)
-        Client.connection = mounts
+        Client._connection = mounts
         self.got_event = coroutine.Event()
 
         def events_cb(event):
@@ -184,7 +184,7 @@ class NodeMountTest(tests.Test):
                 description='description').post()
         got_commit.wait()
         self.assertEqual([
-            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'create', 'guid': guid},
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'create', 'guid': guid, 'seqno': 1},
             {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 1},
             ],
             events)
@@ -193,7 +193,7 @@ class NodeMountTest(tests.Test):
         client.Context(guid, title='new-title').post()
         got_commit.wait()
         self.assertEqual([
-            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'update', 'guid': guid},
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 2},
             {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 2},
             ],
             events)

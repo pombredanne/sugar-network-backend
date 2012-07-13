@@ -69,6 +69,7 @@ class Test(unittest.TestCase):
         ad.index_flush_threshold.value = 1
         node.find_limit.value = 1024
         node.tmpdir.value = tmpdir + '/tmp'
+        node.only_commit_events.value = False
         ad.index_write_queue.value = 10
         local.local_root.value = tmpdir
         local.activity_dirs.value = [tmpdir + '/Activities']
@@ -112,20 +113,18 @@ class Test(unittest.TestCase):
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
-        coroutine.shutdown()
         sys.stdout.flush()
 
     def stop_servers(self):
         if self.mounts is not None:
             self.mounts.close()
-        if bus.Client.connection is not None:
-            bus.Client.connection.close()
         bus.Client.close()
         if self.server is not None:
             self.server.stop()
         while self.forks:
             pid = self.forks.pop()
             self.assertEqual(0, self.waitpid(pid))
+        coroutine.shutdown()
 
     def waitpid(self, pid, sig=signal.SIGTERM):
         if pid in self.forks:
@@ -202,11 +201,7 @@ class Test(unittest.TestCase):
         coroutine.sleep(1)
         return child.pid
 
-    def start_server(self, classes=None, open=True):
-
-        def server():
-            self.server.serve_forever()
-
+    def start_server(self, classes=None):
         if classes is None:
             classes = [User, Context]
         volume = Volume('local', classes)
@@ -214,24 +209,24 @@ class Test(unittest.TestCase):
         self.mounts['~'] = HomeMount(volume)
         self.mounts['/'] = RemoteMount(volume)
         self.server = IPCServer(self.mounts)
-        coroutine.spawn(server)
-        if open:
-            self.mounts.open()
+        coroutine.spawn(self.server.serve_forever)
+        self.mounts.open()
+        self.mounts.opened.wait()
         coroutine.dispatch()
 
     def start_ipc_and_restful_server(self, classes=None, **kwargs):
         pid = self.fork(self.restful_server, classes)
-        self.start_server(classes, open=False)
+        self.start_server(classes)
 
-        def wait_connect(event):
-            if event['event'] == 'mount':
-                connected.set()
+        if not self.mounts['/'].mounted:
 
-        connected = coroutine.Event()
-        bus.Client.connect(wait_connect)
-        coroutine.sleep(.1)
-        self.mounts.open()
-        connected.wait()
+            def wait_connect(event):
+                if event.get('mountpoint') == '/' and event['event'] == 'mount':
+                    connected.set()
+
+            connected = coroutine.Event()
+            self.mounts.connect(wait_connect)
+            connected.wait()
 
         return pid
 

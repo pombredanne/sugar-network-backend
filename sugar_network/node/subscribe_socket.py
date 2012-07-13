@@ -85,12 +85,9 @@ class SubscribeSocket(object):
             self._subscribers.remove(conn)
 
     def __signal_cb(self, event):
-        if node.only_sync_notification.value:
+        if node.only_commit_events.value:
             if event['event'] != 'commit':
-                # Even "sync" event can be ignored,
-                # passing only "commit" is enough
                 return
-            event['event'] = 'sync'
         else:
             if event['event'] == 'commit':
                 # Subscribers already got update notifications enough
