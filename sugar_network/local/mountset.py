@@ -147,8 +147,8 @@ class Mountset(dict, ad.CommandsProcessor):
 
         return result
 
-    def connect(self, callback, condition=None):
-        self._subscriptions[callback] = condition or {}
+    def connect(self, callback, condition=None, **kwargs):
+        self._subscriptions[callback] = condition or kwargs
 
     def disconnect(self, callback):
         if callback in self._subscriptions:

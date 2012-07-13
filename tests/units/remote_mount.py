@@ -281,6 +281,8 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(3, json.load(file(cache_path + '.meta'))['seqno'])
 
         # Shift seqno
+        connected = coroutine.Event()
+        self.mounts.connect(lambda event: connected.set(), event='create', mountpoint='/')
         http.request('POST', ['context'],
                 headers={'Content-Type': 'application/json'},
                 data={
@@ -289,21 +291,10 @@ class RemoteMountTest(tests.Test):
                     'summary': 'summary2',
                     'description': 'description2',
                     })
-        coroutine.sleep(1)
-
-        remote.close()
-        self.stop_servers()
-        self.start_ipc_and_restful_server()
-        remote = Client('/')
+        connected.wait()
 
         self.assertEqual('blob', remote.Context(guid).get_blob('preview').read())
         self.assertEqual(4, json.load(file(cache_path + '.meta'))['seqno'])
-
-
-
-
-
-
 
     def test_GetAbsentBLOB(self):
         self.start_ipc_and_restful_server()

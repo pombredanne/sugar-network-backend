@@ -3,7 +3,8 @@
 
 import os
 import socket
-from os.path import exists
+import zipfile
+from os.path import exists, abspath, join
 
 from __init__ import tests
 
@@ -247,6 +248,34 @@ class NodeMountTest(tests.Test):
         path, mime_type = client.Context(guid).get_blob_path('icon')
         self.assertEqual(None, path)
         self.assertEqual(True, client.Context(guid).get_blob('icon').closed)
+
+    def test_get_blob_ExtractImplementations(self):
+        Volume.RESOURCES = [
+                'sugar_network.resources.user',
+                'sugar_network.resources.implementation',
+                ]
+
+        self.touch(('mnt/sugar-network/node', 'node'))
+        self.start_server()
+        self.got_event.wait()
+        remote = Client(tests.tmpdir + '/mnt')
+
+        guid = remote.Implementation(
+                context='context',
+                license=['GPLv3+'],
+                version='1',
+                date=0,
+                stability='stable',
+                notes='').post()
+
+        bundle = zipfile.ZipFile('bundle', 'w')
+        bundle.writestr('probe', 'probe')
+        bundle.close()
+        remote.Implementation(guid).upload_blob('data', 'bundle')
+
+        path, __ = remote.Implementation(guid).get_blob_path('data')
+        self.assertEqual(abspath('cache/implementation/%s/%s/data' % (guid[:2], guid)), path)
+        self.assertEqual('probe', file(join(path, 'probe')).read())
 
 
 if __name__ == '__main__':

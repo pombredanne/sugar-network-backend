@@ -23,10 +23,11 @@ from gettext import gettext as _
 
 import sweets_recipe
 import active_document as ad
+from sweets_recipe import Bundle
 from sugar_network.toolkit.collection import Sequence, PersistentSequence
 from sugar_network.toolkit.sneakernet import OutFilePacket, DiskFull
 from sugar_network.toolkit import sugar, http, sneakernet
-from sugar_network.local import activities
+from sugar_network.local import activities, cache
 from sugar_network import local, checkin, sugar
 from active_toolkit import sockets, util, coroutine, enforce
 
@@ -123,26 +124,12 @@ class HomeMount(LocalMount):
     def get_blob(self, document, guid, prop, request=None):
         if document == 'context' and prop == 'feed':
             return json.dumps(self._get_feed(request))
-        else:
-            return LocalMount.get_blob(self, document, guid, prop, request)
-
-    @ad.property_command(method='GET')
-    def get_prop(self, document, guid, prop, request, response, seqno=None):
-        if document == 'context' and prop == 'feed':
-            directory = self.volume[document]
-            directory.metadata[prop].assert_access(ad.ACCESS_READ)
-            return self._get_feed(request)
         elif document == 'implementation' and prop == 'data':
             path = activities.guid_to_path(guid)
-            if not exists(path):
-                return None
-            dir_info, dir_reader = sockets.encode_directory(path)
-            response.content_length = dir_info.content_length
-            response.content_type = dir_info.content_type
-            return dir_reader
+            if exists(path):
+                return {'path': path}
         else:
-            return LocalMount.get_prop(self, document, guid, prop, request,
-                    response, seqno)
+            return LocalMount.get_blob(self, document, guid, prop, request)
 
     def _get_feed(self, request):
         feed = {}
@@ -273,34 +260,13 @@ class RemoteMount(ad.CommandsProcessor, _Mount):
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop):
-        blob_path = join(local.local_root.value, 'cache', document, guid[:2],
-                guid, prop)
-        meta_path = blob_path + '.meta'
-        meta = {}
 
-        def download(seqno):
-            mime_type = http.download([document, guid, prop], blob_path, seqno,
+        def download(path, seqno):
+            return http.download([document, guid, prop], path, seqno,
                     document == 'implementation' and prop == 'data')
-            meta['mime_type'] = mime_type
-            meta['seqno'] = self._seqno
-            meta['volume'] = self._remote_volume_guid
-            with file(meta_path, 'w') as f:
-                json.dump(meta, f)
 
-        if exists(meta_path):
-            with file(meta_path) as f:
-                meta = json.load(f)
-            if meta.get('volume') != self._remote_volume_guid:
-                download(None)
-            elif meta.get('seqno') < self._seqno:
-                download(meta['seqno'])
-        else:
-            download(None)
-
-        if not exists(blob_path):
-            return None
-        meta['path'] = blob_path
-        return meta
+        return cache.get_blob(document, guid, prop, self._seqno,
+                self._remote_volume_guid, download)
 
     @ad.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
@@ -388,6 +354,24 @@ class NodeMount(LocalMount):
     def call(self, request, response):
         return _proxy_call(self._home_volume, request, response,
                 super(NodeMount, self).call, self.get_blob)
+
+    @ad.property_command(method='GET', cmd='get_blob')
+    def get_blob(self, document, guid, prop, request=None):
+        meta = LocalMount.get_blob(self, document, guid, prop)
+        if meta is None:
+            return
+
+        if document == 'implementation' and prop == 'data':
+
+            def extract(path, seqno):
+                with Bundle(meta['path'], 'application/zip') as bundle:
+                    bundle.extractall(path)
+                return meta['mime_type']
+
+            return cache.get_blob(document, guid, prop, meta['seqno'],
+                    self._node_guid, extract)
+
+        return meta
 
     def sync(self, path, accept_length=None, push_sequence=None, session=None):
         to_push_seq = Sequence(empty_value=[1, None])
