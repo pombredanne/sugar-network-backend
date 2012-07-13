@@ -206,12 +206,6 @@ class Directory(object):
 
         if record.consistent:
             self._post(guid, {'seqno': seqno}, False)
-            event = {'event': 'update_blob',
-                     'guid': guid,
-                     'prop': prop.name,
-                     'seqno': seqno,
-                     }
-            self._notify(event)
 
     def populate(self):
         """Populate the index.
@@ -251,7 +245,6 @@ class Directory(object):
         if found:
             self._save_layout()
             self.commit()
-            self._notify({'event': 'sync', 'seqno': self._seqno.value})
 
     def diff(self, accept_range, limit, clone=False):
         """Return documents' properties for specified times range.
@@ -401,6 +394,7 @@ class Directory(object):
 
     def _post_store(self, guid, changes, event, increment_seqno):
         if event:
+            event['seqno'] = self._seqno.value
             self._notify(event)
 
     def _post_delete(self, guid, event):

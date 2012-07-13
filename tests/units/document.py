@@ -390,60 +390,6 @@ class DocumentTest(tests.Test):
                 json.load(file('%s/%s/blob' % (guid_1[:2], guid_1)))['seqno'],
                 3)
 
-    def test_Events(self):
-        env.index_flush_threshold.value = 0
-        env.index_flush_timeout.value = 0
-
-        class Document(document.Document):
-
-            @active_property(slot=1)
-            def prop(self, value):
-                return value
-
-            @active_property(BlobProperty)
-            def blob(self, value):
-                return value
-
-        self.touch(
-                ('1/1/guid', '{"value": "1"}'),
-                ('1/1/ctime', '{"value": 1}'),
-                ('1/1/mtime', '{"value": 1}'),
-                ('1/1/prop', '{"value": "prop-1"}'),
-                ('1/1/layer', '{"value": ["public"]}'),
-                ('1/1/user', '{"value": ["me"]}'),
-                ('1/1/seqno', '{"value": 0}'),
-                )
-
-        def notification_cb(event):
-            if 'props' in event:
-                del event['props']
-            events.append(event)
-
-        events = []
-        directory = Directory(tests.tmpdir, Document, IndexWriter,
-                notification_cb=notification_cb)
-
-        for i in directory.populate():
-            pass
-
-        directory.create(guid='guid', prop='prop', user=[])
-        directory.set_blob('guid', 'blob', StringIO('blob'))
-        directory.update('guid', {'prop': 'prop2'})
-        directory.delete('guid')
-        directory.commit()
-
-        self.assertEqual([
-            {'event': 'commit', 'seqno': 0},
-            {'event': 'sync', 'seqno': 0},
-            {'guid': 'guid', 'event': 'create'},
-            {'guid': 'guid', 'event': 'update'},
-            {'guid': 'guid', 'event': 'update_blob', 'prop': 'blob', 'seqno': 2},
-            {'guid': 'guid', 'event': 'update'},
-            {'guid': 'guid', 'event': 'delete'},
-            {'event': 'commit', 'seqno': 3}
-            ],
-            events)
-
     def test_diff(self):
 
         class Document(document.Document):

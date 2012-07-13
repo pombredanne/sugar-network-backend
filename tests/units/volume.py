@@ -501,6 +501,132 @@ class VolumeTest(tests.Test):
         volume = SingleVolume(tests.tmpdir, [Document1, Document2])
         self.assertEqual(4, volume.seqno.value)
 
+    def test_Events(self):
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 0
+
+        class Document1(Document):
+            pass
+
+        class Document2(Document):
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+        self.touch(
+                ('document1/1/1/guid', '{"value": "1"}'),
+                ('document1/1/1/ctime', '{"value": 1}'),
+                ('document1/1/1/mtime', '{"value": 1}'),
+                ('document1/1/1/layer', '{"value": ["public"]}'),
+                ('document1/1/1/user', '{"value": ["me"]}'),
+                ('document1/1/1/seqno', '{"value": 0}'),
+                )
+
+        events = []
+        volume = SingleVolume(tests.tmpdir, [Document1, Document2])
+        volume.connect(lambda event: events.append(event))
+
+        volume.populate()
+        self.assertEqual([
+            {'event': 'commit', 'document': 'document1', 'seqno': 0},
+            ],
+            events)
+        del events[:]
+
+        volume['document1'].create(guid='guid1')
+        volume['document2'].create(guid='guid2')
+        self.assertEqual([
+            {'event': 'create', 'document': 'document1', 'seqno': 1, 'guid': 'guid1', 'props': {
+                'layer': ('public',),
+                'ctime': 0,
+                'mtime': 0,
+                'seqno': 0,
+                'user': (),
+                'guid': 'guid1',
+                }},
+            {'event': 'create', 'document': 'document2', 'seqno': 2, 'guid': 'guid2', 'props': {
+                'layer': ('public',),
+                'ctime': 0,
+                'mtime': 0,
+                'seqno': 0,
+                'user': (),
+                'guid': 'guid2',
+                }},
+            ],
+            events)
+        del events[:]
+
+        volume['document1'].update('guid1', user=['me'])
+        volume['document2'].update('guid2', user=['you'])
+        self.assertEqual([
+            {'event': 'update', 'document': 'document1', 'seqno': 3, 'guid': 'guid1', 'props': {
+                'user': ('me',),
+                }},
+            {'event': 'update', 'document': 'document2', 'seqno': 4, 'guid': 'guid2', 'props': {
+                'user': ('you',),
+                }},
+            ],
+            events)
+        del events[:]
+
+        volume['document2'].set_blob('guid2', 'blob', StringIO('blob'))
+        self.assertEqual([
+            {'event': 'update', 'document': 'document2', 'seqno': 5, 'guid': 'guid2', 'props': {
+                'seqno': 5,
+                }},
+            ],
+            events)
+        del events[:]
+
+        volume['document1'].delete('guid1')
+        self.assertEqual([
+            {'event': 'delete', 'document': 'document1', 'guid': 'guid1'},
+            ],
+            events)
+        del events[:]
+
+        volume['document1'].commit()
+        volume['document2'].commit()
+
+        self.assertEqual([
+            {'event': 'commit', 'document': 'document1', 'seqno': 5},
+            {'event': 'commit', 'document': 'document2', 'seqno': 5},
+            ],
+            events)
+
+    def test_Events_SimulateDeleteEvent(self):
+        env.index_flush_threshold.value = 0
+        env.index_flush_timeout.value = 0
+
+        class Document1(Document):
+            pass
+
+        events = []
+        volume = SingleVolume(tests.tmpdir, [Document1])
+        volume.connect(lambda event: events.append(event))
+
+        volume['document1'].create(guid='guid')
+        self.assertEqual([
+            {'event': 'create', 'document': 'document1', 'seqno': 1, 'guid': 'guid', 'props': {
+                'layer': ('public',),
+                'ctime': 0,
+                'mtime': 0,
+                'seqno': 0,
+                'user': (),
+                'guid': 'guid',
+                }},
+            ],
+            events)
+        del events[:]
+
+        volume['document1'].update('guid', layer=['deleted'])
+        self.assertEqual([
+            {'event': 'delete', 'document': 'document1', 'seqno': 2, 'guid': 'guid'},
+            ],
+            events)
+        del events[:]
+
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):
 
