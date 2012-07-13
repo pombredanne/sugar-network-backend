@@ -36,9 +36,9 @@ class GlibClient(gobject.GObject):
             # (bundle_id, value)
             gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, [str, bool]),
         'launch': (
-            # (bundle_id, command, object_id, uri, args)
+            # (mountpoint, bundle_id, command, object_id, uri, args)
             gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE,
-            [str, str, object, object, object]),
+            [str, str, str, object, object, object]),
         'alert': (
             # (severity, message)
             gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, [str, str]),
@@ -104,8 +104,8 @@ class GlibClient(gobject.GObject):
             self.emit('connect', event['mountpoint'], False)
 
         elif event_type == 'launch':
-            self.emit('launch', event['context'], event['command'],
-                    event.get('object_id'), event.get('uri'),
+            self.emit('launch', event['mountpoint'], event['context'],
+                    event['command'], event.get('object_id'), event.get('uri'),
                     event.get('args'))
 
         elif event_type == 'alert':

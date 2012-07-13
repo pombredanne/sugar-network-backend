@@ -148,8 +148,8 @@ class Client(object):
 
         """
         # TODO Make a diference in launching from "~" and "/" mounts
-        self.publish('launch', context=context, command=command,
-                object_id=object_id, uri=uri, args=args)
+        self.publish('launch', mountpoint=self._mountpoint, context=context,
+                command=command, object_id=object_id, uri=uri, args=args)
 
     def __getattr__(self, name):
         """Class-like object to access to a resource or call a method.

@@ -4,3 +4,4 @@ doc/build
 tmp
 misc/db/**
 misc/log
+sugar_network/zerosugar/lib/**
