@@ -17,14 +17,13 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-07-12$
+$Date: 2012-07-14$
 
 """
 
 import os
 import sys
 import signal
-import atexit
 import logging
 import textwrap
 from optparse import OptionParser
@@ -326,7 +325,6 @@ class Daemon(Application):
         pidfile = file(pid_path, 'w')
         pidfile.write(str(os.getpid()))
         pidfile.close()
-        atexit.register(lambda: os.remove(pid_path))
 
         try:
             self._launch()
@@ -336,6 +334,8 @@ class Daemon(Application):
         else:
             logging.info('Stopped %s', self.name)
             status = 0
+        finally:
+            os.unlink(pid_path)
 
         exit(status)
 
