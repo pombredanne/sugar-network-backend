@@ -253,7 +253,7 @@ def _download_redirect(url):
     if not exists(cached_path):
         _logger.debug('Download %r redirect into %r', url, cached_path)
         with util.new_file(cached_path) as f:
-            response = http.request('GET', url)
+            response = http.request('GET', url, allow_redirects=True)
             for chunk in response.iter_content(chunk_size=BUFFER_SIZE):
                 f.write(chunk)
 
