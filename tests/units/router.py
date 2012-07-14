@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import time
+import urllib2
 import hashlib
 import tempfile
 from cStringIO import StringIO
+from os.path import exists
 
 from __init__ import tests
 
@@ -228,6 +231,31 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 {'term': 'probe'},
                 rest.get('///document//%s/' % guid, reply='term'))
+
+    def test_HandleRedirects(self):
+        URL = 'http://sugarlabs.org'
+
+        class Document2(Document):
+
+            @ad.active_property(ad.BlobProperty)
+            def blob(self, value):
+                raise ad.Redirect(URL)
+
+        self.fork(self.restful_server, [User, Document2])
+        rest = tests.Request('http://localhost:8800')
+
+        guid = rest.post('/document2', {'term': 'probe'})
+        rest.put('/document2/%s/blob' % guid, 'blob')
+
+        context = urllib2.urlopen(URL).read()
+        cached_path = 'tmp/' + hashlib.sha1(URL).hexdigest() + '.redirect'
+        assert context == rest.get('/document2/%s/blob' % guid)
+        assert exists(cached_path)
+
+        os.utime(cached_path, (0, 0))
+        assert context == rest.get('/document2/%s/blob' % guid)
+        assert 0 == os.stat(cached_path).st_mtime
+
 
     def test_Request_MultipleQueryArguments(self):
         request = _Request({

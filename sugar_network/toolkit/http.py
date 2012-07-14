@@ -141,7 +141,8 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
 
     if not path:
         path = ['']
-    path = '/'.join([i.strip('/') for i in [local.api_url.value] + path])
+    if not isinstance(path, basestring):
+        path = '/'.join([i.strip('/') for i in [local.api_url.value] + path])
 
     if data is not None and headers and \
             headers.get('Content-Type') == 'application/json':
