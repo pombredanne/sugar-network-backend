@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import json
 import base64
 import logging
@@ -237,9 +236,9 @@ class MasterCommands(NodeCommands):
             pull = self._pull_queue[pull_hash]
             _logger.debug('Reuse existing %r pull', pull_seq)
         else:
-            pull = self._pull_queue[pull_hash] = _Pull(self.volume, pull_seq,
-                    clone, src=self._guid, seqno=self.volume.seqno.value,
-                    limit=accept_length)
+            pull = self._pull_queue[pull_hash] = _Pull(pull_hash, self.volume,
+                    pull_seq, clone, src=self._guid,
+                    seqno=self.volume.seqno.value, limit=accept_length)
             _logger.debug('Preparing %r pull', pull_seq)
 
         if pull.exception is not None:
@@ -270,22 +269,16 @@ class MasterCommands(NodeCommands):
 
 class _Pull(object):
 
-    def __init__(self, volume, sequence, clone, **packet_args):
+    def __init__(self, pull_hash, volume, sequence, clone, **packet_args):
         self.sequence = sequence
         self.exception = None
         # TODO Might be useful to set meaningful value here
         self.seconds_remained = 30
 
-        fd, path = tempfile.mkstemp(dir=node.tmpdir.value)
-        os.close(fd)
+        path = join(node.tmpdir.value, pull_hash + '.pull')
         self._packet = OutPacket(stream=file(path, 'wb+'), **packet_args)
 
         self._job = coroutine.spawn(self._diff, volume, clone)
-
-    def __del__(self):
-        self._packet.close()
-        if exists(self._packet.path):
-            os.unlink(self._packet.path)
 
     @property
     def ready(self):
