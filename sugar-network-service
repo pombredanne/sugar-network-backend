@@ -80,8 +80,9 @@ class Application(application.Daemon):
         sneakernet.TMPDIR = local.tmpdir.value
 
     @application.command(
-            '[PREFIX-PATH] [USER-GUID]\n'
-                'Index local Sugar Network database')
+            '[PREFIX-PATH [CONTEXT-GUID ..]]\n'
+                'Index local Sugar Network database; if CONTEXT-GUIDs '
+                'were specified, make these context favorited')
     def index(self):
         if ipc.server_exists():
             printf.info('%s already started, no need in index', self.name)
@@ -94,10 +95,10 @@ class Application(application.Daemon):
                     for i in local.activity_dirs.value]
             local.local_root.value = root + local.local_root.value
 
-        if self.args:
-            user = self.args.pop(0)
-            sugar.uid = lambda: user
-            sugar.nickname = lambda: user
+        if not exists(sugar.profile_path()):
+            # Command was launched in foreign environment
+            sugar.uid = lambda: 'index'
+            sugar.nickname = lambda: 'index'
 
         printf.info('Index database in %r', local.local_root.value)
 
@@ -105,6 +106,15 @@ class Application(application.Daemon):
         try:
             volume.populate()
             activities.populate(volume, local.activity_dirs.value, root)
+
+            directory = volume['context']
+            while self.args:
+                context = self.args.pop(0)
+                if directory.exists(context):
+                    directory.update(context, keep=True)
+                else:
+                    printf.info('Cannot find %r context', context)
+
         finally:
             volume.close()
 
