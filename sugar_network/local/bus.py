@@ -38,6 +38,7 @@ class IPCServer(object):
         self._principal = sugar.uid()
         self._publish_lock = coroutine.Lock()
         self._servers = coroutine.ServersPool()
+        self._jobs = coroutine.Pool()
 
         self._mounts.connect(self._republish)
 
@@ -99,10 +100,8 @@ class IPCServer(object):
     def _republish(self, event):
         if event.get('event') == 'delayed-start':
             if self._delayed_start is not None:
-                try:
-                    self._delayed_start()
-                finally:
-                    self._delayed_start = None
+                self._jobs.spawn(self._delayed_start)
+                self._delayed_start = None
             return
 
         _logger.debug('Send notification: %r', event)
