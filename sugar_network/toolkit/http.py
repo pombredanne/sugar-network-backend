@@ -130,14 +130,17 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
             verify = False
         elif local.certfile.value:
             verify = local.certfile.value
-        uid = sugar.uid()
-        _session = Session(
-                headers={
+
+        headers = None
+        key_path = sugar.profile_path('owner.key')
+        if exists(key_path):
+            uid = sugar.uid()
+            headers = {
                     'sugar_user': uid,
-                    'sugar_user_signature': _sign(uid),
-                    },
-                verify=verify,
-                )
+                    'sugar_user_signature': _sign(key_path, uid),
+                    }
+
+        _session = Session(headers=headers, verify=verify)
 
     if not path:
         path = ['']
@@ -190,6 +193,6 @@ def _register():
             )
 
 
-def _sign(data):
-    key = DSA.load_key(sugar.profile_path('owner.key'))
+def _sign(key_path, data):
+    key = DSA.load_key(key_path)
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')

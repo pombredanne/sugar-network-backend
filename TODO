@@ -10,6 +10,7 @@
 - move highlevel code from ad, eg, auth related
 - restrict sync content, especially for actiivity versions
 - after switching to global seqno, tweek blobs chaching model
+- do not keep partially created .pull files while processing pull sync requests on master
 
 1.0
 ===
