@@ -398,7 +398,10 @@ class SyncTest(tests.Test):
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual(2, len([i for i in packet]))
 
+        for i in master._pull_queue.values():
+            os.unlink(i.path)
         master._pull_queue.clear()
+
         request, response = rewind()
         reply = master.pull(request, response, accept_length=1024 * 3)
         assert reply is None
@@ -508,6 +511,25 @@ class SyncTest(tests.Test):
             {'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
             ],
             [i for i in packet])
+
+    def test_Master_ReuseCachedPulls(self):
+        master = MasterCommands('master')
+        request = Request()
+        response = ad.Response()
+
+        master.volume['document'].create(guid='1')
+        master.volume['document'].create(guid='2')
+
+        pull_hash = hashlib.sha1(json.dumps([[1, None]])).hexdigest()
+        cached_pull = join('tmp', pull_hash + '.pull')
+        packet = OutPacket(stream=file(cached_pull, 'w'), probe='test')
+        packet.push(data=[None])
+        packet.close()
+
+        reply = master.clone(request, response)
+        assert reply is not None
+        packet = InPacket(stream=reply)
+        self.assertEqual('test', packet.header['probe'])
 
     def test_Master_pull_AskForNotYetReadyPull(self):
         master = MasterCommands('master')

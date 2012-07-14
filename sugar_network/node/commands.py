@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import json
 import base64
 import logging
@@ -272,41 +273,54 @@ class _Pull(object):
     def __init__(self, pull_hash, volume, sequence, clone, **packet_args):
         self.sequence = sequence
         self.exception = None
-        # TODO Might be useful to set meaningful value here
-        self.seconds_remained = 30
+        self.seconds_remained = 0
+        self.content_type = None
+        self.path = join(node.tmpdir.value, pull_hash + '.pull')
+        self._job = None
 
-        path = join(node.tmpdir.value, pull_hash + '.pull')
-        self._packet = OutPacket(stream=file(path, 'wb+'), **packet_args)
+        if exists(self.path):
+            try:
+                with InPacket(self.path) as packet:
+                    self.content_type = packet.content_type
+                _logger.debug('Pickup cached %r pull', self.path)
+            except Exception:
+                util.exception('Cannot open cached %r pull, will recreate')
+                os.unlink(self.path)
 
-        self._job = coroutine.spawn(self._diff, volume, clone)
+        if not exists(self.path):
+            packet = OutPacket(stream=file(self.path, 'wb+'), **packet_args)
+            self.content_type = packet.content_type
+            # TODO Might be useful to set meaningful value here
+            self.seconds_remained = 30
+            self._job = coroutine.spawn(self._diff, volume, clone, packet)
 
     @property
     def ready(self):
         # pylint: disable-msg=E1101
-        return self._job.dead
-
-    @property
-    def content_type(self):
-        return self._packet.content_type
+        return self._job is None or self._job.dead
 
     @property
     def content(self):
-        if exists(self._packet.path):
-            return file(self._packet.path, 'rb')
+        if exists(self.path):
+            return file(self.path, 'rb')
 
-    def _diff(self, volume, clone):
+    def __del__(self):
+        if exists(self.path):
+            os.unlink(self.path)
+
+    def _diff(self, volume, clone, packet):
         try:
-            volume.diff(self.sequence, self._packet, clone=clone)
+            volume.diff(self.sequence, packet, clone=clone)
         except DiskFull:
             pass
         except Exception, exception:
             util.exception('Error while preparing pull')
             self.exception = exception
-            self._packet.clear()
+            packet.clear()
         else:
             self.sequence.clear()
         self.seconds_remained = 0
-        self._packet.close()
+        packet.close()
 
 
 def _cookie_get(request, name):

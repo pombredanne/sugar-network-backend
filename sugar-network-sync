@@ -146,6 +146,7 @@ cmdline="$@"
 FS=
 disk_limit=$(expr 1024 \* 1024 \* 10)
 
+mkdir -p "${sync_path}" || abort "Cannot create ${sync_path} sync directory"
 cd "${sync_path}" || abort "Cannot switch to ${sync_path} sync directory"
 
 if [ "${clone_url}" ]; then

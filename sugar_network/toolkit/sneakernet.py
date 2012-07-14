@@ -16,6 +16,7 @@
 import os
 import json
 import time
+import gzip
 import tarfile
 import logging
 import tempfile
@@ -58,6 +59,7 @@ class InPacket(object):
         self._file = None
         self._tarball = None
         self.header = {}
+        self.content_type = None
 
         try:
             if stream is None:
@@ -84,6 +86,14 @@ class InPacket(object):
             with self._extract('header') as f:
                 self.header = json.load(f)
             enforce(type(self.header) is dict, 'Incorrect header')
+
+            if isinstance(self._tarball.fileobj, file):
+                self.content_type = 'application/x-tar'
+            elif isinstance(self._tarball.fileobj, gzip.GzipFile):
+                self.content_type = 'application/x-compressed-tar'
+            else:
+                self.content_type = 'application/x-bzip-compressed-tar'
+
         except Exception, error:
             self.close()
             util.exception()
