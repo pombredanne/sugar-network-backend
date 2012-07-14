@@ -95,7 +95,7 @@ class Application(application.Daemon):
                     for i in local.activity_dirs.value]
             local.local_root.value = root + local.local_root.value
 
-        if not exists(sugar.profile_path()):
+        if not exists(sugar.profile_path('owner.key')):
             # Command was launched in foreign environment
             sugar.uid = lambda: 'index'
             sugar.nickname = lambda: 'index'
