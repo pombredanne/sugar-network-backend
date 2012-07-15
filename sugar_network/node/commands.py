@@ -150,7 +150,8 @@ class MasterCommands(NodeCommands):
 
     def __init__(self, volume, subscriber=None):
         NodeCommands.__init__(self, volume, subscriber)
-        self._pull_queue = lrucache(_PULL_QUEUE_SIZE)
+        self._pull_queue = lrucache(_PULL_QUEUE_SIZE,
+                lambda key, pull: pull.unlink())
 
     @ad.volume_command(method='POST', cmd='push')
     def push(self, request, response):
@@ -201,46 +202,33 @@ class MasterCommands(NodeCommands):
             if not out_packet.empty:
                 return out_packet.pop()
 
-    @ad.volume_command(method='POST', cmd='pull',
+    @ad.volume_command(method='GET', cmd='pull',
             mime_type='application/octet-stream')
-    def pull(self, request, response, accept_length=None):
-        pull_seq = Sequence(_cookie_get(request, 'sn_pull'))
+    def pull(self, request, response, accept_length=None, sequence=None):
+        pull_seq = Sequence()
+        if sequence:
+            pull_seq.extend(json.loads(sequence))
+        if not pull_seq:
+            pull_seq.extend(_cookie_get(request, 'sn_pull') or [])
+
         if pull_seq:
             _logger.debug('Reuse %r pull from cookies', pull_seq)
-
-        if request.content_length:
-            with InPacket(stream=request) as in_packet:
-                enforce(in_packet.header.get('src') != self._guid,
-                        'Misaddressed packet')
-                enforce('dst' in in_packet.header and \
-                        in_packet.header['dst'] == self._guid,
-                        'Misaddressed packet')
-                for record in in_packet.records():
-                    if record.get('cmd') == 'sn_pull':
-                        pull_seq.include(record['sequence'])
+            clone = False
+        else:
+            _logger.debug('Clone full dump')
+            clone = True
+            pull_seq.include(1, None)
 
         accept_length = _to_int('accept_length', accept_length)
-        return self._pull(response, pull_seq, accept_length, False)
-
-    @ad.volume_command(method='GET', cmd='clone',
-            mime_type='application/octet-stream')
-    def clone(self, request, response, accept_length=None):
-        pull_seq = Sequence()
-        pull_seq.include(1, None)
-        accept_length = _to_int('accept_length', accept_length)
-        return self._pull(response, pull_seq, accept_length, True)
-
-    def _pull(self, response, pull_seq, accept_length, clone):
         pull_hash = hashlib.sha1(json.dumps(pull_seq)).hexdigest()
 
         if pull_hash in self._pull_queue:
             pull = self._pull_queue[pull_hash]
-            _logger.debug('Reuse existing %r pull', pull_seq)
+            _logger.debug('Reuse picked up %r pull', pull_seq)
         else:
-            pull = self._pull_queue[pull_hash] = _Pull(pull_hash, self.volume,
-                    pull_seq, clone, src=self._guid,
+            pull = self._pull_queue[pull_hash] = _Pull(pull_hash, pull_seq,
+                    self.volume, clone, src=self._guid,
                     seqno=self.volume.seqno.value, limit=accept_length)
-            _logger.debug('Preparing %r pull', pull_seq)
 
         if pull.exception is not None:
             del self._pull_queue[pull_hash]
@@ -270,8 +258,8 @@ class MasterCommands(NodeCommands):
 
 class _Pull(object):
 
-    def __init__(self, pull_hash, volume, sequence, clone, **packet_args):
-        self.sequence = sequence
+    def __init__(self, pull_hash, pull_seq, volume, clone, **packet_args):
+        self.sequence = pull_seq
         self.exception = None
         self.seconds_remained = 0
         self.content_type = None
@@ -282,12 +270,14 @@ class _Pull(object):
             try:
                 with InPacket(self.path) as packet:
                     self.content_type = packet.content_type
-                _logger.debug('Pickup cached %r pull', self.path)
+                    self.sequence = packet.header['postponed_sequence']
+                _logger.debug('Pickup %r pull from %r', pull_seq, self.path)
             except Exception:
                 util.exception('Cannot open cached %r pull, will recreate')
                 os.unlink(self.path)
 
         if not exists(self.path):
+            _logger.debug('Prepare %r pull', pull_seq)
             packet = OutPacket(stream=file(self.path, 'wb+'), **packet_args)
             self.content_type = packet.content_type
             # TODO Might be useful to set meaningful value here
@@ -304,8 +294,9 @@ class _Pull(object):
         if exists(self.path):
             return file(self.path, 'rb')
 
-    def __del__(self):
+    def unlink(self):
         if exists(self.path):
+            _logger.debug('Eject %r pull from queue', self.path)
             os.unlink(self.path)
 
     def _diff(self, volume, clone, packet):
@@ -316,11 +307,12 @@ class _Pull(object):
         except Exception, exception:
             util.exception('Error while preparing pull')
             self.exception = exception
-            packet.clear()
+            self.unlink()
         else:
             self.sequence.clear()
-        self.seconds_remained = 0
+        packet.header['postponed_sequence'] = self.sequence
         packet.close()
+        self.seconds_remained = 0
 
 
 def _cookie_get(request, name):

@@ -62,6 +62,10 @@ See http://wiki.sugarlabs.org/go/Sugar_Network for details.
 EOF
 }
 
+get_hostname() {
+    echo $@ | awk -F/ '{print $3}'
+}
+
 get_header_key() {
     local packet="$1"
     local key="$2"
@@ -118,8 +122,8 @@ upload() {
 }
 
 pull() {
-    local api_url="$1"
-    local cookie="$2"
+    local api_url="$1?cmd=pull"
+    local cookie="$(get_hostname $1).cookie"
 
     while true; do
         local disk_free=$(df . --block-size=1 | tail -n1 | awk '{print $4}')
@@ -128,10 +132,15 @@ pull() {
             "to directory with more free space and re-run $0 from there"
 
         upload "${api_url}&accept_length=${disk_free}" "${cookie}"
+        [ -e "${cookie}" ] || break
+
         delay=$(grep -o 'sn_delay:[0-9]\+' "${cookie}" 2>/dev/null | awk -F: '{print $2}')
-        [ "${delay}" ] || break
-        phase "Server started processing pull, check for results in ${delay} seconds"
-        sleep ${delay}
+        if [ "${delay}" ]; then
+            phase "Server started processing pull, check for results in ${delay} seconds"
+            sleep ${delay}
+        else
+            phase "Pull postponed updates"
+        fi
     done
 }
 
@@ -150,8 +159,8 @@ mkdir -p "${sync_path}" || abort "Cannot create ${sync_path} sync directory"
 cd "${sync_path}" || abort "Cannot switch to ${sync_path} sync directory"
 
 if [ "${clone_url}" ]; then
-    info "Clone initial master dump"
-    pull "${clone_url}?cmd=clone" clone.cookie
+    info "Clone full dump"
+    pull "${clone_url}"
     exit 0
 fi
 
@@ -162,8 +171,7 @@ for packet in $(find -type f -name '*.packet'); do
         info "Skip ${packet}, it is not intended for uploading"
     else
         info "Push ${packet} to ${api_url}"
-        hostname="$(echo "${api_url}" | awk -F/ '{print $3}')"
-        upload "${api_url}?cmd=push" "${hostname}.cookie" "${packet}"
+        upload "${api_url}?cmd=push" "$(get_hostname ${api_url}).cookie" "${packet}"
     fi
 done
 
@@ -172,7 +180,7 @@ while true; do
     for cookie in $(find -type f -name '*.cookie'); do
         api_url="http://$(basename "${cookie}" .cookie)"
         info "Pull updates from ${api_url}"
-        pull "${api_url}?cmd=pull" "${cookie}"
+        pull "${api_url}"
         found=1
     done
     [ "${found}" ] || break

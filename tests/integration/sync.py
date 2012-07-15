@@ -29,7 +29,7 @@ class SyncTest(tests.Test):
         self.master_pid = self.popen([
             'sugar-network-server', '--port=8100', '--subscribe-port=8101',
             '--data-root=master/db', '--index-flush-threshold=1024',
-            '--index-flush-timeout=3', '--only-sync-notification',
+            '--index-flush-timeout=3', '--only-commit-events',
             '--tmpdir=tmp', '-DDF', 'start',
             ])
         self.node_pid = self.popen([
