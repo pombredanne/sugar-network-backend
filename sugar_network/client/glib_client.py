@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+from gettext import gettext as _
 
 import gobject
 
@@ -110,6 +111,10 @@ class GlibClient(gobject.GObject):
 
         elif event_type == 'alert':
             self.emit('alert', event.get('severity'), event.get('message'))
+
+        elif event_type == 'sync_complete':
+            # TODO More regular handling synchronization events
+            self.emit('alert', 'info', _('Synchronization completed'))
 
         elif event.get('mountpoint') in ('~', '*') and \
                 event.get('document') == 'context':
