@@ -17,7 +17,7 @@ import os
 import locale
 import socket
 import logging
-from os.path import join, isdir, exists
+from os.path import join, exists
 
 import active_document as ad
 
@@ -34,8 +34,8 @@ from sugar_network.resources.volume import Volume
 from active_toolkit import util, coroutine, enforce
 
 
-_DB_DIRNAME = 'sugar-network'
-_SYNC_DIRNAME = 'sugar-network-sync'
+_DB_DIRNAME = '.sugar-network'
+_SYNC_DIRNAME = '.sugar-network-sync'
 
 _COMPLETE_MOUNT_TIMEOUT = 3
 
@@ -171,6 +171,12 @@ class Mountset(dict, ad.CommandsProcessor):
         try:
             mounts_root = local.mounts_root.value
             if mounts_root:
+                for filename in os.listdir(mounts_root):
+                    self._found_mount(join(mounts_root, filename))
+                # In case if sync mounts processed before server mounts
+                # TODO More obvious code
+                for filename in os.listdir(mounts_root):
+                    self._found_mount(join(mounts_root, filename))
                 self._jobs.spawn(self._mounts_monitor)
 
             if '/' in self:
@@ -208,45 +214,59 @@ class Mountset(dict, ad.CommandsProcessor):
                     break
 
     def _mounts_monitor(self):
-        roots = []
-        with _Inotify(self._found_mount, self._lost_mount) as monitor:
-            roots.append(_MountRoot(monitor, local.mounts_root.value))
-            while True:
+        root = local.mounts_root.value
+        _logger.info('Start monitoring %r for mounts', root)
+
+        with Inotify() as monitor:
+            monitor.add_watch(root, IN_DELETE_SELF | IN_CREATE | \
+                    IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM)
+            while not monitor.closed:
                 coroutine.select([monitor.fileno()], [], [])
-                if monitor.closed:
-                    break
-                for filename, event, cb in monitor.read():
+                for filename, event, __ in monitor.read():
+                    path = join(root, filename)
                     try:
-                        cb(filename, event)
+                        if event & IN_DELETE_SELF:
+                            _logger.warning('Lost %r, cannot monitor anymore',
+                                    root)
+                            monitor.close()
+                            break
+                        elif event & (IN_DELETE | IN_MOVED_FROM):
+                            self._lost_mount(path)
+                        elif event & (IN_CREATE | IN_MOVED_TO):
+                            # Right after moutning, access to directory
+                            # might be restricted; let system enough time
+                            # to complete mounting
+                            coroutine.sleep(_COMPLETE_MOUNT_TIMEOUT)
+                            self._found_mount(path)
                     except Exception:
-                        util.exception('Cannot dispatch 0x%X event ' \
-                                'for %r mount', event, filename)
+                        util.exception(_logger, 'Mount %r failed', path)
 
-    def _found_mount(self, root, dirnames):
-        if _DB_DIRNAME in dirnames and root not in self:
-            _logger.debug('Found %r server mount', root)
-            volume, server_mode = self._mount_volume(join(root, _DB_DIRNAME))
+    def _found_mount(self, path):
+        if exists(join(path, _DB_DIRNAME)) and path not in self:
+            _logger.debug('Found %r server mount', path)
+            volume, server_mode = self._mount_volume(path)
             if server_mode:
-                self[root] = NodeMount(volume, self.home_volume)
+                self[path] = NodeMount(volume, self.home_volume)
             else:
-                self[root] = LocalMount(volume)
+                self[path] = LocalMount(volume)
 
-        if _SYNC_DIRNAME in dirnames:
-            _logger.debug('Found %r sync mount', root)
-            self._sync_dirs.add(join(root, _SYNC_DIRNAME))
+        if exists(join(path, _SYNC_DIRNAME)):
+            self._sync_dirs.add(path)
             if self._servers:
+                _logger.debug('Found %r sync mount', path)
                 self.start_sync()
+            else:
+                _logger.debug('Found %r sync mount but no servers', path)
 
-    def _lost_mount(self, root, dirnames):
-        if _SYNC_DIRNAME in dirnames:
-            _logger.debug('Lost %r sync mount', root)
-            self._sync_dirs.remove(join(root, _SYNC_DIRNAME))
-            if not self._sync_dirs:
-                self.break_sync()
+    def _lost_mount(self, path):
+        _logger.debug('Lost %r mount', path)
 
-        if _DB_DIRNAME in dirnames and root in self:
-            _logger.debug('Lost %r server mount', root)
-            del self[root]
+        self._sync_dirs.remove(join(path, _SYNC_DIRNAME))
+        if not self._sync_dirs:
+            self.break_sync()
+
+        if path in self:
+            del self[path]
 
     def _mount_volume(self, path):
         lazy_open = local.lazy_open.value
@@ -281,89 +301,3 @@ class Mountset(dict, ad.CommandsProcessor):
             coroutine.dispatch()
 
         return volume, server_mode
-
-
-class _Inotify(Inotify):
-
-    def __init__(self, found_cb, lost_cb):
-        Inotify.__init__(self)
-        self.found_cb = found_cb
-        self.lost_cb = lost_cb
-
-
-class _MountRoot(object):
-
-    def __init__(self, monitor, path):
-        self.path = path
-        self._monitor = monitor
-        self._nodes = {}
-
-        _logger.info('Start monitoring %r for mounts', self.path)
-
-        monitor.add_watch(self.path,
-                IN_DELETE_SELF | IN_CREATE | IN_DELETE | \
-                        IN_MOVED_TO | IN_MOVED_FROM,
-                self.__watch_cb)
-
-        for filename in os.listdir(self.path):
-            path = join(self.path, filename)
-            if isdir(path):
-                self._nodes[filename] = _MountDir(monitor, path)
-
-    def __watch_cb(self, filename, event):
-        if event & IN_DELETE_SELF:
-            _logger.warning('Lost ourselves, cannot monitor anymore')
-            self._nodes.clear()
-
-        elif event & (IN_CREATE | IN_MOVED_TO):
-            path = join(self.path, filename)
-            if isdir(path):
-                # Right after moutning, access to directory might be
-                # restricted; let system enough time to complete mounting
-                coroutine.sleep(_COMPLETE_MOUNT_TIMEOUT)
-                self._nodes[filename] = _MountDir(self._monitor, path)
-
-        elif event & (IN_DELETE | IN_MOVED_FROM):
-            item = self._nodes.get(filename)
-            if item is not None:
-                item.unlink()
-                del self._nodes[filename]
-
-
-class _MountDir(object):
-
-    def __init__(self, monitor, root):
-        self._root = root
-        self._monitor = monitor
-        self._found = set([i for i in os.listdir(root) \
-                if isdir(join(root, i))])
-
-        _logger.debug('Start monitoring %r mount', root)
-
-        self._wd = monitor.add_watch(root,
-                IN_CREATE | IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM,
-                self.__watch_cb)
-        if self._found:
-            monitor.found_cb(self._root, self._found)
-
-    def unlink(self):
-        if self._found:
-            self._monitor.lost_cb(self._root, self._found)
-            self._found.clear()
-        _logger.debug('Stop monitoring %r mount', self._root)
-        self._monitor.rm_watch(self._wd)
-
-    def __watch_cb(self, filename, event):
-        path = join(self._root, filename)
-
-        if event & (IN_CREATE | IN_MOVED_TO) and isdir(path):
-            if filename not in self._found:
-                _logger.debug('Found %r mount directory', path)
-                self._found.add(filename)
-                self._monitor.found_cb(self._root, [filename])
-
-        elif event & (IN_DELETE | IN_MOVED_FROM):
-            if filename in self._found:
-                _logger.debug('Lost %r mount directory', path)
-                self._found.remove(filename)
-                self._monitor.lost_cb(self._root, [filename])

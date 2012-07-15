@@ -53,8 +53,8 @@ class MountsetTest(tests.Test):
         return mounts
 
     def test_Populate(self):
-        os.makedirs('1/sugar-network')
-        os.makedirs('2/sugar-network')
+        os.makedirs('1/.sugar-network')
+        os.makedirs('2/.sugar-network')
 
         self.mountset()
 
@@ -87,7 +87,7 @@ class MountsetTest(tests.Test):
     def test_Mount(self):
         self.mountset()
 
-        os.makedirs('tmp/1/sugar-network')
+        os.makedirs('tmp/1/.sugar-network')
         shutil.move('tmp/1', '.')
 
         self.mounted.wait()
@@ -106,7 +106,7 @@ class MountsetTest(tests.Test):
                 summary='summary',
                 description='description').post()
 
-        os.makedirs('tmp/2/sugar-network')
+        os.makedirs('tmp/2/.sugar-network')
         shutil.move('tmp/2', '.')
 
         self.mounted.wait()
@@ -126,31 +126,9 @@ class MountsetTest(tests.Test):
                 summary='summary',
                 description='description').post()
 
-        os.makedirs('3')
-        coroutine.sleep(.5)
-        os.makedirs('3/sugar-network')
-
-        self.mounted.wait()
-        self.mounted.clear()
-        self.assertEqual(
-                [('mount', tests.tmpdir + '/3')],
-                self.mount_events[2:])
-        self.assertEqual(
-                sorted([
-                    {'mountpoint': tests.tmpdir + '/1', 'name': '1', 'private': True},
-                    {'mountpoint': tests.tmpdir + '/2', 'name': '2', 'private': True},
-                    {'mountpoint': tests.tmpdir + '/3', 'name': '3', 'private': True},
-                    ]),
-                sorted(Client.mounts()))
-        Client(tests.tmpdir + '/2').Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post()
-
     def test_Unmount(self):
-        os.makedirs('1/sugar-network')
-        os.makedirs('2/sugar-network')
+        os.makedirs('1/.sugar-network')
+        os.makedirs('2/.sugar-network')
 
         self.mountset()
         self.mounted.wait()
@@ -175,23 +153,12 @@ class MountsetTest(tests.Test):
                     ]),
                 sorted(Client.mounts()))
 
-        del self.mount_events[:]
-        shutil.rmtree('2/sugar-network')
-        self.mounted.wait()
-        self.mounted.clear()
-        self.assertEqual(
-                [('unmount', tests.tmpdir + '/2')],
-                self.mount_events)
-        self.assertEqual(
-                sorted([
-                    ]),
-                sorted(Client.mounts()))
-
     def test_MountNode(self):
         local.server_mode.value = True
         self.mountset()
 
-        self.touch(('tmp/mnt/sugar-network/node', 'node'))
+        self.touch('tmp/mnt/.sugar-network')
+        self.touch(('tmp/mnt/node', 'node'))
         shutil.move('tmp/mnt', '.')
 
         self.mounted.wait()

@@ -63,13 +63,13 @@ class SyncTest(tests.Test):
             context.upload_blob('preview', 'preview_2')
 
         # Clone initial dump
-        os.makedirs('mnt_1/sugar-network-sync')
-        pid = self.popen('V=1 sugar-network-sync mnt_1/sugar-network-sync http://localhost:8100', shell=True)
+        pid = self.popen('V=1 sugar-network-sync mnt_1 http://localhost:8100', shell=True)
         self.waitpid(pid, 0)
 
         # Start node and import cloned data
-        self.touch(('mnt_1/sugar-network/node', 'node'))
-        self.touch(('mnt_1/sugar-network/master', 'master'))
+        self.touch('mnt_1/.sugar-network')
+        self.touch(('mnt_1/node', 'node'))
+        self.touch(('mnt_1/master', 'master'))
         os.rename('mnt_1', 'mnt/mnt_1')
         self.wait_for_events({'event': 'sync_complete'})
         mountpoint = tests.tmpdir + '/mnt/mnt_1'
@@ -90,13 +90,13 @@ class SyncTest(tests.Test):
             context.upload_blob('preview', 'preview_4')
 
         # Create node push packets with newly create data
-        os.makedirs('mnt_2/sugar-network-sync')
+        self.touch('mnt_2/.sugar-network-sync')
         os.rename('mnt_2', 'mnt/mnt_2')
         self.wait_for_events({'event': 'sync_complete'})
 
         # Upload node data to master
         shutil.copytree('mnt/mnt_2', 'mnt_3')
-        pid = self.popen('V=1 sugar-network-sync mnt_3/sugar-network-sync', shell=True)
+        pid = self.popen('V=1 sugar-network-sync mnt_3', shell=True)
         self.waitpid(pid, 0)
 
         # Process master's reply

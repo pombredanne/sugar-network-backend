@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import locale
 import logging
 from contextlib import contextmanager
@@ -77,6 +78,8 @@ class Application(application.Daemon):
             application.logdir.value = sugar.profile_path('logs')
         application.rundir.value = join(local.local_root.value, 'run')
 
+        if not exists(local.tmpdir.value):
+            os.makedirs(local.tmpdir.value)
         sneakernet.TMPDIR = local.tmpdir.value
 
     @application.command(

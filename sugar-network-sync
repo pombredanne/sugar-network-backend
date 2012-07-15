@@ -158,8 +158,12 @@ disk_limit=$(expr 1024 \* 1024 \* 10)
 mkdir -p "${sync_path}" || abort "Cannot create ${sync_path} sync directory"
 cd "${sync_path}" || abort "Cannot switch to ${sync_path} sync directory"
 
+mountpoint="$(stat --printf %m .)"
+[ "${mountpoint}" = "$PWD" ] || info "NOTICE To make $PWD capable for further auto synchronization on a node side, place its content to the mount's root"
+touch .sugar-network-sync
+
 if [ "${clone_url}" ]; then
-    info "Clone full dump"
+    info "Clone master"
     pull "${clone_url}"
     exit 0
 fi

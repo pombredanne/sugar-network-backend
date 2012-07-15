@@ -60,7 +60,8 @@ class NodeMountTest(tests.Test):
         return mounts
 
     def test_GetKeep(self):
-        self.touch(('mnt/sugar-network/node', 'node'))
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
         mounts = self.start_server()
         self.got_event.wait()
 
@@ -92,7 +93,8 @@ class NodeMountTest(tests.Test):
                 [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
 
     def test_SetKeep(self):
-        self.touch(('mnt/sugar-network/node', 'node'))
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
         mounts = self.start_server()
         mounts['~'] = HomeMount(mounts.home_volume)
         self.got_event.wait()
@@ -174,7 +176,8 @@ class NodeMountTest(tests.Test):
                 'sugar_network.resources.implementation',
                 ]
 
-        self.touch(('mnt/sugar-network/node', 'node'))
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
         mounts = self.start_server(ipc=True)
         mounts['~'] = HomeMount(mounts.home_volume)
         self.got_event.wait()
@@ -194,13 +197,13 @@ class NodeMountTest(tests.Test):
                 date=0,
                 stability='stable',
                 notes='').post()
-        with file('mnt/sugar-network/context/%s/%s/feed' % (context[:2], context), 'w') as f:
+        with file('mnt/context/%s/%s/feed' % (context[:2], context), 'w') as f:
             json.dump({
                 'seqno': 0,
                 'mime_type': 'application/octet-stream',
                 'digest': 'digest',
                 }, f)
-        with file('mnt/sugar-network/context/%s/%s/feed.blob' % (context[:2], context), 'w') as f:
+        with file('mnt/context/%s/%s/feed.blob' % (context[:2], context), 'w') as f:
             json.dump({
                 '1': {
                     '*-*': {
@@ -239,7 +242,8 @@ class NodeMountTest(tests.Test):
         assert exists('Activities/TestActivitry/activity/activity.info')
 
     def test_Events(self):
-        self.touch(('mnt/sugar-network/node', 'node'))
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
         self.start_server()
         self.got_event.wait()
         self.got_event.clear()
@@ -278,7 +282,7 @@ class NodeMountTest(tests.Test):
             events)
         del events[:]
 
-        guid_path = 'mnt/sugar-network/context/%s/%s' % (guid[:2], guid)
+        guid_path = 'mnt/context/%s/%s' % (guid[:2], guid)
         assert exists(guid_path)
         client.Context.delete(guid)
         assert not exists(guid_path)
@@ -291,7 +295,8 @@ class NodeMountTest(tests.Test):
         del events[:]
 
     def test_upload_blob(self):
-        self.touch(('mnt/sugar-network/node', 'node'))
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
         self.start_server()
         self.got_event.wait()
         remote = Client(tests.tmpdir + '/mnt')
@@ -312,7 +317,8 @@ class NodeMountTest(tests.Test):
         assert not exists('file2')
 
     def test_GetAbsetnBLOB(self):
-        self.touch(('mnt/sugar-network/node', 'node'))
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
         self.start_server()
         self.got_event.wait()
         client = Client(tests.tmpdir + '/mnt')
@@ -333,7 +339,8 @@ class NodeMountTest(tests.Test):
                 'sugar_network.resources.implementation',
                 ]
 
-        self.touch(('mnt/sugar-network/node', 'node'))
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
         self.start_server()
         self.got_event.wait()
         remote = Client(tests.tmpdir + '/mnt')
