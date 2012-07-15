@@ -30,13 +30,13 @@ class SyncTest(tests.Test):
             'sugar-network-server', '--port=8100', '--subscribe-port=8101',
             '--data-root=master/db', '--index-flush-threshold=1024',
             '--index-flush-timeout=3', '--only-commit-events',
-            '--tmpdir=tmp', '-DDF', 'start',
+            '--tmpdir=tmp', '-DDDF', 'start',
             ])
         self.node_pid = self.popen([
             'sugar-network-service', '--port=8200', '--subscribe-port=8201',
             '--activity-dirs=node/Activities', '--local-root=node',
             '--mounts-root=mnt', '--server-mode', '--tmpdir=tmp',
-            '--api-url=http://localhost:8100', '-DDF', 'start',
+            '--api-url=http://localhost:8100', '-DDDF', 'start',
             ])
 
         coroutine.sleep(1)

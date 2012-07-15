@@ -38,7 +38,6 @@ class MountsetTest(tests.Test):
         self.mounted = coroutine.Event()
 
         def events_cb(event):
-            print event
             if event['event'] in ('mount', 'unmount'):
                 self.mount_events.append((event['event'], event['mountpoint']))
                 self.mounted.set()
@@ -127,39 +126,20 @@ class MountsetTest(tests.Test):
                 summary='summary',
                 description='description').post()
 
-    def test_Unmount(self):
-        os.makedirs('1/sugar-network')
-
-        self.mountset()
-        self.mounted.wait()
-        self.mounted.clear()
-        self.assertEqual(
-                [('mount', tests.tmpdir + '/1')],
-                self.mount_events)
-        self.assertEqual(
-                sorted([
-                    {'mountpoint': tests.tmpdir + '/1', 'name': '1', 'private': True},
-                    ]),
-                sorted(Client.mounts()))
-        Client(tests.tmpdir + '/1').Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post()
-        self.assertEqual(1, Client(tests.tmpdir + '/1').Context.cursor().total)
-
-        os.makedirs('tmp/2/sugar-network')
-        shutil.move('tmp/2', '.')
+        os.makedirs('3')
+        coroutine.sleep(.5)
+        os.makedirs('3/sugar-network')
 
         self.mounted.wait()
         self.mounted.clear()
         self.assertEqual(
-                [('mount', tests.tmpdir + '/2')],
-                self.mount_events[1:])
+                [('mount', tests.tmpdir + '/3')],
+                self.mount_events[2:])
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1', 'private': True},
                     {'mountpoint': tests.tmpdir + '/2', 'name': '2', 'private': True},
+                    {'mountpoint': tests.tmpdir + '/3', 'name': '3', 'private': True},
                     ]),
                 sorted(Client.mounts()))
         Client(tests.tmpdir + '/2').Context(
@@ -167,42 +147,45 @@ class MountsetTest(tests.Test):
                 title='remote',
                 summary='summary',
                 description='description').post()
-        self.assertEqual(1, Client(tests.tmpdir + '/2').Context.cursor().total)
 
+    def test_Unmount(self):
+        os.makedirs('1/sugar-network')
+        os.makedirs('2/sugar-network')
+
+        self.mountset()
+        self.mounted.wait()
+        self.mounted.clear()
+        self.assertEqual(
+                sorted([
+                    {'mountpoint': tests.tmpdir + '/1', 'name': '1', 'private': True},
+                    {'mountpoint': tests.tmpdir + '/2', 'name': '2', 'private': True},
+                    ]),
+                sorted(Client.mounts()))
+
+        del self.mount_events[:]
         shutil.rmtree('1')
         self.mounted.wait()
         self.mounted.clear()
         self.assertEqual(
                 [('unmount', tests.tmpdir + '/1')],
-                self.mount_events[2:])
+                self.mount_events)
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/2', 'name': '2', 'private': True},
                     ]),
                 sorted(Client.mounts()))
-        self.assertRaises(RuntimeError, Client(tests.tmpdir + '/1').Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post)
-        self.assertEqual(0, Client(tests.tmpdir + '/1').Context.cursor().total)
 
-        shutil.rmtree('2')
+        del self.mount_events[:]
+        shutil.rmtree('2/sugar-network')
         self.mounted.wait()
         self.mounted.clear()
         self.assertEqual(
                 [('unmount', tests.tmpdir + '/2')],
-                self.mount_events[3:])
+                self.mount_events)
         self.assertEqual(
                 sorted([
                     ]),
                 sorted(Client.mounts()))
-        self.assertRaises(RuntimeError, Client(tests.tmpdir + '/2').Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post)
-        self.assertEqual(0, Client(tests.tmpdir + '/2').Context.cursor().total)
 
     def test_MountNode(self):
         local.server_mode.value = True

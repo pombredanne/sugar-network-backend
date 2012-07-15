@@ -85,7 +85,7 @@ class _Root(object):
         self._monitor = monitor
         self._nodes = {}
 
-        _logger.info('Start monitoring %r activities root', self. path)
+        _logger.info('Start monitoring %r activities root', self.path)
 
         monitor.add_watch(self.path,
                 IN_DELETE_SELF | IN_CREATE | IN_DELETE | \
