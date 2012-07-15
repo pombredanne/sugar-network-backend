@@ -37,6 +37,8 @@ from active_toolkit import util, coroutine, enforce
 _DB_DIRNAME = 'sugar-network'
 _SYNC_DIRNAME = 'sugar-network-sync'
 
+_COMPLETE_MOUNT_TIMEOUT = 3
+
 _LOCAL_PROPS = {
         'keep': False,
         'keep_impl': 0,
@@ -316,6 +318,9 @@ class _MountRoot(object):
         elif event & (IN_CREATE | IN_MOVED_TO):
             path = join(self.path, filename)
             if isdir(path):
+                # Right after moutning, access to directory might be
+                # restricted; let system enough time to complete mounting
+                coroutine.sleep(_COMPLETE_MOUNT_TIMEOUT)
                 self._nodes[filename] = _MountDir(self._monitor, path)
 
         elif event & (IN_DELETE | IN_MOVED_FROM):
