@@ -265,6 +265,9 @@ class OutPacket(object):
             clear = True
         self._commit(clear)
         if self._file is not None:
+            if not clear:
+                self._file.flush()
+                os.fsync(self._file.fileno())
             self._file.close()
             if clear:
                 if exists(self._file.name):
