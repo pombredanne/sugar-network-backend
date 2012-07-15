@@ -144,16 +144,21 @@ pull() {
     done
 }
 
-if [ $# -eq 0 ]; then
-    help
-    exit 0
-fi
-
 sync_path="$1"
 clone_url="$2"
 cmdline="$@"
 FS=
 disk_limit=$(expr 1024 \* 1024 \* 10)
+
+if [ $# -eq 0 ]; then
+    if [ -e "$(dirname $0)/.sugar-network-sync" ]; then
+        # Script was launched from sync directory, so, process sync
+        sync_path="$PWD"
+    else
+        help
+        exit 0
+    fi
+fi
 
 mkdir -p "${sync_path}" || abort "Cannot create ${sync_path} sync directory"
 cd "${sync_path}" || abort "Cannot switch to ${sync_path} sync directory"

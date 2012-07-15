@@ -96,7 +96,7 @@ class SyncTest(tests.Test):
 
         # Upload node data to master
         shutil.copytree('mnt/mnt_2', 'mnt_3')
-        pid = self.popen('V=1 sugar-network-sync mnt_3', shell=True)
+        pid = self.popen('V=1 mnt_3/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
 
         # Process master's reply

@@ -14,11 +14,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
 import json
 import shutil
 import logging
 from urlparse import urlparse
-from os.path import isabs, exists, join, basename
+from os.path import isabs, exists, join, basename, dirname
 from gettext import gettext as _
 
 import sweets_recipe
@@ -427,6 +428,7 @@ class NodeMount(LocalMount, _ProxyCommands):
         self._pull_seq = PersistentSequence(
                 join(volume.root, 'pull.sequence'), [1, None])
         self._sync_session = None
+        self._sync_script = join(dirname(sys.argv[0]), 'sugar-network-sync')
 
         with file(join(volume.root, 'node')) as f:
             self._node_guid = f.read().strip()
@@ -479,6 +481,9 @@ class NodeMount(LocalMount, _ProxyCommands):
                     self._import(packet, to_push_seq)
                     self._push_seq.commit()
                     self._pull_seq.commit()
+
+            if exists(self._sync_script):
+                shutil.copy(self._sync_script, path)
 
             with OutFilePacket(path, limit=accept_length, src=self._node_guid,
                     dst=self._master_guid, session=session,
