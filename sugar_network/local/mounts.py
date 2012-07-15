@@ -370,6 +370,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
         def connect(url):
             _logger.debug('Connecting to %r master', url)
+            local.api_url.value = url
             subscription = http.request('POST', [''],
                     params={'cmd': 'subscribe'},
                     headers={'Content-Type': 'application/json'})
@@ -403,8 +404,8 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         for url in self._api_urls:
             try:
                 conn = connect(url)
-            except Exception, error:
-                _logger.warning('Cannot connect to %r master: %s', url, error)
+            except Exception:
+                util.exception(_logger, 'Cannot connect to %r master', url)
                 continue
             try:
                 listen_events(url, conn)

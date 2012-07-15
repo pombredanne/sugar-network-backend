@@ -273,7 +273,8 @@ class _Pull(object):
                     self.sequence = packet.header['postponed_sequence']
                 _logger.debug('Pickup %r pull from %r', pull_seq, self.path)
             except Exception:
-                util.exception('Cannot open cached %r pull, will recreate')
+                util.exception('Cannot open cached %r pull, will recreate',
+                        self.path)
                 os.unlink(self.path)
 
         if not exists(self.path):
