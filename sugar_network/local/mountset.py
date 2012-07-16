@@ -24,7 +24,7 @@ import active_document as ad
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_MOVED_TO, IN_MOVED_FROM
 from sugar_network import local, node
-from sugar_network.toolkit import zeroconf, netlink
+from sugar_network.toolkit import zeroconf, netlink, network
 from sugar_network.toolkit.collection import MutableStack
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.subscribe_socket import SubscribeSocket
@@ -212,6 +212,8 @@ class Mountset(dict, ad.CommandsProcessor):
                 message = monitor.read()
                 if message is None:
                     break
+                # Otherwise, `socket.gethostbyname()` will return stale resolve
+                network.res_init()
 
     def _mounts_monitor(self):
         root = local.mounts_root.value

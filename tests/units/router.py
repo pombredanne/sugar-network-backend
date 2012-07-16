@@ -248,32 +248,7 @@ class RouterTest(tests.Test):
         rest.put('/document2/%s/blob' % guid, 'blob')
 
         context = urllib2.urlopen(URL).read()
-        cached_path = 'tmp/' + hashlib.sha1(URL).hexdigest() + '.redirect'
         assert context == rest.get('/document2/%s/blob' % guid)
-        assert exists(cached_path)
-
-        os.utime(cached_path, (0, 0))
-        assert context == rest.get('/document2/%s/blob' % guid)
-        assert 0 == os.stat(cached_path).st_mtime
-
-    def test_HandleRedirects_AvoidPArtiallyDownloadedFiles(self):
-        URL = 'http://foo.bar'
-
-        class Document2(Document):
-
-            @ad.active_property(ad.BlobProperty)
-            def blob(self, value):
-                raise ad.Redirect(URL)
-
-        self.fork(self.restful_server, [User, Document2])
-        rest = tests.Request('http://localhost:8800')
-
-        guid = rest.post('/document2', {'term': 'probe'})
-        rest.put('/document2/%s/blob' % guid, 'blob')
-
-        cached_path = 'tmp/' + hashlib.sha1(URL).hexdigest() + '.redirect'
-        self.assertRaises(RuntimeError, rest.get, '/document2/%s/blob' % guid)
-        assert not exists(cached_path)
 
     def test_Request_MultipleQueryArguments(self):
         request = _Request({

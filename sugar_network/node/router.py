@@ -19,14 +19,11 @@ import json
 import types
 import urllib
 import logging
-import hashlib
 from urlparse import parse_qsl
 from bisect import bisect_left
-from os.path import join, exists
 
 import active_document as ad
 from sugar_network import node
-from sugar_network.toolkit import http
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, enforce
 
@@ -52,12 +49,9 @@ class Router(object):
             request.principal = self._authenticate(request)
             result = self._cp.call(request, response)
         except ad.Redirect, error:
-            # TODO Until fixing #3753, avoid redirection from API server
-            #response.status = '303 See Other'
-            #response['Location'] = error.location
-            #result = ''
-            response.content_type = 'application/octet-stream'
-            result = _download_redirect(error.location)
+            response.status = '303 See Other'
+            response['Location'] = error.location
+            result = ''
         except Exception, error:
             util.exception('Error while processing %r request',
                     environ['PATH_INFO'] or '/')
@@ -244,21 +238,3 @@ def _stream_reader(stream):
             yield chunk
     finally:
         stream.close()
-
-
-def _download_redirect(url):
-    hashed_url = hashlib.sha1(url).hexdigest() + '.redirect'
-    cached_path = join(node.tmpdir.value, hashed_url)
-
-    if not exists(cached_path):
-        _logger.debug('Download %r redirect into %r', url, cached_path)
-        with util.new_file(cached_path) as f:
-            try:
-                response = http.request('GET', url, allow_redirects=True)
-                for chunk in response.iter_content(chunk_size=BUFFER_SIZE):
-                    f.write(chunk)
-            except Exception:
-                os.unlink(f.name)
-                raise
-
-    return file(cached_path, 'rb')
