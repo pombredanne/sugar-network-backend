@@ -28,6 +28,8 @@ _XO_UUID_PATH = '/ofw/mfg-data/U#'
 _NICKNAME_GCONF = '/desktop/sugar/user/nick'
 _COLOR_GCONF = '/desktop/sugar/user/color'
 
+_uid = None
+
 
 def logger_level():
     """Current Sugar logger level as --debug value."""
@@ -79,8 +81,13 @@ def pubkey():
 
 
 def uid():
-    key = pubkey().split()[1]
-    return str(hashlib.sha1(key).hexdigest())
+    global _uid
+
+    if _uid is None:
+        key = pubkey().split()[1]
+        _uid = str(hashlib.sha1(key).hexdigest())
+
+    return _uid
 
 
 def nickname():

@@ -35,7 +35,6 @@ class IPCServer(object):
         self._subscriptions = []
         self._mounts = mounts
         self._delayed_start = delayed_start
-        self._principal = sugar.uid()
         self._publish_lock = coroutine.Lock()
         self._servers = coroutine.ServersPool()
         self._jobs = coroutine.Pool()
@@ -70,7 +69,7 @@ class IPCServer(object):
                 break
             try:
                 request = ad.Request(message)
-                request.principal = self._principal
+                request.principal = sugar.uid()
                 request.access_level = ad.ACCESS_LOCAL
 
                 content_type = request.pop('content_type')

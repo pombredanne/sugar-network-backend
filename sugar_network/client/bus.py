@@ -48,7 +48,6 @@ class Client(object):
 
     """
     _connection = None
-    _principal = None
 
     @classproperty
     @classmethod
@@ -57,23 +56,15 @@ class Client(object):
             cls._connection = _Connection()
         return cls._connection
 
-    @classproperty
-    @classmethod
-    def principal(cls):
-        if cls._principal is None:
-            cls._principal = sugar.uid()
-        return cls._principal
-
     @classmethod
     def close(cls):
         cls._connection = None
-        cls._principal = None
 
     @classmethod
     def call(cls, method, cmd=None, content=None, content_type=None, **kwargs):
         request = ad.Request(kwargs)
         request.access_level = ad.ACCESS_LOCAL
-        request.principal = cls.principal
+        request.principal = sugar.uid()
         request['method'] = method
         if cmd:
             request['cmd'] = cmd
