@@ -39,12 +39,6 @@ _SYNC_DIRNAME = '.sugar-network-sync'
 
 _COMPLETE_MOUNT_TIMEOUT = 3
 
-_LOCAL_PROPS = {
-        'keep': False,
-        'keep_impl': 0,
-        'position': (-1, -1),
-        }
-
 _logger = logging.getLogger('local.mountset')
 
 
@@ -198,10 +192,9 @@ class Mountset(dict, ad.CommandsProcessor):
             self.home_volume.close()
 
     def _discover_masters(self):
-        with zeroconf.ServiceBrowser() as monitor:
-            for host in monitor.browse():
-                url = 'http://%s:%s' % (host, node.port.default)
-                self['/'].mount(url)
+        for host in zeroconf.browse_workstations():
+            url = 'http://%s:%s' % (host, node.port.default)
+            self['/'].mount(url)
 
     def _wait_for_master(self):
         with netlink.Netlink(socket.NETLINK_ROUTE, netlink.RTMGRP_IPV4_ROUTE |

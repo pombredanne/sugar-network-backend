@@ -42,7 +42,7 @@ class Application(application.Daemon):
     jobs = coroutine.Pool()
 
     def run(self):
-        if not exists(node.tmpdir.value):
+        if node.tmpdir.value and not exists(node.tmpdir.value):
             os.makedirs(node.tmpdir.value)
         sneakernet.TMPDIR = node.tmpdir.value
 
