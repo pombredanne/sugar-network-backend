@@ -114,7 +114,8 @@ class IndexReader(object):
         # This will assure that the results count is exact.
         check_at_least = query.offset + query.limit + 1
 
-        enquire = self._enquire(query.request, query.query, query.order_by)
+        enquire = self._enquire(query.request, query.query, query.order_by,
+                query.group_by)
         result = self._call_db(enquire.get_mset, query.offset, query.limit,
                 check_at_least)
         total = Total(result.get_matches_estimated())
@@ -150,7 +151,7 @@ class IndexReader(object):
         """Flush index changes to the disk."""
         raise NotImplementedError()
 
-    def _enquire(self, request, query, order_by):
+    def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
         queries = []
         boolean_queries = []
@@ -232,6 +233,13 @@ class IndexReader(object):
         else:
             _logger.warning('In order to support sorting, ' \
                     'Xapian should be at least 1.2.0')
+
+        if group_by:
+            prop = self._props.get(group_by)
+            enforce(prop is not None and prop.slot is not None,
+                    'Cannot group by %r property of %r',
+                    group_by, self.metadata.name)
+            enquire.set_collapse_key(prop.slot)
 
         return enquire
 

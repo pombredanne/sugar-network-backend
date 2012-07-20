@@ -105,7 +105,7 @@ class Redirect(Exception):
 class Query(object):
 
     def __init__(self, offset=None, limit=None, query='', reply=None,
-            order_by=None, no_cache=False, **kwargs):
+            order_by=None, no_cache=False, group_by=None, **kwargs):
         """
         :param offset:
             the resulting list should start with this offset;
@@ -122,12 +122,15 @@ class Query(object):
             property name to sort resulting list; might be prefixed with ``+``
             (or without any prefixes) for ascending order, and ``-`` for
             descending order
+        :param group_by:
+            property name to group resulting list by; no groupping by default
         :param kwargs:
             a dictionary with property values to restrict the search
 
         """
         self.query = query
         self.no_cache = no_cache
+        self.group_by = group_by
 
         if offset is None:
             offset = 0
@@ -146,6 +149,6 @@ class Query(object):
         self.request = kwargs
 
     def __repr__(self):
-        return 'offset=%s limit=%s request=%r query=%r order_by=%s' % \
-                (self.offset, self.limit, self.request, self.query,
-                        self.order_by)
+        return 'offset=%s limit=%s request=%r query=%r order_by=%s ' \
+               'group_by=%s' % (self.offset, self.limit, self.request,
+                       self.query, self.order_by, self.group_by)

@@ -151,7 +151,7 @@ class VolumeCommands(CommandsProcessor):
 
     @directory_command(method='GET')
     def find(self, document, request, offset=None, limit=None, query=None,
-            reply=None, order_by=None, **kwargs):
+            reply=None, order_by=None, group_by=None, **kwargs):
         directory = self.volume[document]
         offset = _to_int('offset', offset)
         limit = _to_int('limit', limit)
@@ -165,7 +165,8 @@ class VolumeCommands(CommandsProcessor):
         kwargs['layer'] = 'public'
 
         documents, total = directory.find(offset=offset, limit=limit,
-                query=query, reply=reply, order_by=order_by, **kwargs)
+                query=query, reply=reply, order_by=order_by, group_by=group_by,
+                **kwargs)
         result = [i.properties(reply, request.accept_language) \
                 for i in documents]
 

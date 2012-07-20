@@ -249,6 +249,24 @@ class IndexTest(tests.Test):
                 ([{'guid': '3', 'var_1': '3'}, {'guid': '2', 'var_1': '2'}, {'guid': '1', 'var_1': '1'}], 3),
                 db._find(reply=['var_1'], order_by='-var_2'))
 
+    def test_find_GroupBy(self):
+        db = Index({
+            'var_1': ActiveProperty('var_1', 1, 'A'),
+            'var_2': ActiveProperty('var_2', 2, 'B'),
+            'var_3': ActiveProperty('var_3', 3, 'C'),
+            })
+
+        db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '3'}, True)
+        db.store('2', {'var_1': '2', 'var_2': '1', 'var_3': '4'}, True)
+        db.store('3', {'var_1': '3', 'var_2': '2', 'var_3': '4'}, True)
+
+        self.assertEqual(
+                ([{'guid': '1', 'var_1': '1'}, {'guid': '3', 'var_1': '3'}], 2),
+                db._find(reply=['var_1'], group_by='var_2'))
+        self.assertEqual(
+                ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 2),
+                db._find(reply=['var_1'], group_by='var_3'))
+
     def test_Integers(self):
         db = Index({
             'prop': ActiveProperty('prop', 1, 'A', typecast=int, full_text=True),
