@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/coroutine.py$
-$Date: 2012-06-29$
+$Date: 2012-07-20$
 
 """
 # pylint: disable-msg=W0621
@@ -38,9 +38,8 @@ sleep = gevent.sleep
 #: Wait for the spawned events to finish.
 joinall = gevent.joinall
 
-# Avoid using async DNS resolver, c-ares fails on XO-1 on Fedora-14
-# with ARES_ECONNREFUSED error; in any case, resolving is not an issue
-# for Sugar Network workflow
+# TODO In #3753 case, resetting glibc cache doesn't help
+# if c-ares is being used for DNS resolving.
 gevent.hub.Hub.resolver_class = ['gevent.socket.BlockingResolver']
 
 _group = gevent.pool.Group()
@@ -135,6 +134,61 @@ class AsyncCondition(object):
 
     def notify(self):
         self._async.send()
+
+
+class Empty(Exception):
+    pass
+
+
+class AsyncQueue(object):
+
+    def __init__(self):
+        self._queue = self._new_queue()
+        self._async = gevent.get_hub().loop.async()
+        self._aborted = False
+
+    def put(self, *args, **kwargs):
+        self._put(args, kwargs)
+        self._async.send()
+
+    def get(self):
+        self._aborted = False
+        while True:
+            try:
+                return self._get()
+            except Empty:
+                gevent.get_hub().wait(self._async)
+                if self._aborted:
+                    self._aborted = False
+                    raise
+
+    def abort(self):
+        self._aborted = True
+        self._async.send()
+
+    def __iter__(self):
+        while True:
+            try:
+                yield self.get()
+            except Empty:
+                break
+
+    def __getattr__(self, name):
+        return getattr(self._queue, name)
+
+    def _new_queue(self):
+        from Queue import Queue
+        return Queue()
+
+    def _put(self, args, kwargs):
+        self._queue.put(*args, **kwargs)
+
+    def _get(self):
+        from Queue import Empty as empty
+        try:
+            return self._queue.get_nowait()
+        except empty:
+            raise Empty()
 
 
 class Pool(gevent.pool.Pool):
