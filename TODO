@@ -17,3 +17,4 @@
 - IndexProxy should be smarter to take into account sorting of cached documents
 - i18n for SN content
 - sugar-datastore like file storage optimizer
+- (?) multilingual order_by

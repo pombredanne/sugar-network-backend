@@ -243,8 +243,6 @@ class ActiveProperty(StoredProperty):
         enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')),
                 'Slot can be set only for properties for str, int, float, ' \
                         'bool types, or, for list of these types')
-        enforce(not kwargs.get('localized') or slot is None,
-                'Localized property cannot be sloted')
 
         StoredProperty.__init__(self, name, **kwargs)
         self._slot = slot

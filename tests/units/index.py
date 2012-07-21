@@ -6,6 +6,7 @@ import os
 import uuid
 import time
 import shutil
+import locale
 from os.path import exists
 
 from __init__ import tests
@@ -581,6 +582,33 @@ class IndexTest(tests.Test):
         db.store('1', {}, True)
         coroutine.dispatch()
         self.assertEqual(1, len(commits))
+
+    def test_SortLocalizedProps(self):
+        env.DEFAULT_LANG = 'default_lang'
+        current_lang = locale.getdefaultlocale()[0].replace('_', '-')
+
+        db = Index({'prop': ActiveProperty('prop', 1, 'A', localized=True)})
+
+        db.store('0', {'prop': {'foo': '6'}}, True)
+        db.store('1', {'prop': {current_lang: '1', 'default_lang': '4', 'foo': '9'}}, True)
+        db.store('2', {'prop': {'default_lang': '2', 'foo': '8'}}, True)
+        db.store('3', {'prop': {current_lang: '3', 'foo': '7'}}, True)
+
+        self.assertEqual([
+            {'guid': '0'},
+            {'guid': '1'},
+            {'guid': '2'},
+            {'guid': '3'},
+            ],
+            db._find(order_by='prop')[0])
+
+        self.assertEqual([
+            {'guid': '3'},
+            {'guid': '2'},
+            {'guid': '1'},
+            {'guid': '0'},
+            ],
+            db._find(order_by='-prop')[0])
 
 
 class Index(index.IndexWriter):
