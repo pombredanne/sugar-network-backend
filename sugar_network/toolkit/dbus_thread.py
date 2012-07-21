@@ -18,66 +18,118 @@ import threading
 
 import dbus
 import gobject
+from dbus.service import Object
 from dbus.mainloop.glib import threads_init, DBusGMainLoop
 
-from active_toolkit import util
+import active_document as ad
+from active_toolkit import util, coroutine
+from sugar_network.toolkit import sugar
 
 
 _logger = logging.getLogger('dbus_thread')
-_thread = None
-_mainloop = None
 _services = []
+_call_queue = coroutine.AsyncQueue()
+
+
+def start(mountset):
+    gobject.threads_init()
+    threads_init()
+
+    mainloop = gobject.MainLoop()
+    thread = threading.Thread(target=_mainloop_thread, args=[mainloop])
+    thread.daemon = True
+    thread.start()
+
+    def handle_event(event):
+        for service in _services:
+            spawn(service.handle_event, event)
+
+    mountset.connect(handle_event)
+    try:
+        for request, reply_cb, error_cb, args in _call_queue:
+            try:
+                reply = mountset.call(request)
+            except Exception, error:
+                util.exception(_logger, 'DBus %r request failed', request)
+                if reply_cb is not None:
+                    spawn(error_cb, error)
+            else:
+                if reply_cb is not None:
+                    spawn(reply_cb, reply, *(args or []))
+    finally:
+        mountset.disconnect(handle_event)
+        spawn(mainloop.quit)
+        thread.join()
 
 
 def spawn(callback, *args):
-    global _thread, _mainloop
 
-    if _thread is None:
-        gobject.threads_init()
-        threads_init()
-        _mainloop = gobject.MainLoop()
-        _thread = threading.Thread(target=_mainloop_thread)
-        _thread.daemon = True
-        _thread.start()
+    def process_callback():
+        try:
+            callback(*args)
+        except Exception:
+            util.exception(_logger, 'Fail to spawn %r(%r) in DBus thread',
+                    callback, args)
 
-    gobject.idle_add(callback, *args)
+    gobject.idle_add(process_callback)
 
 
 def spawn_service(service_class):
-    spawn(lambda: _services.append(service_class()))
+
+    def start_service():
+        _services.append(service_class())
+        _logger.debug('Service %r started', service_class)
+
+    spawn(start_service)
 
 
-def shutdown():
-    global _thread, _mainloop
+class Service(Object):
 
-    if _thread is None:
-        return
+    def call(self, reply_cb, error_cb, content=None, content_stream=None,
+            content_length=None, args=None, **kwargs):
+        """Call a command in parent thread."""
+        request = ad.Request(kwargs)
+        request.principal = sugar.uid()
+        request.access_level = ad.ACCESS_LOCAL
+        request.content = content
+        request.content_stream = content_stream
+        request.content_length = content_length
 
-    gobject.idle_add(_mainloop.quit)
-    _thread.join()
-    _thread = None
-    _mainloop = None
+        _logger.debug('Got %r request', request)
+        _call_queue.put((request, reply_cb, error_cb, args))
+
+    def handle_event(self, event):
+        """Handle, in child thread, events gotten from parent thread."""
+        pass
+
+    def stop(self):
+        pass
 
 
-def _mainloop_thread():
+def _mainloop_thread(mainloop):
     DBusGMainLoop(set_as_default=True)
 
-    def disconnect_cb():
+    def Disconnected_cb():
         _logger.info('Service disconnected from the bus, will exit')
-        _mainloop.quit()
+        mainloop.quit()
 
-    bus = dbus.SessionBus()
-    bus.add_signal_receiver(disconnect_cb, signal_name='Disconnected',
-            dbus_interface='org.freedesktop.DBus.Local')
-    bus.set_exit_on_disconnect(False)
-
-    _logger.info('Started thread')
-
+    disconnected_hid = None
     try:
-        _mainloop.run()
+        bus = dbus.SessionBus()
+        disconnected_hid = bus.add_signal_receiver(Disconnected_cb,
+                signal_name='Disconnected',
+                dbus_interface='org.freedesktop.DBus.Local')
+        bus.set_exit_on_disconnect(False)
+
+        _logger.info('Started thread')
+        mainloop.run()
+
     except Exception:
-        util.exception(_logger, 'Thread shutdown with error')
+        util.exception(_logger, 'Thread failed')
     finally:
+        if disconnected_hid is not None:
+            disconnected_hid.remove()
         while _services:
-            _services.pop().close()
-        _logger.info('Stopped thread')
+            _services.pop().stop()
+        _call_queue.abort()
+        _logger.debug('Thread stopped')

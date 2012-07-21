@@ -10,6 +10,7 @@
 - move highlevel code from ad, eg, auth related
 - restrict sync content, especially for actiivity versions
 - after switching to global seqno, tweek blobs chaching model
+- activities migth need MIME registering while checking-in
 
 1.0
 ===

@@ -79,9 +79,13 @@ def _browser(queue):
 
 
 if __name__ == '__main__':
+    from sugar_network.local.mountset import Mountset
+
     logging.basicConfig(level=logging.DEBUG)
+    dbus_job = coroutine.spawn(dbus_thread.start, Mountset(None))
+
     try:
         for i in browse_workstations():
             pass
     finally:
-        dbus_thread.shutdown()
+        dbus_job.kill()

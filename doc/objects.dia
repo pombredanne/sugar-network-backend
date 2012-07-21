@@ -1198,17 +1198,17 @@
     </dia:object>
     <dia:object type="UML - Association" version="2" id="O4">
       <dia:attribute name="obj_pos">
-        <dia:point val="53,59"/>
+        <dia:point val="53,56.5"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="46.9824,58.24;53.0176,65.84"/>
+        <dia:rectangle val="46.9824,55.74;53.0176,65.84"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
       </dia:attribute>
       <dia:attribute name="orth_points">
-        <dia:point val="53,59"/>
-        <dia:point val="51,59"/>
+        <dia:point val="53,56.5"/>
+        <dia:point val="51,56.5"/>
         <dia:point val="51,65"/>
         <dia:point val="47,65"/>
       </dia:attribute>
@@ -2485,22 +2485,22 @@
     </dia:object>
     <dia:object type="UML - LargePackage" version="0" id="O15">
       <dia:attribute name="obj_pos">
-        <dia:point val="53,37"/>
+        <dia:point val="53,32"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="52.95,35.95;84.05,81.05"/>
+        <dia:rectangle val="52.95,30.95;84.05,81.05"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
-        <dia:point val="53,37"/>
+        <dia:point val="53,32"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
         <dia:real val="31"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="44"/>
+        <dia:real val="49"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Context specific resources  #</dia:string>
@@ -2529,19 +2529,19 @@
     </dia:object>
     <dia:object type="UML - Class" version="0" id="O16">
       <dia:attribute name="obj_pos">
-        <dia:point val="69,38"/>
+        <dia:point val="67,33"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="68.985,37.985;82.22,55.615"/>
+        <dia:rectangle val="66.985,32.985;82.145,61.815"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
-        <dia:point val="69,38"/>
+        <dia:point val="67,33"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
-        <dia:real val="13.205"/>
+        <dia:real val="15.130000000000001"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="17.600000000000001"/>
+        <dia:real val="28.800000000000004"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Artifact#</dia:string>
@@ -2659,13 +2659,36 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
+            <dia:string>#keep#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#bool [R W S L]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>#false#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#Is Artifact favorite#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
             <dia:string>#mime_type#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
             <dia:string>#enum [R WN F]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
-            <dia:string>##</dia:string>
+            <dia:string>#""#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Artifact's MIME type#</dia:string>
@@ -2688,7 +2711,7 @@
             <dia:string>#str [R WA F I]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
-            <dia:string>##</dia:string>
+            <dia:string>#""#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#One line summary#</dia:string>
@@ -2711,10 +2734,79 @@
             <dia:string>#wikitext [R WA F I]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
-            <dia:string>##</dia:string>
+            <dia:string>#""#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Long description#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
+            <dia:string>#activity_id#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#str [R WA S]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>#""#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#ID of Sugar Activity session that created this Artifact#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
+            <dia:string>#filesize#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#int [R W S L]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>#0#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#Size in bytes of `data` BLOB; makes sense only for local database#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
+            <dia:string>#traits#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#dict [R WN]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>#{}#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#A dictionary of extra properties associated with the Artifact#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -2781,13 +2873,13 @@
     </dia:object>
     <dia:object type="UML - Class" version="0" id="O17">
       <dia:attribute name="obj_pos">
-        <dia:point val="54,38"/>
+        <dia:point val="54,33"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="53.985,37.985;65.6275,61.615"/>
+        <dia:rectangle val="53.985,32.985;65.6275,56.615"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
-        <dia:point val="54,38"/>
+        <dia:point val="54,33"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
         <dia:real val="11.612500000000001"/>
@@ -3262,16 +3354,16 @@
     </dia:object>
     <dia:object type="UML - Association" version="2" id="O19">
       <dia:attribute name="obj_pos">
-        <dia:point val="59.8062,61.6"/>
+        <dia:point val="59.8062,56.6"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="59.7886,61.5824;65.0176,76.34"/>
+        <dia:rectangle val="59.7886,56.5824;65.0176,76.34"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
       </dia:attribute>
       <dia:attribute name="orth_points">
-        <dia:point val="59.8062,61.6"/>
+        <dia:point val="59.8062,56.6"/>
         <dia:point val="59.8062,75.5"/>
         <dia:point val="65,75.5"/>
       </dia:attribute>

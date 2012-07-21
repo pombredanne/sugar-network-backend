@@ -43,7 +43,7 @@ def main():
 
 class Test(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self, fork_num=0):
         self._overriden = []
 
         os.environ['LANG'] = 'en_US'
@@ -54,7 +54,10 @@ class Test(unittest.TestCase):
         os.makedirs(tmpdir)
         os.chdir(tmpdir)
 
-        self.logfile = tmpdir + '.log'
+        if fork_num:
+            self.logfile = tmpdir + '-%s.log' % fork_num
+        else:
+            self.logfile = tmpdir + '.log'
         if exists(self.logfile):
             os.unlink(self.logfile)
 
@@ -106,7 +109,7 @@ class Test(unittest.TestCase):
         self.mounts = None
 
         self.forks = []
-        self.fork_num = 0
+        self.fork_num = fork_num
 
     def tearDown(self):
         self.stop_servers()
@@ -132,7 +135,7 @@ class Test(unittest.TestCase):
         if sig:
             try:
                 os.kill(pid, sig)
-            except Exception:
+            except Exception, e:
                 pass
         try:
             __, status = os.waitpid(pid, 0)
@@ -201,18 +204,22 @@ class Test(unittest.TestCase):
         coroutine.sleep(1)
         return child.pid
 
-    def start_server(self, classes=None):
+    def start_server(self, classes=None, root=True):
         if classes is None:
             classes = [User, Context]
         volume = Volume('local', classes)
         self.mounts = Mountset(volume)
         self.mounts['~'] = HomeMount(volume)
-        self.mounts['/'] = RemoteMount(volume)
+        if root:
+            self.mounts['/'] = RemoteMount(volume)
         self.server = IPCServer(self.mounts)
         coroutine.spawn(self.server.serve_forever)
         self.mounts.open()
         self.mounts.opened.wait()
         coroutine.dispatch()
+
+    def create_mountset(self, classes=None):
+        self.start_server(classes, root=False)
 
     def start_ipc_and_restful_server(self, classes=None, **kwargs):
         pid = self.fork(self.restful_server, classes)

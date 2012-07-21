@@ -20,22 +20,38 @@ from sugar_network.resources.volume import Resource
 
 class Artifact(Resource):
 
-    @ad.active_property(prefix='C',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @ad.active_property(slot=1, prefix='C', default='')
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='T', full_text=True,
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @ad.active_property(slot=2, prefix='K', typecast=bool, default=False)
+    def keep(self, value):
+        return value
+
+    @ad.active_property(slot=3, prefix='T', full_text=True, default='')
     def mime_type(self, value):
         return value
 
-    @ad.active_property(prefix='S', full_text=True, localized=True)
+    @ad.active_property(slot=4, prefix='S', default='', full_text=True,
+            localized=True)
     def title(self, value):
         return value
 
-    @ad.active_property(prefix='D', full_text=True, localized=True)
+    @ad.active_property(slot=5, prefix='D', default='', full_text=True,
+            localized=True)
     def description(self, value):
+        return value
+
+    @ad.active_property(slot=6, prefix='A', default='')
+    def activity_id(self, value):
+        return value
+
+    @ad.active_property(slot=7, prefix='Z', typecast=int, default=0)
+    def filesize(self, value):
+        return value
+
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    def traits(self, value):
         return value
 
     @ad.active_property(ad.BlobProperty)
