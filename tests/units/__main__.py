@@ -21,6 +21,7 @@ from remote_mount import *
 from node_mount import *
 from sync_master import *
 from sync_node import *
+from datastore import *
 from dbus_datastore import *
 
 tests.main()
