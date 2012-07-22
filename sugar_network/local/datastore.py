@@ -64,12 +64,16 @@ def populate(artifacts):
 
     _logger.info('Start populating Artifacts from sugar-datastore')
 
-    root, dirs, __ = os.walk(sugar.profile_path('datastore')).next()
-    for dirname in dirs:
-        for guid in os.listdir(join(root, dirname)):
+    root = sugar.profile_path('datastore')
+    for guids_dirname in os.listdir(root):
+        guids_path = join(root, guids_dirname)
+        if not isdir(guids_path):
+            continue
+
+        for guid in os.listdir(guids_path):
             coroutine.dispatch()
 
-            metadata = join(root, dirname, guid, 'metadata')
+            metadata = join(guids_path, guid, 'metadata')
             if not isdir(metadata) or artifacts.exists(guid):
                 continue
 
@@ -97,7 +101,7 @@ def populate(artifacts):
                         props['traits'][ds_prop] = value
             artifacts.create(props)
 
-            data = join(root, dirname, guid, 'data')
+            data = join(guids_path, guid, 'data')
             if isfile(data):
                 artifacts.set_blob(guid, 'data', data)
 
@@ -112,6 +116,7 @@ def decode_names(names):
     add_traits = False
 
     for ds_prop in names:
+        ds_prop = str(ds_prop)
         if ds_prop in MAP_PROPS:
             result.append(MAP_PROPS[ds_prop][0])
         else:

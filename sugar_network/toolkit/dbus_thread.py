@@ -94,8 +94,6 @@ class Service(Object):
         request.content = content
         request.content_stream = content_stream
         request.content_length = content_length
-
-        _logger.debug('Got %r request', request)
         _call_queue.put((request, reply_cb, error_cb, args))
 
     def handle_event(self, event):

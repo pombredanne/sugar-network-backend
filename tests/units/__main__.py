@@ -8,7 +8,6 @@ from bus import *
 from activities_crawler import *
 from activities import *
 from ipc_client import *
-from glib_client import *
 from injector import *
 from subscribe_socket import *
 from router import *

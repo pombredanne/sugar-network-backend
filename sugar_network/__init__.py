@@ -19,9 +19,3 @@ from sugar_network.local.activities import checkins
 from sugar_network.local import api_url, server_mode
 from sugar_network_webui import webui_port
 from sugar_network.zerosugar.injector import launch, checkin
-
-
-def GlibClient():
-    # Avoid importing Glib stuff for non-glib clients
-    from sugar_network.client import glib_client
-    return glib_client.GlibClient()

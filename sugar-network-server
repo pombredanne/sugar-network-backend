@@ -38,7 +38,6 @@ from sugar_network.toolkit import sugar, sneakernet
 
 class Application(application.Daemon):
 
-    servers = coroutine.ServersPool()
     jobs = coroutine.Pool()
 
     def run(self):
@@ -60,12 +59,13 @@ class Application(application.Daemon):
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)
-        self.servers.spawn(coroutine.WSGIServer,
-                (node.host.value, node.port.value), Router(cp), **ssl_args)
+        server = coroutine.WSGIServer((node.host.value, node.port.value),
+                Router(cp), **ssl_args)
+        self.jobs.spawn(server.serve_forever)
 
         logging.info('Listening for subscriptions on %s:%s',
                 node.host.value, node.subscribe_port.value)
-        self.servers.spawn(subscriber)
+        self.jobs.spawn(subscriber.serve_forever)
 
         if webui.webui.value:
             # XXX Until implementing regular web users
@@ -81,16 +81,16 @@ class Application(application.Daemon):
 
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)
-            self.servers.spawn(coroutine.WSGIServer, host, webui.get_app())
+            server = coroutine.WSGIServer(host, webui.get_app())
+            self.jobs.spawn(server.serve_forever)
 
         try:
-            self.servers.join()
+            self.jobs.join()
         finally:
-            self.jobs.kill()
             volume.close()
 
     def shutdown(self):
-        self.servers.stop()
+        self.jobs.kill()
 
 
 locale.setlocale(locale.LC_ALL, '')

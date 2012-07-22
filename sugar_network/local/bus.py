@@ -31,13 +31,11 @@ _logger = logging.getLogger('local.bus')
 
 class IPCServer(object):
 
-    def __init__(self, mounts, delayed_start=None):
+    def __init__(self, mounts):
         self._subscriptions = []
         self._mounts = mounts
-        self._delayed_start = delayed_start
         self._publish_lock = coroutine.Lock()
-        self._servers = coroutine.ServersPool()
-        self._jobs = coroutine.Pool()
+        self._servers = coroutine.Pool()
 
         self._mounts.connect(self._republish)
 
@@ -60,7 +58,7 @@ class IPCServer(object):
     def stop(self):
         while self._subscriptions:
             self._subscriptions.pop().close()
-        self._servers.stop()
+        self._servers.kill()
 
     def _serve_client(self, conn_file):
         while True:
@@ -80,14 +78,10 @@ class IPCServer(object):
                 else:
                     request.content = conn_file.read() or None
 
-                if request.get('cmd') == 'publish':
-                    self._republish(request.content)
-                    result = None
-                else:
-                    response = ad.Response()
-                    result = self._mounts.call(request, response)
-
+                response = ad.Response()
+                result = self._mounts.call(request, response)
                 conn_file.write_message(result)
+
             except Exception, error:
                 conn_file.write_message({'error': str(error)})
 
@@ -97,12 +91,6 @@ class IPCServer(object):
         return True
 
     def _republish(self, event):
-        if event.get('event') == 'delayed-start':
-            if self._delayed_start is not None:
-                self._jobs.spawn(self._delayed_start)
-                self._delayed_start = None
-            return
-
         _logger.debug('Send notification: %r', event)
 
         with self._publish_lock:
@@ -139,4 +127,4 @@ def _start_server(name, serve_cb):
             if not do_not_close:
                 conn_file.close()
 
-    return coroutine.Server(accept, connection_cb)
+    return coroutine.Server(accept, connection_cb).serve_forever

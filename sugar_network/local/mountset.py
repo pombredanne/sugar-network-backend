@@ -54,7 +54,7 @@ class Mountset(dict, ad.CommandsProcessor):
         self._subscriptions = {}
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
         self._jobs = coroutine.Pool()
-        self._servers = coroutine.ServersPool()
+        self._servers = coroutine.Pool()
         self._sync_dirs = MutableStack()
         self._sync = coroutine.Pool()
 
@@ -113,6 +113,10 @@ class Mountset(dict, ad.CommandsProcessor):
     @ad.volume_command(method='POST', cmd='break_sync')
     def break_sync(self):
         self._sync.kill()
+
+    @ad.volume_command(method='POST', cmd='publish')
+    def republish(self, request):
+        self.publish(request.content)
 
     def call(self, request, response=None):
         if response is None:
@@ -184,7 +188,7 @@ class Mountset(dict, ad.CommandsProcessor):
 
     def close(self):
         self.break_sync()
-        self._servers.stop()
+        self._servers.kill()
         self._jobs.kill()
         for mountpoint in self.keys():
             del self[mountpoint]
@@ -285,12 +289,13 @@ class Mountset(dict, ad.CommandsProcessor):
 
             _logger.info('Start %r server on %s port',
                     volume.root, node.port.value)
-            self._servers.spawn(coroutine.WSGIServer,
-                    ('0.0.0.0', node.port.value), Router(cp))
+            server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
+                    Router(cp))
+            self._servers.spawn(server.serve_forever)
 
             _logger.info('Listen for client subscribtions on %s port',
                     node.subscribe_port.value)
-            self._servers.spawn(subscriber)
+            self._servers.spawn(subscriber.serve_forever)
 
             # Let servers start before publishing mount event
             coroutine.dispatch()
