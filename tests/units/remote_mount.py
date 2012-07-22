@@ -144,7 +144,7 @@ class RemoteMountTest(tests.Test):
                 description='description').post()
 
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'document': '*', 'name': 'Network', 'private': False},
+                {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
                 subscription.read_message())
         coroutine.select([subscription.fileno()], [], [])
         event = subscription.read_message()
@@ -190,7 +190,7 @@ class RemoteMountTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'document': '*', 'name': 'Network', 'private': False},
+                {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
                 subscription.read_message())
         self.assertEqual(True, client.connected)
 
@@ -198,7 +198,7 @@ class RemoteMountTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'unmount', 'document': '*', 'name': 'Network', 'private': False},
+                {'mountpoint': '/', 'event': 'unmount', 'name': 'Network', 'private': False},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 
@@ -208,7 +208,7 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(False, client.connected)
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'document': '*', 'name': 'Network', 'private': False},
+                {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
                 subscription.read_message())
         self.assertEqual(True, client.connected)
 
@@ -216,7 +216,7 @@ class RemoteMountTest(tests.Test):
 
         coroutine.select([subscription.fileno()], [], [])
         self.assertEqual(
-                {'mountpoint': '/', 'event': 'unmount', 'document': '*', 'name': 'Network', 'private': False},
+                {'mountpoint': '/', 'event': 'unmount', 'name': 'Network', 'private': False},
                 subscription.read_message())
         self.assertEqual(False, client.connected)
 

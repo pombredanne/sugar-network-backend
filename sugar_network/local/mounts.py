@@ -70,7 +70,6 @@ class _Mount(object):
             'mountpoint': self.mountpoint,
             'name': self.name,
             'private': self.private,
-            'document': '*',
             })
 
     def publish(self, event):
@@ -162,10 +161,9 @@ class HomeMount(LocalMount):
         return feed
 
     def _events_cb(self, event):
-        if 'props' in event:
-            found_commons = False
-            props = event['props']
-
+        found_commons = False
+        props = event.get('props')
+        if props:
             for prop in _LOCAL_PROPS.keys():
                 if prop not in props:
                     continue
@@ -174,11 +172,10 @@ class HomeMount(LocalMount):
                         self._checkout(event['guid'])
                 found_commons = True
 
-            if found_commons:
-                # These local properties exposed from `_proxy_call` as well
-                event['mountpoint'] = '*'
-
-        LocalMount._events_cb(self, event)
+        if not found_commons:
+            # These local properties exposed from `_proxy_call` as well
+            event['mountpoint'] = self.mountpoint
+        self.publish(event)
 
     def _checkout(self, guid):
         for path in activities.checkins(guid):

@@ -153,7 +153,7 @@ class Mountset(dict, ad.CommandsProcessor):
     def publish(self, event):
         for callback, condition in self._subscriptions.items():
             for key, value in condition.items():
-                if event.get(key) not in ('*', value):
+                if event.get(key) != value:
                     break
             else:
                 try:

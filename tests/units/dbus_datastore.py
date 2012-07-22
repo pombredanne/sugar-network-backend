@@ -6,6 +6,8 @@ import sys
 import time
 from os.path import exists, abspath, dirname
 
+arg0 = abspath(__file__)
+
 import dbus
 import gobject
 from dbus.mainloop.glib import threads_init, DBusGMainLoop
@@ -20,8 +22,6 @@ from sugar_network.local.dbus_datastore import Datastore
 from sugar_network.toolkit import dbus_thread
 from active_toolkit import coroutine
 
-
-arg0 = abspath(__file__)
 
 gobject.threads_init()
 threads_init()

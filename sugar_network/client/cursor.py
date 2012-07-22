@@ -29,8 +29,10 @@ _logger = logging.getLogger('sugar_network.cursor')
 
 class Cursor(object):
 
-    def __init__(self, request, query, order_by, reply, page_size, **filters):
-        self._request = request
+    def __init__(self, mountpoint, document, query, order_by, reply, page_size,
+            **filters):
+        self.mountpoint = mountpoint
+        self.document = document
         self._query = query
         self._order_by = order_by
         self._reply = reply or ['guid']
@@ -44,7 +46,7 @@ class Cursor(object):
         self._offset = -1
         self._wait_session = None
 
-        Client.connect(self.__event_cb, **request)
+        Client.connect(self.__event_cb)
 
     def close(self):
         Client.disconnect(self.__event_cb)
@@ -155,7 +157,7 @@ class Cursor(object):
                 for obj in page:
                     if obj is not None and obj.guid == key:
                         return obj
-            return Object(self._request, self._reply, key)
+            return Object(self.mountpoint, self.document, self._reply, key)
         else:
             offset = key
 
@@ -196,7 +198,10 @@ class Cursor(object):
     def _fetch_page(self, page):
         offset = page * self._page_size
 
-        params = {}
+        params = {
+                'mountpoint': self.mountpoint,
+                'document': self.document,
+                }
         for key, value in self._filters.items():
             if value is not None:
                 params[key] = value
@@ -210,7 +215,6 @@ class Cursor(object):
             params['reply'] = self._reply
 
         try:
-            params.update(self._request)
             response = Client.call('GET', **params)
             self._total = response['total']
         except Exception:
@@ -220,7 +224,7 @@ class Cursor(object):
 
         result = [None] * len(response['result'])
         for i, props in enumerate(response['result']):
-            result[i] = Object(self._request, self._reply,
+            result[i] = Object(self.mountpoint, self.document, self._reply,
                     props['guid'], props, offset + i)
 
         if not self._page_access or self._page_access[-1] != page:
@@ -237,11 +241,15 @@ class Cursor(object):
         self._total = None
 
     def __event_cb(self, event):
-        # TODO More optimal resetting
-        self._reset()
-
-        if self._wait_session is not None:
-            self._wait_session.push(event)
+        mountpoint = event.get('mountpoint')
+        document = event.get('document')
+        if document == self.document and mountpoint == self.mountpoint or \
+                document == self.document and not mountpoint or \
+                mountpoint == self.mountpoint and \
+                    event['event'] in ('mount', 'unmount'):
+            self._reset()
+            if self._wait_session is not None:
+                self._wait_session.push(event)
 
     def __enter__(self):
         return self

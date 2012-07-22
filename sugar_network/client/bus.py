@@ -246,7 +246,7 @@ class _Connection(object):
                     break
                 for callback, condition in self._subscriptions.items():
                     for key, value in condition.items():
-                        if event.get(key) not in ('*', value):
+                        if event.get(key) != value:
                             break
                     else:
                         callback(event)
@@ -257,7 +257,8 @@ class _Connection(object):
 class _Resource(object):
 
     def __init__(self, mountpoint, name):
-        self._request = {'mountpoint': mountpoint, 'document': name}
+        self.mountpoint = mountpoint
+        self.document = name
 
     def cursor(self, query=None, order_by=None, reply=None, page_size=18,
             **filters):
@@ -281,8 +282,8 @@ class _Resource(object):
 
         """
         from sugar_network.client.cursor import Cursor
-        return Cursor(self._request, query, order_by, reply, page_size,
-                **filters)
+        return Cursor(self.mountpoint, self.document, query, order_by, reply,
+                page_size, **filters)
 
     def delete(self, guid):
         """Delete resource object.
@@ -291,8 +292,10 @@ class _Resource(object):
             resource object's GUID
 
         """
-        return Client.call('DELETE', guid=guid, **self._request)
+        return Client.call('DELETE',
+                mountpoint=self.mountpoint, document=self.document, guid=guid)
 
     def __call__(self, guid=None, reply=None, **kwargs):
         from sugar_network.client.objects import Object
-        return Object(self._request, reply or [], guid, **kwargs)
+        return Object(self.mountpoint, self.document, reply or [], guid,
+                **kwargs)

@@ -27,9 +27,10 @@ _logger = logging.getLogger('sugar_network.objects')
 
 class Object(object):
 
-    def __init__(self, request, reply, guid=None, props=None, offset=None,
-            **kwargs):
-        self._request = request
+    def __init__(self, mountpoint, document, reply, guid=None, props=None,
+            offset=None, **kwargs):
+        self.mountpoint = mountpoint
+        self.document = document
         self._reply = reply or []
         self._guid = guid
         self._props = props or {}
@@ -50,8 +51,8 @@ class Object(object):
         result = self._props.get(prop)
         if result is None:
             enforce(prop in self._reply,
-                    'Access to not requested %r property in \'%s\'',
-                    prop, self._request)
+                    'Access to not requested %r property in %r from %r mount',
+                    prop, self.document, self.mountpoint)
             self.fetch()
             result = self._props.get(prop)
         return result
@@ -66,8 +67,8 @@ class Object(object):
         if not to_fetch:
             return
 
-        response = Client.call('GET', guid=self._guid, reply=to_fetch,
-                **self._request)
+        response = Client.call('GET', mountpoint=self.mountpoint,
+                document=self.document, guid=self._guid, reply=to_fetch)
         response.update(self._props)
         self._props = response
 
@@ -80,12 +81,14 @@ class Object(object):
             props[i] = self._props.get(i)
 
         if self._guid:
-            Client.call('PUT', guid=self._guid, content=props,
-                    content_type='application/json', **self._request)
+            Client.call('PUT', mountpoint=self.mountpoint,
+                    document=self.document, guid=self._guid, content=props,
+                    content_type='application/json')
         else:
             props['user'] = [sugar.uid()]
-            self._guid = Client.call('POST', content=props,
-                    content_type='application/json', **self._request)
+            self._guid = Client.call('POST', mountpoint=self.mountpoint,
+                    document=self.document, content=props,
+                    content_type='application/json')
 
         self._dirty.clear()
         return self._guid
@@ -112,23 +115,23 @@ class Object(object):
 
     def upload_blob(self, prop, path, pass_ownership=False):
         enforce(self._guid, 'Object needs to be posted first')
-        Client.call('PUT', 'upload_blob', guid=self._guid, prop=prop,
-                path=abspath(path), pass_ownership=pass_ownership,
-                **self._request)
+        Client.call('PUT', 'upload_blob', mountpoint=self.mountpoint,
+                document=self.document, guid=self._guid, prop=prop,
+                path=abspath(path), pass_ownership=pass_ownership)
 
     def _get_blob(self, prop):
         blob = self._blobs.get(prop)
         if blob is None:
-            blob = Client.call('GET', 'get_blob', guid=self._guid, prop=prop,
-                    **self._request)
+            blob = Client.call('GET', 'get_blob', mountpoint=self.mountpoint,
+                    document=self.document, guid=self._guid, prop=prop)
             self._blobs[prop] = blob
         return blob, type(blob) is dict and 'path' in blob
 
     def __getitem__(self, prop):
         result = self.get(prop)
         enforce(result is not None, KeyError,
-                'Property %r is absent in %r resource',
-                prop, self._request)
+                'Property %r is absent in %r from %r mount',
+                prop, self.document, self.mountpoint)
         return result
 
     def __setitem__(self, prop, value):

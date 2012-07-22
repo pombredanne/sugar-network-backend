@@ -116,7 +116,7 @@ class GlibClient(gobject.GObject):
             # TODO More regular handling synchronization events
             self.emit('alert', 'info', _('Synchronization completed'))
 
-        elif event.get('mountpoint') in ('~', '*') and \
+        elif event.get('mountpoint') in ('~', None) and \
                 event.get('document') == 'context':
             if event_type in ('create', 'update'):
                 bundle_id = event['guid']

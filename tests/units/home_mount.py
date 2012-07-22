@@ -150,7 +150,7 @@ class HomeMountTest(tests.Test):
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
-                {'mountpoint': '*', 'document': 'context', 'event': 'create', 'guid': guid, 'seqno': 1},
+                {'document': 'context', 'event': 'create', 'guid': guid, 'seqno': 1},
                 event)
         self.assertEqual(
                 {'mountpoint': '~', 'document': 'context', 'event': 'commit', 'seqno': 1},
@@ -202,7 +202,7 @@ class HomeMountTest(tests.Test):
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
-                {'mountpoint': '*', 'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 2},
+                {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 2},
                 event)
 
     def test_Connect(self):
