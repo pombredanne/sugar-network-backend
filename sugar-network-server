@@ -62,9 +62,6 @@ class Application(application.Daemon):
         server = coroutine.WSGIServer((node.host.value, node.port.value),
                 Router(cp), **ssl_args)
         self.jobs.spawn(server.serve_forever)
-
-        logging.info('Listening for subscriptions on %s:%s',
-                node.host.value, node.subscribe_port.value)
         self.jobs.spawn(subscriber.serve_forever)
 
         if webui.webui.value:

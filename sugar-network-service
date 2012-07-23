@@ -25,15 +25,17 @@ import active_document as ad
 import sugar_network_webui as webui
 
 from sugar_network import local, node, Client
-from sugar_network.toolkit import sugar, sneakernet, ipc
-from sugar_network.toolkit import crypto
-from sugar_network.local import activities
+from sugar_network.toolkit import sugar, sneakernet
+from sugar_network.toolkit import crypto, dbus_thread
+from sugar_network.local import activities, datastore
+from sugar_network.local.dbus_datastore import Datastore
+from sugar_network.local.dbus_network import Network
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.resources.volume import Volume
 from active_toolkit.options import Option
-from active_toolkit import printf, application, coroutine, enforce
+from active_toolkit import util, printf, application, coroutine, enforce
 
 
 VERSION = '0.4'
@@ -45,14 +47,13 @@ class NullHandler(logging.Handler):
         pass
 
 
-class Application(application.Daemon):
+class Application(application.Application):
 
-    _mountset = None
     _ipc_server = None
     _events = {}
 
     def __init__(self, **kwargs):
-        application.Daemon.__init__(self, **kwargs)
+        application.Application.__init__(self, **kwargs)
 
         if application.debug.value < 3:
             for log_name in (
@@ -87,7 +88,7 @@ class Application(application.Daemon):
                 'Index local Sugar Network database; if CONTEXT-GUIDs '
                 'were specified, make these context favorited')
     def index(self):
-        if ipc.server_exists():
+        if self.check_for_instance():
             printf.info('%s already started, no need in index', self.name)
             return
 
@@ -117,7 +118,6 @@ class Application(application.Daemon):
                     directory.update(context, keep=True)
                 else:
                     printf.info('Cannot find %r context', context)
-
         finally:
             volume.close()
 
@@ -135,50 +135,63 @@ class Application(application.Daemon):
             Client.call('POST', cmd='start_sync', rewind=True, path=path)
             self._events['sync_complete'].wait()
 
-    def run(self, local_run=False):
+    @application.command(
+            'start service and log to standard output')
+    def debug(self):
+        self._start()
+
+    @application.command(
+            'start service and log to files',
+            name='start', keep_stdout=True)
+    def _start(self, local_run=False):
         # In case if it is new Sugar Shell profile
         crypto.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
 
-        volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
-        self._mountset = Mountset(volume)
-        self._mountset['~'] = HomeMount(volume)
-        self._mountset['/'] = RemoteMount(volume)
-        servers = coroutine.ServersPool()
         jobs = coroutine.Pool()
 
-        if local_run or webui.webui.value:
-            # Point clients to `self._mountset` directly passing over IPC
-            Client.connection = self._mountset
+        volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
+        mountset = Mountset(volume)
+        mountset['~'] = HomeMount(volume)
+        mountset['/'] = RemoteMount(volume)
 
-        def delayed_start():
+        if local_run or webui.webui.value:
+            # Point clients to `mountset` directly passing over IPC
+            Client.connection = mountset
+
+        def delayed_start(event=None):
             logging.info('Proceed delayed start')
+            mountset.disconnect(delayed_start)
 
             jobs.spawn(activities.monitor, volume, local.activity_dirs.value)
             jobs.spawn(volume.populate)
+            jobs.spawn(datastore.populate, volume['artifact'])
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
-                servers.spawn(coroutine.WSGIServer, host, webui.get_app())
+                server = coroutine.WSGIServer(host, webui.get_app())
+                jobs.spawn(server.serve_forever)
 
         if local.delayed_start.value:
-            delayed_start_cb = delayed_start
+            mountset.connect(delayed_start, event='delayed-start')
         else:
             delayed_start()
-            delayed_start_cb = None
 
-        self._ipc_server = IPCServer(self._mountset, delayed_start_cb)
+        dbus_thread.spawn_service(Datastore)
+        dbus_thread.spawn_service(Network)
+
+        jobs.spawn(IPCServer(mountset).serve_forever)
+
         try:
-            self._mountset.open()
-            self._ipc_server.serve_forever()
+            mountset.open()
+            dbus_thread.start(mountset)
+        except KeyboardInterrupt:
+            util.exception('%s interrupted', self.name)
+        except Exception:
+            util.exception('%s aborted', self.name)
         finally:
-            servers.stop()
             jobs.kill()
-            self._mountset.close()
-
-    def shutdown(self):
-        if self._ipc_server is not None:
-            self._ipc_server.stop()
+            mountset.close()
 
     @contextmanager
     def _rendezvous(self):
@@ -200,12 +213,12 @@ class Application(application.Daemon):
 
         server = None
         try:
-            if not ipc.server_exists():
+            if not self.check_for_instance():
                 printf.info('%s is not started, ' \
                         'launch it for this command only', self.name)
-                server = coroutine.spawn(self.run, True)
+                server = coroutine.spawn(self._start, True)
                 coroutine.dispatch()
-                self._mountset.opened.wait()
+                Client.connection.opened.wait()
 
             Client.connect(events_cb)
             yield
@@ -229,7 +242,7 @@ node.trust_users.value = True
 # and will brake offline synchronization logic
 local.tmpdir.value = sugar.profile_path('tmp')
 
-Option.seek('main', [application.debug, application.foreground])
+Option.seek('main', [application.debug])
 Option.seek('webui', webui)
 Option.seek('local', local)
 Option.seek('node', [node.port, node.subscribe_port])
