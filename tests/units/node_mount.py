@@ -183,7 +183,7 @@ class NodeMountTest(tests.Test):
         self.got_event.wait()
         remote = Client(tests.tmpdir + '/mnt')
         local = Client('~')
-        coroutine.spawn(activities.monitor, mounts.home_volume, ['Activities'])
+        coroutine.spawn(activities.monitor, mounts.home_volume['context'], ['Activities'])
 
         context = remote.Context(
                 type=['activity'],

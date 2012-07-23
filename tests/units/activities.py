@@ -37,7 +37,7 @@ class ActivitiesTest(tests.Test):
 
     def test_Checkin_Create(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume, ['Activities'])
+                self.mounts.home_volume['context'], ['Activities'])
         coroutine.sleep()
 
         self.mounts.home_volume['context'].create(
@@ -71,7 +71,7 @@ class ActivitiesTest(tests.Test):
 
     def test_Checkin_Copy(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume, ['Activities'])
+                self.mounts.home_volume['context'], ['Activities'])
         coroutine.sleep()
 
         self.mounts.home_volume['context'].create(
@@ -102,7 +102,7 @@ class ActivitiesTest(tests.Test):
 
     def test_Checkin_Hardlink(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume, ['Activities'])
+                self.mounts.home_volume['context'], ['Activities'])
         coroutine.sleep()
 
         self.mounts.home_volume['context'].create(
@@ -135,7 +135,7 @@ class ActivitiesTest(tests.Test):
 
     def test_OfflineCheckin(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume, ['Activities'])
+                self.mounts.home_volume['context'], ['Activities'])
         coroutine.sleep()
 
         self.touch(('Activities/activity/activity/activity.info', [
@@ -161,7 +161,7 @@ class ActivitiesTest(tests.Test):
 
     def test_Checkout(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume, ['Activities'])
+                self.mounts.home_volume['context'], ['Activities'])
 
         self.mounts.home_volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',

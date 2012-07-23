@@ -260,7 +260,7 @@ class InjectorTest(tests.Test):
         client = Client('~')
 
         monitor = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume, ['Activities'])
+                self.mounts.home_volume['context'], ['Activities'])
         coroutine.sleep()
 
         self.assertEqual(

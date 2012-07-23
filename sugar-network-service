@@ -109,7 +109,8 @@ class Application(application.Application):
         volume = Volume(self._db_path)
         try:
             volume.populate()
-            activities.populate(volume, local.activity_dirs.value, root)
+            activities.populate(volume['context'], local.activity_dirs.value,
+                    root)
 
             directory = volume['context']
             while self.args:
@@ -143,7 +144,7 @@ class Application(application.Application):
     @application.command(
             'start service and log to files',
             name='start', keep_stdout=True)
-    def _start(self, local_run=False):
+    def _start(self):
         # In case if it is new Sugar Shell profile
         crypto.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
 
@@ -154,17 +155,26 @@ class Application(application.Application):
         mountset['~'] = HomeMount(volume)
         mountset['/'] = RemoteMount(volume)
 
-        if local_run or webui.webui.value:
-            # Point clients to `mountset` directly passing over IPC
-            Client.connection = mountset
+        # Point this process code to `mountset` directly passing over IPC
+        Client.connection = mountset
 
         def delayed_start(event=None):
             logging.info('Proceed delayed start')
             mountset.disconnect(delayed_start)
 
-            jobs.spawn(activities.monitor, volume, local.activity_dirs.value)
-            jobs.spawn(volume.populate)
-            jobs.spawn(datastore.populate, volume['artifact'])
+            volume.populate()
+            datastore.populate(volume['artifact'])
+
+            stale_keep_impls = []
+            Context = Client('~').Context
+            for context in Context.cursor(keep_impl=[1, 2]):
+                if not activities.ensure_checkins(context.guid):
+                    stale_keep_impls.append(context.guid)
+            for guid in stale_keep_impls:
+                Context(guid, keep_impl=0).post()
+
+            jobs.spawn(activities.monitor, volume['context'],
+                    local.activity_dirs.value)
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
@@ -216,7 +226,7 @@ class Application(application.Application):
             if not self.check_for_instance():
                 printf.info('%s is not started, ' \
                         'launch it for this command only', self.name)
-                server = coroutine.spawn(self._start, True)
+                server = coroutine.spawn(self._start)
                 coroutine.dispatch()
                 Client.connection.opened.wait()
 

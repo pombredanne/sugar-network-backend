@@ -51,18 +51,36 @@ def checkins(context):
             yield os.readlink(path)
 
 
-def monitor(volume, paths):
-    _Monitor(volume, paths).serve_forever()
+def ensure_checkins(context):
+    root = _context_path(context, '')
+    if not exists(root):
+        return False
+
+    found = False
+
+    for filename in os.listdir(root):
+        path = join(root, filename)
+        if lexists(path):
+            if not exists(path):
+                os.unlink(path)
+            else:
+                found = True
+
+    return found
 
 
-def populate(volume, paths, prefix):
-    _Monitor(volume, paths, prefix).populate()
+def monitor(contexts, paths):
+    _Monitor(contexts, paths).serve_forever()
+
+
+def populate(contexts, paths, prefix):
+    _Monitor(contexts, paths, prefix).populate()
 
 
 class _Monitor(object):
 
-    def __init__(self, volume, paths, prefix=''):
-        self._volume = volume
+    def __init__(self, contexts, paths, prefix=''):
+        self._contexts = contexts
         self._paths = paths
         self._prefix = prefix
 
@@ -89,14 +107,13 @@ class _Monitor(object):
             return
 
         context = spec['Activity', 'bundle_id']
-        directory = self._volume['context']
-        if directory.exists(context):
-            directory.update(context, {'keep_impl': 2})
+        if self._contexts.exists(context):
+            self._contexts.update(context, {'keep_impl': 2})
         else:
             _logger.debug('Register unknown local activity, %r', context)
 
             mtime = os.stat(impl_path).st_mtime
-            directory.create(guid=context, type='activity',
+            self._contexts.create(guid=context, type='activity',
                     title={DEFAULT_LANG: spec['name']},
                     summary={DEFAULT_LANG: spec['summary']},
                     description={DEFAULT_LANG: spec['description']},
@@ -105,10 +122,10 @@ class _Monitor(object):
 
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):
-                directory.set_blob(context, 'artifact_icon', icon_path)
+                self._contexts.set_blob(context, 'artifact_icon', icon_path)
                 with tempfile.NamedTemporaryFile() as f:
                     _svg_to_png(icon_path, f.name, 32, 32)
-                    directory.set_blob(context, 'icon', f.name)
+                    self._contexts.set_blob(context, 'icon', f.name)
 
         context_path = _ensure_context_path(context, hashed_path)
         if lexists(context_path):
@@ -133,9 +150,8 @@ class _Monitor(object):
 
         if not impls:
             context = basename(context_dir)
-            directory = self._volume['context']
-            if directory.exists(context):
-                directory.update(context, {'keep_impl': 0})
+            if self._contexts.exists(context):
+                self._contexts.update(context, {'keep_impl': 0})
 
         if lexists(context_path):
             os.unlink(context_path)
