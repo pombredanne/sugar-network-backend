@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/coroutine.py$
-$Date: 2012-07-20$
+$Date: 2012-07-23$
 
 """
 # pylint: disable-msg=W0621
@@ -198,35 +198,17 @@ class Pool(gevent.pool.Pool):
         _group.add(job)
         return job
 
+    # pylint: disable-msg=W0221
+    def kill(self, *args, **kwargs):
+        from gevent.queue import Empty
+        try:
+            gevent.pool.Pool.kill(self, *args, **kwargs)
+        except Empty:
+            # Avoid useless exception on empty poll
+            pass
+
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.kill()
-
-
-class ServersPool(list):
-
-    def __init__(self):
-        list.__init__(self)
-        self._jobs = Pool()
-
-    def spawn(self, server, *args, **kwargs):
-        if not hasattr(server, 'serve_forever'):
-            server = server(*args, **kwargs)
-        self.append(server)
-        return self._jobs.spawn(server.serve_forever)
-
-    def stop(self):
-        while self:
-            self.pop().stop()
-
-    def join(self):
-        self._jobs.join()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.stop()
-        self.join()

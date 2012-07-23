@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Date: 2012-07-12$
+$Date: 2012-07-23$
 
 """
 
@@ -104,15 +104,15 @@ def exception(*args):
     import traceback
     tb = [i.rstrip() for i in traceback.format_exception(klass, error, tb)]
 
-    error = str(error) or 'Something weird happened'
+    error_message = str(error) or '%s exception' % type(error).__name__
     if args:
         if len(args) == 1:
             message = args[0]
         else:
             message = args[0] % args[1:]
-        error = '%s: %s' % (message, error)
+        error_message = '%s: %s' % (message, error_message)
 
-    logger.error(error)
+    logger.error(error_message)
     logger.debug('\n'.join(tb))
 
 

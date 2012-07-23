@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-07-14$
+$Date: 2012-07-22$
 
 """
 
@@ -72,6 +72,7 @@ class Application(object):
 
     def __init__(self, name, description=None, version=None, epilog=None,
             where=None, **parse_args):
+        self._rundir = None
         self.args = None
         self.name = name
 
@@ -164,6 +165,8 @@ class Application(object):
         logging.basicConfig(level=logging_level, format=logging_format)
 
     def start(self):
+        self._rundir = abspath(rundir.value or '/var/run/' + self.name)
+
         cmd_name = self.args.pop(0)
         try:
             cmd = self._commands.get(cmd_name)
@@ -182,6 +185,34 @@ class Application(object):
             exit(1)
         finally:
             printf.flush_hints()
+
+    def check_for_instance(self):
+        pid = None
+        pidfile = join(self._rundir, '%s.pid' % self.name)
+        if exists(pidfile):
+            try:
+                pid = int(file(pidfile).read().strip())
+                os.getpgid(pid)
+                if basename(sys.argv[0]) not in _get_cmdline(pid):
+                    # In case if pidfile was not removed after reboot
+                    # and another process launched with pidfile's pid
+                    pid = None
+            except (ValueError, OSError):
+                pid = None
+        return pid
+
+    def ensure_pidfile_path(self):
+        if not exists(self._rundir):
+            os.makedirs(self._rundir)
+        enforce(os.access(self._rundir, os.W_OK),
+                'No write access to %r to store pidfile', self._rundir)
+
+    def new_instance(self):
+        self.ensure_pidfile_path()
+        pidfile_path = join(self._rundir, '%s.pid' % self.name)
+        with file(pidfile_path, 'w') as f:
+            f.write(str(os.getpid()))
+        return pidfile_path
 
     @command('output current configuration', name='config')
     def _cmd_config(self):
@@ -208,8 +239,6 @@ class Application(object):
 
 class Daemon(Application):
 
-    _rundir = None
-
     def run(self):
         raise NotImplementedError()
 
@@ -219,29 +248,22 @@ class Daemon(Application):
     def epilog(self):
         pass
 
-    def start(self):
-        self._rundir = rundir.value or '/var/run/' + self.name
-        Application.start(self)
-
     @command('start in daemon mode', name='start', keep_stdout=True)
     def _cmd_start(self):
-        pidfile, pid = self._check_for_instance()
+        pid = self.check_for_instance()
         if pid:
             printf.info('%s is already run with pid %s', self.name, pid)
             return 1
         if foreground.value:
             self._launch()
         else:
-            if not exists(self._rundir):
-                os.makedirs(self._rundir)
-            enforce(os.access(self._rundir, os.W_OK),
-                    'No write access to %s', self._rundir)
-            self._daemonize(pidfile)
+            self.ensure_pidfile_path()
+            self._daemonize()
         return 0
 
     @command('stop daemon', name='stop')
     def _cmd_stop(self):
-        __, pid = self._check_for_instance()
+        pid = self.check_for_instance()
         if pid:
             os.kill(pid, signal.SIGTERM)
             return 0
@@ -251,7 +273,7 @@ class Daemon(Application):
 
     @command('check for launched daemon', name='status')
     def _cmd_status(self):
-        __, pid = self._check_for_instance()
+        pid = self.check_for_instance()
         if pid:
             printf.info('%s started', self.name)
             return 0
@@ -261,7 +283,7 @@ class Daemon(Application):
 
     @command('reopen log files in daemon mode', name='reload')
     def _cmd_reload(self):
-        __, pid = self._check_for_instance()
+        pid = self.check_for_instance()
         if not pid:
             printf.info('%s is not run', self.name)
             return 1
@@ -288,22 +310,7 @@ class Daemon(Application):
         finally:
             self.epilog()
 
-    def _check_for_instance(self):
-        pid = None
-        pidfile = join(self._rundir, '%s.pid' % self.name)
-        if exists(pidfile):
-            try:
-                pid = int(file(pidfile).read().strip())
-                os.getpgid(pid)
-                if basename(sys.argv[0]) not in _get_cmdline(pid):
-                    pid = None
-            except (ValueError, OSError):
-                pid = None
-        return pidfile, pid
-
-    def _daemonize(self, pid_path):
-        pid_path = abspath(pid_path)
-
+    def _daemonize(self):
         if os.fork() > 0:
             # Exit parent of the first child
             return
@@ -322,10 +329,7 @@ class Daemon(Application):
             stdin = file('/dev/null')
             os.dup2(stdin.fileno(), sys.stdin.fileno())
 
-        pidfile = file(pid_path, 'w')
-        pidfile.write(str(os.getpid()))
-        pidfile.close()
-
+        pid_path = self.new_instance()
         try:
             self._launch()
         except Exception:
