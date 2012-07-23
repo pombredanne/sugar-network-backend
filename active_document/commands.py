@@ -75,11 +75,22 @@ class Request(dict):
         self._pos += len(result)
         return result
 
+    def __repr__(self):
+        args = ['content_length=%r' % self.content_length,
+                'access_level=%r' % self.access_level,
+                'accept_language=%r' % self.accept_language,
+                ] + ['%s=%r' % i for i in self.items()]
+        return '<active_document.Request %s>' % ' '.join(args)
+
 
 class Response(dict):
 
     content_length = None
     content_type = None
+
+    def __repr__(self):
+        args = ['%s=%r' % i for i in self.items()]
+        return '<active_document.Response %s>' % ' '.join(args)
 
 
 class CommandsProcessor(object):
@@ -125,7 +136,6 @@ class CommandsProcessor(object):
                 'Operation is permitted on requester\'s level')
 
         result = cmd(request, response)
-        _logger.debug('Called %r: request=%r result=%r', cmd, request, result)
 
         if not response.content_type:
             response.content_type = cmd.mime_type
