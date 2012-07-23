@@ -42,10 +42,11 @@ class Router(object):
             del os.environ['SSH_ASKPASS']
 
     def __call__(self, environ, start_response):
+        request = _Request(environ)
         response = _Response()
         result = None
+
         try:
-            request = _Request(environ)
             request.principal = self._authenticate(request)
             result = self._cp.call(request, response)
         except ad.Redirect, error:
@@ -88,7 +89,7 @@ class Router(object):
             result = json.dumps(result)
             response.content_length = len(result)
 
-        _logger.debug('Process request=%r response=%r result=%r streamed=%r',
+        _logger.debug('Called %s: response=%r result=%r streamed=%r',
                 request, response, result, result_streamed)
 
         start_response(response.status, response.items())

@@ -122,28 +122,27 @@ class Mountset(dict, ad.CommandsProcessor):
         if response is None:
             response = ad.Response()
         request.accept_language = [self._locale]
+        mountpoint = None
+
+        def process_call():
+            try:
+                return ad.CommandsProcessor.call(self, request, response)
+            except ad.CommandNotFound:
+                mountpoint = request.pop('mountpoint')
+                mount = self[mountpoint]
+                if mountpoint == '/':
+                    mount.set_mounted(True)
+                enforce(mount.mounted, '%r is not mounted', mountpoint)
+                return mount.call(request, response)
 
         try:
-            return ad.CommandsProcessor.call(self, request, response)
-        except ad.CommandNotFound:
-            pass
-
-        mountpoint = request.pop('mountpoint')
-        mount = self[mountpoint]
-
-        if mountpoint == '/':
-            mount.set_mounted(True)
-        enforce(mount.mounted, '%r is not mounted', mountpoint)
-
-        try:
-            result = mount.call(request, response)
-        except Exception, error:
-            util.exception(_logger, 'Failed to process %s on %r mount: %s',
-                    request, mountpoint, error)
+            result = process_call()
+        except Exception:
+            util.exception(_logger,
+                    'Failed to call %s on %r', request, mountpoint)
             raise
         else:
-            _logger.debug('Processed %s on %r mount: %r',
-                    request, mountpoint, result)
+            _logger.debug('Called %s on %r: %r', request, mountpoint, result)
 
         return result
 
@@ -292,9 +291,6 @@ class Mountset(dict, ad.CommandsProcessor):
             server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
                     Router(cp))
             self._servers.spawn(server.serve_forever)
-
-            _logger.info('Listen for client subscribtions on %s port',
-                    node.subscribe_port.value)
             self._servers.spawn(subscriber.serve_forever)
 
             # Let servers start before publishing mount event
