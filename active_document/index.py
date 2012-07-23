@@ -190,12 +190,20 @@ class IndexReader(object):
             queries.append(query)
 
         for name, value in request.items():
-            value = str(value).strip()
-            prop = self._props.get(name)
-            enforce(prop is not None and prop.prefix,
-                    'Unknown search term %r for %r',
-                    name, self.metadata.name)
-            query = xapian.Query(_term(prop.prefix, value))
+            sub_queries = []
+
+            for needle in value if type(value) in (tuple, list) else [value]:
+                needle = str(needle).strip()
+                prop = self._props.get(name)
+                enforce(prop is not None and prop.prefix,
+                        'Unknown search term %r for %r',
+                        name, self.metadata.name)
+                sub_queries.append(xapian.Query(_term(prop.prefix, needle)))
+
+            if len(sub_queries) == 1:
+                query = sub_queries[0]
+            else:
+                query = xapian.Query(xapian.Query.OP_OR, sub_queries)
             if prop.boolean:
                 boolean_queries.append(query)
             else:

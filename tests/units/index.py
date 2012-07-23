@@ -610,6 +610,40 @@ class IndexTest(tests.Test):
             ],
             db._find(order_by='-prop')[0])
 
+    def test_find_SearchByMultipleRequestKeys(self):
+        db = Index({'prop': ActiveProperty('prop', 1, 'A')})
+
+        db.store('1', {'prop': 'a'}, True)
+        db.store('2', {'prop': 'b'}, True)
+        db.store('3', {'prop': 'c'}, True)
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1'},
+                    ]),
+                db._find(prop=['a'], reply=['guid'])[0])
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1'},
+                    {'guid': '2'},
+                    ]),
+                db._find(prop=['a', 'b'], reply=['guid'])[0])
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1'},
+                    {'guid': '2'},
+                    {'guid': '3'},
+                    ]),
+                db._find(prop=['a', 'b', 'c'], reply=['guid'])[0])
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '2'},
+                    ]),
+                db._find(prop=['b', 'foo', 'bar'], reply=['guid'])[0])
+
 
 class Index(index.IndexWriter):
 
