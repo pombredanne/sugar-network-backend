@@ -199,6 +199,7 @@ class _Connection(object):
 
     def publish(self, event):
         request = ad.Request()
+        request['method'] = 'POST'
         request['cmd'] = 'publish'
         request.content = event
         request.content_type = 'application/json'
