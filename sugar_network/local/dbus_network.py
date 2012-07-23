@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
+
 import dbus
 from dbus.service import BusName, method, signal
 
@@ -31,10 +33,10 @@ class Network(dbus_thread.Service):
         dbus_thread.Service.__init__(self, bus_name, _OBJECT_PATH)
 
     def handle_event(self, event):
-        self.Event(event)
+        self.Event(json.dumps(event))
 
-    @signal(_INTERFACE, signature='a{sv}')
-    def Event(self, props):
+    @signal(_INTERFACE, signature='s')
+    def Event(self, event):
         pass
 
     @method(_INTERFACE, in_signature='sssas', out_signature='a{sv}',
