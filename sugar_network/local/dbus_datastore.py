@@ -75,15 +75,15 @@ class Datastore(dbus_thread.Service):
     @method(_INTERFACE, in_signature='a{sv}sb', out_signature='s',
             async_callbacks=('reply_cb', 'error_cb'), byte_arrays=True)
     def create(self, props, file_path, transfer_ownership, reply_cb, error_cb):
-        self._update(props, file_path, transfer_ownership, reply_cb, error_cb,
-                method='POST')
+        self._update('POST', props, file_path, transfer_ownership,
+                reply_cb, error_cb)
 
     @method(_INTERFACE, in_signature='sa{sv}sb', out_signature='',
             async_callbacks=('reply_cb', 'error_cb'), byte_arrays=True)
     def update(self, uid, props, file_path, transfer_ownership,
             reply_cb, error_cb):
-        self._update(props, file_path, transfer_ownership, reply_cb, error_cb,
-                method='PUT', guid=uid)
+        self._update('PUT', props, file_path, transfer_ownership,
+                reply_cb, error_cb, guid=uid)
 
     @method(_INTERFACE, in_signature='a{sv}as', out_signature='aa{sv}u',
             async_callbacks=('reply_cb', 'error_cb'))
@@ -195,8 +195,8 @@ class Datastore(dbus_thread.Service):
     def unmount(self, mountpoint_id):
         pass
 
-    def _update(self, props, file_path, transfer_ownership, reply_cb, error_cb,
-            **kwargs):
+    def _update(self, http_method, props, file_path, transfer_ownership,
+            reply_cb, error_cb, **kwargs):
         blobs = []
         if 'preview' in props:
             preview = props.pop('preview')
@@ -216,8 +216,13 @@ class Datastore(dbus_thread.Service):
         else:
             props['filesize'] = '0'
 
-        self.call(self._set_blob, error_cb, mountpoint='~',
-                document='artifact', content=datastore.decode_props(props),
+        props = datastore.decode_props(props)
+        if http_method == 'PUT' and 'guid' in props:
+            # DataStore clients might send guid in updated props
+            props.pop('guid')
+
+        self.call(self._set_blob, error_cb, method=http_method, mountpoint='~',
+                document='artifact', content=props,
                 args=[kwargs.get('guid'), blobs, reply_cb, error_cb], **kwargs)
 
     def _set_blob(self, reply, guid, blobs, reply_cb, error_cb):

@@ -159,6 +159,15 @@ class DbusDatastoreTest(tests.Test):
         self.assertEqual('value_3', props.get('prop_1'))
         self.assertEqual('value_4', props.get('prop_2'))
 
+    def test_update_TryToUpdateGuid(self):
+        guid = self.ds.create({}, '', False, timeout=3)
+
+        self.ds.update(guid, {'uid': 'new', 'prop': 'value'}, '', False, timeout=3)
+
+        props = self.ds.get_properties(guid, timeout=3)
+        self.assertEqual(guid, props.get('uid'))
+        self.assertEqual('value', props.get('prop'))
+
     def test_find(self):
         entries, total = self.ds.find({}, ['uid', 'title', 'term'], timeout=3)
         self.assertEqual(0, total)
