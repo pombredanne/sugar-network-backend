@@ -23,8 +23,6 @@ install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
             install -m 0755 -D sugar-network-service %(DESTDIR)s/%(BINDIR)s/sugar-network-service &&
             install -m 0755 -D sugar-network-server %(DESTDIR)s/%(BINDIR)s/sugar-network-server &&
             install -m 0755 -D sugar-network-sync %(DESTDIR)s/%(BINDIR)s/sugar-network-sync &&
-            install -m 0644 -D org.sugarlabs.Network.service %(DESTDIR)s/%(DATADIR)s/%(name)s/dbus-1/services/org.sugarlabs.Network.service &&
-            install -m 0644 -D org.laptop.sugar.DataStore.service %(DESTDIR)s/%(DATADIR)s/%(name)s/dbus-1/services/org.laptop.sugar.DataStore.service &&
             install -m 0755 -D misc/aslo_sync.py %(DESTDIR)s/%(DATADIR)s/%(name)s/aslo_sync.py &&
             cp -r examples %(DESTDIR)s/%(DATADIR)s/%(name)s/ &&
             true

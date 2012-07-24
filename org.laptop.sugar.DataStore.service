@@ -1,3 +1,0 @@
-[D-BUS Service]
-Name = org.laptop.sugar.DataStore
-Exec = sugar-network-service --webui --delayed-start start

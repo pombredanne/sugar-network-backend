@@ -1,3 +1,0 @@
-[D-BUS Service]
-Name = org.sugarlabs.Network
-Exec = sugar-network-service --webui --delayed-start start
