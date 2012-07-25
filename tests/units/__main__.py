@@ -2,6 +2,7 @@
 
 from __init__ import tests
 
+from env import *
 from index import *
 from index_queue import *
 from document import *

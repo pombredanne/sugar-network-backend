@@ -13,10 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import logging
 from uuid import uuid1
+from os.path import exists
 
 from active_toolkit.options import Option
+from active_toolkit import util
 
 
 _logger = logging.getLogger('active_document')
@@ -152,3 +155,53 @@ class Query(object):
         return 'offset=%s limit=%s request=%r query=%r order_by=%s ' \
                'group_by=%s' % (self.offset, self.limit, self.request,
                        self.query, self.order_by, self.group_by)
+
+
+class Seqno(object):
+    """Sequence number counter with persistent storing in a file."""
+
+    def __init__(self, path):
+        """
+        :param path:
+            path to file to [re]store seqno value
+
+        """
+        self._path = path
+        self._value = 0
+
+        if exists(path):
+            with file(path) as f:
+                self._value = int(f.read().strip())
+
+        self._orig_value = self._value
+
+    @property
+    def value(self):
+        """Current seqno value."""
+        return self._value
+
+    def next(self):
+        """Incerement seqno.
+
+        :returns:
+            new seqno value
+
+        """
+        self._value += 1
+        return self._value
+
+    def commit(self):
+        """Store current seqno value in a file.
+
+        :returns:
+            `True` if commit was happened
+
+        """
+        if self._value == self._orig_value:
+            return False
+        with util.new_file(self._path) as f:
+            f.write(str(self._value))
+            f.flush()
+            os.fsync(f.fileno())
+        self._orig_value = self._value
+        return True

@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/options.py$
-$Date: 2012-07-12$
+$Date: 2012-07-24$
 
 """
 
@@ -257,13 +257,24 @@ class Option(object):
 
     @staticmethod
     def list_cast(x):
-        if isinstance(x, str) or isinstance(x, unicode):
-            return [i for i in x.strip().split(':') if i]
+        if isinstance(x, basestring):
+            return [i for i in x.strip().split() if i]
         else:
             return x
 
     @staticmethod
     def list_repr(x):
+        return ' '.join(x)
+
+    @staticmethod
+    def paths_cast(x):
+        if isinstance(x, basestring):
+            return [i for i in x.strip().split(':') if i]
+        else:
+            return x
+
+    @staticmethod
+    def paths_repr(x):
         return ':'.join(x)
 
     def __str__(self):
