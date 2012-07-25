@@ -22,5 +22,6 @@ from sync_master import *
 from sync_node import *
 from datastore import *
 from dbus_datastore import *
+from files_sync import *
 
 tests.main()

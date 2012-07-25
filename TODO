@@ -11,6 +11,7 @@
 - restrict sync content, especially for actiivity versions
 - after switching to global seqno, tweek blobs chaching model
 - activities migth need MIME registering while checking-in
+- changed pulls should take into account accept_length
 
 1.0
 ===

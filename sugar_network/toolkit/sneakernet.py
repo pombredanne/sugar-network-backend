@@ -348,6 +348,13 @@ class OutPacket(object):
                 arcfile.seek(0)
                 self._add(arcname, arcfile, meta)
 
+    def push_file(self, path, arcname=None):
+        size = os.lstat(path).st_size
+        self._flush(size, False)
+        self._enforce_limit(size)
+        self._tarball.add(path, arcname=arcname)
+        self._empty = False
+
     def _add(self, arcname, data, meta):
         if not arcname:
             self._file_num += 1
