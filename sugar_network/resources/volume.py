@@ -113,6 +113,6 @@ class Volume(ad.SingleVolume):
             # Only here we can collapse `push_seq` since seqno handling
             # is common for all documents; if there was an exception before
             # this place, `push_seq` should contain not-collapsed sequence
-            push_seq[:] = [[orig_seq.first, push_seq.last]]
+            orig_seq.floor(push_seq.last)
             out_packet.push(arcname='commit', force=True,
-                    cmd='sn_commit', sequence=push_seq)
+                    cmd='sn_commit', sequence=orig_seq)

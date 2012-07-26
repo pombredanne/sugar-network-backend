@@ -76,6 +76,7 @@ class VolumeTest(tests.Test):
         volume['document'].create(guid='2', seqno=2, prop='*' * 1024)
         volume['document'].create(guid='4', seqno=4, prop='*' * 1024)
         volume['document'].create(guid='6', seqno=6, prop='*' * 1024)
+        volume['document'].create(guid='8', seqno=8, prop='*' * 1024)
 
         in_seq = Sequence([[1, None]])
         try:
@@ -89,29 +90,27 @@ class VolumeTest(tests.Test):
             {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[2, 2]]},
             ],
             read_packet(packet))
+        self.assertEqual([[1, 1], [3, None]], in_seq)
 
-        in_seq = Sequence([[1, None]])
         try:
-            packet = OutBufferPacket(filename='packet', limit=1024 * 3)
+            packet = OutBufferPacket(filename='packet', limit=1024 * 2)
             volume.diff(in_seq, packet)
             assert False
         except DiskFull:
             pass
         self.assertEqual([
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '2'},
             {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '4'},
-            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[2, 2], [4, 4]]},
+            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[4, 4]]},
             ],
             read_packet(packet))
+        self.assertEqual([[1, 1], [3, 3], [5, None]], in_seq)
 
-        in_seq = Sequence([[1, None]])
         packet = OutBufferPacket(filename='packet')
         volume.diff(in_seq, packet)
         self.assertEqual([
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '2'},
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '4'},
             {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '6'},
-            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[1, 6]]},
+            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '8'},
+            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[1, 1], [3, 3], [5, 8]]},
             ],
             read_packet(packet))
 
