@@ -85,9 +85,12 @@ class SyncMasterTest(tests.Test):
         request.content_length = len(request.content_stream.getvalue())
 
         reply = master.push(request, response)
-        self.assertEqual(
-                ['sn_pull=sn_pull_unset; Max-Age=1; HttpOnly'],
-                response.get('Set-Cookie'))
+        self.assertEqual([
+            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_BREAK=; Max-Age=3600; HttpOnly'
+            ],
+            response.get('Set-Cookie'))
 
         self.assertEqual(
                 ['1', '2', '3'],
@@ -103,8 +106,6 @@ class SyncMasterTest(tests.Test):
 
     def test_push_ProcessPulls(self):
         master = MasterCommands('master')
-        request = Request()
-        response = ad.Response()
 
         packet = OutBufferPacket(src='node', dst='master')
         packet.push(document='document', data=[
@@ -112,14 +113,58 @@ class SyncMasterTest(tests.Test):
             {'cmd': 'sn_pull', 'sequence': [[3, 4]]},
             {'cmd': 'sn_pull', 'sequence': [[7, None]]},
             ])
+        request = Request()
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
 
+        response = ad.Response()
         reply = master.push(request, response)
         assert reply is None
-        self.assertEqual(
-                ['sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1], [3, 4], [7, None]]))],
-                response.get('Set-Cookie'))
+        self.assertEqual([
+            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1], [3, 4], [7, None]])),
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            ],
+            response.get('Set-Cookie'))
+
+        packet = OutBufferPacket(src='node', dst='master')
+        packet.push(document='document', data=[
+            {'cmd': 'files_pull', 'sequence': [[1, 1]]},
+            {'cmd': 'files_pull', 'sequence': [[3, 4]]},
+            {'cmd': 'files_pull', 'sequence': [[7, None]]},
+            ])
+        request = Request()
+        request.content_stream = packet.pop()
+        request.content_length = len(request.content_stream.getvalue())
+
+        response = ad.Response()
+        reply = master.push(request, response)
+        assert reply is None
+        self.assertEqual([
+            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
+            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1], [3, 4], [7, None]])),
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            ],
+            response.get('Set-Cookie'))
+
+        packet = OutBufferPacket(src='node', dst='master')
+        packet.push(document='document', data=[
+            {'cmd': 'sn_pull', 'sequence': [[1, 1]]},
+            {'cmd': 'files_pull', 'sequence': [[1, 1]]},
+            ])
+        request = Request()
+        request.content_stream = packet.pop()
+        request.content_length = len(request.content_stream.getvalue())
+
+        response = ad.Response()
+        reply = master.push(request, response)
+        assert reply is None
+        self.assertEqual([
+            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1]])),
+            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1]])),
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            ],
+            response.get('Set-Cookie'))
 
     def test_push_ProcessPushesAndPulls(self):
         master = MasterCommands('master')
@@ -132,6 +177,7 @@ class SyncMasterTest(tests.Test):
             {'cmd': 'sn_push', 'guid': '3', 'diff': {'guid': {'value': '3', 'mtime': 1}}},
             {'cmd': 'sn_commit', 'sequence': [[1, 3]]},
             {'cmd': 'sn_pull', 'sequence': [[1, None]]},
+            {'cmd': 'files_pull', 'sequence': [[1, None]]},
             ])
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
@@ -145,9 +191,12 @@ class SyncMasterTest(tests.Test):
             {'filename': 'ack.node.packet', 'src': 'master', 'dst': 'node', 'cmd': 'sn_ack', 'sequence': [[1, 3]], 'merged': [[1, 2]]},
             ],
             [i for i in packet])
-        self.assertEqual(
-                ['sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[3, None]]))],
-                response.get('Set-Cookie'))
+        self.assertEqual([
+            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[3, None]])),
+            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            ],
+            response.get('Set-Cookie'))
 
     def test_push_ReusePullSeqFromCookies(self):
         master = MasterCommands('master')
@@ -161,14 +210,19 @@ class SyncMasterTest(tests.Test):
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
 
-        request.environ['HTTP_COOKIE'] = \
-                'sn_pull=%s' % base64.b64encode(json.dumps([[1, 2]]))
+        request.environ['HTTP_COOKIE'] = 'sn_pull=%s; files_pull=%s' % (
+                base64.b64encode(json.dumps([[1, 2]])),
+                base64.b64encode(json.dumps([[3, 4]])),
+                )
 
         reply = master.push(request, response)
         assert reply is None
-        self.assertEqual(
-                ['sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 2], [10, None]]))],
-                response.get('Set-Cookie'))
+        self.assertEqual([
+            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 2], [10, None]])),
+            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[3, 4]])),
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            ],
+            response.get('Set-Cookie'))
 
     def test_pull_ProcessPulls(self):
         master = MasterCommands('master')
@@ -184,6 +238,8 @@ class SyncMasterTest(tests.Test):
         cookie = [
                 'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
                 'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -195,8 +251,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
+            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_BREAK=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -229,8 +287,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
+            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_BREAK=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
         packet = InPacket(stream=reply)
@@ -249,6 +309,8 @@ class SyncMasterTest(tests.Test):
         cookie = [
                 'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
                 'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -260,8 +322,10 @@ class SyncMasterTest(tests.Test):
         assert reply is None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
+            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_BREAK=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -279,6 +343,8 @@ class SyncMasterTest(tests.Test):
         cookie = [
                 'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
                 'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -290,8 +356,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
             'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -317,8 +385,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
             'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
         packet = InPacket(stream=reply)
@@ -338,6 +408,8 @@ class SyncMasterTest(tests.Test):
         cookie = [
                 'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
                 'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -349,8 +421,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
+            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_BREAK=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -385,8 +459,10 @@ class SyncMasterTest(tests.Test):
 
         master.volume['document'].create(guid='1')
 
-        request.environ['HTTP_COOKIE'] = \
-                'sn_pull=%s' % base64.b64encode(json.dumps([[1, 1]]))
+        request.environ['HTTP_COOKIE'] = 'sn_pull=%s files_pull=%s' % ( \
+                base64.b64encode(json.dumps([[1, 1]])),
+                base64.b64encode(json.dumps([[2, 2]])),
+                )
 
         reply = master.pull(request, response)
         assert reply is None
@@ -394,6 +470,8 @@ class SyncMasterTest(tests.Test):
         cookie = [
                 'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
                 'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1]])),
+                'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, 2]])),
+                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -405,8 +483,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
             'sn_pull=sn_pull_unset; Max-Age=1; HttpOnly',
+            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, 2]])),
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -444,6 +524,8 @@ class SyncMasterTest(tests.Test):
         self.assertEqual([
             'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
             'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -457,6 +539,8 @@ class SyncMasterTest(tests.Test):
         self.assertEqual([
             'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
             'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -474,6 +558,8 @@ class SyncMasterTest(tests.Test):
         cookie = [
                 'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
                 'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -485,8 +571,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
+            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_BREAK=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -527,8 +615,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
+            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_BREAK=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
         packet = InPacket(stream=reply)
@@ -548,8 +638,10 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=1; HttpOnly',
+            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
             'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
+            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
         packet = InPacket(stream=reply)
@@ -567,6 +659,8 @@ class SyncMasterTest(tests.Test):
         cookie = [
                 'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
                 'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
+                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         assert exists(join('tmp', pull_hash([[1, None]]) + '.pull'))
@@ -576,6 +670,8 @@ class SyncMasterTest(tests.Test):
         cookie = [
                 'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
                 'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
+                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
+                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         assert not exists(join('tmp', pull_hash([[1, None]]) + '.pull'))

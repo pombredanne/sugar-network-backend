@@ -92,7 +92,7 @@ class NodeCommands(ad.VolumeCommands):
 
     @ad.directory_command(method='GET')
     def find(self, document, request, offset=None, limit=None, query=None,
-            reply=None, order_by=None, **kwargs):
+            reply=None, order_by=None, group_by=None, **kwargs):
         if limit is None:
             limit = node.find_limit.value
         elif limit > node.find_limit.value:
@@ -100,7 +100,7 @@ class NodeCommands(ad.VolumeCommands):
                     node.find_limit.value)
             limit = node.find_limit.value
         return ad.VolumeCommands.find(self, document, request, offset, limit,
-                query, reply, order_by, **kwargs)
+                query, reply, order_by, group_by, **kwargs)
 
     def resolve(self, request):
         cmd = ad.VolumeCommands.resolve(self, request)
@@ -166,37 +166,51 @@ class MasterCommands(NodeCommands):
             out_packet = OutBufferPacket(src=self._guid,
                     dst=in_packet.header['src'],
                     filename='ack.' + in_packet.header.get('filename'))
-            pull_to_forward = Sequence()
             pushed = Sequence()
             merged = Sequence()
+            # Nodes create singular packet, forward PULLs
+            # to process them in `pull()` later
+            sn_pull = Sequence()
+            files_pull = Sequence()
 
             for record in in_packet.records(dst=self._guid):
                 cmd = record.get('cmd')
                 if cmd == 'sn_push':
                     seqno = self.volume.merge(record)
                     merged.include(seqno, seqno)
-
                 elif cmd == 'sn_commit':
                     _logger.debug('Merged %r commit', record)
                     pushed.include(record['sequence'])
-
                 elif cmd == 'sn_pull':
-                    # Nodes create singular packet, forward PULLs
-                    # to process them in `pull()` later
-                    pull_to_forward.include(record['sequence'])
+                    sn_pull.include(record['sequence'])
+                elif cmd == 'files_pull':
+                    files_pull.include(record['sequence'])
 
             enforce(not merged or pushed,
                     '"sn_push" record without "sn_commit"')
             if pushed:
                 out_packet.push(cmd='sn_ack', sequence=pushed, merged=merged)
 
-            pull_to_forward.exclude(merged)
-            pull_to_forward.include(_cookie_get(request, 'sn_pull'))
-            if pull_to_forward:
-                _logger.debug('Forward %r pull in cookies', pull_to_forward)
-                _cookie_set(response, 'sn_pull', pull_to_forward)
+            sn_pull.exclude(merged)
+            sn_pull.include(_cookie_get(request, 'sn_pull'))
+            if sn_pull:
+                _logger.debug('Postpone session, sn_pull=%r', sn_pull)
+                _cookie_set(response, 'sn_pull', sn_pull)
             else:
                 _cookie_unset(response, 'sn_pull')
+
+            files_pull.include(_cookie_get(request, 'files_pull'))
+            if files_pull:
+                _logger.debug('Postpone session, files_pull=%r', files_pull)
+                _cookie_set(response, 'files_pull', files_pull)
+            else:
+                _cookie_unset(response, 'files_pull')
+
+            if sn_pull or files_pull:
+                _cookie_set_raw(response, 'SN_CONTINUE', '')
+            else:
+                _logger.debug('Break session')
+                _cookie_set_raw(response, 'SN_BREAK', '')
 
             response.content_type = out_packet.content_type
             if not out_packet.empty:
@@ -205,28 +219,30 @@ class MasterCommands(NodeCommands):
     @ad.volume_command(method='GET', cmd='pull',
             mime_type='application/octet-stream')
     def pull(self, request, response, accept_length=None, sequence=None):
-        pull_seq = Sequence()
+        sn_pull = Sequence()
         if sequence:
-            pull_seq.extend(json.loads(sequence))
-        if not pull_seq:
-            pull_seq.extend(_cookie_get(request, 'sn_pull') or [])
-
-        if pull_seq:
-            _logger.debug('Reuse %r pull from cookies', pull_seq)
+            sn_pull.extend(json.loads(sequence))
+        if not sn_pull:
+            sn_pull.extend(_cookie_get(request, 'sn_pull') or [])
+        if sn_pull:
+            _logger.debug('Reuse %r pull from cookies', sn_pull)
             clone = False
         else:
             _logger.debug('Clone full dump')
             clone = True
-            pull_seq.include(1, None)
+            sn_pull.include(1, None)
+
+        files_pull = Sequence()
+        files_pull.extend(_cookie_get(request, 'files_pull') or [])
 
         accept_length = _to_int('accept_length', accept_length)
-        pull_hash = hashlib.sha1(json.dumps(pull_seq)).hexdigest()
+        pull_hash = hashlib.sha1(json.dumps(sn_pull)).hexdigest()
 
         if pull_hash in self._pull_queue:
             pull = self._pull_queue[pull_hash]
-            _logger.debug('Reuse picked up %r pull', pull_seq)
+            _logger.debug('Reuse picked up %r pull', sn_pull)
         else:
-            pull = self._pull_queue[pull_hash] = _Pull(pull_hash, pull_seq,
+            pull = self._pull_queue[pull_hash] = _Pull(pull_hash, sn_pull,
                     self.volume, clone, src=self._guid,
                     seqno=self.volume.seqno.value, limit=accept_length)
 
@@ -238,20 +254,32 @@ class MasterCommands(NodeCommands):
         content = None
 
         if pull.ready:
-            _logger.debug('Response with ready %r pull', pull_seq)
+            _logger.debug('Response with ready %r pull', sn_pull)
             _cookie_unset(response, 'sn_delay')
-            pull_seq = pull.sequence
+            sn_pull = pull.sequence
             content = pull.content
         else:
-            _logger.debug('Pull %r is not yet ready', pull_seq)
+            _logger.debug('Pull %r is not yet ready', sn_pull)
             _cookie_set_raw(response, 'sn_delay',
                     'sn_delay:%s' % pull.seconds_remained)
 
-        if pull_seq:
-            _logger.debug('Postpone %r pull in cookies', pull_seq)
-            _cookie_set(response, 'sn_pull', pull_seq)
+        if sn_pull:
+            _logger.debug('Postpone session, sn_pull=%r', sn_pull)
+            _cookie_set(response, 'sn_pull', sn_pull)
         else:
             _cookie_unset(response, 'sn_pull')
+
+        if files_pull:
+            _logger.debug('Postpone session, files_pull=%r', files_pull)
+            _cookie_set(response, 'files_pull', files_pull)
+        else:
+            _cookie_unset(response, 'files_pull')
+
+        if sn_pull or files_pull:
+            _cookie_set_raw(response, 'SN_CONTINUE', '')
+        else:
+            _logger.debug('Break session')
+            _cookie_set_raw(response, 'SN_BREAK', '')
 
         return content
 
@@ -335,7 +363,7 @@ def _cookie_set(response, name, value):
 
 
 def _cookie_unset(response, name):
-    _cookie_set_raw(response, name, '%s_unset' % name, 1)
+    _cookie_set_raw(response, name, '%s_unset' % name, 0)
 
 
 def _cookie_set_raw(response, name, value, age=3600):

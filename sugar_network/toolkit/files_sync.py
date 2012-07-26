@@ -78,7 +78,6 @@ class Seeder(object):
                 in_seq, out_seq, files, len(deleted))
 
     def _sync(self):
-        print '>', os.stat(self._files_path).st_mtime, self._stamp
         if os.stat(self._files_path).st_mtime <= self._stamp:
             return
 

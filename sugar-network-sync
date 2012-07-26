@@ -88,8 +88,8 @@ upload() {
         [ "${in_packet}" ] && cmd="${cmd} --post-file=${in_packet}"
         [ "${V}" ] && cmd="${cmd} --server-response" || cmd="${cmd} --quiet"
     else
-        cmd="curl --output=${out_packet} --cookie-jar=${cookie}"
-        [ "${in_packet}" ] && cmd="${cmd} -XPOST --data-binary=@${in_packet}"
+        cmd="curl --output ${out_packet} --cookie ${cookie} --cookie-jar ${cookie}"
+        [ "${in_packet}" ] && cmd="${cmd} -XPOST --data-binary @${in_packet}"
         [ "${V}" ] || cmd="${cmd} --silent"
     fi
 
@@ -106,9 +106,9 @@ upload() {
     fi
 
     if [ -e "${cookie}" ]; then
-        if grep sn_pull_unset "${cookie}" >/dev/null; then
+        if grep SN_BREAK "${cookie}" >/dev/null; then
             rm "${cookie}"
-        elif grep sn_pull "${cookie}" >/dev/null; then
+        elif grep SN_CONTINUE "${cookie}" >/dev/null; then
             phase "Postpone pull with ${cookie}"
         else
             rm "${cookie}"
