@@ -69,7 +69,7 @@ class Seeder(object):
                 else:
                     packet.push_file(join(self._files_path, path),
                             arcname=join('files', path))
-                in_seq.exclude(start, seqno)
+                in_seq.exclude(seqno, seqno)
                 out_seq.include(start, seqno)
                 start = seqno
                 files += 1
