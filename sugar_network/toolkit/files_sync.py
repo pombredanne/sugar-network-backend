@@ -44,6 +44,8 @@ class Seeder(object):
             os.makedirs(self._files_path)
 
     def pull(self, sequence, packet):
+        # Below calls will mutate `self._index` and trigger coroutine switches.
+        # Thus, avoid chnaing `self._index` by different coroutines.
         with self._mutex:
             self._sync()
             packet.header['sequence'] = out_seq = Sequence()
@@ -51,35 +53,49 @@ class Seeder(object):
             self._pull(sequence, packet, out_seq, deleted)
 
     def _pull(self, in_seq, packet, out_seq, deleted):
+        _logger.debug('Start sync: in_seq=%r', in_seq)
+
+        files = 0
         pos = 0
-        for start, end in in_seq:
+
+        for start, end in in_seq[:]:
             pos = bisect_left(self._index, [start, None, None], pos)
             for pos, (seqno, path, mtime) in enumerate(self._index[pos:]):
                 if end is not None and seqno > end:
                     break
+                coroutine.dispatch()
                 if mtime < 0:
                     deleted.append(path)
                 else:
                     packet.push_file(join(self._files_path, path),
                             arcname=join('files', path))
+                in_seq.exclude(start, seqno)
                 out_seq.include(start, seqno)
                 start = seqno
+                files += 1
+
+        _logger.debug('Stop sync: in_seq=%r out_seq=%r updates=%r deletes=%r',
+                in_seq, out_seq, files, len(deleted))
 
     def _sync(self):
+        print '>', os.stat(self._files_path).st_mtime, self._stamp
         if os.stat(self._files_path).st_mtime <= self._stamp:
             return
 
-        _logger.debug('Sync index with %r directory', self._files_path)
         new_files = set()
+        updates = 0
+        deletes = 0
 
         # Populate list of new files at first
         for root, __, files in os.walk(self._files_path):
+            coroutine.dispatch()
             rel_root = relpath(root, self._files_path)
             if rel_root == '.':
                 rel_root = ''
             else:
                 rel_root += os.sep
             for filename in files:
+                coroutine.dispatch()
                 path = join(root, filename)
                 if os.lstat(path).st_mtime > self._stamp:
                     new_files.add(rel_root + filename)
@@ -87,6 +103,7 @@ class Seeder(object):
         # Check for updates for already tracked files
         tail = []
         for pos, (__, rel_path, mtime) in enumerate(self._index[:]):
+            coroutine.dispatch()
             path = join(self._files_path, rel_path)
             existing = lexists(path)
             if existing == (mtime >= 0) and \
@@ -101,10 +118,18 @@ class Seeder(object):
                 rel_path,
                 int(os.lstat(path).st_mtime) if existing else -1,
                 ])
+            if existing:
+                updates += 1
+            else:
+                deletes += 1
         self._index.extend(tail)
+
+        _logger.debug('Updated %r index: new=%r updates=%r deletes=%r',
+                self._files_path, len(self._files_path), updates, deletes)
 
         # Finally, add new files
         for rel_path in sorted(new_files):
+            coroutine.dispatch()
             mtime = os.lstat(join(self._files_path, rel_path)).st_mtime
             self._index.append([self._seqno.next(), rel_path, mtime])
 
