@@ -34,6 +34,8 @@ class Seeder(object):
         self._seqno = seqno
         self._index = []
         self._stamp = 0
+        # Below calls will mutate `self._index` and trigger coroutine switches.
+        # Thus, avoid chnaing `self._index` by different coroutines.
         self._mutex = coroutine.Lock()
 
         if exists(self._index_path):
@@ -44,15 +46,18 @@ class Seeder(object):
             os.makedirs(self._files_path)
 
     def pull(self, sequence, packet):
-        # Below calls will mutate `self._index` and trigger coroutine switches.
-        # Thus, avoid chnaing `self._index` by different coroutines.
         with self._mutex:
             self._sync()
             packet.header['sequence'] = out_seq = Sequence()
             packet.header['deleted'] = deleted = []
-            self._pull(sequence, packet, out_seq, deleted)
+            self._pull(sequence, packet, out_seq, deleted, False)
 
-    def _pull(self, in_seq, packet, out_seq, deleted):
+    def pending(self, sequence):
+        with self._mutex:
+            self._sync()
+            return self._pull(sequence, None, None, None, True)
+
+    def _pull(self, in_seq, packet, out_seq, deleted, dry_run):
         _logger.debug('Start sync: in_seq=%r', in_seq)
 
         files = 0
@@ -63,6 +68,9 @@ class Seeder(object):
             for pos, (seqno, path, mtime) in enumerate(self._index[pos:]):
                 if end is not None and seqno > end:
                     break
+                if dry_run:
+                    return True
+
                 coroutine.dispatch()
                 if mtime < 0:
                     deleted.append(path)
@@ -73,6 +81,9 @@ class Seeder(object):
                 out_seq.include(start, seqno)
                 start = seqno
                 files += 1
+
+        if dry_run:
+            return False
 
         _logger.debug('Stop sync: in_seq=%r out_seq=%r updates=%r deletes=%r',
                 in_seq, out_seq, files, len(deleted))

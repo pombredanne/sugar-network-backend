@@ -23,6 +23,7 @@ class FilesSyncTest(tests.Test):
 
         os.utime('files', (1, 1))
 
+        assert not seeder.pending(Sequence([[1, None]]))
         packet = OutBufferPacket()
         in_seq = Sequence([[1, None]])
         seeder.pull(in_seq, packet)
@@ -37,6 +38,7 @@ class FilesSyncTest(tests.Test):
         utime('files', 1)
         os.utime('files', (1, 1))
 
+        assert not seeder.pending(Sequence([[1, None]]))
         in_seq = Sequence([[1, None]])
         seeder.pull(in_seq, packet)
         self.assertEqual([[1, None]], in_seq)
@@ -47,6 +49,7 @@ class FilesSyncTest(tests.Test):
         utime('files', 2)
         os.utime('files', (2, 2))
 
+        assert seeder.pending(Sequence([[1, None]]))
         in_seq = Sequence([[1, None]])
         seeder.pull(in_seq, packet)
         self.assertEqual([[4, None]], in_seq)
@@ -73,6 +76,7 @@ class FilesSyncTest(tests.Test):
                     ]),
                 sorted(in_packet._tarball.getnames()))
 
+        assert not seeder.pending(Sequence([[4, None]]))
         packet = OutBufferPacket()
         in_seq = Sequence([[4, None]])
         seeder.pull(in_seq, packet)
@@ -274,6 +278,7 @@ class FilesSyncTest(tests.Test):
         os.unlink('files/2')
         os.utime('files', (2, 2))
 
+        assert seeder.pending(Sequence([[4, None]]))
         out_packet = OutBufferPacket()
         in_seq = Sequence([[1, None]])
         seeder.pull(in_seq, out_packet)
@@ -294,6 +299,7 @@ class FilesSyncTest(tests.Test):
         os.unlink('files/3')
         os.utime('files', (3, 3))
 
+        assert seeder.pending(Sequence([[5, None]]))
         out_packet = OutBufferPacket()
         in_seq = Sequence([[1, None]])
         seeder.pull(in_seq, out_packet)
