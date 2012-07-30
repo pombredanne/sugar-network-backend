@@ -5,7 +5,7 @@ import os
 import time
 import json
 from glob import glob
-from os.path import exists, isfile, join
+from os.path import exists
 
 from __init__ import tests
 
@@ -15,7 +15,19 @@ from sugar_network.toolkit.files_sync import Seeder
 from sugar_network.toolkit.sneakernet import OutBufferPacket, InPacket, DiskFull
 
 
+CHUNK = 100000
+
+
 class FilesSyncTest(tests.Test):
+
+    def setUp(self):
+        tests.Test.setUp(self)
+        self.uuid = 0
+        self.override(ad, 'uuid', self.next_uuid)
+
+    def next_uuid(self):
+        self.uuid += 1
+        return str(self.uuid)
 
     def test_Seeder_pull_Populate(self):
         seqno = ad.Seqno('seqno')
@@ -32,10 +44,10 @@ class FilesSyncTest(tests.Test):
         self.assertEqual(True, packet.empty)
         assert not exists('index')
 
-        self.touch('files/1')
-        self.touch('files/2/3')
-        self.touch('files/4/5/6')
-        utime('files', 1)
+        self.touch(('files/1', '1'))
+        self.touch(('files/2/3', '3'))
+        self.touch(('files/4/5/6', '6'))
+        self.utime('files', 1)
         os.utime('files', (1, 1))
 
         assert not seeder.pending(Sequence([[1, None]]))
@@ -46,7 +58,7 @@ class FilesSyncTest(tests.Test):
         self.assertEqual(True, packet.empty)
         assert not exists('index')
 
-        utime('files', 2)
+        self.utime('files', 2)
         os.utime('files', (2, 2))
 
         assert seeder.pending(Sequence([[1, None]]))
@@ -64,17 +76,14 @@ class FilesSyncTest(tests.Test):
                     ],
                     os.stat('files').st_mtime],
                 json.load(file('index')))
-        in_packet = InPacket(stream=packet.pop())
-        self.assertEqual([[1, 3]], in_packet.header['sequence'])
-        self.assertEqual([], in_packet.header['deleted'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/1',
-                    'files/2/3',
-                    'files/4/5/6',
+                    {'filename': '1.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '1', 'content_type': 'blob', 'path': '1'},
+                    {'filename': '1.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '3', 'content_type': 'blob', 'path': '2/3'},
+                    {'filename': '1.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '6', 'content_type': 'blob', 'path': '4/5/6'},
+                    {'filename': '1.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[1, 3]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(packet))
 
         assert not seeder.pending(Sequence([[4, None]]))
         packet = OutBufferPacket()
@@ -88,38 +97,36 @@ class FilesSyncTest(tests.Test):
         seqno = ad.Seqno('seqno')
         seeder = Seeder('files', 'index', seqno)
 
-        self.touch('files/1')
-        self.touch('files/2')
-        self.touch('files/3')
-        self.touch('files/4')
-        self.touch('files/5')
-        utime('files', 1)
+        self.touch(('files/1', '1'))
+        self.touch(('files/2', '2'))
+        self.touch(('files/3', '3'))
+        self.touch(('files/4', '4'))
+        self.touch(('files/5', '5'))
+        self.utime('files', 1)
 
         out_packet = OutBufferPacket()
         in_seq = Sequence([[2, 2], [4, 10], [20, None]])
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[6, 10], [20,None]], in_seq)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[2, 2], [4, 5]], in_packet.header['sequence'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/2',
-                    'files/4',
-                    'files/5',
+                    {'filename': '1.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '2', 'content_type': 'blob', 'path': '2'},
+                    {'filename': '1.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '4', 'content_type': 'blob', 'path': '4'},
+                    {'filename': '1.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '5', 'content_type': 'blob', 'path': '5'},
+                    {'filename': '1.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[2, 2], [4, 5]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
     def test_Seeder_pull_DiskFull(self):
         seqno = ad.Seqno('seqno')
         seeder = Seeder('files', 'index', seqno)
 
-        self.touch(('files/1', '*' * 1000))
-        self.touch(('files/2', '*' * 1000))
-        self.touch(('files/3', '*' * 1000))
-        utime('files', 1)
+        self.touch(('files/1', '*' * CHUNK))
+        self.touch(('files/2', '*' * CHUNK))
+        self.touch(('files/3', '*' * CHUNK))
+        self.utime('files', 1)
 
-        out_packet = OutBufferPacket(limit=2750)
+        out_packet = OutBufferPacket(limit=CHUNK * 2.5)
         in_seq = Sequence([[1, None]])
         try:
             seeder.pull(in_seq, out_packet)
@@ -127,25 +134,22 @@ class FilesSyncTest(tests.Test):
         except DiskFull:
             pass
         self.assertEqual([[3, None]], in_seq)
-
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[1, 2]], in_packet.header['sequence'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/1',
-                    'files/2',
+                    {'filename': '1.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '*' * CHUNK, 'content_type': 'blob', 'path': '1'},
+                    {'filename': '1.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '*' * CHUNK, 'content_type': 'blob', 'path': '2'},
+                    {'filename': '1.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[1, 2]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
     def test_Seeder_pull_UpdateFiles(self):
         seqno = ad.Seqno('seqno')
         seeder = Seeder('files', 'index', seqno)
 
-        self.touch('files/1')
-        self.touch('files/2')
-        self.touch('files/3')
-        utime('files', 1)
+        self.touch(('files/1', '1'))
+        self.touch(('files/2', '2'))
+        self.touch(('files/3', '3'))
+        self.utime('files', 1)
         os.utime('files', (1, 1))
 
         out_packet = OutBufferPacket()
@@ -163,14 +167,12 @@ class FilesSyncTest(tests.Test):
         out_packet = OutBufferPacket()
         seeder.pull(Sequence([[4, None]]), out_packet)
         self.assertEqual(4, seqno.value)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[4, 4]], in_packet.header['sequence'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/2',
+                    {'filename': '3.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '2', 'content_type': 'blob', 'path': '2'},
+                    {'filename': '3.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[4, 4]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
         os.utime('files/1', (4, 4))
         os.utime('files/3', (4, 4))
@@ -179,45 +181,41 @@ class FilesSyncTest(tests.Test):
         out_packet = OutBufferPacket()
         seeder.pull(Sequence([[5, None]]), out_packet)
         self.assertEqual(6, seqno.value)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[5, 6]], in_packet.header['sequence'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/1',
-                    'files/3',
+                    {'filename': '4.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '1', 'content_type': 'blob', 'path': '1'},
+                    {'filename': '4.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '3', 'content_type': 'blob', 'path': '3'},
+                    {'filename': '4.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[5, 6]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
         out_packet = OutBufferPacket()
         seeder.pull(Sequence([[1, None]]), out_packet)
         self.assertEqual(6, seqno.value)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[1, 6]], in_packet.header['sequence'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/1',
-                    'files/2',
-                    'files/3',
+                    {'filename': '5.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '1', 'content_type': 'blob', 'path': '1'},
+                    {'filename': '5.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '2', 'content_type': 'blob', 'path': '2'},
+                    {'filename': '5.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '3', 'content_type': 'blob', 'path': '3'},
+                    {'filename': '5.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[1, 6]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
     def test_Seeder_pull_CreateFiles(self):
         seqno = ad.Seqno('seqno')
         seeder = Seeder('files', 'index', seqno)
 
-        self.touch('files/1')
-        self.touch('files/2')
-        self.touch('files/3')
-        utime('files', 1)
+        self.touch(('files/1', '1'))
+        self.touch(('files/2', '2'))
+        self.touch(('files/3', '3'))
+        self.utime('files', 1)
         os.utime('files', (1, 1))
 
         out_packet = OutBufferPacket()
         seeder.pull(Sequence([[1, None]]), out_packet)
         self.assertEqual(3, seqno.value)
 
-        self.touch('files/4')
+        self.touch(('files/4', '4'))
         os.utime('files/4', (2, 2))
         os.utime('files', (1, 1))
 
@@ -231,42 +229,38 @@ class FilesSyncTest(tests.Test):
         out_packet = OutBufferPacket()
         seeder.pull(Sequence([[4, None]]), out_packet)
         self.assertEqual(4, seqno.value)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[4, 4]], in_packet.header['sequence'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/4',
+                    {'filename': '3.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '4', 'content_type': 'blob', 'path': '4'},
+                    {'filename': '3.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[4, 4]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
-        self.touch('files/5')
+        self.touch(('files/5', '5'))
         os.utime('files/5', (3, 3))
-        self.touch('files/6')
+        self.touch(('files/6', '6'))
         os.utime('files/6', (3, 3))
         os.utime('files', (3, 3))
 
         out_packet = OutBufferPacket()
         seeder.pull(Sequence([[5, None]]), out_packet)
         self.assertEqual(6, seqno.value)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[5, 6]], in_packet.header['sequence'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/5',
-                    'files/6',
+                    {'filename': '4.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '5', 'content_type': 'blob', 'path': '5'},
+                    {'filename': '4.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '6', 'content_type': 'blob', 'path': '6'},
+                    {'filename': '4.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[5, 6]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
     def test_Seeder_pull_DeleteFiles(self):
         seqno = ad.Seqno('seqno')
         seeder = Seeder('files', 'index', seqno)
 
-        self.touch('files/1')
-        self.touch('files/2')
-        self.touch('files/3')
-        utime('files', 1)
+        self.touch(('files/1', '1'))
+        self.touch(('files/2', '2'))
+        self.touch(('files/3', '3'))
+        self.utime('files', 1)
         os.utime('files', (1, 1))
 
         out_packet = OutBufferPacket()
@@ -284,16 +278,14 @@ class FilesSyncTest(tests.Test):
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[2, 2], [5, None]], in_seq)
         self.assertEqual(4, seqno.value)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[1, 4]], in_packet.header['sequence'])
-        self.assertEqual(['2'], in_packet.header['deleted'])
         self.assertEqual(
                 sorted([
-                    'header',
-                    'files/1',
-                    'files/3',
+                    {'filename': '2.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '1', 'content_type': 'blob', 'path': '1'},
+                    {'filename': '2.packet', 'cmd': 'files_push', 'directory': 'files', 'blob': '3', 'content_type': 'blob', 'path': '3'},
+                    {'filename': '2.packet', 'cmd': 'files_delete', 'directory': 'files', 'path': '2'},
+                    {'filename': '2.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[1, 4]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
         os.unlink('files/1')
         os.unlink('files/3')
@@ -305,37 +297,37 @@ class FilesSyncTest(tests.Test):
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[1, 3], [7, None]], in_seq)
         self.assertEqual(6, seqno.value)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[1, 6]], in_packet.header['sequence'])
-        self.assertEqual(['2', '1', '3'], in_packet.header['deleted'])
         self.assertEqual(
                 sorted([
-                    'header',
+                    {'filename': '3.packet', 'cmd': 'files_delete', 'directory': 'files', 'path': '1'},
+                    {'filename': '3.packet', 'cmd': 'files_delete', 'directory': 'files', 'path': '2'},
+                    {'filename': '3.packet', 'cmd': 'files_delete', 'directory': 'files', 'path': '3'},
+                    {'filename': '3.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[1, 6]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
         out_packet = OutBufferPacket()
         in_seq = Sequence([[4, None]])
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[7, None]], in_seq)
         self.assertEqual(6, seqno.value)
-        in_packet = InPacket(stream=out_packet.pop())
-        self.assertEqual([[4, 6]], in_packet.header['sequence'])
-        self.assertEqual(['2', '1', '3'], in_packet.header['deleted'])
         self.assertEqual(
                 sorted([
-                    'header',
+                    {'filename': '4.packet', 'cmd': 'files_delete', 'directory': 'files', 'path': '1'},
+                    {'filename': '4.packet', 'cmd': 'files_delete', 'directory': 'files', 'path': '2'},
+                    {'filename': '4.packet', 'cmd': 'files_delete', 'directory': 'files', 'path': '3'},
+                    {'filename': '4.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[4, 6]]},
                     ]),
-                sorted(in_packet._tarball.getnames()))
+                read_records(out_packet))
 
 
-def utime(path, ts):
-    if isfile(path):
-        os.utime(path, (ts, ts))
-    else:
-        for root, __, files in os.walk(path):
-            for i in files:
-                os.utime(join(root, i), (ts, ts))
+def read_records(in_packet):
+    records = []
+    for i in InPacket(stream=in_packet.pop()):
+        if i.get('content_type') == 'blob':
+            i['blob'] = i['blob'].read()
+        records.append(i)
+    return sorted(records)
 
 
 if __name__ == '__main__':

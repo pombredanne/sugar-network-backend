@@ -10,7 +10,7 @@ import logging
 import unittest
 import tempfile
 import subprocess
-from os.path import dirname, join, exists, abspath
+from os.path import dirname, join, exists, abspath, isfile
 
 import requests
 from M2Crypto import DSA
@@ -171,6 +171,14 @@ class Test(unittest.TestCase):
             f = file(path, 'w')
             f.write(str(content))
             f.close()
+
+    def utime(self, path, ts):
+        if isfile(path):
+            os.utime(path, (ts, ts))
+        else:
+            for root, __, files in os.walk(path):
+                for i in files:
+                    os.utime(join(root, i), (ts, ts))
 
     def fork(self, cb, *args):
         pid = os.fork()

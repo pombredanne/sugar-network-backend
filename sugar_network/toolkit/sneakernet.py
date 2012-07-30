@@ -301,7 +301,7 @@ class OutPacket(object):
                 f.close()
             return
         elif data is None:
-            _logger.debug('Writing %r record to %r', data, self)
+            _logger.debug('Writing %r record to %r', meta, self)
             self._add(arcname, None, meta)
             return
         elif hasattr(data, 'fileno'):
@@ -348,12 +348,9 @@ class OutPacket(object):
                 arcfile.seek(0)
                 self._add(arcname, arcfile, meta)
 
-    def push_file(self, path, arcname=None):
-        size = os.lstat(path).st_size
-        self._flush(size, False)
-        self._enforce_limit(size)
-        self._tarball.add(path, arcname=arcname)
-        self._empty = False
+    def push_file(self, path_, **kwargs):
+        with file(path_, 'rb') as f:
+            self.push(f, **kwargs)
 
     def _add(self, arcname, data, meta):
         if not arcname:
