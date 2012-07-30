@@ -106,9 +106,9 @@ upload() {
     fi
 
     if [ -e "${cookie}" ]; then
-        if grep SN_BREAK "${cookie}" >/dev/null; then
+        if grep unset_sugar_network_sync "${cookie}" >/dev/null; then
             rm "${cookie}"
-        elif grep SN_CONTINUE "${cookie}" >/dev/null; then
+        elif grep sugar_network_sync "${cookie}" >/dev/null; then
             phase "Postpone pull with ${cookie}"
         else
             rm "${cookie}"
@@ -134,7 +134,7 @@ pull() {
         upload "${api_url}&accept_length=${disk_free}" "${cookie}"
         [ -e "${cookie}" ] || break
 
-        delay=$(grep -o 'sn_delay:[0-9]\+' "${cookie}" 2>/dev/null | awk -F: '{print $2}')
+        delay=$(grep -o 'sugar_network_delay[[:space:]]*[0-9]\+' "${cookie}" 2>/dev/null | awk '{print $2}')
         if [ "${delay}" ]; then
             phase "Server started processing pull, check for results in ${delay} seconds"
             sleep ${delay}

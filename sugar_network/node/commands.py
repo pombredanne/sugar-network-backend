@@ -148,8 +148,9 @@ class NodeCommands(ad.VolumeCommands):
 
 class MasterCommands(NodeCommands):
 
-    def __init__(self, volume, subscriber=None):
+    def __init__(self, volume, subscriber=None, file_syncs=None):
         NodeCommands.__init__(self, volume, subscriber)
+        self._file_syncs = file_syncs or {}
         self._pull_queue = lrucache(_PULL_QUEUE_SIZE,
                 lambda key, pull: pull.unlink())
 
@@ -168,10 +169,7 @@ class MasterCommands(NodeCommands):
                     filename='ack.' + in_packet.header.get('filename'))
             pushed = Sequence()
             merged = Sequence()
-            # Nodes create singular packet, forward PULLs
-            # to process them in `pull()` later
-            sn_pull = Sequence()
-            files_pull = Sequence()
+            cookie = _Cookie()
 
             for record in in_packet.records(dst=self._guid):
                 cmd = record.get('cmd')
@@ -182,35 +180,21 @@ class MasterCommands(NodeCommands):
                     _logger.debug('Merged %r commit', record)
                     pushed.include(record['sequence'])
                 elif cmd == 'sn_pull':
-                    sn_pull.include(record['sequence'])
+                    cookie['sn_pull'].include(record['sequence'])
                 elif cmd == 'files_pull':
-                    files_pull.include(record['sequence'])
+                    cookie[record['directory']].include(record['sequence'])
 
             enforce(not merged or pushed,
                     '"sn_push" record without "sn_commit"')
             if pushed:
                 out_packet.push(cmd='sn_ack', sequence=pushed, merged=merged)
 
-            sn_pull.exclude(merged)
-            sn_pull.include(_cookie_get(request, 'sn_pull'))
-            if sn_pull:
-                _logger.debug('Postpone session, sn_pull=%r', sn_pull)
-                _cookie_set(response, 'sn_pull', sn_pull)
-            else:
-                _cookie_unset(response, 'sn_pull')
-
-            files_pull.include(_cookie_get(request, 'files_pull'))
-            if files_pull:
-                _logger.debug('Postpone session, files_pull=%r', files_pull)
-                _cookie_set(response, 'files_pull', files_pull)
-            else:
-                _cookie_unset(response, 'files_pull')
-
-            if sn_pull or files_pull:
-                _cookie_set_raw(response, 'SN_CONTINUE', '')
-            else:
-                _logger.debug('Break session')
-                _cookie_set_raw(response, 'SN_BREAK', '')
+            cookie['sn_pull'].exclude(merged)
+            # Read passed cookie only after excluding `merged`.
+            # If there is sn_pull out of currently pushed packet, excluding
+            # `merged` should not affect it.
+            cookie.include(_Cookie(request))
+            cookie.store(response)
 
             response.content_type = out_packet.content_type
             if not out_packet.empty:
@@ -218,100 +202,146 @@ class MasterCommands(NodeCommands):
 
     @ad.volume_command(method='GET', cmd='pull',
             mime_type='application/octet-stream')
-    def pull(self, request, response, accept_length=None, sequence=None):
-        sn_pull = Sequence()
-        if sequence:
-            sn_pull.extend(json.loads(sequence))
-        if not sn_pull:
-            sn_pull.extend(_cookie_get(request, 'sn_pull') or [])
-        if sn_pull:
-            _logger.debug('Reuse %r pull from cookies', sn_pull)
-            clone = False
-        else:
+    def pull(self, request, response, accept_length=None, **pulls):
+        cookie = _Cookie(request)
+        for key, seq in pulls.items():
+            cookie[key][:] = json.loads(seq)
+        if not cookie:
             _logger.debug('Clone full dump')
-            clone = True
-            sn_pull.include(1, None)
-
-        files_pull = Sequence()
-        files_pull.extend(_cookie_get(request, 'files_pull') or [])
+            cookie['sn_pull'].include(1, None)
 
         accept_length = _to_int('accept_length', accept_length)
-        pull_hash = hashlib.sha1(json.dumps(sn_pull)).hexdigest()
-
-        if pull_hash in self._pull_queue:
-            pull = self._pull_queue[pull_hash]
-            _logger.debug('Reuse picked up %r pull', sn_pull)
-        else:
-            pull = self._pull_queue[pull_hash] = _Pull(pull_hash, sn_pull,
-                    self.volume, clone, src=self._guid,
-                    seqno=self.volume.seqno.value, limit=accept_length)
-
-        if pull.exception is not None:
-            del self._pull_queue[pull_hash]
-            raise pull.exception
-
-        response.content_type = pull.content_type
+        pull_key = hashlib.sha1(json.dumps(cookie)).hexdigest()
+        pull = None
         content = None
 
+        if pull_key in self._pull_queue:
+            pull = self._pull_queue[pull_key]
+            if accept_length is not None and pull.length > accept_length:
+                _logger.debug('Cached %r pull is bigger than requested ' \
+                        'length, will recreate it', cookie)
+                pull.unlink()
+                del self._pull_queue[pull_key]
+                pull = None
+
+        if pull is None:
+            pull = self._pull_queue[pull_key] = _Pull(pull_key, cookie,
+                    self._pull, src=self._guid, seqno=self.volume.seqno.value,
+                    limit=accept_length)
+
+        if pull.exception is not None:
+            del self._pull_queue[pull_key]
+            raise pull.exception
+
         if pull.ready:
-            _logger.debug('Response with ready %r pull', sn_pull)
-            _cookie_unset(response, 'sn_delay')
-            sn_pull = pull.sequence
+            _logger.debug('Response with ready %r pull', cookie)
             content = pull.content
+            response.content_type = pull.content_type
+            cookie = pull.cookie
         else:
-            _logger.debug('Pull %r is not yet ready', sn_pull)
-            _cookie_set_raw(response, 'sn_delay',
-                    'sn_delay:%s' % pull.seconds_remained)
+            _logger.debug('Pull %r is not yet ready', cookie)
+            cookie.delay = pull.seconds_remained
 
-        if sn_pull:
-            _logger.debug('Postpone session, sn_pull=%r', sn_pull)
-            _cookie_set(response, 'sn_pull', sn_pull)
-        else:
-            _cookie_unset(response, 'sn_pull')
-
-        if files_pull:
-            _logger.debug('Postpone session, files_pull=%r', files_pull)
-            _cookie_set(response, 'files_pull', files_pull)
-        else:
-            _cookie_unset(response, 'files_pull')
-
-        if sn_pull or files_pull:
-            _cookie_set_raw(response, 'SN_CONTINUE', '')
-        else:
-            _logger.debug('Break session')
-            _cookie_set_raw(response, 'SN_BREAK', '')
-
+        cookie.store(response)
         return content
+
+    def _pull(self, cookie, packet):
+        sn_pull = cookie['sn_pull']
+        if sn_pull:
+            self.volume.diff(sn_pull, packet)
+
+        for directory, seq in cookie.items():
+            sync = self._file_syncs.get(directory)
+            if sync is None or not sync.pending(seq):
+                continue
+            sync.pull(seq, packet)
+
+
+class _Cookie(dict):
+
+    def __init__(self, request=None):
+        if request is None:
+            dict.__init__(self)
+        else:
+            value = self._get_cookie(request, 'sugar_network_sync')
+            dict.__init__(self, value or {})
+        self.delay = 0
+
+    def include(self, cookie):
+        for key, seq in cookie.items():
+            self[key].include(seq)
+
+    def store(self, response):
+        to_store = {}
+        for key, value in self.items():
+            if value:
+                to_store[key] = value
+
+        if to_store:
+            _logger.debug('Postpone %r pull in cookie', to_store)
+            to_store = base64.b64encode(json.dumps(to_store))
+            self._set_cookie(response, 'sugar_network_sync', to_store)
+            self._set_cookie(response, 'sugar_network_delay', self.delay)
+        else:
+            self._unset_cookie(response, 'sugar_network_sync')
+            self._unset_cookie(response, 'sugar_network_delay')
+
+    def __getitem__(self, key):
+        seq = self.get(key)
+        if seq is None:
+            seq = self[key] = Sequence()
+        elif type(seq) is list:
+            seq = self[key] = Sequence(seq)
+        return seq
+
+    def _get_cookie(self, request, name):
+        cookie_str = request.environ.get('HTTP_COOKIE')
+        if not cookie_str:
+            return
+        cookie = SimpleCookie()
+        cookie.load(cookie_str)
+        if name not in cookie:
+            return
+        value = cookie.get(name).value
+        if value != 'unset_%s' % name:
+            return json.loads(base64.b64decode(value))
+
+    def _set_cookie(self, response, name, value, age=3600):
+        response.setdefault('Set-Cookie', [])
+        cookie = '%s=%s; Max-Age=%s; HttpOnly' % (name, value, age)
+        response['Set-Cookie'].append(cookie)
+
+    def _unset_cookie(self, response, name):
+        self._set_cookie(response, name, 'unset_%s' % name, 0)
 
 
 class _Pull(object):
 
-    def __init__(self, pull_hash, pull_seq, volume, clone, **packet_args):
-        self.sequence = pull_seq
+    def __init__(self, pull_key, cookie, pull_cb, **packet_args):
+        self.cookie = cookie
         self.exception = None
         self.seconds_remained = 0
         self.content_type = None
-        self.path = join(node.tmpdir.value, pull_hash + '.pull')
+        self._path = join(node.tmpdir.value, pull_key + '.pull')
         self._job = None
 
-        if exists(self.path):
+        if exists(self._path):
             try:
-                with InPacket(self.path) as packet:
+                with InPacket(self._path) as packet:
                     self.content_type = packet.content_type
-                    self.sequence = packet.header['postponed_sequence']
-                _logger.debug('Pickup %r pull from %r', pull_seq, self.path)
+                    self.cookie = _Cookie()
+                    self.cookie.update(packet.header['cookie'])
             except Exception:
-                util.exception('Cannot open cached %r pull, will recreate',
-                        self.path)
-                os.unlink(self.path)
+                util.exception('Cannot open cached packet for %r, recreate',
+                        self._path)
+                os.unlink(self._path)
 
-        if not exists(self.path):
-            _logger.debug('Prepare %r pull', pull_seq)
-            packet = OutPacket(stream=file(self.path, 'wb+'), **packet_args)
+        if not exists(self._path):
+            packet = OutPacket(stream=file(self._path, 'wb+'), **packet_args)
             self.content_type = packet.content_type
             # TODO Might be useful to set meaningful value here
             self.seconds_remained = 30
-            self._job = coroutine.spawn(self._diff, volume, clone, packet)
+            self._job = coroutine.spawn(self._pull, packet, pull_cb)
 
     @property
     def ready(self):
@@ -320,56 +350,34 @@ class _Pull(object):
 
     @property
     def content(self):
-        if exists(self.path):
-            return file(self.path, 'rb')
+        if exists(self._path):
+            return file(self._path, 'rb')
+
+    @property
+    def length(self):
+        if exists(self._path):
+            return os.stat(self._path).st_size
 
     def unlink(self):
-        if exists(self.path):
-            _logger.debug('Eject %r pull from queue', self.path)
-            os.unlink(self.path)
+        if self._job is not None:
+            self._job.kill()
+        if exists(self._path):
+            _logger.debug('Eject %r pull from queue', self._path)
+            os.unlink(self._path)
 
-    def _diff(self, volume, clone, packet):
+    def _pull(self, packet, cb):
         try:
-            volume.diff(self.sequence, packet, clone=clone)
+            cb(self.cookie, packet)
         except DiskFull:
             pass
         except Exception, exception:
-            util.exception('Error while preparing pull')
+            util.exception('Error while making %r pull', self.cookie)
             self.exception = exception
             self.unlink()
         else:
-            self.sequence.clear()
-        packet.header['postponed_sequence'] = self.sequence
+            self.cookie.clear()
+        packet.header['cookie'] = self.cookie
         packet.close()
-        self.seconds_remained = 0
-
-
-def _cookie_get(request, name):
-    cookie_str = request.environ.get('HTTP_COOKIE')
-    if not cookie_str:
-        return
-    cookie = SimpleCookie()
-    cookie.load(cookie_str)
-    if name not in cookie:
-        return
-    value = cookie.get(name).value
-    if value != '%s_unset' % name:
-        return json.loads(base64.b64decode(value))
-
-
-def _cookie_set(response, name, value):
-    value = base64.b64encode(json.dumps(value))
-    _cookie_set_raw(response, name, value)
-
-
-def _cookie_unset(response, name):
-    _cookie_set_raw(response, name, '%s_unset' % name, 0)
-
-
-def _cookie_set_raw(response, name, value, age=3600):
-    response.setdefault('Set-Cookie', [])
-    cookie = '%s=%s; Max-Age=%s; HttpOnly' % (name, value, age)
-    response['Set-Cookie'].append(cookie)
 
 
 def _load_pubkey(pubkey):

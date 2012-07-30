@@ -105,8 +105,8 @@ class Volume(ad.SingleVolume):
                         cmd='sn_push', document=document)
             except DiskFull:
                 if push_seq:
-                    out_packet.push(arcname=join(document, 'commit'),
-                            force=True, cmd='sn_commit', sequence=push_seq)
+                    out_packet.push(force=True, cmd='sn_commit',
+                            sequence=push_seq)
                 raise
 
         if push_seq:
@@ -114,5 +114,4 @@ class Volume(ad.SingleVolume):
             # is common for all documents; if there was an exception before
             # this place, `push_seq` should contain not-collapsed sequence
             orig_seq.floor(push_seq.last)
-            out_packet.push(arcname='commit', force=True,
-                    cmd='sn_commit', sequence=orig_seq)
+            out_packet.push(force=True, cmd='sn_commit', sequence=orig_seq)

@@ -12,9 +12,13 @@ from __init__ import tests
 import active_document as ad
 from active_document.directory import Directory
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket, OutBufferPacket
+from sugar_network.toolkit.files_sync import Seeder
 from sugar_network.node import commands
 from sugar_network.resources.volume import Volume
 from active_toolkit import coroutine
+
+
+CHUNK = 100000
 
 
 class SyncMasterTest(tests.Test):
@@ -86,9 +90,8 @@ class SyncMasterTest(tests.Test):
 
         reply = master.push(request, response)
         self.assertEqual([
-            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_BREAK=; Max-Age=3600; HttpOnly'
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -121,17 +124,16 @@ class SyncMasterTest(tests.Test):
         reply = master.push(request, response)
         assert reply is None
         self.assertEqual([
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1], [3, 4], [7, None]])),
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, 1], [3, 4], [7, None]]})),
+            'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
         packet = OutBufferPacket(src='node', dst='master')
         packet.push(document='document', data=[
-            {'cmd': 'files_pull', 'sequence': [[1, 1]]},
-            {'cmd': 'files_pull', 'sequence': [[3, 4]]},
-            {'cmd': 'files_pull', 'sequence': [[7, None]]},
+            {'cmd': 'files_pull', 'directory': 'dir1', 'sequence': [[1, 1]]},
+            {'cmd': 'files_pull', 'directory': 'dir1', 'sequence': [[3, 4]]},
+            {'cmd': 'files_pull', 'directory': 'dir2', 'sequence': [[7, None]]},
             ])
         request = Request()
         request.content_stream = packet.pop()
@@ -141,16 +143,15 @@ class SyncMasterTest(tests.Test):
         reply = master.push(request, response)
         assert reply is None
         self.assertEqual([
-            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
-            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1], [3, 4], [7, None]])),
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'dir1': [[1, 1], [3, 4]], 'dir2': [[7, None]]})),
+            'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
         packet = OutBufferPacket(src='node', dst='master')
         packet.push(document='document', data=[
             {'cmd': 'sn_pull', 'sequence': [[1, 1]]},
-            {'cmd': 'files_pull', 'sequence': [[1, 1]]},
+            {'cmd': 'files_pull', 'directory': 'dir', 'sequence': [[1, 1]]},
             ])
         request = Request()
         request.content_stream = packet.pop()
@@ -160,13 +161,12 @@ class SyncMasterTest(tests.Test):
         reply = master.push(request, response)
         assert reply is None
         self.assertEqual([
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1]])),
-            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1]])),
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, 1]], 'dir': [[1, 1]]})),
+            'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
-    def test_push_ProcessPushesAndPulls(self):
+    def test_push_TweakPullAccordingToPush(self):
         master = MasterCommands('master')
         request = Request()
         response = ad.Response()
@@ -174,10 +174,8 @@ class SyncMasterTest(tests.Test):
         packet = OutBufferPacket(src='node', dst='master')
         packet.push(document='document', data=[
             {'cmd': 'sn_push', 'guid': '1', 'diff': {'guid': {'value': '1', 'mtime': 1}}},
-            {'cmd': 'sn_push', 'guid': '3', 'diff': {'guid': {'value': '3', 'mtime': 1}}},
-            {'cmd': 'sn_commit', 'sequence': [[1, 3]]},
+            {'cmd': 'sn_commit', 'sequence': [[1, 1]]},
             {'cmd': 'sn_pull', 'sequence': [[1, None]]},
-            {'cmd': 'files_pull', 'sequence': [[1, None]]},
             ])
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
@@ -188,39 +186,44 @@ class SyncMasterTest(tests.Test):
         self.assertEqual('master', packet.header['src'])
         self.assertEqual('node', packet.header.get('dst'))
         self.assertEqual([
-            {'filename': 'ack.node.packet', 'src': 'master', 'dst': 'node', 'cmd': 'sn_ack', 'sequence': [[1, 3]], 'merged': [[1, 2]]},
+            {'filename': 'ack.node.packet', 'src': 'master', 'dst': 'node', 'cmd': 'sn_ack', 'sequence': [[1, 1]], 'merged': [[1, 1]]},
             ],
             [i for i in packet])
         self.assertEqual([
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[3, None]])),
-            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[2, None]]})),
+            'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
-    def test_push_ReusePullSeqFromCookies(self):
+    def test_push_DoNotTweakPullAccordingToPushIfCookieWasPassed(self):
         master = MasterCommands('master')
         request = Request()
         response = ad.Response()
 
         packet = OutBufferPacket(src='node', dst='master')
         packet.push(document='document', data=[
-            {'cmd': 'sn_pull', 'sequence': [[10, None]]},
+            {'cmd': 'sn_push', 'guid': '1', 'diff': {'guid': {'value': '1', 'mtime': 1}}},
+            {'cmd': 'sn_commit', 'sequence': [[1, 1]]},
+            {'cmd': 'sn_pull', 'sequence': [[1, None]]},
             ])
         request.content_stream = packet.pop()
         request.content_length = len(request.content_stream.getvalue())
 
-        request.environ['HTTP_COOKIE'] = 'sn_pull=%s; files_pull=%s' % (
-                base64.b64encode(json.dumps([[1, 2]])),
-                base64.b64encode(json.dumps([[3, 4]])),
-                )
+        request.environ['HTTP_COOKIE'] = 'sugar_network_sync=%s' % \
+                base64.b64encode(json.dumps({'sn_pull': [[1, None]]}))
 
         reply = master.push(request, response)
-        assert reply is None
+
+        packet = InPacket(stream=reply)
+        self.assertEqual('master', packet.header['src'])
+        self.assertEqual('node', packet.header.get('dst'))
         self.assertEqual([
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 2], [10, None]])),
-            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[3, 4]])),
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            {'filename': 'ack.node.packet', 'src': 'master', 'dst': 'node', 'cmd': 'sn_ack', 'sequence': [[1, 1]], 'merged': [[1, 1]]},
+            ],
+            [i for i in packet])
+        self.assertEqual([
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+            'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -232,14 +235,12 @@ class SyncMasterTest(tests.Test):
         master.volume['document'].create(guid='1')
         master.volume['document'].create(guid='2')
 
-        reply = master.pull(request, response, sequence='[[1, null]]')
+        reply = master.pull(request, response, sn_pull='[[1, null]]')
         assert reply is None
-        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual(None, response.content_type)
         cookie = [
-                'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -251,10 +252,8 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_BREAK=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -262,7 +261,7 @@ class SyncMasterTest(tests.Test):
         self.assertEqual('master', packet.header['src'])
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+            {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -270,7 +269,7 @@ class SyncMasterTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
+            {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
@@ -278,19 +277,17 @@ class SyncMasterTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
+            {'cookie': {}, 'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
             ],
             [i for i in packet])
 
         response = ad.Response()
-        reply = master.pull(request, response, sequence='[[1, null]]')
+        reply = master.pull(request, response, sn_pull='[[1, null]]')
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_BREAK=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
             response.get('Set-Cookie'))
         packet = InPacket(stream=reply)
@@ -303,14 +300,12 @@ class SyncMasterTest(tests.Test):
         request = Request()
         response = ad.Response()
 
-        reply = master.pull(request, response, sequence='[[1, null]]')
+        reply = master.pull(request, response, sn_pull='[[1, null]]')
         assert reply is None
-        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual(None, response.content_type)
         cookie = [
-                'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -322,29 +317,25 @@ class SyncMasterTest(tests.Test):
         assert reply is None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_BREAK=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
     def test_pull_LimittedPull(self):
         master = MasterCommands('master')
 
-        master.volume['document'].create(guid='1', prop='*' * 1024)
-        master.volume['document'].create(guid='2', prop='*' * 1024)
+        master.volume['document'].create(guid='1', prop='*' * CHUNK)
+        master.volume['document'].create(guid='2', prop='*' * CHUNK)
 
         request = Request()
         response = ad.Response()
-        reply = master.pull(request, response, accept_length=1024 * 2, sequence='[[1, null]]')
+        reply = master.pull(request, response, accept_length=CHUNK * 1.5, sn_pull='[[1, null]]')
         assert reply is None
-        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual(None, response.content_type)
         cookie = [
-                'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -352,14 +343,12 @@ class SyncMasterTest(tests.Test):
         request = Request()
         response = ad.Response()
         request.environ['HTTP_COOKIE'] = ';'.join(cookie)
-        reply = master.pull(request, response, accept_length=1024 * 2, sequence='[[1, null]]')
+        reply = master.pull(request, response, accept_length=CHUNK * 1.5, sn_pull='[[1, null]]')
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[2, None]]})),
+            'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -367,28 +356,26 @@ class SyncMasterTest(tests.Test):
         self.assertEqual('master', packet.header['src'])
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
-            {'postponed_sequence': [[2, None]], 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+            {'cookie': {'sn_pull': [[2, None]]}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
-                'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
+                'prop':  {'value': '*' * CHUNK,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'postponed_sequence': [[2, None]], 'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 1]]},
+            {'cookie': {'sn_pull': [[2, None]]}, 'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 1]]},
             ],
             [i for i in packet])
 
         request = Request()
         response = ad.Response()
-        reply = master.pull(request, response, accept_length=1024 * 2, sequence='[[1, null]]')
+        reply = master.pull(request, response, accept_length=CHUNK * 1.5, sn_pull='[[1, null]]')
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[2, None]]})),
+            'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
         packet = InPacket(stream=reply)
@@ -402,14 +389,12 @@ class SyncMasterTest(tests.Test):
 
         request = Request()
         response = ad.Response()
-        reply = master.pull(request, response, accept_length=1024 * 3, sequence='[[1, null]]')
+        reply = master.pull(request, response, accept_length=CHUNK * 2.5, sn_pull='[[1, null]]')
         assert reply is None
-        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual(None, response.content_type)
         cookie = [
-                'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -417,14 +402,12 @@ class SyncMasterTest(tests.Test):
         request = Request()
         response = ad.Response()
         request.environ['HTTP_COOKIE'] = ';'.join(cookie)
-        reply = master.pull(request, response, accept_length=1024 * 2, sequence='[[1, null]]')
+        reply = master.pull(request, response, accept_length=CHUNK * 2.5, sn_pull='[[1, null]]')
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_BREAK=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -432,23 +415,23 @@ class SyncMasterTest(tests.Test):
         self.assertEqual('master', packet.header['src'])
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+            {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
-                'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
+                'prop':  {'value': '*' * CHUNK,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
+            {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
-                'prop':  {'value': '*' * 1024,  'mtime': os.stat('db/document/2/2/prop').st_mtime},
+                'prop':  {'value': '*' * CHUNK,  'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
+            {'cookie': {}, 'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
             ],
             [i for i in packet])
 
@@ -459,19 +442,15 @@ class SyncMasterTest(tests.Test):
 
         master.volume['document'].create(guid='1')
 
-        request.environ['HTTP_COOKIE'] = 'sn_pull=%s files_pull=%s' % ( \
-                base64.b64encode(json.dumps([[1, 1]])),
-                base64.b64encode(json.dumps([[2, 2]])),
-                )
+        request.environ['HTTP_COOKIE'] = 'sugar_network_sync=%s' % \
+                base64.b64encode(json.dumps({'sn_pull': [[1, 1]], 'foo': [[2, 2]]}))
 
         reply = master.pull(request, response)
         assert reply is None
-        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual(None, response.content_type)
         cookie = [
-                'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, 1]])),
-                'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, 2]])),
-                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, 1]], 'foo': [[2, 2]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -483,10 +462,8 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=1; HttpOnly',
-            'files_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, 2]])),
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -494,7 +471,7 @@ class SyncMasterTest(tests.Test):
         self.assertEqual('master', packet.header['src'])
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
-            {'postponed_sequence': [], 'filename': 'master-1.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+            {'cookie': {}, 'filename': 'master-1.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -502,7 +479,7 @@ class SyncMasterTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'postponed_sequence': [], 'filename': 'master-1.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 1]]},
+            {'cookie': {}, 'filename': 'master-1.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 1]]},
             ],
             [i for i in packet])
 
@@ -518,14 +495,12 @@ class SyncMasterTest(tests.Test):
 
         request = Request()
         response = ad.Response()
-        reply = master.pull(request, response, sequence='[[1, null]]')
+        reply = master.pull(request, response, sn_pull='[[1, null]]')
         assert reply is None
-        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual(None, response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+            'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -533,14 +508,12 @@ class SyncMasterTest(tests.Test):
 
         request = Request()
         response = ad.Response()
-        reply = master.pull(request, response, sequence='[[1, null]]')
+        reply = master.pull(request, response, sn_pull='[[1, null]]')
         assert reply is None
-        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual(None, response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+            'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -554,12 +527,10 @@ class SyncMasterTest(tests.Test):
 
         reply = master.pull(request, response)
         assert reply is None
-        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual(None, response.content_type)
         cookie = [
-                'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
         coroutine.sleep(1)
@@ -571,10 +542,8 @@ class SyncMasterTest(tests.Test):
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_BREAK=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
             response.get('Set-Cookie'))
 
@@ -582,7 +551,7 @@ class SyncMasterTest(tests.Test):
         self.assertEqual('master', packet.header['src'])
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
+            {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
@@ -590,7 +559,7 @@ class SyncMasterTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
+            {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
                 'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
@@ -598,27 +567,79 @@ class SyncMasterTest(tests.Test):
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/2/2/prop').st_mtime},
                 }},
-            {'postponed_sequence': [], 'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
+            {'cookie': {}, 'filename': 'master-2.packet', 'cmd': 'sn_commit', 'src': 'master', 'sequence': [[1, 2]]},
             ],
             [i for i in packet])
+
+    def test_pull_ProcessFilePulls(self):
+        seqno = ad.Seqno('seqno')
+        master = MasterCommands('master', file_syncs={'files': Seeder('files', 'index', seqno)})
+        request = Request()
+        response = ad.Response()
+
+        self.touch(('files/1', '1'))
+        self.touch(('files/2', '2'))
+        self.touch(('files/3', '3'))
+        self.utime('files', 1)
+
+        reply = master.pull(request, response, files='[[1, null]]')
+        assert reply is None
+        self.assertEqual(None, response.content_type)
+        cookie = [
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'files': [[1, None]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
+                ]
+        self.assertEqual(cookie, response.get('Set-Cookie'))
+        coroutine.sleep(1)
+
+        request = Request()
+        request.environ['HTTP_COOKIE'] = ';'.join(cookie)
+        response = ad.Response()
+        reply = master.pull(request, response)
+        assert reply is not None
+        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual([
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
+            ],
+            response.get('Set-Cookie'))
+        packet = InPacket(stream=reply)
+        self.assertEqual('master', packet.header['src'])
+        self.assertEqual(None, packet.header.get('dst'))
+
+        response = ad.Response()
+        reply = master.pull(request, response, files='[[1, null]]')
+        assert reply is not None
+        self.assertEqual('application/x-tar', response.content_type)
+        self.assertEqual([
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
+            ],
+            response.get('Set-Cookie'))
+        self.assertEqual(
+                sorted([
+                    {'filename': 'master-0.packet', 'src': 'master', 'cookie': {}, 'cmd': 'files_push', 'directory': 'files', 'blob': '1', 'content_type': 'blob', 'path': '1'},
+                    {'filename': 'master-0.packet', 'src': 'master', 'cookie': {}, 'cmd': 'files_push', 'directory': 'files', 'blob': '2', 'content_type': 'blob', 'path': '2'},
+                    {'filename': 'master-0.packet', 'src': 'master', 'cookie': {}, 'cmd': 'files_push', 'directory': 'files', 'blob': '3', 'content_type': 'blob', 'path': '3'},
+                    {'filename': 'master-0.packet', 'src': 'master', 'cookie': {}, 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[1, 3]]},
+                    ]),
+                read_records(reply))
 
     def test_ReuseCachedPulls(self):
         master = MasterCommands('master')
 
-        cached_pull = join('tmp', pull_hash([[1, None]]) + '.pull')
-        with OutPacket(stream=file(cached_pull, 'w'), probe='test', postponed_sequence=[]) as packet:
+        cached_pull = join('tmp', pull_hash({'sn_pull': [[1, None]]}) + '.pull')
+        with OutPacket(stream=file(cached_pull, 'w'), probe='test', cookie={}) as packet:
             packet.push(data=[None])
 
         request = Request()
         response = ad.Response()
-        reply = master.pull(request, response, sequence='[[1, null]]')
+        reply = master.pull(request, response, sn_pull='[[1, null]]')
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=sn_pull_unset; Max-Age=0; HttpOnly',
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_BREAK=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
             response.get('Set-Cookie'))
         packet = InPacket(stream=reply)
@@ -628,20 +649,18 @@ class SyncMasterTest(tests.Test):
             i.unlink()
         master._pull_queue.clear()
 
-        cached_pull = join('tmp', pull_hash([[1, None]]) + '.pull')
-        with OutPacket(stream=file(cached_pull, 'w'), probe='test', postponed_sequence=[[2, None]]) as packet:
+        cached_pull = join('tmp', pull_hash({'sn_pull': [[1, None]]}) + '.pull')
+        with OutPacket(stream=file(cached_pull, 'w'), probe='test', cookie={'sn_pull': [[2, None]]}) as packet:
             packet.push(data=[None])
 
         request = Request()
         response = ad.Response()
-        reply = master.pull(request, response, sequence='[[1, null]]')
+        reply = master.pull(request, response, sn_pull='[[1, null]]')
         assert reply is not None
         self.assertEqual('application/x-tar', response.content_type)
         self.assertEqual([
-            'sn_delay=sn_delay_unset; Max-Age=0; HttpOnly',
-            'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
-            'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-            'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+            'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[2, None]]})),
+            'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
         packet = InPacket(stream=reply)
@@ -655,27 +674,23 @@ class SyncMasterTest(tests.Test):
         master.volume['document'].create(guid='2')
 
         response = ad.Response()
-        reply = master.pull(Request(), response, sequence='[[1, null]]')
+        reply = master.pull(Request(), response, sn_pull='[[1, null]]')
         cookie = [
-                'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[1, None]])),
-                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[1, None]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
-        assert exists(join('tmp', pull_hash([[1, None]]) + '.pull'))
+        assert exists(join('tmp', pull_hash({'sn_pull': [[1, None]]}) + '.pull'))
 
         response = ad.Response()
-        reply = master.pull(Request(), response, sequence='[[2, null]]')
+        reply = master.pull(Request(), response, sn_pull='[[2, null]]')
         cookie = [
-                'sn_delay=sn_delay:30; Max-Age=3600; HttpOnly',
-                'sn_pull=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps([[2, None]])),
-                'files_pull=files_pull_unset; Max-Age=0; HttpOnly',
-                'SN_CONTINUE=; Max-Age=3600; HttpOnly',
+                'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % base64.b64encode(json.dumps({'sn_pull': [[2, None]]})),
+                'sugar_network_delay=30; Max-Age=3600; HttpOnly',
                 ]
         self.assertEqual(cookie, response.get('Set-Cookie'))
-        assert not exists(join('tmp', pull_hash([[1, None]]) + '.pull'))
-        assert exists(join('tmp', pull_hash([[2, None]]) + '.pull'))
+        assert not exists(join('tmp', pull_hash({'sn_push': [[1, None]]}) + '.pull'))
+        assert exists(join('tmp', pull_hash({'sn_pull': [[2, None]]}) + '.pull'))
 
 
 class Request(ad.Request):
@@ -687,11 +702,11 @@ class Request(ad.Request):
 
 class MasterCommands(commands.MasterCommands):
 
-    def __init__(self, master):
+    def __init__(self, master, **kwargs):
         os.makedirs('db')
         with file('db/master', 'w') as f:
             f.write(master)
-        commands.MasterCommands.__init__(self, new_volume('db'))
+        commands.MasterCommands.__init__(self, new_volume('db'), **kwargs)
 
 
 def new_volume(root):
@@ -707,6 +722,15 @@ def new_volume(root):
 
 def pull_hash(seq):
     return hashlib.sha1(json.dumps(seq)).hexdigest()
+
+
+def read_records(reply):
+    records = []
+    for i in InPacket(stream=reply):
+        if i.get('content_type') == 'blob':
+            i['blob'] = i['blob'].read()
+        records.append(i)
+    return sorted(records)
 
 
 if __name__ == '__main__':
