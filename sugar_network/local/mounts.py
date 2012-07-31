@@ -416,10 +416,11 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
 class NodeMount(LocalMount, _ProxyCommands):
 
-    def __init__(self, volume, home_volume):
+    def __init__(self, volume, home_volume, file_syncs=None):
         LocalMount.__init__(self, volume)
         _ProxyCommands.__init__(self, home_volume)
 
+        self._file_syncs = file_syncs or {}
         self._push_seq = PersistentSequence(
                 join(volume.root, 'push.sequence'), [1, None])
         self._pull_seq = PersistentSequence(
@@ -487,6 +488,9 @@ class NodeMount(LocalMount, _ProxyCommands):
                     seqno=self.volume.seqno.value,
                     api_url=local.api_url.value) as packet:
                 if session_is_new:
+                    for directory, sync in self._file_syncs.items():
+                        packet.push(cmd='files_pull', directory=directory,
+                                sequence=sync.sequence)
                     packet.push(cmd='sn_pull', sequence=self._pull_seq)
 
                 _logger.debug('Generating %r PUSH packet to %r',
@@ -544,19 +548,19 @@ class NodeMount(LocalMount, _ProxyCommands):
 
         for record in packet.records():
             cmd = record.get('cmd')
-
             if cmd == 'sn_push':
                 self.volume.merge(record, increment_seqno=False)
-
-            elif cmd == 'sn_commit' and from_master:
-                _logger.debug('Processing %r COMMIT from %r', record, packet)
-                self._pull_seq.exclude(record['sequence'])
-
-            elif cmd == 'sn_ack' and from_master and \
-                    record['dst'] == self._node_guid:
-                _logger.debug('Processing %r ACK from %r', record, packet)
-                self._push_seq.exclude(record['sequence'])
-                self._pull_seq.exclude(record['merged'])
-                to_push_seq.exclude(record['sequence'])
-                self.volume.seqno.next()
-                self.volume.seqno.commit()
+            elif from_master:
+                if cmd == 'sn_commit':
+                    _logger.debug('Processing %r COMMIT from %r',
+                            record, packet)
+                    self._pull_seq.exclude(record['sequence'])
+                elif cmd == 'sn_ack' and record['dst'] == self._node_guid:
+                    _logger.debug('Processing %r ACK from %r', record, packet)
+                    self._push_seq.exclude(record['sequence'])
+                    self._pull_seq.exclude(record['merged'])
+                    to_push_seq.exclude(record['sequence'])
+                    self.volume.seqno.next()
+                    self.volume.seqno.commit()
+                elif record.get('directory') in self._file_syncs:
+                    self._file_syncs[record['directory']].push(record)

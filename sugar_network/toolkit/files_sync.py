@@ -17,10 +17,11 @@ import os
 import json
 import logging
 from bisect import bisect_left
-from os.path import join, exists, relpath, lexists, basename
+from os.path import join, exists, relpath, lexists, basename, dirname
 
 from sugar_network.toolkit.sneakernet import DiskFull
-from sugar_network.toolkit.collection import Sequence
+from sugar_network.toolkit.collection import Sequence, PersistentSequence
+from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, coroutine
 
 
@@ -168,13 +169,58 @@ class Seeder(object):
                 json.dump((self._index, self._stamp), f)
 
 
+class Seeders(dict):
+
+    def __init__(self, sync_dirs, index_root, seqno):
+        dict.__init__(self)
+
+        if not exists(index_root):
+            os.makedirs(index_root)
+
+        for path in sync_dirs or []:
+            name = basename(path)
+            self[name] = Seeder(path, join(index_root, name), seqno)
+
+
 class Leecher(object):
 
     def __init__(self, files_path, sequence_path):
-        pass
+        self._files_path = files_path.rstrip(os.sep)
+        self.sequence = PersistentSequence(sequence_path, [1, None])
 
-    def push(self, packet):
-        pass
+        if not exists(self._files_path):
+            os.makedirs(self._files_path)
 
-    def pull(self):
-        pass
+    def push(self, record):
+        cmd = record.get('cmd')
+        if cmd == 'files_push':
+            blob = record['blob']
+            path = join(self._files_path, record['path'])
+            if not exists(dirname(path)):
+                os.makedirs(dirname(path))
+            with util.new_file(path) as f:
+                while True:
+                    chunk = blob.read(BUFFER_SIZE)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+        elif cmd == 'files_delete':
+            path = join(self._files_path, record['path'])
+            if exists(path):
+                os.unlink(path)
+        elif cmd == 'files_commit':
+            self.sequence.exclude(record['sequence'])
+            self.sequence.commit()
+
+
+class Leechers(dict):
+
+    def __init__(self, sync_dirs, sequences_root):
+        dict.__init__(self)
+
+        if not exists(sequences_root):
+            os.makedirs(sequences_root)
+
+        for path in sync_dirs or []:
+            name = basename(path)
+            self[name] = Leecher(path, join(sequences_root, name))

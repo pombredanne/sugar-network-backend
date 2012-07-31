@@ -151,7 +151,7 @@ class Application(application.Application):
         jobs = coroutine.Pool()
 
         volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
-        mountset = Mountset(volume)
+        mountset = Mountset(volume, node.sync_dirs.value)
         mountset['~'] = HomeMount(volume)
         mountset['/'] = RemoteMount(volume)
 
@@ -255,7 +255,7 @@ local.tmpdir.value = sugar.profile_path('tmp')
 Option.seek('main', [application.debug])
 Option.seek('webui', webui)
 Option.seek('local', local)
-Option.seek('node', [node.port, node.subscribe_port])
+Option.seek('node', [node.port, node.subscribe_port, node.sync_dirs])
 Option.seek('active-document', ad)
 
 application = Application(

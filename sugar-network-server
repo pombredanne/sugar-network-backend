@@ -55,7 +55,7 @@ class Application(application.Daemon):
         self.jobs.spawn(volume.populate)
         subscriber = SubscribeSocket(volume,
                 node.host.value, node.subscribe_port.value)
-        cp = MasterCommands(volume, subscriber)
+        cp = MasterCommands(volume, subscriber, node.sync_dirs.value)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)

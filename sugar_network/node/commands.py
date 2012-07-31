@@ -28,6 +28,7 @@ import active_document as ad
 from sugar_network import node
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
         OutPacket, DiskFull
+from sugar_network.toolkit.files_sync import Seeders
 from sugar_network.toolkit.collection import Sequence
 from active_toolkit import coroutine, util, enforce
 
@@ -148,9 +149,10 @@ class NodeCommands(ad.VolumeCommands):
 
 class MasterCommands(NodeCommands):
 
-    def __init__(self, volume, subscriber=None, file_syncs=None):
+    def __init__(self, volume, subscriber=None, sync_dirs=None):
         NodeCommands.__init__(self, volume, subscriber)
-        self._file_syncs = file_syncs or {}
+        self._file_syncs = Seeders(sync_dirs,
+                join(node.data_root.value, 'files'), volume.seqno)
         self._pull_queue = lrucache(_PULL_QUEUE_SIZE,
                 lambda key, pull: pull.unlink())
 
@@ -260,11 +262,13 @@ class MasterCommands(NodeCommands):
 class _Cookie(dict):
 
     def __init__(self, request=None):
-        if request is None:
-            dict.__init__(self)
-        else:
+        dict.__init__(self)
+
+        if request is not None:
             value = self._get_cookie(request, 'sugar_network_sync')
-            dict.__init__(self, value or {})
+            for key, seq in (value or {}).items():
+                self[key] = Sequence(seq)
+
         self.delay = 0
 
     def include(self, cookie):
@@ -290,8 +294,6 @@ class _Cookie(dict):
         seq = self.get(key)
         if seq is None:
             seq = self[key] = Sequence()
-        elif type(seq) is list:
-            seq = self[key] = Sequence(seq)
         return seq
 
     def _get_cookie(self, request, name):

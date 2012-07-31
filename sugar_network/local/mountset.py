@@ -26,6 +26,7 @@ from sugar_network.toolkit.inotify import Inotify, \
 from sugar_network import local, node
 from sugar_network.toolkit import zeroconf, netlink, network
 from sugar_network.toolkit.collection import MutableStack
+from sugar_network.toolkit.files_sync import Leechers
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.node.commands import NodeCommands
@@ -44,13 +45,18 @@ _logger = logging.getLogger('local.mountset')
 
 class Mountset(dict, ad.CommandsProcessor):
 
-    def __init__(self, home_volume):
+    def __init__(self, home_volume, sync_dirs=None):
         dict.__init__(self)
         ad.CommandsProcessor.__init__(self)
 
         self.opened = coroutine.Event()
 
         self.home_volume = home_volume
+        if sync_dirs is None:
+            self._file_syncs = {}
+        else:
+            self._file_syncs = Leechers(sync_dirs,
+                    join(home_volume.root, 'files'))
         self._subscriptions = {}
         self._locale = locale.getdefaultlocale()[0].replace('_', '-')
         self._jobs = coroutine.Pool()
@@ -244,7 +250,8 @@ class Mountset(dict, ad.CommandsProcessor):
             _logger.debug('Found %r server mount', path)
             volume, server_mode = self._mount_volume(path)
             if server_mode:
-                self[path] = NodeMount(volume, self.home_volume)
+                self[path] = NodeMount(volume, self.home_volume,
+                        self._file_syncs)
             else:
                 self[path] = LocalMount(volume)
 

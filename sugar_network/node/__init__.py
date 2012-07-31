@@ -43,9 +43,8 @@ trust_users = Option(
         action='store_true', name='trust_users')
 
 data_root = Option(
-        'path to the root directory for placing documents\' ' \
-                'data and indexes',
-        default='/var/lib/sugar-network/db', name='data_root')
+        'path to a directory to place server data',
+        default='/var/lib/sugar-network', name='data_root')
 
 only_commit_events = Option(
         'subscribers can be notified only with "commit" events; ' \
@@ -60,6 +59,12 @@ find_limit = Option(
 tmpdir = Option(
         'if specified, use this directory for temporary files, such files ' \
                 'might take hunder of megabytes while node synchronizing')
+
+sync_dirs = Option(
+        'colon separated list of paths to directories to synchronize with ' \
+                'master server',
+        type_cast=Option.paths_cast, type_repr=Option.paths_repr,
+        name='sync-dirs')
 
 
 class HTTPStatus(Exception):

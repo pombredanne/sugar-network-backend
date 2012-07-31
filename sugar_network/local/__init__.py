@@ -39,10 +39,10 @@ local_root = Option(
         default=sugar.profile_path('network'))
 
 activity_dirs = Option(
-        'colon separated list of paths to the directories with Sugar ' \
+        'colon separated list of paths to directories with Sugar ' \
                 'activities; first path will be used to keep check-in ' \
                 'activities',
-        type_cast=Option.list_cast, type_repr=Option.list_repr, default=[
+        type_cast=Option.paths_cast, type_repr=Option.paths_repr, default=[
             expanduser('~/Activities'),
             '/usr/share/sugar/activities',
             '/opt/sweets',

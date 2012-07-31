@@ -11,8 +11,8 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network.toolkit.collection import Sequence
-from sugar_network.toolkit.files_sync import Seeder
-from sugar_network.toolkit.sneakernet import OutBufferPacket, InPacket, DiskFull
+from sugar_network.toolkit.files_sync import Seeder, Leecher
+from sugar_network.toolkit.sneakernet import OutBufferPacket, InPacket, DiskFull, OutFilePacket
 
 
 CHUNK = 100000
@@ -319,6 +319,74 @@ class FilesSyncTest(tests.Test):
                     {'filename': '4.packet', 'cmd': 'files_commit', 'directory': 'files', 'sequence': [[4, 6]]},
                     ]),
                 read_records(out_packet))
+
+    def test_Leecher_push(self):
+        seqno = ad.Seqno('seqno')
+        seeder = Seeder('src/files', 'src/index', seqno)
+        leecher = Leecher('dst/files', 'dst/sequence')
+
+        self.touch(('src/files/1', '1'))
+        self.touch(('src/files/2/3', '3'))
+        self.touch(('src/files/4/5/6', '6'))
+        self.utime('src/files', 1)
+        os.utime('src/files', (1, 1))
+
+        with OutFilePacket('.') as packet:
+            seeder.pull(Sequence([[1, None]]), packet)
+            self.assertEqual(3, seqno.value)
+        for i in InPacket(packet.path):
+            leecher.push(i)
+
+        self.assertEqual(
+                '[[4, null]]',
+                file('dst/sequence').read())
+        self.assertEqual(
+                '1',
+                file('dst/files/1').read())
+        self.assertEqual(
+                '3',
+                file('dst/files/2/3').read())
+        self.assertEqual(
+                '6',
+                file('dst/files/4/5/6').read())
+
+        os.unlink('src/files/2/3')
+        os.utime('src/files', (2, 2))
+
+        with OutFilePacket('.') as packet:
+            seeder.pull(Sequence([[4, None]]), packet)
+            self.assertEqual(4, seqno.value)
+        for i in InPacket(packet.path):
+            leecher.push(i)
+
+        self.assertEqual(
+                '[[5, null]]',
+                file('dst/sequence').read())
+        assert exists('dst/files/1')
+        assert not exists('dst/files/2/3')
+        assert exists('dst/files/4/5/6')
+
+        os.unlink('src/files/1')
+        self.touch(('src/files/2/3', 'new_3'))
+        os.unlink('src/files/4/5/6')
+        self.utime('src/files', 3)
+        os.utime('src/files', (3, 3))
+
+        with OutFilePacket('.') as packet:
+            seeder.pull(Sequence([[5, None]]), packet)
+            self.assertEqual(7, seqno.value)
+        for i in InPacket(packet.path):
+            leecher.push(i)
+
+        self.assertEqual(
+                '[[8, null]]',
+                file('dst/sequence').read())
+        assert not exists('dst/files/1')
+        assert exists('dst/files/2/3')
+        assert not exists('dst/files/4/5/6')
+        self.assertEqual(
+                'new_3',
+                file('dst/files/2/3').read())
 
 
 def read_records(in_packet):

@@ -573,7 +573,7 @@ class SyncMasterTest(tests.Test):
 
     def test_pull_ProcessFilePulls(self):
         seqno = ad.Seqno('seqno')
-        master = MasterCommands('master', file_syncs={'files': Seeder('files', 'index', seqno)})
+        master = MasterCommands('master', sync_dirs=['files'])
         request = Request()
         response = ad.Response()
 

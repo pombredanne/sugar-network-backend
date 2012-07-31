@@ -6,6 +6,7 @@ import shutil
 import signal
 from cStringIO import StringIO
 from contextlib import contextmanager
+from os.path import exists
 
 from __init__ import tests
 
@@ -30,13 +31,16 @@ class SyncTest(tests.Test):
             'sugar-network-server', '--port=8100', '--subscribe-port=8101',
             '--data-root=master/db', '--index-flush-threshold=1024',
             '--index-flush-timeout=3', '--only-commit-events',
-            '--tmpdir=tmp', '-DDDF', 'start',
+            '--tmpdir=tmp', '--sync-dirs=master/files/1:master/files/2',
+            '-DDDF', 'start',
             ])
         self.node_pid = self.popen([
             'sugar-network-service', '--port=8200', '--subscribe-port=8201',
             '--activity-dirs=node/Activities', '--local-root=node',
             '--mounts-root=mnt', '--server-mode', '--tmpdir=tmp',
-            '--api-url=http://localhost:8100', '-DDDF', 'start',
+            '--api-url=http://localhost:8100',
+            '--sync-dirs=node/files/1:node/files/2',
+            '-DDD', 'debug',
             ])
 
         coroutine.sleep(1)
@@ -50,6 +54,10 @@ class SyncTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_Sneakernet(self):
+        # Create shared files on master
+        self.touch(('master/files/1/1', '1'))
+        self.touch(('master/files/2/2', '2'))
+
         # Create initial data on master
         with Client('/') as client:
             context = client.Context(type='activity', title='title_1', summary='summary', description='description')
@@ -122,6 +130,9 @@ class SyncTest(tests.Test):
                         (guid_4, 'title_4', 'preview_4'),
                         ]),
                     sorted([(i['guid'], i['title'], i.get_blob('preview').read()) for i in client.Context.cursor(reply=['guid', 'title'])]))
+
+        self.assertEqual('1', file('node/files/1/1').read())
+        self.assertEqual('2', file('node/files/2/2').read())
 
     def wait_for_events(self, *events):
         events = list(events)

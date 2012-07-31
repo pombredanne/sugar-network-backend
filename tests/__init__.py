@@ -73,6 +73,7 @@ class Test(unittest.TestCase):
         node.find_limit.value = 1024
         node.tmpdir.value = tmpdir + '/tmp'
         node.only_commit_events.value = False
+        node.data_root.value = tmpdir
         ad.index_write_queue.value = 10
         local.local_root.value = tmpdir
         local.activity_dirs.value = [tmpdir + '/Activities']
