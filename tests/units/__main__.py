@@ -23,5 +23,6 @@ from sync_node import *
 from datastore import *
 from dbus_datastore import *
 from files_sync import *
+from dbus_client import *
 
 tests.main()
