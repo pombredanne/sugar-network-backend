@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/printf.py$
-$Date: 2012-07-12$
+$Date: 2012-08-05$
 
 """
 
@@ -106,7 +106,7 @@ def exception(message=None, *args):
     _dump(True, sys.stdout, None, message, '\n')
 
     if logging.getLogger().level > logging.INFO:
-        hint('Use -D argument for debug info, ' \
+        hint('Use -D argument for debug info, '
                 '-DD for full debuging output and tracebacks')
     elif logging.getLogger().level > logging.DEBUG:
         hint('Use -DD argument for full debuging output and tracebacks')

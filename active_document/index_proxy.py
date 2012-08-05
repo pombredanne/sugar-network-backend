@@ -80,7 +80,7 @@ class IndexProxy(IndexReader):
             if page is None:
                 page = self._pages[self._cache_seqno] = \
                         _CachedPage(self._term_props)
-                _logger.debug('New cache page for %r with seqno %s to ' \
+                _logger.debug('New cache page for %r with seqno %s to '
                         'insert %r', self.metadata.name, self._cache_seqno,
                         guid)
             page.update(guid, properties, orig)
@@ -238,7 +238,7 @@ class _CachedPage(dict):
             try:
                 value = prop.decode(value)
             except ValueError, error:
-                _logger.debug('Wrong request property value %r for %r ' \
+                _logger.debug('Wrong request property value %r for %r '
                         'property, thus the whole request is empty: %s',
                         value, prop_name, error)
                 return None, None, None

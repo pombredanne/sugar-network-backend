@@ -52,7 +52,7 @@ class SocketFile(object):
         try:
             message_str = json.dumps(message)
         except Exception, error:
-            raise RuntimeError('Cannot encode %r message: %s' % \
+            raise RuntimeError('Cannot encode %r message: %s' %
                     (message, error))
         self.write(message_str)
 
@@ -63,7 +63,7 @@ class SocketFile(object):
         try:
             message = json.loads(message_str)
         except Exception, error:
-            raise RuntimeError('Cannot decode "%s" message: %s' % \
+            raise RuntimeError('Cannot decode "%s" message: %s' %
                     (message_str, error))
         return message
 

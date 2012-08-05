@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-07-22$
+$Date: 2012-08-03$
 
 """
 
@@ -46,7 +46,7 @@ foreground = Option(
 
 logdir = Option(
         'path to the directory to place log files',
-        name='logdir')
+        name='logdir', default='/var/log')
 
 rundir = Option(
         'path to the directory to place pid files',
@@ -224,11 +224,11 @@ class Application(object):
             print '\n'.join(Option.export())
 
     def _keep_stdout(self):
-        log_dir = logdir.value or '/var/log'
+        log_dir = abspath(logdir.value)
         if not exists(log_dir):
             os.makedirs(log_dir)
         enforce(os.access(log_dir, os.W_OK), 'No write access to %s', log_dir)
-        log_path = abspath(join(log_dir, '%s.log' % self.name))
+        log_path = join(log_dir, '%s.log' % self.name)
         sys.stdout.flush()
         sys.stderr.flush()
         logfile = file(log_path, 'a+')

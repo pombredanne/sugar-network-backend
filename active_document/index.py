@@ -243,7 +243,7 @@ class IndexReader(object):
             sorter.add_value(0, False)
             enquire.set_sort_by_key(sorter, reverse=False)
         else:
-            _logger.warning('In order to support sorting, ' \
+            _logger.warning('In order to support sorting, '
                     'Xapian should be at least 1.2.0')
 
         if group_by:
@@ -265,7 +265,7 @@ class IndexReader(object):
                     _logger.warning('Cannot open %r index',
                             self.metadata.name)
                     raise
-                _logger.debug('Fail to %r %r index, will reopen it %sth ' \
+                _logger.debug('Fail to %r %r index, will reopen it %sth '
                         'time: %s', op, self.metadata.name, tries, error)
                 time.sleep(tries * .1)
                 self._db.reopen()

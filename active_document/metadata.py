@@ -229,20 +229,18 @@ class ActiveProperty(StoredProperty):
     def __init__(self, name, slot=None, prefix=None, full_text=False,
             boolean=False, **kwargs):
         enforce(name == 'guid' or slot != 0,
-                'For %r property, ' \
-                        "the slot '0' is reserved for internal needs",
+                "For %r property, slot '0' is reserved for internal needs",
                 name)
         enforce(name == 'guid' or prefix != env.GUID_PREFIX,
-                'For %r property, ' \
-                        'the prefix %r is reserved for internal needs',
+                'For %r property, prefix %r is reserved for internal needs',
                 name, env.GUID_PREFIX)
         enforce(slot is not None or prefix or full_text,
-                'For %r property, ' \
-                        'either slot, prefix or full_text need to be set',
+                'For %r property, either slot, prefix or full_text '
+                'need to be set',
                 name)
         enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')),
-                'Slot can be set only for properties for str, int, float, ' \
-                        'bool types, or, for list of these types')
+                'Slot can be set only for properties for str, int, float, '
+                'bool types, or, for list of these types')
 
         StoredProperty.__init__(self, name, **kwargs)
         self._slot = slot
@@ -321,7 +319,7 @@ def _decode(typecast, value):
         enforce(value in typecast, ValueError,
                 "Value %r is not in '%s' list",
                 value, ', '.join([str(i) for i in typecast]))
-    elif type(typecast) is types.FunctionType:
+    elif isinstance(typecast, types.FunctionType):
         value = typecast(value)
     elif typecast in [None, str]:
         if isinstance(value, unicode):
@@ -345,7 +343,7 @@ def _is_sloted_prop(typecast):
     if typecast in [None, int, float, bool, str]:
         return True
     if type(typecast) in _LIST_TYPES:
-        if typecast and [i for i in typecast \
+        if typecast and [i for i in typecast
                 if type(i) in [None, int, float, bool, str]]:
             return True
 

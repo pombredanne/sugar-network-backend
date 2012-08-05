@@ -33,6 +33,6 @@ if len(sys.argv) == 1:
 elif sys.argv[1] == 'make':
     os.system('sphinx-build -b html . build/html')
 elif sys.argv[1] == 'upload':
-    os.system('rsync -rv build/html/ ' \
-              'sunjammer.sugarlabs.org:/srv/www-sugarlabs/apimaster/docs/' \
+    os.system('rsync -rv build/html/ '
+              'sunjammer.sugarlabs.org:/srv/www-sugarlabs/apimaster/docs/'
               'active-document')

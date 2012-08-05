@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Date: 2012-07-23$
+$Date: 2012-08-05$
 
 """
 
@@ -174,7 +174,7 @@ def call(cmd, stdin=None, asserts=False, raw=False, error_cb=None, **kwargs):
         if asserts:
             if type(cmd) not in (str, unicode):
                 cmd = ' '.join(cmd)
-            raise RuntimeError('Failed to execute "%s" command: %s' % \
+            raise RuntimeError('Failed to execute "%s" command: %s' %
                     (cmd, error))
         elif error_cb is not None:
             error_cb(returncode, stdout, stderr)
@@ -268,7 +268,7 @@ def unique_filename(root, filename):
             if not exists(path):
                 break
         else:
-            raise RuntimeError('Cannot find unique filename for %r' % \
+            raise RuntimeError('Cannot find unique filename for %r' %
                     join(root, filename))
     return path
 

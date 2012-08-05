@@ -62,7 +62,7 @@ class Storage(object):
             shutil.rmtree(path)
         except Exception, error:
             util.exception()
-            raise RuntimeError('Cannot delete %r document from %r: %s' % \
+            raise RuntimeError('Cannot delete %r document from %r: %s' %
                     (guid, self.metadata.name, error))
 
     def walk(self, mtime):
@@ -225,7 +225,7 @@ class Record(object):
                 digest = None
         except Exception, error:
             util.exception()
-            raise RuntimeError('Fail to set BLOB %r property for %r: %s' % \
+            raise RuntimeError('Fail to set BLOB %r property for %r: %s' %
                     (prop, self.guid, error))
 
         if digest is not None:

@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/options.py$
-$Date: 2012-07-24$
+$Date: 2012-08-05$
 
 """
 
@@ -128,14 +128,14 @@ class Option(object):
             mod = sys.modules[mod_name]
 
         if type(mod) in (list, tuple):
-            options = dict([(i.name, i) for i in mod])
+            options = dict([(i.name.replace('-', '_'), i) for i in mod])
         else:
             options = dict([(i, getattr(mod, i)) for i in dir(mod)])
 
         for name in sorted(options):
             attr = options[name]
             # Options might be from different `options` modules
-            if not (type(attr).__name__ == 'Option' and \
+            if not (type(attr).__name__ == 'Option' and
                     type(attr).__module__.split('.')[-1] == 'options'):
                 continue
 
@@ -394,7 +394,7 @@ class Command(object):
         for name in sorted(dir(mod)):
             attr = getattr(mod, name)
             # Commands might be from different `options` modules
-            if not (type(attr).__name__ == 'Command' and \
+            if not (type(attr).__name__ == 'Command' and
                     type(attr).__module__.split('.')[-1] == 'options'):
                 continue
 
@@ -430,7 +430,7 @@ class Command(object):
 
         func_name = 'CMD_%s' % cmd.attr_name
         if not hasattr(mod, func_name):
-            raise RuntimeError('No such command, %s, in module %s' % \
+            raise RuntimeError('No such command, %s, in module %s' %
                     (name, mod.__name__))
         getattr(mod, func_name)(*args, **kwargs)
 

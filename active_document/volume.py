@@ -167,7 +167,7 @@ class VolumeCommands(CommandsProcessor):
         documents, total = directory.find(offset=offset, limit=limit,
                 query=query, reply=reply, order_by=order_by, group_by=group_by,
                 **kwargs)
-        result = [i.properties(reply, request.accept_language) \
+        result = [i.properties(reply, request.accept_language)
                 for i in documents]
 
         return {'total': total.value, 'result': result}
