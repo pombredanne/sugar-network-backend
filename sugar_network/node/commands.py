@@ -159,10 +159,10 @@ class MasterCommands(NodeCommands):
     @ad.volume_command(method='POST', cmd='push')
     def push(self, request, response):
         with InPacket(stream=request) as in_packet:
-            enforce('src' in in_packet.header and \
+            enforce('src' in in_packet.header and
                     in_packet.header['src'] != self._guid,
                     'Misaddressed packet')
-            enforce('dst' in in_packet.header and \
+            enforce('dst' in in_packet.header and
                     in_packet.header['dst'] == self._guid,
                     'Misaddressed packet')
 
@@ -220,7 +220,7 @@ class MasterCommands(NodeCommands):
         if pull_key in self._pull_queue:
             pull = self._pull_queue[pull_key]
             if accept_length is not None and pull.length > accept_length:
-                _logger.debug('Cached %r pull is bigger than requested ' \
+                _logger.debug('Cached %r pull is bigger than requested '
                         'length, will recreate it', cookie)
                 pull.unlink()
                 del self._pull_queue[pull_key]
@@ -395,7 +395,7 @@ def _load_pubkey(pubkey):
         message = 'Cannot read DSS public key gotten for registeration'
         util.exception(message)
         if node.trust_users.value:
-            logging.warning('Failed to read registration pubkey, ' \
+            logging.warning('Failed to read registration pubkey, '
                     'but we trust users')
             # Keep SSH key for further converting to PKCS8
             pubkey_pkcs8 = pubkey

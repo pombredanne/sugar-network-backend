@@ -39,7 +39,7 @@ class DBusClient(object):
         if reply_handler is None:
             return json.loads(self.Call(cmd))
         else:
-            self.Call(cmd, reply_handler=lambda response: \
+            self.Call(cmd, reply_handler=lambda response:
                     reply_handler(json.loads(response)),
                     error_handler=error_handler)
 

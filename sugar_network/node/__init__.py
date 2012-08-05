@@ -37,8 +37,8 @@ certfile = Option(
         name='certfile')
 
 trust_users = Option(
-        'switch off user credentials check; disabling this option will ' \
-                'require OpenSSH-5.6 or later',
+        'switch off user credentials check; disabling this option will '
+        'require OpenSSH-5.6 or later',
         default=False, type_cast=Option.bool_cast,
         action='store_true', name='trust_users')
 
@@ -47,9 +47,8 @@ data_root = Option(
         default='/var/lib/sugar-network', name='data_root')
 
 only_commit_events = Option(
-        'subscribers can be notified only with "commit" events; ' \
-                'that is useful to minimize interactions between ' \
-                'server and clients',
+        'subscribers can be notified only with "commit" events; '
+        'that is useful to minimize interactions between server and clients',
         default=False, type_cast=Option.bool_cast, action='store_true')
 
 find_limit = Option(
@@ -57,11 +56,11 @@ find_limit = Option(
         default=32, type_cast=int)
 
 tmpdir = Option(
-        'if specified, use this directory for temporary files, such files ' \
+        'if specified, use this directory for temporary files, such files '
                 'might take hunder of megabytes while node synchronizing')
 
 sync_dirs = Option(
-        'colon separated list of paths to directories to synchronize with ' \
+        'colon separated list of paths to directories to synchronize with '
                 'master server',
         type_cast=Option.paths_cast, type_repr=Option.paths_repr,
         name='sync-dirs')

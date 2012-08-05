@@ -76,7 +76,7 @@ def pubkey():
             line = line.strip()
             if line.startswith('ssh-'):
                 return line
-    raise RuntimeError('Valid SSH public key was not found in %s' % \
+    raise RuntimeError('Valid SSH public key was not found in %s' %
             pubkey_path)
 
 

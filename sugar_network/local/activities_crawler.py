@@ -51,7 +51,7 @@ def dispatch(paths, found_cb, lost_cb):
             path = abspath(path)
             if not exists(path):
                 if not os.access(dirname(path), os.W_OK):
-                    _logger.warning('No permissions to create %s ' \
+                    _logger.warning('No permissions to create %s '
                             'directory, do not monitor it', path)
                     continue
                 os.makedirs(path)
@@ -88,7 +88,7 @@ class _Root(object):
         _logger.info('Start monitoring %r activities root', self.path)
 
         monitor.add_watch(self.path,
-                IN_DELETE_SELF | IN_CREATE | IN_DELETE | \
+                IN_DELETE_SELF | IN_CREATE | IN_DELETE |
                         IN_MOVED_TO | IN_MOVED_FROM,
                 self.__watch_cb)
 
@@ -161,7 +161,7 @@ class _ActivityDir(object):
         _logger.debug('Start monitoring %r activity directory', path)
 
         self._wd = monitor.add_watch(path,
-                IN_CREATE | IN_CLOSE_WRITE | IN_DELETE | IN_MOVED_TO | \
+                IN_CREATE | IN_CLOSE_WRITE | IN_DELETE | IN_MOVED_TO |
                         IN_MOVED_FROM,
                 self.__watch_cb)
 

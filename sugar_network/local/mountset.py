@@ -222,7 +222,7 @@ class Mountset(dict, ad.CommandsProcessor):
         _logger.info('Start monitoring %r for mounts', root)
 
         with Inotify() as monitor:
-            monitor.add_watch(root, IN_DELETE_SELF | IN_CREATE | \
+            monitor.add_watch(root, IN_DELETE_SELF | IN_CREATE |
                     IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM)
             while not monitor.closed:
                 coroutine.select([monitor.fileno()], [], [])
@@ -279,7 +279,7 @@ class Mountset(dict, ad.CommandsProcessor):
 
         if server_mode:
             if self._servers:
-                _logger.warning('Do not start server for %r, ' \
+                _logger.warning('Do not start server for %r, '
                         'server already started', path)
                 server_mode = False
             else:

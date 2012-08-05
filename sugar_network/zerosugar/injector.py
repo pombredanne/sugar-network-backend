@@ -211,7 +211,7 @@ def _make(context, command):
         if sel.local_path:
             continue
 
-        enforce(sel.download_sources, \
+        enforce(sel.download_sources,
                 'No sources to download implementation for %r context',
                 sel.interface)
 

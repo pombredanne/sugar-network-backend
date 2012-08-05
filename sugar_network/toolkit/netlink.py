@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/netlink.py$
-$Date: 2012-07-12$
+$Date: 2012-08-05$
 
 """
 import os
@@ -102,7 +102,7 @@ class Netlink(object):
         if msg.type == NLMSG_ERROR:
             errno = - struct.unpack('i', msg.payload[:4])[0]
             if errno:
-                error = OSError('Netlink error, %s(%d)' % \
+                error = OSError('Netlink error, %s(%d)' %
                         (os.strerror(errno), errno))
                 error.errno = errno
                 raise error

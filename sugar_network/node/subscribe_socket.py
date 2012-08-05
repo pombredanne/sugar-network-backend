@@ -76,7 +76,7 @@ class SubscribeSocket(object):
         self._subscribers.add(conn)
         try:
             data = conn.recv(sockets.BUFFER_SIZE)
-            enforce(not data, 'Subscriber misused connection ' \
+            enforce(not data, 'Subscriber misused connection '
                     'by sending %s bytes, discard it', len(data))
         except Exception:
             util.exception('Failed to handle subscription from %r', host)

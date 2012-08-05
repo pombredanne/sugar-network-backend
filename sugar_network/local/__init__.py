@@ -30,8 +30,8 @@ certfile = Option(
         'path to SSL certificate file to connect to server via HTTPS')
 
 no_check_certificate = Option(
-        'do not check the server certificate against the available ' \
-                'certificate authorities',
+        'do not check the server certificate against the available '
+        'certificate authorities',
         default=False, type_cast=Option.bool_cast, action='store_true')
 
 local_root = Option(
@@ -39,9 +39,8 @@ local_root = Option(
         default=sugar.profile_path('network'))
 
 activity_dirs = Option(
-        'colon separated list of paths to directories with Sugar ' \
-                'activities; first path will be used to keep check-in ' \
-                'activities',
+        'colon separated list of paths to directories with Sugar '
+        'activities; first path will be used to keep check-in activities',
         type_cast=Option.paths_cast, type_repr=Option.paths_repr, default=[
             expanduser('~/Activities'),
             '/usr/share/sugar/activities',
@@ -54,8 +53,8 @@ server_mode = Option(
         action='store_true', name='server-mode')
 
 delayed_start = Option(
-        'immediate start only database and the rest on getting ' \
-                'notification from IPC client',
+        'immediate start only database and the rest on getting '
+        'notification from IPC client',
         default=False, type_cast=Option.bool_cast, action='store_true')
 
 mounts_root = Option(
@@ -67,8 +66,8 @@ lazy_open = Option(
         default=True, type_cast=Option.bool_cast, action='store_true')
 
 tmpdir = Option(
-        'if specified, use this directory for temporary files, such files ' \
-                'might take hunder of megabytes while node synchronizing')
+        'if specified, use this directory for temporary files, such files '
+        'might take hunder of megabytes while node synchronizing')
 
 
 def path(*args):

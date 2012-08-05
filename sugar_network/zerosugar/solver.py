@@ -33,7 +33,7 @@ def solve(req, record_details=False):
                 driver.target_arch, command_name=req.command)
 
     result = Solution(driver.solver.selections, req)
-    result.details = dict((k.uri, v) \
+    result.details = dict((k.uri, v)
             for k, v in (driver.solver.details or {}).items())
     result.ready = driver.solver.ready
 
@@ -41,7 +41,7 @@ def solve(req, record_details=False):
         # pylint: disable-msg=W0212
         failure_reason = driver.solver._failure_reason
         if not failure_reason:
-            missed_ifaces = [iface.uri for iface, impl in \
+            missed_ifaces = [iface.uri for iface, impl in
                     driver.solver.selections.items() if impl is None]
             failure_reason = 'Cannot find requireed implementations ' \
                     'for %s' % ', '.join(missed_ifaces)

@@ -238,7 +238,7 @@ class _ProxyCommands(object):
 
                 to_checkin = False
                 if 'keep_impl' in patch and \
-                        (not home.exists(guid) or \
+                        (not home.exists(guid) or
                         patch['keep_impl'] != home.get(guid)['keep_impl']):
                     if patch['keep_impl']:
                         to_checkin = True
@@ -508,7 +508,7 @@ class NodeMount(LocalMount, _ProxyCommands):
                     break
 
     def sync_session(self, mounts, path=None):
-        _logger.debug('Start synchronization session with %r session ' \
+        _logger.debug('Start synchronization session with %r session '
                 'for %r mounts', self._sync_session, mounts)
 
         def sync(path):

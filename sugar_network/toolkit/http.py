@@ -161,7 +161,7 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
 
         if response.status_code != 200:
             if response.status_code == 401:
-                _logger.info('User is not registered on the server, ' \
+                _logger.info('User is not registered on the server, '
                         'registering')
                 _register()
                 continue

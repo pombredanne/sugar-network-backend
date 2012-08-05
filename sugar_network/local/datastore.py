@@ -52,7 +52,7 @@ def populate(artifacts):
     sn_stamp = local.path('datastore.index_updated')
     ds_stamp = sugar.profile_path('datastore', 'index_updated')
 
-    if exists(sn_stamp) == exists(ds_stamp) and (not exists(sn_stamp) or \
+    if exists(sn_stamp) == exists(ds_stamp) and (not exists(sn_stamp) or
             os.stat(sn_stamp).st_mtime == os.stat(ds_stamp).st_mtime):
         _logger.debug('No stale changes found in sugar-datastore')
         return

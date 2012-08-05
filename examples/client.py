@@ -68,9 +68,9 @@ if __name__ == '__main__':
     import os
     from sugar_network import local
 
-    os.system('sugar-network-service -DD start ' \
-              '--local-root=tmp ' \
-              '--activity-dirs=tmp/Activities ' \
+    os.system('sugar-network-service -DD start '
+              '--local-root=tmp '
+              '--activity-dirs=tmp/Activities '
               '--api-url=http://localhost:8000')
     try:
         local.local_root.value = 'tmp'
