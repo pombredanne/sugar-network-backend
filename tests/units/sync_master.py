@@ -13,7 +13,7 @@ import active_document as ad
 from active_document.directory import Directory
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket, OutBufferPacket
 from sugar_network.toolkit.files_sync import Seeder
-from sugar_network.node import commands
+from sugar_network.node import sync_master
 from sugar_network.resources.volume import Volume
 from active_toolkit import coroutine
 
@@ -27,7 +27,7 @@ class SyncMasterTest(tests.Test):
         tests.Test.setUp(self)
         self.uuid = 0
         self.override(ad, 'uuid', self.next_uuid)
-        commands._PULL_QUEUE_SIZE = 256
+        sync_master._PULL_QUEUE_SIZE = 256
 
     def next_uuid(self):
         self.uuid += 1
@@ -667,7 +667,7 @@ class SyncMasterTest(tests.Test):
         self.assertEqual('test', packet.header['probe'])
 
     def test_UnlinkCachedPullsOnEjectionFromQueue(self):
-        commands._PULL_QUEUE_SIZE = 1
+        sync_master._PULL_QUEUE_SIZE = 1
         master = MasterCommands('master')
 
         master.volume['document'].create(guid='1')
@@ -700,13 +700,15 @@ class Request(ad.Request):
         self.environ = environ or {}
 
 
-class MasterCommands(commands.MasterCommands):
+class MasterCommands(sync_master.Commands):
 
     def __init__(self, master, **kwargs):
         os.makedirs('db')
         with file('db/master', 'w') as f:
             f.write(master)
-        commands.MasterCommands.__init__(self, new_volume('db'), **kwargs)
+        sync_master.Commands._guid = master
+        sync_master.Commands.volume = new_volume('db')
+        sync_master.Commands.__init__(self, **kwargs)
 
 
 def new_volume(root):

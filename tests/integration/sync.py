@@ -32,7 +32,7 @@ class SyncTest(tests.Test):
             '--data-root=master/db', '--index-flush-threshold=1024',
             '--index-flush-timeout=3', '--only-commit-events',
             '--tmpdir=tmp', '--sync-dirs=master/files/1:master/files/2',
-            '-DDDF', 'start',
+            '--pull-timeout=1', '-DDDF', 'start',
             ])
         self.node_pid = self.popen([
             'sugar-network-service', '--port=8200', '--subscribe-port=8201',

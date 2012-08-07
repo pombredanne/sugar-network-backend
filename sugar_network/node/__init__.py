@@ -65,6 +65,11 @@ sync_dirs = Option(
         type_cast=Option.paths_cast, type_repr=Option.paths_repr,
         name='sync-dirs')
 
+pull_timeout = Option(
+        'delay in seconds to return to sync-pull requester to wait until '
+        'pull request will be ready',
+        default=30, type_cast=int)
+
 
 class HTTPStatus(Exception):
 
