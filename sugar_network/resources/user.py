@@ -63,9 +63,10 @@ class User(ad.Document):
         rrd = User._get_rrd(self.guid)
         for name, __, last_update in rrd.dbs:
             status[name] = last_update + stats.stats_step.value
+        # TODO Process client configuration in more general manner
         return {'enable': stats.stats.value,
                 'step': stats.stats_step.value,
-                'rras': stats.stats_client_rras.value,
+                'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
                 'status': status,
                 }
 
@@ -84,5 +85,5 @@ class User(ad.Document):
         if rrd is None:
             rrd = cls._rrd[guid] = Rrd(
                     join(stats.stats_root.value, guid[:2], guid),
-                    stats.stats_step.value, stats.stats_server_rras.value)
+                    stats.stats_step.value, stats.stats_rras.value)
         return rrd

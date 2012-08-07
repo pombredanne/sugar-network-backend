@@ -28,14 +28,7 @@ stats_step = Option(
         'step interval in seconds for RRD databases',
         default=60, type_cast=int)
 
-stats_server_rras = Option(
-        'space separated list of RRAs for RRD databases on a server side',
-        default='RRA:AVERAGE:0.5:1:4320 RRA:AVERAGE:0.5:5:2016',
-        type_cast=lambda x: [i for i in x.split() if i],
-        type_repr=lambda x: ' '.join(x))
-
-stats_client_rras = Option(
-        'space separated list of RRAs for RRD databases on client side',
-        default='RRA:AVERAGE:0.5:1:4320 RRA:AVERAGE:0.5:5:2016',
-        type_cast=lambda x: [i for i in x.split() if i],
-        type_repr=lambda x: ' '.join(x))
+stats_rras = Option(
+        'space separated list of RRAs for RRD databases',
+        default=['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
+        type_cast=Option.list_cast, type_repr=Option.list_repr)

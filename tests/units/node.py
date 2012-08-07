@@ -39,7 +39,7 @@ class NodeTest(tests.Test):
         self.assertEqual({
             'enable': True,
             'status': {},
-            'rras': stats.stats_client_rras.value,
+            'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
             'step': stats.stats_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
@@ -53,7 +53,7 @@ class NodeTest(tests.Test):
             'enable': True, 'status': {
                 'test': ts + 2,
                 },
-            'rras': stats.stats_client_rras.value,
+            'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
             'step': stats.stats_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
@@ -67,7 +67,7 @@ class NodeTest(tests.Test):
             'enable': True, 'status': {
                 'test': ts + 3,
                 },
-            'rras': stats.stats_client_rras.value,
+            'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
             'step': stats.stats_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
@@ -82,7 +82,7 @@ class NodeTest(tests.Test):
                 'test': ts + 3,
                 'test2': ts + 4,
                 },
-            'rras': stats.stats_client_rras.value,
+            'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
             'step': stats.stats_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
