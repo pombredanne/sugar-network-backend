@@ -11,6 +11,7 @@ from __init__ import tests
 
 import active_document as ad
 from active_document.directory import Directory
+from sugar_network import node
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket, OutBufferPacket
 from sugar_network.toolkit.files_sync import Seeder
 from sugar_network.node import sync_master
@@ -572,8 +573,9 @@ class SyncMasterTest(tests.Test):
             [i for i in packet])
 
     def test_pull_ProcessFilePulls(self):
+        node.sync_dirs.value = ['files']
         seqno = ad.Seqno('seqno')
-        master = MasterCommands('master', sync_dirs=['files'])
+        master = MasterCommands('master')
         request = Request()
         response = ad.Response()
 
@@ -700,15 +702,15 @@ class Request(ad.Request):
         self.environ = environ or {}
 
 
-class MasterCommands(sync_master.Commands):
+class MasterCommands(sync_master.SyncCommands):
 
     def __init__(self, master, **kwargs):
         os.makedirs('db')
         with file('db/master', 'w') as f:
             f.write(master)
-        sync_master.Commands._guid = master
-        sync_master.Commands.volume = new_volume('db')
-        sync_master.Commands.__init__(self, **kwargs)
+        sync_master.SyncCommands._guid = master
+        sync_master.SyncCommands.volume = new_volume('db')
+        sync_master.SyncCommands.__init__(self, **kwargs)
 
 
 def new_volume(root):

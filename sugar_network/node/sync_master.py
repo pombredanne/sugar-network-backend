@@ -37,14 +37,14 @@ _PULL_QUEUE_SIZE = 256
 _logger = logging.getLogger('node.sync_master')
 
 
-class Commands(object):
+class SyncCommands(object):
 
     _guid = None
     volume = None
 
-    def __init__(self, sync_dirs=None):
-        self._file_syncs = Seeders(sync_dirs,
-                join(node.data_root.value, 'files'), self.volume.seqno)
+    def __init__(self):
+        self._file_syncs = Seeders(node.sync_dirs.value,
+                join(node.data_root.value, 'sync'), self.volume.seqno)
         self._pull_queue = lrucache(_PULL_QUEUE_SIZE,
                 lambda key, pull: pull.unlink())
 

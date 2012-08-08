@@ -26,7 +26,7 @@ import sugar_network_webui as webui
 
 from sugar_network import local, node, Client
 from sugar_network.toolkit import sugar, sneakernet
-from sugar_network.toolkit import crypto, dbus_thread
+from sugar_network.toolkit import crypto, dbus_thread, mounts_monitor
 from sugar_network.local import activities, datastore
 from sugar_network.local.dbus_datastore import Datastore
 from sugar_network.local.dbus_network import Network
@@ -71,7 +71,6 @@ class Application(application.Application):
 
         new_root = (local.local_root.value != local.local_root.default)
         local.local_root.value = abspath(local.local_root.value)
-        local.mounts_root.value = abspath(local.mounts_root.value)
 
         if new_root:
             application.logdir.value = join(local.local_root.value, 'log')
@@ -151,7 +150,7 @@ class Application(application.Application):
         jobs = coroutine.Pool()
 
         volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
-        mountset = Mountset(volume, node.sync_dirs.value)
+        mountset = Mountset(volume)
         mountset['~'] = HomeMount(volume)
         mountset['/'] = RemoteMount(volume)
 
@@ -182,6 +181,9 @@ class Application(application.Application):
                 server = coroutine.WSGIServer(host, webui.get_app())
                 jobs.spawn(server.serve_forever)
 
+            if local.mounts_root.value:
+                mounts_monitor.start(abspath(local.mounts_root.value))
+
         if local.delayed_start.value:
             mountset.connect(delayed_start, event='delayed-start')
         else:
@@ -200,6 +202,7 @@ class Application(application.Application):
         except Exception:
             util.exception('%s aborted', self.name)
         finally:
+            mounts_monitor.stop()
             jobs.kill()
             mountset.close()
 

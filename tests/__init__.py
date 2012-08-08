@@ -18,7 +18,7 @@ from M2Crypto import DSA
 import active_document as ad
 from active_toolkit import coroutine
 from sugar_network.client import bus
-from sugar_network.toolkit import sugar, http, sneakernet
+from sugar_network.toolkit import sugar, http, sneakernet, mounts_monitor
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
@@ -74,12 +74,15 @@ class Test(unittest.TestCase):
         node.tmpdir.value = tmpdir + '/tmp'
         node.only_commit_events.value = False
         node.data_root.value = tmpdir
+        node.sync_dirs.value = []
         ad.index_write_queue.value = 10
         local.local_root.value = tmpdir
         local.activity_dirs.value = [tmpdir + '/Activities']
         local.api_url.value = 'http://localhost:8800'
         local.server_mode.value = False
         local.mounts_root.value = None
+        mounts_monitor.stop()
+        mounts_monitor._COMPLETE_MOUNT_TIMEOUT = .1
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',

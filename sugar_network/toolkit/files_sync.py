@@ -179,7 +179,7 @@ class Seeders(dict):
 
         for path in sync_dirs or []:
             name = basename(path)
-            self[name] = Seeder(path, join(index_root, name), seqno)
+            self[name] = Seeder(path, join(index_root, name + '.files'), seqno)
 
 
 class Leecher(object):
@@ -223,4 +223,4 @@ class Leechers(dict):
 
         for path in sync_dirs or []:
             name = basename(path)
-            self[name] = Leecher(path, join(sequences_root, name))
+            self[name] = Leecher(path, join(sequences_root, name + '.files'))

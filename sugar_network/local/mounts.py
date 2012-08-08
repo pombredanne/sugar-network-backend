@@ -14,20 +14,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import sys
 import json
 import shutil
 import logging
 from urlparse import urlparse
-from os.path import isabs, exists, join, basename, dirname
+from os.path import isabs, exists, join, basename
 from gettext import gettext as _
 
 import sweets_recipe
 import active_document as ad
 from sweets_recipe import Bundle
-from sugar_network.toolkit.collection import Sequence, PersistentSequence
-from sugar_network.toolkit.sneakernet import OutFilePacket, DiskFull
-from sugar_network.toolkit import sugar, http, sneakernet
+from sugar_network.toolkit import sugar, http
 from sugar_network.local import activities, cache
 from sugar_network import local, checkin, sugar
 from active_toolkit import sockets, util, coroutine, enforce
@@ -416,22 +413,22 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
 class NodeMount(LocalMount, _ProxyCommands):
 
-    def __init__(self, volume, home_volume, file_syncs=None):
+    def __init__(self, volume, home_volume):
         LocalMount.__init__(self, volume)
         _ProxyCommands.__init__(self, home_volume)
-
-        self._file_syncs = file_syncs or {}
-        self._push_seq = PersistentSequence(
-                join(volume.root, 'push.sequence'), [1, None])
-        self._pull_seq = PersistentSequence(
-                join(volume.root, 'pull.sequence'), [1, None])
-        self._sync_session = None
-        self._sync_script = join(dirname(sys.argv[0]), 'sugar-network-sync')
 
         with file(join(volume.root, 'node')) as f:
             self._node_guid = f.read().strip()
         with file(join(volume.root, 'master')) as f:
             self._master_guid = f.read().strip()
+
+    @property
+    def node_guid(self):
+        return self._node_guid
+
+    @property
+    def master_guid(self):
+        return self._master_guid
 
     def call(self, request, response):
         return self._proxy_call(request, response, super(NodeMount, self).call)
@@ -453,114 +450,3 @@ class NodeMount(LocalMount, _ProxyCommands):
                     self._node_guid, extract)
 
         return meta
-
-    def sync(self, path, accept_length=None, push_sequence=None, session=None):
-        to_push_seq = Sequence(empty_value=[1, None])
-        if push_sequence is None:
-            to_push_seq.include(self._push_seq)
-        else:
-            to_push_seq = Sequence(push_sequence)
-
-        if session is None:
-            session_is_new = True
-            session = ad.uuid()
-        else:
-            session_is_new = False
-
-        while True:
-            for packet in sneakernet.walk(path):
-                if packet.header.get('src') == self._node_guid:
-                    if packet.header.get('session') == session:
-                        _logger.debug('Keep current session %r packet', packet)
-                    else:
-                        _logger.debug('Remove our previous %r packet', packet)
-                        os.unlink(packet.path)
-                else:
-                    self._import(packet, to_push_seq)
-                    self._push_seq.commit()
-                    self._pull_seq.commit()
-
-            if exists(self._sync_script):
-                shutil.copy(self._sync_script, path)
-
-            with OutFilePacket(path, limit=accept_length, src=self._node_guid,
-                    dst=self._master_guid, session=session,
-                    seqno=self.volume.seqno.value,
-                    api_url=local.api_url.value) as packet:
-                if session_is_new:
-                    for directory, sync in self._file_syncs.items():
-                        packet.push(cmd='files_pull', directory=directory,
-                                sequence=sync.sequence)
-                    packet.push(cmd='sn_pull', sequence=self._pull_seq)
-
-                _logger.debug('Generating %r PUSH packet to %r',
-                        packet, packet.path)
-                self.publish({
-                    'event': 'sync_progress',
-                    'progress': _('Generating %r packet') % packet.basename,
-                    })
-
-                try:
-                    self.volume.diff(to_push_seq, packet)
-                except DiskFull:
-                    return {'push_sequence': to_push_seq, 'session': session}
-                else:
-                    break
-
-    def sync_session(self, mounts, path=None):
-        _logger.debug('Start synchronization session with %r session '
-                'for %r mounts', self._sync_session, mounts)
-
-        def sync(path):
-            self.publish({'event': 'sync_start', 'path': path})
-            self._sync_session = self.sync(path, **(self._sync_session or {}))
-            return self._sync_session is None
-
-        try:
-            while True:
-                if path and sync(path):
-                    break
-                for mountpoint in mounts:
-                    if sync(mountpoint):
-                        break
-                break
-        except Exception, error:
-            util.exception(_logger, 'Failed to complete synchronization')
-            self.publish({'event': 'sync_error', 'error': str(error)})
-            self._sync_session = None
-
-        if self._sync_session is None:
-            _logger.debug('Synchronization completed')
-            self.publish({'event': 'sync_complete'})
-        else:
-            _logger.debug('Postpone synchronization with %r session',
-                    self._sync_session)
-            self.publish({'event': 'sync_continue'})
-
-    def _import(self, packet, to_push_seq):
-        self.publish({
-            'event': 'sync_progress',
-            'progress': _('Reading %r packet') % basename(packet.path),
-            })
-        _logger.debug('Processing %r PUSH packet from %r', packet, packet.path)
-
-        from_master = (packet.header.get('src') == self._master_guid)
-
-        for record in packet.records():
-            cmd = record.get('cmd')
-            if cmd == 'sn_push':
-                self.volume.merge(record, increment_seqno=False)
-            elif from_master:
-                if cmd == 'sn_commit':
-                    _logger.debug('Processing %r COMMIT from %r',
-                            record, packet)
-                    self._pull_seq.exclude(record['sequence'])
-                elif cmd == 'sn_ack' and record['dst'] == self._node_guid:
-                    _logger.debug('Processing %r ACK from %r', record, packet)
-                    self._push_seq.exclude(record['sequence'])
-                    self._pull_seq.exclude(record['merged'])
-                    to_push_seq.exclude(record['sequence'])
-                    self.volume.seqno.next()
-                    self.volume.seqno.commit()
-                elif record.get('directory') in self._file_syncs:
-                    self._file_syncs[record['directory']].push(record)

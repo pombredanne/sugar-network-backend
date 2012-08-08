@@ -20,7 +20,7 @@ from os.path import exists, join
 
 import active_document as ad
 from sugar_network import node
-from sugar_network.node import sync_master
+from sugar_network.node.sync_master import SyncCommands
 from active_toolkit import util, enforce
 
 
@@ -137,11 +137,11 @@ class NodeCommands(ad.VolumeCommands):
         props['author'] = authors
 
 
-class MasterCommands(NodeCommands, sync_master.Commands):
+class MasterCommands(NodeCommands, SyncCommands):
 
-    def __init__(self, volume, subscriber=None, sync_dirs=None):
+    def __init__(self, volume, subscriber=None):
         NodeCommands.__init__(self, volume, subscriber)
-        sync_master.Commands.__init__(self, sync_dirs)
+        SyncCommands.__init__(self)
 
 
 def _load_pubkey(pubkey):

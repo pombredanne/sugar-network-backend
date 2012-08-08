@@ -15,6 +15,7 @@
 
 import os
 import logging
+from os.path import join, exists
 
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_MOVED_TO, IN_MOVED_FROM
@@ -26,7 +27,7 @@ _COMPLETE_MOUNT_TIMEOUT = 3
 _root = None
 _jobs = coroutine.Pool()
 _connects = {}
-_found = set()
+_found = {}
 
 _logger = logging.getLogger('mounts_monitor')
 
@@ -37,63 +38,74 @@ def start(root):
         return
     _root = root
     _logger.info('Start monitoring %r for mounts', _root)
-    for filename in os.listdir(_root):
-        _found_mount(filename)
+    for name in os.listdir(_root):
+        _found_mount(join(_root, name))
     _jobs.spawn(_monitor)
 
 
 def stop():
-    if not _jobs:
-        return
-    _logger.info('Stop monitoring %r for mounts', _root)
-    _jobs.kill()
+    if _jobs:
+        _logger.info('Stop monitoring %r for mounts', _root)
+        _jobs.kill()
+    _connects.clear()
+    _found.clear()
 
 
 def connect(filename, found_cb, lost_cb):
+    if filename in _connects:
+        return
     _connects[filename] = (found_cb, lost_cb)
+    for path, filenames in _found.items():
+        if exists(join(path, filename)):
+            filenames.add(filename)
+            _call(path, filename, 0)
 
 
-def _found_mount(filename):
-    if filename not in _connects or filename in _found:
+def _found_mount(path):
+    _found.setdefault(path, set())
+    found = _found[path]
+    for filename in _connects:
+        if filename in found or not exists(join(path, filename)):
+            continue
+        found.add(filename)
+        _call(path, filename, 0)
+
+
+def _lost_mount(path):
+    if path not in _found:
         return
-    found_cb, __ = _connects[filename]
-    path = join(_root, filename)
-    try:
-        found_cb(path)
-    except Exception:
-        util.exception(_logger, 'Cannot process %r mount', path)
+    for filename in _found.pop(path):
+        _call(path, filename, 1)
 
 
-def _lost_mount(filename):
-    if filename not in _found:
+def _call(path, filename, cb):
+    cb = _connects[filename][cb]
+    if cb is None:
         return
-    __, lost_cb = _connects[filename]
-    path = join(_root, filename)
+    _logger.debug('Call %r for %r mount', cb, path)
     try:
-        lost_cb(path)
+        cb(path)
     except Exception:
-        util.exception(_logger, 'Cannot process %r unmount', path)
+        util.exception(_logger, 'Cannot call %r for %r mount', cb, path)
 
 
 def _monitor():
-    _logger.info('Start monitoring %r for mounts', root)
-
     with Inotify() as monitor:
-        monitor.add_watch(root, IN_DELETE_SELF | IN_CREATE |
+        monitor.add_watch(_root, IN_DELETE_SELF | IN_CREATE |
                 IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM)
         while not monitor.closed:
             coroutine.select([monitor.fileno()], [], [])
-            for filename, event, __ in monitor.read():
+            for name, event, __ in monitor.read():
+                path = join(_root, name)
                 if event & IN_DELETE_SELF:
-                    _logger.warning('Lost %r, cannot monitor anymore',
-                            root)
+                    _logger.warning('Lost %r, cannot monitor anymore', _root)
                     monitor.close()
                     break
                 elif event & (IN_DELETE | IN_MOVED_FROM):
-                    _lost_mount(filename)
+                    _lost_mount(path)
                 elif event & (IN_CREATE | IN_MOVED_TO):
-                    # Right after moutning, access to directory
-                    # might be restricted; let system enough time
-                    # to complete mounting
+                    # Right after moutning, access to newly mounted directory
+                    # might be restricted; let the system enough time
+                    # to complete mounting routines
                     coroutine.sleep(_COMPLETE_MOUNT_TIMEOUT)
-                    _found_mount(filename)
+                    _found_mount(path)

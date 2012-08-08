@@ -15,7 +15,7 @@ from sugar_network.local.mountset import Mountset
 from sugar_network.local.bus import IPCServer
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network.toolkit import http
+from sugar_network.toolkit import http, mounts_monitor
 from sugar_network import local, Client, ServerError, sugar, node
 from sugar_network.resources.volume import Volume
 from sugar_network.local.mounts import HomeMount, RemoteMount
@@ -47,6 +47,7 @@ class MountsetTest(tests.Test):
 
         mounts.open()
         mounts.opened.wait()
+        mounts_monitor.start(tests.tmpdir)
         # Let `open()` start processing spawned jobs
         coroutine.dispatch()
 
