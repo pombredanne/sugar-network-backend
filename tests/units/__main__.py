@@ -24,5 +24,6 @@ from datastore import *
 from dbus_datastore import *
 from files_sync import *
 from dbus_client import *
+from mounts_monitor import *
 
 tests.main()
