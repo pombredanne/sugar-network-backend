@@ -16,7 +16,7 @@
 import os
 import json
 import collections
-from os.path import exists
+from os.path import exists, dirname
 
 from active_toolkit import util, enforce
 
@@ -201,6 +201,9 @@ class PersistentSequence(Sequence):
                 self[:] = json.load(f)
 
     def commit(self):
+        dir_path = dirname(self._path)
+        if dir_path and not exists(dir_path):
+            os.makedirs(dir_path)
         with util.new_file(self._path) as f:
             json.dump(self, f)
             f.flush()

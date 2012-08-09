@@ -33,6 +33,7 @@ from sugar_network.local.dbus_network import Network
 from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
+from sugar_network.node import stats
 from sugar_network.resources.volume import Volume
 from active_toolkit.options import Option
 from active_toolkit import util, printf, application, coroutine, enforce
@@ -259,6 +260,7 @@ Option.seek('main', [application.debug])
 Option.seek('webui', webui)
 Option.seek('local', local)
 Option.seek('node', [node.port, node.subscribe_port, node.sync_dirs])
+Option.seek('stats', stats)
 Option.seek('active-document', ad)
 
 application = Application(

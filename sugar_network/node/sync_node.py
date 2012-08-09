@@ -22,11 +22,11 @@ from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import node, local
-from sugar_network.toolkit import mounts_monitor, sneakernet
+from sugar_network.toolkit import mounts_monitor, sneakernet, files_sync
 from sugar_network.toolkit.collection import MutableStack
-from sugar_network.toolkit.files_sync import Leechers
 from sugar_network.toolkit.collection import Sequence, PersistentSequence
 from sugar_network.toolkit.sneakernet import OutFilePacket, DiskFull
+from sugar_network.node import stats
 from active_toolkit import coroutine, util, enforce
 
 
@@ -40,7 +40,8 @@ class SyncCommands(object):
     def __init__(self, sequences_path):
         self._sync = coroutine.Pool()
         self._sync_mounts = MutableStack()
-        self._file_syncs = Leechers(node.sync_dirs.value, sequences_path)
+        self._file_syncs = \
+                files_sync.Leechers(node.sync_dirs.value, sequences_path)
         self._sync_session = None
         self._push_seq = PersistentSequence(
                 join(sequences_path, 'push'), [1, None])
@@ -82,14 +83,18 @@ class SyncCommands(object):
     def break_sync(self):
         self._sync.kill()
 
-    def sync(self, path, accept_length=None, push_sequence=None, session=None):
+    def sync(self, path, accept_length=None, diff_sequence=None,
+            stats_sequence=None, session=None):
         enforce(self._mount is not None, 'No server to sync')
 
         to_push_seq = Sequence(empty_value=[1, None])
-        if push_sequence is None:
+        if diff_sequence is None:
             to_push_seq.include(self._push_seq)
         else:
-            to_push_seq = Sequence(push_sequence)
+            to_push_seq = Sequence(diff_sequence)
+
+        if stats_sequence is None:
+            stats_sequence = {}
 
         if session is None:
             session_is_new = True
@@ -132,8 +137,12 @@ class SyncCommands(object):
 
                 try:
                     self._mount.volume.diff(to_push_seq, packet)
+                    stats.pull(stats_sequence, packet)
                 except DiskFull:
-                    return {'push_sequence': to_push_seq, 'session': session}
+                    return {'diff_sequence': to_push_seq,
+                            'stats_sequence': stats_sequence,
+                            'session': session,
+                            }
                 else:
                     break
 
@@ -195,6 +204,11 @@ class SyncCommands(object):
                     to_push_seq.exclude(record['sequence'])
                     self._mount.volume.seqno.next()
                     self._mount.volume.seqno.commit()
+                elif cmd == 'stats_ack' and \
+                        record['dst'] == self._mount.node_guid:
+                    _logger.debug('Processing %r stats ACK from %r',
+                            record, packet)
+                    stats.commit(record['sequence'])
                 elif record.get('directory') in self._file_syncs:
                     self._file_syncs[record['directory']].push(record)
 
@@ -207,6 +221,6 @@ class SyncCommands(object):
             _logger.debug('Found %r sync mount but no servers', path)
 
     def __lost_mount_cb(self, path):
-        self._sync_mounts.remove(join(path, _SYNC_DIRNAME))
+        self._sync_mounts.remove(path)
         if not self._sync_mounts:
             self.break_sync()

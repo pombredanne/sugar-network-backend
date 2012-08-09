@@ -2,10 +2,13 @@
 # sugar-lint: disable
 
 import os
+import time
 import json
 import base64
 import hashlib
 from os.path import join, exists
+
+import rrdtool
 
 from __init__ import tests
 
@@ -227,6 +230,55 @@ class SyncMasterTest(tests.Test):
             'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
             response.get('Set-Cookie'))
+
+    def test_push_ProcessStatsPushes(self):
+        master = MasterCommands('master')
+        request = Request()
+        response = ad.Response()
+
+        ts = int(time.time()) - 1000
+        packet = OutBufferPacket(src='node', dst='master')
+        packet.push(cmd='stats_push', user='user1', db='db1', sequence=[[1, ts + 2]], data=[
+            {'timestamp': ts + 1, 'values': {'f': 1}},
+            {'timestamp': ts + 2, 'values': {'f': 2}},
+            ])
+        packet.push(cmd='stats_push', user='user1', db='db2', sequence=[[2, ts + 3]], data=[
+            {'timestamp': ts + 3, 'values': {'f': 3}},
+            ])
+        packet.push(cmd='stats_push', user='user2', db='db3', sequence=[[ts + 4, ts + 4]], data=[
+            {'timestamp': ts + 4, 'values': {'f': 4}},
+            ])
+        request.content_stream = packet.pop()
+        request.content_length = len(request.content_stream.getvalue())
+
+        reply = master.push(request, response)
+        self.assertEqual([
+            'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
+            'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
+            ],
+            response.get('Set-Cookie'))
+
+        packet = InPacket(stream=reply)
+        self.assertEqual('master', packet.header['src'])
+        self.assertEqual('node', packet.header.get('dst'))
+        self.assertEqual([
+            {'filename': 'ack.node.packet', 'src': 'master', 'dst': 'node', 'cmd': 'stats_ack',
+                'sequence': {
+                    'user1': {'db1': [[1, ts + 2]], 'db2': [[2, ts + 3]]},
+                    'user2': {'db3': [[ts + 4, ts + 4]]},
+                    },
+                }
+            ],
+            [i for i in packet])
+
+        __, __, values = rrdtool.fetch('stats/us/user1/db1.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 2))
+        self.assertEqual([(1,), (2,), (None,)], values)
+
+        __, __, values = rrdtool.fetch('stats/us/user1/db2.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 3))
+        self.assertEqual([(None,), (None,), (3,), (None,)], values)
+
+        __, __, values = rrdtool.fetch('stats/us/user2/db3.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 4))
+        self.assertEqual([(None,), (None,), (None,), (4,), (None,)], values)
 
     def test_pull_ProcessPulls(self):
         master = MasterCommands('master')

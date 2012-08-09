@@ -28,6 +28,7 @@ from sugar_network.resources.context import Context
 from sugar_network.node.router import Router
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.subscribe_socket import SubscribeSocket
+from sugar_network.node import stats
 from sugar_network.resources.volume import Volume
 
 
@@ -83,6 +84,10 @@ class Test(unittest.TestCase):
         local.mounts_root.value = None
         mounts_monitor.stop()
         mounts_monitor._COMPLETE_MOUNT_TIMEOUT = .1
+        stats.stats_root.value = tmpdir + '/stats'
+        stats.stats_step.value = 1
+        stats.stats_rras.value = ['RRA:AVERAGE:0.5:1:100']
+        stats._cache.clear()
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',

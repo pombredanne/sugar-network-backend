@@ -13,16 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from os.path import join
-
 import active_document as ad
 from sugar_network.node import stats
-from sugar_network.toolkit.rrd import Rrd
 
 
 class User(ad.Document):
-
-    _rrd = {}
 
     @ad.active_property(slot=1, prefix='N', full_text=True)
     def name(self, value):
@@ -60,7 +55,7 @@ class User(ad.Document):
             permissions=ad.ACCESS_AUTHOR)
     def _stats_info(self):
         status = {}
-        rrd = User._get_rrd(self.guid)
+        rrd = stats.get_rrd(self.guid)
         for name, __, last_update in rrd.dbs:
             status[name] = last_update + stats.stats_step.value
         # TODO Process client configuration in more general manner
@@ -75,15 +70,6 @@ class User(ad.Document):
     def _stats_upload(self, request):
         name = request.content['name']
         values = request.content['values']
-        rrd = User._get_rrd(self.guid)
+        rrd = stats.get_rrd(self.guid)
         for timestamp, values in values:
             rrd.put(name, values, timestamp)
-
-    @classmethod
-    def _get_rrd(cls, guid):
-        rrd = cls._rrd.get(guid)
-        if rrd is None:
-            rrd = cls._rrd[guid] = Rrd(
-                    join(stats.stats_root.value, guid[:2], guid),
-                    stats.stats_step.value, stats.stats_rras.value)
-        return rrd

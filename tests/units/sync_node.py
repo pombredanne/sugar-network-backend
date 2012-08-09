@@ -2,8 +2,11 @@
 # sugar-lint: disable
 
 import os
+import time
 import json
 from os.path import exists, join
+
+import rrdtool
 
 from __init__ import tests
 
@@ -87,15 +90,15 @@ class SyncNodeTest(tests.Test):
 
         kwargs = node.sync('mnt', accept_length=1024, session=0)
         self.assertEqual(0, kwargs['session'])
-        self.assertEqual([[1, None]], kwargs['push_sequence'])
+        self.assertEqual([[1, None]], kwargs['diff_sequence'])
         self.assertEqual([], self.read_packets('mnt'))
 
-        kwargs = node.sync('mnt', accept_length=1024, push_sequence=kwargs['push_sequence'], session=0)
-        self.assertEqual([[1, None]], kwargs['push_sequence'])
+        kwargs = node.sync('mnt', accept_length=1024, diff_sequence=kwargs['diff_sequence'], session=0)
+        self.assertEqual([[1, None]], kwargs['diff_sequence'])
         self.assertEqual([], self.read_packets('mnt'))
 
-        kwargs = node.sync('mnt', accept_length=1024 * 2, push_sequence=kwargs['push_sequence'], session=1)
-        self.assertEqual([[2, None]], kwargs['push_sequence'])
+        kwargs = node.sync('mnt', accept_length=1024 * 2, diff_sequence=kwargs['diff_sequence'], session=1)
+        self.assertEqual([[2, None]], kwargs['diff_sequence'])
         self.assertEqual([
             {'api_url': api_url.value, 'filename': 'node-6.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'document': 'document', 'guid': '1', 'session': 1, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
@@ -109,8 +112,8 @@ class SyncNodeTest(tests.Test):
             ],
             self.read_packets('mnt'))
 
-        kwargs = node.sync('mnt', accept_length=1024 * 3, push_sequence=kwargs['push_sequence'], session=2)
-        self.assertEqual([[4, None]], kwargs['push_sequence'])
+        kwargs = node.sync('mnt', accept_length=1024 * 3, diff_sequence=kwargs['diff_sequence'], session=2)
+        self.assertEqual([[4, None]], kwargs['diff_sequence'])
         self.assertEqual([
             {'api_url': api_url.value, 'filename': 'node-6.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'document': 'document', 'guid': '2', 'session': 2, 'diff': {
                 'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
@@ -132,7 +135,7 @@ class SyncNodeTest(tests.Test):
             ],
             self.read_packets('mnt'))
 
-        kwargs = node.sync('mnt', push_sequence=kwargs['push_sequence'], session=3)
+        kwargs = node.sync('mnt', diff_sequence=kwargs['diff_sequence'], session=3)
         self.assertEqual(None, kwargs)
         self.assertEqual([
             {'api_url': api_url.value, 'filename': 'node-6.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'node', 'dst': 'master', 'document': 'document', 'guid': '4', 'session': 3, 'diff': {
@@ -256,6 +259,30 @@ class SyncNodeTest(tests.Test):
                 ['new one'],
                 [i.header['session'] for i in sneakernet.walk('mnt')])
 
+    def test_Import_StatsAcks(self):
+        node = SyncCommands('node', 'master')
+
+        master_packet = OutFilePacket('mnt', src='master')
+        master_packet.push(data=[
+            {'cmd': 'stats_ack', 'dst': 'node', 'sequence': {
+                'user1': {
+                    'db1': [[1, 2]],
+                    'db2': [[3, 4]],
+                    },
+                'user2': {
+                    'db3': [[5, 6]],
+                    },
+                }},
+            ])
+        master_packet.close()
+
+        node.sync('mnt', session=0)
+        assert exists(master_packet.path)
+
+        self.assertEqual([[3, None]], json.load(file('stats/us/user1/db1.push')))
+        self.assertEqual([[1, 2], [5, None]], json.load(file('stats/us/user1/db2.push')))
+        self.assertEqual([[1, 4], [7, None]], json.load(file('stats/us/user2/db3.push')))
+
     def test_sync_session(self):
         node = SyncCommands('node', 'master')
         node.volume['document'].create(guid='1', prop='*' * 1024)
@@ -312,6 +339,63 @@ class SyncNodeTest(tests.Test):
             {'api_url': api_url.value, 'filename': 'node-1.packet', 'cmd': 'sn_commit', 'src': 'node', 'dst': 'master', 'session': session, 'sequence': [[1, 1]]},
             ],
             self.read_packets('mnt'))
+
+    def test_ExportStats(self):
+        node = SyncCommands('node', 'master')
+
+        ts = int(time.time())
+        os.makedirs('stats/1/1')
+        rrdtool.create('stats/1/1/db1.rrd', '--start', str(ts), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
+        rrdtool.update('stats/1/1/db1.rrd', '%s:1' % (ts + 1), '%s:2' % (ts + 2))
+        rrdtool.create('stats/1/1/db2.rrd', '--start', str(ts + 2), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
+        rrdtool.update('stats/1/1/db2.rrd', '%s:3' % (ts + 3), '%s:4' % (ts + 4))
+        os.makedirs('stats/2/2')
+        rrdtool.create('stats/2/2/db3.rrd', '--start', str(ts + 4), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
+        rrdtool.update('stats/2/2/db3.rrd', '%s:5' % (ts + 5))
+
+        node.sync('mnt', session=0)
+
+        self.assertEqual([
+            {'api_url': api_url.value, 'filename': 'node-0.packet', 'content_type': 'records', 'src': 'node', 'dst': 'master', 'session': 0,
+                'cmd': 'stats_push', 'user': '1', 'db': 'db1', 'sequence': [[1, ts + 2]], 'timestamp': ts + 1, 'values': {'f': 1},
+                },
+            {'api_url': api_url.value, 'filename': 'node-0.packet', 'content_type': 'records', 'src': 'node', 'dst': 'master', 'session': 0,
+                'cmd': 'stats_push', 'user': '1', 'db': 'db1', 'sequence': [[1, ts + 2]], 'timestamp': ts + 2, 'values': {'f': 2},
+                },
+            {'api_url': api_url.value, 'filename': 'node-0.packet', 'content_type': 'records', 'src': 'node', 'dst': 'master', 'session': 0,
+                'cmd': 'stats_push', 'user': '1', 'db': 'db2', 'sequence': [[1, ts + 4]], 'timestamp': ts + 3, 'values': {'f': 3},
+                },
+            {'api_url': api_url.value, 'filename': 'node-0.packet', 'content_type': 'records', 'src': 'node', 'dst': 'master', 'session': 0,
+                'cmd': 'stats_push', 'user': '1', 'db': 'db2', 'sequence': [[1, ts + 4]], 'timestamp': ts + 4, 'values': {'f': 4},
+                },
+            {'api_url': api_url.value, 'filename': 'node-0.packet', 'content_type': 'records', 'src': 'node', 'dst': 'master', 'session': 0,
+                'cmd': 'stats_push', 'user': '2', 'db': 'db3', 'sequence': [[1, ts + 5]], 'timestamp': ts + 5, 'values': {'f': 5},
+                },
+            ],
+            self.read_packets('mnt'))
+
+    def test_LimittedExportStats(self):
+        node = SyncCommands('node', 'master')
+
+        ts = int(time.time())
+        os.makedirs('stats/us/user')
+        rrdtool.create('stats/us/user/db.rrd', '--start', str(ts), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
+        rrdtool.update('stats/us/user/db.rrd', '%s:1' % (ts + 1), '%s:2' % (ts + 2))
+
+        node.volume['document'].create(guid='1', prop='*' * 1024)
+
+        kwargs = node.sync('mnt1', accept_length=1024 + 512, session=0)
+        self.assertEqual({'user': {'db': [[1, None]]}}, kwargs['stats_sequence'])
+        self.assertEqual([], self.read_packets('mnt1')[3:])
+
+        kwargs = node.sync('mnt2', stats_sequence={'user': {'db': [[ts + 2, None]]}}, session=1)
+        self.assertEqual(None, kwargs)
+        self.assertEqual([
+            {'api_url': api_url.value, 'filename': 'node-1.packet', 'content_type': 'records', 'src': 'node', 'dst': 'master', 'session': 1,
+                'cmd': 'stats_push', 'user': 'user', 'db': 'db', 'sequence': [[ts + 2, ts + 2]], 'timestamp': ts + 2, 'values': {'f': 2},
+                },
+            ],
+            self.read_packets('mnt2')[2:])
 
     def read_packets(self, path):
         result = []

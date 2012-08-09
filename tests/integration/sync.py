@@ -2,11 +2,14 @@
 # sugar-lint: disable
 
 import os
+import time
 import shutil
 import signal
 from cStringIO import StringIO
 from contextlib import contextmanager
 from os.path import exists
+
+import rrdtool
 
 from __init__ import tests
 
@@ -14,6 +17,7 @@ import active_document as ad
 from sugar_network import Client
 from sugar_network.local import local_root
 
+from sugar_network import sugar
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket
 from active_toolkit import util, coroutine
 
@@ -32,7 +36,10 @@ class SyncTest(tests.Test):
             '--data-root=master/db', '--index-flush-threshold=1024',
             '--index-flush-timeout=3', '--only-commit-events',
             '--tmpdir=tmp', '--sync-dirs=master/files/1:master/files/2',
-            '--pull-timeout=1', '-DDDF', 'start',
+            '--pull-timeout=1',
+            '--stats', '--stats-root=master/stats', '--stats-step=1',
+            '--stats-rras=RRA:AVERAGE:0.5:1:100',
+            '-DDDF', 'start',
             ])
         self.node_pid = self.popen([
             'sugar-network-service', '--port=8200', '--subscribe-port=8201',
@@ -40,6 +47,8 @@ class SyncTest(tests.Test):
             '--mounts-root=mnt', '--server-mode', '--tmpdir=tmp',
             '--api-url=http://localhost:8100',
             '--sync-dirs=node/files/1:node/files/2',
+            '--stats', '--stats-root=node/stats', '--stats-step=1',
+            '--stats-rras=RRA:AVERAGE:0.5:1:100',
             '-DDD', 'debug',
             ])
 
@@ -97,6 +106,12 @@ class SyncTest(tests.Test):
             self.touch(('preview_4', 'preview_4'))
             context.upload_blob('preview', 'preview_4')
 
+            stats_timestamp = int(time.time())
+            client.call('POST', 'stats-upload', mountpoint=mountpoint, document='user', guid=sugar.uid(), content={
+                'name': 'db',
+                'values': [(stats_timestamp + 1, {'f': 1})],
+                })
+
         # Create node push packets with newly create data
         self.touch('mnt_2/.sugar-network-sync')
         os.rename('mnt_2', 'mnt/mnt_2')
@@ -133,6 +148,11 @@ class SyncTest(tests.Test):
 
         self.assertEqual('1', file('node/files/1/1').read())
         self.assertEqual('2', file('node/files/2/2').read())
+
+        master_stats = 'master/stats/%s/%s/db.rrd' % (sugar.uid()[:2], sugar.uid())
+        assert exists(master_stats)
+        __, __, values = rrdtool.fetch(master_stats, 'AVERAGE', '-s', str(stats_timestamp - 1), '-e', str(stats_timestamp + 1))
+        self.assertEqual([(None,), (1,), (None,)], values)
 
     def wait_for_events(self, *events):
         events = list(events)

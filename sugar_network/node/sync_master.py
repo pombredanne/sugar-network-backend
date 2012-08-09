@@ -29,6 +29,7 @@ from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
         OutPacket, DiskFull
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.files_sync import Seeders
+from sugar_network.node import stats
 from active_toolkit import coroutine, util, enforce
 
 
@@ -64,6 +65,7 @@ class SyncCommands(object):
             pushed = Sequence()
             merged = Sequence()
             cookie = _Cookie()
+            stats_pushed = {}
 
             for record in in_packet.records(dst=self._guid):
                 cmd = record.get('cmd')
@@ -77,11 +79,23 @@ class SyncCommands(object):
                     cookie['sn_pull'].include(record['sequence'])
                 elif cmd == 'files_pull':
                     cookie[record['directory']].include(record['sequence'])
+                elif cmd == 'stats_push':
+                    db = record['db']
+                    user = record['user']
+
+                    rrd = stats.get_rrd(user)
+                    rrd.put(db, record['values'], record['timestamp'])
+
+                    user_seq = stats_pushed.setdefault(user, {})
+                    db_seq = user_seq.setdefault(db, Sequence())
+                    db_seq.include(record['sequence'])
 
             enforce(not merged or pushed,
                     '"sn_push" record without "sn_commit"')
             if pushed:
                 out_packet.push(cmd='sn_ack', sequence=pushed, merged=merged)
+            if stats_pushed:
+                out_packet.push(cmd='stats_ack', sequence=stats_pushed)
 
             cookie['sn_pull'].exclude(merged)
             # Read passed cookie only after excluding `merged`.

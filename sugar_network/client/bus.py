@@ -61,7 +61,8 @@ class Client(object):
         cls._connection = None
 
     @classmethod
-    def call(cls, method, cmd=None, content=None, content_type=None, **kwargs):
+    def call(cls, method, cmd=None, content=None,
+            content_type='application/json', **kwargs):
         request = ad.Request(kwargs)
         request.access_level = ad.ACCESS_LOCAL
         request.principal = sugar.uid()

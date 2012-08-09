@@ -37,8 +37,6 @@ class Seeder(object):
         self._seqno = seqno
         self._index = []
         self._stamp = 0
-        # Below calls will mutate `self._index` and trigger coroutine switches.
-        # Thus, avoid chnaing `self._index` by different coroutines.
         self._mutex = coroutine.Lock()
 
         if exists(self._index_path):
@@ -49,6 +47,8 @@ class Seeder(object):
             os.makedirs(self._files_path)
 
     def pull(self, in_seq, packet):
+        # Below calls will mutate `self._index` and trigger coroutine switches.
+        # Thus, avoid changing `self._index` by different coroutines.
         with self._mutex:
             self._sync()
             orig_seq = Sequence(in_seq)

@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/rrd.py$
-$Date: 2012-07-12$
+$Date: 2012-08-09$
 
 """
 
@@ -59,6 +59,10 @@ class Rrd(object):
                 self._dbset(name).load(filename, int(revision or 0))
 
     @property
+    def root(self):
+        return self._root
+
+    @property
     def step(self):
         return self._step
 
@@ -81,6 +85,15 @@ class Rrd(object):
             db = self._dbsets[name] = \
                     _DbSet(self._root, name, self._step, self._rras)
         return db
+
+
+class ReadOnlyRrd(Rrd):
+
+    def __init__(self, root):
+        Rrd.__init__(self, root, 1, [])
+
+    def put(self, name, values, timestamp=None):
+        raise RuntimeError('Write access is denied')
 
 
 class _DbSet(object):
