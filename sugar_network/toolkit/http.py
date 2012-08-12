@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# pylint: disable-msg=E1103
+
 import os
 import cgi
 import json
@@ -140,7 +142,7 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
                     'sugar_user_signature': _sign(key_path, uid),
                     }
 
-        _session = Session(headers=headers, verify=verify)
+        _session = Session(headers=headers, verify=verify, prefetch=False)
 
     if not path:
         path = ['']
