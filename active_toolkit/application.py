@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-08-03$
+$Date: 2012-08-05$
 
 """
 
@@ -56,12 +56,13 @@ rundir = Option(
 _LOGFILE_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
-def command(description, name=None, **options):
+def command(description, name=None, args=None, **options):
 
     def decorator(func):
         func._is_command = True
         func.name = name
         func.description = description
+        func.args = args
         func.options = options
         return func
 
@@ -123,6 +124,8 @@ class Application(object):
             print 'Commands:'
             for name, attr in sorted(self._commands.items(),
                     lambda x, y: cmp(x[0], y[0])):
+                if attr.args:
+                    name += ' ' + attr.args
                 print_desc(name, attr.description)
 
         if not self.args and not options.help:
