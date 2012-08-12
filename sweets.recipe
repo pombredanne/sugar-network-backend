@@ -8,12 +8,11 @@ summary   = Sugar Network
 license   = GPLv3+
 homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network
 
-version   = 0.4
+version   = 0.5
 stability = developer
 
-requires  = base/m2crypto; base/requests; base/rrdtool-python
-            base/openssh-client; pylru; active-document
-            sweets-recipe; sugar-network-webui
+requires  = m2crypto; requests; rrdtool-python; openssh-client; pylru
+            active-document; sweets-recipe; sugar-network-webui
 replaces  = sugar-network-server
 
 [Build]
