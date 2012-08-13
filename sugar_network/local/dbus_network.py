@@ -42,8 +42,8 @@ class Network(dbus_thread.Service):
     @method(_INTERFACE, in_signature='s', out_signature='s',
             async_callbacks=('reply_cb', 'error_cb'))
     def Call(self, cmd, reply_cb, error_cb):
-        self.call(lambda response: reply_cb(json.dumps(response)), error_cb,
-                **json.loads(cmd))
+        self.call(lambda response=None: reply_cb(json.dumps(response)),
+                error_cb, **json.loads(cmd))
 
     @method(_INTERFACE, in_signature='sssas', out_signature='a{sv}',
             async_callbacks=('reply_cb', 'error_cb'))

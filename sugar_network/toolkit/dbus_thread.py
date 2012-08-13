@@ -51,11 +51,13 @@ def start(mountset):
                 reply = mountset.call(request)
             except Exception, error:
                 util.exception(_logger, 'DBus %r request failed', request)
-                if reply_cb is not None:
+                if error_cb is not None:
                     spawn(error_cb, error)
             else:
                 if reply_cb is not None:
-                    spawn(reply_cb, reply, *(args or []))
+                    if reply is not None:
+                        args += [reply]
+                    spawn(reply_cb, *args)
     finally:
         mountset.disconnect(handle_event)
         spawn(mainloop.quit)
@@ -94,7 +96,7 @@ class Service(Object):
         request.content = content
         request.content_stream = content_stream
         request.content_length = content_length
-        _call_queue.put((request, reply_cb, error_cb, args))
+        _call_queue.put((request, reply_cb, error_cb, args or []))
 
     def handle_event(self, event):
         """Handle, in child thread, events gotten from parent thread."""

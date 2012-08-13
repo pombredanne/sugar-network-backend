@@ -130,7 +130,7 @@ class Datastore(dbus_thread.Service):
             async_callbacks=('reply_cb', 'error_cb'))
     def get_filename(self, uid, reply_cb, error_cb):
 
-        def reply(meta):
+        def reply(meta=None):
             if meta is None:
                 path = ''
             else:
@@ -149,7 +149,7 @@ class Datastore(dbus_thread.Service):
             async_callbacks=('reply_cb', 'error_cb'))
     def get_properties(self, uid, reply_cb, error_cb):
 
-        def reply(blob, props):
+        def reply(props, blob=None):
             props = datastore.encode_props(props, None)
             if blob is not None:
                 with file(blob['path'], 'rb') as f:
@@ -217,22 +217,22 @@ class Datastore(dbus_thread.Service):
             props['filesize'] = '0'
 
         props = datastore.decode_props(props)
-        if http_method == 'PUT' and 'guid' in props:
-            # DataStore clients might send guid in updated props
-            props.pop('guid')
+        args = [http_method, blobs, reply_cb, error_cb]
+
+        if http_method == 'PUT':
+            if 'guid' in props:
+                # DataStore clients might send guid in updated props
+                props.pop('guid')
+            args += [kwargs['guid']]
 
         self.call(self._set_blob, error_cb, method=http_method, mountpoint='~',
-                document='artifact', content=props, args=[http_method,
-                    kwargs.get('guid'), blobs, reply_cb, error_cb],
-                **kwargs)
+                document='artifact', content=props, args=args, **kwargs)
 
-    def _set_blob(self, reply, http_method, guid, blobs, reply_cb, error_cb):
-        if not guid:
-            guid = reply
+    def _set_blob(self, http_method, blobs, reply_cb, error_cb, guid):
         if blobs:
             self.call(self._set_blob, error_cb, method='PUT',
                     mountpoint='~', document='artifact', guid=guid,
-                    args=[http_method, guid, blobs, reply_cb, error_cb],
+                    args=[http_method, blobs, reply_cb, error_cb, guid],
                     **blobs.pop())
         elif http_method == 'POST':
             reply_cb(guid)
