@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-08-05$
+$Date: 2012-08-13$
 
 """
 
@@ -28,6 +28,7 @@ import logging
 import textwrap
 from optparse import OptionParser
 from os.path import join, abspath, exists, basename
+from gettext import gettext as _
 
 from .options import Option
 from . import printf, util
@@ -35,14 +36,19 @@ enforce = util.enforce
 
 
 debug = Option(
-        'debug logging level; multiple argument',
+        _('debug logging level; multiple argument'),
         default=0, type_cast=int, short_option='-D', action='count',
         name='debug')
 
 foreground = Option(
-        'do not send the application into the background',
+        _('do not send the application into the background'),
         default=False, type_cast=Option.bool_cast, short_option='-F',
         action='store_true', name='foreground')
+
+no_hints = Option(
+        _('supress suggesting hints'),
+        default=False, short_option='-H', action='store_true',
+        name='no-hints')
 
 logdir = Option(
         'path to the directory to place log files',
@@ -89,12 +95,12 @@ class Application(object):
 
         if version:
             parser.add_option('-V', '--version',
-                    help='show version number and exit',
+                    help=_('show version number and exit'),
                     action='version')
             parser.print_version = lambda: sys.stdout.write('%s\n' % version)
 
         parser.add_option('-h', '--help',
-                help='show this help message and exit',
+                help=_('show this help message and exit'),
                 action='store_true')
 
         options, self.args = Option.parse_args(parser, **parse_args)
@@ -121,7 +127,7 @@ class Application(object):
             if not self._commands:
                 return
             print ''
-            print 'Commands:'
+            print _('Commands') + ':'
             for name, attr in sorted(self._commands.items(),
                     lambda x, y: cmp(x[0], y[0])):
                 if attr.args:
@@ -130,7 +136,7 @@ class Application(object):
 
         if not self.args and not options.help:
             prog = basename(sys.argv[0])
-            print 'Usage: %s [OPTIONS] [COMMAND]' % prog
+            print _('Usage') + ': %s [OPTIONS] [COMMAND]' % prog
             print '       %s -h|--help' % prog
             print
             print description
@@ -145,7 +151,7 @@ class Application(object):
             print_commands()
             if where:
                 print ''
-                print 'Where:'
+                print _('Where') + ':'
                 for term in sorted(where):
                     print_desc(term, where[term])
             if epilog:
@@ -184,10 +190,11 @@ class Application(object):
 
             exit(cmd() or 0)
         except Exception:
-            printf.exception('Aborted %s', self.name)
+            printf.exception('%s %s', _('Aborted'), self.name)
             exit(1)
         finally:
-            printf.flush_hints()
+            if not no_hints.value:
+                printf.flush_hints()
 
     def check_for_instance(self):
         pid = None

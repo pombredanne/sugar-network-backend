@@ -11,7 +11,7 @@ homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
 version   = 0.5
 stability = developer
 
-requires  = base/m2crypto; gevent; werkzeug
+requires  = m2crypto; gevent; werkzeug
 replaces  = restful-document
 
 [Build]
