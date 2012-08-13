@@ -530,6 +530,7 @@ class VolumeTest(tests.Test):
         volume.populate()
         self.assertEqual([
             {'event': 'commit', 'document': 'document1', 'seqno': 0},
+            {'event': 'populate', 'document': 'document1', 'seqno': 0},
             ],
             events)
         del events[:]

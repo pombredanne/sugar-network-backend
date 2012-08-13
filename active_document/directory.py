@@ -245,6 +245,7 @@ class Directory(object):
         if found:
             self._save_layout()
             self.commit()
+            self._notify({'event': 'populate', 'seqno': self._seqno.value})
 
     def diff(self, accept_range, limit, clone=False):
         """Return documents' properties for specified times range.
