@@ -222,16 +222,19 @@ class Datastore(dbus_thread.Service):
             props.pop('guid')
 
         self.call(self._set_blob, error_cb, method=http_method, mountpoint='~',
-                document='artifact', content=props,
-                args=[kwargs.get('guid'), blobs, reply_cb, error_cb], **kwargs)
+                document='artifact', content=props, args=[http_method,
+                    kwargs.get('guid'), blobs, reply_cb, error_cb],
+                **kwargs)
 
-    def _set_blob(self, reply, guid, blobs, reply_cb, error_cb):
+    def _set_blob(self, reply, http_method, guid, blobs, reply_cb, error_cb):
         if not guid:
             guid = reply
-
         if blobs:
             self.call(self._set_blob, error_cb, method='PUT',
                     mountpoint='~', document='artifact', guid=guid,
-                    args=[guid, blobs, reply_cb, error_cb], **blobs.pop())
-        else:
+                    args=[http_method, guid, blobs, reply_cb, error_cb],
+                    **blobs.pop())
+        elif http_method == 'POST':
             reply_cb(guid)
+        else:
+            reply_cb()
