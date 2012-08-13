@@ -46,6 +46,7 @@ def download(url):
     ostream = tempfile.NamedTemporaryFile()
     try:
         chunk_size = min(content_length, BUFFER_SIZE)
+        # pylint: disable-msg=E1103
         for chunk in response.iter_content(chunk_size=chunk_size):
             ostream.write(chunk)
     except Exception:
@@ -61,7 +62,7 @@ def request(method, path, data=None, headers=None, allowed_response=None,
     global _session
 
     if _session is None:
-        _session = Session()
+        _session = Session(prefetch=False)
 
     try:
         response = requests.request(method, path, data=data,
@@ -70,6 +71,7 @@ def request(method, path, data=None, headers=None, allowed_response=None,
         _logger.warning('Pass --no-check-certificate to avoid SSL checks')
         raise
 
+    # pylint: disable-msg=E1103
     if response.status_code != 200:
         _logger.debug('Got %s HTTP error for %r request',
                 response.status_code, path)
