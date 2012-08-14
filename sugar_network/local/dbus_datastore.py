@@ -112,8 +112,10 @@ class Datastore(dbus_thread.Service):
         query = request.get('query')
         order_by = request.get('order_by')
         if order_by:
+            order_by = order_by[0]
             if order_by[0] in ('+', '-'):
-                sign = order_by[0]
+                # Revert sign for Journal
+                sign = '+' if order_by[0] == '-' else '-'
                 order_by = order_by[1:]
             else:
                 sign = ''

@@ -51,7 +51,7 @@ class DbusDatastoreTest(tests.Test):
             'activity': '',
             'keep': '0',
             'mime_type': '',
-            'title': '',
+            'title': 'Unnamed',
             'description': '',
             'activity_id': '',
             'filesize': '0',
@@ -107,7 +107,7 @@ class DbusDatastoreTest(tests.Test):
             'activity': '',
             'keep': '0',
             'mime_type': '',
-            'title': '',
+            'title': 'Unnamed',
             'description': '',
             'activity_id': '',
             'filesize': '0',
@@ -253,7 +253,7 @@ class DbusDatastoreTest(tests.Test):
         entries, total = self.ds.find({'order_by': '-uid'}, ['uid'], timeout=3)
         self.assertEqual(3, total)
         self.assertEqual(
-                [i for i in reversed(sorted([{'uid': guid_1}, {'uid': guid_2}, {'uid': guid_3}]))],
+                [i for i in sorted([{'uid': guid_1}, {'uid': guid_2}, {'uid': guid_3}])],
                 entries)
 
         # order by not mapped property
@@ -265,7 +265,7 @@ class DbusDatastoreTest(tests.Test):
         entries, total = self.ds.find({'order_by': '-title'}, ['uid'], timeout=3)
         self.assertEqual(3, total)
         self.assertEqual(
-                [{'uid': guid_3}, {'uid': guid_2}, {'uid': guid_1}],
+                [{'uid': guid_1}, {'uid': guid_2}, {'uid': guid_3}],
                 entries)
 
     def test_get_uniquevaluesfor(self):
