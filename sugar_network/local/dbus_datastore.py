@@ -47,6 +47,9 @@ class Datastore(dbus_thread.Service):
             self.Updated(event['guid'])
         elif event_type == 'delete':
             self.Deleted(event['guid'])
+        elif event_type == 'populate':
+            # XXX No other way to invalidate current Journal's view
+            self.Deleted('fake-on-populate')
 
     @signal(_INTERFACE, signature='s')
     def Created(self, uid):
