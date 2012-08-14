@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from gettext import gettext as _
+
 import active_document as ad
 
 from sugar_network.resources.volume import Resource
@@ -32,8 +34,8 @@ class Artifact(Resource):
     def mime_type(self, value):
         return value
 
-    @ad.active_property(slot=4, prefix='S', default='', full_text=True,
-            localized=True)
+    @ad.active_property(slot=4, prefix='S', full_text=True,
+            default=_('Unnamed'), localized=True)
     def title(self, value):
         return value
 
