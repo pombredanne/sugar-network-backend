@@ -99,6 +99,21 @@ class IndexTest(tests.Test):
                   {'guid': '3', 'var_1': '3'}], 3),
                 db._find(query='var_3:ю OR var_2:у', reply=['var_1'], order_by='guid'))
 
+    def test_find_WithTypeCast(self):
+        db = Index({
+            'var_1': ActiveProperty('var_1', 1, 'A', typecast=bool),
+            })
+
+        db.store('1', {'var_1': True}, True)
+        db.store('2', {'var_1': False}, True)
+
+        self.assertEqual(
+                [{'guid': '1', 'var_1': True}],
+                db._find(var_1=True)[0])
+        self.assertEqual(
+                [{'guid': '2', 'var_1': False}],
+                db._find(var_1=False)[0])
+
     def test_find_WithProps(self):
         db = Index({
             'var_1': ActiveProperty('var_1', 1, 'A', full_text=True),
