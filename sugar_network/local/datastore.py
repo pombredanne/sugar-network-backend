@@ -30,7 +30,7 @@ MAP_PROPS = {
         'activity_id': ('activity_id', lambda x: x, str),
         'title': ('title', lambda x: x, str),
         'description': ('description', lambda x: x, str),
-        'keep': ('keep', lambda x: str(int(x)), lambda x: x and x != '0'),
+        'keep': ('keep', lambda x: str(int(x)), lambda x: x and bool(int(x))),
         'mime_type': ('mime_type', lambda x: x, str),
         'tags': ('tags', lambda x: ' '.join(x), lambda x: str(x).split()),
         'filesize': ('filesize', lambda x: str(x or 0), lambda x: int(x or 0)),
