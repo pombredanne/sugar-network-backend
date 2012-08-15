@@ -60,7 +60,11 @@ class Directory(object):
 
         index_path = join(root, 'index')
         if self._is_layout_stale():
+            if exists(index_path):
+                _logger.warning('%r layout is stale, remove index',
+                        self.metadata.name)
             shutil.rmtree(index_path, ignore_errors=True)
+            self._save_layout()
 
         self._storage = Storage(root, self.metadata)
         self._index = index_class(index_path, self.metadata, self._post_commit)
