@@ -137,6 +137,17 @@ class _Inotify(Inotify):
             return
 
         context = spec['Activity', 'bundle_id']
+
+        context_path = _ensure_context_path(context, hashed_path)
+        if lexists(context_path):
+            os.unlink(context_path)
+        os.symlink(impl_path, context_path)
+
+        if lexists(checkin_path):
+            os.unlink(checkin_path)
+        local.ensure_path(checkin_path)
+        os.symlink(relpath(context_path, dirname(checkin_path)), checkin_path)
+
         if self._contexts.exists(context):
             self._contexts.update(context, {'keep_impl': 2})
         else:
@@ -158,16 +169,6 @@ class _Inotify(Inotify):
                     self._contexts.set_blob(context, 'icon', f.name)
 
         self._checkin_activity(spec)
-
-        context_path = _ensure_context_path(context, hashed_path)
-        if lexists(context_path):
-            os.unlink(context_path)
-        os.symlink(impl_path, context_path)
-
-        if lexists(checkin_path):
-            os.unlink(checkin_path)
-        local.ensure_path(checkin_path)
-        os.symlink(relpath(context_path, dirname(checkin_path)), checkin_path)
 
     def found_mimetypes(self, impl_path):
         hashed_path, __ = _checkin_path(impl_path)
