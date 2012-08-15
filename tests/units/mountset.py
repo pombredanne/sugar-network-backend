@@ -10,7 +10,6 @@ from __init__ import tests
 
 import active_document as ad
 from active_toolkit import coroutine, sockets
-from sugar_network.local import activities_crawler
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.bus import IPCServer
 from sugar_network.resources.user import User

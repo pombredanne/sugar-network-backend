@@ -5,7 +5,6 @@ from __init__ import tests
 from collection import *
 from sneakernet import *
 from bus import *
-from activities_crawler import *
 from activities import *
 from ipc_client import *
 from injector import *

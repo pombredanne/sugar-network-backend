@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import signal
 import locale
 import logging
 from contextlib import contextmanager
@@ -24,9 +25,9 @@ from os.path import join, abspath, exists
 import active_document as ad
 import sugar_network_webui as webui
 
-from sugar_network import local, node, Client
+from sugar_network import toolkit, local, node, Client
 from sugar_network.toolkit import sugar, sneakernet
-from sugar_network.toolkit import crypto, dbus_thread, mounts_monitor
+from sugar_network.toolkit import dbus_thread, mounts_monitor
 from sugar_network.local import activities, datastore
 from sugar_network.local.dbus_datastore import Datastore
 from sugar_network.local.dbus_network import Network
@@ -65,6 +66,7 @@ class Application(application.Application):
                     'inotify',
                     'netlink',
                     'sneakernet',
+                    'toolkit',
                     ):
                 logger = logging.getLogger(log_name)
                 logger.propagate = False
@@ -82,6 +84,8 @@ class Application(application.Application):
         if not exists(local.tmpdir.value):
             os.makedirs(local.tmpdir.value)
         sneakernet.TMPDIR = local.tmpdir.value
+
+        coroutine.signal(signal.SIGCHLD, self.__SIGCHLD_cb)
 
     @application.command(
             '[PREFIX-PATH [CONTEXT-GUID ..]]\n'
@@ -146,7 +150,7 @@ class Application(application.Application):
             name='start', keep_stdout=True)
     def _start(self):
         # In case if it is new Sugar Shell profile
-        crypto.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+        toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
 
         jobs = coroutine.Pool()
 
@@ -244,6 +248,12 @@ class Application(application.Application):
     @property
     def _db_path(self):
         return join(local.local_root.value, 'local')
+
+    def __SIGCHLD_cb(self):
+        while True:
+            pid, __ = os.waitpid(-1, os.WNOHANG)
+            if not pid:
+                break
 
 
 locale.setlocale(locale.LC_ALL, '')

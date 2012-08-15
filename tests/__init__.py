@@ -62,6 +62,7 @@ class Test(unittest.TestCase):
         if exists(self.logfile):
             os.unlink(self.logfile)
 
+        os.environ['XDG_DATA_HOME'] = tmpdir + '/share'
         os.environ['SUGAR_LOGGER_LEVEL'] = 'all'
         os.environ['HOME'] = tmpdir
         profile_dir = join(tmpdir, '.sugar', 'default')
