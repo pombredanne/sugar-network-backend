@@ -138,11 +138,14 @@ class IndexReader(object):
                             # according to requested locale
                         value = hit.document.get_value(prop.slot)
                         if prop.typecast is int:
-                            value = int(xapian.sortable_unserialise(value))
+                            value = int(xapian.sortable_unserialise(value)) \
+                                    if value else 0
                         elif prop.typecast is float:
-                            value = xapian.sortable_unserialise(value)
+                            value = xapian.sortable_unserialise(value) \
+                                    if value else 0.0
                         elif prop.typecast is bool:
-                            value = bool(xapian.sortable_unserialise(value))
+                            value = bool(xapian.sortable_unserialise(value)) \
+                                    if value else False
                         else:
                             value = value.decode('utf8')
                         props[name] = value
