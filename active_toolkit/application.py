@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-08-13$
+$Date: 2012-08-15$
 
 """
 
@@ -46,7 +46,7 @@ foreground = Option(
         action='store_true', name='foreground')
 
 no_hints = Option(
-        _('supress suggesting hints'),
+        _('suppress suggesting hints'),
         default=False, short_option='-H', action='store_true',
         name='no-hints')
 
@@ -62,7 +62,7 @@ rundir = Option(
 _LOGFILE_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
-def command(description, name=None, args=None, **options):
+def command(description='', name=None, args=None, hidden=False, **options):
 
     def decorator(func):
         func._is_command = True
@@ -70,6 +70,7 @@ def command(description, name=None, args=None, **options):
         func.description = description
         func.args = args
         func.options = options
+        func.hidden = hidden
         return func
 
     return decorator
@@ -130,6 +131,8 @@ class Application(object):
             print _('Commands') + ':'
             for name, attr in sorted(self._commands.items(),
                     lambda x, y: cmp(x[0], y[0])):
+                if attr.hidden:
+                    continue
                 if attr.args:
                     name += ' ' + attr.args
                 print_desc(name, attr.description)

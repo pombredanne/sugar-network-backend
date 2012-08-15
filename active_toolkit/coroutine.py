@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/coroutine.py$
-$Date: 2012-07-23$
+$Date: 2012-08-15$
 
 """
 # pylint: disable-msg=W0621
@@ -63,6 +63,10 @@ def socket(*args, **kwargs):
 def select(rlist, wlist, xlist, timeout=None):
     import gevent.select
     return gevent.select.select(rlist, wlist, xlist, timeout)
+
+
+def signal(*args, **kwargs):
+    return gevent.signal(*args, **kwargs)
 
 
 def Server(*args, **kwargs):
