@@ -19,6 +19,7 @@ import os
 import sys
 import json
 import shlex
+import errno
 import signal
 import locale
 import logging
@@ -147,6 +148,10 @@ class Application(application.Application):
             'start service and log to files',
             name='start', keep_stdout=True)
     def _start(self):
+        if self.check_for_instance():
+            printf.info('%s is not run', self.name)
+            exit(1)
+
         # In case if it is new Sugar Shell profile
         toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
 
@@ -197,6 +202,7 @@ class Application(application.Application):
 
         jobs.spawn(IPCServer(mountset).serve_forever)
 
+        pid_path = self.new_instance()
         try:
             mountset.open()
             dbus_thread.start(mountset)
@@ -208,6 +214,7 @@ class Application(application.Application):
             mounts_monitor.stop()
             jobs.kill()
             mountset.close()
+            os.unlink(pid_path)
 
     @contextmanager
     def _rendezvous(self):
@@ -265,9 +272,14 @@ class Application(application.Application):
 
     def __SIGCHLD_cb(self):
         while True:
-            pid, __ = os.waitpid(-1, os.WNOHANG)
-            if not pid:
-                break
+            try:
+                pid, __ = os.waitpid(-1, os.WNOHANG)
+                if pid:
+                    continue
+            except OSError, error:
+                if error.errno != errno.ECHILD:
+                    raise
+            break
 
 
 locale.setlocale(locale.LC_ALL, '')
