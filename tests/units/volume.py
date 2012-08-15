@@ -639,16 +639,13 @@ class VolumeTest(tests.Test):
         request = TestRequest(kwargs)
         request.accept_language = accept_language
         request['method'] = method
-        if 'content' in kwargs:
-            request.content = request.pop('content')
         if document:
             request['document'] = document
         if guid:
             request['guid'] = guid
         if prop:
             request['prop'] = prop
-        if 'content_stream' in request:
-            request.content_stream = request.pop('content_stream')
+        if request.content_stream is not None:
             request.content_length = len(request.content_stream.getvalue())
 
         self.response = Response()

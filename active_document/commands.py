@@ -54,10 +54,13 @@ class Request(dict):
     access_level = env.ACCESS_REMOTE
     accept_language = None
 
-    def __init__(self, *args, **kwargs):
-        if not args:
-            args = (kwargs,)
-        dict.__init__(self, *args)
+    def __init__(self, *args, **props):
+        if args:
+            props = args[0]
+        for key in props.keys():
+            if hasattr(self, key):
+                setattr(self, key, props.pop(key))
+        dict.__init__(self, props)
         self._pos = 0
 
     def __getitem__(self, key):
