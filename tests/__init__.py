@@ -242,17 +242,7 @@ class Test(unittest.TestCase):
     def start_ipc_and_restful_server(self, classes=None, **kwargs):
         pid = self.fork(self.restful_server, classes)
         self.start_server(classes)
-
-        if not self.mounts['/'].mounted:
-
-            def wait_connect(event):
-                if event.get('mountpoint') == '/' and event['event'] == 'mount':
-                    connected.set()
-
-            connected = coroutine.Event()
-            self.mounts.connect(wait_connect)
-            connected.wait()
-
+        self.mounts['/'].mounted.wait()
         return pid
 
     def restful_server(self, classes=None):

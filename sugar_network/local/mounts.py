@@ -44,7 +44,7 @@ class _Mount(object):
     def __init__(self):
         self.mountpoint = None
         self.publisher = None
-        self._mounted = False
+        self.mounted = coroutine.Event()
 
     @property
     def name(self):
@@ -54,14 +54,13 @@ class _Mount(object):
     def private(self):
         return type(self) in (LocalMount, HomeMount)
 
-    @property
-    def mounted(self):
-        return self._mounted
-
     def set_mounted(self, value):
-        if self._mounted == value:
+        if self.mounted.is_set() == value:
             return
-        self._mounted = value
+        if value:
+            self.mounted.set()
+        else:
+            self.mounted.clear()
         self.publish({
             'event': 'mount' if value else 'unmount',
             'mountpoint': self.mountpoint,
@@ -331,7 +330,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         return self._proxy_call(request, response, super_call)
 
     def set_mounted(self, value):
-        if value != self.mounted:
+        if value != self.mounted.is_set():
             if value:
                 self.mount()
             else:
@@ -361,7 +360,8 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
     def mount(self, url=None):
         if url and url not in self._api_urls:
             self._api_urls.append(url)
-        if self._api_urls and not self.mounted and not self._connections:
+        if self._api_urls and not self.mounted.is_set() and \
+                not self._connections:
             self._connections.spawn(self._connect)
 
     def _connect(self):

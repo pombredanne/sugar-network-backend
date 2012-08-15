@@ -78,7 +78,7 @@ def monitor(contexts, paths):
     inotify.serve_forever()
 
 
-def populate(contexts, paths, prefix):
+def populate(contexts, paths):
     inotify = _Inotify(contexts)
     inotify.add_watch = lambda *args: None
     inotify.setup(paths)

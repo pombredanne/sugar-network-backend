@@ -188,7 +188,7 @@ class MountsetTest(tests.Test):
 
         mountset['/'] = RemoteMount(mountset.home_volume)
         self.assertEqual(['/'], [i['mountpoint'] for i in mountset.mounts()])
-        assert not mountset['/'].mounted
+        assert not mountset['/'].mounted.is_set()
         self.assertEqual(0, client.Context.cursor().total)
         self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
 
@@ -199,7 +199,7 @@ class MountsetTest(tests.Test):
         self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
         self.mounted.wait()
         self.mounted.clear()
-        assert mountset['/'].mounted
+        assert mountset['/'].mounted.is_set()
         self.assertEqual([('mount', '/')], self.mount_events)
         del self.mount_events[:]
 
@@ -217,7 +217,7 @@ class MountsetTest(tests.Test):
 
         self.mounted.wait()
         self.mounted.clear()
-        assert not mountset['/'].mounted
+        assert not mountset['/'].mounted.is_set()
         self.assertEqual([('unmount', '/')], self.mount_events)
         del self.mount_events[:]
         self.assertEqual(0, client.Context.cursor().total)
@@ -230,7 +230,7 @@ class MountsetTest(tests.Test):
         self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
         self.mounted.wait()
         self.mounted.clear()
-        assert mountset['/'].mounted
+        assert mountset['/'].mounted.is_set()
         self.assertEqual([('mount', '/')], self.mount_events)
         del self.mount_events[:]
 

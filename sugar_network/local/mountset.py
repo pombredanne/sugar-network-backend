@@ -69,7 +69,7 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
     def mounts(self):
         result = []
         for path, mount in self.items():
-            if path == '/' or mount.mounted:
+            if path == '/' or mount.mounted.is_set():
                 result.append({
                     'mountpoint': path,
                     'name': mount.name,
@@ -84,7 +84,35 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
             return False
         if mountpoint == '/':
             mount.set_mounted(True)
-        return mount.mounted
+        return mount.mounted.is_set()
+
+    @ad.volume_command(method='PUT', cmd='checkin')
+    def checkin(self, mountpoint, request):
+        mount = self.get(mountpoint)
+        enforce(mount is not None, 'No such mountpoint')
+        mount.mounted.wait()
+
+        for guid in (request.content or '').split():
+            _logger.info('Checkin %r context', guid)
+            mount.call(
+                    ad.Request(method='PUT', document='context', guid=guid,
+                        accept_language=[self._locale],
+                        content={'keep_impl': 2, 'keep': False}),
+                    ad.Response())
+
+    @ad.volume_command(method='PUT', cmd='keep')
+    def keep(self, mountpoint, request):
+        mount = self.get(mountpoint)
+        enforce(mount is not None, 'No such mountpoint')
+        mount.mounted.wait()
+
+        for guid in (request.content or '').split():
+            _logger.info('Keep %r context', guid)
+            mount.call(
+                    ad.Request(method='PUT', document='context', guid=guid,
+                        accept_language=[self._locale],
+                        content={'keep': True}),
+                    ad.Response())
 
     @ad.volume_command(method='POST', cmd='publish')
     def republish(self, request):
@@ -100,11 +128,13 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
             try:
                 result = ad.CommandsProcessor.call(self, request, response)
             except ad.CommandNotFound:
+                enforce('mountpoint' in request, 'No \'mountpoint\' argument')
                 request.pop('mountpoint')
                 mount = self[mountpoint]
                 if mountpoint == '/':
                     mount.set_mounted(True)
-                enforce(mount.mounted, '%r is not mounted', mountpoint)
+                enforce(mount.mounted.is_set(),
+                        '%r is not mounted', mountpoint)
                 result = mount.call(request, response)
         except Exception:
             util.exception(_logger, 'Failed to call %s on %r',

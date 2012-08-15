@@ -16,6 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
+import json
+import shlex
 import signal
 import locale
 import logging
@@ -88,20 +91,11 @@ class Application(application.Application):
         coroutine.signal(signal.SIGCHLD, self.__SIGCHLD_cb)
 
     @application.command(
-            '[PREFIX-PATH [CONTEXT-GUID ..]]\n'
-                'Index local Sugar Network database; if CONTEXT-GUIDs '
-                'were specified, make these context favorited')
+            'index local Sugar Network database')
     def index(self):
         if self.check_for_instance():
             printf.info('%s already started, no need in index', self.name)
             return
-
-        root = ''
-        if self.args:
-            root = abspath(self.args.pop(0))
-            local.activity_dirs.value = [root + abspath(i) \
-                    for i in local.activity_dirs.value]
-            local.local_root.value = root + local.local_root.value
 
         if not exists(sugar.profile_path('owner.key')):
             # Command was launched in foreign environment
@@ -113,25 +107,16 @@ class Application(application.Application):
         volume = Volume(self._db_path)
         try:
             volume.populate()
-            activities.populate(volume['context'], local.activity_dirs.value,
-                    root)
-
-            directory = volume['context']
-            while self.args:
-                context = self.args.pop(0)
-                if directory.exists(context):
-                    directory.update(context, keep=True)
-                else:
-                    printf.info('Cannot find %r context', context)
+            activities.populate(volume['context'], local.activity_dirs.value)
         finally:
             volume.close()
 
     @application.command(
-            '[PATH]\n'
-                'start sneakernet synchronization; if PATH is specified, '
-                'use it as a synchronization directory; otherwise, '
-                'look for mounts (in --mounts-root) that contain '
-                'sugar-network-sync/ subdirectory')
+            'start sneakernet synchronization; if PATH is specified, '
+            'use it as a synchronization directory; otherwise, '
+            'look for mounts (in --mounts-root) that contain '
+            'sugar-network-sync/ subdirectory',
+            args='[PATH]')
     def offline_sync(self):
         with self._rendezvous():
             path = None
@@ -139,6 +124,19 @@ class Application(application.Application):
                 path = self.args.pop(0)
             Client.call('POST', cmd='start_sync', rewind=True, path=path)
             self._events['sync_complete'].wait()
+
+    @application.command(hidden=True)
+    def POST(self):
+        self._call('POST', sys.stdin.read())
+
+    @application.command(hidden=True)
+    def PUT(self):
+        self._call('PUT', sys.stdin.read())
+
+    @application.command(hidden=True)
+    def GET(self):
+        result = self._call('GET', None)
+        print json.dumps(result, indent=2)
 
     @application.command(
             'start service and log to standard output')
@@ -244,6 +242,22 @@ class Application(application.Application):
         finally:
             if server is not None:
                 server.kill()
+
+    def _call(self, method, content=None):
+        kwargs = {}
+        for arg in self.args:
+            pair = shlex.split(arg)
+            if not pair:
+                continue
+            pair = pair[0]
+            enforce('=' in pair, 'No "=" assign symbol in %r expression', arg)
+            arg, value = pair.split('=', 1)
+            arg = arg.strip()
+            enforce(arg, 'No argument name in %r expression', arg)
+            kwargs[arg] = value
+
+        with self._rendezvous():
+            return Client.call(method, content=content, **kwargs)
 
     @property
     def _db_path(self):
