@@ -18,7 +18,7 @@ import json
 import shutil
 import logging
 from urlparse import urlparse
-from os.path import isabs, exists, join, basename
+from os.path import isabs, exists, join, basename, isdir
 from gettext import gettext as _
 
 import sweets_recipe
@@ -177,7 +177,10 @@ class HomeMount(LocalMount):
     def _checkout(self, guid):
         for path in activities.checkins(guid):
             _logger.info('Checkout %r implementation from %r', guid, path)
-            shutil.rmtree(path)
+            if isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.unlink(path)
 
 
 class _ProxyCommands(object):
@@ -377,6 +380,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         def listen_events(url, conn):
             stat = http.request('GET', [], params={'cmd': 'stat'},
                     headers={'Content-Type': 'application/json'})
+            # pylint: disable-msg=E1103
             self._seqno = stat.get('seqno') or 0
             self._remote_volume_guid = stat.get('guid')
 
