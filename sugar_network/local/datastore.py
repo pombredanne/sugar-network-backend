@@ -35,7 +35,8 @@ MAP_PROPS = {
         'tags': ('tags', lambda x: ' '.join(x), lambda x: str(x).split()),
         'filesize': ('filesize', lambda x: str(x or 0), lambda x: int(x or 0)),
         'creation_time': ('ctime', lambda x: str(x or 0), None),
-        'timestamp': ('mtime', lambda x: str(x or 0), None),
+        'timestamp': ('timestamp', lambda x: str(x or 0),
+            lambda x: int(x or 0)),
         'mtime': ('mtime', lambda x:
             time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(x or 0)), None),
         }
@@ -43,6 +44,7 @@ MAP_PROPS = {
 ALL_SN_PROPS = (
         'guid', 'context', 'keep', 'mime_type', 'title', 'description',
         'activity_id', 'filesize', 'traits', 'tags', 'ctime', 'mtime',
+        'timestamp',
         )
 
 _logger = logging.getLogger('local.datastore')
@@ -95,8 +97,6 @@ def populate(artifacts):
                             props[sn_prop] = typecast(value)
                         elif ds_prop == 'creation_time':
                             props['ctime'] = int(value)
-                        elif ds_prop == 'timestamp':
-                            props['mtime'] = int(value)
                     else:
                         props['traits'][ds_prop] = value
             artifacts.create(props)

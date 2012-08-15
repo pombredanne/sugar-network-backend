@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import time
 import tempfile
 from cStringIO import StringIO
 from os.path import exists
@@ -43,8 +44,6 @@ class Datastore(dbus_thread.Service):
         event_type = event['event']
         if event_type == 'create':
             self.Created(event['guid'])
-        elif event_type == 'update':
-            self.Updated(event['guid'])
         elif event_type == 'delete':
             self.Deleted(event['guid'])
         elif event_type == 'populate':
@@ -78,6 +77,7 @@ class Datastore(dbus_thread.Service):
     @method(_INTERFACE, in_signature='a{sv}sb', out_signature='s',
             async_callbacks=('reply_cb', 'error_cb'), byte_arrays=True)
     def create(self, props, file_path, transfer_ownership, reply_cb, error_cb):
+        props['timestamp'] = int(props.get('timestamp', 0) or time.time())
         self._update('POST', props, file_path, transfer_ownership,
                 reply_cb, error_cb)
 
@@ -85,8 +85,14 @@ class Datastore(dbus_thread.Service):
             async_callbacks=('reply_cb', 'error_cb'), byte_arrays=True)
     def update(self, uid, props, file_path, transfer_ownership,
             reply_cb, error_cb):
+
+        def reply():
+            self.Updated(uid)
+            reply_cb()
+
+        props['timestamp'] = int(props.get('timestamp', 0) or time.time())
         self._update('PUT', props, file_path, transfer_ownership,
-                reply_cb, error_cb, guid=uid)
+                reply, error_cb, guid=uid)
 
     @method(_INTERFACE, in_signature='a{sv}as', out_signature='aa{sv}u',
             async_callbacks=('reply_cb', 'error_cb'))

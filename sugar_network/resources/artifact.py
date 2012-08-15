@@ -52,6 +52,10 @@ class Artifact(Resource):
     def filesize(self, value):
         return value
 
+    @ad.active_property(slot=8, prefix='M', typecast=int, default=0)
+    def timestamp(self, value):
+        return value
+
     @ad.active_property(ad.StoredProperty, typecast=dict, default={})
     def traits(self, value):
         return value
