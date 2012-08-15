@@ -18,7 +18,7 @@ import hashlib
 import logging
 import tempfile
 from os.path import join, exists, lexists, relpath, dirname, basename, isdir
-from os.path import abspath
+from os.path import abspath, islink
 
 from sweets_recipe import Spec
 from sugar_network.toolkit.inotify import Inotify, \
@@ -202,11 +202,13 @@ class _Inotify(Inotify):
             os.unlink(context_path)
         os.unlink(checkin_path)
 
+        self._checkout_activity(impl_path)
+
     def lost_mimetypes(self, impl_path):
         hashed_path, __ = _checkin_path(impl_path)
         dst_path = join(self._mime_dir, 'packages', hashed_path + '.xml')
 
-        if not exists(dst_path):
+        if not lexists(dst_path):
             return
 
         _logger.debug('Update MIME database to process lost %r', impl_path)
@@ -225,6 +227,14 @@ class _Inotify(Inotify):
                 toolkit.symlink(icon_path,
                         join(self._icons_dir,
                             mime_type.replace('/', '-') + '.svg'))
+
+    def _checkout_activity(self, impl_path):
+        if exists(self._icons_dir):
+            for filename in os.listdir(self._icons_dir):
+                path = join(self._icons_dir, filename)
+                if islink(path) and \
+                        os.readlink(path).startswith(impl_path + os.sep):
+                    os.unlink(path)
 
 
 class _Root(object):

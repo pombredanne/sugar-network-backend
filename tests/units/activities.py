@@ -317,14 +317,25 @@ class ActivitiesTest(tests.Test):
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
 
+        self.touch('Activities/activity/activity/icon.svg')
+        self.touch(('Activities/activity/activity/mimetypes.xml', [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">',
+            '<mime-type type="application/x-foo-bar">',
+            '<comment xml:lang="en">foo-bar</comment>',
+            '<glob pattern="*.foo"/>',
+            '</mime-type>',
+            '</mime-info>',
+            ]))
         self.touch(('Activities/activity/activity/activity.info', [
             '[Activity]',
             'name = HelloWorld',
             'activity_version = 1',
             'bundle_id = org.sugarlabs.HelloWorld',
             'exec = sugar-activity activity.HelloWorldActivity',
-            'icon = activity-helloworld',
+            'icon = icon',
             'license = GPLv2+',
+            'mime_types = foo/bar',
             ]))
         coroutine.sleep(1)
 
@@ -334,6 +345,9 @@ class ActivitiesTest(tests.Test):
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+        assert exists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
+        assert exists('share/mime/packages/%s.xml' % hashed_path)
+        assert exists('share/mime/application/x-foo-bar.xml')
 
         shutil.rmtree('Activities/activity')
         coroutine.sleep(1)
@@ -343,6 +357,9 @@ class ActivitiesTest(tests.Test):
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 0},
                 self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+        assert not lexists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
+        assert not lexists('share/mime/packages/%s.xml' % hashed_path)
+        assert not lexists('share/mime/application/x-foo-bar.xml')
 
 
 if __name__ == '__main__':
