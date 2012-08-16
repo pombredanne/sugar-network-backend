@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import locale
 import socket
 import logging
 from os.path import join, exists
@@ -46,7 +45,7 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
         self.opened = coroutine.Event()
         self.home_volume = home_volume
         self._subscriptions = {}
-        self._locale = locale.getdefaultlocale()[0].replace('_', '-')
+        self._lang = ad.default_lang()
         self._jobs = coroutine.Pool()
         self._servers = coroutine.Pool()
 
@@ -96,7 +95,7 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
             _logger.info('Checkin %r context', guid)
             mount.call(
                     ad.Request(method='PUT', document='context', guid=guid,
-                        accept_language=[self._locale],
+                        accept_language=[self._lang],
                         content={'keep_impl': 2, 'keep': False}),
                     ad.Response())
 
@@ -110,7 +109,7 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
             _logger.info('Keep %r context', guid)
             mount.call(
                     ad.Request(method='PUT', document='context', guid=guid,
-                        accept_language=[self._locale],
+                        accept_language=[self._lang],
                         content={'keep': True}),
                     ad.Response())
 
@@ -125,7 +124,7 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
         for guid in [context] if isinstance(context, basestring) else context:
             feed = mount.call(
                     ad.Request(method='GET', document='context', guid=guid,
-                        prop='feed', accept_language=[self._locale]),
+                        prop='feed', accept_language=[self._lang]),
                     ad.Response())
             for impls in feed.values():
                 for impl in impls.values():
@@ -141,7 +140,7 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
     def call(self, request, response=None):
         if response is None:
             response = ad.Response()
-        request.accept_language = [self._locale]
+        request.accept_language = [self._lang]
         mountpoint = request.get('mountpoint')
 
         try:
