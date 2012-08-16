@@ -114,6 +114,26 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
                         content={'keep': True}),
                     ad.Response())
 
+    @ad.volume_command(method='GET', cmd='requires')
+    def requires(self, mountpoint, context):
+        mount = self.get(mountpoint)
+        enforce(mount is not None, 'No such mountpoint')
+        mount.mounted.wait()
+
+        requires = set()
+
+        for guid in [context] if isinstance(context, basestring) else context:
+            feed = mount.call(
+                    ad.Request(method='GET', document='context', guid=guid,
+                        prop='feed', accept_language=[self._locale]),
+                    ad.Response())
+            for impls in feed.values():
+                for impl in impls.values():
+                    if 'requires' in impl:
+                        requires.update(impl['requires'].keys())
+
+        return list(requires)
+
     @ad.volume_command(method='POST', cmd='publish')
     def republish(self, request):
         self.publish(request.content)

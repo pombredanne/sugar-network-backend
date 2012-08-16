@@ -58,7 +58,8 @@ def read(context):
             impl.arch = arch
             impl.upstream_stability = \
                     model.stability_levels[impl_data['stability']]
-            impl.requires.extend(_read_requires(impl_data.get('requires')))
+            # TODO
+            #impl.requires.extend(_read_requires(impl_data.get('requires')))
 
             if isabs(impl_id):
                 impl.local_path = impl_id
@@ -169,7 +170,9 @@ class _Command(model.Command):
         self.qdom = None
         self.name = name
         self._path = data['exec']
-        self._requires = _read_requires(data.get('requires'))
+        # TODO
+        #self._requires = _read_requires(data.get('requires'))
+        self._requires = []
 
     @property
     def path(self):

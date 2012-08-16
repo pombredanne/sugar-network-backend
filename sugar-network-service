@@ -137,7 +137,14 @@ class Application(application.Application):
     @application.command(hidden=True)
     def GET(self):
         result = self._call('GET', None)
-        print json.dumps(result, indent=2)
+
+        if type(result) in (list, set, tuple):
+            for i in result:
+                print i
+        elif type(result) is dict:
+            print json.dumps(result, indent=2)
+        else:
+            print result
 
     @application.command(
             'start service and log to standard output')
@@ -209,9 +216,10 @@ class Application(application.Application):
         try:
             mountset.open()
             jobs.spawn(IPCServer(mountset).serve_forever)
-            if not minimal:
+            if minimal:
+                jobs.join()
+            else:
                 dbus_thread.start(mountset)
-            jobs.join()
         except KeyboardInterrupt:
             util.exception('%s interrupted', self.name)
         except Exception:
@@ -267,7 +275,12 @@ class Application(application.Application):
             arg, value = pair.split('=', 1)
             arg = arg.strip()
             enforce(arg, 'No argument name in %r expression', arg)
-            kwargs[arg] = value
+            if arg in kwargs:
+                if isinstance(kwargs[arg], basestring):
+                    kwargs[arg] = [kwargs[arg]]
+                kwargs[arg].append(value)
+            else:
+                kwargs[arg] = value
 
         with self._rendezvous():
             return Client.call(method, content=content, **kwargs)
