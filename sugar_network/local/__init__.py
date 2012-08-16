@@ -69,6 +69,11 @@ tmpdir = Option(
         'if specified, use this directory for temporary files, such files '
         'might take hunder of megabytes while node synchronizing')
 
+anonymous = Option(
+        'use anonymous user to access to Sugar Network server; '
+        'only read-only operations are available in this mode',
+        default=False, type_cast=Option.bool_cast, action='store_true')
+
 
 def path(*args):
     """Calculate a path from the root.

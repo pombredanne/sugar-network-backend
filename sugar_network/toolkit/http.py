@@ -32,6 +32,7 @@ from sweets_recipe import Bundle
 from active_toolkit.sockets import decode_multipart, BUFFER_SIZE
 from sugar_network.toolkit import sugar
 from sugar_network import local
+from active_toolkit import enforce
 
 # Let toolkit.http work in concurrence
 # TODO Is it safe for the rest of code?
@@ -134,9 +135,9 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
             verify = local.certfile.value
 
         headers = None
-        key_path = sugar.profile_path('owner.key')
-        if exists(key_path):
+        if not local.anonymous.value:
             uid = sugar.uid()
+            key_path = sugar.profile_path('owner.key')
             headers = {
                     'sugar_user': uid,
                     'sugar_user_signature': _sign(key_path, uid),
@@ -163,6 +164,8 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
 
         if response.status_code != 200:
             if response.status_code == 401:
+                enforce(not local.anonymous.value,
+                        'Operation is not available in anonymous mode')
                 _logger.info('User is not registered on the server, '
                         'registering')
                 _register()

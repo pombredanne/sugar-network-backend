@@ -149,11 +149,16 @@ class Application(application.Application):
             name='start', keep_stdout=True)
     def _start(self, minimal=False):
         if self.check_for_instance():
-            printf.info('%s is not run', self.name)
+            printf.info('%s is already run', self.name)
             exit(1)
 
-        # In case if it is new Sugar Shell profile
-        toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+        if local.anonymous.value:
+            sugar.uid = lambda: 'anonymous'
+            sugar.nickname = lambda: 'anonymous'
+            sugar.color = lambda: '#000000,#000000'
+        else:
+            # In case if it is new Sugar Shell profile
+            toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
 
         jobs = coroutine.Pool()
 

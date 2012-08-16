@@ -67,8 +67,7 @@ class NodeCommands(ad.VolumeCommands):
                 'seqno': self.volume.seqno.value,
                 }
 
-    @ad.volume_command(method='POST', cmd='subscribe',
-            permissions=ad.ACCESS_AUTH)
+    @ad.volume_command(method='POST', cmd='subscribe')
     def subscribe(self):
         enforce(self._subscriber is not None, 'Subscription is disabled')
         return self._subscriber.new_ticket()
