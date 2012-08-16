@@ -147,7 +147,7 @@ class Application(application.Application):
     @application.command(
             'start service and log to files',
             name='start', keep_stdout=True)
-    def _start(self):
+    def _start(self, minimal=False):
         if self.check_for_instance():
             printf.info('%s is not run', self.name)
             exit(1)
@@ -192,20 +192,21 @@ class Application(application.Application):
             if local.mounts_root.value:
                 mounts_monitor.start(abspath(local.mounts_root.value))
 
-        if local.delayed_start.value:
-            mountset.connect(delayed_start, event='delayed-start')
-        else:
-            delayed_start()
-
-        dbus_thread.spawn_service(Datastore)
-        dbus_thread.spawn_service(Network)
-
-        jobs.spawn(IPCServer(mountset).serve_forever)
+        if not minimal:
+            if local.delayed_start.value:
+                mountset.connect(delayed_start, event='delayed-start')
+            else:
+                delayed_start()
+            dbus_thread.spawn_service(Datastore)
+            dbus_thread.spawn_service(Network)
 
         pid_path = self.new_instance()
         try:
             mountset.open()
-            dbus_thread.start(mountset)
+            jobs.spawn(IPCServer(mountset).serve_forever)
+            if not minimal:
+                dbus_thread.start(mountset)
+            jobs.join()
         except KeyboardInterrupt:
             util.exception('%s interrupted', self.name)
         except Exception:
@@ -239,7 +240,7 @@ class Application(application.Application):
             if not self.check_for_instance():
                 printf.info('%s is not started, ' \
                         'launch it for this command only', self.name)
-                server = coroutine.spawn(self._start)
+                server = coroutine.spawn(self._start, True)
                 coroutine.dispatch()
                 Client.connection.opened.wait()
 
