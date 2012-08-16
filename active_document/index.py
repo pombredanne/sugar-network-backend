@@ -16,7 +16,6 @@
 import os
 import re
 import time
-import locale
 import shutil
 import logging
 from os.path import exists, join
@@ -293,7 +292,7 @@ class IndexWriter(IndexReader):
     def __init__(self, root, metadata, commit_cb=None):
         IndexReader.__init__(self, root, metadata, commit_cb)
 
-        self._locale = locale.getdefaultlocale()[0].replace('_', '-')
+        self._lang = env.default_lang()
         self._pending_updates = 0
         self._commit_cond = coroutine.Condition()
         self._commit_job = coroutine.spawn(self._commit_handler)
@@ -338,7 +337,7 @@ class IndexWriter(IndexReader):
                     add_value = xapian.sortable_serialise(value)
                 else:
                     if prop.localized:
-                        value = value.get(self._locale) or \
+                        value = value.get(self._lang) or \
                                 value.get(env.DEFAULT_LANG) or ''
                     add_value = prop.to_string(value)[0]
                 document.add_value(prop.slot, add_value)

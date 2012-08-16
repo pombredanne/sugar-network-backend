@@ -21,7 +21,7 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         index_flush_timeout, index_flush_threshold, \
         index_write_queue, \
         NotFound, Forbidden, Redirect, Seqno, DEFAULT_LANG, \
-        uuid
+        uuid, default_lang
 
 from active_document.metadata import Metadata, Property, \
         StoredProperty, ActiveProperty, BlobProperty, BrowsableProperty, \

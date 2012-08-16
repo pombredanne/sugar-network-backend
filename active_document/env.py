@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import locale
 import logging
 from uuid import uuid1
 from os.path import exists
@@ -86,6 +87,14 @@ def uuid():
 
     """
     return ''.join(str(uuid1()).split('-'))
+
+
+def default_lang():
+    lang = locale.getdefaultlocale()[0]
+    if lang:
+        return lang.replace('_', '-')
+    else:
+        return DEFAULT_LANG
 
 
 class NotFound(Exception):
