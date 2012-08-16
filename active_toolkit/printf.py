@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/printf.py$
-$Date: 2012-08-05$
+$Date: 2012-08-16$
 
 """
 
@@ -62,7 +62,7 @@ def info(message, *args):
         `%` arguments to expand `message` value
 
     """
-    _dump(True, sys.stdout, None, [message, args], '\n')
+    _dump(True, sys.stderr, None, [message, args], '\n')
     _dump_progress()
 
 
@@ -103,7 +103,7 @@ def exception(message=None, *args):
         message += ': %s' % error
     else:
         message = str(error)
-    _dump(True, sys.stdout, None, message, '\n')
+    _dump(True, sys.stderr, None, message, '\n')
 
     if logging.getLogger().level > logging.INFO:
         hint('Use -D argument for debug info, '
@@ -112,7 +112,7 @@ def exception(message=None, *args):
         hint('Use -DD argument for full debuging output and tracebacks')
     else:
         for i in tb_list:
-            _dump(True, sys.stdout, '   ', i, '\n')
+            _dump(True, sys.stderr, '   ', i, '\n')
 
     _dump_progress()
 
