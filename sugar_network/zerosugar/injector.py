@@ -27,6 +27,7 @@ from os.path import join, exists, basename, isabs
 from zeroinstall.injector import model
 from zeroinstall.injector.requirements import Requirements
 
+from sweets_recipe import Spec
 from sugar_network.zerosugar import solver
 from sugar_network.zerosugar.config import config
 from sugar_network import local, Client
@@ -241,9 +242,12 @@ def _activity_env(selection, environ):
         if not exists(path):
             os.makedirs(path)
 
+    # TODO Any way to avoid loading spec file?
+    spec = Spec(root=selection.local_path)
+
     environ['SUGAR_BUNDLE_PATH'] = selection.local_path
     environ['SUGAR_BUNDLE_ID'] = selection.feed.context
-    environ['SUGAR_BUNDLE_NAME'] = selection.feed.name
+    environ['SUGAR_BUNDLE_NAME'] = spec['Activity', 'name']
     environ['SUGAR_BUNDLE_VERSION'] = model.format_version(selection.version)
     environ['SUGAR_ACTIVITY_ROOT'] = root
     environ['PATH'] = '%s:%s' % \

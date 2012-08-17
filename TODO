@@ -13,6 +13,7 @@
 - activities migth need MIME registering while checking-in
 - changed pulls should take into account accept_length
 - process client configuration in more general manner than client stats sharing
+- i18n activity.info's strings
 
 1.0
 ===
