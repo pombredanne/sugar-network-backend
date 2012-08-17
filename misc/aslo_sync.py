@@ -18,6 +18,7 @@
 # sugar-lint: disable
 
 import os
+import sys
 import json
 import time
 import getpass
@@ -88,7 +89,7 @@ def main():
     import_versions()
 
 
-def import_versions():
+def import_versions(addon_id=None):
     rows = sqlexec("""
         SELECT
             addons.id,
@@ -116,8 +117,8 @@ def import_versions():
             (select version from appversions where
                 id=applications_versions.min) < 0.96 AND
             addons.status > 0 AND addons.status < 5
-        """)
-        #    AND addons.id = 4037
+            %s
+        """ % ('AND addons.id = %s' % addon_id if addon_id else ''))
 
     grouped_rows = {}
     for row in rows:
@@ -361,6 +362,10 @@ connection = mdb.connect('localhost',
 volume = Volume('db')
 
 try:
-    main()
+    if len(sys.argv) > 1:
+        for addon_id in sys.argv[1:]:
+            import_versions(addon_id)
+    else:
+        main()
 finally:
     volume.close()
