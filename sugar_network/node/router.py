@@ -46,6 +46,10 @@ class Router(object):
         response = _Response()
         result = None
 
+        js_callback = None
+        if 'callback' in request:
+            js_callback = request.pop('callback')
+
         try:
             request.principal = self._authenticate(request)
             result = self._cp.call(request, response)
@@ -87,6 +91,8 @@ class Router(object):
 
         if not result_streamed and response.content_type == 'application/json':
             result = json.dumps(result)
+            if js_callback:
+                result = '%s(%s);' % (js_callback, result)
             response.content_length = len(result)
 
         _logger.debug('Called %s: response=%r result=%r streamed=%r',
