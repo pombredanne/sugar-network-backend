@@ -160,6 +160,7 @@ class IndexReader(object):
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
         queries = []
+        not_queries = []
         boolean_queries = []
 
         if query:
@@ -196,20 +197,26 @@ class IndexReader(object):
             enforce(prop is not None and prop.prefix,
                     'Unknown search term %r for %r',
                     name, self.metadata.name)
-            sub_queries = []
 
+            sub_queries = []
             for needle in value if type(value) in (tuple, list) else [value]:
                 needle = prop.to_string(needle)[0]
-                sub_queries.append(xapian.Query(_term(prop.prefix, needle)))
+                if needle.startswith('!'):
+                    term = _term(prop.prefix, needle[1:])
+                    not_queries.append(xapian.Query(term))
+                else:
+                    term = _term(prop.prefix, needle)
+                    sub_queries.append(xapian.Query(term))
 
-            if len(sub_queries) == 1:
-                query = sub_queries[0]
-            else:
-                query = xapian.Query(xapian.Query.OP_OR, sub_queries)
-            if prop.boolean:
-                boolean_queries.append(query)
-            else:
-                queries.append(query)
+            if sub_queries:
+                if len(sub_queries) == 1:
+                    query = sub_queries[0]
+                else:
+                    query = xapian.Query(xapian.Query.OP_OR, sub_queries)
+                if prop.boolean:
+                    boolean_queries.append(query)
+                else:
+                    queries.append(query)
 
         final_query = None
         if queries:
@@ -223,6 +230,9 @@ class IndexReader(object):
                         [final_query, query])
         if final_query is None:
             final_query = xapian.Query('')
+        for i in not_queries:
+            final_query = xapian.Query(
+                    xapian.Query.OP_AND_NOT, [final_query, i])
         enquire.set_query(final_query)
 
         if hasattr(xapian, 'MultiValueKeyMaker'):
