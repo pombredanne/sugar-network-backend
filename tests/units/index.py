@@ -634,6 +634,11 @@ class IndexTest(tests.Test):
 
         self.assertEqual(
                 sorted([
+                    ]),
+                db._find(prop=[], reply=['guid'])[0])
+
+        self.assertEqual(
+                sorted([
                     {'guid': '1'},
                     ]),
                 db._find(prop=['a'], reply=['guid'])[0])
