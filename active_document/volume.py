@@ -162,7 +162,12 @@ class VolumeCommands(CommandsProcessor):
             directory.metadata[i].assert_access(env.ACCESS_READ)
 
         # TODO until implementing layers support
-        kwargs['layer'] = 'public'
+        layer = kwargs.get('layer', ['public'])
+        if isinstance(layer, basestring):
+            layer = [layer]
+        if 'deleted' in layer:
+            _logger.warning('Requesting "deleted" layer')
+            layer.remove('deleted')
 
         documents, total = directory.find(offset=offset, limit=limit,
                 query=query, reply=reply, order_by=order_by, group_by=group_by,
