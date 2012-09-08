@@ -160,7 +160,6 @@ class IndexReader(object):
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
         queries = []
-        not_queries = []
         boolean_queries = []
 
         if query:
@@ -199,6 +198,7 @@ class IndexReader(object):
                     name, self.metadata.name)
 
             sub_queries = []
+            not_queries = []
             for needle in value if type(value) in (tuple, list) else [value]:
                 needle = prop.to_string(needle)[0]
                 if needle.startswith('!'):
@@ -207,6 +207,12 @@ class IndexReader(object):
                 else:
                     term = _term(prop.prefix, needle)
                     sub_queries.append(xapian.Query(term))
+
+            if not_queries:
+                not_query = xapian.Query(xapian.Query.OP_AND_NOT,
+                        [xapian.Query(''),
+                            xapian.Query(xapian.Query.OP_OR, not_queries)])
+                sub_queries.append(not_query)
 
             if sub_queries:
                 if len(sub_queries) == 1:
@@ -230,9 +236,6 @@ class IndexReader(object):
                         [final_query, query])
         if final_query is None:
             final_query = xapian.Query('')
-        for i in not_queries:
-            final_query = xapian.Query(
-                    xapian.Query.OP_AND_NOT, [final_query, i])
         enquire.set_query(final_query)
 
         if hasattr(xapian, 'MultiValueKeyMaker'):

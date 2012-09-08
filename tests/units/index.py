@@ -697,6 +697,13 @@ class IndexTest(tests.Test):
                     {'guid': '1'},
                     {'guid': '3'},
                     ]),
+                db._find(prop=['!b', 'c'], reply=['guid'])[0])
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '1'},
+                    {'guid': '3'},
+                    ]),
                 db._find(prop=['a', '!b', 'c'], reply=['guid'])[0])
 
 
