@@ -56,11 +56,11 @@ class Context(Resource):
     def mime_types(self, value):
         return value
 
-    @ad.active_property(ad.BlobProperty)
+    @ad.active_property(ad.BlobProperty, mime_type='image/png')
     def icon(self, value):
         return value
 
-    @ad.active_property(ad.BlobProperty)
+    @ad.active_property(ad.BlobProperty, mime_type='image/svg+xml')
     def artifact_icon(self, value):
         return value
 
