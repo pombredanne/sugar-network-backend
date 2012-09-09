@@ -160,6 +160,7 @@ class IndexReader(object):
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
         queries = []
+        and_not_queries = []
         boolean_queries = []
 
         if query:
@@ -205,6 +206,9 @@ class IndexReader(object):
                 if needle.startswith('!'):
                     term = _term(prop.prefix, needle[1:])
                     not_queries.append(xapian.Query(term))
+                elif needle.startswith('-'):
+                    term = _term(prop.prefix, needle[1:])
+                    and_not_queries.append(xapian.Query(term))
                 else:
                     term = _term(prop.prefix, needle)
                     sub_queries.append(xapian.Query(term))
@@ -225,19 +229,20 @@ class IndexReader(object):
                 else:
                     queries.append(query)
 
-        final_query = None
+        final = None
         if queries:
-            final_query = xapian.Query(xapian.Query.OP_AND, queries)
+            final = xapian.Query(xapian.Query.OP_AND, queries)
         if boolean_queries:
             query = xapian.Query(xapian.Query.OP_AND, boolean_queries)
-            if final_query is None:
-                final_query = query
+            if final is None:
+                final = query
             else:
-                final_query = xapian.Query(xapian.Query.OP_FILTER,
-                        [final_query, query])
-        if final_query is None:
-            final_query = xapian.Query('')
-        enquire.set_query(final_query)
+                final = xapian.Query(xapian.Query.OP_FILTER, [final, query])
+        if final is None:
+            final = xapian.Query('')
+        for i in and_not_queries:
+            final = xapian.Query(xapian.Query.OP_AND_NOT, [final, i])
+        enquire.set_query(final)
 
         if hasattr(xapian, 'MultiValueKeyMaker'):
             sorter = xapian.MultiValueKeyMaker()
