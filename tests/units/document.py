@@ -762,6 +762,28 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, doc.meta('guid')['seqno'])
         self.assertEqual(2, doc.meta('prop')['seqno'])
 
+    def test_merge_AvoidCalculatedBlobs(self):
+
+        class Document(document.Document):
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return {'url': 'http://foo/bar', 'mime_type': 'image/png'}
+
+        directory1 = Directory('document1', Document, IndexWriter)
+        directory1.create(guid='guid', ctime=1, mtime=1)
+        for i in os.listdir('document1/gu/guid'):
+            os.utime('document1/gu/guid/%s' % i, (1, 1))
+
+        directory2 = Directory('document2', Document, IndexWriter)
+        for header, diff in directory1.diff(xrange(100), 2):
+            directory2.merge(diff=diff, **header)
+
+        doc = directory2.get('guid')
+        self.assertEqual(1, doc.get('seqno'))
+        self.assertEqual(1, doc.meta('guid')['mtime'])
+        assert not exists('document2/gu/guid/blob')
+
 
 def read_diff(directory, *args, **kwargs):
     result = []

@@ -89,9 +89,13 @@ class Document(object):
 
         return value
 
-    def meta(self, prop):
+    def meta(self, prop, raw=False):
         prop = self.metadata[prop]
-        return prop.on_get(self, self._record.get(prop.name))
+        result = self._record.get(prop.name)
+        if raw:
+            return result
+        else:
+            return prop.on_get(self, result)
 
     def properties(self, names=None, accept_language=None):
         result = {}
