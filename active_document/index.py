@@ -187,7 +187,8 @@ class IndexReader(object):
                     xapian.QueryParser.FLAG_BOOLEAN |
                     xapian.QueryParser.FLAG_LOVEHATE |
                     xapian.QueryParser.FLAG_PARTIAL |
-                    xapian.QueryParser.FLAG_WILDCARD,
+                    xapian.QueryParser.FLAG_WILDCARD |
+                    xapian.QueryParser.FLAG_PURE_NOT,
                     '')
             queries.append(query)
 
