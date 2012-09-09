@@ -218,7 +218,7 @@ class Record(object):
                 if size is None:
                     size = sys.maxint
                 self._set_blob_by_stream(digest, data, size, path)
-            elif isabs(data):
+            elif isabs(data) and exists(data):
                 self._set_blob_by_path(digest, data, path)
             else:
                 kwargs['url'] = data
