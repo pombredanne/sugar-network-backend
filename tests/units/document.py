@@ -192,10 +192,22 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
+            @active_property(slot=1, default=1)
+            def prop1(self, value):
+                return value
+
+            @active_property(slot=2, default=2)
+            def prop2(self, value):
+                return -1
+
             @active_property(BlobProperty)
             def blob(self, meta):
                 meta['path'] = 'new-blob'
                 return meta
+
+            @active_property(BlobProperty)
+            def empty_blob(self, meta):
+                return {'url': 'url'}
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
         guid = directory.create({'user': []})
@@ -203,7 +215,11 @@ class DocumentTest(tests.Test):
 
         self.touch(('new-blob', 'new-blob'))
         directory.set_blob(guid, 'blob', StringIO('old-blob'))
-        self.assertEqual('new-blob', file(doc.meta('blob')['path']).read())
+
+        self.assertEqual('new-blob', doc.meta('blob')['path'])
+        self.assertEqual({'url': 'url'}, doc.meta('empty_blob'))
+        self.assertEqual('1', doc.meta('prop1')['value'])
+        self.assertEqual(-1, doc.meta('prop2'))
 
     def test_update(self):
 

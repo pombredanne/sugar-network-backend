@@ -17,7 +17,6 @@ import logging
 
 from active_document import env
 from active_document.metadata import BrowsableProperty, StoredProperty
-from active_document.metadata import BlobProperty
 from active_document.metadata import active_property
 from active_toolkit import enforce
 
@@ -92,10 +91,7 @@ class Document(object):
 
     def meta(self, prop):
         prop = self.metadata[prop]
-        result = self._record.get(prop.name)
-        if result is not None and isinstance(prop, BlobProperty):
-            prop.on_get(self, result)
-        return result
+        return prop.on_get(self, self._record.get(prop.name))
 
     def properties(self, names=None, accept_language=None):
         result = {}

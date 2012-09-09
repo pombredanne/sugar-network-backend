@@ -108,7 +108,7 @@ class Property(object):
     def __init__(self, name, permissions=env.ACCESS_PUBLIC, typecast=None,
             reprcast=None, default=None):
         self.setter = None
-        self.on_get = None
+        self.on_get = lambda self, x: x
         self._name = name
         self._permissions = permissions
         self._typecast = typecast
