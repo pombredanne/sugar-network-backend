@@ -55,6 +55,13 @@ class NodeCommands(ad.VolumeCommands):
             with file(master_path, 'w') as f:
                 f.write(_DEFAULT_MASTER_GUID)
 
+        self._blobs = {}
+        for document, directory in self.volume.items():
+            self._blobs.setdefault(document, set())
+            for prop in directory.metadata.values():
+                if isinstance(prop, ad.BlobProperty):
+                    self._blobs[document].add(prop.name)
+
     @ad.volume_command(method='GET')
     def hello(self, response):
         response.content_type = 'text/html'
@@ -80,7 +87,9 @@ class NodeCommands(ad.VolumeCommands):
         directory = self.volume[document]
         directory.update(guid, {'layer': ['deleted']})
 
-    @ad.directory_command(method='GET')
+    @ad.directory_command(method='GET',
+            arguments={'offset': ad.to_int, 'limit': ad.to_int,
+                'reply': ad.to_list})
     def find(self, document, request, offset=None, limit=None, query=None,
             reply=None, order_by=None, group_by=None, **kwargs):
         if limit is None:
@@ -89,8 +98,36 @@ class NodeCommands(ad.VolumeCommands):
             _logger.warning('The find limit is restricted to %s',
                     node.find_limit.value)
             limit = node.find_limit.value
-        return ad.VolumeCommands.find(self, document, request, offset, limit,
+
+        blobs = None
+        if reply:
+            reply = set(reply)
+            blobs = reply & self._blobs[document]
+            reply = list(reply - blobs)
+
+        result = ad.VolumeCommands.find(self, document, request, offset, limit,
                 query, reply, order_by, group_by, **kwargs)
+
+        if blobs:
+            for props in result['result']:
+                self._mixin_blob(document, blobs, props)
+
+        return result
+
+    @ad.document_command(method='GET', arguments={'reply': ad.to_list})
+    def get(self, document, guid, request, reply=None):
+        blobs = None
+        if reply:
+            reply = set(reply)
+            blobs = reply & self._blobs[document]
+            reply = list(reply - blobs)
+
+        result = ad.VolumeCommands.get(self, document, guid, request, reply)
+
+        if blobs:
+            self._mixin_blob(document, blobs, result)
+
+        return result
 
     def resolve(self, request):
         cmd = ad.VolumeCommands.resolve(self, request)
@@ -134,6 +171,21 @@ class NodeCommands(ad.VolumeCommands):
             if user['name']:
                 authors.append(user['name'])
         props['author'] = authors
+
+    def _mixin_blob(self, document, blobs, props):
+        directory = self.volume[document]
+        doc = directory.get(props['guid'])
+
+        for name in blobs:
+            meta = doc.meta(name)
+            if meta is not None and 'url' in meta:
+                url = meta['url']
+            else:
+                url = '/'.join(['', document, props['guid'], name])
+            if url.startswith('/'):
+                url = 'http://%s:%s%s' % \
+                        (node.host.value, node.port.value, url)
+            props[name] = url
 
 
 class MasterCommands(NodeCommands, SyncCommands):

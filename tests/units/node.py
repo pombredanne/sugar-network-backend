@@ -258,6 +258,48 @@ class NodeTest(tests.Test):
         node.find_limit.value = 1
         self.assertEqual(1, len(call(cp, method='GET', document='context', limit=1024)['result']))
 
+    def test_GetBlobsByUrls(self):
+        volume = Volume('db')
+        cp = NodeCommands(volume)
+
+        guid1 = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title1',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        guid2 = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title2',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        volume['context'].set_blob(guid2, 'icon', 'http://foo/bar')
+        guid3 = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title3',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        volume['context'].set_blob(guid3, 'icon', '/foo/bar')
+
+        self.assertEqual(
+                {'guid': guid1, 'icon': 'http://localhost:8000/context/%s/icon' % guid1},
+                call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon']))
+        self.assertEqual(
+                {'guid': guid2, 'icon': 'http://foo/bar'},
+                call(cp, method='GET', document='context', guid=guid2, reply=['guid', 'icon']))
+        self.assertEqual(
+                {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar'},
+                call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon']))
+
+        self.assertEqual([
+            {'guid': guid1, 'icon': 'http://localhost:8000/context/%s/icon' % guid1},
+            {'guid': guid2, 'icon': 'http://foo/bar'},
+            {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar'},
+            ],
+            call(cp, method='GET', document='context', reply=['guid', 'icon'])['result'])
+
 
 def call(cp, principal=None, content=None, **kwargs):
     request = ad.Request(**kwargs)

@@ -17,8 +17,9 @@ from active_toolkit.options import Option
 
 
 host = Option(
-        'hostname to listen incomming connections',
-        default='0.0.0.0', name='host')
+        'hostname to listen for incomming connections and '
+        'using for publicly visible urls',
+        default='localhost', name='host')
 
 port = Option(
         'port number to listen incomming connections',

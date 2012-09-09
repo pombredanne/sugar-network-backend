@@ -109,7 +109,8 @@ class SyncCommands(object):
                 return out_packet.pop()
 
     @ad.volume_command(method='GET', cmd='pull',
-            mime_type='application/octet-stream')
+            mime_type='application/octet-stream',
+            arguments={'accept_length': ad.to_int})
     def pull(self, request, response, accept_length=None, **pulls):
         cookie = _Cookie(request)
         for key, seq in pulls.items():
@@ -118,7 +119,6 @@ class SyncCommands(object):
             _logger.debug('Clone full dump')
             cookie['sn_pull'].include(1, None)
 
-        accept_length = _to_int('accept_length', accept_length)
         pull_key = hashlib.sha1(json.dumps(cookie)).hexdigest()
         pull = None
         content = None
@@ -286,11 +286,3 @@ class _Cookie(dict):
 
     def _unset_cookie(self, response, name):
         self._set_cookie(response, name, 'unset_%s' % name, 0)
-
-
-def _to_int(name, value):
-    if isinstance(value, basestring):
-        enforce(value.isdigit(),
-                'Argument %r should be an integer value', name)
-        value = int(value)
-    return value
