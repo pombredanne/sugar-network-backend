@@ -28,7 +28,7 @@ from active_document.metadata import Metadata, Property, \
         active_property
 
 from active_document.commands import document_command, directory_command, \
-        volume_command, property_command, Request, Response, \
-        CommandsProcessor, ProxyCommands, CommandNotFound
+        volume_command, property_command, to_int, to_list, \
+        Request, Response, CommandsProcessor, ProxyCommands, CommandNotFound
 
 from active_document.volume import SingleVolume, VolumeCommands

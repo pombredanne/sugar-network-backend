@@ -22,6 +22,8 @@ from active_toolkit import enforce
 
 _logger = logging.getLogger('active_document.commands')
 
+_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
+
 
 def command(scope, **kwargs):
 
@@ -39,7 +41,22 @@ document_command = lambda ** kwargs: command('document', **kwargs)
 property_command = lambda ** kwargs: command('property', **kwargs)
 
 
-_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
+def to_int(value):
+    if isinstance(value, basestring):
+        if not value:
+            return 0
+        enforce(value.isdigit(), 'Argument should be an integer value')
+        return int(value)
+    return value
+
+
+def to_list(value):
+    if isinstance(value, basestring):
+        if value:
+            return value.split(',')
+        else:
+            return []
+    return value
 
 
 class CommandNotFound(Exception):
@@ -138,6 +155,15 @@ class CommandsProcessor(object):
         enforce(request.access_level & cmd.access_level, env.Forbidden,
                 'Operation is permitted on requester\'s level')
 
+        for arg, cast in cmd.arguments.items():
+            if arg not in request:
+                continue
+            try:
+                request[arg] = cast(request[arg])
+            except Exception, error:
+                raise RuntimeError('Cannot typecast %r command argument: %s' %
+                        (arg, error))
+
         result = cmd(request, response)
 
         if not response.content_type:
@@ -197,7 +223,7 @@ class _Command(object):
 
     def __init__(self, callback, args, method='GET', document=None, cmd=None,
             mime_type='application/json', permissions=0, exclude_args=None,
-            access_level=env.ACCESS_LEVELS):
+            access_level=env.ACCESS_LEVELS, arguments=None):
         self.callback = callback
         self.args = args
         self.mime_type = mime_type
@@ -207,6 +233,7 @@ class _Command(object):
         self.accept_response = 'response' in _function_arg_names(callback)
         self.key = (method, cmd, document)
         self.exclude_args = exclude_args or ('method', 'cmd')
+        self.arguments = arguments or {}
 
     def get_args(self, request):
         return self.args, {}

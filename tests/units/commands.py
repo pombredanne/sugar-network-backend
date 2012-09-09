@@ -8,7 +8,7 @@ from __init__ import tests
 from active_document import env, volume, SingleVolume, Document, \
         property_command, document_command, directory_command, volume_command, \
         active_property, Request, BlobProperty, Response, CommandsProcessor, \
-        ProxyCommands, CommandNotFound, NotFound
+        ProxyCommands, CommandNotFound, NotFound, to_int, to_list
 
 
 class CommandsTest(tests.Test):
@@ -392,6 +392,26 @@ class CommandsTest(tests.Test):
         self.assertEqual(
                 ({'foo': 'bar', 'method': 'PROBE', 'arg': -1}, {'foo': 'bar'}),
                 self.call(proxy, 'PROBE', arg=-1))
+
+    def test_Arguments(self):
+
+        class TestCommandsProcessor(CommandsProcessor):
+
+            @volume_command(method='PROBE', arguments={'arg_int': to_int, 'arg_list': to_list})
+            def probe(self, arg_int=None, arg_list=None):
+                return arg_int, arg_list
+
+        cp = TestCommandsProcessor()
+
+        self.assertEqual((None, None), self.call(cp, 'PROBE'))
+        self.assertEqual((-1, [-2, None]), self.call(cp, 'PROBE', arg_int=-1, arg_list=[-2, None]))
+        self.assertEqual((4, [' foo', ' bar  ', '  ']), self.call(cp, 'PROBE', arg_int='4', arg_list=' foo, bar  ,  '))
+        self.assertEqual((None, ['foo']), self.call(cp, 'PROBE', arg_list='foo'))
+        self.assertEqual((None, []), self.call(cp, 'PROBE', arg_list=''))
+        self.assertEqual((None, [' ']), self.call(cp, 'PROBE', arg_list=' '))
+        self.assertEqual((0, None), self.call(cp, 'PROBE', arg_int=''))
+        self.assertRaises(RuntimeError, self.call, cp, 'PROBE', arg_int=' ')
+        self.assertRaises(RuntimeError, self.call, cp, 'PROBE', arg_int='foo')
 
     def call(self, cp, method, document=None, guid=None, prop=None,
             access_level=env.ACCESS_REMOTE, **kwargs):

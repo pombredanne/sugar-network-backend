@@ -26,6 +26,7 @@ from active_document.directory import Directory
 from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
+from active_document.commands import to_int, to_list
 from active_document.metadata import BlobProperty
 from active_toolkit import coroutine, util, sockets, enforce
 
@@ -149,13 +150,13 @@ class VolumeCommands(CommandsProcessor):
         self.before_create(request, props)
         return directory.create(props)
 
-    @directory_command(method='GET')
+    @directory_command(method='GET',
+            arguments={'offset': to_int, 'limit': to_int, 'reply': to_list})
     def find(self, document, request, offset=None, limit=None, query=None,
             reply=None, order_by=None, group_by=None, **kwargs):
         directory = self.volume[document]
-        offset = _to_int('offset', offset)
-        limit = _to_int('limit', limit)
-        reply = _to_list(reply) or []
+        if reply is None:
+            reply = []
         reply.append('guid')
 
         for i in reply:
@@ -226,22 +227,20 @@ class VolumeCommands(CommandsProcessor):
         directory = self.volume[document]
         directory.delete(guid)
 
-    @document_command(method='GET')
+    @document_command(method='GET', arguments={'reply': to_list})
     def get(self, document, guid, request, reply=None):
         directory = self.volume[document]
         doc = directory.get(guid)
 
-        reply = _to_list(reply)
-        if reply:
-            for i in reply:
-                directory.metadata[i].assert_access(env.ACCESS_READ)
+        for i in reply or []:
+            directory.metadata[i].assert_access(env.ACCESS_READ)
 
         enforce('deleted' not in doc['layer'], env.NotFound,
                 'Document is not found')
 
         return doc.properties(reply, request.accept_language)
 
-    @property_command(method='GET')
+    @property_command(method='GET', arguments={'seqno': to_int})
     def get_prop(self, document, guid, prop, request, response, seqno=None):
         directory = self.volume[document]
         doc = directory.get(guid)
@@ -257,7 +256,6 @@ class VolumeCommands(CommandsProcessor):
         if 'url' in meta:
             raise env.Redirect(meta['url'])
 
-        seqno = _to_int('seqno', seqno)
         if seqno is not None and seqno >= meta['seqno']:
             response.content_length = 0
             response.content_type = directory.metadata[prop].mime_type
@@ -289,20 +287,6 @@ class VolumeCommands(CommandsProcessor):
             return {request.accept_language[0]: value}
         else:
             return value
-
-
-def _to_int(name, value):
-    if isinstance(value, basestring):
-        enforce(value.isdigit(),
-                'Argument %r should be an integer value', name)
-        value = int(value)
-    return value
-
-
-def _to_list(value):
-    if isinstance(value, basestring):
-        value = value.split(',')
-    return value
 
 
 def _file_reader(path):
