@@ -628,6 +628,13 @@ class VolumeTest(tests.Test):
             events)
         del events[:]
 
+    def test_DeletedDocuments(self):
+        directory = self.volume['testdocument']
+        guid = directory.create({'layer': 'deleted'})
+
+        self.assertRaises(env.NotFound, self.call, 'GET', document='testdocument', guid=guid)
+        self.assertEqual([], self.call('GET', document='testdocument')['result'])
+
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):
 

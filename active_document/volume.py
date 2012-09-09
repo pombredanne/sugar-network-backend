@@ -169,6 +169,7 @@ class VolumeCommands(CommandsProcessor):
         if 'deleted' in layer:
             _logger.warning('Requesting "deleted" layer')
             layer.remove('deleted')
+        kwargs['layer'] = layer
 
         documents, total = directory.find(offset=offset, limit=limit,
                 query=query, reply=reply, order_by=order_by, group_by=group_by,
