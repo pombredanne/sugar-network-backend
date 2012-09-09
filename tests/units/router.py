@@ -224,13 +224,10 @@ class RouterTest(tests.Test):
         self.fork(self.restful_server, [User, Document])
         rest = tests.Request('http://localhost:8800')
 
-        # Should `urllib.splithost('//foo')` return `('foo', '')` ?
-        self.assertRaises(RuntimeError, rest.post, '//document/', {'term': 'probe'})
-
-        guid = rest.post('/document//', {'term': 'probe'})
+        guid = rest.post('///document//', {'term': 'probe'})
         self.assertEqual(
                 {'term': 'probe'},
-                rest.get('///document//%s/' % guid, reply='term'))
+                rest.get('///document///%s///' % guid, reply='term'))
 
     def test_HandleRedirects(self):
         URL = 'http://sugarlabs.org'

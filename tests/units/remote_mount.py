@@ -17,6 +17,7 @@ from sugar_network.local.bus import IPCServer
 from sugar_network.toolkit import sugar, http
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
+from sugar_network.resources.report import Report
 from sugar_network.resources.volume import Volume
 
 
@@ -297,6 +298,19 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(4, json.load(file(cache_path + '.meta'))['seqno'])
 
     def test_GetAbsentBLOB(self):
+        self.start_ipc_and_restful_server([User, Report])
+        client = Client('/')
+
+        guid = client.Report(
+                context='context',
+                implementation='implementation',
+                description='description').post()
+
+        path, mime_type = client.Report(guid).get_blob_path('data')
+        self.assertEqual(None, path)
+        self.assertEqual(True, client.Report(guid).get_blob('data').closed)
+
+    def test_GetDefaultBLOB(self):
         self.start_ipc_and_restful_server()
         client = Client('/')
 
@@ -307,8 +321,8 @@ class RemoteMountTest(tests.Test):
                 description='description').post()
 
         path, mime_type = client.Context(guid).get_blob_path('icon')
-        self.assertEqual(None, path)
-        self.assertEqual(True, client.Context(guid).get_blob('icon').closed)
+        assert exists(path)
+        self.assertEqual(False, client.Context(guid).get_blob('icon').closed)
 
     def test_Localize(self):
         os.environ['LANG'] = 'en_US'

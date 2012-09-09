@@ -13,9 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from os.path import join
+
 import active_document as ad
 
-from sugar_network import resources
+from sugar_network import resources, static
 from sugar_network.resources.volume import Resource
 
 
@@ -58,10 +60,24 @@ class Context(Resource):
 
     @ad.active_property(ad.BlobProperty, mime_type='image/png')
     def icon(self, value):
-        return value
+        if value is None:
+            if 'package' in self['type']:
+                return {'url': '/static/images/package.png',
+                        'path': join(static.PATH, 'images', 'package.png'),
+                        'mime_type': 'image/png'}
+            else:
+                return {'url': '/static/images/missing.png',
+                        'path': join(static.PATH, 'images', 'missing.png'),
+                        'mime_type': 'image/png'}
+        else:
+            return value
 
     @ad.active_property(ad.BlobProperty, mime_type='image/svg+xml')
     def artifact_icon(self, value):
+        if value is None:
+            return {'url': '/static/images/missing.svg',
+                    'path': join(static.PATH, 'images', 'missing.svg'),
+                    'mime_type': 'image/svg+xml'}
         return value
 
     @ad.active_property(ad.BlobProperty)

@@ -17,13 +17,13 @@ import os
 import cgi
 import json
 import types
-import urllib
 import logging
 from urlparse import parse_qsl
 from bisect import bisect_left
+from os.path import join, isfile
 
 import active_document as ad
-from sugar_network import node
+from sugar_network import node, static
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, enforce
 
@@ -52,7 +52,12 @@ class Router(object):
 
         try:
             request.principal = self._authenticate(request)
-            result = self._cp.call(request, response)
+            if request.path[:1] == ['static']:
+                static_path = join(static.PATH, *request.path[1:])
+                enforce(isfile(static_path), 'No such file')
+                result = file(static_path)
+            else:
+                result = self._cp.call(request, response)
         except ad.Redirect, error:
             response.status = '303 See Other'
             response['Location'] = error.location
@@ -130,11 +135,8 @@ class _Request(ad.Request):
 
         self.access_level = ad.ACCESS_REMOTE
         self.environ = environ
-        path = environ['PATH_INFO'] or '/'
-        __, path = urllib.splittype(path)
-        __, path = urllib.splithost(path)
-        self.url = path
-        self.path = [i for i in path.strip('/').split('/') if i]
+        self.url = '/' + environ['PATH_INFO'].strip('/')
+        self.path = [i for i in self.url[1:].split('/') if i]
         self['method'] = environ['REQUEST_METHOD']
         self.content = None
         self.content_stream = environ.get('wsgi.input')

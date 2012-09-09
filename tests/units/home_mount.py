@@ -9,6 +9,7 @@ from __init__ import tests
 
 from active_toolkit import sockets, coroutine
 from sugar_network import Client
+from sugar_network.resources.report import Report
 
 
 class HomeMountTest(tests.Test):
@@ -119,6 +120,19 @@ class HomeMountTest(tests.Test):
         assert not exists('file2')
 
     def test_GetAbsetnBLOB(self):
+        self.start_server([Report])
+        client = Client('~')
+
+        guid = client.Report(
+                context='context',
+                implementation='implementation',
+                description='description').post()
+
+        path, mime_type = client.Report(guid).get_blob_path('data')
+        self.assertEqual(None, path)
+        self.assertEqual(True, client.Report(guid).get_blob('data').closed)
+
+    def test_GetDefaultBLOB(self):
         self.start_server()
         client = Client('~')
 
@@ -129,8 +143,9 @@ class HomeMountTest(tests.Test):
                 description='description').post()
 
         path, mime_type = client.Context(guid).get_blob_path('icon')
-        self.assertEqual(None, path)
-        self.assertEqual(True, client.Context(guid).get_blob('icon').closed)
+        assert path.endswith('missing.png')
+        assert exists(path)
+        self.assertEqual(False, client.Context(guid).get_blob('icon').closed)
 
     def test_Subscription(self):
         self.start_server()
@@ -202,7 +217,7 @@ class HomeMountTest(tests.Test):
         event = subscription.read_message()
         event.pop('props')
         self.assertEqual(
-                {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 2},
+                {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 4},
                 event)
 
     def test_Connect(self):

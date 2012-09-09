@@ -20,6 +20,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network import local, Client, sugar
 from sugar_network.resources.volume import Volume
+from sugar_network.resources.report import Report
 
 
 class NodeMountTest(tests.Test):
@@ -34,7 +35,7 @@ class NodeMountTest(tests.Test):
     def start_server(self, ipc=False):
         local.mounts_root.value = tests.tmpdir
 
-        volume = Volume('local', [User, Context])
+        volume = Volume('local', [User, Context, Report])
         mounts = Mountset(volume)
         if ipc:
             self.server = IPCServer(mounts)
@@ -325,6 +326,22 @@ class NodeMountTest(tests.Test):
         self.got_event.wait()
         client = Client(tests.tmpdir + '/mnt')
 
+        guid = client.Report(
+                context='context',
+                implementation='implementation',
+                description='description').post()
+
+        path, mime_type = client.Report(guid).get_blob_path('data')
+        self.assertEqual(None, path)
+        self.assertEqual(True, client.Report(guid).get_blob('data').closed)
+
+    def test_GetDefaultBLOB(self):
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
+        self.start_server()
+        self.got_event.wait()
+        client = Client(tests.tmpdir + '/mnt')
+
         guid = client.Context(
                 type='activity',
                 title='title',
@@ -332,8 +349,9 @@ class NodeMountTest(tests.Test):
                 description='description').post()
 
         path, mime_type = client.Context(guid).get_blob_path('icon')
-        self.assertEqual(None, path)
-        self.assertEqual(True, client.Context(guid).get_blob('icon').closed)
+        assert path.endswith('missing.png')
+        assert exists(path)
+        self.assertEqual(False, client.Context(guid).get_blob('icon').closed)
 
     def test_get_blob_ExtractImplementations(self):
         Volume.RESOURCES = [

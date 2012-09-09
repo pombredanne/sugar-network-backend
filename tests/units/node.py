@@ -282,9 +282,14 @@ class NodeTest(tests.Test):
             'description': 'description',
             })
         volume['context'].set_blob(guid3, 'icon', '/foo/bar')
+        guid4 = call(cp, method='POST', document='report', principal='principal', content={
+            'context': 'context',
+            'implementation': 'implementation',
+            'description': 'description',
+            })
 
         self.assertEqual(
-                {'guid': guid1, 'icon': 'http://localhost:8000/context/%s/icon' % guid1},
+                {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png'},
                 call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon']))
         self.assertEqual(
                 {'guid': guid2, 'icon': 'http://foo/bar'},
@@ -292,13 +297,21 @@ class NodeTest(tests.Test):
         self.assertEqual(
                 {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar'},
                 call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon']))
+        self.assertEqual(
+                {'guid': guid4, 'data': 'http://localhost:8000/report/%s/data' % guid4},
+                call(cp, method='GET', document='report', guid=guid4, reply=['guid', 'data']))
 
         self.assertEqual([
-            {'guid': guid1, 'icon': 'http://localhost:8000/context/%s/icon' % guid1},
+            {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png'},
             {'guid': guid2, 'icon': 'http://foo/bar'},
             {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar'},
             ],
             call(cp, method='GET', document='context', reply=['guid', 'icon'])['result'])
+
+        self.assertEqual([
+            {'guid': guid4, 'data': 'http://localhost:8000/report/%s/data' % guid4},
+            ],
+            call(cp, method='GET', document='report', reply=['guid', 'data'])['result'])
 
 
 def call(cp, principal=None, content=None, **kwargs):

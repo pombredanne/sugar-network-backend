@@ -11,5 +11,13 @@ Clone source repository from `Gitorious`_ project:
 
     ``git clone git://git.sugarlabs.org/network/client.git``
 
+Artwork
+=======
+
+* `sugar-artwork`_ images.
+* `Oxygen`_ icons.
+
 .. _home page: http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/Client
 .. _Gitorious: http://git.sugarlabs.org/network
+.. _sugar-artwork: http://git.sugarlabs.org/sugar-artwork
+.. _Oxygen: http://www.oxygen-icons.org/
