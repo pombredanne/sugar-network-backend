@@ -44,20 +44,14 @@ class Router(object):
     def __call__(self, environ, start_response):
         request = _Request(environ)
         response = _Response()
-        result = None
 
         js_callback = None
         if 'callback' in request:
             js_callback = request.pop('callback')
 
+        result = None
         try:
-            request.principal = self._authenticate(request)
-            if request.path[:1] == ['static']:
-                static_path = join(static.PATH, *request.path[1:])
-                enforce(isfile(static_path), 'No such file')
-                result = file(static_path)
-            else:
-                result = self._cp.call(request, response)
+            result = self._call(request, response)
         except ad.Redirect, error:
             response.status = '303 See Other'
             response['Location'] = error.location
@@ -83,21 +77,17 @@ class Router(object):
                           }
                 response.content_type = 'application/json'
 
-        if hasattr(result, 'read'):
-            # pylint: disable-msg=E1103
-            if hasattr(result, 'fileno'):
-                response.content_length = os.fstat(result.fileno()).st_size
-            elif hasattr(result, 'seek'):
-                result.seek(0, 2)
-                response.content_length = result.tell()
-                result.seek(0)
-            result = _stream_reader(result)
         result_streamed = isinstance(result, types.GeneratorType)
 
-        if not result_streamed and response.content_type == 'application/json':
+        if js_callback:
+            if result_streamed:
+                result = ''.join(result)
+                result_streamed = False
+            result = '%s(%s);' % (js_callback, json.dumps(result))
+            response.content_length = len(result)
+        elif not result_streamed and \
+                response.content_type == 'application/json':
             result = json.dumps(result)
-            if js_callback:
-                result = '%s(%s);' % (js_callback, result)
             response.content_length = len(result)
 
         _logger.debug('Called %s: response=%r result=%r streamed=%r',
@@ -110,6 +100,45 @@ class Router(object):
                 yield i
         elif result is not None:
             yield result
+
+    def _call(self, request, response):
+        if 'HTTP_ORIGIN' in request.environ:
+            enforce(request.environ['HTTP_ORIGIN'] == 'null', ad.Forbidden,
+                    'Cross-site is allowed only for local applications')
+            response['Access-Control-Allow-Origin'] = \
+                    request.environ['HTTP_ORIGIN']
+
+        if request['method'] == "OPTIONS":
+            # TODO Process OPTIONS request per url?
+            if request.environ['HTTP_ORIGIN']:
+                response['Access-Control-Allow-Methods'] = \
+                        request.environ['HTTP_ACCESS_CONTROL_REQUEST_METHOD']
+                response['Access-Control-Allow-Headers'] = \
+                        request.environ['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']
+            else:
+                response['Allow'] = "GET, POST, PUT, DELETE"
+            response.content_length = 0
+            return None
+
+        request.principal = self._authenticate(request)
+        if request.path[:1] == ['static']:
+            static_path = join(static.PATH, *request.path[1:])
+            enforce(isfile(static_path), 'No such file')
+            result = file(static_path)
+        else:
+            result = self._cp.call(request, response)
+
+        if hasattr(result, 'read'):
+            # pylint: disable-msg=E1103
+            if hasattr(result, 'fileno'):
+                response.content_length = os.fstat(result.fileno()).st_size
+            elif hasattr(result, 'seek'):
+                result.seek(0, 2)
+                response.content_length = result.tell()
+                result.seek(0)
+            result = _stream_reader(result)
+
+        return result
 
     def _authenticate(self, request):
         user = request.environ.get('HTTP_SUGAR_USER')
