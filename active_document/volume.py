@@ -14,10 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import json
 import time
 import logging
-from cStringIO import StringIO
 from functools import partial
 from os.path import exists, join, abspath, isdir
 
@@ -141,14 +139,26 @@ class VolumeCommands(CommandsProcessor):
     def create(self, document, request):
         directory = self.volume[document]
         props = request.content
+        blobs = {}
+
         enforce('guid' not in props, env.Forbidden,
                 'Property "guid" cannot be set manually')
+
         for name, value in props.items():
             prop = directory.metadata[name]
             prop.assert_access(env.ACCESS_CREATE)
-            props[name] = self._prepost(request, prop, value)
+            if isinstance(prop, BlobProperty):
+                blobs[name] = props.pop(name)
+            else:
+                props[name] = self._prepost(request, prop, value)
+
         self.before_create(request, props)
-        return directory.create(props)
+        guid = directory.create(props)
+
+        for name, value in blobs.items():
+            directory.set_blob(guid, name, value)
+
+        return guid
 
     @directory_command(method='GET',
             arguments={'offset': to_int, 'limit': to_int, 'reply': to_list})
@@ -189,12 +199,21 @@ class VolumeCommands(CommandsProcessor):
     def update(self, document, guid, request):
         directory = self.volume[document]
         props = request.content
+        blobs = {}
+
         for name, value in props.items():
             prop = directory.metadata[name]
             prop.assert_access(env.ACCESS_WRITE)
-            props[name] = self._prepost(request, prop, value)
+            if isinstance(prop, BlobProperty):
+                blobs[name] = props.pop(name)
+            else:
+                props[name] = self._prepost(request, prop, value)
+
         self.before_update(request, props)
         directory.update(guid, props)
+
+        for name, value in blobs.items():
+            directory.set_blob(guid, name, value)
 
     @property_command(method='PUT',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
@@ -211,13 +230,9 @@ class VolumeCommands(CommandsProcessor):
             return
 
         if url is not None:
-            directory.set_blob(guid, prop.name, url)
+            directory.set_blob(guid, prop.name, url=url)
         elif request.content is not None:
-            # TODO Avoid double JSON processins
-            content_stream = StringIO()
-            json.dump(request.content, content_stream)
-            content_stream.seek(0)
-            directory.set_blob(guid, prop.name, content_stream)
+            directory.set_blob(guid, prop.name, request.content)
         else:
             directory.set_blob(guid, prop.name, request.content_stream,
                     request.content_length)

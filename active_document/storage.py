@@ -203,7 +203,7 @@ class Record(object):
             # when index was not previously closed properly
             os.utime(join(self._root, '..'), (mtime, mtime))
 
-    def set_blob(self, prop, data, size=None, **kwargs):
+    def set_blob(self, prop, data=None, size=None, **kwargs):
         if not exists(self._root):
             os.makedirs(self._root)
         path = join(self._root, prop + _BLOB_SUFFIX)
@@ -214,15 +214,18 @@ class Record(object):
             digest = None
 
         try:
-            if hasattr(data, 'read'):
+            if data is None:
+                digest = None
+            elif hasattr(data, 'read'):
                 if size is None:
                     size = sys.maxint
                 self._set_blob_by_stream(digest, data, size, path)
             elif isabs(data) and exists(data):
                 self._set_blob_by_path(digest, data, path)
             else:
-                kwargs['url'] = data
-                digest = None
+                with util.new_file(path) as f:
+                    f.write(data)
+                digest.update(data)
         except Exception, error:
             util.exception()
             raise RuntimeError('Fail to set BLOB %r property for %r: %s' %

@@ -116,7 +116,7 @@ class StorageTest(tests.Test):
         storage = self.storage([BlobProperty('prop')])
         record = storage.get('guid1')
 
-        record.set_blob('prop', 'http://sugarlabs.org')
+        record.set_blob('prop', url='http://sugarlabs.org')
         self.assertEqual({
             'url': 'http://sugarlabs.org',
             'mtime': os.stat('gu/guid1/prop').st_mtime,
@@ -124,13 +124,18 @@ class StorageTest(tests.Test):
             record.get('prop'))
         assert not exists('gu/guid1/prop.blob')
 
+    def test_Record_set_blob_ByValue(self):
+        storage = self.storage([BlobProperty('prop')])
+        record = storage.get('guid')
+
         record.set_blob('prop', '/foo/bar')
         self.assertEqual({
-            'url': '/foo/bar',
-            'mtime': os.stat('gu/guid1/prop').st_mtime,
+            'path': tests.tmpdir + '/gu/guid/prop.blob',
+            'mtime': os.stat('gu/guid/prop').st_mtime,
+            'digest': hashlib.sha1('/foo/bar').hexdigest(),
             },
             record.get('prop'))
-        assert not exists('/foo/bar')
+        self.assertEqual('/foo/bar', file('gu/guid/prop.blob').read())
 
     def test_delete(self):
         storage = self.storage([StoredProperty('prop')])

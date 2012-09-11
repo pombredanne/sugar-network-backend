@@ -162,7 +162,7 @@ class DocumentTest(tests.Test):
 
         class Document(document.Document):
 
-            @active_property(BlobProperty, mime_type='mime_type')
+            @active_property(BlobProperty, mime_type='application/json')
             def blob(self, value):
                 return value
 
@@ -171,22 +171,35 @@ class DocumentTest(tests.Test):
         self.assertRaises(RuntimeError, directory.create, {'blob': 'probe', 'user': []})
 
         guid = directory.create({'user': []})
+        blob_path = join(tests.tmpdir, guid[:2], guid, 'blob')
 
         self.assertRaises(RuntimeError, directory.find, 0, 100, reply='blob')
         self.assertRaises(RuntimeError, lambda: directory.get(guid).blob)
         self.assertRaises(RuntimeError, directory.update, guid, {'blob': 'foo'})
 
         data = 'payload'
-
         directory.set_blob(guid, 'blob', StringIO(data))
         self.assertEqual({
             'seqno': 2,
-            'mtime': os.stat(join(tests.tmpdir, guid[:2], guid, 'blob')).st_mtime,
+            'mtime': os.stat(blob_path).st_mtime,
             'digest': hashlib.sha1(data).hexdigest(),
             'path': join(tests.tmpdir, guid[:2], guid, 'blob.blob'),
-            'mime_type': 'mime_type',
+            'mime_type': 'application/json',
             },
             directory.get(guid).meta('blob'))
+        self.assertEqual(data, file(blob_path + '.blob').read())
+
+        data = json.dumps({'foo': -1})
+        directory.set_blob(guid, 'blob', {'foo': -1})
+        self.assertEqual({
+            'seqno': 3,
+            'mtime': os.stat(blob_path).st_mtime,
+            'digest': hashlib.sha1(data).hexdigest(),
+            'path': join(tests.tmpdir, guid[:2], guid, 'blob.blob'),
+            'mime_type': 'application/json',
+            },
+            directory.get(guid).meta('blob'))
+        self.assertEqual(data, file(blob_path + '.blob').read())
 
     def test_properties_Override(self):
 
@@ -499,7 +512,7 @@ class DocumentTest(tests.Test):
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
         directory.create(guid='1', ctime=1, mtime=1)
-        directory.set_blob('1', 'blob', 'http://sugarlabs.org')
+        directory.set_blob('1', 'blob', url='http://sugarlabs.org')
         for i in os.listdir('1/1'):
             os.utime('1/1/%s' % i, (1, 1))
 

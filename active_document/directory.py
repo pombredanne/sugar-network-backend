@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import json
 import shutil
 import logging
 from os.path import exists, join
@@ -182,7 +183,7 @@ class Directory(object):
 
         return iterate(), total
 
-    def set_blob(self, guid, prop, data, size=None):
+    def set_blob(self, guid, prop, data=None, size=None, **kwargs):
         """Receive BLOB property.
 
         This function works in parallel to setting non-BLOB properties values
@@ -197,16 +198,17 @@ class Directory(object):
 
         """
         prop = self.metadata[prop]
-        enforce(isinstance(prop, BlobProperty),
-                'Property %r in %r is not a BLOB',
-                prop.name, self.metadata.name)
         record = self._storage.get(guid)
         seqno = self._seqno.next()
 
         _logger.debug('Received %r BLOB property from %s[%s]',
                 prop.name, self.metadata.name, guid)
+        if isinstance(prop, BlobProperty) and \
+                prop.mime_type == 'application/json' and \
+                not hasattr(data, 'read'):
+            data = json.dumps(data)
         record.set_blob(prop.name, data, size, seqno=seqno,
-                mime_type=prop.mime_type)
+                mime_type=prop.mime_type, **kwargs)
 
         if record.consistent:
             self._post(guid, {'seqno': seqno}, False)
