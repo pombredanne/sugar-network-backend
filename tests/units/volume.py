@@ -6,7 +6,7 @@ from __init__ import tests
 import active_document as ad
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
-from sugar_network.resources.volume import Volume
+from sugar_network.resources.volume import Volume, Resource
 
 
 class VolumeTest(tests.Test):
@@ -141,6 +141,24 @@ class VolumeTest(tests.Test):
             {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[1, 3]]},
             ],
             read_packet(packet))
+
+    def test_SimulateDeleteEvents(self):
+
+        class Document(Resource):
+            pass
+
+        events = []
+        volume = Volume('db', [Document])
+        volume.connect(lambda event: events.append(event))
+
+        volume['document'].create(guid='guid')
+        del events[:]
+        volume['document'].update('guid', layer=['deleted'])
+
+        self.assertEqual([
+            {'event': 'delete', 'document': 'document', 'seqno': 2, 'guid': 'guid'},
+            ],
+            events)
 
 
 def read_packet(packet):

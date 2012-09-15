@@ -105,6 +105,14 @@ class NodeCommands(ad.VolumeCommands):
             blobs = reply & self._blobs[document]
             reply = list(reply - blobs)
 
+        layer = kwargs.get('layer', ['public'])
+        if isinstance(layer, basestring):
+            layer = [layer]
+        if 'deleted' in layer:
+            _logger.warning('Requesting "deleted" layer')
+            layer.remove('deleted')
+        kwargs['layer'] = layer
+
         result = ad.VolumeCommands.find(self, document, request, offset, limit,
                 query, reply, order_by, group_by, **kwargs)
 
@@ -122,7 +130,14 @@ class NodeCommands(ad.VolumeCommands):
             blobs = reply & self._blobs[document]
             reply = list(reply - blobs)
 
+        if not reply:
+            reply = ['guid', 'layer']
+        else:
+            reply.append('layer')
+
         result = ad.VolumeCommands.get(self, document, guid, request, reply)
+        enforce('deleted' not in result['layer'], ad.NotFound,
+                'Document is not found')
 
         if blobs:
             self._mixin_blob(document, blobs, result)

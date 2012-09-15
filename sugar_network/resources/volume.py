@@ -29,6 +29,11 @@ _logger = logging.getLogger('resources.volume')
 
 class Resource(ad.Document):
 
+    @ad.active_property(prefix='RL', full_text=True, typecast=[],
+            default=['public'])
+    def layer(self, value):
+        return value
+
     @ad.active_property(prefix='RA', full_text=True, default=[], typecast=[],
             permissions=ad.ACCESS_READ)
     def author(self, value):
@@ -57,6 +62,14 @@ class Volume(ad.SingleVolume):
         if document_classes is None:
             document_classes = Volume.RESOURCES
         ad.SingleVolume.__init__(self, root, document_classes, lazy_open)
+
+    def notify(self, event):
+        if event['event'] == 'update' and 'props' in event and \
+                'deleted' in event['props'].get('layer', []):
+            event['event'] = 'delete'
+            del event['props']
+
+        ad.SingleVolume.notify(self, event)
 
     def merge(self, record, increment_seqno=True):
         coroutine.dispatch()

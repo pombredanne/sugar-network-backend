@@ -321,6 +321,25 @@ class NodeTest(tests.Test):
             ],
             call(cp, method='GET', document='report', reply=['guid', 'data'])['result'])
 
+    def test_DeletedDocuments(self):
+        volume = Volume('db')
+        cp = NodeCommands(volume)
+
+        guid = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title1',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        call(cp, method='GET', document='context', guid=guid)
+        self.assertNotEqual([], call(cp, method='GET', document='context')['result'])
+
+        volume['context'].update(guid, layer=['deleted'])
+
+        self.assertRaises(ad.NotFound, call, cp, method='GET', document='context', guid=guid)
+        self.assertEqual([], call(cp, method='GET', document='context')['result'])
+
 
 def call(cp, principal=None, content=None, **kwargs):
     request = ad.Request(**kwargs)
