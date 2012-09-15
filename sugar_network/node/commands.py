@@ -173,19 +173,26 @@ class NodeCommands(ad.VolumeCommands):
         props['author'] = authors
 
     def _mixin_blob(self, document, blobs, props):
-        directory = self.volume[document]
-        doc = directory.get(props['guid'])
-
+        doc = self.volume[document].get(props['guid'])
         for name in blobs:
+
+            def compose_url(value):
+                if value is None:
+                    value = '/'.join(['', document, props['guid'], name])
+                if value.startswith('/'):
+                    value = 'http://%s:%s%s' % \
+                            (node.host.value, node.port.value, value)
+                return value
+
+            url = None
             meta = doc.meta(name)
-            if meta is not None and 'url' in meta:
-                url = meta['url']
+            if meta is not None:
+                url = meta.url()
+
+            if type(url) is list:
+                props[name] = [compose_url(i.get('url')) for i in url]
             else:
-                url = '/'.join(['', document, props['guid'], name])
-            if url.startswith('/'):
-                url = 'http://%s:%s%s' % \
-                        (node.host.value, node.port.value, url)
-            props[name] = url
+                props[name] = compose_url(url)
 
 
 class MasterCommands(NodeCommands, SyncCommands):

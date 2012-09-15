@@ -274,19 +274,26 @@ class NodeTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        volume['context'].set_blob(guid2, 'icon', 'http://foo/bar')
+        volume['context'].set_blob(guid2, 'icon', url='http://foo/bar')
         guid3 = call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
             'title': 'title3',
             'summary': 'summary',
             'description': 'description',
             })
-        volume['context'].set_blob(guid3, 'icon', '/foo/bar')
+        volume['context'].set_blob(guid3, 'icon', url='/foo/bar')
         guid4 = call(cp, method='POST', document='report', principal='principal', content={
             'context': 'context',
             'implementation': 'implementation',
             'description': 'description',
             })
+        guid5 = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title5',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        volume['context'].set_blob(guid5, 'icon', url={'file1': {'order': 1, 'url': '/1'}, 'file2': {'order': 2, 'url': 'http://2'}})
 
         self.assertEqual(
                 {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png'},
@@ -305,6 +312,7 @@ class NodeTest(tests.Test):
             {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png'},
             {'guid': guid2, 'icon': 'http://foo/bar'},
             {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar'},
+            {'guid': guid5, 'icon': ['http://localhost:8000/1', 'http://2']},
             ],
             call(cp, method='GET', document='context', reply=['guid', 'icon'])['result'])
 

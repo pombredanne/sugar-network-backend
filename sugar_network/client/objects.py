@@ -125,7 +125,7 @@ class Object(object):
             blob = Client.call('GET', 'get_blob', mountpoint=self.mountpoint,
                     document=self.document, guid=self._guid, prop=prop)
             self._blobs[prop] = blob
-        return blob, type(blob) is dict and 'path' in blob
+        return blob, isinstance(blob, dict) and 'path' in blob
 
     def __getitem__(self, prop):
         result = self.get(prop)
