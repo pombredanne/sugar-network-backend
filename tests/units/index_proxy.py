@@ -51,8 +51,8 @@ class IndexProxyTest(tests.Test):
         index.close()
 
         existing = ([
-            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'user': ['me']}),
-            ('2', {'guid': '2', 'term': 'a', 'not_term': 's', 'user': ['me']}),
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
+            ('2', {'guid': '2', 'term': 'a', 'not_term': 's'}),
             ], Total(2))
 
         proxy = TestIndexProxy(tests.tmpdir, self.metadata)
@@ -143,8 +143,8 @@ class IndexProxyTest(tests.Test):
         index.close()
 
         existing = ([
-            ('1', {'seqno': 1, 'guid': '1', 'term': 'q', 'not_term': 'w', 'user': ['me']}),
-            ('2', {'seqno': 2, 'guid': '2', 'term': 'a', 'not_term': 's', 'user': ['me']}),
+            ('1', {'seqno': 1, 'guid': '1', 'term': 'q', 'not_term': 'w'}),
+            ('2', {'seqno': 2, 'guid': '2', 'term': 'a', 'not_term': 's'}),
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -170,8 +170,8 @@ class IndexProxyTest(tests.Test):
         index.close()
 
         existing = ([
-            ('1', {'seqno': 1, 'guid': '1', 'term': 'q', 'not_term': 'w', 'user': ['me']}),
-            ('2', {'seqno': 2, 'guid': '2', 'term': 'a', 'not_term': 's', 'user': ['me']}),
+            ('1', {'seqno': 1, 'guid': '1', 'term': 'q', 'not_term': 'w'}),
+            ('2', {'seqno': 2, 'guid': '2', 'term': 'a', 'not_term': 's'}),
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: ([], Total(0)))
 
@@ -209,8 +209,8 @@ class IndexProxyTest(tests.Test):
         index.close()
 
         existing = ([
-            ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': '', 'user': ['me']}),
-            ('2', {'seqno': 2, 'guid': '2', 'term': 'orig', 'not_term': '', 'user': ['me']}),
+            ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': ''}),
+            ('2', {'seqno': 2, 'guid': '2', 'term': 'orig', 'not_term': ''}),
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -244,8 +244,8 @@ class IndexProxyTest(tests.Test):
 
     def test_get_cached(self):
         existing = ([
-            ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': '', 'user': ['me']}),
-            ('2', {'seqno': 2, 'guid': '2', 'term': 'orig', 'not_term': '', 'user': ['me']}),
+            ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': ''}),
+            ('2', {'seqno': 2, 'guid': '2', 'term': 'orig', 'not_term': ''}),
             ], Total(2))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -301,8 +301,8 @@ class IndexProxyTest(tests.Test):
         index.close()
 
         existing = ([
-            ('1', {'seqno': 1, 'guid': '1', 'prop': (), 'user': ['me']}),
-            ('2', {'seqno': 2, 'guid': '2', 'prop': (), 'user': ['me']}),
+            ('1', {'seqno': 1, 'guid': '1', 'prop': ()}),
+            ('2', {'seqno': 2, 'guid': '2', 'prop': ()}),
             ], Total(2))
 
         storage = Storage(tests.tmpdir, self.metadata)
@@ -346,9 +346,9 @@ class IndexProxyTest(tests.Test):
         index.close()
 
         existing = ([
-            ('1', {'seqno': 1, 'guid': '1', 'prop': ('a',), 'user': ['me']}),
-            ('2', {'seqno': 2, 'guid': '2', 'prop': ('a', 'aa'), 'user': ['me']}),
-            ('3', {'seqno': 3, 'guid': '3', 'prop': ('a', 'aa', 'aaa'), 'user': ['me']}),
+            ('1', {'seqno': 1, 'guid': '1', 'prop': ('a',)}),
+            ('2', {'seqno': 2, 'guid': '2', 'prop': ('a', 'aa')}),
+            ('3', {'seqno': 3, 'guid': '3', 'prop': ('a', 'aa', 'aaa')}),
             ], Total(3))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -404,7 +404,7 @@ class IndexProxyTest(tests.Test):
         index.close()
 
         existing = ([
-            ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': 'a', 'user': ['me']}),
+            ('1', {'seqno': 1, 'guid': '1', 'term': 'orig', 'not_term': 'a'}),
             ], Total(1))
         storage = Storage(tests.tmpdir, self.metadata)
         storage.put(*existing[0][0])
@@ -511,9 +511,9 @@ class IndexProxyTest(tests.Test):
 
     def test_SeamlessCache_WithRequest(self):
         existing = ([
-            ('1', {'seqno': 1, 'guid': '1', 'prop': ('a',), 'user': ['me']}),
-            ('2', {'seqno': 2, 'guid': '2', 'prop': ('a',), 'user': ['me']}),
-            ('3', {'seqno': 3, 'guid': '3', 'prop': ('a',), 'user': ['me']}),
+            ('1', {'seqno': 1, 'guid': '1', 'prop': ('a',)}),
+            ('2', {'seqno': 2, 'guid': '2', 'prop': ('a',)}),
+            ('3', {'seqno': 3, 'guid': '3', 'prop': ('a',)}),
             ], Total(3))
         self.override(IndexReader, 'find', lambda *args: existing)
 
@@ -633,7 +633,7 @@ class IndexProxyTest(tests.Test):
         index.close()
 
         existing = ([
-            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w', 'user': ['me']}),
+            ('1', {'guid': '1', 'term': 'q', 'not_term': 'w'}),
             ], Total(1))
 
         proxy = TestIndexProxy(tests.tmpdir, self.metadata)
@@ -708,8 +708,6 @@ class TestIndexProxy(IndexProxy):
         for __, props in self.find(query)[0]:
             if 'seqno' in props:
                 props.pop('seqno')
-            if 'user' in props:
-                props.pop('user')
             result.append(props)
         return sorted(result)
 

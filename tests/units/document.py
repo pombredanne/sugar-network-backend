@@ -41,7 +41,7 @@ class DocumentTest(tests.Test):
         directory = Directory(tests.tmpdir, Document, IndexWriter)
         self.assertEqual(1, directory.metadata['slotted'].slot)
 
-        directory.create({'slotted': 'slotted', 'not_slotted': 'not_slotted', 'user': []})
+        directory.create({'slotted': 'slotted', 'not_slotted': 'not_slotted'})
 
         docs, total = directory.find(0, 100, order_by='slotted')
         self.assertEqual(1, total.value)
@@ -80,7 +80,7 @@ class DocumentTest(tests.Test):
         directory = Directory(tests.tmpdir, Document, IndexWriter)
         self.assertEqual('T', directory.metadata['term'].prefix)
 
-        guid = directory.create({'term': 'term', 'not_term': 'not_term', 'user': []})
+        guid = directory.create({'term': 'term', 'not_term': 'not_term'})
 
         docs, total = directory.find(0, 100, term='term')
         self.assertEqual(1, total.value)
@@ -122,7 +122,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(False, directory.metadata['no'].full_text)
         self.assertEqual(True, directory.metadata['yes'].full_text)
 
-        guid = directory.create({'no': 'foo', 'yes': 'bar', 'user': []})
+        guid = directory.create({'no': 'foo', 'yes': 'bar'})
 
         self.assertEqual(0, directory.find(0, 100, query='foo')[-1])
         self.assertEqual(1, directory.find(0, 100, query='bar')[-1])
@@ -148,7 +148,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(None, directory.metadata['wo_default'].default)
         self.assertEqual('not_stored_default', directory.metadata['not_stored_default'].default)
 
-        guid = directory.create({'wo_default': 'wo_default', 'user': []})
+        guid = directory.create({'wo_default': 'wo_default'})
 
         docs, total = directory.find(0, 100)
         self.assertEqual(1, total.value)
@@ -156,7 +156,7 @@ class DocumentTest(tests.Test):
                 [('default', 'wo_default', 'not_stored_default')],
                 [(i.w_default, i.wo_default, i.not_stored_default) for i in docs])
 
-        self.assertRaises(RuntimeError, directory.create, {'user': []})
+        self.assertRaises(RuntimeError, directory.create, {})
 
     def test_properties_Blob(self):
 
@@ -168,9 +168,9 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        self.assertRaises(RuntimeError, directory.create, {'blob': 'probe', 'user': []})
+        self.assertRaises(RuntimeError, directory.create, {'blob': 'probe'})
 
-        guid = directory.create({'user': []})
+        guid = directory.create({})
         blob_path = join(tests.tmpdir, guid[:2], guid, 'blob')
 
         self.assertRaises(RuntimeError, directory.find, 0, 100, reply='blob')
@@ -223,7 +223,7 @@ class DocumentTest(tests.Test):
                 return {'url': 'url'}
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
-        guid = directory.create({'user': []})
+        guid = directory.create({})
         doc = directory.get(guid)
 
         self.touch(('new-blob', 'new-blob'))
@@ -248,7 +248,7 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create({'prop_1': '1', 'prop_2': '2', 'user': []})
+        guid = directory.create({'prop_1': '1', 'prop_2': '2'})
         self.assertEqual(
                 [('1', '2')],
                 [(i.prop_1, i.prop_2) for i in directory.find(0, 1024)[0]])
@@ -268,9 +268,9 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid_1 = directory.create({'prop': '1', 'user': []})
-        guid_2 = directory.create({'prop': '2', 'user': []})
-        guid_3 = directory.create({'prop': '3', 'user': []})
+        guid_1 = directory.create({'prop': '1'})
+        guid_2 = directory.create({'prop': '2'})
+        guid_3 = directory.create({'prop': '3'})
 
         self.assertEqual(
                 ['1', '2', '3'],
@@ -304,14 +304,12 @@ class DocumentTest(tests.Test):
                 ('1/1/ctime', '{"value": 1}'),
                 ('1/1/mtime', '{"value": 1}'),
                 ('1/1/prop', '{"value": "prop-1"}'),
-                ('1/1/user', '{"value": ["me"]}'),
                 ('1/1/seqno', '{"value": 0}'),
 
                 ('2/2/guid', '{"value": "2"}'),
                 ('2/2/ctime', '{"value": 2}'),
                 ('2/2/mtime', '{"value": 2}'),
                 ('2/2/prop', '{"value": "prop-2"}'),
-                ('2/2/user', '{"value": ["me"]}'),
                 ('2/2/seqno', '{"value": 0}'),
                 )
 
@@ -347,10 +345,10 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid = directory.create(guid='guid', prop='foo', user=[])
+        guid = directory.create(guid='guid', prop='foo')
         self.assertEqual(
-                [('guid', 'foo', [])],
-                [(i.guid, i.prop, i.user) for i in directory.find(0, 1024)[0]])
+                [('guid', 'foo')],
+                [(i.guid, i.prop) for i in directory.find(0, 1024)[0]])
 
         directory.update(guid, {'prop': 'probe'})
         self.assertEqual(
@@ -371,7 +369,7 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        guid_1 = directory.create({'user': []})
+        guid_1 = directory.create({})
         seqno = directory.get(guid_1).get('seqno')
         self.assertEqual(1, seqno)
         self.assertEqual(
@@ -381,7 +379,7 @@ class DocumentTest(tests.Test):
                 json.load(file('%s/%s/prop' % (guid_1[:2], guid_1)))['seqno'],
                 seqno)
 
-        guid_2 = directory.create({'user': []})
+        guid_2 = directory.create({})
         seqno = directory.get(guid_2).get('seqno')
         self.assertEqual(2, seqno)
         self.assertEqual(
@@ -451,21 +449,18 @@ class DocumentTest(tests.Test):
                 'guid': {'value': '1', 'mtime': 1},
                 'ctime': {'value': 1, 'mtime': 1},
                 'prop': {'value': '1', 'mtime': 1},
-                'mtime': {'value': 1, 'mtime': 1},
-                'user': {'value': [], 'mtime': 1}}),
+                'mtime': {'value': 1, 'mtime': 1}}),
             ({'guid': '2', 'prop': 'blob', 'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream'}, '2'),
             ({'seqno': 4, 'guid': '2'}, {
                 'guid': {'value': '2', 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
-                'mtime': {'value': 2, 'mtime': 2},
-                'user': {'value': [], 'mtime': 2}}),
+                'mtime': {'value': 2, 'mtime': 2}}),
             ({'seqno': 5, 'guid': '3'}, {
                 'guid': {'value': '3', 'mtime': 3},
                 'ctime': {'value': 3, 'mtime': 3},
                 'prop': {'value': '3', 'mtime': 3},
-                'mtime': {'value': 3, 'mtime': 3},
-                'user': {'value': [], 'mtime': 3}}),
+                'mtime': {'value': 3, 'mtime': 3}}),
             ],
             read_diff(directory, xrange(100), 2))
 
@@ -475,8 +470,7 @@ class DocumentTest(tests.Test):
                 'guid': {'value': '2', 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
-                'mtime': {'value': 2, 'mtime': 2},
-                'user': {'value': [], 'mtime': 2}}),
+                'mtime': {'value': 2, 'mtime': 2}}),
             ],
             read_diff(directory, [3, 4], 2))
 
@@ -516,8 +510,7 @@ class DocumentTest(tests.Test):
             ({'seqno': 2, 'guid': '1'}, {
                 'guid': {'value': '1', 'mtime': 1},
                 'ctime': {'value': 1, 'mtime': 1},
-                'mtime': {'value': 1, 'mtime': 1},
-                'user': {'value': [], 'mtime': 1}}),
+                'mtime': {'value': 1, 'mtime': 1}}),
             ],
             read_diff(directory, xrange(100), 2))
 
@@ -555,9 +548,9 @@ class DocumentTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    {'ctime': 1, 'prop': '1', 'user': [], 'mtime': 1, 'guid': '1'},
-                    {'ctime': 2, 'prop': '2', 'user': [], 'mtime': 2, 'guid': '2'},
-                    {'ctime': 3, 'prop': '3', 'user': [], 'mtime': 3, 'guid': '3'},
+                    {'ctime': 1, 'prop': '1', 'mtime': 1, 'guid': '1'},
+                    {'ctime': 2, 'prop': '2', 'mtime': 2, 'guid': '2'},
+                    {'ctime': 3, 'prop': '3', 'mtime': 3, 'guid': '3'},
                     ]),
                 sorted([i.properties() for i in directory2.find(0, 1024)[0]]))
 
@@ -566,7 +559,6 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, doc.meta('guid')['mtime'])
         self.assertEqual(1, doc.meta('ctime')['mtime'])
         self.assertEqual(1, doc.meta('prop')['mtime'])
-        self.assertEqual(1, doc.meta('user')['mtime'])
         self.assertEqual(1, doc.meta('mtime')['mtime'])
         self.assertEqual(1, doc.meta('blob')['mtime'])
 
@@ -575,7 +567,6 @@ class DocumentTest(tests.Test):
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
         self.assertEqual(2, doc.meta('prop')['mtime'])
-        self.assertEqual(2, doc.meta('user')['mtime'])
         self.assertEqual(2, doc.meta('mtime')['mtime'])
         self.assertEqual(2, doc.meta('blob')['mtime'])
 
@@ -584,7 +575,6 @@ class DocumentTest(tests.Test):
         self.assertEqual(3, doc.meta('guid')['mtime'])
         self.assertEqual(3, doc.meta('ctime')['mtime'])
         self.assertEqual(3, doc.meta('prop')['mtime'])
-        self.assertEqual(3, doc.meta('user')['mtime'])
         self.assertEqual(3, doc.meta('mtime')['mtime'])
         self.assertEqual(None, doc.meta('blob'))
 
@@ -610,13 +600,12 @@ class DocumentTest(tests.Test):
             os.utime('document2/gu/guid/%s' % i, (2, 2))
 
         self.assertEqual(
-                [{'ctime': 2, 'user': [], 'mtime': 2, 'guid': 'guid'}],
+                [{'ctime': 2, 'mtime': 2, 'guid': 'guid'}],
                 [i.properties() for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('guid')
         self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
-        self.assertEqual(2, doc.meta('user')['mtime'])
         self.assertEqual(2, doc.meta('mtime')['mtime'])
         self.assertEqual(2, doc.meta('blob')['mtime'])
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
@@ -625,13 +614,12 @@ class DocumentTest(tests.Test):
             directory2.merge(diff=diff, **header)
 
         self.assertEqual(
-                [{'ctime': 2, 'user': [], 'mtime': 2, 'guid': 'guid'}],
+                [{'ctime': 2, 'mtime': 2, 'guid': 'guid'}],
                 [i.properties() for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('guid')
         self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
-        self.assertEqual(2, doc.meta('user')['mtime'])
         self.assertEqual(2, doc.meta('mtime')['mtime'])
         self.assertEqual(2, doc.meta('blob')['mtime'])
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
@@ -641,13 +629,12 @@ class DocumentTest(tests.Test):
             directory2.merge(diff=diff, **header)
 
         self.assertEqual(
-                [{'ctime': 2, 'user': [], 'mtime': 1, 'guid': 'guid'}],
+                [{'ctime': 2, 'mtime': 1, 'guid': 'guid'}],
                 [i.properties() for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('guid')
         self.assertEqual(3, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
-        self.assertEqual(2, doc.meta('user')['mtime'])
         self.assertEqual(3, doc.meta('mtime')['mtime'])
         self.assertEqual(2, doc.meta('blob')['mtime'])
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
@@ -657,13 +644,12 @@ class DocumentTest(tests.Test):
             directory2.merge(diff=diff, **header)
 
         self.assertEqual(
-                [{'ctime': 2, 'user': [], 'mtime': 1, 'guid': 'guid'}],
+                [{'ctime': 2, 'mtime': 1, 'guid': 'guid'}],
                 [i.properties() for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('guid')
         self.assertEqual(4, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
-        self.assertEqual(2, doc.meta('user')['mtime'])
         self.assertEqual(3, doc.meta('mtime')['mtime'])
         self.assertEqual(4, doc.meta('blob')['mtime'])
         self.assertEqual('1', file('document2/gu/guid/blob.blob').read())
@@ -683,7 +669,7 @@ class DocumentTest(tests.Test):
         for header, diff in directory1.diff(xrange(100), 2):
             directory2.merge(diff=diff, increment_seqno=False, **header)
         self.assertEqual(
-                [{'ctime': 1, 'user': [], 'mtime': 1, 'guid': '1', 'prop': '1'}],
+                [{'ctime': 1, 'mtime': 1, 'guid': '1', 'prop': '1'}],
                 [i.properties() for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('1')
         self.assertEqual(0, doc.get('seqno'))
@@ -694,7 +680,7 @@ class DocumentTest(tests.Test):
         for header, diff in directory1.diff(xrange(100), 2):
             directory3.merge(diff=diff, **header)
         self.assertEqual(
-                [{'ctime': 1, 'user': [], 'mtime': 1, 'guid': '1', 'prop': '1'}],
+                [{'ctime': 1, 'mtime': 1, 'guid': '1', 'prop': '1'}],
                 [i.properties() for i in directory3.find(0, 1024)[0]])
         doc = directory3.get('1')
         self.assertEqual(1, doc.get('seqno'))
@@ -706,7 +692,7 @@ class DocumentTest(tests.Test):
         for header, diff in directory1.diff(xrange(100), 2):
             directory3.merge(diff=diff, increment_seqno=False, **header)
         self.assertEqual(
-                [{'ctime': 2, 'user': [], 'mtime': 2, 'guid': '1', 'prop': '2'}],
+                [{'ctime': 2, 'mtime': 2, 'guid': '1', 'prop': '2'}],
                 [i.properties() for i in directory3.find(0, 1024)[0]])
         doc = directory3.get('1')
         self.assertEqual(1, doc.get('seqno'))
@@ -720,7 +706,7 @@ class DocumentTest(tests.Test):
             print diff
             directory3.merge(diff=diff, **header)
         self.assertEqual(
-                [{'ctime': 3, 'user': [], 'mtime': 3, 'guid': '1', 'prop': '3'}],
+                [{'ctime': 3, 'mtime': 3, 'guid': '1', 'prop': '3'}],
                 [i.properties() for i in directory3.find(0, 1024)[0]])
         doc = directory3.get('1')
         self.assertEqual(2, doc.get('seqno'))

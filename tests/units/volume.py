@@ -45,13 +45,11 @@ class VolumeTest(tests.Test):
                 ('document/1/1/guid', '{"value": "1"}'),
                 ('document/1/1/ctime', '{"value": 1}'),
                 ('document/1/1/mtime', '{"value": 1}'),
-                ('document/1/1/user', '{"value": ["me"]}'),
                 ('document/1/1/seqno', '{"value": 0}'),
 
                 ('document/2/2/guid', '{"value": "2"}'),
                 ('document/2/2/ctime', '{"value": 2}'),
                 ('document/2/2/mtime', '{"value": 2}'),
-                ('document/2/2/user', '{"value": ["me"]}'),
                 ('document/2/2/seqno', '{"value": 0}'),
                 )
 
@@ -84,7 +82,6 @@ class VolumeTest(tests.Test):
                 ('document/1/1/guid', '{"value": "1"}'),
                 ('document/1/1/ctime', '{"value": 1}'),
                 ('document/1/1/mtime', '{"value": 1}'),
-                ('document/1/1/user', '{"value": ["me"]}'),
                 ('document/1/1/seqno', '{"value": 0}'),
                 )
 
@@ -110,7 +107,7 @@ class VolumeTest(tests.Test):
             self.assertEqual('default', volume['document'].get('1')['prop'])
 
     def test_Commands(self):
-        self.volume['testdocument'].create(guid='guid', user=[])
+        self.volume['testdocument'].create(guid='guid')
 
         self.assertEqual({
             'total': 1,
@@ -205,7 +202,7 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
-                sorted(['ctime', 'user', 'prop', 'mtime', 'guid', 'localized_prop']),
+                sorted(['ctime', 'prop', 'mtime', 'guid', 'localized_prop']),
                 sorted(self.call('GET', document='testdocument', guid=guid).keys()))
 
         self.assertEqual(
@@ -524,9 +521,16 @@ class VolumeTest(tests.Test):
         env.index_flush_timeout.value = 0
 
         class Document1(Document):
-            pass
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                pass
 
         class Document2(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                pass
 
             @active_property(BlobProperty)
             def blob(self, value):
@@ -536,7 +540,7 @@ class VolumeTest(tests.Test):
                 ('document1/1/1/guid', '{"value": "1"}'),
                 ('document1/1/1/ctime', '{"value": 1}'),
                 ('document1/1/1/mtime', '{"value": 1}'),
-                ('document1/1/1/user', '{"value": ["me"]}'),
+                ('document1/1/1/prop', '{"value": ""}'),
                 ('document1/1/1/seqno', '{"value": 0}'),
                 )
 
@@ -559,28 +563,28 @@ class VolumeTest(tests.Test):
                 'ctime': 0,
                 'mtime': 0,
                 'seqno': 0,
-                'user': (),
+                'prop': '',
                 'guid': 'guid1',
                 }},
             {'event': 'create', 'document': 'document2', 'seqno': 2, 'guid': 'guid2', 'props': {
                 'ctime': 0,
                 'mtime': 0,
                 'seqno': 0,
-                'user': (),
+                'prop': '',
                 'guid': 'guid2',
                 }},
             ],
             events)
         del events[:]
 
-        volume['document1'].update('guid1', user=['me'])
-        volume['document2'].update('guid2', user=['you'])
+        volume['document1'].update('guid1', prop='foo')
+        volume['document2'].update('guid2', prop='bar')
         self.assertEqual([
             {'event': 'update', 'document': 'document1', 'seqno': 3, 'guid': 'guid1', 'props': {
-                'user': ('me',),
+                'prop': 'foo',
                 }},
             {'event': 'update', 'document': 'document2', 'seqno': 4, 'guid': 'guid2', 'props': {
-                'user': ('you',),
+                'prop': 'bar',
                 }},
             ],
             events)
