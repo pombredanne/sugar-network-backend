@@ -411,6 +411,28 @@ class VolumeTest(tests.Test):
         except Redirect, redirect:
             self.assertEqual('http://sugarlabs.org', redirect.location)
 
+    def test_CompositeBlobs(self):
+        guid = self.call('POST', document='testdocument', content={})
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', url={
+            'file3': {'order': 3, 'url': 'url3', 'foo': 'bar'},
+            'file2': {'order': 2, 'url': 'url2', 'probe': None},
+            'file1': {'order': 1, 'url': 'url1'},
+            })
+
+        self.assertEqual([
+            {'order': 1, 'url': 'url1'},
+            {'order': 2, 'url': 'url2', 'probe': None},
+            {'order': 3, 'url': 'url3', 'foo': 'bar'},
+            ],
+            self.call('GET', document='testdocument', guid=guid, prop='blob'))
+        self.assertRaises(env.NotFound,
+                self.call, 'GET', document='testdocument', guid=guid, prop='blob', file='fake')
+        try:
+            self.call('GET', document='testdocument', guid=guid, prop='blob', file='file2')
+            assert False
+        except Redirect, redirect:
+            self.assertEqual('url2', redirect.location)
+
     def test_before_create(self):
         ts = time.time()
         guid = self.call(method='POST', document='testdocument', content={})

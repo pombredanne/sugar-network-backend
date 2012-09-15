@@ -203,9 +203,7 @@ class Directory(object):
 
         _logger.debug('Received %r BLOB property from %s[%s]',
                 prop.name, self.metadata.name, guid)
-        if isinstance(prop, BlobProperty) and \
-                prop.mime_type == 'application/json' and \
-                not hasattr(data, 'read'):
+        if prop.mime_type == 'application/json' and not hasattr(data, 'read'):
             data = json.dumps(data)
         record.set_blob(prop.name, data, size, seqno=seqno,
                 mime_type=prop.mime_type, **kwargs)

@@ -27,6 +27,8 @@ from active_document.metadata import Metadata, Property, \
         StoredProperty, ActiveProperty, BlobProperty, BrowsableProperty, \
         active_property
 
+from active_document.storage import Meta
+
 from active_document.commands import document_command, directory_command, \
         volume_command, property_command, to_int, to_list, \
         Request, Response, CommandsProcessor, ProxyCommands, CommandNotFound

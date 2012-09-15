@@ -278,9 +278,10 @@ class BlobProperty(Property):
     """
 
     def __init__(self, name, permissions=env.ACCESS_PUBLIC,
-            mime_type='application/octet-stream'):
+            mime_type='application/octet-stream', composite=False):
         Property.__init__(self, name, permissions=permissions)
         self._mime_type = mime_type
+        self._composite = composite
 
     @property
     def mime_type(self):
@@ -290,6 +291,11 @@ class BlobProperty(Property):
 
         """
         return self._mime_type
+
+    @property
+    def composite(self):
+        """Property is a list of BLOBs."""
+        return self._composite
 
 
 def _is_composite(typecast):

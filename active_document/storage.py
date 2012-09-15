@@ -24,7 +24,7 @@ from os.path import exists, join, isdir, basename, relpath, lexists, isabs
 from active_document import env
 from active_document.metadata import BlobProperty
 from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import util
+from active_toolkit import util, enforce
 
 
 _BLOB_SUFFIX = '.blob'
@@ -175,16 +175,8 @@ class Record(object):
 
     def get(self, prop):
         path = join(self._root, prop)
-        if not exists(path):
-            return None
-
-        with file(path) as f:
-            meta = json.load(f)
-        if exists(path + _BLOB_SUFFIX):
-            meta['path'] = path + _BLOB_SUFFIX
-        meta['mtime'] = os.stat(path).st_mtime
-
-        return meta
+        if exists(path):
+            return Meta(path)
 
     def set(self, prop, mtime=None, **kwargs):
         if not exists(self._root):
@@ -268,3 +260,29 @@ class Record(object):
                     hash_file(path)
         else:
             hash_file(dst_path)
+
+
+class Meta(dict):
+
+    def __init__(self, path_=None, **meta):
+        if path_:
+            with file(path_) as f:
+                meta.update(json.load(f))
+            if exists(path_ + _BLOB_SUFFIX):
+                meta['path'] = path_ + _BLOB_SUFFIX
+            meta['mtime'] = os.stat(path_).st_mtime
+        dict.__init__(self, meta)
+
+    def url(self, part=None):
+        url = self.get('url')
+        if url is None or isinstance(url, basestring):
+            return url
+
+        if part:
+            file_meta = url.get(part)
+            enforce(file_meta and 'url' in file_meta,
+                    env.NotFound, 'No BLOB for %r', part)
+            return file_meta['url']
+
+        return sorted(url.values(),
+                cmp=lambda x, y: cmp(x.get('order'), y.get('order')))

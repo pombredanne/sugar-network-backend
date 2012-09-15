@@ -1,9 +1,9 @@
+- sync composite blobs
 - nocache for diff()
 - find only within `accept_range` ranges in DocumentClass.diff()
 - if not completed populate (but commit happened) was aborted, the rest of populate will be skipped next populate
 - do not sync objects that were created and deleted before syncing
 - more relibale db update on schema changes
-- implement authentication
 - make `Directory.diff()` more precise for and avoid using `seqno..` searches if there are closed ranges
 
 1.0
@@ -15,6 +15,5 @@
 - (?) hide new docs in IndexProxy
 - use read/write processes for master server
 - IndexProxy should be smarter to take into account sorting of cached documents
-- i18n for SN content
-- sugar-datastore like file storage optimizer
+- (?) sugar-datastore like file storage optimizer
 - (?) multilingual order_by

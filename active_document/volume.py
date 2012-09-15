@@ -257,24 +257,30 @@ class VolumeCommands(CommandsProcessor):
         return doc.properties(reply, request.accept_language)
 
     @property_command(method='GET', arguments={'seqno': to_int})
-    def get_prop(self, document, guid, prop, request, response, seqno=None):
+    def get_prop(self, document, guid, prop, request, response, seqno=None,
+            part=None):
         directory = self.volume[document]
+        prop = directory.metadata[prop]
         doc = directory.get(guid)
 
-        directory.metadata[prop].assert_access(env.ACCESS_READ)
+        prop.assert_access(env.ACCESS_READ)
 
-        if not isinstance(directory.metadata[prop], BlobProperty):
-            return doc.get(prop, request.accept_language)
+        if not isinstance(prop, BlobProperty):
+            return doc.get(prop.name, request.accept_language)
 
-        meta = doc.meta(prop)
+        meta = doc.meta(prop.name)
         enforce(meta is not None, env.NotFound, 'BLOB does not exist')
 
-        if 'url' in meta:
-            raise env.Redirect(meta['url'])
+        url = meta.url(part)
+        if url is not None:
+            if not isinstance(url, basestring):
+                response.content_type = 'application/json'
+                return url
+            raise env.Redirect(url)
 
         if seqno is not None and seqno >= meta['seqno']:
             response.content_length = 0
-            response.content_type = directory.metadata[prop].mime_type
+            response.content_type = prop.mime_type
             return None
 
         path = meta['path']
@@ -285,7 +291,7 @@ class VolumeCommands(CommandsProcessor):
             return dir_reader
         else:
             response.content_length = os.stat(path).st_size
-            response.content_type = directory.metadata[prop].mime_type
+            response.content_type = prop.mime_type
             return _file_reader(path)
 
     def before_create(self, request, props):
