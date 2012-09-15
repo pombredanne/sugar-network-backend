@@ -251,16 +251,13 @@ class Directory(object):
             self.commit()
             self._notify({'event': 'populate', 'seqno': self._seqno.value})
 
-    def diff(self, accept_range, limit, clone=False):
+    def diff(self, accept_range, limit):
         """Return documents' properties for specified times range.
 
         :param accept_range:
             seqno sequence to accept documents
         :param limit:
             number of documents to return at once
-        :param clone:
-            is `diff()` call is inteded for initial clonning, e.g.,
-            cloning does not assume fetching deleted objects
         :returns:
             a tuple of ((`left-seqno`, `right-seqno`), [(`guid`, `patch`)]),
             where `patch` is a resulting dictionary from `Document.diff()`
@@ -283,8 +280,6 @@ class Directory(object):
                  'reply': ['guid'],
                  'order_by': 'seqno',
                  }
-        if clone:
-            query['layer'] = 'public'
 
         while True:
             documents, total = self.find(query='seqno:%s..' % seqno, **query)
@@ -431,9 +426,10 @@ class Directory(object):
         self._index.store(guid, props, new,
                 self._pre_store, self._post_store, event, True)
 
-    def _notify(self, even):
+    def _notify(self, event):
         if self._notification_cb is not None:
-            self._notification_cb(even)
+            event['document'] = self.metadata.name
+            self._notification_cb(event)
 
     def _save_layout(self):
         path = join(self._root, 'layout')

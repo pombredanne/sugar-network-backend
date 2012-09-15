@@ -49,11 +49,6 @@ class Document(object):
     def seqno(self, value):
         return value
 
-    @active_property(prefix='IL', full_text=True, typecast=[env.LAYERS],
-            default=['public'], permissions=env.ACCESS_READ)
-    def layer(self, value):
-        return value
-
     @active_property(prefix='IU', typecast=[], default=[],
             permissions=env.ACCESS_CREATE | env.ACCESS_READ)
     def user(self, value):

@@ -35,8 +35,6 @@ class MigrateTest(tests.Test):
                 ('gu/guid/ctime.seqno', ''),
                 ('gu/guid/mtime', '1'),
                 ('gu/guid/mtime.seqno', ''),
-                ('gu/guid/layer', '["public"]'),
-                ('gu/guid/layer.seqno', ''),
                 ('gu/guid/user', '["me"]'),
                 ('gu/guid/user.seqno', ''),
                 ('gu/guid/prop', '"prop"'),
@@ -58,7 +56,6 @@ class MigrateTest(tests.Test):
         assert not exists('gu/guid/guid.seqno')
         assert not exists('gu/guid/ctime.seqno')
         assert not exists('gu/guid/mtime.seqno')
-        assert not exists('gu/guid/layer.seqno')
         assert not exists('gu/guid/user.seqno')
         assert not exists('gu/guid/prop.seqno')
         assert not exists('gu/guid/blob.seqno')
@@ -76,9 +73,6 @@ class MigrateTest(tests.Test):
             self.assertEqual(
                     {'value': 1, 'mtime': 1, 'seqno': 1},
                     doc.meta('mtime'))
-            self.assertEqual(
-                    {'value': ['public'], 'mtime': 1, 'seqno': 1},
-                    doc.meta('layer'))
             self.assertEqual(
                     {'value': ['me'], 'mtime': 1, 'seqno': 1},
                     doc.meta('user'))
@@ -118,8 +112,6 @@ class MigrateTest(tests.Test):
                 ('1/1/ctime.seqno', ''),
                 ('1/1/mtime', '1'),
                 ('1/1/mtime.seqno', ''),
-                ('1/1/layer', '["public"]'),
-                ('1/1/layer.seqno', ''),
                 ('1/1/user', '["me"]'),
                 ('1/1/user.seqno', ''),
                 ('1/1/blob.seqno', ''),
@@ -132,8 +124,6 @@ class MigrateTest(tests.Test):
                 ('2/2/ctime.seqno', ''),
                 ('2/2/mtime', '1'),
                 ('2/2/mtime.seqno', ''),
-                ('2/2/layer', '["public"]'),
-                ('2/2/layer.seqno', ''),
                 ('2/2/user', '["me"]'),
                 ('2/2/user.seqno', ''),
                 ('2/2/blob.seqno', ''),
@@ -146,8 +136,6 @@ class MigrateTest(tests.Test):
                 ('3/3/ctime.seqno', ''),
                 ('3/3/mtime', '1'),
                 ('3/3/mtime.seqno', ''),
-                ('3/3/layer', '["public"]'),
-                ('3/3/layer.seqno', ''),
                 ('3/3/user', '["me"]'),
                 ('3/3/user.seqno', ''),
                 ('3/3/blob.seqno', ''),
@@ -159,8 +147,6 @@ class MigrateTest(tests.Test):
                 ('4/4/ctime.seqno', ''),
                 ('4/4/mtime', '1'),
                 ('4/4/mtime.seqno', ''),
-                ('4/4/layer', '["public"]'),
-                ('4/4/layer.seqno', ''),
                 ('4/4/user', '["me"]'),
                 ('4/4/user.seqno', ''),
                 ('4/4/blob', 'blob'),
@@ -228,8 +214,6 @@ class MigrateTest(tests.Test):
                 ('gu/guid/ctime.seqno', ''),
                 ('gu/guid/mtime', '1'),
                 ('gu/guid/mtime.seqno', ''),
-                ('gu/guid/layer', '["public"]'),
-                ('gu/guid/layer.seqno', ''),
                 ('gu/guid/user', '["me"]'),
                 ('gu/guid/user.seqno', ''),
                 ('gu/guid/prop1.seqno', ''),
@@ -246,7 +230,6 @@ class MigrateTest(tests.Test):
         assert not exists('gu/guid/guid.seqno')
         assert not exists('gu/guid/ctime.seqno')
         assert not exists('gu/guid/mtime.seqno')
-        assert not exists('gu/guid/layer.seqno')
         assert not exists('gu/guid/user.seqno')
         assert exists('gu/guid/prop1')
         assert not exists('gu/guid/prop1.seqno')
@@ -283,8 +266,6 @@ class MigrateTest(tests.Test):
                 ('gu/guid/ctime.seqno', ''),
                 ('gu/guid/mtime', '1'),
                 ('gu/guid/mtime.seqno', ''),
-                ('gu/guid/layer', '["public"]'),
-                ('gu/guid/layer.seqno', ''),
                 ('gu/guid/user', '["me"]'),
                 ('gu/guid/user.seqno', ''),
                 )

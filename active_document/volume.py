@@ -16,7 +16,6 @@
 import os
 import time
 import logging
-from functools import partial
 from os.path import exists, join, abspath, isdir
 
 from active_document import env
@@ -79,6 +78,17 @@ class _Volume(dict):
             for __ in cls.populate():
                 coroutine.dispatch()
 
+    def notify(self, event):
+        for callback, condition in self._subscriptions.items():
+            for key, value in condition.items():
+                if event.get(key) not in ('*', value):
+                    break
+            else:
+                try:
+                    callback(event)
+                except Exception:
+                    util.exception(_logger, 'Failed to dispatch %r', event)
+
     def __enter__(self):
         return self
 
@@ -92,23 +102,6 @@ class _Volume(dict):
             directory = self[name] = self._open(name, self._to_open.pop(name))
         return directory
 
-    def _notification_cb(self, event, document):
-        if event['event'] == 'update' and 'props' in event and \
-                'deleted' in event['props'].get('layer', []):
-            event['event'] = 'delete'
-            del event['props']
-        event['document'] = document
-
-        for callback, condition in self._subscriptions.items():
-            for key, value in condition.items():
-                if event.get(key) not in ('*', value):
-                    break
-            else:
-                try:
-                    callback(event)
-                except Exception:
-                    util.exception(_logger, 'Failed to dispatch %r', event)
-
     def _open(self, name, document):
         if isinstance(document, basestring):
             mod = __import__(document, fromlist=[name])
@@ -116,7 +109,7 @@ class _Volume(dict):
         else:
             cls = document
         directory = Directory(join(self._root, name), cls, self._index_class,
-                partial(self._notification_cb, document=name), self.seqno)
+                self.notify, self.seqno)
         return directory
 
 
@@ -171,15 +164,6 @@ class VolumeCommands(CommandsProcessor):
 
         for i in reply:
             directory.metadata[i].assert_access(env.ACCESS_READ)
-
-        # TODO until implementing layers support
-        layer = kwargs.get('layer', ['public'])
-        if isinstance(layer, basestring):
-            layer = [layer]
-        if 'deleted' in layer:
-            _logger.warning('Requesting "deleted" layer')
-            layer.remove('deleted')
-        kwargs['layer'] = layer
 
         documents, total = directory.find(offset=offset, limit=limit,
                 query=query, reply=reply, order_by=order_by, group_by=group_by,
@@ -251,9 +235,6 @@ class VolumeCommands(CommandsProcessor):
         for i in reply or []:
             directory.metadata[i].assert_access(env.ACCESS_READ)
 
-        enforce('deleted' not in doc['layer'], env.NotFound,
-                'Document is not found')
-
         return doc.properties(reply, request.accept_language)
 
     @property_command(method='GET', arguments={'seqno': to_int})
@@ -298,8 +279,6 @@ class VolumeCommands(CommandsProcessor):
         ts = int(time.time())
         props['ctime'] = ts
         props['mtime'] = ts
-        # TODO until implementing layers support
-        props['layer'] = ['public']
 
     def before_update(self, request, props):
         props['mtime'] = int(time.time())

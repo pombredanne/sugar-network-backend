@@ -56,8 +56,6 @@ ACCESS_NAMES = {
         ACCESS_DELETE: 'Delete',
         }
 
-LAYERS = ['public', 'deleted']
-
 
 index_flush_timeout = Option(
         'flush index index after specified seconds since the last change',

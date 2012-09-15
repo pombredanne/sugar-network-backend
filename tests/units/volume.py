@@ -45,14 +45,12 @@ class VolumeTest(tests.Test):
                 ('document/1/1/guid', '{"value": "1"}'),
                 ('document/1/1/ctime', '{"value": 1}'),
                 ('document/1/1/mtime', '{"value": 1}'),
-                ('document/1/1/layer', '{"value": ["public"]}'),
                 ('document/1/1/user', '{"value": ["me"]}'),
                 ('document/1/1/seqno', '{"value": 0}'),
 
                 ('document/2/2/guid', '{"value": "2"}'),
                 ('document/2/2/ctime', '{"value": 2}'),
                 ('document/2/2/mtime', '{"value": 2}'),
-                ('document/2/2/layer', '{"value": ["public"]}'),
                 ('document/2/2/user', '{"value": ["me"]}'),
                 ('document/2/2/seqno', '{"value": 0}'),
                 )
@@ -86,7 +84,6 @@ class VolumeTest(tests.Test):
                 ('document/1/1/guid', '{"value": "1"}'),
                 ('document/1/1/ctime', '{"value": 1}'),
                 ('document/1/1/mtime', '{"value": 1}'),
-                ('document/1/1/layer', '{"value": ["public"]}'),
                 ('document/1/1/user', '{"value": ["me"]}'),
                 ('document/1/1/seqno', '{"value": 0}'),
                 )
@@ -208,7 +205,7 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
-                sorted(['layer', 'ctime', 'user', 'prop', 'mtime', 'guid', 'localized_prop']),
+                sorted(['ctime', 'user', 'prop', 'mtime', 'guid', 'localized_prop']),
                 sorted(self.call('GET', document='testdocument', guid=guid).keys()))
 
         self.assertEqual(
@@ -426,9 +423,9 @@ class VolumeTest(tests.Test):
             ],
             self.call('GET', document='testdocument', guid=guid, prop='blob'))
         self.assertRaises(env.NotFound,
-                self.call, 'GET', document='testdocument', guid=guid, prop='blob', file='fake')
+                self.call, 'GET', document='testdocument', guid=guid, prop='blob', part='fake')
         try:
-            self.call('GET', document='testdocument', guid=guid, prop='blob', file='file2')
+            self.call('GET', document='testdocument', guid=guid, prop='blob', part='file2')
             assert False
         except Redirect, redirect:
             self.assertEqual('url2', redirect.location)
@@ -438,7 +435,6 @@ class VolumeTest(tests.Test):
         guid = self.call(method='POST', document='testdocument', content={})
         assert self.volume['testdocument'].get(guid)['ctime'] in range(ts - 1, ts + 1)
         assert self.volume['testdocument'].get(guid)['mtime'] in range(ts - 1, ts + 1)
-        self.assertEqual(['public'], self.volume['testdocument'].get(guid)['layer'])
 
     def test_before_create_Override(self):
 
@@ -540,7 +536,6 @@ class VolumeTest(tests.Test):
                 ('document1/1/1/guid', '{"value": "1"}'),
                 ('document1/1/1/ctime', '{"value": 1}'),
                 ('document1/1/1/mtime', '{"value": 1}'),
-                ('document1/1/1/layer', '{"value": ["public"]}'),
                 ('document1/1/1/user', '{"value": ["me"]}'),
                 ('document1/1/1/seqno', '{"value": 0}'),
                 )
@@ -561,7 +556,6 @@ class VolumeTest(tests.Test):
         volume['document2'].create(guid='guid2')
         self.assertEqual([
             {'event': 'create', 'document': 'document1', 'seqno': 1, 'guid': 'guid1', 'props': {
-                'layer': ('public',),
                 'ctime': 0,
                 'mtime': 0,
                 'seqno': 0,
@@ -569,7 +563,6 @@ class VolumeTest(tests.Test):
                 'guid': 'guid1',
                 }},
             {'event': 'create', 'document': 'document2', 'seqno': 2, 'guid': 'guid2', 'props': {
-                'layer': ('public',),
                 'ctime': 0,
                 'mtime': 0,
                 'seqno': 0,
@@ -617,45 +610,6 @@ class VolumeTest(tests.Test):
             {'event': 'commit', 'document': 'document2', 'seqno': 5},
             ],
             events)
-
-    def test_Events_SimulateDeleteEvent(self):
-        env.index_flush_threshold.value = 0
-        env.index_flush_timeout.value = 0
-
-        class Document1(Document):
-            pass
-
-        events = []
-        volume = SingleVolume(tests.tmpdir, [Document1])
-        volume.connect(lambda event: events.append(event))
-
-        volume['document1'].create(guid='guid')
-        self.assertEqual([
-            {'event': 'create', 'document': 'document1', 'seqno': 1, 'guid': 'guid', 'props': {
-                'layer': ('public',),
-                'ctime': 0,
-                'mtime': 0,
-                'seqno': 0,
-                'user': (),
-                'guid': 'guid',
-                }},
-            ],
-            events)
-        del events[:]
-
-        volume['document1'].update('guid', layer=['deleted'])
-        self.assertEqual([
-            {'event': 'delete', 'document': 'document1', 'seqno': 2, 'guid': 'guid'},
-            ],
-            events)
-        del events[:]
-
-    def test_DeletedDocuments(self):
-        directory = self.volume['testdocument']
-        guid = directory.create({'layer': 'deleted'})
-
-        self.assertRaises(env.NotFound, self.call, 'GET', document='testdocument', guid=guid)
-        self.assertEqual([], self.call('GET', document='testdocument')['result'])
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):
