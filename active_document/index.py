@@ -313,7 +313,7 @@ class IndexWriter(IndexReader):
 
         self._lang = env.default_lang()
         self._pending_updates = 0
-        self._commit_cond = coroutine.Condition()
+        self._commit_cond = coroutine.Event()
         self._commit_job = coroutine.spawn(self._commit_handler)
 
         # Let `_commit_handler()` call `wait()` to not miss immediate commit
@@ -401,7 +401,7 @@ class IndexWriter(IndexReader):
             return
         self._commit()
         # Trigger condition to reset waiting for `index_flush_timeout` timeout
-        self._commit_cond.notify(False)
+        self._commit_cond.set()
 
     def _do_open(self):
         try:
@@ -440,7 +440,7 @@ class IndexWriter(IndexReader):
         if env.index_flush_threshold.value > 0 and \
                 self._pending_updates >= env.index_flush_threshold.value:
             # Avoid processing heavy commits in the same coroutine
-            self._commit_cond.notify(True)
+            self._commit_cond.set()
 
     def _commit_handler(self):
         if env.index_flush_timeout.value > 0:
@@ -449,8 +449,9 @@ class IndexWriter(IndexReader):
             timeout = None
 
         while True:
-            if self._commit_cond.wait(timeout) is not False:
-                self._commit()
+            self._commit_cond.wait(timeout)
+            self._commit()
+            self._commit_cond.clear()
 
 
 class Total(object):

@@ -193,7 +193,7 @@ class _Queue(object):
         self._mutex = threading.Lock()
         self._push_cond = threading.Condition(self._mutex)
         self._done_cond = threading.Condition(self._mutex)
-        self._done_async = coroutine.AsyncCondition()
+        self._done_async = coroutine.AsyncEvent()
         self._endtime = time.time() + env.index_flush_timeout.value
         self._seqno = {}
 
@@ -247,7 +247,7 @@ class _Queue(object):
             self._done_cond.notify()
         finally:
             self._mutex.release()
-        self._done_async.notify()
+        self._done_async.send()
 
     def wait(self):
         self._mutex.acquire()

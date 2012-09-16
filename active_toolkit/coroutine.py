@@ -92,11 +92,6 @@ def WSGIServer(*args, **kwargs):
     return gevent.wsgi.WSGIServer(*args, **kwargs)
 
 
-def Event():
-    import gevent.event
-    return gevent.event.Event()
-
-
 def Queue(*args, **kwargs):
     import gevent.queue
     return gevent.queue.Queue(*args, **kwargs)
@@ -112,23 +107,17 @@ def RLock(*args, **kwargs):
     return gevent.coros.RLock(*args, **kwargs)
 
 
-class Condition(object):
-
-    def __init__(self):
-        self._event = Event()
-        self._value = None
-
-    def wait(self, timeout=None):
-        self._event.wait(timeout)
-        return self._value
-
-    def notify(self, value=None):
-        self._value = value
-        self._event.set()
-        self._event.clear()
+def Event():
+    import gevent.event
+    return gevent.event.Event()
 
 
-class AsyncCondition(object):
+def AsyncResult():
+    import gevent.event
+    return gevent.event.AsyncResult()
+
+
+class AsyncEvent(object):
 
     def __init__(self):
         self._async = gevent.get_hub().loop.async()
@@ -136,7 +125,7 @@ class AsyncCondition(object):
     def wait(self):
         gevent.get_hub().wait(self._async)
 
-    def notify(self):
+    def send(self):
         self._async.send()
 
 
