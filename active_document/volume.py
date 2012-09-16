@@ -126,6 +126,7 @@ class VolumeCommands(CommandsProcessor):
     def __init__(self, volume):
         CommandsProcessor.__init__(self, volume)
         self.volume = volume
+        self._lang = [env.default_lang()]
 
     @directory_command(method='POST',
             permissions=env.ACCESS_AUTH)
@@ -168,7 +169,7 @@ class VolumeCommands(CommandsProcessor):
         documents, total = directory.find(offset=offset, limit=limit,
                 query=query, reply=reply, order_by=order_by, group_by=group_by,
                 **kwargs)
-        result = [i.properties(reply, request.accept_language)
+        result = [i.properties(reply, request.accept_language or self._lang)
                 for i in documents]
 
         return {'total': total.value, 'result': result}
@@ -235,7 +236,7 @@ class VolumeCommands(CommandsProcessor):
         for i in reply or []:
             directory.metadata[i].assert_access(env.ACCESS_READ)
 
-        return doc.properties(reply, request.accept_language)
+        return doc.properties(reply, request.accept_language or self._lang)
 
     @property_command(method='GET', arguments={'seqno': to_int})
     def get_prop(self, document, guid, prop, request, response, seqno=None,
@@ -247,7 +248,7 @@ class VolumeCommands(CommandsProcessor):
         prop.assert_access(env.ACCESS_READ)
 
         if not isinstance(prop, BlobProperty):
-            return doc.get(prop.name, request.accept_language)
+            return doc.get(prop.name, request.accept_language or self._lang)
 
         meta = doc.meta(prop.name)
         enforce(meta is not None, env.NotFound, 'BLOB does not exist')
@@ -284,8 +285,8 @@ class VolumeCommands(CommandsProcessor):
         props['mtime'] = int(time.time())
 
     def _prepost(self, request, prop, value):
-        if prop.localized and request.accept_language:
-            return {request.accept_language[0]: value}
+        if prop.localized and isinstance(value, basestring):
+            return {(request.accept_language or self._lang)[0]: value}
         else:
             return value
 
