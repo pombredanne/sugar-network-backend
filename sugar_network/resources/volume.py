@@ -157,6 +157,9 @@ class Commands(object):
         return self._pull_events(only_commits)
 
     def _pull_events(self, only_commits):
+        # Otherwise, gevent's WSGI server doesn't sent HTTP status
+        yield '\n'
+
         while True:
             event = self._notifier.get()
 
