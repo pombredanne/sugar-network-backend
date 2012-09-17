@@ -34,3 +34,6 @@ from active_document.commands import document_command, directory_command, \
         Request, Response, CommandsProcessor, ProxyCommands, CommandNotFound
 
 from active_document.volume import SingleVolume, VolumeCommands
+
+
+MAX_LIMIT = 2147483648
