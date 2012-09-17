@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import json
+
 from __init__ import tests
 
 import active_document as ad
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
-from sugar_network.resources.volume import Volume, Resource
+from sugar_network.resources.volume import Volume, Resource, Commands
+from active_toolkit import coroutine
 
 
 class VolumeTest(tests.Test):
@@ -159,6 +162,96 @@ class VolumeTest(tests.Test):
             {'event': 'delete', 'document': 'document', 'seqno': 2, 'guid': 'guid'},
             ],
             events)
+
+    def test_Subscribe(self):
+
+        class Document(Resource):
+
+            @ad.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        volume = Volume('db', [Document])
+        cp = TestCommands(volume)
+        events = []
+
+        def read_events():
+            for event in cp.subscribe(ad.Response()):
+                assert event.startswith('data: ')
+                assert event.endswith('\n\n')
+                event = json.loads(event[6:])
+                if 'props' in event:
+                    event.pop('props')
+                events.append(event)
+
+        job = coroutine.spawn(read_events)
+        coroutine.dispatch()
+        volume['document'].create(guid='guid', prop='value1')
+        coroutine.dispatch()
+        volume['document'].update('guid', prop='value2')
+        coroutine.dispatch()
+        volume['document'].delete('guid')
+        coroutine.dispatch()
+        volume['document'].commit()
+        coroutine.sleep(.5)
+        job.kill()
+
+        self.assertEqual([
+            {'guid': 'guid', 'seqno': 1, 'document': 'document', 'event': 'create'},
+            {'guid': 'guid', 'seqno': 2, 'document': 'document', 'event': 'update'},
+            {'guid': 'guid', 'event': 'delete', 'document': u'document'},
+            ],
+            events)
+
+    def test_SubscribeToOnlyCommits(self):
+
+        class Document(Resource):
+
+            @ad.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        volume = Volume('db', [Document])
+        cp = TestCommands(volume)
+        events = []
+
+        def read_events():
+            for event in cp.subscribe(ad.Response(), only_commits=True):
+                assert event.startswith('data: ')
+                assert event.endswith('\n\n')
+                event = json.loads(event[6:])
+                if 'props' in event:
+                    event.pop('props')
+                events.append(event)
+
+        job = coroutine.spawn(read_events)
+        coroutine.dispatch()
+        volume['document'].create(guid='guid', prop='value1')
+        coroutine.dispatch()
+        volume['document'].update('guid', prop='value2')
+        coroutine.dispatch()
+        volume['document'].delete('guid')
+        coroutine.dispatch()
+        volume['document'].commit()
+        coroutine.sleep(.5)
+        job.kill()
+
+        self.assertEqual([
+            {'seqno': 1, 'document': 'document', 'event': 'commit'},
+            {'seqno': 2, 'document': 'document', 'event': 'commit'},
+            {'seqno': 2, 'document': 'document', 'event': 'commit'},
+            ],
+            events)
+
+
+class TestCommands(ad.VolumeCommands, Commands):
+
+    def __init__(self, volume):
+        ad.VolumeCommands.__init__(self, volume)
+        Commands.__init__(self)
+
+    def connect(self, callback, condition=None, **kwargs):
+        self.volume.connect(callback, condition)
 
 
 def read_packet(packet):

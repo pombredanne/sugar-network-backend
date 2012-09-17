@@ -13,164 +13,149 @@ import active_document as ad
 from active_toolkit import coroutine, sockets
 from sugar_network.local.mounts import HomeMount
 from sugar_network.local.mountset import Mountset
-from sugar_network.local.bus import IPCServer
 from sugar_network.local import activities
 from sugar_network.toolkit import mounts_monitor
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network import local, Client, sugar
+from sugar_network import local, sugar
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.report import Report
+from sugar_network.local.ipc_client import Router as IPCRouter
+from sugar_network import IPCClient
 
 
 class NodeMountTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+        self.events_job = None
         local.server_mode.value = True
 
     def tearDown(self):
+        if self.events_job is not None:
+            self.events_job.kill()
         tests.Test.tearDown(self)
 
-    def start_server(self, ipc=False):
+    def start_server(self):
+        self.touch('mnt/.sugar-network')
+        self.touch(('mnt/node', 'node'))
         local.mounts_root.value = tests.tmpdir
 
         volume = Volume('local', [User, Context, Report])
-        mounts = Mountset(volume)
-        if ipc:
-            self.server = IPCServer(mounts)
-            coroutine.spawn(self.server.serve_forever)
-            coroutine.dispatch()
-        else:
-            Client._connection = mounts
-        self.got_event = coroutine.Event()
-
-        def events_cb(event):
-            if event['event'] in ('mount', 'unmount') and \
-                    event['mountpoint'].startswith(local.mounts_root.value):
-                self.events.append((event['event'], event['mountpoint']))
-                self.got_event.set()
-
-        self.events = []
-        Client.connect(events_cb)
-
-        mounts.open()
+        self.mounts = Mountset(volume)
+        self.server = coroutine.WSGIServer(
+                ('localhost', local.ipc_port.value), IPCRouter(self.mounts))
+        coroutine.spawn(self.server.serve_forever)
+        self.mounts.open()
         mounts_monitor.start(tests.tmpdir)
-        mounts.opened.wait()
-        # Let `open()` start processing spawned jobs
-        coroutine.dispatch()
+        self.mounts.opened.wait()
 
-        return mounts
+        return self.mounts
 
     def test_GetKeep(self):
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
         mounts = self.start_server()
-        self.got_event.wait()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        remote = Client(tests.tmpdir + '/mnt')
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
-        guid = remote.Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post()
-
-        context = remote.Context(guid, ['keep', 'keep_impl'])
+        context = remote.get(['context', guid], reply=['keep', 'keep_impl'])
         self.assertEqual(False, context['keep'])
         self.assertEqual(0, context['keep_impl'])
-        self.assertEqual(
-                [(guid, False, False)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
+        self.assertEqual([
+            {'guid': guid, 'keep': False, 'keep_impl': False},
+            ],
+            remote.get(['context'], reply=['guid', 'keep', 'keep_impl'])['result'])
 
         mounts.home_volume['context'].create(guid=guid, type='activity',
-                title={'en': 'local'}, summary={'en': 'summary'},
-                description={'en': 'description'}, keep=True, keep_impl=2,
+                title='local', summary='summary',
+                description='description', keep=True, keep_impl=2,
                 user=[sugar.uid()])
+        coroutine.sleep(1)
 
-        context = remote.Context(guid, ['keep', 'keep_impl'])
+        context = remote.get(['context', guid], reply=['keep', 'keep_impl'])
         self.assertEqual(True, context['keep'])
         self.assertEqual(2, context['keep_impl'])
-        self.assertEqual(
-                [(guid, True, 2)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
+        self.assertEqual([
+            {'guid': guid, 'keep': True, 'keep_impl': 2},
+            ],
+            remote.get(['context'], reply=['guid', 'keep', 'keep_impl'])['result'])
 
     def test_SetKeep(self):
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
         mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
         mounts['~'] = HomeMount(mounts.home_volume)
-        self.got_event.wait()
-        remote = Client(tests.tmpdir + '/mnt')
-        local = Client('~')
+        local = IPCClient(mountpoint='~')
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid_1 = remote.Context(
-                type=['activity'],
-                title='remote',
-                summary='summary',
-                description='description').post()
-        guid_2 = remote.Context(
-                type=['activity'],
-                title='remote-2',
-                summary='summary',
-                description='description').post()
+        guid_1 = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        guid_2 = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote-2',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
-        self.assertRaises(ad.NotFound, lambda: local.Context(guid_1, reply=['title'])['title'])
-        self.assertRaises(ad.NotFound, lambda: local.Context(guid_2, reply=['title'])['title'])
+        self.assertRaises(RuntimeError, local.get, ['context', guid_1])
+        self.assertRaises(RuntimeError, local.get, ['context', guid_2])
 
-        remote.Context(guid_1, keep=True).post()
+        remote.put(['context', guid_1], {'keep': True})
 
-        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', True, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
-        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', True, 0),
-                    (guid_2, 'remote-2', False, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
 
-        remote.Context(guid_1, keep=False).post()
+        remote.put(['context', guid_1], {'keep': False})
 
-        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', False, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
-        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', False, 0),
-                    (guid_2, 'remote-2', False, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
 
-        context = local.Context(guid_1)
-        context['title'] = 'local'
-        context.post()
-        context = local.Context(guid_1, reply=['keep', 'keep_impl', 'title'])
-        self.assertEqual('local', context['title'])
+        local.put(['context', guid_1], {'title': 'local'})
 
-        remote.Context(guid_1, keep=True).post()
+        self.assertEqual(
+                {'title': 'local'},
+                local.get(['context', guid_1], reply=['title']))
 
-        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+        remote.put(['context', guid_1], {'keep': True})
+
         self.assertEqual(
                 sorted([
-                    (guid_1, 'local', True, 0),
+                    {'guid': guid_1, 'title': 'local', 'keep': True, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
-        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', True, 0),
-                    (guid_2, 'remote-2', False, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
 
     def test_SetKeepImpl(self):
         Volume.RESOURCES = [
@@ -179,27 +164,28 @@ class NodeMountTest(tests.Test):
                 'sugar_network.resources.implementation',
                 ]
 
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
-        mounts = self.start_server(ipc=True)
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
         mounts['~'] = HomeMount(mounts.home_volume)
-        self.got_event.wait()
-        remote = Client(tests.tmpdir + '/mnt')
-        local = Client('~')
+        local = IPCClient(mountpoint='~')
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
         coroutine.spawn(activities.monitor, mounts.home_volume['context'], ['Activities'])
 
-        context = remote.Context(
-                type=['activity'],
-                title='remote',
-                summary='summary',
-                description='description').post()
-        impl = remote.Implementation(
-                context=context,
-                license=['GPLv3+'],
-                version='1',
-                date=0,
-                stability='stable',
-                notes='').post()
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            })
+
         with file('mnt/context/%s/%s/feed' % (context[:2], context), 'w') as f:
             json.dump({
                 'seqno': 0,
@@ -233,125 +219,120 @@ class NodeMountTest(tests.Test):
             'license=Public Domain',
             ]))
         bundle.close()
-        remote.Implementation(impl).upload_blob('data', 'bundle')
+        remote.put(['implementation', impl, 'data'], cmd='upload_blob', path=abspath('bundle'))
 
-        remote.Context(context, keep_impl=1).post()
+        remote.put(['context', context], {'keep_impl': 1})
+        coroutine.sleep(1)
 
-        cursor = local.Context.cursor(reply=['keep_impl', 'title'])
+        cursor = local.get(['context'], reply=['guid', 'keep_impl', 'title'])['result']
         self.assertEqual([
-            (context, 'remote', 2),
+            {'guid': context, 'title': 'remote', 'keep_impl': 2},
             ],
-            [(i.guid, i['title'], i['keep_impl']) for i in cursor])
+            cursor)
         assert exists('Activities/TestActivitry/activity/activity.info')
 
     def test_Events(self):
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
-        self.start_server()
-        self.got_event.wait()
-        self.got_event.clear()
-        client = Client(tests.tmpdir + '/mnt')
-
-        def events_cb(event):
-            if 'props' in event:
-                event.pop('props')
-            events.append(event)
-            got_commit.set()
-            got_commit.clear()
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
         events = []
-        got_commit = coroutine.Event()
-        Client.connect(events_cb)
+        got_event = coroutine.Event()
 
-        guid = client.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
-        got_commit.wait()
+        def read_events():
+            for event in remote.subscribe():
+                if 'props' in event:
+                    event.pop('props')
+                events.append(event)
+                got_event.set()
+        job = coroutine.spawn(read_events)
+
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        got_event.wait()
+        got_event.clear()
         self.assertEqual([
             {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'create', 'guid': guid, 'seqno': 1},
-            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 1},
             ],
             events)
         del events[:]
 
-        client.Context(guid, title='new-title').post()
-        got_commit.wait()
+        remote.put(['context', guid], {'title': 'new-title'})
+        got_event.wait()
+        got_event.clear()
         self.assertEqual([
             {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 2},
-            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 2},
             ],
             events)
         del events[:]
 
         guid_path = 'mnt/context/%s/%s' % (guid[:2], guid)
         assert exists(guid_path)
-        client.Context.delete(guid)
+        remote.delete(['context', guid])
         assert not exists(guid_path)
-        got_commit.wait()
+        got_event.wait()
+        got_event.clear()
         self.assertEqual([
             {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'delete', 'guid': guid},
-            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'commit', 'seqno': 2},
             ],
             events)
         del events[:]
 
     def test_upload_blob(self):
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
-        self.start_server()
-        self.got_event.wait()
-        remote = Client(tests.tmpdir + '/mnt')
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid = remote.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
         self.touch(('file', 'blob'))
-        remote.Context(guid).upload_blob('preview', 'file')
-        self.assertEqual('blob', remote.Context(guid).get_blob('preview').read())
+        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob', file(blob['path']).read())
 
         self.touch(('file2', 'blob2'))
-        remote.Context(guid).upload_blob('preview', 'file2', pass_ownership=True)
-        self.assertEqual('blob2', remote.Context(guid).get_blob('preview').read())
+        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file2'), pass_ownership=True)
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob2', file(blob['path']).read())
         assert not exists('file2')
 
-    def test_GetAbsetnBLOB(self):
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
-        self.start_server()
-        self.got_event.wait()
-        client = Client(tests.tmpdir + '/mnt')
+    def test_GetAbsentBLOB(self):
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid = client.Report(
-                context='context',
-                implementation='implementation',
-                description='description').post()
+        guid = remote.post(['report'], {
+            'context': 'context',
+            'implementation': 'implementation',
+            'description': 'description',
+            })
 
-        path, mime_type = client.Report(guid).get_blob_path('data')
-        self.assertEqual(None, path)
-        self.assertEqual(True, client.Report(guid).get_blob('data').closed)
+        self.assertEqual(None, remote.get(['report', guid, 'data'], cmd='get_blob'))
 
     def test_GetDefaultBLOB(self):
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
-        self.start_server()
-        self.got_event.wait()
-        client = Client(tests.tmpdir + '/mnt')
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid = client.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
-        path, mime_type = client.Context(guid).get_blob_path('icon')
-        assert path.endswith('missing.png')
-        assert exists(path)
-        self.assertEqual(False, client.Context(guid).get_blob('icon').closed)
+        blob = remote.get(['context', guid, 'icon'], cmd='get_blob')
+        assert blob['path'].endswith('missing.png')
+        assert exists(blob['path'])
 
     def test_get_blob_ExtractImplementations(self):
         Volume.RESOURCES = [
@@ -359,28 +340,27 @@ class NodeMountTest(tests.Test):
                 'sugar_network.resources.implementation',
                 ]
 
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
-        self.start_server()
-        self.got_event.wait()
-        remote = Client(tests.tmpdir + '/mnt')
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid = remote.Implementation(
-                context='context',
-                license=['GPLv3+'],
-                version='1',
-                date=0,
-                stability='stable',
-                notes='').post()
+        guid = remote.post(['implementation'], {
+            'context': 'context',
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            })
 
         bundle = zipfile.ZipFile('bundle', 'w')
         bundle.writestr('probe', 'probe')
         bundle.close()
-        remote.Implementation(guid).upload_blob('data', 'bundle')
+        remote.put(['implementation', guid, 'data'], cmd='upload_blob', path=abspath('bundle'))
 
-        path, __ = remote.Implementation(guid).get_blob_path('data')
-        self.assertEqual(abspath('cache/implementation/%s/%s/data' % (guid[:2], guid)), path)
-        self.assertEqual('probe', file(join(path, 'probe')).read())
+        blob = remote.get(['implementation', guid, 'data'], cmd='get_blob')
+        self.assertEqual(abspath('cache/implementation/%s/%s/data' % (guid[:2], guid)), blob['path'])
+        self.assertEqual('probe', file(join(blob['path'], 'probe')).read())
 
 
 if __name__ == '__main__':

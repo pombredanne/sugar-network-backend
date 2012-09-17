@@ -13,7 +13,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import node
-from sugar_network.node.router import Router, _Request, _parse_accept_language
+from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized
 from active_toolkit import util
 from sugar_network.resources.volume import Volume
 
@@ -203,11 +203,11 @@ class RouterTest(tests.Test):
                 'PATH_INFO': '/foo',
                 'REQUEST_METHOD': 'GET',
                 })
-            self.assertRaises(node.Unauthorized, router._authenticate, request)
+            self.assertRaises(Unauthorized, router.authenticate, request)
 
             request.environ['HTTP_SUGAR_USER'] = tests.UID
             request.environ['HTTP_SUGAR_USER_SIGNATURE'] = tests.sign(tests.PRIVKEY, tests.UID)
-            user = router._authenticate(request)
+            user = router.authenticate(request)
             self.assertEqual(tests.UID, user)
 
     def test_Authorization(self):
@@ -226,8 +226,8 @@ class RouterTest(tests.Test):
 
         guid = rest.post('///document//', {'term': 'probe'})
         self.assertEqual(
-                {'term': 'probe'},
-                rest.get('///document///%s///' % guid, reply='term'))
+                'probe',
+                rest.get('///document///%s///' % guid, reply='term').get('term'))
 
     def test_HandleRedirects(self):
         URL = 'http://sugarlabs.org'
@@ -271,6 +271,15 @@ class RouterTest(tests.Test):
 
 class Document(ad.Document):
 
+    @ad.active_property(prefix='RU', typecast=[], default=[],
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def user(self, value):
+        return value
+
+    @ad.active_property(prefix='L', typecast=[], default=['public'])
+    def layer(self, value):
+        return value
+
     @ad.active_property(slot=1, prefix='A', full_text=True)
     def term(self, value):
         return value
@@ -293,6 +302,10 @@ class Document(ad.Document):
 
 
 class User(ad.Document):
+
+    @ad.active_property(prefix='L', typecast=[], default=['public'])
+    def layer(self, value):
+        return value
 
     @ad.active_property(ad.StoredProperty)
     def pubkey(self, value):

@@ -25,10 +25,6 @@ port = Option(
         'port number to listen incomming connections',
         default=8000, type_cast=int, name='port')
 
-subscribe_port = Option(
-        'port number to listen incomming subscribtion requests',
-        default=8001, type_cast=int, name='subscribe_port')
-
 keyfile = Option(
         'path to SSL certificate keyfile to serve requests via HTTPS',
         name='keyfile')
@@ -46,11 +42,6 @@ trust_users = Option(
 data_root = Option(
         'path to a directory to place server data',
         default='/var/lib/sugar-network', name='data_root')
-
-only_commit_events = Option(
-        'subscribers can be notified only with "commit" events; '
-        'that is useful to minimize interactions between server and clients',
-        default=False, type_cast=Option.bool_cast, action='store_true')
 
 find_limit = Option(
         'limit the resulting list for search requests',
@@ -70,21 +61,3 @@ pull_timeout = Option(
         'delay in seconds to return to sync-pull requester to wait until '
         'pull request will be ready',
         default=30, type_cast=int)
-
-
-class HTTPStatus(Exception):
-
-    status = None
-    headers = None
-    result = None
-
-
-class BadRequest(HTTPStatus):
-
-    status = '400 Bad Request'
-
-
-class Unauthorized(HTTPStatus):
-
-    status = '401 Unauthorized'
-    headers = {'WWW-Authenticate': 'Sugar'}

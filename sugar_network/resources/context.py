@@ -103,3 +103,17 @@ class Context(Resource):
     @ad.active_property(ad.StoredProperty, typecast=[int], default=(-1, -1))
     def position(self, value):
         return value
+
+    @classmethod
+    @ad.directory_command(method='PUT', cmd='include',
+            arguments={'layers': ad.to_list})
+    def include(cls, directory, layers, request):
+        import logging
+        logging.error('include> %r %r', layers, request.content)
+
+    @classmethod
+    @ad.directory_command(method='PUT', cmd='exclude',
+            arguments={'layers': ad.to_list})
+    def exclude(cls, directory, layers, request):
+        import logging
+        logging.error('exclude> %r %r', layers, request.content)

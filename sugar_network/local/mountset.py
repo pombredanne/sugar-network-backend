@@ -21,12 +21,11 @@ import active_document as ad
 
 from sugar_network import local, node
 from sugar_network.toolkit import zeroconf, netlink, network, mounts_monitor
+from sugar_network.toolkit.router import Router
 from sugar_network.local.mounts import LocalMount, NodeMount
-from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.sync_node import SyncCommands
-from sugar_network.node.router import Router
-from sugar_network.resources.volume import Volume
+from sugar_network.resources.volume import Volume, Commands
 from active_toolkit import util, coroutine, enforce
 
 
@@ -35,19 +34,20 @@ _DB_DIRNAME = '.sugar-network'
 _logger = logging.getLogger('local.mountset')
 
 
-class Mountset(dict, ad.CommandsProcessor, SyncCommands):
+class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
 
     def __init__(self, home_volume):
-        dict.__init__(self)
-        ad.CommandsProcessor.__init__(self)
-        SyncCommands.__init__(self, local.path('sync'))
-
         self.opened = coroutine.Event()
         self.home_volume = home_volume
         self._subscriptions = {}
         self._lang = ad.default_lang()
         self._jobs = coroutine.Pool()
         self._servers = coroutine.Pool()
+
+        dict.__init__(self)
+        ad.CommandsProcessor.__init__(self)
+        SyncCommands.__init__(self, local.path('sync'))
+        Commands.__init__(self)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, 'Unknown mountpoint %r', mountpoint)
@@ -133,22 +133,18 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
 
         return list(requires)
 
-    @ad.volume_command(method='POST', cmd='publish')
-    def republish(self, request):
-        self.publish(request.content)
-
     def call(self, request, response=None):
         if response is None:
             response = ad.Response()
         request.accept_language = [self._lang]
-        mountpoint = request.get('mountpoint')
+        mountpoint = request.get('mountpoint') or '/'
 
         try:
             try:
                 result = ad.CommandsProcessor.call(self, request, response)
             except ad.CommandNotFound:
-                enforce('mountpoint' in request, 'No \'mountpoint\' argument')
-                request.pop('mountpoint')
+                if 'mountpoint' in request:
+                    request.pop('mountpoint')
                 mount = self[mountpoint]
                 if mountpoint == '/':
                     mount.set_mounted(True)
@@ -254,16 +250,11 @@ class Mountset(dict, ad.CommandsProcessor, SyncCommands):
         self._jobs.spawn(volume.populate)
 
         if server_mode:
-            subscriber = SubscribeSocket(volume,
-                    node.host.value, node.subscribe_port.value)
-            cp = NodeCommands(volume, subscriber)
-
             _logger.info('Start %r server on %s port',
                     volume.root, node.port.value)
             server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
-                    Router(cp))
+                    Router(NodeCommands(volume)))
             self._servers.spawn(server.serve_forever)
-            self._servers.spawn(subscriber.serve_forever)
 
             # Let servers start before publishing mount event
             coroutine.dispatch()

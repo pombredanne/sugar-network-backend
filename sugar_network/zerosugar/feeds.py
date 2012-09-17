@@ -34,8 +34,9 @@ def read(context):
     client = None
     for client in config.clients:
         try:
-            with client.Context(context).get_blob('feed') as f:
-                enforce(not f.closed, 'No feed for %r context', context)
+            blob = client.get(['context', context, 'feed'], cmd='get_blob')
+            enforce(blob and 'path' in blob, 'No feed for %r context', context)
+            with file(blob['path']) as f:
                 feed_content = json.load(f)
             if feed_content:
                 break

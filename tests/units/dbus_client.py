@@ -5,7 +5,7 @@ import os
 import sys
 from os.path import abspath
 
-arg0 = abspath(__file__)
+arg0 = abspath(__file__).replace('.pyc', '.py')
 
 import dbus
 import gobject
@@ -33,7 +33,7 @@ class DbusClientTest(tests.Test):
             return
 
         self.fork(os.execvp, arg0, [arg0, self.id().split('.')[-1], 'fork'])
-        coroutine.sleep(3)
+        coroutine.sleep(1)
 
     def test_Call(self):
         client = DBusClient(mountpoint='~')

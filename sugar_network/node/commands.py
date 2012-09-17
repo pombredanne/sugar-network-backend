@@ -21,6 +21,8 @@ from os.path import exists, join
 import active_document as ad
 from sugar_network import node
 from sugar_network.node.sync_master import SyncCommands
+from sugar_network.resources.volume import Commands
+from sugar_network.toolkit import router
 from active_toolkit import util, enforce
 
 
@@ -29,11 +31,11 @@ _DEFAULT_MASTER_GUID = 'api-testing.network.sugarlabs.org'
 _logger = logging.getLogger('node.commands')
 
 
-class NodeCommands(ad.VolumeCommands):
+class NodeCommands(ad.VolumeCommands, Commands):
 
-    def __init__(self, volume, subscriber=None):
+    def __init__(self, volume):
         ad.VolumeCommands.__init__(self, volume)
-        self._subscriber = subscriber
+        Commands.__init__(self)
         self._is_master = False
 
         node_path = join(volume.root, 'node')
@@ -62,6 +64,9 @@ class NodeCommands(ad.VolumeCommands):
                 if isinstance(prop, ad.BlobProperty):
                     self._blobs[document].add(prop.name)
 
+    def connect(self, callback, condition=None, **kwargs):
+        self.volume.connect(callback, condition)
+
     @ad.volume_command(method='GET')
     def hello(self, response):
         response.content_type = 'text/html'
@@ -73,11 +78,6 @@ class NodeCommands(ad.VolumeCommands):
                 'master': self._is_master,
                 'seqno': self.volume.seqno.value,
                 }
-
-    @ad.volume_command(method='POST', cmd='subscribe')
-    def subscribe(self):
-        enforce(self._subscriber is not None, 'Subscription is disabled')
-        return self._subscriber.new_ticket()
 
     @ad.document_command(method='DELETE',
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
@@ -130,10 +130,11 @@ class NodeCommands(ad.VolumeCommands):
             blobs = reply & self._blobs[document]
             reply = list(reply - blobs)
 
-        if not reply:
-            reply = ['guid', 'layer']
-        else:
-            reply.append('layer')
+        if reply:
+            if 'layer' not in reply:
+                reply.append('layer')
+            if 'guid' not in reply:
+                reply.append('guid')
 
         result = ad.VolumeCommands.get(self, document, guid, request, reply)
         enforce('deleted' not in result['layer'], ad.NotFound,
@@ -150,7 +151,7 @@ class NodeCommands(ad.VolumeCommands):
             return
 
         if cmd.permissions & ad.ACCESS_AUTH:
-            enforce(request.principal is not None, node.Unauthorized,
+            enforce(request.principal is not None, router.Unauthorized,
                     'User is not authenticated')
 
         if cmd.permissions & ad.ACCESS_AUTHOR and 'guid' in request:
@@ -163,7 +164,6 @@ class NodeCommands(ad.VolumeCommands):
     def before_create(self, request, props):
         if request['document'] == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
-            props['user'] = [props['guid']]
         else:
             props['user'] = [request.principal]
             self._set_author(props)
@@ -212,8 +212,8 @@ class NodeCommands(ad.VolumeCommands):
 
 class MasterCommands(NodeCommands, SyncCommands):
 
-    def __init__(self, volume, subscriber=None):
-        NodeCommands.__init__(self, volume, subscriber)
+    def __init__(self, volume):
+        NodeCommands.__init__(self, volume)
         SyncCommands.__init__(self)
 
 

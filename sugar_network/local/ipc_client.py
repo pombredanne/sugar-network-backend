@@ -12,3 +12,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import active_document as ad
+
+from sugar_network.toolkit import router
+from sugar_network.local import sugar
+
+
+class Router(router.Router):
+
+    def authenticate(self, request):
+        return sugar.uid()
+
+    def call(self, request, response):
+        request.access_level = ad.ACCESS_LOCAL
+        response.content_type = 'application/json'
+        return router.Router.call(self, request, response)

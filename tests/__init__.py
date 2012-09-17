@@ -17,17 +17,15 @@ from M2Crypto import DSA
 
 import active_document as ad
 from active_toolkit import coroutine
-from sugar_network.client import bus
 from sugar_network.toolkit import sugar, http, sneakernet, mounts_monitor
-from sugar_network.local.bus import IPCServer
+from sugar_network.toolkit.router import Router
+from sugar_network.local.ipc_client import Router as IPCRouter
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
 from sugar_network import local, node
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network.node.router import Router
 from sugar_network.node.commands import NodeCommands
-from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.node import stats
 from sugar_network.resources.volume import Volume
 
@@ -74,7 +72,6 @@ class Test(unittest.TestCase):
         ad.index_flush_threshold.value = 1
         node.find_limit.value = 1024
         node.tmpdir.value = tmpdir + '/tmp'
-        node.only_commit_events.value = False
         node.data_root.value = tmpdir
         node.sync_dirs.value = []
         ad.index_write_queue.value = 10
@@ -83,6 +80,7 @@ class Test(unittest.TestCase):
         local.api_url.value = 'http://localhost:8800'
         local.server_mode.value = False
         local.mounts_root.value = None
+        local.ipc_port.value = 5101
         mounts_monitor.stop()
         mounts_monitor._COMPLETE_MOUNT_TIMEOUT = .1
         stats.stats_root.value = tmpdir + '/stats'
@@ -107,11 +105,6 @@ class Test(unittest.TestCase):
         self._logfile = file(self.logfile + '.out', 'a')
         sys.stdout = sys.stderr = self._logfile
 
-        bus._CONNECTION_POOL = 1
-        bus.Client.close()
-
-        http.reset()
-
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=self.logfile)
@@ -132,7 +125,6 @@ class Test(unittest.TestCase):
     def stop_servers(self):
         if self.mounts is not None:
             self.mounts.close()
-        bus.Client.close()
         if self.server is not None:
             self.server.stop()
         while self.forks:
@@ -195,7 +187,7 @@ class Test(unittest.TestCase):
         pid = os.fork()
         if pid:
             self.forks.append(pid)
-            coroutine.sleep(1)
+            coroutine.sleep(2)
             return pid
 
         self.fork_num += 1
@@ -231,7 +223,8 @@ class Test(unittest.TestCase):
         self.mounts['~'] = HomeMount(volume)
         if root:
             self.mounts['/'] = RemoteMount(volume)
-        self.server = IPCServer(self.mounts)
+        self.server = coroutine.WSGIServer(
+                ('localhost', local.ipc_port.value), IPCRouter(self.mounts))
         coroutine.spawn(self.server.serve_forever)
         self.mounts.open()
         self.mounts.opened.wait()
@@ -263,17 +256,14 @@ class Test(unittest.TestCase):
         ad.index_write_queue.value = 10
 
         volume = Volume('remote', classes or [User, Context])
-        subscriber = SubscribeSocket(volume, 'localhost', 8801)
-        cp = NodeCommands(volume, subscriber)
+        cp = NodeCommands(volume)
         httpd = coroutine.WSGIServer(('localhost', 8800), Router(cp))
         try:
             coroutine.joinall([
                 coroutine.spawn(httpd.serve_forever),
-                coroutine.spawn(subscriber.serve_forever),
                 ])
         finally:
             httpd.stop()
-            subscriber.stop()
             volume.close()
 
 

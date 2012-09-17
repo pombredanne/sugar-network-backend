@@ -11,21 +11,27 @@ from __init__ import tests
 import active_document as ad
 from active_toolkit import coroutine, sockets
 from sugar_network.local.mountset import Mountset
-from sugar_network.local.bus import IPCServer
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.toolkit import http, mounts_monitor
-from sugar_network import local, Client, ServerError, sugar, node
+from sugar_network import local, sugar, node
 from sugar_network.resources.volume import Volume
 from sugar_network.local.mounts import HomeMount, RemoteMount
+from sugar_network.local.ipc_client import Router as IPCRouter
+from sugar_network import IPCClient, Client
 
 
 class MountsetTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+        self.events_job = None
+        self.events = []
+        self.mounted = coroutine.Event()
 
     def tearDown(self):
+        if self.events_job is not None:
+            self.events_job.kill()
         tests.Test.tearDown(self)
 
     def mountset(self):
@@ -33,21 +39,23 @@ class MountsetTest(tests.Test):
 
         volume = Volume('local', [User, Context])
         mounts = Mountset(volume)
-        Client._connection = mounts
-        self.mounted = coroutine.Event()
-
-        def events_cb(event):
-            if event['event'] in ('mount', 'unmount'):
-                self.mount_events.append((event['event'], event['mountpoint']))
-                self.mounted.set()
-
-        self.mount_events = []
-        Client.connect(events_cb)
-
+        self.server = coroutine.WSGIServer(
+                ('localhost', local.ipc_port.value), IPCRouter(mounts))
+        coroutine.spawn(self.server.serve_forever)
         mounts.open()
         mounts.opened.wait()
+
+        def read_events():
+            for event in IPCClient().subscribe():
+                if 'props' in event:
+                    event.pop('props')
+                self.events.append(event)
+                self.mounted.set()
+
+        coroutine.dispatch()
+        self.events_job = coroutine.spawn(read_events)
+        coroutine.sleep(.5)
         mounts_monitor.start(tests.tmpdir)
-        # Let `open()` start processing spawned jobs
         coroutine.dispatch()
 
         return mounts
@@ -56,183 +64,118 @@ class MountsetTest(tests.Test):
         os.makedirs('1/.sugar-network')
         os.makedirs('2/.sugar-network')
 
-        self.mountset()
+        mounts = self.mountset()
+        mounts[tests.tmpdir + '/1'].mounted.wait()
+        mounts[tests.tmpdir + '/2'].mounted.wait()
 
-        self.mounted.wait()
-        self.mounted.clear()
         self.assertEqual([
-            ('mount', tests.tmpdir + '/1'),
-            ('mount', tests.tmpdir + '/2'),
+            {'mountpoint': tests.tmpdir + '/1', 'event': 'mount', 'private': True, 'name': '1'},
+            {'mountpoint': tests.tmpdir + '/2', 'event': 'mount', 'private': True, 'name': '2'},
             ],
-            self.mount_events)
-
-        Client(tests.tmpdir + '/1').Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post()
-        Client(tests.tmpdir + '/2').Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post()
+            self.events)
 
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1', 'private': True},
                     {'mountpoint': tests.tmpdir + '/2', 'name': '2', 'private': True},
                     ]),
-                sorted(Client.mounts()))
+                sorted(IPCClient().get(cmd='mounts')))
 
     def test_Mount(self):
-        self.mountset()
+        mounts = self.mountset()
 
         os.makedirs('tmp/1/.sugar-network')
         shutil.move('tmp/1', '.')
-
         self.mounted.wait()
         self.mounted.clear()
-        self.assertEqual(
-                [('mount', tests.tmpdir + '/1')],
-                self.mount_events)
+
+        self.assertEqual([
+            {'mountpoint': tests.tmpdir + '/1', 'event': 'mount', 'private': True, 'name': '1'},
+            ],
+            self.events)
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1', 'private': True},
                     ]),
-                sorted(Client.mounts()))
-        Client(tests.tmpdir + '/1').Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post()
+                sorted(IPCClient().get(cmd='mounts')))
 
         os.makedirs('tmp/2/.sugar-network')
         shutil.move('tmp/2', '.')
-
         self.mounted.wait()
         self.mounted.clear()
-        self.assertEqual(
-                [('mount', tests.tmpdir + '/2')],
-                self.mount_events[1:])
+
+        self.assertEqual([
+            {'mountpoint': tests.tmpdir + '/1', 'event': 'mount', 'private': True, 'name': '1'},
+            {'mountpoint': tests.tmpdir + '/2', 'event': 'mount', 'private': True, 'name': '2'},
+            ],
+            self.events)
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1', 'private': True},
                     {'mountpoint': tests.tmpdir + '/2', 'name': '2', 'private': True},
                     ]),
-                sorted(Client.mounts()))
-        Client(tests.tmpdir + '/2').Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post()
+                sorted(IPCClient().get(cmd='mounts')))
 
     def test_Unmount(self):
         os.makedirs('1/.sugar-network')
         os.makedirs('2/.sugar-network')
 
-        self.mountset()
-        self.mounted.wait()
-        self.mounted.clear()
+        mounts = self.mountset()
+        client = IPCClient()
+
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/1', 'name': '1', 'private': True},
                     {'mountpoint': tests.tmpdir + '/2', 'name': '2', 'private': True},
                     ]),
-                sorted(Client.mounts()))
+                sorted(client.get(cmd='mounts')))
 
-        del self.mount_events[:]
+        self.mounted.clear()
+        del self.events[:]
         shutil.rmtree('1')
         self.mounted.wait()
         self.mounted.clear()
-        self.assertEqual(
-                [('unmount', tests.tmpdir + '/1')],
-                self.mount_events)
+
+        self.assertEqual([
+            {'mountpoint': tests.tmpdir + '/1', 'event': 'unmount', 'private': True, 'name': '1'},
+            ],
+            self.events)
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/2', 'name': '2', 'private': True},
                     ]),
-                sorted(Client.mounts()))
+                sorted(client.get(cmd='mounts')))
 
     def test_MountNode(self):
         local.server_mode.value = True
-        self.mountset()
+        mounts = self.mountset()
 
         self.touch('tmp/mnt/.sugar-network')
         self.touch(('tmp/mnt/node', 'node'))
         shutil.move('tmp/mnt', '.')
-
         self.mounted.wait()
         self.mounted.clear()
-        client = Client(tests.tmpdir + '/mnt')
 
+        self.assertEqual([
+            {'mountpoint': tests.tmpdir + '/mnt', 'event': 'mount', 'private': False, 'name': 'mnt'},
+            ],
+            self.events)
         self.assertEqual(
                 sorted([
                     {'mountpoint': tests.tmpdir + '/mnt', 'name': 'mnt', 'private': False},
                     ]),
-                sorted(Client.mounts()))
+                sorted(IPCClient().get(cmd='mounts')))
 
-        guid = client.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
-
-        local.api_url.value = 'http://localhost:%s' % node.port.value
+        client = Client('http://localhost:%s' % node.port.value)
+        guid = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
         self.assertEqual(
-                {'guid': guid, 'title': {'en-US': 'title'}},
-                http.request('GET', ['context', guid], params={'reply': 'guid,title'}))
-
-    def test_RootRemount(self):
-        mountset = self.mountset()
-        client = Client('/')
-
-        mountset['/'] = RemoteMount(mountset.home_volume)
-        self.assertEqual(['/'], [i['mountpoint'] for i in mountset.mounts()])
-        assert not mountset['/'].mounted.is_set()
-        self.assertEqual(0, client.Context.cursor().total)
-        self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
-
-        pid = self.fork(self.restful_server)
-        coroutine.sleep(1)
-
-        self.assertEqual([], self.mount_events)
-        self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
-        self.mounted.wait()
-        self.mounted.clear()
-        assert mountset['/'].mounted.is_set()
-        self.assertEqual([('mount', '/')], self.mount_events)
-        del self.mount_events[:]
-
-        guid = client.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description',
-                ).post()
-        self.assertEqual(
-                [guid],
-                [i['guid'] for i in client.Context.cursor()])
-
-        self.waitpid(pid)
-
-        self.mounted.wait()
-        self.mounted.clear()
-        assert not mountset['/'].mounted.is_set()
-        self.assertEqual([('unmount', '/')], self.mount_events)
-        del self.mount_events[:]
-        self.assertEqual(0, client.Context.cursor().total)
-        self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
-
-        pid = self.fork(self.restful_server)
-        coroutine.sleep(1)
-
-        self.assertEqual([], self.mount_events)
-        self.assertRaises(RuntimeError, client.Context(type='activity', title='', summary='', description='').post)
-        self.mounted.wait()
-        self.mounted.clear()
-        assert mountset['/'].mounted.is_set()
-        self.assertEqual([('mount', '/')], self.mount_events)
-        del self.mount_events[:]
+                'title',
+                client.get(['context', guid, 'title']))
 
 
 if __name__ == '__main__':

@@ -8,7 +8,8 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import node
-from sugar_network.node import stats, Unauthorized
+from sugar_network.toolkit.router import Unauthorized
+from sugar_network.node import stats
 from sugar_network.node.commands import NodeCommands
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.user import User
@@ -102,9 +103,10 @@ class NodeTest(tests.Test):
         assert exists(guid_path)
         self.assertEqual({
             'guid': guid,
-            'title': {'en': 'title'},
+            'title': 'title',
+            'layer': ['public'],
             },
-            call(cp, method='GET', document='context', guid=guid, reply=['guid', 'title']))
+            call(cp, method='GET', document='context', guid=guid, reply=['guid', 'title', 'layer']))
         self.assertEqual(['public'], volume['context'].get(guid)['layer'])
 
         call(cp, method='DELETE', document='context', guid=guid, principal='principal')
@@ -296,30 +298,30 @@ class NodeTest(tests.Test):
         volume['context'].set_blob(guid5, 'icon', url={'file1': {'order': 1, 'url': '/1'}, 'file2': {'order': 2, 'url': 'http://2'}})
 
         self.assertEqual(
-                {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png'},
-                call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon']))
+                {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png', 'layer': ['public']},
+                call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid2, 'icon': 'http://foo/bar'},
-                call(cp, method='GET', document='context', guid=guid2, reply=['guid', 'icon']))
+                {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                call(cp, method='GET', document='context', guid=guid2, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar'},
-                call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon']))
+                {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar', 'layer': ['public']},
+                call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid4, 'data': 'http://localhost:8000/report/%s/data' % guid4},
-                call(cp, method='GET', document='report', guid=guid4, reply=['guid', 'data']))
+                {'guid': guid4, 'data': 'http://localhost:8000/report/%s/data' % guid4, 'layer': ['public']},
+                call(cp, method='GET', document='report', guid=guid4, reply=['guid', 'data', 'layer']))
 
         self.assertEqual([
-            {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png'},
-            {'guid': guid2, 'icon': 'http://foo/bar'},
-            {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar'},
-            {'guid': guid5, 'icon': ['http://localhost:8000/1', 'http://2']},
+            {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png', 'layer': ['public']},
+            {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+            {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar', 'layer': ['public']},
+            {'guid': guid5, 'icon': ['http://localhost:8000/1', 'http://2'], 'layer': ['public']},
             ],
-            call(cp, method='GET', document='context', reply=['guid', 'icon'])['result'])
+            call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result'])
 
         self.assertEqual([
-            {'guid': guid4, 'data': 'http://localhost:8000/report/%s/data' % guid4},
+            {'guid': guid4, 'data': 'http://localhost:8000/report/%s/data' % guid4, 'layer': ['public']},
             ],
-            call(cp, method='GET', document='report', reply=['guid', 'data'])['result'])
+            call(cp, method='GET', document='report', reply=['guid', 'data', 'layer'])['result'])
 
     def test_DeletedDocuments(self):
         volume = Volume('db')

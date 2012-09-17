@@ -315,16 +315,12 @@ class SyncMasterTest(tests.Test):
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
             {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
-                'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
-                'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
-                'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
-                'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
@@ -410,8 +406,6 @@ class SyncMasterTest(tests.Test):
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
             {'cookie': {'sn_pull': [[2, None]]}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
-                'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
-                'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
@@ -469,16 +463,12 @@ class SyncMasterTest(tests.Test):
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
             {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
-                'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
-                'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '*' * CHUNK,  'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
-                'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
-                'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},
@@ -525,8 +515,6 @@ class SyncMasterTest(tests.Test):
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
             {'cookie': {}, 'filename': 'master-1.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
-                'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
-                'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
@@ -605,16 +593,12 @@ class SyncMasterTest(tests.Test):
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual([
             {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '1', 'diff': {
-                'user':  {'value': [],          'mtime': os.stat('db/document/1/1/user').st_mtime},
-                'layer': {'value': ['public'],  'mtime': os.stat('db/document/1/1/layer').st_mtime},
                 'guid':  {'value': '1',         'mtime': os.stat('db/document/1/1/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/1/1/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/1/1/mtime').st_mtime},
                 'prop':  {'value': '',          'mtime': os.stat('db/document/1/1/prop').st_mtime},
                 }},
             {'cookie': {}, 'filename': 'master-2.packet', 'content_type': 'records', 'cmd': 'sn_push', 'src': 'master', 'document': 'document', 'guid': '2', 'diff': {
-                'user':  {'value': [],          'mtime': os.stat('db/document/2/2/user').st_mtime},
-                'layer': {'value': ['public'],  'mtime': os.stat('db/document/2/2/layer').st_mtime},
                 'guid':  {'value': '2',         'mtime': os.stat('db/document/2/2/guid').st_mtime},
                 'ctime': {'value': 0,           'mtime': os.stat('db/document/2/2/ctime').st_mtime},
                 'mtime': {'value': 0,           'mtime': os.stat('db/document/2/2/mtime').st_mtime},

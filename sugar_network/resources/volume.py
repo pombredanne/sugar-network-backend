@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
 import logging
 from os.path import join
 
@@ -29,8 +30,12 @@ _logger = logging.getLogger('resources.volume')
 
 class Resource(ad.Document):
 
-    @ad.active_property(prefix='RL', full_text=True, typecast=[],
-            default=['public'])
+    @ad.active_property(prefix='RU', typecast=[], default=[],
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def user(self, value):
+        return value
+
+    @ad.active_property(prefix='RL', typecast=[], default=['public'])
     def layer(self, value):
         return value
 
@@ -78,7 +83,7 @@ class Volume(ad.SingleVolume):
         return self[record['document']].merge(increment_seqno=increment_seqno,
                 **record)
 
-    def diff(self, in_seq, out_packet, clone=False):
+    def diff(self, in_seq, out_packet):
         # Since `in_seq` will be changed in `patch()`, original sequence
         # should be passed as-is to every document's `diff()` because
         # seqno handling is common for all documents
@@ -90,8 +95,7 @@ class Volume(ad.SingleVolume):
             directory.commit()
 
             def patch():
-                for meta, data in directory.diff(orig_seq, limit=_DIFF_CHUNK,
-                        clone=clone):
+                for meta, data in directory.diff(orig_seq, limit=_DIFF_CHUNK):
                     coroutine.dispatch()
 
                     seqno = None
@@ -128,3 +132,45 @@ class Volume(ad.SingleVolume):
             # this place, `push_seq` should contain not-collapsed sequence
             orig_seq.floor(push_seq.last)
             out_packet.push(force=True, cmd='sn_commit', sequence=orig_seq)
+
+
+class Commands(object):
+
+    def __init__(self):
+        self._notifier = coroutine.AsyncResult()
+        self.connect(lambda event: self._notify(event))
+
+    def connect(self, callback, condition=None, **kwargs):
+        raise NotImplementedError()
+
+    @ad.volume_command(method='GET', cmd='subscribe')
+    def subscribe(self, response, only_commits=False):
+        """Subscribe to Server-Sent Events.
+
+        :param only_commits:
+            subscribers can be notified only with "commit" events;
+            that is useful to minimize interactions between server and clients
+
+        """
+        response.content_type = 'text/event-stream'
+        response['Cache-Control'] = 'no-cache'
+        return self._pull_events(only_commits)
+
+    def _pull_events(self, only_commits):
+        while True:
+            event = self._notifier.get()
+
+            if only_commits:
+                if event['event'] != 'commit':
+                    continue
+            else:
+                if event['event'] == 'commit':
+                    # Subscribers already got update notifications enough
+                    continue
+
+            yield 'data: %s\n\n' % json.dumps(event)
+
+    def _notify(self, event):
+        self._notifier.set(event)
+        self._notifier = coroutine.AsyncResult()
+        coroutine.dispatch()

@@ -23,12 +23,30 @@ from bisect import bisect_left
 from os.path import join, isfile
 
 import active_document as ad
-from sugar_network import node, static
+from sugar_network import static
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, enforce
 
 
-_logger = logging.getLogger('node.router')
+_logger = logging.getLogger('router')
+
+
+class HTTPStatus(Exception):
+
+    status = None
+    headers = None
+    result = None
+
+
+class BadRequest(HTTPStatus):
+
+    status = '400 Bad Request'
+
+
+class Unauthorized(HTTPStatus):
+
+    status = '401 Unauthorized'
+    headers = {'WWW-Authenticate': 'Sugar'}
 
 
 class Router(object):
@@ -41,6 +59,61 @@ class Router(object):
             # Otherwise ssh-keygen will popup auth dialogs on registeration
             del os.environ['SSH_ASKPASS']
 
+    def authenticate(self, request):
+        user = request.environ.get('HTTP_SUGAR_USER')
+        if user is None:
+            return None
+
+        if user not in self._authenticated and \
+                (request.path != ['user'] or request['method'] != 'POST'):
+            _logger.debug('Logging %r user', user)
+            request = ad.Request(method='GET', cmd='exists',
+                    document='user', guid=user)
+            enforce(self._cp.call(request, ad.Response()), Unauthorized,
+                    'Principal user does not exist')
+            self._authenticated.add(user)
+
+        return user
+
+    def call(self, request, response):
+        if 'HTTP_ORIGIN' in request.environ:
+            enforce(request.environ['HTTP_ORIGIN'] == 'null', ad.Forbidden,
+                    'Cross-site is allowed only for local applications')
+            response['Access-Control-Allow-Origin'] = \
+                    request.environ['HTTP_ORIGIN']
+
+        if request['method'] == 'OPTIONS':
+            # TODO Process OPTIONS request per url?
+            if request.environ['HTTP_ORIGIN']:
+                response['Access-Control-Allow-Methods'] = \
+                        request.environ['HTTP_ACCESS_CONTROL_REQUEST_METHOD']
+                response['Access-Control-Allow-Headers'] = \
+                        request.environ['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']
+            else:
+                response['Allow'] = 'GET, POST, PUT, DELETE'
+            response.content_length = 0
+            return None
+
+        request.principal = self.authenticate(request)
+        if request.path[:1] == ['static']:
+            static_path = join(static.PATH, *request.path[1:])
+            enforce(isfile(static_path), 'No such file')
+            result = file(static_path)
+        else:
+            result = self._cp.call(request, response)
+
+        if hasattr(result, 'read'):
+            # pylint: disable-msg=E1103
+            if hasattr(result, 'fileno'):
+                response.content_length = os.fstat(result.fileno()).st_size
+            elif hasattr(result, 'seek'):
+                result.seek(0, 2)
+                response.content_length = result.tell()
+                result.seek(0)
+            result = _stream_reader(result)
+
+        return result
+
     def __call__(self, environ, start_response):
         request = _Request(environ)
         response = _Response()
@@ -51,7 +124,7 @@ class Router(object):
 
         result = None
         try:
-            result = self._call(request, response)
+            result = self.call(request, response)
         except ad.Redirect, error:
             response.status = '303 See Other'
             response['Location'] = error.location
@@ -64,7 +137,7 @@ class Router(object):
                 response.status = '404 Not Found'
             elif isinstance(error, ad.Forbidden):
                 response.status = '403 Forbidden'
-            elif isinstance(error, node.HTTPStatus):
+            elif isinstance(error, HTTPStatus):
                 response.status = error.status
                 response.update(error.headers or {})
                 result = error.result
@@ -100,61 +173,6 @@ class Router(object):
                 yield i
         elif result is not None:
             yield result
-
-    def _call(self, request, response):
-        if 'HTTP_ORIGIN' in request.environ:
-            enforce(request.environ['HTTP_ORIGIN'] == 'null', ad.Forbidden,
-                    'Cross-site is allowed only for local applications')
-            response['Access-Control-Allow-Origin'] = \
-                    request.environ['HTTP_ORIGIN']
-
-        if request['method'] == "OPTIONS":
-            # TODO Process OPTIONS request per url?
-            if request.environ['HTTP_ORIGIN']:
-                response['Access-Control-Allow-Methods'] = \
-                        request.environ['HTTP_ACCESS_CONTROL_REQUEST_METHOD']
-                response['Access-Control-Allow-Headers'] = \
-                        request.environ['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']
-            else:
-                response['Allow'] = "GET, POST, PUT, DELETE"
-            response.content_length = 0
-            return None
-
-        request.principal = self._authenticate(request)
-        if request.path[:1] == ['static']:
-            static_path = join(static.PATH, *request.path[1:])
-            enforce(isfile(static_path), 'No such file')
-            result = file(static_path)
-        else:
-            result = self._cp.call(request, response)
-
-        if hasattr(result, 'read'):
-            # pylint: disable-msg=E1103
-            if hasattr(result, 'fileno'):
-                response.content_length = os.fstat(result.fileno()).st_size
-            elif hasattr(result, 'seek'):
-                result.seek(0, 2)
-                response.content_length = result.tell()
-                result.seek(0)
-            result = _stream_reader(result)
-
-        return result
-
-    def _authenticate(self, request):
-        user = request.environ.get('HTTP_SUGAR_USER')
-        if user is None:
-            return None
-
-        if user not in self._authenticated and \
-                (request.path != ['user'] or request['method'] != 'POST'):
-            _logger.debug('Logging %r user', user)
-            request = ad.Request(method='GET', cmd='exists',
-                    document='user', guid=user)
-            enforce(self._cp.call(request, ad.Response()), node.Unauthorized,
-                    'Principal user does not exist')
-            self._authenticated.add(user)
-
-        return user
 
 
 class _Request(ad.Request):
@@ -202,7 +220,7 @@ class _Request(ad.Request):
                 self.content_stream = files.list[0].file
 
         scope = len(self.path)
-        enforce(scope >= 0 and scope < 4, node.BadRequest,
+        enforce(scope >= 0 and scope < 4, BadRequest,
                 'Incorrect requested path')
         if scope == 3:
             self['document'], self['guid'], self['prop'] = self.path

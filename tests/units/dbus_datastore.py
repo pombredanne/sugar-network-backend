@@ -6,7 +6,7 @@ import sys
 import time
 from os.path import exists, abspath, dirname
 
-arg0 = abspath(__file__)
+arg0 = abspath(__file__).replace('.pyc', '.py')
 
 import dbus
 import gobject
@@ -88,7 +88,7 @@ class DbusDatastoreTest(tests.Test):
             'activity_id': 'activity_id',
             'filesize': '0',
             'creation_time': '1',
-            'timestamp': '1',
+            'timestamp': '-1',
             'mtime': '1970-01-01T00:00:01',
             'tags': 'tags',
             },

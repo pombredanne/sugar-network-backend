@@ -74,6 +74,10 @@ anonymous = Option(
         'only read-only operations are available in this mode',
         default=False, type_cast=Option.bool_cast, action='store_true')
 
+ipc_port = Option(
+        'port number to listen for incomming connections from IPC clients',
+        default=5001, type_cast=int)
+
 
 def path(*args):
     """Calculate a path from the root.

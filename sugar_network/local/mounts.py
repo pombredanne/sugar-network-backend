@@ -17,7 +17,6 @@ import os
 import json
 import shutil
 import logging
-from urlparse import urlparse
 from os.path import isabs, exists, join, basename, isdir
 from gettext import gettext as _
 
@@ -27,7 +26,7 @@ from sweets_recipe import Bundle
 from sugar_network.toolkit import sugar, http
 from sugar_network.local import activities, cache
 from sugar_network import local, checkin, sugar
-from active_toolkit import sockets, util, coroutine, enforce
+from active_toolkit import util, coroutine, enforce
 
 
 _LOCAL_PROPS = {
@@ -105,8 +104,7 @@ class LocalMount(ad.VolumeCommands, _Mount):
         ad.VolumeCommands.before_create(self, request, props)
 
     def _events_cb(self, event):
-        if 'mountpoint' not in event:
-            event['mountpoint'] = self.mountpoint
+        event['mountpoint'] = self.mountpoint
         self.publish(event)
 
 
@@ -137,6 +135,7 @@ class HomeMount(LocalMount):
                 util.exception(_logger, 'Failed to read %r spec file', path)
                 continue
 
+            print '>', request.access_level == ad.ACCESS_LOCAL
             if request.access_level == ad.ACCESS_LOCAL:
                 impl_id = spec.root
             else:
@@ -295,6 +294,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         _Mount.__init__(self)
         _ProxyCommands.__init__(self, home_volume)
 
+        self._client = None
         self._seqno = 0
         self._remote_volume_guid = None
         self._api_urls = []
@@ -308,24 +308,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             try:
                 return ad.CommandsProcessor.call(self, request, response)
             except ad.CommandNotFound:
-                pass
-
-            method = request.pop('method')
-            document = request.pop('document')
-            guid = request.pop('guid') if 'guid' in request else None
-            prop = request.pop('prop') if 'prop' in request else None
-
-            path = [document]
-            if guid:
-                path.append(guid)
-            if prop:
-                path.append(prop)
-
-            return http.request(method, path, data=request.content,
-                    params=request, headers={
-                        'Content-Type': 'application/json',
-                        'Accept-Language': ','.join(request.accept_language),
-                        })
+                return self._client.call(request)
 
         return self._proxy_call(request, response, super_call)
 
@@ -340,7 +323,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
     def get_blob(self, document, guid, prop):
 
         def download(path, seqno):
-            return http.download([document, guid, prop], path, seqno,
+            return self._client.download([document, guid, prop], path, seqno,
                     document == 'implementation' and prop == 'data')
 
         return cache.get_blob(document, guid, prop, self._seqno,
@@ -352,7 +335,8 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
         try:
             with file(path, 'rb') as f:
-                http.request('PUT', [document, guid, prop], files={'file': f})
+                self._client.request('PUT', [document, guid, prop],
+                        files={'file': f})
         finally:
             if pass_ownership and exists(path):
                 os.unlink(path)
@@ -365,49 +349,30 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             self._connections.spawn(self._connect)
 
     def _connect(self):
-
-        def connect(url):
-            _logger.debug('Connecting to %r master', url)
-            local.api_url.value = url
-            subscription = http.request('POST', [''],
-                    params={'cmd': 'subscribe'},
-                    headers={'Content-Type': 'application/json'})
-            conn = sockets.SocketFile(coroutine.socket())
-            conn.connect((urlparse(url).hostname, subscription['port']))
-            conn.write_message({'ticket': subscription['ticket']})
-            return conn
-
-        def listen_events(url, conn):
-            stat = http.request('GET', [], params={'cmd': 'stat'},
-                    headers={'Content-Type': 'application/json'})
-            # pylint: disable-msg=E1103
-            self._seqno = stat.get('seqno') or 0
-            self._remote_volume_guid = stat.get('guid')
-
-            _logger.info('Connected to %r master', url)
-            _Mount.set_mounted(self, True)
-
-            while True:
-                coroutine.select([conn.fileno()], [], [])
-                event = conn.read_message()
-                if event is None:
-                    break
-
-                seqno = event.get('seqno')
-                if seqno:
-                    self._seqno = seqno
-
-                event['mountpoint'] = self.mountpoint
-                self.publish(event)
-
         for url in self._api_urls:
             try:
-                conn = connect(url)
+                _logger.debug('Connecting to %r master', url)
+                self._client = http.Client(url)
+                subscription = self._client.subscribe()
             except Exception:
                 util.exception(_logger, 'Cannot connect to %r master', url)
                 continue
+
             try:
-                listen_events(url, conn)
+                stat = self._client.get(cmd='stat')
+                # pylint: disable-msg=E1103
+                self._seqno = stat.get('seqno') or 0
+                self._remote_volume_guid = stat.get('guid')
+
+                _logger.info('Connected to %r master', url)
+                _Mount.set_mounted(self, True)
+
+                for event in subscription:
+                    seqno = event.get('seqno')
+                    if seqno:
+                        self._seqno = seqno
+                    event['mountpoint'] = self.mountpoint
+                    self.publish(event)
             except Exception:
                 util.exception(_logger, 'Failed to dispatch remote event')
             finally:

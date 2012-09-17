@@ -30,7 +30,7 @@ from zeroinstall.injector.requirements import Requirements
 from sweets_recipe import Spec
 from sugar_network.zerosugar import solver
 from sugar_network.zerosugar.config import config
-from sugar_network import local, Client
+from sugar_network import local
 from sugar_network.toolkit import sugar
 from active_toolkit import coroutine, util, enforce
 
@@ -129,20 +129,20 @@ def _fork(callback, mountpoint, context, *args):
         os.close(fd_w)
         return Pipe(pid, fd_r)
 
+    from sugar_network import IPCClient
+
     os.close(fd_r)
     global _pipe
     _pipe = fd_w
-
-    Client.close()
 
     def thread_func():
         log_path = _setup_logging(context)
         _progress('stat', log_path=log_path, mountpoint=mountpoint,
                 context=context)
 
-        config.clients = [Client('~')]
+        config.clients = [IPCClient(mountpoint='~')]
         if mountpoint != '~':
-            config.clients.append(Client(mountpoint))
+            config.clients.append(IPCClient(mountpoint=mountpoint))
 
         try:
             callback(mountpoint, context, *args)
@@ -150,7 +150,7 @@ def _fork(callback, mountpoint, context, *args):
             util.exception(_logger)
             _progress('failure', error=str(error))
 
-    # To avoid execution current thread coroutine
+    # Avoid a mess with current thread coroutines
     thread = threading.Thread(target=thread_func)
     thread.start()
     thread.join()
@@ -219,9 +219,10 @@ def _make(context, command):
         # TODO Per download progress
         _progress('download', progress=-1)
 
-        impl = sel.client.Implementation(sel.id)
-        impl_path, __ = impl.get_blob_path('data')
-        enforce(impl_path, 'Cannot download implementation')
+        impl = sel.client.get(['implementation', sel.id, 'data'],
+                cmd='get_blob')
+        enforce(impl and 'path' in impl, 'Cannot download implementation')
+        impl_path = impl['path']
 
         dl = sel.download_sources[0]
         if dl.extract is not None:

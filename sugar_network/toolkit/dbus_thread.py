@@ -31,7 +31,7 @@ _services = []
 _call_queue = coroutine.AsyncQueue()
 
 
-def start(mountset):
+def start(commands_processor):
     gobject.threads_init()
     threads_init()
 
@@ -44,11 +44,11 @@ def start(mountset):
         for service in _services:
             spawn(service.handle_event, event)
 
-    mountset.connect(handle_event)
+    commands_processor.connect(handle_event)
     try:
         for request, reply_cb, error_cb, args in _call_queue:
             try:
-                reply = mountset.call(request)
+                reply = commands_processor.call(request)
             except Exception, error:
                 util.exception(_logger, 'DBus %r request failed', request)
                 if error_cb is not None:
@@ -59,7 +59,7 @@ def start(mountset):
                         args += [reply]
                     spawn(reply_cb, *args)
     finally:
-        mountset.disconnect(handle_event)
+        commands_processor.disconnect(handle_event)
         spawn(mainloop.quit)
         thread.join()
 

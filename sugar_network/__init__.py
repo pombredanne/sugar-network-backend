@@ -14,14 +14,26 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from sugar_network.toolkit import sugar
-from sugar_network.client.bus import Client, ServerError
 from sugar_network.local.activities import checkins
 from sugar_network.local import api_url, server_mode
 from sugar_network_webui import webui_port
 from sugar_network.zerosugar.injector import launch, checkin
 
 
+def Client(url=None, **kwargs):
+    from sugar_network.toolkit import http
+    if url is None:
+        url = api_url.value
+    return http.Client(url, **kwargs)
+
+
+def IPCClient(**kwargs):
+    from sugar_network.toolkit import http
+    from sugar_network.local import ipc_port
+    return http.Client('http://localhost:%s' % ipc_port.value, **kwargs)
+
+
 def DBusClient(*args, **kwargs):
     # Avoid importing dbus related modules by default
-    from sugar_network.client import dbus_client
+    from sugar_network.local import dbus_client
     return dbus_client.DBusClient(*args, **kwargs)

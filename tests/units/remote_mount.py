@@ -5,380 +5,348 @@ import os
 import json
 import socket
 from cStringIO import StringIO
-from os.path import exists
+from os.path import exists, abspath
 
 from __init__ import tests
 
 from active_toolkit import sockets, coroutine
-from sugar_network import Client, ServerError
+from sugar_network import local
+from sugar_network.local.ipc_client import Router as IPCRouter
 from sugar_network.local.mounts import RemoteMount
 from sugar_network.local.mountset import Mountset
-from sugar_network.local.bus import IPCServer
 from sugar_network.toolkit import sugar, http
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.report import Report
 from sugar_network.resources.volume import Volume
+from sugar_network import IPCClient
 
 
 class RemoteMountTest(tests.Test):
 
     def test_GetKeep(self):
         self.start_ipc_and_restful_server()
+        remote = IPCClient(mountpoint='/')
 
-        remote = Client('/')
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
-        guid = remote.Context(
-                type='activity',
-                title='remote',
-                summary='summary',
-                description='description').post()
-
-        context = remote.Context(guid, ['keep', 'keep_impl'])
+        context = remote.get(['context', guid], reply=['keep', 'keep_impl'])
         self.assertEqual(False, context['keep'])
         self.assertEqual(0, context['keep_impl'])
+        cursor = remote.get(['context'], reply=['keep', 'keep_impl'])['result']
         self.assertEqual(
                 [(guid, False, False)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
+                [(i['guid'], i['keep'], i['keep_impl']) for i in cursor])
 
         self.mounts.home_volume['context'].create(guid=guid, type='activity',
                 title={'en': 'local'}, summary={'en': 'summary'},
                 description={'en': 'description'}, keep=True, keep_impl=2,
                 user=[sugar.uid()])
 
-        context = remote.Context(guid, ['keep', 'keep_impl'])
+        context = remote.get(['context', guid], reply=['keep', 'keep_impl'])
         self.assertEqual(True, context['keep'])
         self.assertEqual(2, context['keep_impl'])
+        cursor = remote.get(['context'], reply=['keep', 'keep_impl'])['result']
         self.assertEqual(
                 [(guid, True, 2)],
-                [(i['guid'], i['keep'], i['keep_impl']) for i in remote.Context.cursor(reply=['keep', 'keep_impl'])])
+                [(i['guid'], i['keep'], i['keep_impl']) for i in cursor])
 
     def test_SetKeep(self):
         self.start_ipc_and_restful_server()
+        remote = IPCClient(mountpoint='/')
+        local = IPCClient(mountpoint='~')
 
-        remote = Client('/')
-        local = Client('~')
+        guid_1 = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        guid_2 = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote-2',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
-        guid_1 = remote.Context(
-                type=['activity'],
-                title='remote',
-                summary='summary',
-                description='description').post()
-        guid_2 = remote.Context(
-                type=['activity'],
-                title='remote-2',
-                summary='summary',
-                description='description').post()
+        self.assertRaises(RuntimeError, local.get, ['context', guid_1])
+        self.assertRaises(RuntimeError, local.get, ['context', guid_2])
 
-        self.assertRaises(ServerError, lambda: local.Context(guid_1, reply=['title'])['title'])
-        self.assertRaises(ServerError, lambda: local.Context(guid_2, reply=['title'])['title'])
+        remote.put(['context', guid_1], {'keep': True})
 
-        remote.Context(guid_1, keep=True).post()
-
-        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', True, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
-        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', True, 0),
-                    (guid_2, 'remote-2', False, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
 
-        remote.Context(guid_1, keep=False).post()
+        remote.put(['context', guid_1], {'keep': False})
 
-        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', False, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
-        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', False, 0),
-                    (guid_2, 'remote-2', False, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
 
-        context = local.Context(guid_1)
-        context['title'] = 'local'
-        context.post()
-        context = local.Context(guid_1, reply=['keep', 'keep_impl', 'title'])
-        self.assertEqual('local', context['title'])
+        local.put(['context', guid_1], {'title': 'local'})
 
-        remote.Context(guid_1, keep=True).post()
+        self.assertEqual(
+                {'title': 'local'},
+                local.get(['context', guid_1], reply=['title']))
 
-        cursor = local.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+        remote.put(['context', guid_1], {'keep': True})
+
         self.assertEqual(
                 sorted([
-                    (guid_1, 'local', True, 0),
+                    {'guid': guid_1, 'title': 'local', 'keep': True, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
-        cursor = remote.Context.cursor(reply=['keep', 'keep_impl', 'title'])
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
         self.assertEqual(
                 sorted([
-                    (guid_1, 'remote', True, 0),
-                    (guid_2, 'remote-2', False, 0),
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
                     ]),
-                sorted([(i.guid, i['title'], i['keep'], i['keep_impl']) for i in cursor]))
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
 
     def test_Subscription(self):
-        self.fork(self.restful_server)
-        coroutine.sleep(1)
+        self.start_ipc_and_restful_server()
+        remote = IPCClient(mountpoint='/')
+        events = []
 
-        self.start_server()
-        client = Client('/')
+        def read_events():
+            for event in remote.subscribe():
+                if 'props' in event:
+                    event.pop('props')
+                events.append(event)
+        job = coroutine.spawn(read_events)
 
-        subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
-        subscription.connect('run/subscribe')
-        coroutine.sleep(1)
-
-        guid = client.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
-
-        self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
-                subscription.read_message())
-        coroutine.select([subscription.fileno()], [], [])
-        event = subscription.read_message()
-        event.pop('props')
-        event.pop('seqno')
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'create', 'guid': guid},
-                event)
-
-        client.Context(guid, title='new-title').post()
-
-        coroutine.select([subscription.fileno()], [], [])
-        event = subscription.read_message()
-        event.pop('props')
-        event.pop('seqno')
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'update', 'guid': guid},
-                event)
-
-        client.Context.delete(guid)
-
-        coroutine.select([subscription.fileno()], [], [])
-        event = subscription.read_message()
-        event.pop('seqno')
-        self.assertEqual(
-                {'mountpoint': '/', 'document': 'context', 'event': 'delete', 'guid': guid},
-                event)
-
-    def test_Connect(self):
-        pid = self.fork(self.restful_server)
-        volume = Volume('local', [User, Context])
-        mounts = Mountset(volume)
-        mounts['/'] = RemoteMount(volume)
-        ipc_server = IPCServer(mounts)
-        coroutine.spawn(ipc_server.serve_forever)
-
-        client = Client('/')
-        subscription = sockets.SocketFile(coroutine.socket(socket.AF_UNIX))
-        subscription.connect('run/subscribe')
-
-        mounts.open()
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
         coroutine.dispatch()
+        remote.put(['context', guid], {
+            'title': 'title_2',
+            })
+        coroutine.dispatch()
+        remote.delete(['context', guid])
+        coroutine.sleep(.5)
+        job.kill()
 
-        coroutine.select([subscription.fileno()], [], [])
-        self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
-                subscription.read_message())
-        self.assertEqual(True, client.connected)
+        self.assertEqual([
+            {'guid': guid, 'seqno': 2, 'document': 'context', 'event': 'create', 'mountpoint': '/'},
+            {'guid': guid, 'seqno': 3, 'document': 'context', 'event': 'update', 'mountpoint': '/'},
+            {'guid': guid, 'seqno': 4, 'event': 'delete', 'document': 'context', 'mountpoint': '/'},
+            ],
+            events)
 
-        self.waitpid(pid)
+    def test_Subscription_NotifyOnline(self):
+        self.start_ipc_and_restful_server()
+        remote = IPCClient(mountpoint='/')
+        local = IPCClient(mountpoint='~')
+        events = []
 
-        coroutine.select([subscription.fileno()], [], [])
-        self.assertEqual(
-                {'mountpoint': '/', 'event': 'unmount', 'name': 'Network', 'private': False},
-                subscription.read_message())
-        self.assertEqual(False, client.connected)
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
+        def read_events():
+            for event in remote.subscribe():
+                if 'props' in event:
+                    event.pop('props')
+                events.append(event)
+
+        job = coroutine.spawn(read_events)
+        local.put(['context', guid], {'keep': False})
+        coroutine.sleep(.5)
+        job.kill()
+
+        self.assertEqual([
+            {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 1},
+            ],
+            events)
+
+    def test_Mount(self):
         pid = self.fork(self.restful_server)
+
+        volume = Volume('local', [User, Context])
+        self.mounts = Mountset(volume)
+        self.mounts['/'] = RemoteMount(volume)
+        self.server = coroutine.WSGIServer(
+                ('localhost', local.ipc_port.value), IPCRouter(self.mounts))
+        coroutine.spawn(self.server.serve_forever)
+        coroutine.dispatch()
+        remote = IPCClient(mountpoint='/')
+
+        events = []
+        def read_events():
+            for event in remote.subscribe():
+                if 'props' in event:
+                    event.pop('props')
+                events.append(event)
+        job = coroutine.spawn(read_events)
+
+        self.assertEqual(False, remote.get(cmd='mounted'))
+        self.mounts.open()
+        self.mounts['/'].mounted.wait()
         coroutine.sleep(1)
 
-        self.assertEqual(False, client.connected)
-        coroutine.select([subscription.fileno()], [], [])
-        self.assertEqual(
-                {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
-                subscription.read_message())
-        self.assertEqual(True, client.connected)
+        self.assertEqual(True, remote.get(cmd='mounted'))
+        self.assertEqual([
+            {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
+            ],
+            events)
+        del events[:]
 
         self.waitpid(pid)
+        coroutine.sleep(1)
 
-        coroutine.select([subscription.fileno()], [], [])
-        self.assertEqual(
-                {'mountpoint': '/', 'event': 'unmount', 'name': 'Network', 'private': False},
-                subscription.read_message())
-        self.assertEqual(False, client.connected)
+        self.assertEqual(False, remote.get(cmd='mounted'))
+        self.assertEqual([
+            {'mountpoint': '/', 'event': 'unmount', 'name': 'Network', 'private': False},
+            ],
+            events)
+        del events[:]
+
+        pid = self.fork(self.restful_server)
+        # Ping to trigger re-connection
+        self.assertEqual(False, remote.get(cmd='mounted'))
+        coroutine.sleep(1)
+
+        self.assertEqual(True, remote.get(cmd='mounted'))
+        self.assertEqual([
+            {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
+            ],
+            events)
+        del events[:]
 
     def test_upload_blob(self):
         self.start_ipc_and_restful_server()
-        remote = Client('/')
+        remote = IPCClient(mountpoint='/')
 
-        guid = remote.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
         self.touch(('file', 'blob'))
-        remote.Context(guid).upload_blob('preview', 'file')
-        self.assertEqual('blob', remote.Context(guid).get_blob('preview').read())
+        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob', file(blob['path']).read())
 
         self.touch(('file2', 'blob2'))
-        remote.Context(guid).upload_blob('preview', 'file2', pass_ownership=True)
-        self.assertEqual('blob2', remote.Context(guid).get_blob('preview').read())
+        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file2'), pass_ownership=True)
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob2', file(blob['path']).read())
         assert not exists('file2')
+
+    def test_GetAbsentBLOB(self):
+        self.start_ipc_and_restful_server([User, Report])
+        remote = IPCClient(mountpoint='/')
+
+        guid = remote.post(['report'], {
+            'context': 'context',
+            'implementation': 'implementation',
+            'description': 'description',
+            })
+
+        self.assertEqual(None, remote.get(['report', guid, 'data'], cmd='get_blob'))
+
+    def test_GetDefaultBLOB(self):
+        self.start_ipc_and_restful_server()
+        remote = IPCClient(mountpoint='/')
+
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        blob = remote.get(['context', guid, 'icon'], cmd='get_blob')
+        assert not blob['path'].endswith('missing.png')
+        assert exists(blob['path'])
+        assert file(blob['path'], 'rb').read() == file('../../../sugar_network/static/images/missing.png', 'rb').read()
 
     def test_StaleBLOBs(self):
         self.start_ipc_and_restful_server()
-        remote = Client('/')
+        remote = IPCClient(mountpoint='/')
 
-        guid = remote.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
-        http.request('PUT', ['context', guid, 'preview'], files={'file': StringIO('blob-1')})
-        self.assertEqual('blob-1', remote.Context(guid).get_blob('preview').read())
+        self.touch(('file', 'blob-1'))
+        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob-1', file(blob['path']).read())
 
         cache_path = 'cache/context/%s/%s/preview' % (guid[:2], guid)
         self.touch((cache_path, 'blob-2'))
-        self.assertEqual('blob-2', remote.Context(guid).get_blob('preview').read())
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob-2', file(blob['path']).read())
         self.assertEqual(3, json.load(file(cache_path + '.meta'))['seqno'])
 
-        http.request('PUT', ['context', guid, 'preview'], files={'file': StringIO('blob-3')})
-        self.assertEqual('blob-3', remote.Context(guid).get_blob('preview').read())
+        self.touch(('file', 'blob-3'))
+        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob-3', file(blob['path']).read())
         self.assertEqual(4, json.load(file(cache_path + '.meta'))['seqno'])
 
     def test_DoNotStaleBLOBs(self):
         self.start_ipc_and_restful_server()
-        remote = Client('/')
+        remote = IPCClient(mountpoint='/')
 
-        guid = http.request('POST', ['context'],
-                headers={'Content-Type': 'application/json'},
-                data={
-                    'type': 'activity',
-                    'title': 'title',
-                    'summary': 'summary',
-                    'description': 'description',
-                    })
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
-        http.request('PUT', ['context', guid, 'preview'], files={'file': StringIO('blob')})
-        self.assertEqual('blob', remote.Context(guid).get_blob('preview').read())
+        self.touch(('file', 'blob-1'))
+        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob-1', file(blob['path']).read())
 
         cache_path = 'cache/context/%s/%s/preview' % (guid[:2], guid)
+        self.touch((cache_path, 'blob-2'))
         self.assertEqual(3, json.load(file(cache_path + '.meta'))['seqno'])
 
         # Shift seqno
-        connected = coroutine.Event()
-        self.mounts.connect(lambda event: connected.set(), event='create', mountpoint='/')
-        http.request('POST', ['context'],
-                headers={'Content-Type': 'application/json'},
-                data={
-                    'type': 'activity',
-                    'title': 'title2',
-                    'summary': 'summary2',
-                    'description': 'description2',
-                    })
-        connected.wait()
+        remote.put(['context', guid], {'title': 'title-2'})
+        coroutine.sleep(1)
 
-        self.assertEqual('blob', remote.Context(guid).get_blob('preview').read())
+        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
+        self.assertEqual('blob-2', file(blob['path']).read())
         self.assertEqual(4, json.load(file(cache_path + '.meta'))['seqno'])
-
-    def test_GetAbsentBLOB(self):
-        self.start_ipc_and_restful_server([User, Report])
-        client = Client('/')
-
-        guid = client.Report(
-                context='context',
-                implementation='implementation',
-                description='description').post()
-
-        path, mime_type = client.Report(guid).get_blob_path('data')
-        self.assertEqual(None, path)
-        self.assertEqual(True, client.Report(guid).get_blob('data').closed)
-
-    def test_GetDefaultBLOB(self):
-        self.start_ipc_and_restful_server()
-        client = Client('/')
-
-        guid = client.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
-
-        path, mime_type = client.Context(guid).get_blob_path('icon')
-        assert exists(path)
-        self.assertEqual(False, client.Context(guid).get_blob('icon').closed)
-
-    def test_Localize(self):
-        os.environ['LANG'] = 'en_US'
-        self.start_ipc_and_restful_server()
-        client = Client('/')
-
-        guid = client.Context(
-                type='activity',
-                title='title_en',
-                summary='summary_en',
-                description='description_en').post()
-
-        res = client.Context(guid, ['title', 'summary', 'description'])
-        self.assertEqual('title_en', res['title'])
-        self.assertEqual('summary_en', res['summary'])
-        self.assertEqual('description_en', res['description'])
-
-        self.stop_servers()
-        os.environ['LANG'] = 'ru_RU'
-        self.start_ipc_and_restful_server()
-        client = Client('/')
-
-        res = client.Context(guid, ['title', 'summary', 'description'])
-        self.assertEqual('title_en', res['title'])
-        self.assertEqual('summary_en', res['summary'])
-        self.assertEqual('description_en', res['description'])
-
-        res['title'] = 'title_ru'
-        res['summary'] = 'summary_ru'
-        res['description'] = 'description_ru'
-        res.post()
-
-        res = client.Context(guid, ['title', 'summary', 'description'])
-        self.assertEqual('title_ru', res['title'])
-        self.assertEqual('summary_ru', res['summary'])
-        self.assertEqual('description_ru', res['description'])
-
-        self.stop_servers()
-        os.environ['LANG'] = 'es_ES'
-        self.start_ipc_and_restful_server()
-        client = Client('/')
-
-        res = client.Context(guid, ['title', 'summary', 'description'])
-        self.assertEqual('title_en', res['title'])
-        self.assertEqual('summary_en', res['summary'])
-        self.assertEqual('description_en', res['description'])
-
-        self.stop_servers()
-        os.environ['LANG'] = 'ru_RU'
-        self.start_ipc_and_restful_server()
-        client = Client('/')
-
-        res = client.Context(guid, ['title', 'summary', 'description'])
-        self.assertEqual('title_ru', res['title'])
-        self.assertEqual('summary_ru', res['summary'])
-        self.assertEqual('description_ru', res['description'])
 
 
 if __name__ == '__main__':

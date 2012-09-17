@@ -15,9 +15,14 @@
 
 import active_document as ad
 from sugar_network.node import stats
+from active_toolkit import enforce
 
 
 class User(ad.Document):
+
+    @ad.active_property(prefix='L', typecast=[], default=['public'])
+    def layer(self, value):
+        return value
 
     @ad.active_property(slot=1, prefix='N', full_text=True)
     def name(self, value):
@@ -43,7 +48,7 @@ class User(ad.Document):
     def tags(self, value):
         return value
 
-    @ad.active_property(slot=5, prefix='L', full_text=True, default='')
+    @ad.active_property(slot=5, prefix='P', full_text=True, default='')
     def location(self, value):
         return value
 
@@ -51,9 +56,11 @@ class User(ad.Document):
     def birthday(self, value):
         return value
 
-    @ad.document_command(method='GET', cmd='stats-info',
-            permissions=ad.ACCESS_AUTHOR)
-    def _stats_info(self):
+    @ad.document_command(method='GET', cmd='stats-info')
+    def _stats_info(self, request):
+        enforce(request.principal == self['guid'], ad.Forbidden,
+                'Operation is permitted only for authors')
+
         status = {}
         rrd = stats.get_rrd(self.guid)
         for name, __, last_update in rrd.dbs:
@@ -65,9 +72,11 @@ class User(ad.Document):
                 'status': status,
                 }
 
-    @ad.document_command(method='POST', cmd='stats-upload',
-            permissions=ad.ACCESS_AUTHOR)
+    @ad.document_command(method='POST', cmd='stats-upload')
     def _stats_upload(self, request):
+        enforce(request.principal == self['guid'], ad.Forbidden,
+                'Operation is permitted only for authors')
+
         name = request.content['name']
         values = request.content['values']
         rrd = stats.get_rrd(self.guid)

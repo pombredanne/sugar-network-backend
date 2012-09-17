@@ -29,15 +29,15 @@ from os.path import join, abspath, exists
 import active_document as ad
 import sugar_network_webui as webui
 
-from sugar_network import toolkit, local, node, Client
+from sugar_network import toolkit, local, node
 from sugar_network.toolkit import sugar, sneakernet
 from sugar_network.toolkit import dbus_thread, mounts_monitor
 from sugar_network.local import activities, datastore
 from sugar_network.local.dbus_datastore import Datastore
 from sugar_network.local.dbus_network import Network
-from sugar_network.local.bus import IPCServer
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
+from sugar_network.local.ipc_client import Router
 from sugar_network.node import stats
 from sugar_network.resources.volume import Volume
 from active_toolkit.options import Option
@@ -154,72 +154,51 @@ class Application(application.Application):
     @application.command(
             'start service and log to files',
             name='start', keep_stdout=True)
-    def _start(self, minimal=False):
+    def _start(self):
         if self.check_for_instance():
             printf.info('%s is already run', self.name)
             exit(1)
 
-        if local.anonymous.value:
-            sugar.uid = lambda: 'anonymous'
-            sugar.nickname = lambda: 'anonymous'
-            sugar.color = lambda: '#000000,#000000'
-        else:
-            # In case if it is new Sugar Shell profile
-            toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
-
         jobs = coroutine.Pool()
-
-        volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
-        mountset = Mountset(volume)
-        mountset['~'] = HomeMount(volume)
-        mountset['/'] = RemoteMount(volume)
-
-        # Point this process code to `mountset` directly passing over IPC
-        Client.connection = mountset
+        mountset = self._mountset()
 
         def delayed_start(event=None):
             logging.info('Proceed delayed start')
             mountset.disconnect(delayed_start)
 
-            volume.populate()
-            datastore.populate(volume['artifact'])
+            mountset.home_volume.populate()
+            datastore.populate(mountset.home_volume['artifact'])
+            self._sync(mountset.home_volume)
 
-            stale_keep_impls = []
-            Context = Client('~').Context
-            for context in Context.cursor(keep_impl=[1, 2]):
-                if not activities.ensure_checkins(context.guid):
-                    stale_keep_impls.append(context.guid)
-            for guid in stale_keep_impls:
-                Context(guid, keep_impl=0).post()
+            logging.info('Listening for IPC requests on %s port',
+                    local.ipc_port.value)
+            server = coroutine.WSGIServer(('localhost', local.ipc_port.value),
+                    Router(mountset))
+            jobs.spawn(server.serve_forever)
 
-            jobs.spawn(activities.monitor, volume['context'],
+            jobs.spawn(activities.monitor, mountset.home_volume['context'],
                     local.activity_dirs.value)
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
-                server = coroutine.WSGIServer(host, webui.get_app())
+                server = coroutine.WSGIServer(host, webui.get_app(mountset))
                 jobs.spawn(server.serve_forever)
 
             if local.mounts_root.value:
                 mounts_monitor.start(abspath(local.mounts_root.value))
 
-        if not minimal:
-            if local.delayed_start.value:
-                mountset.connect(delayed_start, event='delayed-start')
-            else:
-                delayed_start()
-            dbus_thread.spawn_service(Datastore)
-            dbus_thread.spawn_service(Network)
+        if local.delayed_start.value:
+            mountset.connect(delayed_start, event='delayed-start')
+        else:
+            delayed_start()
+        dbus_thread.spawn_service(Datastore)
+        dbus_thread.spawn_service(Network)
 
         pid_path = self.new_instance()
         try:
             mountset.open()
-            jobs.spawn(IPCServer(mountset).serve_forever)
-            if minimal:
-                jobs.join()
-            else:
-                dbus_thread.start(mountset)
+            dbus_thread.start(mountset)
         except KeyboardInterrupt:
             util.exception('%s interrupted', self.name)
         except Exception:
@@ -229,6 +208,22 @@ class Application(application.Application):
             jobs.kill()
             mountset.close()
             os.unlink(pid_path)
+
+    def _mountset(self):
+        if local.anonymous.value:
+            sugar.uid = lambda: 'anonymous'
+            sugar.nickname = lambda: 'anonymous'
+            sugar.color = lambda: '#000000,#000000'
+        else:
+            # In case if it is new Sugar Shell profile
+            toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+
+        volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
+        mountset = Mountset(volume)
+        mountset['~'] = HomeMount(volume)
+        mountset['/'] = RemoteMount(volume)
+
+        return mountset
 
     @contextmanager
     def _rendezvous(self):
@@ -248,21 +243,26 @@ class Application(application.Application):
 
         self._events['sync_complete'] = coroutine.Event()
 
-        server = None
+        pid_path = None
+        mountset = None
         try:
             if not self.check_for_instance():
                 printf.info('%s is not started, ' \
                         'launch it for this command only', self.name)
-                server = coroutine.spawn(self._start, True)
+                pid_path = self.new_instance()
+                mountset = self._mountset()
+                dbus_thread.spawn_service(Network)
+                coroutine.spawn(dbus_thread.start, mountset)
                 coroutine.dispatch()
-                Client.connection.opened.wait()
+                mountset.opened.wait()
 
             Client.connect(events_cb)
             yield
 
         finally:
-            if server is not None:
-                server.kill()
+            if mountset is not None:
+                mountset.close()
+                os.unlink(pid_path)
 
     def _call(self, method, content=None):
         kwargs = {}
@@ -300,6 +300,12 @@ class Application(application.Application):
                     raise
             break
 
+    def _sync(self, volume):
+        docs, __ = volume['context'].find(limit=ad.MAX_LIMIT, keep_impl=[1, 2])
+        for context in docs:
+            if not activities.ensure_checkins(context.guid):
+                contexts.update(context.guid, keep_impl=0)
+
 
 locale.setlocale(locale.LC_ALL, '')
 
@@ -314,7 +320,7 @@ local.tmpdir.value = sugar.profile_path('tmp')
 Option.seek('main', [application.debug])
 Option.seek('webui', webui)
 Option.seek('local', local)
-Option.seek('node', [node.port, node.subscribe_port, node.sync_dirs])
+Option.seek('node', [node.port, node.sync_dirs])
 Option.seek('stats', stats)
 Option.seek('active-document', ad)
 

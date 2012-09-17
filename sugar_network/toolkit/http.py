@@ -28,6 +28,7 @@ import requests
 from requests.sessions import Session
 from M2Crypto import DSA
 
+import active_document as ad
 from sweets_recipe import Bundle
 from active_toolkit.sockets import decode_multipart, BUFFER_SIZE
 from sugar_network.toolkit import sugar
@@ -40,101 +41,22 @@ from gevent.monkey import patch_socket
 patch_socket(dns=False)
 
 
-_logger = logging.getLogger('toolkit.http')
-_session = None
+_logger = logging.getLogger('http')
 
 
-def reset():
-    global _session
-    _session = None
+class Client(object):
 
+    def __init__(self, api_url, **kwargs):
+        self._api_url = api_url
+        self._params = kwargs
 
-def download(url_path, out_path, seqno=None, extract=False):
-    if isdir(out_path):
-        shutil.rmtree(out_path)
-    elif not exists(dirname(out_path)):
-        os.makedirs(dirname(out_path))
-
-    params = {}
-    if seqno:
-        params['seqno'] = seqno
-
-    response = _request('GET', url_path, allow_redirects=True,
-            params=params, allowed_response=[404])
-    if response.status_code != 200:
-        return 'application/octet-stream'
-
-    mime_type = response.headers.get('Content-Type') or \
-            'application/octet-stream'
-
-    content_length = response.headers.get('Content-Length')
-    content_length = int(content_length) if content_length else 0
-    if seqno and not content_length:
-        # Local cacheed versions is not stale
-        return mime_type
-
-    def fetch(f):
-        _logger.debug('Download %r BLOB to %r', '/'.join(url_path), out_path)
-        chunk_size = min(content_length, BUFFER_SIZE)
-        empty = True
-        for chunk in response.iter_content(chunk_size=chunk_size):
-            empty = False
-            f.write(chunk)
-        return not empty
-
-    def fetch_multipart(stream, size, boundary):
-        stream.readline = None
-        for filename, content in decode_multipart(stream, size, boundary):
-            dst_path = join(out_path, filename)
-            if not exists(dirname(dst_path)):
-                os.makedirs(dirname(dst_path))
-            shutil.move(content.name, dst_path)
-
-    content_type, params = cgi.parse_header(mime_type)
-    if content_type.split('/', 1)[0] == 'multipart':
-        try:
-            fetch_multipart(response.raw, content_length, params['boundary'])
-        except Exception:
-            shutil.rmtree(out_path, ignore_errors=True)
-            raise
-    elif extract:
-        tmp_file = tempfile.NamedTemporaryFile(delete=False)
-        try:
-            if fetch(tmp_file):
-                tmp_file.close()
-                with Bundle(tmp_file.name, 'application/zip') as bundle:
-                    bundle.extractall(out_path)
-        finally:
-            if exists(tmp_file.name):
-                os.unlink(tmp_file.name)
-    else:
-        with file(out_path, 'w') as f:
-            if not fetch(f):
-                os.unlink(out_path)
-
-    return mime_type
-
-
-def request(method, path, data=None, headers=None, **kwargs):
-    response = _request(method, path, data, headers, **kwargs)
-    if response.headers.get('Content-Type') == 'application/json':
-        return json.loads(response.content)
-    else:
-        return response
-
-
-def _request(method, path, data=None, headers=None, allowed_response=None,
-        **kwargs):
-    global _session
-
-    if _session is None:
         verify = True
         if local.no_check_certificate.value:
             verify = False
         elif local.certfile.value:
             verify = local.certfile.value
 
-        headers = None
+        headers = {'Accept-Language': ','.join(ad.default_lang())}
         if not local.anonymous.value:
             uid = sugar.uid()
             key_path = sugar.profile_path('owner.key')
@@ -143,61 +65,190 @@ def _request(method, path, data=None, headers=None, allowed_response=None,
                     'sugar_user_signature': _sign(key_path, uid),
                     }
 
-        _session = Session(headers=headers, verify=verify, prefetch=False)
+        self._session = Session(headers=headers, verify=verify, prefetch=False)
 
-    if not path:
-        path = ['']
-    if not isinstance(path, basestring):
-        path = '/'.join([i.strip('/') for i in [local.api_url.value] + path])
+    def get(self, path_=None, **kwargs):
+        kwargs.update(self._params)
+        return self.request('GET', path_, params=kwargs)
 
-    if data is not None and headers and \
-            headers.get('Content-Type') == 'application/json':
-        data = json.dumps(data)
+    def post(self, path_=None, data_=None, **kwargs):
+        kwargs.update(self._params)
+        return self.request('POST', path_, data_,
+                headers={'Content-Type': 'application/json'}, params=kwargs)
 
-    while True:
-        try:
-            response = requests.request(method, path, data=data,
-                    headers=headers, session=_session, **kwargs)
-        except requests.exceptions.SSLError:
-            _logger.warning('Pass --no-check-certificate to avoid SSL checks')
-            raise
+    def put(self, path_=None, data_=None, **kwargs):
+        kwargs.update(self._params)
+        return self.request('PUT', path_, data_,
+                headers={'Content-Type': 'application/json'}, params=kwargs)
 
+    def delete(self, path_=None, **kwargs):
+        kwargs.update(self._params)
+        return self.request('DELETE', path_, params=kwargs)
+
+    def request(self, method, path=None, data=None, headers=None, **kwargs):
+        response = self._request(method, path, data, headers, **kwargs)
+        if response.headers.get('Content-Type') == 'application/json':
+            return json.loads(response.content)
+        else:
+            return response
+
+    def call(self, request):
+        method = request.pop('method')
+        document = request.pop('document')
+        guid = request.pop('guid') if 'guid' in request else None
+        prop = request.pop('prop') if 'prop' in request else None
+
+        path = [document]
+        if guid:
+            path.append(guid)
+        if prop:
+            path.append(prop)
+
+        return self.request(method, path, data=request.content, params=request,
+                headers={'Content-Type': 'application/json'})
+
+    def download(self, url_path, out_path, seqno=None, extract=False):
+        if isdir(out_path):
+            shutil.rmtree(out_path)
+        elif not exists(dirname(out_path)):
+            os.makedirs(dirname(out_path))
+
+        params = {}
+        if seqno:
+            params['seqno'] = seqno
+
+        response = self._request('GET', url_path, allow_redirects=True,
+                params=params, allowed=[404])
         if response.status_code != 200:
-            if response.status_code == 401:
-                enforce(not local.anonymous.value,
-                        'Operation is not available in anonymous mode')
-                _logger.info('User is not registered on the server, '
-                        'registering')
-                _register()
-                continue
-            if allowed_response and response.status_code in allowed_response:
-                return response
-            content = response.content
+            return 'application/octet-stream'
+
+        mime_type = response.headers.get('Content-Type') or \
+                'application/octet-stream'
+
+        content_length = response.headers.get('Content-Length')
+        content_length = int(content_length) if content_length else 0
+        if seqno and not content_length:
+            # Local cacheed versions is not stale
+            return mime_type
+
+        def fetch(f):
+            _logger.debug('Download %r BLOB to %r',
+                    '/'.join(url_path), out_path)
+            chunk_size = min(content_length, BUFFER_SIZE)
+            empty = True
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                empty = False
+                f.write(chunk)
+            return not empty
+
+        def fetch_multipart(stream, size, boundary):
+            stream.readline = None
+            for filename, content in decode_multipart(stream, size, boundary):
+                dst_path = join(out_path, filename)
+                if not exists(dirname(dst_path)):
+                    os.makedirs(dirname(dst_path))
+                shutil.move(content.name, dst_path)
+
+        content_type, params = cgi.parse_header(mime_type)
+        if content_type.split('/', 1)[0] == 'multipart':
             try:
-                error = json.loads(content)
+                fetch_multipart(response.raw, content_length,
+                        params['boundary'])
             except Exception:
-                _logger.debug('Got %s HTTP error for %r request:\n%s',
-                        response.status_code, path, content)
-                response.raise_for_status()
-            else:
-                raise RuntimeError(error['error'])
+                shutil.rmtree(out_path, ignore_errors=True)
+                raise
+        elif extract:
+            tmp_file = tempfile.NamedTemporaryFile(delete=False)
+            try:
+                if fetch(tmp_file):
+                    tmp_file.close()
+                    with Bundle(tmp_file.name, 'application/zip') as bundle:
+                        bundle.extractall(out_path)
+            finally:
+                if exists(tmp_file.name):
+                    os.unlink(tmp_file.name)
+        else:
+            with file(out_path, 'w') as f:
+                if not fetch(f):
+                    os.unlink(out_path)
 
-        return response
+        return mime_type
 
+    def subscribe(self):
+        response = self.request('GET', params={'cmd': 'subscribe'})
+        for line in _readlines(response.raw):
+            if line.startswith('data: '):
+                yield json.loads(line.split(' ', 1)[1])
 
-def _register():
-    _request('POST', ['user'],
-            headers={'Content-Type': 'application/json'},
-            data={
-                'name': sugar.nickname() or '',
-                'color': sugar.color() or '#000000,#000000',
-                'machine_sn': sugar.machine_sn() or '',
-                'machine_uuid': sugar.machine_uuid() or '',
-                'pubkey': sugar.pubkey(),
-                },
-            )
+    def _request(self, method, path, data=None, headers=None, allowed=None,
+            **kwargs):
+        if not path:
+            path = ['']
+        if not isinstance(path, basestring):
+            path = '/'.join([i.strip('/') for i in [self._api_url] + path])
+
+        if data is not None and headers and \
+                headers.get('Content-Type') == 'application/json':
+            data = json.dumps(data)
+
+        while True:
+            try:
+                response = requests.request(method, path, data=data,
+                        headers=headers, session=self._session, **kwargs)
+            except requests.exceptions.SSLError:
+                _logger.warning('Use --no-check-certificate to avoid checks')
+                raise
+
+            if response.status_code != 200:
+                if response.status_code == 401:
+                    enforce(not local.anonymous.value,
+                            'Operation is not available in anonymous mode')
+                    _logger.info('User is not registered on the server, '
+                            'registering')
+                    self._register()
+                    continue
+                if allowed and response.status_code in allowed:
+                    return response
+                content = response.content
+                try:
+                    error = json.loads(content)
+                except Exception:
+                    _logger.debug('Got %s HTTP error for %r request:\n%s',
+                            response.status_code, path, content)
+                    response.raise_for_status()
+                else:
+                    raise RuntimeError(error['error'])
+
+            return response
+
+    def _register(self):
+        self._request('POST', ['user'],
+                headers={
+                    'Content-Type': 'application/json',
+                    },
+                data={
+                    'name': sugar.nickname() or '',
+                    'color': sugar.color() or '#000000,#000000',
+                    'machine_sn': sugar.machine_sn() or '',
+                    'machine_uuid': sugar.machine_uuid() or '',
+                    'pubkey': sugar.pubkey(),
+                    },
+                )
 
 
 def _sign(key_path, data):
     key = DSA.load_key(key_path)
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
+
+
+def _readlines(stream):
+    line = ''
+    while True:
+        char = stream.read(1)
+        if not char:
+            break
+        if char == '\n':
+            yield line
+            line = ''
+        else:
+            line += char

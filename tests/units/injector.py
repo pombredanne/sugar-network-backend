@@ -11,24 +11,26 @@ from os.path import exists
 from __init__ import tests
 
 from active_toolkit import coroutine
-from sugar_network import checkin, launch, Client
+from sugar_network import checkin, launch
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.local import activities
+from sugar_network import IPCClient
 
 
 class InjectorTest(tests.Test):
 
     def test_checkin_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
-        client = Client('/')
+        remote = IPCClient(mountpoint='/')
 
-        context = client.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
 
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
         self.touch(
@@ -48,13 +50,14 @@ class InjectorTest(tests.Test):
             ],
             [i for i in pipe])
 
-        impl = client.Implementation(
-                context=context,
-                license=['GPLv3+'],
-                version='1',
-                date=0,
-                stability='stable',
-                notes='').post()
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            })
 
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
         self.touch(
@@ -108,20 +111,22 @@ class InjectorTest(tests.Test):
 
     def test_launch_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
-        client = Client('/')
+        remote = IPCClient(mountpoint='/')
 
-        context = client.Context(
-                type='activity',
-                title='title',
-                summary='summary',
-                description='description').post()
-        impl = client.Implementation(
-                context=context,
-                license=['GPLv3+'],
-                version='1',
-                date=0,
-                stability='stable',
-                notes='').post()
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            })
 
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
         self.touch(
@@ -172,13 +177,14 @@ class InjectorTest(tests.Test):
             ],
             [i for i in pipe])
 
-        impl_2 = client.Implementation(
-                context=context,
-                license=['GPLv3+'],
-                version='1',
-                date=0,
-                stability='stable',
-                notes='').post()
+        impl_2 = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            })
 
         os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
         blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
@@ -257,12 +263,13 @@ class InjectorTest(tests.Test):
             ]))
 
         self.start_server()
-        client = Client('~')
+        client = IPCClient(mountpoint='~')
 
         monitor = coroutine.spawn(activities.monitor,
                 self.mounts.home_volume['context'], ['Activities'])
         coroutine.sleep()
 
+        blob = client.get(['context', 'bundle_id', 'feed'], cmd='get_blob')
         self.assertEqual(
                 json.dumps({
                     '1': {
@@ -288,7 +295,7 @@ class InjectorTest(tests.Test):
                             },
                         },
                     }),
-                client.Context('bundle_id').get_blob('feed').read())
+                blob)
 
 
 if __name__ == '__main__':

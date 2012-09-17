@@ -24,16 +24,15 @@ import active_document as ad
 import sugar_network_webui as webui
 from active_toolkit import coroutine, application
 from active_toolkit.options import Option
-from sugar_network import node, local, Client
+from sugar_network import node, local
 from sugar_network.local.mounts import LocalMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.mounts import LocalMount
 from sugar_network.node import stats
-from sugar_network.node.router import Router
 from sugar_network.node.commands import MasterCommands
-from sugar_network.node.subscribe_socket import SubscribeSocket
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import sugar, sneakernet
+from sugar_network.toolkit.router import Router
 
 
 class Application(application.Daemon):
@@ -53,16 +52,13 @@ class Application(application.Daemon):
 
         volume = Volume(node.data_root.value)
         self.jobs.spawn(volume.populate)
-        subscriber = SubscribeSocket(volume,
-                node.host.value, node.subscribe_port.value)
-        cp = MasterCommands(volume, subscriber)
+        cp = MasterCommands(volume)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)
         server = coroutine.WSGIServer((node.host.value, node.port.value),
                 Router(cp), **ssl_args)
         self.jobs.spawn(server.serve_forever)
-        self.jobs.spawn(subscriber.serve_forever)
 
         if webui.webui.value:
             # XXX Until implementing regular web users
@@ -74,11 +70,10 @@ class Application(application.Daemon):
             local.mounts_root.value = None
             mountset = Mountset(None)
             mountset['/'] = LocalMount(volume)
-            Client.connection = mountset
 
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)
-            server = coroutine.WSGIServer(host, webui.get_app())
+            server = coroutine.WSGIServer(host, webui.get_app(mountset))
             self.jobs.spawn(server.serve_forever)
 
         try:
