@@ -92,8 +92,11 @@ class Document(object):
 
         if names:
             for prop_name in names:
+                prop = self.metadata[prop_name]
+                if not isinstance(prop, BrowsableProperty):
+                    continue
                 value = self[prop_name]
-                if accept_language and self.metadata[prop_name].localized:
+                if accept_language and prop.localized:
                     value = self._localize(value, accept_language)
                 result[prop_name] = value
         else:

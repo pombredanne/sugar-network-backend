@@ -195,9 +195,8 @@ class IndexReader(object):
 
         for name, value in request.items():
             prop = self._props.get(name)
-            enforce(prop is not None and prop.prefix,
-                    'Unknown search term %r for %r',
-                    name, self.metadata.name)
+            if prop is None or not prop.prefix:
+                continue
 
             sub_queries = []
             not_queries = []

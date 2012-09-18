@@ -88,7 +88,6 @@ class DocumentTest(tests.Test):
                 [('term', 'not_term')],
                 [(i.term, i.not_term) for i in docs])
 
-        self.assertRaises(RuntimeError, directory.find, 0, 100, not_term='not_term')
         self.assertEqual(0, directory.find(0, 100, query='not_term:not_term')[-1])
         self.assertEqual(1, directory.find(0, 100, query='not_term:=not_term')[-1])
 
@@ -173,7 +172,6 @@ class DocumentTest(tests.Test):
         guid = directory.create({})
         blob_path = join(tests.tmpdir, guid[:2], guid, 'blob')
 
-        self.assertRaises(RuntimeError, directory.find, 0, 100, reply='blob')
         self.assertRaises(RuntimeError, lambda: directory.get(guid).blob)
         self.assertRaises(RuntimeError, directory.update, guid, {'blob': 'foo'})
 

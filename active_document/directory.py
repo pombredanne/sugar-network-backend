@@ -21,7 +21,7 @@ from os.path import exists, join
 
 from active_document import env, http
 from active_document.storage import Storage
-from active_document.metadata import Metadata, BlobProperty, BrowsableProperty
+from active_document.metadata import Metadata, BlobProperty
 from active_document.metadata import ActiveProperty, StoredProperty
 from active_toolkit import util, enforce
 
@@ -167,13 +167,6 @@ class Directory(object):
 
         """
         query = env.Query(*args, **kwargs)
-
-        for prop_name in query.reply:
-            prop = self.metadata[prop_name]
-            enforce(isinstance(prop, BrowsableProperty),
-                    'Property %r in %r is not suitable for find requests',
-                    prop_name, self.metadata.name)
-
         documents, total = self._index.find(query)
 
         def iterate():
