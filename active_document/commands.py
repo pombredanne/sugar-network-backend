@@ -173,33 +173,6 @@ class CommandsProcessor(object):
         raise CommandNotFound()
 
     def call(self, request, response):
-        try:
-            return self._call(request, response)
-        except CommandNotFound:
-            if self.parent is None:
-                raise
-            return self.parent.call(request, response)
-
-    def resolve(self, request):
-        key = (request.get('method', 'GET'), request.get('cmd'), None)
-
-        if 'document' not in request:
-            return self._commands['volume'].get(key)
-
-        document_key = key[:2] + (request['document'],)
-
-        if 'guid' not in request:
-            commands = self._commands['directory']
-            return commands.get(key) or commands.get(document_key)
-
-        if 'prop' not in request:
-            commands = self._commands['document']
-            return commands.get(key) or commands.get(document_key)
-
-        commands = self._commands['property']
-        return commands.get(key) or commands.get(document_key)
-
-    def _call(self, request, response):
         cmd = self.resolve(request)
         enforce(cmd is not None, CommandNotFound, 'Unsupported command')
 
@@ -243,6 +216,25 @@ class CommandsProcessor(object):
             response.content_type = cmd.mime_type
 
         return result
+
+    def resolve(self, request):
+        key = (request.get('method', 'GET'), request.get('cmd'), None)
+
+        if 'document' not in request:
+            return self._commands['volume'].get(key)
+
+        document_key = key[:2] + (request['document'],)
+
+        if 'guid' not in request:
+            commands = self._commands['directory']
+            return commands.get(key) or commands.get(document_key)
+
+        if 'prop' not in request:
+            commands = self._commands['document']
+            return commands.get(key) or commands.get(document_key)
+
+        commands = self._commands['property']
+        return commands.get(key) or commands.get(document_key)
 
 
 class _Command(object):
