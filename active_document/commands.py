@@ -30,8 +30,6 @@ def command(scope, **kwargs):
     def decorate(func):
         func.scope = scope
         func.kwargs = kwargs
-        func.pre = []
-        func.post = []
         return func
 
     return decorate
@@ -40,30 +38,30 @@ def command(scope, **kwargs):
 volume_command = \
         lambda ** kwargs: command('volume', **kwargs)
 volume_command_pre = \
-        lambda ** kwargs: command('volume', pre=True, **kwargs)
+        lambda ** kwargs: command('volume', wrapper='pre', **kwargs)
 volume_command_post = \
-        lambda ** kwargs: command('volume', post=True, **kwargs)
+        lambda ** kwargs: command('volume', wrapper='post', **kwargs)
 
 directory_command = \
         lambda ** kwargs: command('directory', **kwargs)
 directory_command_pre = \
-        lambda ** kwargs: command('directory', pre=True, **kwargs)
+        lambda ** kwargs: command('directory', wrapper='pre', **kwargs)
 directory_command_post = \
-        lambda ** kwargs: command('directory', post=True, **kwargs)
+        lambda ** kwargs: command('directory', wrapper='post', **kwargs)
 
 document_command = \
         lambda ** kwargs: command('document', **kwargs)
 document_command_pre = \
-        lambda ** kwargs: command('document', pre=True, **kwargs)
+        lambda ** kwargs: command('document', wrapper='pre', **kwargs)
 document_command_post = \
-        lambda ** kwargs: command('document', post=True, **kwargs)
+        lambda ** kwargs: command('document', wrapper='post', **kwargs)
 
 property_command = \
         lambda ** kwargs: command('property', **kwargs)
 property_command_pre = \
-        lambda ** kwargs: command('property', pre=True, **kwargs)
+        lambda ** kwargs: command('property', wrapper='pre', **kwargs)
 property_command_post = \
-        lambda ** kwargs: command('property', post=True, **kwargs)
+        lambda ** kwargs: command('property', wrapper='post', **kwargs)
 
 
 def to_int(value):
@@ -324,13 +322,14 @@ def _scan_class(root_cls, is_document_class=True):
                    attr.kwargs.get('cmd'))
             kwargs = commands.setdefault(key, {'pre': [], 'post': []})
             callback = getattr(root_cls, attr.__name__)
-            if attr.kwargs.get('pre'):
-                kwargs['pre'].append(callback)
-            elif attr.kwargs.get('post'):
-                kwargs['post'].append(callback)
-            else:
+            if 'wrapper' not in attr.kwargs:
                 kwargs.update(attr.kwargs)
                 kwargs['callback'] = callback
+            else:
+                for key in ('arguments',):
+                    if key in attr.kwargs and key not in kwargs:
+                        kwargs[key] = attr.kwargs[key]
+                kwargs[attr.kwargs['wrapper']].append(callback)
             processed.add(name)
         cls = cls.__base__
 
