@@ -146,9 +146,7 @@ class VolumeCommands(CommandsProcessor):
             else:
                 props[name] = self._prepost(request, prop, value)
 
-        ts = int(time.time())
-        props['ctime'] = ts
-        props['mtime'] = ts
+        self.before_create(request, props)
         guid = directory.create(props)
 
         for name, value in blobs.items():
@@ -158,19 +156,17 @@ class VolumeCommands(CommandsProcessor):
 
     @directory_command(method='GET',
             arguments={'offset': to_int, 'limit': to_int, 'reply': to_list})
-    def find(self, document, request, offset=None, limit=None, query=None,
-            reply=None, order_by=None, group_by=None, **kwargs):
-        directory = self.volume[document]
+    def find(self, document, reply, request):
         if reply is None:
-            reply = []
-        reply.append('guid')
+            reply = request['reply'] = ['guid']
+        elif 'guid' not in reply:
+            reply.append('guid')
 
+        directory = self.volume[document]
         for i in reply:
             directory.metadata[i].assert_access(env.ACCESS_READ)
 
-        documents, total = directory.find(offset=offset, limit=limit,
-                query=query, reply=reply, order_by=order_by, group_by=group_by,
-                **kwargs)
+        documents, total = directory.find(**request)
         result = [i.properties(reply, request.accept_language or self._lang)
                 for i in documents]
 
@@ -196,7 +192,7 @@ class VolumeCommands(CommandsProcessor):
             else:
                 props[name] = self._prepost(request, prop, value)
 
-        props['mtime'] = int(time.time())
+        self.before_update(request, props)
         directory.update(guid, props)
 
         for name, value in blobs.items():
@@ -275,6 +271,14 @@ class VolumeCommands(CommandsProcessor):
             response.content_length = os.stat(path).st_size
             response.content_type = prop.mime_type
             return _file_reader(path)
+
+    def before_create(self, request, props):
+        ts = int(time.time())
+        props['ctime'] = ts
+        props['mtime'] = ts
+
+    def before_update(self, request, props):
+        props['mtime'] = int(time.time())
 
     def _prepost(self, request, prop, value):
         if prop.localized and isinstance(value, basestring):
