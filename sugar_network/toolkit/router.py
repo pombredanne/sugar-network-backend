@@ -256,9 +256,9 @@ class _Response(ad.Response):
         for key, value in dict.items(self):
             if type(value) in (list, tuple):
                 for i in value:
-                    yield key, i
+                    yield key, str(i)
             else:
-                yield key, value
+                yield key, str(value)
 
 
 def _parse_accept_language(accept_language):
