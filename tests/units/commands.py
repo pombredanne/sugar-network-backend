@@ -410,11 +410,37 @@ class CommandsTest(tests.Test):
 
     def test_PrePost(self):
 
-        class TestCommandsProcessor(CommandsProcessor):
+        class ParentCommandsProcessor(CommandsProcessor):
 
             @ad.volume_command_pre(method='PROBE')
-            def command_pre(self, request):
-                request['probe'].append('pre')
+            def command_pre1(self, request):
+                request['probe'].append('pre1')
+
+            @ad.volume_command_pre(method='PROBE')
+            def command_pre2(self, request):
+                request['probe'].append('pre2')
+
+            @ad.volume_command_post(method='PROBE')
+            def command_post1(self, request, response, result):
+                request['probe'].append('post1')
+                response['probe'].append('post1')
+                return result + 1
+
+            @ad.volume_command_post(method='PROBE')
+            def command_post2(self, request, response, result):
+                request['probe'].append('post2')
+                response['probe'].append('post2')
+                return result + 1
+
+        class TestCommandsProcessor(ParentCommandsProcessor):
+
+            @ad.volume_command_pre(method='PROBE')
+            def command_pre3(self, request):
+                request['probe'].append('pre3')
+
+            @ad.volume_command_pre(method='PROBE')
+            def command_pre4(self, request):
+                request['probe'].append('pre4')
 
             @ad.volume_command(method='PROBE')
             def command(self, request):
@@ -423,18 +449,24 @@ class CommandsTest(tests.Test):
                 return 1
 
             @ad.volume_command_post(method='PROBE')
-            def command_post(self, request, response, result):
-                request['probe'].append('post')
-                response['probe'].append('post')
+            def command_post3(self, request, response, result):
+                request['probe'].append('post3')
+                response['probe'].append('post3')
+                return result + 1
+
+            @ad.volume_command_post(method='PROBE')
+            def command_post4(self, request, response, result):
+                request['probe'].append('post4')
+                response['probe'].append('post4')
                 return result + 1
 
         cp = TestCommandsProcessor()
 
         request = ad.Request(method='PROBE', probe=[])
         response = ad.Response(probe=[])
-        self.assertEqual(2, cp.call(request, response))
-        self.assertEqual(['pre', 'cmd', 'post'], request['probe'])
-        self.assertEqual(['cmd', 'post'], response['probe'])
+        self.assertEqual(5, cp.call(request, response))
+        self.assertEqual(['pre1', 'pre2', 'pre3', 'pre4', 'cmd', 'post1', 'post2', 'post3', 'post4'], request['probe'])
+        self.assertEqual(['cmd', 'post1', 'post2', 'post3', 'post4'], response['probe'])
 
     def test_PrePostCallbackLess(self):
 
