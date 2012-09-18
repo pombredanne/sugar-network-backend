@@ -24,6 +24,7 @@ from os.path import join, isfile
 
 import active_document as ad
 from sugar_network import static
+from sugar_network.resources.volume import Request
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, enforce
 
@@ -67,7 +68,7 @@ class Router(object):
         if user not in self._authenticated and \
                 (request.path != ['user'] or request['method'] != 'POST'):
             _logger.debug('Logging %r user', user)
-            request = ad.Request(method='GET', cmd='exists',
+            request = Request(method='GET', cmd='exists',
                     document='user', guid=user)
             enforce(self._cp.call(request, ad.Response()), Unauthorized,
                     'Principal user does not exist')
@@ -116,6 +117,7 @@ class Router(object):
 
     def __call__(self, environ, start_response):
         request = _Request(environ)
+        request_repr = str(request) if _logger.level <= logging.DEBUG else None
         response = _Response()
 
         js_callback = None
@@ -128,7 +130,7 @@ class Router(object):
         except ad.Redirect, error:
             response.status = '303 See Other'
             response['Location'] = error.location
-            result = ''
+            response.content_type = None
         except Exception, error:
             util.exception('Error while processing %r request',
                     environ['PATH_INFO'] or '/')
@@ -164,7 +166,7 @@ class Router(object):
             response.content_length = len(result)
 
         _logger.debug('Called %s: response=%r result=%r streamed=%r',
-                request, response, result, result_streamed)
+                request_repr, response, result, result_streamed)
 
         start_response(response.status, response.items())
 
@@ -175,10 +177,10 @@ class Router(object):
             yield result
 
 
-class _Request(ad.Request):
+class _Request(Request):
 
     def __init__(self, environ):
-        ad.Request.__init__(self)
+        Request.__init__(self)
 
         self.access_level = ad.ACCESS_REMOTE
         self.environ = environ

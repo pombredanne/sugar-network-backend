@@ -266,7 +266,7 @@ class InjectorTest(tests.Test):
         client = IPCClient(mountpoint='~')
 
         monitor = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume['context'], ['Activities'])
+                self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
         blob = client.get(['context', 'bundle_id', 'feed'], cmd='get_blob')

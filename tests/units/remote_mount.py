@@ -43,7 +43,7 @@ class RemoteMountTest(tests.Test):
                 [(guid, False, False)],
                 [(i['guid'], i['keep'], i['keep_impl']) for i in cursor])
 
-        self.mounts.home_volume['context'].create(guid=guid, type='activity',
+        self.mounts.volume['context'].create(guid=guid, type='activity',
                 title={'en': 'local'}, summary={'en': 'summary'},
                 description={'en': 'description'}, keep=True, keep_impl=2,
                 user=[sugar.uid()])

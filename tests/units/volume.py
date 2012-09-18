@@ -177,6 +177,8 @@ class VolumeTest(tests.Test):
 
         def read_events():
             for event in cp.subscribe(ad.Response()):
+                if not event.strip():
+                    continue
                 assert event.startswith('data: ')
                 assert event.endswith('\n\n')
                 event = json.loads(event[6:])
@@ -217,6 +219,8 @@ class VolumeTest(tests.Test):
 
         def read_events():
             for event in cp.subscribe(ad.Response(), only_commits=True):
+                if not event.strip():
+                    continue
                 assert event.startswith('data: ')
                 assert event.endswith('\n\n')
                 event = json.loads(event[6:])

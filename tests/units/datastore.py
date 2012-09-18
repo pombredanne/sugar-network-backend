@@ -18,7 +18,7 @@ class DatastoreTest(tests.Test):
 
     def test_populate_NothingToImport(self):
         self.create_mountset([Artifact])
-        artifacts = self.mounts.home_volume['artifact']
+        artifacts = self.mounts.volume['artifact']
         ds_create('1', uid='1')
 
         datastore.populate(artifacts)
@@ -41,7 +41,7 @@ class DatastoreTest(tests.Test):
 
     def test_populate(self):
         self.create_mountset([Artifact])
-        artifacts = self.mounts.home_volume['artifact']
+        artifacts = self.mounts.volume['artifact']
 
         ds_create('1',
                 data='data-1',

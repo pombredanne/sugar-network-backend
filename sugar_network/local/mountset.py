@@ -25,7 +25,7 @@ from sugar_network.toolkit.router import Router
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.sync_node import SyncCommands
-from sugar_network.resources.volume import Volume, Commands
+from sugar_network.resources.volume import Volume, Commands, Request
 from active_toolkit import util, coroutine, enforce
 
 
@@ -38,14 +38,13 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
 
     def __init__(self, home_volume):
         self.opened = coroutine.Event()
-        self.home_volume = home_volume
         self._subscriptions = {}
         self._lang = ad.default_lang()
         self._jobs = coroutine.Pool()
         self._servers = coroutine.Pool()
 
         dict.__init__(self)
-        ad.CommandsProcessor.__init__(self)
+        ad.CommandsProcessor.__init__(self, home_volume)
         SyncCommands.__init__(self, local.path('sync'))
         Commands.__init__(self)
 
@@ -94,7 +93,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
         for guid in (request.content or '').split():
             _logger.info('Checkin %r context', guid)
             mount.call(
-                    ad.Request(method='PUT', document='context', guid=guid,
+                    Request(method='PUT', document='context', guid=guid,
                         accept_language=[self._lang],
                         content={'keep_impl': 2, 'keep': False}),
                     ad.Response())
@@ -108,7 +107,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
         for guid in (request.content or '').split():
             _logger.info('Keep %r context', guid)
             mount.call(
-                    ad.Request(method='PUT', document='context', guid=guid,
+                    Request(method='PUT', document='context', guid=guid,
                         accept_language=[self._lang],
                         content={'keep': True}),
                     ad.Response())
@@ -123,7 +122,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
 
         for guid in [context] if isinstance(context, basestring) else context:
             feed = mount.call(
-                    ad.Request(method='GET', document='context', guid=guid,
+                    Request(method='GET', document='context', guid=guid,
                         prop='feed', accept_language=[self._lang]),
                     ad.Response())
             for impls in feed.values():
@@ -133,31 +132,25 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
 
         return list(requires)
 
+    def super_call(self, request, response):
+        if 'mountpoint' in request:
+            mountpoint = request.pop('mountpoint')
+        else:
+            mountpoint = '/'
+        mount = self[mountpoint]
+        if mountpoint == '/':
+            mount.set_mounted(True)
+        enforce(mount.mounted.is_set(), '%r is not mounted', mountpoint)
+        return mount.call(request, response)
+
     def call(self, request, response=None):
         if response is None:
             response = ad.Response()
         request.accept_language = [self._lang]
-        mountpoint = request.get('mountpoint') or '/'
-
         try:
-            try:
-                result = ad.CommandsProcessor.call(self, request, response)
-            except ad.CommandNotFound:
-                if 'mountpoint' in request:
-                    request.pop('mountpoint')
-                mount = self[mountpoint]
-                if mountpoint == '/':
-                    mount.set_mounted(True)
-                enforce(mount.mounted.is_set(),
-                        '%r is not mounted', mountpoint)
-                result = mount.call(request, response)
-        except Exception:
-            util.exception(_logger, 'Failed to call %s on %r',
-                    request, mountpoint)
-            raise
-
-        _logger.debug('Called %s on %r: %r', request, mountpoint, result)
-        return result
+            return ad.CommandsProcessor.call(self, request, response)
+        except ad.CommandNotFound:
+            return self.super_call(request, response)
 
     def connect(self, callback, condition=None, **kwargs):
         self._subscriptions[callback] = condition or kwargs
@@ -196,8 +189,43 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
         self._jobs.kill()
         for mountpoint in self.keys():
             del self[mountpoint]
-        if self.home_volume is not None:
-            self.home_volume.close()
+        if self.volume is not None:
+            self.volume.close()
+
+    @ad.directory_command_pre(method='GET', arguments={'reply': ad.to_list})
+    def _Mountset_find_pre(self, request):
+        self._exclude_blobs(request)
+
+    @ad.directory_command_post(method='GET')
+    def _Mountset_find_post(self, request, response, result):
+        self._include_blobs(request, result['result'])
+        return result
+
+    @ad.document_command_pre(method='GET', arguments={'reply': ad.to_list})
+    def _Mountset_get_pre(self, request):
+        self._exclude_blobs(request)
+
+    @ad.document_command_post(method='GET')
+    def _Mountset_get_post(self, request, response, result):
+        self._include_blobs(request, [result])
+        return result
+
+    def _exclude_blobs(self, request):
+        reply = request.get('reply')
+        if reply:
+            reply_set = set(reply)
+            request.blobs = reply_set & self.get_blobs(request['document'])
+            if request.blobs:
+                reply[:] = list(reply_set - request.blobs)
+
+    def _include_blobs(self, request, result):
+        if not request.blobs:
+            return
+        for props in result:
+            guid = props.get('guid') or request['guid']
+            for name in request.blobs:
+                props[name] = 'http://localhost:%s/%s/%s/%s' % \
+                        (local.ipc_port.value, request['document'], guid, name)
 
     def _discover_masters(self):
         for host in zeroconf.browse_workstations():
@@ -220,7 +248,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
         volume, server_mode = self._mount_volume(path)
         if server_mode:
             _logger.debug('Mount %r in node mode', path)
-            self[path] = self.node_mount = NodeMount(volume, self.home_volume)
+            self[path] = self.node_mount = NodeMount(volume, self.volume)
         else:
             _logger.debug('Mount %r in node-less mode', path)
             self[path] = LocalMount(volume)

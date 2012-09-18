@@ -57,13 +57,6 @@ class NodeCommands(ad.VolumeCommands, Commands):
             with file(master_path, 'w') as f:
                 f.write(_DEFAULT_MASTER_GUID)
 
-        self._blobs = {}
-        for document, directory in self.volume.items():
-            self._blobs.setdefault(document, set())
-            for prop in directory.metadata.values():
-                if isinstance(prop, ad.BlobProperty):
-                    self._blobs[document].add(prop.name)
-
     def connect(self, callback, condition=None, **kwargs):
         self.volume.connect(callback, condition)
 
@@ -86,64 +79,6 @@ class NodeCommands(ad.VolumeCommands, Commands):
         # to let master-node synchronization possible
         directory = self.volume[document]
         directory.update(guid, {'layer': ['deleted']})
-
-    @ad.directory_command(method='GET',
-            arguments={'offset': ad.to_int, 'limit': ad.to_int,
-                'reply': ad.to_list})
-    def find(self, document, request, offset=None, limit=None, query=None,
-            reply=None, order_by=None, group_by=None, **kwargs):
-        if limit is None:
-            limit = node.find_limit.value
-        elif limit > node.find_limit.value:
-            _logger.warning('The find limit is restricted to %s',
-                    node.find_limit.value)
-            limit = node.find_limit.value
-
-        blobs = None
-        if reply:
-            reply = set(reply)
-            blobs = reply & self._blobs[document]
-            reply = list(reply - blobs)
-
-        layer = kwargs.get('layer', ['public'])
-        if isinstance(layer, basestring):
-            layer = [layer]
-        if 'deleted' in layer:
-            _logger.warning('Requesting "deleted" layer')
-            layer.remove('deleted')
-        kwargs['layer'] = layer
-
-        result = ad.VolumeCommands.find(self, document, request, offset, limit,
-                query, reply, order_by, group_by, **kwargs)
-
-        if blobs:
-            for props in result['result']:
-                self._mixin_blob(document, blobs, props)
-
-        return result
-
-    @ad.document_command(method='GET', arguments={'reply': ad.to_list})
-    def get(self, document, guid, request, reply=None):
-        blobs = None
-        if reply:
-            reply = set(reply)
-            blobs = reply & self._blobs[document]
-            reply = list(reply - blobs)
-
-        if reply:
-            if 'layer' not in reply:
-                reply.append('layer')
-            if 'guid' not in reply:
-                reply.append('guid')
-
-        result = ad.VolumeCommands.get(self, document, guid, request, reply)
-        enforce('deleted' not in result['layer'], ad.NotFound,
-                'Document is not found')
-
-        if blobs:
-            self._mixin_blob(document, blobs, result)
-
-        return result
 
     def resolve(self, request):
         cmd = ad.VolumeCommands.resolve(self, request)
@@ -174,6 +109,68 @@ class NodeCommands(ad.VolumeCommands, Commands):
             self._set_author(props)
         ad.VolumeCommands.before_update(self, request, props)
 
+    @ad.directory_command_pre(method='GET')
+    def _NodeCommands_find_pre(self, request):
+        if 'limit' not in request:
+            request['limit'] = node.find_limit.value
+        elif request['limit'] > node.find_limit.value:
+            _logger.warning('The find limit is restricted to %s',
+                    node.find_limit.value)
+            request['limit'] = node.find_limit.value
+
+        layer = request.get('layer', ['public'])
+        if 'deleted' in layer:
+            _logger.warning('Requesting "deleted" layer')
+            layer.remove('deleted')
+        request['layer'] = layer
+
+    @ad.directory_command_post(method='GET')
+    def _NodeCommands_find_post(self, request, response, result):
+        self._mixin_blobs(request, result['result'])
+        return result
+
+    @ad.document_command_post(method='GET')
+    def _NodeCommands_get_post(self, request, response, result):
+        directory = self.volume[request['document']]
+        doc = directory.get(request['guid'])
+        enforce('deleted' not in doc['layer'], ad.NotFound,
+                'Document deleted')
+        self._mixin_blobs(request, [result])
+        return result
+
+    def _mixin_blobs(self, request, result):
+        reply = request.get('reply')
+        if not reply:
+            return
+
+        document = request['document']
+        blobs = set(reply) & self.get_blobs(document)
+        if not blobs:
+            return
+
+        for props in result:
+            guid = props.get('guid') or request['guid']
+            doc = self.volume[document].get(guid)
+            for name in blobs:
+
+                def compose_url(value):
+                    if value is None:
+                        value = '/'.join(['', document, guid, name])
+                    if value.startswith('/'):
+                        value = 'http://%s:%s%s' % \
+                                (node.host.value, node.port.value, value)
+                    return value
+
+                url = None
+                meta = doc.meta(name)
+                if meta is not None:
+                    url = meta.url()
+
+                if type(url) is list:
+                    props[name] = [compose_url(i.get('url')) for i in url]
+                else:
+                    props[name] = compose_url(url)
+
     def _set_author(self, props):
         users = self.volume['user']
         authors = []
@@ -186,28 +183,6 @@ class NodeCommands(ad.VolumeCommands, Commands):
             if user['name']:
                 authors.append(user['name'])
         props['author'] = authors
-
-    def _mixin_blob(self, document, blobs, props):
-        doc = self.volume[document].get(props['guid'])
-        for name in blobs:
-
-            def compose_url(value):
-                if value is None:
-                    value = '/'.join(['', document, props['guid'], name])
-                if value.startswith('/'):
-                    value = 'http://%s:%s%s' % \
-                            (node.host.value, node.port.value, value)
-                return value
-
-            url = None
-            meta = doc.meta(name)
-            if meta is not None:
-                url = meta.url()
-
-            if type(url) is list:
-                props[name] = [compose_url(i.get('url')) for i in url]
-            else:
-                props[name] = compose_url(url)
 
 
 class MasterCommands(NodeCommands, SyncCommands):

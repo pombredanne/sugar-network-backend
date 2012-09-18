@@ -24,6 +24,7 @@ from dbus.mainloop.glib import threads_init, DBusGMainLoop
 import active_document as ad
 from active_toolkit import util, coroutine
 from sugar_network.toolkit import sugar
+from sugar_network.resources.volume import Request
 
 
 _logger = logging.getLogger('dbus_thread')
@@ -90,7 +91,7 @@ class Service(Object):
     def call(self, reply_cb, error_cb, content=None, content_stream=None,
             content_length=None, args=None, **kwargs):
         """Call a command in parent thread."""
-        request = ad.Request(kwargs)
+        request = Request(kwargs)
         request.principal = sugar.uid()
         request.access_level = ad.ACCESS_LOCAL
         request.content = content

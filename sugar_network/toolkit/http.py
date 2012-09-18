@@ -93,10 +93,11 @@ class Client(object):
             return response
 
     def call(self, request):
-        method = request.pop('method')
-        document = request.pop('document')
-        guid = request.pop('guid') if 'guid' in request else None
-        prop = request.pop('prop') if 'prop' in request else None
+        params = request.copy()
+        method = params.pop('method')
+        document = params.pop('document')
+        guid = params.pop('guid') if 'guid' in params else None
+        prop = params.pop('prop') if 'prop' in params else None
 
         path = [document]
         if guid:
@@ -104,7 +105,7 @@ class Client(object):
         if prop:
             path.append(prop)
 
-        return self.request(method, path, data=request.content, params=request,
+        return self.request(method, path, data=request.content, params=params,
                 headers={'Content-Type': 'application/json'})
 
     def download(self, url_path, out_path, seqno=None, extract=False):

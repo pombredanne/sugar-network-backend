@@ -18,14 +18,21 @@ import logging
 from os.path import join
 
 import active_document as ad
+from active_document import directory as ad_directory
 from active_toolkit import coroutine
 from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
 
 
+ad_directory._LAYOUT_VERSION = 2
 _DIFF_CHUNK = 1024
 
 _logger = logging.getLogger('resources.volume')
+
+
+class Request(ad.Request):
+
+    blobs = None
 
 
 class Resource(ad.Document):
@@ -136,8 +143,11 @@ class Volume(ad.SingleVolume):
 
 class Commands(object):
 
+    volume = None
+
     def __init__(self):
         self._notifier = coroutine.AsyncResult()
+        self._blobs = {}
         self.connect(lambda event: self._notify(event))
 
     def connect(self, callback, condition=None, **kwargs):
@@ -155,6 +165,15 @@ class Commands(object):
         response.content_type = 'text/event-stream'
         response['Cache-Control'] = 'no-cache'
         return self._pull_events(only_commits)
+
+    def get_blobs(self, document):
+        blobs = self._blobs.get(document)
+        if blobs is None:
+            blobs = self._blobs[document] = set()
+            for prop in self.volume[document].metadata.values():
+                if isinstance(prop, ad.BlobProperty):
+                    blobs.add(prop.name)
+        return blobs
 
     def _pull_events(self, only_commits):
         # Otherwise, gevent's WSGI server doesn't sent HTTP status

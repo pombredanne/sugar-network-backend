@@ -25,6 +25,7 @@ import active_document as ad
 from sweets_recipe import Bundle
 from sugar_network.toolkit import sugar, http
 from sugar_network.local import activities, cache
+from sugar_network.resources.volume import Request
 from sugar_network import local, checkin, sugar
 from active_toolkit import util, coroutine, enforce
 
@@ -135,7 +136,6 @@ class HomeMount(LocalMount):
                 util.exception(_logger, 'Failed to read %r spec file', path)
                 continue
 
-            print '>', request.access_level == ad.ACCESS_LOCAL
             if request.access_level == ad.ACCESS_LOCAL:
                 impl_id = spec.root
             else:
@@ -245,10 +245,9 @@ class _ProxyCommands(object):
                 if home.exists(guid):
                     home.update(guid, patch)
                 elif [True for prop, value in patch.items() if value]:
-                    clone = ad.Request(method='GET', document='context',
-                            guid=guid)
-                    clone.accept_language = request.accept_language
-                    props = super_call(clone, ad.Response())
+                    copy = Request(method='GET', document='context', guid=guid)
+                    copy.accept_language = request.accept_language
+                    props = super_call(copy, ad.Response())
                     props.update(patch)
                     props['guid'] = guid
                     props['user'] = [sugar.uid()]
@@ -340,6 +339,19 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         finally:
             if pass_ownership and exists(path):
                 os.unlink(path)
+
+    @ad.property_command(method='GET')
+    def get_prop(self, document, guid, prop, response):
+        directory = self._home_volume[document]
+        prop = directory.metadata[prop]
+
+        if not isinstance(prop, ad.BlobProperty):
+            raise ad.CommandNotFound()
+
+        meta = self.get_blob(document, guid, prop.name)
+        enforce(meta is not None, ad.NotFound)
+        response.content_type = meta['mime_type']
+        return file(meta['path'], 'rb')
 
     def mount(self, url=None):
         if url and url not in self._api_urls:

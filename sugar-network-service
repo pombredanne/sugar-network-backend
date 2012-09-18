@@ -166,9 +166,9 @@ class Application(application.Application):
             logging.info('Proceed delayed start')
             mountset.disconnect(delayed_start)
 
-            mountset.home_volume.populate()
-            datastore.populate(mountset.home_volume['artifact'])
-            self._sync(mountset.home_volume)
+            mountset.volume.populate()
+            datastore.populate(mountset.volume['artifact'])
+            self._sync(mountset.volume)
 
             logging.info('Listening for IPC requests on %s port',
                     local.ipc_port.value)
@@ -176,7 +176,7 @@ class Application(application.Application):
                     Router(mountset))
             jobs.spawn(server.serve_forever)
 
-            jobs.spawn(activities.monitor, mountset.home_volume['context'],
+            jobs.spawn(activities.monitor, mountset.volume['context'],
                     local.activity_dirs.value)
 
             if webui.webui.value:

@@ -37,7 +37,7 @@ class ActivitiesTest(tests.Test):
 
     def test_Inotify_NoPermissions(self):
         assert not exists('/foo/bar')
-        inotify = activities._Inotify(self.mounts.home_volume['context'])
+        inotify = activities._Inotify(self.mounts.volume['context'])
         inotify.setup(['/foo/bar'])
         assert not exists('/foo/bar')
 
@@ -52,7 +52,7 @@ class ActivitiesTest(tests.Test):
         found = []
         lost = []
 
-        inotify = activities._Inotify(self.mounts.home_volume['context'])
+        inotify = activities._Inotify(self.mounts.volume['context'])
         inotify.found = found.append
         inotify.lost = lost.append
         inotify.setup(['.'])
@@ -118,7 +118,7 @@ class ActivitiesTest(tests.Test):
         found = []
         lost = []
 
-        inotify = activities._Inotify(self.mounts.home_volume['context'])
+        inotify = activities._Inotify(self.mounts.volume['context'])
         inotify.found = found.append
         inotify.lost = lost.append
         inotify.setup(['Activities'])
@@ -166,10 +166,10 @@ class ActivitiesTest(tests.Test):
 
     def test_Checkin_Create(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume['context'], ['Activities'])
+                self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.mounts.home_volume['context'].create(
+        self.mounts.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
@@ -207,7 +207,7 @@ class ActivitiesTest(tests.Test):
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
         assert exists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         self.assertEqual(
                 tests.tmpdir + '/Activities/activity/activity/icon.svg',
@@ -220,10 +220,10 @@ class ActivitiesTest(tests.Test):
 
     def test_Checkin_Copy(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume['context'], ['Activities'])
+                self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.mounts.home_volume['context'].create(
+        self.mounts.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
@@ -247,14 +247,14 @@ class ActivitiesTest(tests.Test):
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkin_Hardlink(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume['context'], ['Activities'])
+                self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.mounts.home_volume['context'].create(
+        self.mounts.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
@@ -280,11 +280,11 @@ class ActivitiesTest(tests.Test):
                 os.readlink('activities/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_OfflineCheckin(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume['context'], ['Activities'])
+                self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
         self.touch(('Activities/activity/activity/activity.info', [
@@ -306,13 +306,13 @@ class ActivitiesTest(tests.Test):
 
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'HelloWorld'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
 
     def test_Checkout(self):
         self.job = coroutine.spawn(activities.monitor,
-                self.mounts.home_volume['context'], ['Activities'])
+                self.mounts.volume['context'], ['Activities'])
 
-        self.mounts.home_volume['context'].create(
+        self.mounts.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
@@ -344,7 +344,7 @@ class ActivitiesTest(tests.Test):
         assert exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
         assert exists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         assert exists('share/mime/packages/%s.xml' % hashed_path)
         assert exists('share/mime/application/x-foo-bar.xml')
@@ -356,7 +356,7 @@ class ActivitiesTest(tests.Test):
         assert not exists('activities/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 0},
-                self.mounts.home_volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
         assert not lexists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         assert not lexists('share/mime/packages/%s.xml' % hashed_path)
         assert not lexists('share/mime/application/x-foo-bar.xml')

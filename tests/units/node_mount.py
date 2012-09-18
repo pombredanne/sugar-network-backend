@@ -72,7 +72,7 @@ class NodeMountTest(tests.Test):
             ],
             remote.get(['context'], reply=['guid', 'keep', 'keep_impl'])['result'])
 
-        mounts.home_volume['context'].create(guid=guid, type='activity',
+        mounts.volume['context'].create(guid=guid, type='activity',
                 title='local', summary='summary',
                 description='description', keep=True, keep_impl=2,
                 user=[sugar.uid()])
@@ -89,7 +89,7 @@ class NodeMountTest(tests.Test):
     def test_SetKeep(self):
         mounts = self.start_server()
         mounts[tests.tmpdir + '/mnt'].mounted.wait()
-        mounts['~'] = HomeMount(mounts.home_volume)
+        mounts['~'] = HomeMount(mounts.volume)
         local = IPCClient(mountpoint='~')
         remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
@@ -166,10 +166,10 @@ class NodeMountTest(tests.Test):
 
         mounts = self.start_server()
         mounts[tests.tmpdir + '/mnt'].mounted.wait()
-        mounts['~'] = HomeMount(mounts.home_volume)
+        mounts['~'] = HomeMount(mounts.volume)
         local = IPCClient(mountpoint='~')
         remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
-        coroutine.spawn(activities.monitor, mounts.home_volume['context'], ['Activities'])
+        coroutine.spawn(activities.monitor, mounts.volume['context'], ['Activities'])
 
         context = remote.post(['context'], {
             'type': 'activity',
