@@ -5,10 +5,11 @@ from cStringIO import StringIO
 
 from __init__ import tests
 
+import active_document as ad
 from active_document import env, volume, SingleVolume, Document, \
         property_command, document_command, directory_command, volume_command, \
         active_property, Request, BlobProperty, Response, CommandsProcessor, \
-        ProxyCommands, CommandNotFound, NotFound, to_int, to_list
+        CommandNotFound, NotFound, to_int, to_list
 
 
 class CommandsTest(tests.Test):
@@ -61,10 +62,10 @@ class CommandsTest(tests.Test):
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument')
 
         self.assertEqual([
-            ('command_1', {'document': 'testdocument'}),
-            ('command_1', {'document': 'fakedocument'}),
-            ('command_2', {'document': 'testdocument'}),
-            ('command_2', {'document': 'fakedocument'}),
+            ('command_1', {}),
+            ('command_1', {}),
+            ('command_2', {}),
+            ('command_2', {}),
             ],
             calls)
 
@@ -96,10 +97,10 @@ class CommandsTest(tests.Test):
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid')
 
         self.assertEqual([
-            ('command_1', {'document': 'testdocument', 'guid': 'guid'}),
-            ('command_1', {'document': 'fakedocument', 'guid': 'guid'}),
-            ('command_2', {'document': 'testdocument', 'guid': 'guid'}),
-            ('command_2', {'document': 'fakedocument', 'guid': 'guid'}),
+            ('command_1', {}),
+            ('command_1', {}),
+            ('command_2', {}),
+            ('command_2', {}),
             ],
             calls)
 
@@ -132,10 +133,10 @@ class CommandsTest(tests.Test):
         self.call(cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid', prop='prop')
 
         self.assertEqual([
-            ('command_1', {'document': 'testdocument', 'guid': 'guid', 'prop': 'prop'}),
-            ('command_1', {'document': 'fakedocument', 'guid': 'guid', 'prop': 'prop'}),
-            ('command_2', {'document': 'testdocument', 'guid': 'guid', 'prop': 'prop'}),
-            ('command_2', {'document': 'fakedocument', 'guid': 'guid', 'prop': 'prop'}),
+            ('command_1', {}),
+            ('command_1', {}),
+            ('command_2', {}),
+            ('command_2', {}),
             ],
             calls)
 
@@ -230,8 +231,8 @@ class CommandsTest(tests.Test):
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument', guid='guid', prop='prop')
 
         self.assertEqual([
-            ('command_1', {'prop': 'prop'}),
-            ('command_2', {'prop': 'prop'}),
+            ('command_1', {}),
+            ('command_2', {}),
             ],
             calls)
 
@@ -300,14 +301,8 @@ class CommandsTest(tests.Test):
         class TestCommandsProcessor(CommandsProcessor, Parent):
             pass
 
-        class TestProxyProcessor(ProxyCommands, Parent):
-            pass
-
         cp = TestCommandsProcessor()
         self.assertEqual('probe', self.call(cp, 'PROBE'))
-
-        proxy = TestProxyProcessor(CommandsProcessor())
-        self.assertEqual('probe', self.call(proxy, 'PROBE'))
 
     def test_OverrideInChildClass(self):
         calls = []
@@ -377,9 +372,9 @@ class CommandsTest(tests.Test):
 
             @volume_command(method='PROBE')
             def probe(self, arg, request, **kwargs):
-                return request, kwargs
+                return dict(request), kwargs
 
-        class TestProxyProcessor(ProxyCommands):
+        class TestProxyProcessor(CommandsProcessor):
 
             @volume_command(method='PROBE')
             def probe(self, arg, request):
@@ -387,10 +382,10 @@ class CommandsTest(tests.Test):
                 raise CommandNotFound()
 
         top = TestCommandsProcessor()
-        proxy = TestProxyProcessor(top)
+        proxy = TestProxyProcessor(parent=top)
 
         self.assertEqual(
-                ({'foo': 'bar', 'method': 'PROBE', 'arg': -1}, {'foo': 'bar'}),
+                ({'foo': 'bar', 'method': 'PROBE', 'arg': -1}, {}),
                 self.call(proxy, 'PROBE', arg=-1))
 
     def test_Arguments(self):
@@ -412,6 +407,84 @@ class CommandsTest(tests.Test):
         self.assertEqual((0, None), self.call(cp, 'PROBE', arg_int=''))
         self.assertRaises(RuntimeError, self.call, cp, 'PROBE', arg_int=' ')
         self.assertRaises(RuntimeError, self.call, cp, 'PROBE', arg_int='foo')
+
+    def test_PassKwargs(self):
+
+        class TestCommandsProcessor(CommandsProcessor):
+
+            @volume_command(method='PROBE')
+            def probe(self, arg, request, response, **kwargs):
+                return arg, dict(request), dict(response), kwargs
+
+        cp = TestCommandsProcessor()
+
+        self.assertEqual(
+                (None, {'method': 'PROBE'}, {}, {}),
+                self.call(cp, 'PROBE'))
+        self.assertEqual(
+                (1, {'method': 'PROBE', 'arg': 1}, {}, {}),
+                self.call(cp, 'PROBE', arg=1))
+        self.assertEqual(
+                (None, {'method': 'PROBE', 'foo': 'bar'}, {}, {}),
+                self.call(cp, 'PROBE', foo='bar'))
+        self.assertEqual(
+                (-2, {'method': 'PROBE', 'foo': 'bar', 'arg': -2}, {}, {}),
+                self.call(cp, 'PROBE', foo='bar', arg=-2))
+
+    def test_PrePost(self):
+
+        class TestCommandsProcessor(CommandsProcessor):
+
+            @ad.volume_command_pre(method='PROBE')
+            def command_pre(self, request):
+                request['probe'].append('pre')
+
+            @ad.volume_command(method='PROBE')
+            def command(self, request):
+                request['probe'].append('cmd')
+                response['probe'].append('cmd')
+                return 1
+
+            @ad.volume_command_post(method='PROBE')
+            def command_post(self, request, response, result):
+                request['probe'].append('post')
+                response['probe'].append('post')
+                return result + 1
+
+        cp = TestCommandsProcessor()
+
+        request = ad.Request(method='PROBE', probe=[])
+        response = ad.Response(probe=[])
+        self.assertEqual(2, cp.call(request, response))
+        self.assertEqual(['pre', 'cmd', 'post'], request['probe'])
+        self.assertEqual(['cmd', 'post'], response['probe'])
+
+    def test_PrePostCallbackLess(self):
+
+        class TestCommandsProcessor(CommandsProcessor):
+
+            @ad.volume_command_pre(method='PROBE')
+            def command_pre(self, request):
+                request['probe'].append('pre')
+
+            def super_call(self, request, response):
+                request['probe'].append('cmd')
+                response['probe'].append('cmd')
+                return 1
+
+            @ad.volume_command_post(method='PROBE')
+            def command_post(self, request, response, result):
+                request['probe'].append('post')
+                response['probe'].append('post')
+                return result + 1
+
+        cp = TestCommandsProcessor()
+
+        request = ad.Request(method='PROBE', probe=[])
+        response = ad.Response(probe=[])
+        self.assertEqual(2, cp.call(request, response))
+        self.assertEqual(['pre', 'cmd', 'post'], request['probe'])
+        self.assertEqual(['cmd', 'post'], response['probe'])
 
     def call(self, cp, method, document=None, guid=None, prop=None,
             access_level=env.ACCESS_REMOTE, **kwargs):

@@ -146,7 +146,9 @@ class VolumeCommands(CommandsProcessor):
             else:
                 props[name] = self._prepost(request, prop, value)
 
-        self.before_create(request, props)
+        ts = int(time.time())
+        props['ctime'] = ts
+        props['mtime'] = ts
         guid = directory.create(props)
 
         for name, value in blobs.items():
@@ -194,7 +196,7 @@ class VolumeCommands(CommandsProcessor):
             else:
                 props[name] = self._prepost(request, prop, value)
 
-        self.before_update(request, props)
+        props['mtime'] = int(time.time())
         directory.update(guid, props)
 
         for name, value in blobs.items():
@@ -209,10 +211,8 @@ class VolumeCommands(CommandsProcessor):
         prop.assert_access(env.ACCESS_WRITE)
 
         if not isinstance(prop, BlobProperty):
-            props = {prop.name: self._prepost(request, prop, request.content)}
-            self.before_update(request, props)
-            directory.update(guid, props)
-            return
+            request.content = {prop.name: request.content}
+            return self.update(document, guid, request)
 
         if url is not None:
             directory.set_blob(guid, prop.name, url=url)
@@ -275,14 +275,6 @@ class VolumeCommands(CommandsProcessor):
             response.content_length = os.stat(path).st_size
             response.content_type = prop.mime_type
             return _file_reader(path)
-
-    def before_create(self, request, props):
-        ts = int(time.time())
-        props['ctime'] = ts
-        props['mtime'] = ts
-
-    def before_update(self, request, props):
-        props['mtime'] = int(time.time())
 
     def _prepost(self, request, prop, value):
         if prop.localized and isinstance(value, basestring):

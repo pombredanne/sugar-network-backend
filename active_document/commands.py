@@ -28,17 +28,42 @@ _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 def command(scope, **kwargs):
 
     def decorate(func):
-        func.commands_scope = scope
+        func.scope = scope
         func.kwargs = kwargs
+        func.pre = []
+        func.post = []
         return func
 
     return decorate
 
 
-volume_command = lambda ** kwargs: command('volume', **kwargs)
-directory_command = lambda ** kwargs: command('directory', **kwargs)
-document_command = lambda ** kwargs: command('document', **kwargs)
-property_command = lambda ** kwargs: command('property', **kwargs)
+volume_command = \
+        lambda ** kwargs: command('volume', **kwargs)
+volume_command_pre = \
+        lambda ** kwargs: command('volume', pre=True, **kwargs)
+volume_command_post = \
+        lambda ** kwargs: command('volume', post=True, **kwargs)
+
+directory_command = \
+        lambda ** kwargs: command('directory', **kwargs)
+directory_command_pre = \
+        lambda ** kwargs: command('directory', pre=True, **kwargs)
+directory_command_post = \
+        lambda ** kwargs: command('directory', post=True, **kwargs)
+
+document_command = \
+        lambda ** kwargs: command('document', **kwargs)
+document_command_pre = \
+        lambda ** kwargs: command('document', pre=True, **kwargs)
+document_command_post = \
+        lambda ** kwargs: command('document', post=True, **kwargs)
+
+property_command = \
+        lambda ** kwargs: command('property', **kwargs)
+property_command_pre = \
+        lambda ** kwargs: command('property', pre=True, **kwargs)
+property_command_post = \
+        lambda ** kwargs: command('property', post=True, **kwargs)
 
 
 def to_int(value):
@@ -108,6 +133,11 @@ class Response(dict):
     content_length = None
     content_type = None
 
+    def __init__(self, *args, **props):
+        if args:
+            props = args[0]
+        dict.__init__(self, props)
+
     def __repr__(self):
         args = ['%s=%r' % i for i in self.items()]
         return '<active_document.Response %s>' % ' '.join(args)
@@ -115,7 +145,7 @@ class Response(dict):
 
 class CommandsProcessor(object):
 
-    def __init__(self, volume=None):
+    def __init__(self, volume=None, parent=None):
         self._commands = {
                 'volume': _Commands(),
                 'directory': _Commands(),
@@ -123,53 +153,32 @@ class CommandsProcessor(object):
                 'property': _Commands(),
                 }
         self.volume = volume
+        self.parent = parent
 
-        for scope, cb, attr in _scan_class_for_commands(self.__class__):
-            cmd = _Command(cb, (self,), **attr.kwargs)
+        for scope, kwargs in _scan_class(self.__class__, False):
+            cmd = _Command((self,), **kwargs)
             self._commands[scope].add(cmd)
 
         if volume is not None:
             for directory in volume.values():
-                for scope, cb, attr in \
-                        _scan_class_for_commands(directory.document_class):
+                for scope, kwargs in _scan_class(directory.document_class):
                     if scope == 'directory':
-                        enforce(attr.im_self is not None,
-                                'Command should be a @classmethod')
-                        cmd = _ClassCommand(directory, cb, **attr.kwargs)
+                        cmd = _ClassCommand(directory, **kwargs)
                         self._commands[scope].add(cmd)
                     elif scope in ('document', 'property'):
-                        enforce(attr.im_self is None,
-                                'Command should not be a @classmethod')
-                        cmd = _ObjectCommand(directory, cb, **attr.kwargs)
+                        cmd = _ObjectCommand(directory, **kwargs)
                         self._commands[scope].add(cmd)
 
+    def super_call(self, request, response):
+        raise CommandNotFound()
+
     def call(self, request, response):
-        cmd = self.resolve(request)
-        enforce(cmd is not None, CommandNotFound, 'Unsupported command')
-
-        guid = request.get('guid')
-        if guid is not None:
-            enforce(_GUID_RE.match(guid) is not None,
-                    'Specified malformed GUID')
-
-        enforce(request.access_level & cmd.access_level, env.Forbidden,
-                'Operation is permitted on requester\'s level')
-
-        for arg, cast in cmd.arguments.items():
-            if arg not in request:
-                continue
-            try:
-                request[arg] = cast(request[arg])
-            except Exception, error:
-                raise RuntimeError('Cannot typecast %r command argument: %s' %
-                        (arg, error))
-
-        result = cmd(request, response)
-
-        if not response.content_type:
-            response.content_type = cmd.mime_type
-
-        return result
+        try:
+            return self._call(request, response)
+        except CommandNotFound:
+            if self.parent is None:
+                raise
+            return self.parent.call(request, response)
 
     def resolve(self, request):
         key = (request.get('method', 'GET'), request.get('cmd'), None)
@@ -190,67 +199,71 @@ class CommandsProcessor(object):
         commands = self._commands['property']
         return commands.get(key) or commands.get(document_key)
 
+    def _call(self, request, response):
+        cmd = self.resolve(request)
+        enforce(cmd is not None, CommandNotFound, 'Unsupported command')
 
-class ProxyCommands(CommandsProcessor):
+        guid = request.get('guid')
+        if guid is not None:
+            enforce(_GUID_RE.match(guid) is not None,
+                    'Specified malformed GUID')
 
-    def __init__(self, parent):
-        CommandsProcessor.__init__(self)
-        self.parent = parent
-        self.volume = parent.volume
+        enforce(request.access_level & cmd.access_level, env.Forbidden,
+                'Operation is permitted on requester\'s level')
 
-    def call(self, request, response):
-        try:
-            return CommandsProcessor.call(self, request, response)
-        except CommandNotFound:
-            return self.parent.call(request, response)
+        for arg, cast in cmd.arguments.items():
+            if arg not in request:
+                continue
+            try:
+                request[arg] = cast(request[arg])
+            except Exception, error:
+                raise RuntimeError('Cannot typecast %r command argument: %s' %
+                        (arg, error))
 
-    def super_call(self, method, cmd=None, content=None,
-            access_level=env.ACCESS_REMOTE, response=None, **kwargs):
-        request = Request(kwargs)
-        request['method'] = method
-        if cmd:
-            request['cmd'] = cmd
-        request.content = content
-        request.access_level = access_level
+        args, kwargs = cmd.get_args(request)
 
-        if response is None:
-            response = Response()
+        for pre in cmd.pre:
+            pre(*args, request=request)
 
-        return self.parent.call(request, response)
+        for arg in cmd.kwarg_names:
+            if arg == 'request':
+                kwargs[arg] = request
+            elif arg == 'response':
+                kwargs[arg] = response
+            elif arg not in kwargs:
+                kwargs[arg] = request.get(arg)
+
+        result = cmd.callback(*args, **kwargs)
+
+        for post in cmd.post:
+            result = post(*args, result=result, request=request,
+                    response=response)
+
+        if not response.content_type:
+            response.content_type = cmd.mime_type
+
+        return result
 
 
 class _Command(object):
 
-    def __init__(self, callback, args, method='GET', document=None, cmd=None,
-            mime_type='application/json', permissions=0, exclude_args=None,
-            access_level=env.ACCESS_LEVELS, arguments=None):
-        self.callback = callback
+    def __init__(self, args, callback, method='GET', document=None, cmd=None,
+            mime_type='application/json', permissions=0,
+            access_level=env.ACCESS_LEVELS, arguments=None,
+            pre=None, post=None):
         self.args = args
+        self.callback = callback
         self.mime_type = mime_type
         self.permissions = permissions
         self.access_level = access_level
-        self.accept_request = 'request' in _function_arg_names(callback)
-        self.accept_response = 'response' in _function_arg_names(callback)
+        self.kwarg_names = _function_arg_names(callback)
         self.key = (method, cmd, document)
-        self.exclude_args = exclude_args or ('method', 'cmd')
         self.arguments = arguments or {}
+        self.pre = pre
+        self.post = post
 
     def get_args(self, request):
         return self.args, {}
-
-    def __call__(self, request, response):
-        args, kwargs = self.get_args(request)
-
-        for key, value in request.items():
-            if key not in self.exclude_args:
-                kwargs[str(key)] = value
-
-        if self.accept_request:
-            kwargs['request'] = request
-        if self.accept_response:
-            kwargs['response'] = response
-
-        return self.callback(*args, **kwargs)
 
     def __repr__(self):
         return '%s(method=%s, cmd=%s, document=%s)' % \
@@ -259,9 +272,8 @@ class _Command(object):
 
 class _ClassCommand(_Command):
 
-    def __init__(self, directory, callback, **kwargs):
-        _Command.__init__(self, callback, [], document=directory.metadata.name,
-                exclude_args=('method', 'cmd', 'document'), **kwargs)
+    def __init__(self, directory, **kwargs):
+        _Command.__init__(self, [], document=directory.metadata.name, **kwargs)
         self._directory = directory
 
     def get_args(self, request):
@@ -270,9 +282,8 @@ class _ClassCommand(_Command):
 
 class _ObjectCommand(_Command):
 
-    def __init__(self, directory, callback, **kwargs):
-        _Command.__init__(self, callback, [], document=directory.metadata.name,
-                exclude_args=('method', 'cmd', 'document', 'guid'), **kwargs)
+    def __init__(self, directory, **kwargs):
+        _Command.__init__(self, [], document=directory.metadata.name, **kwargs)
         self._directory = directory
 
     def get_args(self, request):
@@ -293,19 +304,49 @@ def _function_arg_names(func):
     if not hasattr(func, 'func_code'):
         return []
     code = func.func_code
-    return code.co_varnames[:code.co_argcount]
+    # `1:` is for skipping the first, `self` or `cls`, argument
+    return code.co_varnames[1:code.co_argcount]
 
 
-def _scan_class_for_commands(root_cls):
+def _scan_class(root_cls, is_document_class=True):
     processed = set()
+    commands = {}
+
     cls = root_cls
     while cls is not None:
         for name in dir(cls):
             if name in processed:
                 continue
             attr = getattr(cls, name)
-            if hasattr(attr, 'commands_scope'):
-                callback = getattr(root_cls, attr.__name__)
-                yield attr.commands_scope, callback, attr
+            if not hasattr(attr, 'scope'):
+                continue
+            if is_document_class:
+                if attr.scope == 'directory':
+                    enforce(attr.im_self is not None,
+                            'Command should be a @classmethod')
+                elif attr.scope in ('document', 'property'):
+                    enforce(attr.im_self is None,
+                            'Command should not be a @classmethod')
+            key = (attr.scope,
+                   attr.kwargs.get('method') or 'GET',
+                   attr.kwargs.get('cmd'))
+            kwargs = commands.setdefault(key, {'pre': [], 'post': []})
+            callback = getattr(root_cls, attr.__name__)
+            if attr.kwargs.get('pre'):
+                kwargs['pre'].append(callback)
+            elif attr.kwargs.get('post'):
+                kwargs['post'].append(callback)
+            else:
+                kwargs.update(attr.kwargs)
+                kwargs['callback'] = callback
             processed.add(name)
         cls = cls.__base__
+
+    for (scope, method, cmd), kwargs in commands.items():
+        if 'callback' not in kwargs:
+            kwargs['method'] = method
+            if cmd:
+                kwargs['cmd'] = cmd
+            kwargs['callback'] = lambda self, request, response: \
+                    self.super_call(request, response)
+        yield scope, kwargs

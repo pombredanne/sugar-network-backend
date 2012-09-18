@@ -29,9 +29,12 @@ from active_document.metadata import Metadata, Property, \
 
 from active_document.storage import Meta
 
-from active_document.commands import document_command, directory_command, \
-        volume_command, property_command, to_int, to_list, \
-        Request, Response, CommandsProcessor, ProxyCommands, CommandNotFound
+from active_document.commands import to_int, to_list, \
+        volume_command, volume_command_pre, volume_command_post, \
+        directory_command, directory_command_pre, directory_command_post, \
+        document_command, document_command_pre, document_command_post, \
+        property_command, property_command_pre, property_command_post, \
+        Request, Response, CommandsProcessor, CommandNotFound
 
 from active_document.volume import SingleVolume, VolumeCommands
 

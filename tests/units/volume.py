@@ -426,26 +426,6 @@ class VolumeTest(tests.Test):
         assert self.volume['testdocument'].get(guid)['ctime'] in range(ts - 1, ts + 1)
         assert self.volume['testdocument'].get(guid)['mtime'] in range(ts - 1, ts + 1)
 
-    def test_before_create_Override(self):
-
-        class VolumeCommands(volume.VolumeCommands):
-
-            def before_create(self, request, props):
-                props['prop'] = 'overriden'
-                volume.VolumeCommands.before_create(self, request, props)
-
-        cp = VolumeCommands(self.volume)
-
-        request = Request(method='POST', document='testdocument')
-        request.content = {'prop': 'foo'}
-        guid = cp.call(request, Response())
-        self.assertEqual('overriden', self.volume['testdocument'].get(guid)['prop'])
-
-        request = Request(method='PUT', document='testdocument', guid=guid)
-        request.content = {'prop': 'bar'}
-        cp.call(request, Response())
-        self.assertEqual('bar', self.volume['testdocument'].get(guid)['prop'])
-
     def test_before_update(self):
         guid = self.call(method='POST', document='testdocument', content={})
         prev_mtime = self.volume['testdocument'].get(guid)['mtime']
@@ -454,26 +434,6 @@ class VolumeTest(tests.Test):
 
         self.call(method='PUT', document='testdocument', guid=guid, content={'prop': 'probe'})
         assert self.volume['testdocument'].get(guid)['mtime'] - prev_mtime >= 1
-
-    def test_before_update_Override(self):
-
-        class VolumeCommands(volume.VolumeCommands):
-
-            def before_update(self, request, props):
-                props['prop'] = 'overriden'
-                volume.VolumeCommands.before_update(self, request, props)
-
-        cp = VolumeCommands(self.volume)
-
-        request = Request(method='POST', document='testdocument')
-        request.content = {'prop': 'foo'}
-        guid = cp.call(request, Response())
-        self.assertEqual('foo', self.volume['testdocument'].get(guid)['prop'])
-
-        request = Request(method='PUT', document='testdocument', guid=guid)
-        request.content = {'prop': 'bar'}
-        cp.call(request, Response())
-        self.assertEqual('overriden', self.volume['testdocument'].get(guid)['prop'])
 
     def test_DoNotPassGuidsForCreate(self):
         self.assertRaises(env.Forbidden, self.call, method='POST', document='testdocument', content={'guid': 'foo'})
