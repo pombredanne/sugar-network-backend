@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-08-15$
+$Date: 2012-09-19$
 
 """
 
@@ -166,8 +166,10 @@ class Application(object):
             logging_level = logging.WARNING
         elif debug.value == 1:
             logging_level = logging.INFO
-        else:
+        elif debug.value == 2:
             logging_level = logging.DEBUG
+        elif debug.value > 2:
+            logging_level = 0
         logging_format = _LOGFILE_FORMAT
 
         root_logger = logging.getLogger('')

@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/coroutine.py$
-$Date: 2012-08-15$
+$Date: 2012-09-19$
 
 """
 # pylint: disable-msg=W0621
@@ -92,6 +92,16 @@ def WSGIServer(*args, **kwargs):
     return gevent.wsgi.WSGIServer(*args, **kwargs)
 
 
+def Event():
+    import gevent.event
+    return gevent.event.Event()
+
+
+def AsyncResult():
+    import gevent.event
+    return gevent.event.AsyncResult()
+
+
 def Queue(*args, **kwargs):
     import gevent.queue
     return gevent.queue.Queue(*args, **kwargs)
@@ -105,16 +115,6 @@ def Lock(*args, **kwargs):
 def RLock(*args, **kwargs):
     import gevent.coros
     return gevent.coros.RLock(*args, **kwargs)
-
-
-def Event():
-    import gevent.event
-    return gevent.event.Event()
-
-
-def AsyncResult():
-    import gevent.event
-    return gevent.event.AsyncResult()
 
 
 class AsyncEvent(object):
@@ -205,3 +205,39 @@ class Pool(gevent.pool.Pool):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.kill()
+
+
+def _print_exception(context, klass, value, tb):
+    self = gevent.hub.get_hub()
+    if issubclass(klass, self.NOT_ERROR + self.SYSTEM_ERROR):
+        return
+
+    import traceback
+    tb_repr = '\n'.join([i.rstrip()
+            for i in traceback.format_exception(klass, value, tb)][:-1])
+    del tb
+
+    context_repr = None
+    if context is None:
+        context = 'Undefined'
+    elif not isinstance(context, basestring):
+        if isinstance(context, dict) and 'PATH_INFO' in context:
+            context_repr = '%s%s' % \
+                    (context['PATH_INFO'], context.get('QUERY_STRING') or '')
+        try:
+            context = self.format_context(context)
+        except Exception:
+            context = repr(context)
+    error = 'Failed from %r context: %s' % \
+            (context_repr or context[:40] + '..', value)
+
+    logging_level = logging.getLogger().level
+    if logging_level > logging.DEBUG:
+        _logger.error(error)
+    elif logging_level == logging.DEBUG:
+        _logger.error('\n'.join([error, tb_repr]))
+    else:
+        _logger.error('\n'.join([error, context, tb_repr]))
+
+
+gevent.hub.get_hub().print_exception = _print_exception
