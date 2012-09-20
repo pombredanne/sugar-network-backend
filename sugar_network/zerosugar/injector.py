@@ -22,14 +22,16 @@ import signal
 import shutil
 import logging
 import threading
-from os.path import join, exists, basename, isabs
+from os.path import join, exists, basename
 
 from zeroinstall.injector import model
+from zeroinstall.injector.config import Config
+from zeroinstall.injector.driver import Driver
 from zeroinstall.injector.requirements import Requirements
 
 from sweets_recipe import Spec
-from sugar_network.zerosugar import solver
-from sugar_network.zerosugar.config import config
+from sugar_network.zerosugar import feeds
+from sugar_network.zerosugar.solution import Solution
 from sugar_network import local
 from sugar_network.toolkit import sugar
 from active_toolkit import coroutine, util, enforce
@@ -37,80 +39,6 @@ from active_toolkit import coroutine, util, enforce
 
 _logger = logging.getLogger('zerosugar.injector')
 _pipe = None
-
-
-class Pipe(object):
-
-    def __init__(self, pid, fd):
-        self._pid = pid
-        self._file = os.fdopen(fd)
-        self._stat = {}
-
-    def fileno(self):
-        return None if self._file is None else self._file.fileno()
-
-    def read(self):
-        if self._file is None:
-            return None
-
-        event = self._file.readline()
-        if event:
-            event = json.loads(event)
-            phase = event.pop('phase')
-            if not self._process_inernals(phase, event):
-                return phase, event
-            else:
-                return None, None
-
-        return self._finalize()
-
-    def __iter__(self):
-        if self._file is None:
-            return
-
-        try:
-            while True:
-                coroutine.select([self._file.fileno()], [], [])
-                event = self._file.readline()
-                if not event:
-                    break
-
-                event = json.loads(event)
-                phase = event.pop('phase')
-                if not self._process_inernals(phase, event):
-                    yield phase, event
-                if phase == 'exec':
-                    break
-
-            fin = self._finalize()
-            if fin is not None:
-                yield fin
-        finally:
-            self._finalize()
-
-    def _process_inernals(self, phase, props):
-        if phase == 'stat':
-            self._stat.update(props)
-            return True
-        elif phase == 'failure':
-            props.update(self._stat)
-
-    def _finalize(self):
-        if self._file is None:
-            return
-
-        try:
-            __, status = os.waitpid(self._pid, 0)
-        except OSError:
-            return None
-        finally:
-            self._file.close()
-            self._file = None
-
-        failure = _decode_exit_failure(status)
-        if failure:
-            self._stat['error'] = failure
-            return 'failure', self._stat
 
 
 def launch(mountpoint, context, command='activity', args=None):
@@ -121,44 +49,9 @@ def checkin(mountpoint, context, command='activity'):
     return _fork(_checkin, mountpoint, context, command)
 
 
-def _fork(callback, mountpoint, context, *args):
-    fd_r, fd_w = os.pipe()
-
-    pid = os.fork()
-    if pid:
-        os.close(fd_w)
-        return Pipe(pid, fd_r)
-
-    from sugar_network import IPCClient
-
-    os.close(fd_r)
-    global _pipe
-    _pipe = fd_w
-
-    def thread_func():
-        log_path = _setup_logging(context)
-        _progress('stat', log_path=log_path, mountpoint=mountpoint,
-                context=context)
-
-        config.clients = [IPCClient(mountpoint='~')]
-        if mountpoint != '~':
-            config.clients.append(IPCClient(mountpoint=mountpoint))
-
-        try:
-            callback(mountpoint, context, *args)
-        except Exception, error:
-            util.exception(_logger)
-            _progress('failure', error=str(error))
-
-    # Avoid a mess with current thread coroutines
-    thread = threading.Thread(target=thread_func)
-    thread.start()
-    thread.join()
-
-    os.close(fd_w)
-    sys.stdout.flush()
-    sys.stderr.flush()
-    os._exit(0)
+def _progress(**event):
+    os.write(_pipe, json.dumps(event))
+    os.write(_pipe, '\n')
 
 
 def _launch(mountpoint, context, command, args):
@@ -170,7 +63,7 @@ def _launch(mountpoint, context, command, args):
     args = cmd.path.split() + args
 
     _logger.info('Executing %s: %s', solution.interface, args)
-    _progress('exec')
+    _progress(state='exec')
 
     if command == 'activity':
         _activity_env(solution.top, os.environ)
@@ -194,18 +87,36 @@ def _checkin(mountpoint, context, command):
         raise
 
 
-def _progress(phase, **kwargs):
-    kwargs['phase'] = phase
-    os.write(_pipe, json.dumps(kwargs))
-    os.write(_pipe, '\n')
+def _solve(req):
+    driver = Driver(Config(), req)
+
+    driver.solver.solve(req.interface_uri,
+                driver.target_arch, command_name=req.command)
+
+    result = Solution(driver.solver.selections, req)
+    result.details = dict((k.uri, v)
+            for k, v in (driver.solver.details or {}).items())
+    result.ready = driver.solver.ready
+
+    if not result.ready:
+        # pylint: disable-msg=W0212
+        failure_reason = driver.solver._failure_reason
+        if not failure_reason:
+            missed_ifaces = [iface.uri for iface, impl in
+                    driver.solver.selections.items() if impl is None]
+            failure_reason = 'Cannot find requireed implementations ' \
+                    'for %s' % ', '.join(missed_ifaces)
+        result.failure_reason = model.SafeException(failure_reason)
+
+    return result
 
 
 def _make(context, command):
     requirement = Requirements(context)
     requirement.command = command
 
-    _progress('analyze', progress=-1)
-    solution = solver.solve(requirement)
+    _progress(state='analyze')
+    solution = _solve(requirement)
     enforce(solution.ready, solution.failure_reason)
 
     for sel, __, __ in solution.walk():
@@ -217,7 +128,7 @@ def _make(context, command):
                 sel.interface)
 
         # TODO Per download progress
-        _progress('download', progress=-1)
+        _progress(state='download')
 
         impl = sel.client.get(['implementation', sel.id, 'data'],
                 cmd='get_blob')
@@ -229,8 +140,7 @@ def _make(context, command):
             impl_path = join(impl_path, dl.extract)
         sel.local_path = impl_path
 
-    if not isabs(solution.top.id):
-        _progress('stat', implementation=solution.top.id)
+    _progress(state='ready', session={'implementation': solution.top.id})
 
     return solution
 
@@ -309,3 +219,94 @@ def _decode_exit_failure(status):
         signum = os.WTERMSIG(status)
         failure = 'Undefined status with signal %s' % signum
     return failure
+
+
+def _fork(callback, mountpoint, context, *args):
+    fd_r, fd_w = os.pipe()
+
+    pid = os.fork()
+    if pid:
+        os.close(fd_w)
+        return _Pipe(pid, fd_r)
+
+    from sugar_network import IPCClient
+
+    os.close(fd_r)
+    global _pipe
+    _pipe = fd_w
+
+    def thread_func():
+        _progress(state='boot',
+                session={
+                    'log_path': _setup_logging(context),
+                    'mountpoint': mountpoint,
+                    'context': context,
+                    })
+
+        feeds.clients.append(IPCClient(mountpoint='~'))
+        if mountpoint != '~':
+            feeds.clients.append(IPCClient(mountpoint=mountpoint))
+
+        try:
+            callback(mountpoint, context, *args)
+        except Exception, error:
+            util.exception(_logger)
+            _progress(state='failure', error=str(error))
+
+    # Avoid a mess with current thread coroutines
+    thread = threading.Thread(target=thread_func)
+    thread.start()
+    thread.join()
+
+    os.close(fd_w)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
+
+
+class _Pipe(object):
+
+    def __init__(self, pid, fd):
+        self._pid = pid
+        self._file = os.fdopen(fd)
+        self._session = {}
+
+    def fileno(self):
+        return None if self._file is None else self._file.fileno()
+
+    def read(self):
+        if self._file is None:
+            return None
+
+        event = self._file.readline()
+        if not event:
+            status = 0
+            try:
+                __, status = os.waitpid(self._pid, 0)
+            except OSError:
+                pass
+            failure = _decode_exit_failure(status)
+            if failure:
+                event = {'state': 'failure', 'error': failure}
+                event.update(self._session)
+                return event
+            else:
+                self._file.close()
+                self._file = None
+                return None
+
+        event = json.loads(event)
+        if 'session' in event:
+            self._session.update(event.pop('session'))
+        event.update(self._session)
+        return event
+
+    def __iter__(self):
+        if self._file is None:
+            return
+        while True:
+            coroutine.select([self._file.fileno()], [], [])
+            event = self.read()
+            if event is None:
+                break
+            yield event

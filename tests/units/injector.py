@@ -39,14 +39,11 @@ class InjectorTest(tests.Test):
                 )
 
         pipe = checkin('/', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            ('analyze', {'progress': -1}),
-            ('failure', {
-                'log_path': tests.tmpdir +  '/.sugar/default/logs/%s.log' % context,
-                'error': "Interface '%s' has no usable implementations" % context,
-                'mountpoint': '/',
-                'context': context,
-                }),
+            {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'failure', 'error': "Interface '%s' has no usable implementations" % context, 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
 
@@ -80,15 +77,12 @@ class InjectorTest(tests.Test):
         os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
 
         pipe = checkin('/', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
-            ('analyze', {'progress': -1}),
-            ('download', {'progress': -1}),
-            ('failure', {
-                'log_path': tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context,
-                'error': 'Cannot download implementation',
-                'mountpoint': '/',
-                'context': context,
-                }),
+            {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'failure', 'error': 'Cannot download implementation', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
         os.unlink('cache/implementation/%s/%s/data.meta' % (impl[:2], impl))
@@ -100,9 +94,12 @@ class InjectorTest(tests.Test):
         bundle.close()
 
         pipe = checkin('/', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
         self.assertEqual([
-            ('analyze', {'progress': -1}),
-            ('download', {'progress': -1}),
+            {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
 
@@ -163,17 +160,15 @@ class InjectorTest(tests.Test):
         bundle.close()
 
         pipe = launch('/', context)
+
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            ('analyze', {'progress': -1}),
-            ('download', {'progress': -1}),
-            ('exec', {}),
-            ('failure', {
-                'implementation': impl,
-                'log_path': tests.tmpdir +  '/.sugar/default/logs/%s.log' % context,
-                'error': 'Exited with status 1',
-                'mountpoint': '/',
-                'context': context,
-                }),
+            {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'exec', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'failure', 'implementation': impl, 'error': 'Exited with status 1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
 
@@ -235,10 +230,13 @@ class InjectorTest(tests.Test):
         bundle.close()
 
         pipe = launch('/', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
-            ('analyze', {'progress': -1}),
-            ('download', {'progress': -1}),
-            ('exec', {}),
+            {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'exec', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
 

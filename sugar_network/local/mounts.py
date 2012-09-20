@@ -263,9 +263,9 @@ class _ProxyCommands(object):
         return result
 
     def _checkin(self, guid):
-        for phase, __ in checkin(self.mountpoint, guid, 'activity'):
+        for event in checkin(self.mountpoint, guid, 'activity'):
             # TODO Publish checkin progress
-            if phase == 'failure':
+            if event['state'] == 'failure':
                 self.publish({
                     'event': 'alert',
                     'mountpoint': self.mountpoint,

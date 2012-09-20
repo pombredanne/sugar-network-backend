@@ -14,6 +14,7 @@
 - changed pulls should take into account accept_length
 - process client configuration in more general manner than client stats sharing
 - i18n activity.info's strings
+- return 304 Not Modified from Router when it makes sense
 
 1.0
 ===

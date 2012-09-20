@@ -21,8 +21,9 @@ from zeroinstall.injector import model
 
 import sweets_recipe
 from active_toolkit import util, enforce
-from sugar_network.zerosugar.config import config
 
+
+clients = []
 
 _logger = logging.getLogger('zerosugar.feeds')
 
@@ -32,7 +33,7 @@ def read(context):
 
     feed_content = None
     client = None
-    for client in config.clients:
+    for client in clients:
         try:
             blob = client.get(['context', context, 'feed'], cmd='get_blob')
             enforce(blob and 'path' in blob, 'No feed for %r context', context)
