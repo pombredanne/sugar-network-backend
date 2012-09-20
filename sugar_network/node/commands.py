@@ -157,9 +157,9 @@ class NodeCommands(ad.VolumeCommands, Commands):
                     if value is None:
                         value = '/'.join(['', document, guid, name])
                     if value.startswith('/'):
-                        value = 'http://%s:%s%s' % \
-                                (node.host.value, node.port.value, value)
-                    return value
+                        return 'http://' + request.environ['HTTP_HOST'] + value
+                    else:
+                        return value
 
                 url = None
                 meta = doc.meta(name)

@@ -298,28 +298,28 @@ class NodeTest(tests.Test):
         volume['context'].set_blob(guid5, 'icon', url={'file1': {'order': 1, 'url': '/1'}, 'file2': {'order': 2, 'url': 'http://2'}})
 
         self.assertEqual(
-                {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png', 'layer': ['public']},
+                {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
                 call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
                 {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
                 call(cp, method='GET', document='context', guid=guid2, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar', 'layer': ['public']},
+                {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
                 call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid4, 'data': 'http://localhost:8000/report/%s/data' % guid4, 'layer': ['public']},
+                {'guid': guid4, 'data': 'http://localhost/report/%s/data' % guid4, 'layer': ['public']},
                 call(cp, method='GET', document='report', guid=guid4, reply=['guid', 'data', 'layer']))
 
         self.assertEqual([
-            {'guid': guid1, 'icon': 'http://localhost:8000/static/images/missing.png', 'layer': ['public']},
+            {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
             {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
-            {'guid': guid3, 'icon': 'http://localhost:8000/foo/bar', 'layer': ['public']},
-            {'guid': guid5, 'icon': ['http://localhost:8000/1', 'http://2'], 'layer': ['public']},
+            {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
+            {'guid': guid5, 'icon': ['http://localhost/1', 'http://2'], 'layer': ['public']},
             ],
             call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result'])
 
         self.assertEqual([
-            {'guid': guid4, 'data': 'http://localhost:8000/report/%s/data' % guid4, 'layer': ['public']},
+            {'guid': guid4, 'data': 'http://localhost/report/%s/data' % guid4, 'layer': ['public']},
             ],
             call(cp, method='GET', document='report', reply=['guid', 'data', 'layer'])['result'])
 
@@ -347,6 +347,7 @@ def call(cp, principal=None, content=None, **kwargs):
     request = ad.Request(**kwargs)
     request.principal = principal
     request.content = content
+    request.environ = {'HTTP_HOST': 'localhost'}
     return cp.call(request, ad.Response())
 
 
