@@ -18,7 +18,7 @@ import cgi
 import json
 import types
 import logging
-from urlparse import parse_qsl
+from urlparse import parse_qsl, urlsplit
 from bisect import bisect_left
 from os.path import join, isfile
 
@@ -26,7 +26,7 @@ import active_document as ad
 from sugar_network import static
 from sugar_network.resources.volume import Request
 from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import util, enforce
+from active_toolkit import coroutine, util, enforce
 
 
 _logger = logging.getLogger('router')
@@ -55,6 +55,9 @@ class Router(object):
     def __init__(self, cp):
         self._cp = cp
         self._authenticated = set()
+        self._valid_origins = set()
+        self._invalid_origins = set()
+        self._host = None
 
         if 'SSH_ASKPASS' in os.environ:
             # Otherwise ssh-keygen will popup auth dialogs on registeration
@@ -78,8 +81,9 @@ class Router(object):
 
     def call(self, request, response):
         if 'HTTP_ORIGIN' in request.environ:
-            enforce(request.environ['HTTP_ORIGIN'] == 'null', ad.Forbidden,
-                    'Cross-site is allowed only for local applications')
+            enforce(self._assert_origin(request.environ), ad.Forbidden,
+                    'Cross-site is not allowed for %r origin',
+                    request.environ['HTTP_ORIGIN'])
             response['Access-Control-Allow-Origin'] = \
                     request.environ['HTTP_ORIGIN']
 
@@ -175,6 +179,31 @@ class Router(object):
                 yield i
         elif result is not None:
             yield result
+
+    def _assert_origin(self, environ):
+        origin = environ['HTTP_ORIGIN']
+        if origin in self._valid_origins:
+            return True
+        if origin in self._invalid_origins:
+            return False
+
+        valid = True
+        if origin == 'null':
+            # True all time for local apps
+            pass
+        else:
+            if self._host is None:
+                self._host = coroutine.gethostbyname(environ['HTTP_HOST'])
+            ip = coroutine.gethostbyname(urlsplit(origin).hostname)
+            valid = (self._host == ip)
+
+        if valid:
+            _logger.info('Allow cross-site for %r origin', origin)
+            self._valid_origins.add(origin)
+        else:
+            _logger.info('Disallow cross-site for %r origin', origin)
+            self._invalid_origins.add(origin)
+        return valid
 
 
 class _Request(Request):
