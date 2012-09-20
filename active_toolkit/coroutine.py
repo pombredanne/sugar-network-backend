@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/coroutine.py$
-$Date: 2012-09-19$
+$Date: 2012-09-20$
 
 """
 # pylint: disable-msg=W0621
@@ -58,6 +58,11 @@ def shutdown():
 def socket(*args, **kwargs):
     import gevent.socket
     return gevent.socket.socket(*args, **kwargs)
+
+
+def gethostbyname(host):
+    import gevent.socket
+    return gevent.socket.gethostbyname(host)
 
 
 def select(rlist, wlist, xlist, timeout=None):
