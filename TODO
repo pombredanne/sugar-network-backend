@@ -15,6 +15,11 @@
 - process client configuration in more general manner than client stats sharing
 - i18n activity.info's strings
 - return 304 Not Modified from Router when it makes sense
+- cache Solutions
+- more consistent launch; right now
+  - zerosugar/pipe.py uses several mountpoints
+  - what mountpoints for deps
+- if feed contains regular implementations and packages, solve() will reuse implementations and there is no way to use packages
 
 1.0
 ===

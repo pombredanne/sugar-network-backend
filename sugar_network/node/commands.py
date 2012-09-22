@@ -102,6 +102,13 @@ class NodeCommands(ad.VolumeCommands, Commands):
         else:
             props['user'] = [request.principal]
             self._set_author(props)
+
+        implement = props.get('implement')
+        if self._is_master and implement:
+            if not isinstance(implement, basestring):
+                implement = implement[0]
+            props['guid'] = implement
+
         ad.VolumeCommands.before_create(self, request, props)
 
     def before_update(self, request, props):

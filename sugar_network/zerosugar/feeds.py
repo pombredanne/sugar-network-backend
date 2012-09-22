@@ -20,6 +20,7 @@ from os.path import isabs
 from zeroinstall.injector import model
 
 import sweets_recipe
+from sugar_network.zerosugar import lsb_release
 from active_toolkit import util, enforce
 
 
@@ -36,20 +37,31 @@ def read(context):
     for client in clients:
         try:
             blob = client.get(['context', context, 'feed'], cmd='get_blob')
-            enforce(blob and 'path' in blob, 'No feed for %r context', context)
-            with file(blob['path']) as f:
-                feed_content = json.load(f)
-            if feed_content:
-                break
+            enforce(blob is not None, 'Feed not found')
+            if 'path' in blob:
+                with file(blob['path']) as f:
+                    feed_content = json.load(f)
+            else:
+                feed_content = blob
+            _logger.debug('Found %r feed in %r mountpoint',
+                    context, client.params['mountpoint'])
+            break
         except Exception:
             util.exception(_logger,
-                    'Failed to fetch feed for %r context', context)
+                    'Failed to fetch %r feed from %r mountpoint',
+                    context, client.params['mountpoint'])
 
     if feed_content is None:
         _logger.warning('No feed for %r context', context)
         return None
 
-    for version, version_data in feed_content.items():
+    packages = feed_content.get('packages') or {}
+    distro = packages.get(lsb_release.distributor_id())
+    if distro:
+        feed.to_resolve = distro.get('binary')
+
+    versions = feed_content.get('versions') or {}
+    for version, version_data in versions.items():
         for arch, impl_data in version_data.items():
             impl_id = impl_data['guid']
 
@@ -60,8 +72,7 @@ def read(context):
             impl.arch = arch
             impl.upstream_stability = \
                     model.stability_levels[impl_data['stability']]
-            # TODO
-            #impl.requires.extend(_read_requires(impl_data.get('requires')))
+            impl.requires.extend(_read_requires(impl_data.get('requires')))
 
             if isabs(impl_id):
                 impl.local_path = impl_id
@@ -92,6 +103,7 @@ class _Feed(model.ZeroInstallFeed):
         self.feeds = []
         self.metadata = []
         self.last_checked = None
+        self.to_resolve = None
         self._package_implementations = []
 
     @property
@@ -124,10 +136,27 @@ class _Feed(model.ZeroInstallFeed):
     def first_description(self):
         return self.context
 
+    def resolve(self, packages):
+        top_package = packages[0]
+
+        impl = _Implementation(self, self.context, None)
+        impl.version = sweets_recipe.parse_version(top_package['version'])
+        impl.released = 0
+        impl.arch = '*-%s' % top_package['arch']
+        impl.upstream_stability = model.stability_levels['packaged']
+        impl.to_install = [i for i in packages if not i['installed']]
+
+        self.implementations[self.context] = impl
+        self.to_resolve = None
+
 
 class _Implementation(model.ZeroInstallImplementation):
 
     client = None
+    to_install = None
+
+    def is_available(self, stores=None):
+        return self.to_install is not None or bool(self.local_path)
 
 
 class _Dependency(model.InterfaceDependency):

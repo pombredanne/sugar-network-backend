@@ -342,6 +342,32 @@ class NodeTest(tests.Test):
         self.assertRaises(ad.NotFound, call, cp, method='GET', document='context', guid=guid)
         self.assertEqual([], call(cp, method='GET', document='context')['result'])
 
+    def test_SetGuidOnMaster(self):
+        volume1 = Volume('db1')
+        cp1 = NodeCommands(volume1)
+        call(cp1, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'implement': 'foo',
+            })
+        self.assertRaises(ad.NotFound, call, cp1, method='GET', document='context', guid='foo')
+
+        volume2 = Volume('db2')
+        self.touch('db2/master')
+        cp2 = NodeCommands(volume2)
+        call(cp2, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'implement': 'foo',
+            })
+        self.assertEqual(
+                {'guid': 'foo', 'implement': ['foo'], 'title': 'title'},
+                call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'implement', 'title']))
+
 
 def call(cp, principal=None, content=None, **kwargs):
     request = ad.Request(**kwargs)

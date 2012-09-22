@@ -13,10 +13,65 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# pylint: disable-msg=E1101,E0102
+import logging
+
+from zeroinstall.injector.config import Config
+from zeroinstall.injector.driver import Driver
+
+from sugar_network.zerosugar import packagekit
+from active_toolkit import enforce
 
 
 DEEP = 2
+
+_logger = logging.getLogger('zerosugar.solution')
+
+
+def solve(req):
+    config = Config()
+    driver = Driver(config, req)
+    driver.solver.record_details = True
+
+    while True:
+        driver.solver.solve(req.interface_uri,
+                driver.target_arch, command_name=req.command)
+        if driver.solver.ready:
+            break
+
+        missed = []
+        packaged_feeds = []
+        to_resolve = []
+
+        for url in driver.solver.feeds_used:
+            feed = config.iface_cache.get_feed(url)
+            if feed is None:
+                missed.append(url)
+            elif feed.to_resolve:
+                packaged_feeds.append(feed)
+                to_resolve.extend(feed.to_resolve)
+
+        enforce(not missed, 'Cannot find feed(s) for %s', ', '.join(missed))
+        if not to_resolve:
+            break
+
+        resolved = packagekit.resolve(to_resolve)
+        for feed in packaged_feeds:
+            feed.resolve([resolved[i] for i in feed.to_resolve])
+
+    _logger.debug('\n'.join(
+        ['Solve results:'] +
+        ['  %s: %s' % (k.uri, v) for k, v in driver.solver.details.items()]))
+
+    if not driver.solver.ready:
+        # pylint: disable-msg=W0212
+        reason = driver.solver._failure_reason
+        if not reason:
+            missed = [iface.uri for iface, impl in
+                    driver.solver.selections.items() if impl is None]
+            reason = 'Cannot find implementations for %s' % ', '.join(missed)
+        raise RuntimeError(reason)
+
+    return Solution(driver.solver.selections)
 
 
 class Solution(object):
@@ -24,12 +79,8 @@ class Solution(object):
     interface = property(lambda self: self.value.interface)
     selections = property(lambda self: self.value.selections)
 
-    def __init__(self, value, req):
+    def __init__(self, value):
         self.value = value
-        self.ready = True
-        self.details = {}
-        self.failure_reason = None
-        self.requirements = req
 
     def __getitem__(self, url):
         selection = self.selections.get(url)

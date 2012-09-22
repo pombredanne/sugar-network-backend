@@ -194,17 +194,19 @@ class NodeMountTest(tests.Test):
                 }, f)
         with file('mnt/context/%s/%s/feed.blob' % (context[:2], context), 'w') as f:
             json.dump({
-                '1': {
-                    '*-*': {
-                        'commands': {
-                            'activity': {
-                                'exec': 'echo',
+                'versions': {
+                    '1': {
+                        '*-*': {
+                            'commands': {
+                                'activity': {
+                                    'exec': 'echo',
+                                    },
                                 },
+                            'stability': 'stable',
+                            'guid': impl,
+                            'size': 0,
+                            'extract': 'TestActivitry',
                             },
-                        'stability': 'stable',
-                        'guid': impl,
-                        'size': 0,
-                        'extract': 'TestActivitry',
                         },
                     },
                 }, f)

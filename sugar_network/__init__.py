@@ -17,7 +17,16 @@ from sugar_network.toolkit import sugar
 from sugar_network.local.activities import checkins
 from sugar_network.local import api_url, server_mode
 from sugar_network_webui import webui_port
-from sugar_network.zerosugar.injector import launch, checkin
+
+
+def launch(*args, **kwargs):
+    from sugar_network.zerosugar import injector
+    return injector.launch(*args, **kwargs)
+
+
+def checkin(*args, **kwargs):
+    from sugar_network.zerosugar import injector
+    return injector.checkin(*args, **kwargs)
 
 
 def Client(url=None, **kwargs):
@@ -34,6 +43,5 @@ def IPCClient(**kwargs):
 
 
 def DBusClient(*args, **kwargs):
-    # Avoid importing dbus related modules by default
     from sugar_network.local import dbus_client
     return dbus_client.DBusClient(*args, **kwargs)

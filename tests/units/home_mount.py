@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import os
+import json
 import socket
 from os.path import exists, abspath
 
@@ -9,6 +10,7 @@ from __init__ import tests
 
 from active_toolkit import sockets, coroutine
 from sugar_network.resources.report import Report
+from sugar_network.local import activities
 from sugar_network import IPCClient
 
 
@@ -170,6 +172,69 @@ class HomeMountTest(tests.Test):
             {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '~'},
             ],
             events)
+
+    def test_Feed(self):
+        self.touch(('Activities/activity-1/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = bundle_id',
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ]))
+        self.touch(('Activities/activity-2/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = bundle_id',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            'requires = dep1; dep2 = 1; dep3 < 2; dep4 >= 3',
+            ]))
+
+        self.start_server()
+        client = IPCClient(mountpoint='~')
+
+        monitor = coroutine.spawn(activities.monitor,
+                self.mounts.volume['context'], ['Activities'])
+        coroutine.sleep()
+
+        self.assertEqual({
+            'versions': {
+                '1': {
+                    '*-*': {
+                        'commands': {
+                            'activity': {
+                                'exec': 'false',
+                                },
+                            },
+                        'stability': 'stable',
+                        'guid': tests.tmpdir + '/Activities/activity-1',
+                        'requires': {},
+                        },
+                    },
+                '2': {
+                    '*-*': {
+                        'commands': {
+                            'activity': {
+                                'exec': 'true',
+                                },
+                            },
+                        'stability': 'stable',
+                        'guid': tests.tmpdir + '/Activities/activity-2',
+                        'requires': {
+                            'dep1': {},
+                            'dep2': {'restrictions': [['1', '2']]},
+                            'dep3': {'restrictions': [[None, '2']]},
+                            'dep4': {'restrictions': [['3', None]]},
+                            },
+                        },
+                    },
+                },
+            },
+            client.get(['context', 'bundle_id', 'feed'], cmd='get_blob'))
 
 
 if __name__ == '__main__':

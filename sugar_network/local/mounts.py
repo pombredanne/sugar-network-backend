@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import json
 import shutil
 import logging
 from os.path import isabs, exists, join, basename, isdir
@@ -118,7 +117,7 @@ class HomeMount(LocalMount):
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request=None):
         if document == 'context' and prop == 'feed':
-            return json.dumps(self._get_feed(request))
+            return self._get_feed(request)
         elif document == 'implementation' and prop == 'data':
             path = activities.guid_to_path(guid)
             if exists(path):
@@ -127,7 +126,7 @@ class HomeMount(LocalMount):
             return LocalMount.get_blob(self, document, guid, prop, request)
 
     def _get_feed(self, request):
-        feed = {}
+        versions = {}
 
         for path in activities.checkins(request['guid']):
             try:
@@ -141,7 +140,7 @@ class HomeMount(LocalMount):
             else:
                 impl_id = activities.path_to_guid(spec.root)
 
-            feed[spec['version']] = {
+            versions[spec['version']] = {
                     '*-*': {
                         'guid': impl_id,
                         'stability': 'stable',
@@ -150,10 +149,14 @@ class HomeMount(LocalMount):
                                 'exec': spec['Activity', 'exec'],
                                 },
                             },
+                        'requires': spec.requires,
                         },
                     }
 
-        return feed
+        if not versions:
+            return None
+        else:
+            return {'versions': versions}
 
     def _events_cb(self, event):
         found_commons = False

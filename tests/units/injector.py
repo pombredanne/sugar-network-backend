@@ -15,6 +15,7 @@ from sugar_network import checkin, launch
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
+from sugar_network.zerosugar import lsb_release, packagekit
 from sugar_network.local import activities
 from sugar_network import IPCClient
 
@@ -60,16 +61,18 @@ class InjectorTest(tests.Test):
         self.touch(
                 (blob_path, '{}'),
                 (blob_path + '.blob', json.dumps({
-                    '1': {
-                        '*-*': {
-                            'commands': {
-                                'activity': {
-                                    'exec': 'echo',
+                    'versions': {
+                        '1': {
+                            '*-*': {
+                                'commands': {
+                                    'activity': {
+                                        'exec': 'echo',
+                                        },
                                     },
+                                'stability': 'stable',
+                                'guid': impl,
+                                'size': 0,
                                 },
-                            'stability': 'stable',
-                            'guid': impl,
-                            'size': 0,
                             },
                         },
                     })),
@@ -129,17 +132,19 @@ class InjectorTest(tests.Test):
         self.touch(
                 (blob_path, '{}'),
                 (blob_path + '.blob', json.dumps({
-                    '1': {
-                        '*-*': {
-                            'commands': {
-                                'activity': {
-                                    'exec': 'false',
+                    'versions': {
+                        '1': {
+                            '*-*': {
+                                'commands': {
+                                    'activity': {
+                                        'exec': 'false',
+                                        },
                                     },
+                                'stability': 'stable',
+                                'guid': impl,
+                                'size': 0,
+                                'extract': 'TestActivitry',
                                 },
-                            'stability': 'stable',
-                            'guid': impl,
-                            'size': 0,
-                            'extract': 'TestActivitry',
                             },
                         },
                     })),
@@ -186,30 +191,32 @@ class InjectorTest(tests.Test):
         self.touch(
                 (blob_path, '{}'),
                 (blob_path + '.blob', json.dumps({
-                    '1': {
-                        '*-*': {
-                            'commands': {
-                                'activity': {
-                                    'exec': 'false',
+                    'versions': {
+                        '1': {
+                            '*-*': {
+                                'commands': {
+                                    'activity': {
+                                        'exec': 'false',
+                                        },
                                     },
+                                'stability': 'stable',
+                                'guid': impl,
+                                'size': 0,
+                                'extract': 'TestActivitry',
                                 },
-                            'stability': 'stable',
-                            'guid': impl,
-                            'size': 0,
-                            'extract': 'TestActivitry',
                             },
-                        },
-                    '2': {
-                        '*-*': {
-                            'commands': {
-                                'activity': {
-                                    'exec': 'true',
+                        '2': {
+                            '*-*': {
+                                'commands': {
+                                    'activity': {
+                                        'exec': 'true',
+                                        },
                                     },
+                                'stability': 'stable',
+                                'guid': impl_2,
+                                'size': 0,
+                                'extract': 'TestActivitry',
                                 },
-                            'stability': 'stable',
-                            'guid': impl_2,
-                            'size': 0,
-                            'extract': 'TestActivitry',
                             },
                         },
                     })),
@@ -240,60 +247,122 @@ class InjectorTest(tests.Test):
             ],
             [i for i in pipe])
 
-    def test_OfflineFeed(self):
-        self.touch(('Activities/activity-1/activity/activity.info', [
+    def test_MissedFeeds(self):
+        self.start_server()
+
+        context = 'fake'
+        pipe = launch('~', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
+        self.assertEqual([
+            {'state': 'boot', 'mountpoint': '~', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '~', 'context': context, 'log_path': log_path},
+            {'state': 'failure', 'error': 'Cannot find feed(s) for %s' % context, 'mountpoint': '~', 'context': context, 'log_path': log_path},
+            ],
+            [i for i in pipe])
+
+    def test_launch_Offline(self):
+        self.touch(('Activities/activity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
             'exec = false',
             'icon = icon',
             'activity_version = 1',
-            'license=Public Domain',
+            'license = Public Domain',
             ]))
-        self.touch(('Activities/activity-2/activity/activity.info', [
+
+        self.start_server()
+        monitor = coroutine.spawn(activities.monitor,
+                self.mounts.volume['context'], ['Activities'])
+        coroutine.sleep()
+
+        context = 'bundle_id'
+        impl = tests.tmpdir + '/Activities/activity'
+
+        pipe = launch('~', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
+        self.assertEqual([
+            {'state': 'boot', 'mountpoint': '~', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '~', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'mountpoint': '~', 'context': context, 'log_path': log_path},
+            {'state': 'exec', 'implementation': impl, 'mountpoint': '~', 'context': context, 'log_path': log_path},
+            ],
+            [i for i in pipe])
+
+    def test_InstallDeps(self):
+        self.touch(('Activities/activity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
             'exec = true',
             'icon = icon',
-            'activity_version = 2',
-            'license=Public Domain',
+            'activity_version = 1',
+            'license = Public Domain',
+            'requires = dep1; dep2',
             ]))
 
-        self.start_server()
-        client = IPCClient(mountpoint='~')
-
+        self.touch('remote/master')
+        self.start_ipc_and_restful_server([User, Context, Implementation])
+        remote = IPCClient(mountpoint='/')
         monitor = coroutine.spawn(activities.monitor,
                 self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        blob = client.get(['context', 'bundle_id', 'feed'], cmd='get_blob')
-        self.assertEqual(
-                json.dumps({
-                    '1': {
-                        '*-*': {
-                            'commands': {
-                                'activity': {
-                                    'exec': 'false',
-                                    },
-                                },
-                            'stability': 'stable',
-                            'guid': tests.tmpdir + '/Activities/activity-1',
+        remote.post(['context'], {
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'implement': 'dep1',
+            })
+        blob_path = 'remote/context/de/dep1/feed'
+        self.touch(
+                (blob_path, '{}'),
+                (blob_path + '.blob', json.dumps({
+                    'packages': {
+                        lsb_release.distributor_id(): {
+                            'binary': ['dep1.bin'],
                             },
                         },
-                    '2': {
-                        '*-*': {
-                            'commands': {
-                                'activity': {
-                                    'exec': 'true',
-                                    },
-                                },
-                            'stability': 'stable',
-                            'guid': tests.tmpdir + '/Activities/activity-2',
+                    })),
+                )
+
+        remote.post(['context'], {
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'implement': 'dep2',
+            })
+        blob_path = 'remote/context/de/dep2/feed'
+        self.touch(
+                (blob_path, '{}'),
+                (blob_path + '.blob', json.dumps({
+                    'packages': {
+                        lsb_release.distributor_id(): {
+                            'binary': ['dep2.bin'],
                             },
                         },
-                    }),
-                blob)
+                    })),
+                )
+
+        def resolve(names):
+            with file('resolve', 'w') as f:
+                json.dump(names, f)
+            return dict([(i, {'name': i, 'pk_id': i, 'version': '0', 'arch': '*', 'installed': i == 'dep1.bin'}) for i in names])
+
+        def install(packages):
+            with file('install', 'w') as f:
+                json.dump([i['name'] for i in packages], f)
+
+        self.override(packagekit, 'resolve', resolve)
+        self.override(packagekit, 'install', install)
+
+        context = 'bundle_id'
+        pipe = launch('~', context)
+        self.assertEqual('exec', [i for i in pipe][-1].get('state'))
+        self.assertEqual(['dep1.bin', 'dep2.bin'], json.load(file('resolve')))
+        self.assertEqual(['dep2.bin'], json.load(file('install')))
 
 
 if __name__ == '__main__':

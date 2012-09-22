@@ -47,8 +47,8 @@ _logger = logging.getLogger('http')
 class Client(object):
 
     def __init__(self, api_url, **kwargs):
-        self._api_url = api_url
-        self._params = kwargs
+        self.api_url = api_url
+        self.params = kwargs
 
         verify = True
         if local.no_check_certificate.value:
@@ -68,21 +68,21 @@ class Client(object):
         self._session = Session(headers=headers, verify=verify, prefetch=False)
 
     def get(self, path_=None, **kwargs):
-        kwargs.update(self._params)
+        kwargs.update(self.params)
         return self.request('GET', path_, params=kwargs)
 
     def post(self, path_=None, data_=None, **kwargs):
-        kwargs.update(self._params)
+        kwargs.update(self.params)
         return self.request('POST', path_, data_,
                 headers={'Content-Type': 'application/json'}, params=kwargs)
 
     def put(self, path_=None, data_=None, **kwargs):
-        kwargs.update(self._params)
+        kwargs.update(self.params)
         return self.request('PUT', path_, data_,
                 headers={'Content-Type': 'application/json'}, params=kwargs)
 
     def delete(self, path_=None, **kwargs):
-        kwargs.update(self._params)
+        kwargs.update(self.params)
         return self.request('DELETE', path_, params=kwargs)
 
     def request(self, method, path=None, data=None, headers=None, **kwargs):
@@ -186,7 +186,7 @@ class Client(object):
         if not path:
             path = ['']
         if not isinstance(path, basestring):
-            path = '/'.join([i.strip('/') for i in [self._api_url] + path])
+            path = '/'.join([i.strip('/') for i in [self.api_url] + path])
 
         if data is not None and headers and \
                 headers.get('Content-Type') == 'application/json':
