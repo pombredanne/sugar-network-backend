@@ -64,8 +64,8 @@ def route(method, path):
 
 class Router(object):
 
-    def __init__(self, cp):
-        self._cp = cp
+    def __init__(self, commands):
+        self.commands = commands
         self._authenticated = set()
         self._valid_origins = set()
         self._invalid_origins = set()
@@ -95,7 +95,7 @@ class Router(object):
             _logger.debug('Logging %r user', user)
             request = Request(method='GET', cmd='exists',
                     document='user', guid=user)
-            enforce(self._cp.call(request, ad.Response()), Unauthorized,
+            enforce(self.commands.call(request, ad.Response()), Unauthorized,
                     'Principal user does not exist')
             self._authenticated.add(user)
 
@@ -133,7 +133,7 @@ class Router(object):
             if rout:
                 result = rout(request, response)
             else:
-                result = self._cp.call(request, response)
+                result = self.commands.call(request, response)
 
         if hasattr(result, 'read'):
             # pylint: disable-msg=E1103

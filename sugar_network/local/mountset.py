@@ -21,9 +21,9 @@ import active_document as ad
 
 from sugar_network import local, node
 from sugar_network.toolkit import zeroconf, netlink, network, mounts_monitor
-from sugar_network.toolkit.router import Router
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
+from sugar_network.node.router import Router
 from sugar_network.node.sync_node import SyncCommands
 from sugar_network.resources.volume import Volume, Commands, Request
 from active_toolkit import util, coroutine, enforce

@@ -28,11 +28,11 @@ from sugar_network import node, local
 from sugar_network.local.mounts import LocalMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.mounts import LocalMount
-from sugar_network.node import stats
+from sugar_network.node import stats, obs
 from sugar_network.node.commands import MasterCommands
+from sugar_network.node.router import Router
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import sugar, sneakernet
-from sugar_network.toolkit.router import Router
 
 
 class Application(application.Daemon):
@@ -91,6 +91,7 @@ Option.seek('main', application)
 Option.seek('webui', webui)
 Option.seek('node', node)
 Option.seek('stats', stats)
+Option.seek('obs', obs)
 Option.seek('active-document', ad)
 
 app = Application(

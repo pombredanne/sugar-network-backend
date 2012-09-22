@@ -57,6 +57,10 @@ class NodeCommands(ad.VolumeCommands, Commands):
             with file(master_path, 'w') as f:
                 f.write(_DEFAULT_MASTER_GUID)
 
+    @property
+    def is_master(self):
+        return self._is_master
+
     def connect(self, callback, condition=None, **kwargs):
         self.volume.connect(callback, condition)
 
