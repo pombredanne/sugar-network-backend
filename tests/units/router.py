@@ -13,7 +13,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import node
-from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized
+from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route
 from active_toolkit import util
 from sugar_network.resources.volume import Volume
 
@@ -267,6 +267,53 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 ['ru', 'en', 'es'],
                 _parse_accept_language('ru;q=1,en;q=1,es;q=0.5'))
+
+    def test_CustomRoutes(self):
+        calls = []
+
+        class TestRouterBase(Router):
+
+            @route('GET', '/foo')
+            def route1(self, request, response):
+                calls.append('route1')
+
+        class TestRouter(TestRouterBase):
+
+            @route('PUT', '/foo')
+            def route2(self, request, response):
+                calls.append('route2')
+
+            @route('GET', '/bar')
+            def route3(self, request, response):
+                calls.append('route3')
+
+        class CommandsProcessor(object):
+
+            def call(self, request, response):
+                calls.append('default')
+
+        cp = CommandsProcessor()
+        router = TestRouter(cp)
+
+        [i for i in router({'PATH_INFO': '/', 'REQUEST_METHOD': 'GET'}, lambda *args: None)]
+        self.assertEqual(['default'], calls)
+        del calls[:]
+
+        [i for i in router({'PATH_INFO': '//foo//', 'REQUEST_METHOD': 'GET'}, lambda *args: None)]
+        self.assertEqual(['route1'], calls)
+        del calls[:]
+
+        [i for i in router({'PATH_INFO': '/foo', 'REQUEST_METHOD': 'PUT'}, lambda *args: None)]
+        self.assertEqual(['route2'], calls)
+        del calls[:]
+
+        [i for i in router({'PATH_INFO': '/foo', 'REQUEST_METHOD': 'POST'}, lambda *args: None)]
+        self.assertEqual(['default'], calls)
+        del calls[:]
+
+        [i for i in router({'PATH_INFO': '/bar/foo/probe', 'REQUEST_METHOD': 'GET'}, lambda *args: None)]
+        self.assertEqual(['route3'], calls)
+        del calls[:]
 
 
 class Document(ad.Document):

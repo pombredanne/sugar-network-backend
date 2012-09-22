@@ -50,6 +50,18 @@ class Unauthorized(HTTPStatus):
     headers = {'WWW-Authenticate': 'Sugar'}
 
 
+def route(method, path):
+    path = path.strip('/').split('/')
+    # Only top level paths for now
+    enforce(len(path) == 1)
+
+    def decorate(func):
+        func.route = (method, path[0])
+        return func
+
+    return decorate
+
+
 class Router(object):
 
     def __init__(self, cp):
@@ -58,6 +70,16 @@ class Router(object):
         self._valid_origins = set()
         self._invalid_origins = set()
         self._host = None
+        self._routes = {}
+
+        cls = self.__class__
+        while cls is not None:
+            for name in dir(cls):
+                attr = getattr(self, name)
+                if hasattr(attr, 'route'):
+                    self._routes[attr.route] = attr
+            # pylint: disable-msg=E1101
+            cls = cls.__base__
 
         if 'SSH_ASKPASS' in os.environ:
             # Otherwise ssh-keygen will popup auth dialogs on registeration
@@ -105,7 +127,13 @@ class Router(object):
             enforce(isfile(static_path), 'No such file')
             result = file(static_path)
         else:
-            result = self._cp.call(request, response)
+            rout = None
+            if request.path:
+                rout = self._routes.get((request['method'], request.path[0]))
+            if rout:
+                result = rout(request, response)
+            else:
+                result = self._cp.call(request, response)
 
         if hasattr(result, 'read'):
             # pylint: disable-msg=E1103
@@ -136,8 +164,7 @@ class Router(object):
             response['Location'] = error.location
             response.content_type = None
         except Exception, error:
-            util.exception('Error while processing %r request',
-                    environ['PATH_INFO'] or '/')
+            util.exception('Error while processing %r request', request.url)
 
             if isinstance(error, ad.NotFound):
                 response.status = '404 Not Found'
@@ -152,7 +179,7 @@ class Router(object):
 
             if result is None:
                 result = {'error': str(error),
-                          'request': environ['PATH_INFO'] or '/',
+                          'request': request.url,
                           }
                 response.content_type = 'application/json'
 
