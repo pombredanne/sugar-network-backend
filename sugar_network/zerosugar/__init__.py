@@ -17,6 +17,10 @@ import sys
 from os.path import join, abspath, dirname
 sys.path.insert(0, join(abspath(dirname(__file__)), 'lib'))
 
+from .spec import Spec, parse_version, format_version
+from .bundle import Bundle, BundleError
+from .licenses import GOOD_LICENSES
+
 
 def _init():
     from zeroinstall.injector import reader, model

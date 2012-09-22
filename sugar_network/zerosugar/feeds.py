@@ -19,8 +19,7 @@ from os.path import isabs
 
 from zeroinstall.injector import model
 
-import sweets_recipe
-from sugar_network.zerosugar import lsb_release
+from sugar_network.zerosugar import lsb_release, parse_version
 from active_toolkit import util, enforce
 
 
@@ -67,7 +66,7 @@ def read(context):
 
             impl = _Implementation(feed, impl_id, None)
             impl.client = client
-            impl.version = sweets_recipe.parse_version(version)
+            impl.version = parse_version(version)
             impl.released = 0
             impl.arch = arch
             impl.upstream_stability = \
@@ -140,7 +139,7 @@ class _Feed(model.ZeroInstallFeed):
         top_package = packages[0]
 
         impl = _Implementation(self, self.context, None)
-        impl.version = sweets_recipe.parse_version(top_package['version'])
+        impl.version = parse_version(top_package['version'])
         impl.released = 0
         impl.arch = '*-%s' % top_package['arch']
         impl.upstream_stability = model.stability_levels['packaged']
@@ -171,8 +170,8 @@ class _Dependency(model.InterfaceDependency):
 
         for not_before, before in data.get('restrictions') or []:
             restriction = model.VersionRangeRestriction(
-                    not_before=sweets_recipe.parse_version(not_before),
-                    before=sweets_recipe.parse_version(before))
+                    not_before=parse_version(not_before),
+                    before=parse_version(before))
             self.restrictions.append(restriction)
 
     @property

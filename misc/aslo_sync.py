@@ -29,7 +29,7 @@ from os.path import join, exists
 import MySQLdb as mdb
 
 import active_document as ad
-from sweets_recipe import GOOD_LICENSES, Bundle
+from sugar_network.zerosugar import GOOD_LICENSES, Bundle
 from sugar_network.resources.volume import Volume
 
 

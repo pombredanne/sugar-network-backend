@@ -16,7 +16,7 @@
 # pylint: disable-msg=E1101,E0102,E0202
 
 import active_document as ad
-from sweets_recipe import GOOD_LICENSES
+from sugar_network.zerosugar import GOOD_LICENSES
 
 from sugar_network import resources
 from sugar_network.resources.volume import Resource

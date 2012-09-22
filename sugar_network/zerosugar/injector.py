@@ -21,8 +21,7 @@ from os.path import join, exists, basename
 from zeroinstall.injector import model
 from zeroinstall.injector.requirements import Requirements
 
-from sweets_recipe import Spec
-from sugar_network.zerosugar import pipe, packagekit
+from sugar_network.zerosugar import pipe, packagekit, Spec
 from sugar_network.zerosugar.solution import solve
 from sugar_network import local
 from sugar_network.toolkit import sugar

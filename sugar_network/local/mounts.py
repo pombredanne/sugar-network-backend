@@ -19,9 +19,8 @@ import logging
 from os.path import isabs, exists, join, basename, isdir
 from gettext import gettext as _
 
-import sweets_recipe
 import active_document as ad
-from sweets_recipe import Bundle
+from sugar_network.zerosugar import Bundle, Spec
 from sugar_network.toolkit import sugar, http
 from sugar_network.local import activities, cache
 from sugar_network.resources.volume import Request
@@ -130,7 +129,7 @@ class HomeMount(LocalMount):
 
         for path in activities.checkins(request['guid']):
             try:
-                spec = sweets_recipe.Spec(root=path)
+                spec = Spec(root=path)
             except Exception:
                 util.exception(_logger, 'Failed to read %r spec file', path)
                 continue
