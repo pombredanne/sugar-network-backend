@@ -36,9 +36,10 @@ from sugar_network import local
 from active_toolkit import enforce
 
 # Let toolkit.http work in concurrence
-# TODO Is it safe for the rest of code?
-from gevent.monkey import patch_socket
-patch_socket(dns=False)
+from gevent import monkey
+# XXX No DNS because `toolkit.network.res_init()` doesn't work otherwise
+monkey.patch_socket(dns=False)
+monkey.patch_ssl()
 
 
 _logger = logging.getLogger('http')
