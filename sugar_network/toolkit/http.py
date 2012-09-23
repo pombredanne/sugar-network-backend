@@ -47,9 +47,10 @@ _logger = logging.getLogger('http')
 
 class Client(object):
 
-    def __init__(self, api_url, **kwargs):
+    def __init__(self, api_url, sugar_auth=False, **kwargs):
         self.api_url = api_url
         self.params = kwargs
+        self._sugar_auth = sugar_auth
 
         verify = True
         if local.no_check_certificate.value:
@@ -58,7 +59,7 @@ class Client(object):
             verify = local.certfile.value
 
         headers = {'Accept-Language': ','.join(ad.default_lang())}
-        if not local.anonymous.value:
+        if self._sugar_auth:
             uid = sugar.uid()
             key_path = sugar.profile_path('owner.key')
             headers = {
@@ -203,7 +204,7 @@ class Client(object):
 
             if response.status_code != 200:
                 if response.status_code == 401:
-                    enforce(not local.anonymous.value,
+                    enforce(self._sugar_auth,
                             'Operation is not available in anonymous mode')
                     _logger.info('User is not registered on the server, '
                             'registering')

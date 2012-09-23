@@ -21,10 +21,9 @@ from gettext import gettext as _
 
 import active_document as ad
 from sugar_network.zerosugar import Bundle, Spec
-from sugar_network.toolkit import sugar, http
 from sugar_network.local import activities, cache
 from sugar_network.resources.volume import Request
-from sugar_network import local, checkin, sugar
+from sugar_network import local, checkin, sugar, Client
 from active_toolkit import util, coroutine, enforce
 
 
@@ -366,7 +365,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         for url in self._api_urls:
             try:
                 _logger.debug('Connecting to %r master', url)
-                self._client = http.Client(url)
+                self._client = Client(url)
                 subscription = self._client.subscribe()
             except Exception:
                 util.exception(_logger, 'Cannot connect to %r master', url)

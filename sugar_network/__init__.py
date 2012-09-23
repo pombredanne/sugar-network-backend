@@ -29,11 +29,11 @@ def checkin(*args, **kwargs):
     return injector.checkin(*args, **kwargs)
 
 
-def Client(url=None, **kwargs):
+def Client(url=None, sugar_auth=True, **kwargs):
     from sugar_network.toolkit import http
     if url is None:
         url = api_url.value
-    return http.Client(url, **kwargs)
+    return http.Client(url, sugar_auth=sugar_auth, **kwargs)
 
 
 def IPCClient(**kwargs):
