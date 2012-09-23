@@ -13,6 +13,7 @@ src_root = abspath(dirname(__file__))
 
 from __init__ import tests
 
+import active_document as ad
 from active_document import env, volume, document, SingleVolume, \
         Request, Response, Document, active_property, \
         BlobProperty, NotFound, Redirect
@@ -607,6 +608,27 @@ class VolumeTest(tests.Test):
             {'event': 'commit', 'document': 'document2', 'seqno': 5},
             ],
             events)
+
+    def test_PermissionsNoWrite(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='', permissions=ad.ACCESS_READ)
+            def prop(self, value):
+                pass
+
+            @active_property(BlobProperty, permissions=ad.ACCESS_READ)
+            def blob(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+
+        self.assertRaises(ad.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 'value'})
+        self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'prop': 'value'})
+        self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'blob': 'value'})
+        self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='prop', content='value')
+        self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content='value')
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):
