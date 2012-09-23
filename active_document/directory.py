@@ -288,7 +288,7 @@ class Directory(object):
                 for name in self.metadata.keys():
                     if name == 'seqno':
                         continue
-                    meta = doc.meta(name, raw=True)
+                    meta = doc.meta(name)
                     if meta is None or meta['seqno'] not in accept_range:
                         continue
 

@@ -16,7 +16,7 @@
 import logging
 
 from active_document import env
-from active_document.metadata import BrowsableProperty, StoredProperty
+from active_document.metadata import StoredProperty
 from active_document.metadata import active_property
 from active_toolkit import enforce
 
@@ -79,37 +79,8 @@ class Document(object):
 
         return value
 
-    def meta(self, prop, raw=False):
-        prop = self.metadata[prop]
-        result = self._record.get(prop.name)
-        if raw:
-            return result
-        else:
-            return prop.on_get(self, result)
-
-    def properties(self, names=None, accept_language=None):
-        result = {}
-
-        if names:
-            for prop_name in names:
-                prop = self.metadata[prop_name]
-                if not isinstance(prop, BrowsableProperty):
-                    continue
-                value = self[prop_name]
-                if accept_language and prop.localized:
-                    value = self._localize(value, accept_language)
-                result[prop_name] = value
-        else:
-            for prop_name, prop in self.metadata.items():
-                if not isinstance(prop, BrowsableProperty) or \
-                        not prop.permissions & env.ACCESS_READ:
-                    continue
-                value = self[prop_name]
-                if accept_language and prop.localized:
-                    value = self._localize(value, accept_language)
-                result[prop_name] = value
-
-        return result
+    def meta(self, prop):
+        return self._record.get(prop)
 
     def __getitem__(self, prop):
         return self.get(prop)

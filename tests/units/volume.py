@@ -630,6 +630,51 @@ class VolumeTest(tests.Test):
         self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='prop', content='value')
         self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content='value')
 
+    def test_properties_OverrideGet(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='1')
+            def prop1(self, value):
+                return value
+
+            @active_property(slot=2, default='2')
+            def prop2(self, value):
+                return -1
+
+            @active_property(BlobProperty)
+            def blob(self, meta):
+                meta['path'] = 'new-blob'
+                return meta
+
+            @active_property(BlobProperty)
+            def empty_blob(self, meta):
+                return ad.Meta(url='http://sugarlabs.org')
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+        self.touch(('new-blob', 'new-blob'))
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='old-blob')
+
+        self.assertEqual(
+                ['new-blob'],
+                [i for i in self.call('GET', document='testdocument', guid=guid, prop='blob')])
+        self.assertEqual(
+                '1',
+                self.call('GET', document='testdocument', guid=guid, prop='prop1'))
+        self.assertEqual(
+                -1,
+                self.call('GET', document='testdocument', guid=guid, prop='prop2'))
+        self.assertEqual(
+                {'prop1': '1', 'prop2': -1},
+                self.call('GET', document='testdocument', guid=guid, reply=['prop1', 'prop2']))
+
+        try:
+            self.call('GET', document='testdocument', guid=guid, prop='empty_blob')
+            assert False
+        except Redirect, redirect:
+            self.assertEqual('http://sugarlabs.org', redirect.location)
+
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):
 

@@ -199,39 +199,6 @@ class DocumentTest(tests.Test):
             directory.get(guid).meta('blob'))
         self.assertEqual(data, file(blob_path + '.blob').read())
 
-    def test_properties_Override(self):
-
-        class Document(document.Document):
-
-            @active_property(slot=1, default=1)
-            def prop1(self, value):
-                return value
-
-            @active_property(slot=2, default=2)
-            def prop2(self, value):
-                return -1
-
-            @active_property(BlobProperty)
-            def blob(self, meta):
-                meta['path'] = 'new-blob'
-                return meta
-
-            @active_property(BlobProperty)
-            def empty_blob(self, meta):
-                return {'url': 'url'}
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-        guid = directory.create({})
-        doc = directory.get(guid)
-
-        self.touch(('new-blob', 'new-blob'))
-        directory.set_blob(guid, 'blob', StringIO('old-blob'))
-
-        self.assertEqual('new-blob', doc.meta('blob')['path'])
-        self.assertEqual({'url': 'url'}, doc.meta('empty_blob'))
-        self.assertEqual('1', doc.meta('prop1')['value'])
-        self.assertEqual(-1, doc.meta('prop2'))
-
     def test_update(self):
 
         class Document(document.Document):
@@ -546,11 +513,11 @@ class DocumentTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    {'ctime': 1, 'prop': '1', 'mtime': 1, 'guid': '1'},
-                    {'ctime': 2, 'prop': '2', 'mtime': 2, 'guid': '2'},
-                    {'ctime': 3, 'prop': '3', 'mtime': 3, 'guid': '3'},
+                    (1, '1', 1, '1'),
+                    (2, '2', 2, '2'),
+                    (3, '3', 3, '3'),
                     ]),
-                sorted([i.properties() for i in directory2.find(0, 1024)[0]]))
+                sorted([(i['ctime'], i['prop'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]]))
 
         doc = directory2.get('1')
         self.assertEqual(2, doc.get('seqno'))
@@ -598,8 +565,8 @@ class DocumentTest(tests.Test):
             os.utime('document2/gu/guid/%s' % i, (2, 2))
 
         self.assertEqual(
-                [{'ctime': 2, 'mtime': 2, 'guid': 'guid'}],
-                [i.properties() for i in directory2.find(0, 1024)[0]])
+                [(2, 2, 'guid')],
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('guid')
         self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
@@ -612,8 +579,8 @@ class DocumentTest(tests.Test):
             directory2.merge(diff=diff, **header)
 
         self.assertEqual(
-                [{'ctime': 2, 'mtime': 2, 'guid': 'guid'}],
-                [i.properties() for i in directory2.find(0, 1024)[0]])
+                [(2, 2, 'guid')],
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('guid')
         self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
@@ -627,8 +594,8 @@ class DocumentTest(tests.Test):
             directory2.merge(diff=diff, **header)
 
         self.assertEqual(
-                [{'ctime': 2, 'mtime': 1, 'guid': 'guid'}],
-                [i.properties() for i in directory2.find(0, 1024)[0]])
+                [(2, 1, 'guid')],
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('guid')
         self.assertEqual(3, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
@@ -642,8 +609,8 @@ class DocumentTest(tests.Test):
             directory2.merge(diff=diff, **header)
 
         self.assertEqual(
-                [{'ctime': 2, 'mtime': 1, 'guid': 'guid'}],
-                [i.properties() for i in directory2.find(0, 1024)[0]])
+                [(2, 1, 'guid')],
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('guid')
         self.assertEqual(4, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
@@ -667,8 +634,8 @@ class DocumentTest(tests.Test):
         for header, diff in directory1.diff(xrange(100), 2):
             directory2.merge(diff=diff, increment_seqno=False, **header)
         self.assertEqual(
-                [{'ctime': 1, 'mtime': 1, 'guid': '1', 'prop': '1'}],
-                [i.properties() for i in directory2.find(0, 1024)[0]])
+                [(1, 1, '1', '1')],
+                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('1')
         self.assertEqual(0, doc.get('seqno'))
         self.assertEqual(0, doc.meta('guid')['seqno'])
@@ -678,8 +645,8 @@ class DocumentTest(tests.Test):
         for header, diff in directory1.diff(xrange(100), 2):
             directory3.merge(diff=diff, **header)
         self.assertEqual(
-                [{'ctime': 1, 'mtime': 1, 'guid': '1', 'prop': '1'}],
-                [i.properties() for i in directory3.find(0, 1024)[0]])
+                [(1, 1, '1', '1')],
+                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
         doc = directory3.get('1')
         self.assertEqual(1, doc.get('seqno'))
         self.assertEqual(1, doc.meta('guid')['seqno'])
@@ -690,8 +657,8 @@ class DocumentTest(tests.Test):
         for header, diff in directory1.diff(xrange(100), 2):
             directory3.merge(diff=diff, increment_seqno=False, **header)
         self.assertEqual(
-                [{'ctime': 2, 'mtime': 2, 'guid': '1', 'prop': '2'}],
-                [i.properties() for i in directory3.find(0, 1024)[0]])
+                [(2, 2, '1', '2')],
+                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
         doc = directory3.get('1')
         self.assertEqual(1, doc.get('seqno'))
         self.assertEqual(1, doc.meta('guid')['seqno'])
@@ -704,8 +671,8 @@ class DocumentTest(tests.Test):
             print diff
             directory3.merge(diff=diff, **header)
         self.assertEqual(
-                [{'ctime': 3, 'mtime': 3, 'guid': '1', 'prop': '3'}],
-                [i.properties() for i in directory3.find(0, 1024)[0]])
+                [(3, 3, '1', '3')],
+                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
         doc = directory3.get('1')
         self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(1, doc.meta('guid')['seqno'])

@@ -24,7 +24,7 @@ from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
 from active_document.commands import to_int, to_list
-from active_document.metadata import BlobProperty
+from active_document.metadata import BlobProperty, BrowsableProperty
 from active_toolkit import coroutine, util, sockets, enforce
 
 
@@ -156,20 +156,13 @@ class VolumeCommands(CommandsProcessor):
 
     @directory_command(method='GET',
             arguments={'offset': to_int, 'limit': to_int, 'reply': to_list})
-    def find(self, document, reply, request):
-        if reply is None:
-            reply = request['reply'] = ['guid']
-        elif 'guid' not in reply:
+    def find(self, document, request):
+        reply = request.setdefault('reply', ['guid'])
+        if 'guid' not in reply:
             reply.append('guid')
-
-        directory = self.volume[document]
-        for i in reply:
-            directory.metadata[i].assert_access(env.ACCESS_READ)
-
-        documents, total = directory.find(**request)
-        result = [i.properties(reply, request.accept_language or self._lang)
-                for i in documents]
-
+        self._preget(request)
+        documents, total = self.volume[document].find(**request)
+        result = [self._get_props(i, request) for i in documents]
         return {'total': total.value, 'result': result}
 
     @document_command(method='GET', cmd='exists')
@@ -225,14 +218,10 @@ class VolumeCommands(CommandsProcessor):
         directory.delete(guid)
 
     @document_command(method='GET', arguments={'reply': to_list})
-    def get(self, document, guid, request, reply=None):
-        directory = self.volume[document]
-        doc = directory.get(guid)
-
-        for i in reply or []:
-            directory.metadata[i].assert_access(env.ACCESS_READ)
-
-        return doc.properties(reply, request.accept_language or self._lang)
+    def get(self, document, guid, request):
+        self._preget(request)
+        doc = self.volume[document].get(guid)
+        return self._get_props(doc, request)
 
     @property_command(method='GET', arguments={'seqno': to_int})
     def get_prop(self, document, guid, prop, request, response, seqno=None,
@@ -244,9 +233,10 @@ class VolumeCommands(CommandsProcessor):
         prop.assert_access(env.ACCESS_READ)
 
         if not isinstance(prop, BlobProperty):
-            return doc.get(prop.name, request.accept_language or self._lang)
+            value = doc.get(prop.name, request.accept_language or self._lang)
+            return prop.on_get(doc, value)
 
-        meta = doc.meta(prop.name)
+        meta = prop.on_get(doc, doc.meta(prop.name))
         enforce(meta is not None, env.NotFound, 'BLOB does not exist')
 
         url = meta.url(part)
@@ -285,6 +275,26 @@ class VolumeCommands(CommandsProcessor):
             return {(request.accept_language or self._lang)[0]: value}
         else:
             return value
+
+    def _preget(self, request):
+        metadata = self.volume[request['document']].metadata
+        reply = request.setdefault('reply', [])
+        if reply:
+            for prop in reply:
+                metadata[prop].assert_access(env.ACCESS_READ)
+        else:
+            for prop in metadata.values():
+                if isinstance(prop, BrowsableProperty) and \
+                        prop.permissions & env.ACCESS_READ:
+                    reply.append(prop.name)
+
+    def _get_props(self, doc, request):
+        result = {}
+        lang = request.accept_language or self._lang
+        metadata = doc.metadata
+        for prop in request['reply']:
+            result[prop] = metadata[prop].on_get(doc, doc.get(prop, lang))
+        return result
 
 
 def _file_reader(path):
