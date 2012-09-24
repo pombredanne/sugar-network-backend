@@ -58,14 +58,12 @@ class Client(object):
         elif local.certfile.value:
             verify = local.certfile.value
 
-        headers = {'Accept-Language': ','.join(ad.default_lang())}
+        headers = {'Accept-Language': ad.default_lang()}
         if self._sugar_auth:
             uid = sugar.uid()
             key_path = sugar.profile_path('owner.key')
-            headers = {
-                    'sugar_user': uid,
-                    'sugar_user_signature': _sign(key_path, uid),
-                    }
+            headers['sugar_user'] = uid
+            headers['sugar_user_signature'] = _sign(key_path, uid)
 
         self._session = Session(headers=headers, verify=verify, prefetch=False)
 

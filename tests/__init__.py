@@ -267,54 +267,6 @@ class Test(unittest.TestCase):
             volume.close()
 
 
-class Request(object):
-
-    def __init__(self, url, uid=None, privkey=None, pubkey=None):
-        self.url = url
-        self.uid = uid or UID
-        self.privkey = privkey or PRIVKEY
-
-        #self.post('/user', {'uid': self.uid, 'pubkey': pubkey or PUBKEY})
-        self.post('/user', {'pubkey': pubkey or PUBKEY})
-
-    def get(self, path, **kwargs):
-        return self._request('GET', path, **kwargs)
-
-    def put(self, path, data, **kwargs):
-        return self._request('PUT', path, data, **kwargs)
-
-    def post(self, path, data, **kwargs):
-        return self._request('POST', path, data, **kwargs)
-
-    def delete(self, path, **kwargs):
-        return self._request('DELETE', path, **kwargs)
-
-    def _request(self, method, path, data=None, headers=None, **kwargs):
-        if not headers:
-            if data:
-                headers = {'Content-Type': 'application/json'}
-                data = json.dumps(data)
-            else:
-                headers = {}
-        headers['SUGAR_USER'] = self.uid
-        headers['SUGAR_USER_SIGNATURE'] = sign(self.privkey, self.uid)
-
-        response = requests.request(method, self.url + path, data=data,
-                headers=headers, config={'keep_alive': True}, params=kwargs)
-        reply = response.content
-
-        if response.status_code != 200:
-            if reply:
-                raise RuntimeError(reply)
-            else:
-                response.raise_for_status()
-
-        if response.headers.get('Content-Type') == 'application/json':
-            return json.loads(reply)
-        else:
-            return reply
-
-
 def sign(privkey, data):
     with tempfile.NamedTemporaryFile() as tmp_privkey:
         tmp_privkey.file.write(privkey)
