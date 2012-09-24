@@ -119,19 +119,30 @@ class PropertyMeta(dict):
             meta['mtime'] = os.stat(path_).st_mtime
         dict.__init__(self, meta)
 
-    def url(self, part=None):
-        url = self.get('url')
-        if url is None or isinstance(url, basestring):
+    def url(self, part=None, default=None, prefix=None):
+
+        def compose_url(url):
+            if url is None:
+                url = default
+            if prefix and url.startswith('/'):
+                url = prefix + url
             return url
 
-        if part:
+        url = self.get('url')
+        if url is None or isinstance(url, basestring):
+            return compose_url(url)
+
+        if part is not None:
             file_meta = url.get(part)
             enforce(file_meta and 'url' in file_meta,
                     env.NotFound, 'No BLOB for %r', part)
-            return file_meta['url']
+            return compose_url(file_meta['url'])
 
-        return sorted(url.values(),
-                cmp=lambda x, y: cmp(x.get('order'), y.get('order')))
+        result = []
+        for i in sorted(url.values(), cmp=lambda x, y:
+                cmp(x.get('order'), y.get('order'))):
+            result.append(compose_url(i['url']))
+        return result
 
     @classmethod
     def is_blob(cls, blob):

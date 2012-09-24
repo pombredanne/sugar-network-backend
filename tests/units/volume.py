@@ -64,35 +64,6 @@ class VolumeTest(tests.Test):
                     sorted(['1', '2']),
                     sorted([i.guid for i in volume['document'].find()[0]]))
 
-    def test_UpdatedSchemeOnReindex(self):
-        self.touch(
-                ('document/1/1/guid', '{"value": "1"}'),
-                ('document/1/1/ctime', '{"value": 1}'),
-                ('document/1/1/mtime', '{"value": 1}'),
-                ('document/1/1/seqno', '{"value": 0}'),
-                )
-
-        class Document(document.Document):
-            pass
-
-        with SingleVolume(tests.tmpdir, [Document]) as volume:
-            for cls in volume.values():
-                for __ in cls.populate():
-                    pass
-            self.assertRaises(RuntimeError, lambda: volume['document'].get('1')['prop'])
-
-        class Document(document.Document):
-
-            @active_property(slot=1, default='default')
-            def prop(self, value):
-                return value
-
-        with SingleVolume(tests.tmpdir, [Document]) as volume:
-            for cls in volume.values():
-                for __ in cls.populate():
-                    pass
-            self.assertEqual('default', volume['document'].get('1')['prop'])
-
     def test_Commands(self):
 
         class TestDocument(Document):
@@ -540,9 +511,9 @@ class VolumeTest(tests.Test):
             })
 
         self.assertEqual([
-            {'order': 1, 'url': 'url1'},
-            {'order': 2, 'url': 'url2', 'probe': None},
-            {'order': 3, 'url': 'url3', 'foo': 'bar'},
+            'url1',
+            'url2',
+            'url3',
             ],
             self.call('GET', document='testdocument', guid=guid, prop='blob'))
         self.assertRaises(env.NotFound,

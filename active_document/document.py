@@ -18,7 +18,6 @@ import logging
 from active_document import env
 from active_document.metadata import StoredProperty
 from active_document.metadata import active_property
-from active_toolkit import enforce
 
 
 _logger = logging.getLogger('active_document.document')
@@ -61,18 +60,25 @@ class Document(dict):
         prop = self.metadata[prop]
 
         value = dict.get(self, prop.name)
-        if value is None:
-            enforce(isinstance(prop, StoredProperty),
-                    'No way to get %r property from %s[%s]',
-                    prop.name, self.metadata.name, self.guid)
+        if value is None and self._record is not None:
             meta = self._record.get(prop.name)
-            value = prop.default if meta is None else meta['value']
-            self[prop.name] = value
+            if meta is not None:
+                if isinstance(prop, StoredProperty):
+                    value = meta.get('value')
+                else:
+                    value = meta
 
-        if accept_language and prop.localized:
-            value = self._localize(value, accept_language)
+        if value is not None and accept_language:
+            if isinstance(prop, StoredProperty) and prop.localized:
+                value = self._localize(value, accept_language)
 
         return value
+
+    def properties(self, props, accept_language=None):
+        result = {}
+        for i in props:
+            result[i] = self.get(i, accept_language)
+        return result
 
     def meta(self, prop):
         return self._record.get(prop)

@@ -172,7 +172,7 @@ class DocumentTest(tests.Test):
         guid = directory.create({})
         blob_path = join(tests.tmpdir, guid[:2], guid, 'blob')
 
-        self.assertRaises(RuntimeError, lambda: directory.get(guid).blob)
+        self.assertEqual(None, directory.get(guid).blob)
         self.assertRaises(RuntimeError, directory.update, guid, {'blob': 'foo'})
 
         data = 'payload'
@@ -625,7 +625,7 @@ class DocumentTest(tests.Test):
                 [(1, 1, '1', '1')],
                 [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory2.find(0, 1024)[0]])
         doc = directory2.get('1')
-        self.assertEqual(0, doc.get('seqno'))
+        self.assertEqual(None, doc.get('seqno'))
         self.assertEqual(0, doc.meta('guid')['seqno'])
         self.assertEqual(0, doc.meta('prop')['seqno'])
 
