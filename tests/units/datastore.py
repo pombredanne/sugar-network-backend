@@ -104,7 +104,7 @@ class DatastoreTest(tests.Test):
             'user': [],
             'author': [],
             },
-            artifacts.get('1').properties())
+            artifacts.get('1').properties(['guid', 'context', 'activity_id', 'ctime', 'description', 'keep', 'mime_type', 'tags', 'timestamp', 'mtime', 'title', 'filesize', 'traits', 'layer', 'user', 'author']))
         self.assertEqual(
                 'preview-1',
                 file(artifacts.get('1').meta('preview')['path']).read())
@@ -130,7 +130,7 @@ class DatastoreTest(tests.Test):
             'user': [],
             'author': [],
             },
-            artifacts.get('2').properties())
+            artifacts.get('2').properties(['guid', 'context', 'activity_id', 'ctime', 'description', 'keep', 'mime_type', 'tags', 'timestamp', 'mtime', 'title', 'filesize', 'traits', 'layer', 'user', 'author']))
         self.assertEqual(
                 'preview-2',
                 file(artifacts.get('2').meta('preview')['path']).read())

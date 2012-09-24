@@ -265,7 +265,7 @@ class InjectorTest(tests.Test):
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
-            'exec = false',
+            'exec = true',
             'icon = icon',
             'activity_version = 1',
             'license = Public Domain',

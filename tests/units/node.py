@@ -307,19 +307,20 @@ class NodeTest(tests.Test):
                 {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
                 call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid4, 'data': 'http://localhost/report/%s/data' % guid4, 'layer': ['public']},
+                {'guid': guid4, 'data': None, 'layer': ['public']},
                 call(cp, method='GET', document='report', guid=guid4, reply=['guid', 'data', 'layer']))
 
-        self.assertEqual([
-            {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
-            {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
-            {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
-            {'guid': guid5, 'icon': ['http://localhost/1', 'http://2'], 'layer': ['public']},
-            ],
-            call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result'])
+        self.assertEqual(
+                sorted([
+                    {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
+                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                    {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
+                    {'guid': guid5, 'icon': ['http://localhost/1', 'http://2'], 'layer': ['public']},
+                    ]),
+                sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
 
         self.assertEqual([
-            {'guid': guid4, 'data': 'http://localhost/report/%s/data' % guid4, 'layer': ['public']},
+            {'guid': guid4, 'data': None, 'layer': ['public']},
             ],
             call(cp, method='GET', document='report', reply=['guid', 'data', 'layer'])['result'])
 

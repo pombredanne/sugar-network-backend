@@ -82,8 +82,10 @@ class LocalMount(ad.VolumeCommands, _Mount):
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request=None):
         directory = self.volume[document]
-        directory.metadata[prop].assert_access(ad.ACCESS_READ)
-        return directory.get(guid).meta(prop)
+        prop = directory.metadata[prop]
+        prop.assert_access(ad.ACCESS_READ)
+        doc = directory.get(guid)
+        return prop.on_get(doc, doc.meta(prop.name))
 
     @ad.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):

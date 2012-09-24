@@ -312,13 +312,13 @@ class RemoteMountTest(tests.Test):
         self.touch((cache_path, 'blob-2'))
         blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
         self.assertEqual('blob-2', file(blob['path']).read())
-        self.assertEqual(3, json.load(file(cache_path + '.meta'))['seqno'])
+        seqno = json.load(file(cache_path + '.meta'))['seqno']
 
         self.touch(('file', 'blob-3'))
         remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
         blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
         self.assertEqual('blob-3', file(blob['path']).read())
-        self.assertEqual(4, json.load(file(cache_path + '.meta'))['seqno'])
+        assert seqno < json.load(file(cache_path + '.meta'))['seqno']
 
     def test_DoNotStaleBLOBs(self):
         self.start_ipc_and_restful_server()
@@ -338,7 +338,7 @@ class RemoteMountTest(tests.Test):
 
         cache_path = 'cache/context/%s/%s/preview' % (guid[:2], guid)
         self.touch((cache_path, 'blob-2'))
-        self.assertEqual(3, json.load(file(cache_path + '.meta'))['seqno'])
+        seqno = json.load(file(cache_path + '.meta'))['seqno']
 
         # Shift seqno
         remote.put(['context', guid], {'title': 'title-2'})
@@ -346,7 +346,7 @@ class RemoteMountTest(tests.Test):
 
         blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
         self.assertEqual('blob-2', file(blob['path']).read())
-        self.assertEqual(4, json.load(file(cache_path + '.meta'))['seqno'])
+        assert seqno < json.load(file(cache_path + '.meta'))['seqno']
 
 
 if __name__ == '__main__':

@@ -107,8 +107,8 @@ class NodeCommands(ad.VolumeCommands, Commands):
             props['user'] = [request.principal]
             self._set_author(props)
 
-        implement = props.get('implement')
-        if self._is_master and implement:
+        if self._is_master and 'implement' in props:
+            implement = props['implement']
             if not isinstance(implement, basestring):
                 implement = implement[0]
             props['guid'] = implement
@@ -150,37 +150,15 @@ class NodeCommands(ad.VolumeCommands, Commands):
         return result
 
     def _mixin_blobs(self, request, result):
-        reply = request.get('reply')
-        if not reply:
-            return
-
         document = request['document']
-        blobs = set(reply) & self.get_blobs(document)
-        if not blobs:
-            return
-
         for props in result:
             guid = props.get('guid') or request['guid']
-            doc = self.volume[document].get(guid)
-            for name in blobs:
-
-                def compose_url(value):
-                    if value is None:
-                        value = '/'.join(['', document, guid, name])
-                    if value.startswith('/'):
-                        return 'http://' + request.environ['HTTP_HOST'] + value
-                    else:
-                        return value
-
-                url = None
-                meta = doc.meta(name)
-                if meta is not None:
-                    url = meta.url()
-
-                if type(url) is list:
-                    props[name] = [compose_url(i.get('url')) for i in url]
-                else:
-                    props[name] = compose_url(url)
+            for name, value in props.items():
+                if not isinstance(value, ad.PropertyMeta):
+                    continue
+                props[name] = value.url(
+                        default='/'.join(['', document, guid, name]),
+                        prefix='http://' + request.environ['HTTP_HOST'])
 
     def _set_author(self, props):
         users = self.volume['user']

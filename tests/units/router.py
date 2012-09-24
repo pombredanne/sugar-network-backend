@@ -104,24 +104,6 @@ class RouterTest(tests.Test):
                     'result': sorted([])},
                 rest.get('/document', reply='guid,stored,term'))
 
-    def test_JsonAutoEncoding(self):
-        self.fork(self.restful_server, [User, Document])
-        rest = tests.Request('http://localhost:8800')
-
-        guid = rest.post('/document', {'term': 'term'})
-
-        self.assertRaises(RuntimeError, rest.get, '/document/' + guid + '/json')
-
-        rest.put('/document/' + guid + '/json', -1)
-        self.assertEqual(
-                -1,
-                rest.get('/document/' + guid + '/json'))
-
-        rest.put('/document/' + guid + '/json', {'foo': None})
-        self.assertEqual(
-                {'foo': None},
-                rest.get('/document/' + guid + '/json'))
-
     def test_StreamedResponse(self):
 
         class CommandsProcessor(ad.CommandsProcessor):
@@ -337,10 +319,6 @@ class Document(ad.Document):
 
     @ad.active_property(ad.BlobProperty)
     def blob(self, value):
-        return value
-
-    @ad.active_property(ad.BlobProperty, mime_type='application/json')
-    def json(self, value):
         return value
 
     @ad.active_property(ad.StoredProperty, default='')
