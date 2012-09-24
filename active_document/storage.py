@@ -22,12 +22,9 @@ import hashlib
 from os.path import exists, join, isdir, basename, relpath, lexists, isabs
 
 from active_document import env
-from active_document.metadata import BlobProperty
+from active_document.metadata import PropertyMeta, BlobProperty
 from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import util, enforce
-
-
-_BLOB_SUFFIX = '.blob'
+from active_toolkit import util
 
 
 class Storage(object):
@@ -127,7 +124,7 @@ class Storage(object):
                 else:
                     # TODO calculate new digest
                     meta['digest'] = ''
-                shutil.move(path, path + _BLOB_SUFFIX)
+                shutil.move(path, path + PropertyMeta.BLOB_SUFFIX)
                 meta['mime_type'] = prop.mime_type
             else:
                 if exists(path + '.sha1'):
@@ -176,7 +173,7 @@ class Record(object):
     def get(self, prop):
         path = join(self._root, prop)
         if exists(path):
-            return Meta(path)
+            return PropertyMeta(path)
 
     def set(self, prop, mtime=None, **kwargs):
         if not exists(self._root):
@@ -198,17 +195,18 @@ class Record(object):
     def set_blob(self, prop, data=None, size=None, **kwargs):
         if not exists(self._root):
             os.makedirs(self._root)
-        path = join(self._root, prop + _BLOB_SUFFIX)
+        path = join(self._root, prop + PropertyMeta.BLOB_SUFFIX)
+        meta = PropertyMeta(**kwargs)
 
-        if 'digest' not in kwargs:
-            digest = hashlib.sha1()
+        if data is None:
+            if exists(path):
+                os.unlink(path)
+        elif isinstance(data, PropertyMeta):
+            data.update(meta)
+            meta = data
         else:
-            digest = None
-
-        try:
-            if data is None:
-                digest = None
-            elif hasattr(data, 'read'):
+            digest = hashlib.sha1()
+            if hasattr(data, 'read'):
                 if size is None:
                     size = sys.maxint
                 self._set_blob_by_stream(digest, data, size, path)
@@ -218,15 +216,9 @@ class Record(object):
                 with util.new_file(path) as f:
                     f.write(data)
                 digest.update(data)
-        except Exception, error:
-            util.exception()
-            raise RuntimeError('Fail to set BLOB %r property for %r: %s' %
-                    (prop, self.guid, error))
+            meta['digest'] = digest.hexdigest()
 
-        if digest is not None:
-            kwargs['digest'] = digest.hexdigest()
-
-        self.set(prop, **kwargs)
+        self.set(prop, **meta)
 
     def _set_blob_by_stream(self, digest, stream, size, path):
         with util.new_file(path) as f:
@@ -260,29 +252,3 @@ class Record(object):
                     hash_file(path)
         else:
             hash_file(dst_path)
-
-
-class Meta(dict):
-
-    def __init__(self, path_=None, **meta):
-        if path_:
-            with file(path_) as f:
-                meta.update(json.load(f))
-            if exists(path_ + _BLOB_SUFFIX):
-                meta['path'] = path_ + _BLOB_SUFFIX
-            meta['mtime'] = os.stat(path_).st_mtime
-        dict.__init__(self, meta)
-
-    def url(self, part=None):
-        url = self.get('url')
-        if url is None or isinstance(url, basestring):
-            return url
-
-        if part:
-            file_meta = url.get(part)
-            enforce(file_meta and 'url' in file_meta,
-                    env.NotFound, 'No BLOB for %r', part)
-            return file_meta['url']
-
-        return sorted(url.values(),
-                cmp=lambda x, y: cmp(x.get('order'), y.get('order')))

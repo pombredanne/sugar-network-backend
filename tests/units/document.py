@@ -187,18 +187,6 @@ class DocumentTest(tests.Test):
             directory.get(guid).meta('blob'))
         self.assertEqual(data, file(blob_path + '.blob').read())
 
-        data = json.dumps({'foo': -1})
-        directory.set_blob(guid, 'blob', {'foo': -1})
-        self.assertEqual({
-            'seqno': 3,
-            'mtime': os.stat(blob_path).st_mtime,
-            'digest': hashlib.sha1(data).hexdigest(),
-            'path': join(tests.tmpdir, guid[:2], guid, 'blob.blob'),
-            'mime_type': 'application/json',
-            },
-            directory.get(guid).meta('blob'))
-        self.assertEqual(data, file(blob_path + '.blob').read())
-
     def test_update(self):
 
         class Document(document.Document):

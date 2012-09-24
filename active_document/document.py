@@ -24,14 +24,14 @@ from active_toolkit import enforce
 _logger = logging.getLogger('active_document.document')
 
 
-class Document(object):
+class Document(dict):
 
     #: `Metadata` object that describes the document
     metadata = None
 
     def __init__(self, guid, record, cached_props=None):
-        self._guid = guid
-        self._props = cached_props or {}
+        dict.__init__(self, cached_props or {})
+        self.guid = guid
         self._record = record
 
     @active_property(slot=1000, prefix='IC', typecast=int,
@@ -49,11 +49,6 @@ class Document(object):
     def seqno(self, value):
         return value
 
-    @property
-    def guid(self):
-        """Document GUID."""
-        return self._guid
-
     def get(self, prop, accept_language=None):
         """Get document's property value.
 
@@ -65,14 +60,14 @@ class Document(object):
         """
         prop = self.metadata[prop]
 
-        value = self._props.get(prop.name)
+        value = dict.get(self, prop.name)
         if value is None:
             enforce(isinstance(prop, StoredProperty),
                     'No way to get %r property from %s[%s]',
                     prop.name, self.metadata.name, self.guid)
             meta = self._record.get(prop.name)
             value = prop.default if meta is None else meta['value']
-            self._props[prop.name] = value
+            self[prop.name] = value
 
         if accept_language and prop.localized:
             value = self._localize(value, accept_language)

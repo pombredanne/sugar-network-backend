@@ -14,9 +14,10 @@ src_root = abspath(dirname(__file__))
 from __init__ import tests
 
 import active_document as ad
-from active_document import env, volume, document, SingleVolume, \
+from active_document import env, document, SingleVolume, \
         Request, Response, Document, active_property, \
         BlobProperty, NotFound, Redirect
+from active_document.volume import VolumeCommands
 from active_toolkit import sockets, coroutine
 
 
@@ -24,22 +25,7 @@ class VolumeTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-
-        class TestDocument(Document):
-
-            @active_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-            @active_property(BlobProperty)
-            def blob(self, value):
-                return value
-
-            @active_property(prefix='L', localized=True, default='')
-            def localized_prop(self, value):
-                return value
-
-        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        self.response = Response()
 
     def test_Populate(self):
         self.touch(
@@ -108,6 +94,18 @@ class VolumeTest(tests.Test):
             self.assertEqual('default', volume['document'].get('1')['prop'])
 
     def test_Commands(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         self.volume['testdocument'].create(guid='guid')
 
         self.assertEqual({
@@ -160,14 +158,47 @@ class VolumeTest(tests.Test):
                 'value_3',
                 self.call('GET', document='testdocument', guid=guid_1, prop='prop'))
 
-        self.call('PUT', document='testdocument', guid=guid_1, prop='blob', content_stream=StringIO('blob-value'))
+    def test_SetBLOBs(self):
 
-        stream = self.call('GET', document='testdocument', guid=guid_1, prop='blob')
-        self.assertEqual('blob-value', ''.join([i for i in stream]))
-        self.assertEqual('application/octet-stream', self.response.content_type)
-        self.assertEqual(len('blob-value'), self.response.content_length)
+        class TestDocument(Document):
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+
+        self.assertRaises(RuntimeError, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content={'path': '/'})
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob1')
+        stream = self.call('GET', document='testdocument', guid=guid, prop='blob')
+        self.assertEqual('blob1', ''.join([i for i in stream]))
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content_stream=StringIO('blob2'))
+        stream = self.call('GET', document='testdocument', guid=guid, prop='blob')
+        self.assertEqual('blob2', ''.join([i for i in stream]))
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
 
     def test_CommandsGetBlobDirectory(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
         blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
@@ -195,11 +226,40 @@ class VolumeTest(tests.Test):
                 sorted([(name, content.read()) for name, content in files]))
 
     def test_CommandsGetAbsentBlobs(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
         self.assertEqual('value', self.call('GET', document='testdocument', guid=guid, prop='prop'))
         self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
 
     def test_Command_ReplyForGET(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
@@ -223,6 +283,23 @@ class VolumeTest(tests.Test):
                 sorted(self.call('GET', document='testdocument', reply=['prop'])['result'][0].keys()))
 
     def test_Command_GetBlobBySeqno(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+
         # seqno == 1
         guid = self.call('POST', document='testdocument', content={})
         # seqno == 2
@@ -249,6 +326,17 @@ class VolumeTest(tests.Test):
     def test_LocalizedSet(self):
         env.DEFAULT_LANG = 'en'
 
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         directory = self.volume['testdocument']
 
         guid = directory.create({'localized_prop': 'value_raw'})
@@ -279,6 +367,18 @@ class VolumeTest(tests.Test):
                 [i.guid for i in directory.find(0, 100, localized_prop='value_en')[0]])
 
     def test_LocalizedGet(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         directory = self.volume['testdocument']
 
         guid = self.call('POST', document='testdocument', content={
@@ -390,6 +490,22 @@ class VolumeTest(tests.Test):
         volume.close()
 
     def test_Command_GetBlobSetByUrl(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
         self.call('PUT', document='testdocument', guid=guid, prop='blob', url='http://sugarlabs.org')
 
@@ -400,6 +516,22 @@ class VolumeTest(tests.Test):
             self.assertEqual('http://sugarlabs.org', redirect.location)
 
     def test_CompositeBlobs(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
         self.call('PUT', document='testdocument', guid=guid, prop='blob', url={
             'file3': {'order': 3, 'url': 'url3', 'foo': 'bar'},
@@ -422,6 +554,19 @@ class VolumeTest(tests.Test):
             self.assertEqual('url2', redirect.location)
 
     def test_before_create(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+
         ts = time.time()
         guid = self.call(method='POST', document='testdocument', content={})
         assert self.volume['testdocument'].get(guid)['ctime'] in range(ts - 1, ts + 1)
@@ -429,25 +574,48 @@ class VolumeTest(tests.Test):
 
     def test_before_create_Override(self):
 
-        class VolumeCommands(volume.VolumeCommands):
+        class Commands(VolumeCommands):
 
             def before_create(self, request, props):
                 props['prop'] = 'overriden'
-                volume.VolumeCommands.before_create(self, request, props)
+                VolumeCommands.before_create(self, request, props)
 
-        cp = VolumeCommands(self.volume)
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        volume = SingleVolume(tests.tmpdir, [TestDocument])
+        cp = Commands(volume)
 
         request = Request(method='POST', document='testdocument')
         request.content = {'prop': 'foo'}
         guid = cp.call(request, Response())
-        self.assertEqual('overriden', self.volume['testdocument'].get(guid)['prop'])
+        self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
 
         request = Request(method='PUT', document='testdocument', guid=guid)
         request.content = {'prop': 'bar'}
         cp.call(request, Response())
-        self.assertEqual('bar', self.volume['testdocument'].get(guid)['prop'])
+        self.assertEqual('bar', volume['testdocument'].get(guid)['prop'])
 
     def test_before_update(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         guid = self.call(method='POST', document='testdocument', content={})
         prev_mtime = self.volume['testdocument'].get(guid)['mtime']
 
@@ -458,25 +626,48 @@ class VolumeTest(tests.Test):
 
     def test_before_update_Override(self):
 
-        class VolumeCommands(volume.VolumeCommands):
+        class Commands(VolumeCommands):
 
             def before_update(self, request, props):
                 props['prop'] = 'overriden'
-                volume.VolumeCommands.before_update(self, request, props)
+                VolumeCommands.before_update(self, request, props)
 
-        cp = VolumeCommands(self.volume)
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        volume = SingleVolume(tests.tmpdir, [TestDocument])
+        cp = Commands(volume)
 
         request = Request(method='POST', document='testdocument')
         request.content = {'prop': 'foo'}
         guid = cp.call(request, Response())
-        self.assertEqual('foo', self.volume['testdocument'].get(guid)['prop'])
+        self.assertEqual('foo', volume['testdocument'].get(guid)['prop'])
 
         request = Request(method='PUT', document='testdocument', guid=guid)
         request.content = {'prop': 'bar'}
         cp.call(request, Response())
-        self.assertEqual('overriden', self.volume['testdocument'].get(guid)['prop'])
+        self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
 
     def test_DoNotPassGuidsForCreate(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @active_property(prefix='L', localized=True, default='')
+            def localized_prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         self.assertRaises(env.Forbidden, self.call, method='POST', document='testdocument', content={'guid': 'foo'})
         guid = self.call(method='POST', document='testdocument', content={})
         assert guid
@@ -649,7 +840,7 @@ class VolumeTest(tests.Test):
 
             @active_property(BlobProperty)
             def empty_blob(self, meta):
-                return ad.Meta(url='http://sugarlabs.org')
+                return ad.PropertyMeta(url='http://sugarlabs.org')
 
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
@@ -675,6 +866,47 @@ class VolumeTest(tests.Test):
         except Redirect, redirect:
             self.assertEqual('http://sugarlabs.org', redirect.location)
 
+    def test_properties_OverrideSet(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='1')
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return '_%s' % value
+
+            @active_property(BlobProperty)
+            def blob(self, meta):
+                return meta
+
+            @blob.setter
+            def blob(self, value):
+                return ad.PropertyMeta(url=value)
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+
+        self.assertEqual('1', self.call('GET', document='testdocument', guid=guid, prop='prop'))
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
+        self.call('PUT', document='testdocument', guid=guid, prop='prop', content='2')
+        self.assertEqual('_2', self.call('GET', document='testdocument', guid=guid, prop='prop'))
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
+        self.call('PUT', document='testdocument', guid=guid, content={'prop': 3})
+        self.assertEqual('_3', self.call('GET', document='testdocument', guid=guid, prop='prop'))
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob2')
+        try:
+            self.call('GET', document='testdocument', guid=guid, prop='blob')
+            assert False
+        except Redirect, redirect:
+            self.assertEqual('blob2', redirect.location)
+
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):
 
@@ -696,7 +928,7 @@ class VolumeTest(tests.Test):
             request.content_length = len(request.content_stream.getvalue())
 
         self.response = Response()
-        cp = volume.VolumeCommands(self.volume)
+        cp = VolumeCommands(self.volume)
         return cp.call(request, self.response)
 
 

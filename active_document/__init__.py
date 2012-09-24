@@ -23,11 +23,9 @@ from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         NotFound, Forbidden, Redirect, Seqno, DEFAULT_LANG, \
         uuid, default_lang
 
-from active_document.metadata import Metadata, Property, \
+from active_document.metadata import Metadata, PropertyMeta, Property, \
         StoredProperty, ActiveProperty, BlobProperty, BrowsableProperty, \
         active_property
-
-from active_document.storage import Meta
 
 from active_document.commands import to_int, to_list, \
         volume_command, volume_command_pre, volume_command_post, \

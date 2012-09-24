@@ -13,7 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import json
 import types
+from os.path import exists
 
 from active_document import env
 from active_toolkit import enforce
@@ -31,6 +34,7 @@ def active_property(property_class=None, *args, **kwargs):
     def decorate_setter(func, attr):
         attr.prop.setter = lambda self, value: \
                 self.set(attr.name, func(self, value))
+        attr.prop.on_set = func
         return attr
 
     def decorate_getter(func):
@@ -102,6 +106,39 @@ class Metadata(dict):
         return dict.__getitem__(self, prop_name)
 
 
+class PropertyMeta(dict):
+
+    BLOB_SUFFIX = '.blob'
+
+    def __init__(self, path_=None, **meta):
+        if path_:
+            with file(path_) as f:
+                meta.update(json.load(f))
+            if exists(path_ + PropertyMeta.BLOB_SUFFIX):
+                meta['path'] = path_ + PropertyMeta.BLOB_SUFFIX
+            meta['mtime'] = os.stat(path_).st_mtime
+        dict.__init__(self, meta)
+
+    def url(self, part=None):
+        url = self.get('url')
+        if url is None or isinstance(url, basestring):
+            return url
+
+        if part:
+            file_meta = url.get(part)
+            enforce(file_meta and 'url' in file_meta,
+                    env.NotFound, 'No BLOB for %r', part)
+            return file_meta['url']
+
+        return sorted(url.values(),
+                cmp=lambda x, y: cmp(x.get('order'), y.get('order')))
+
+    @classmethod
+    def is_blob(cls, blob):
+        return isinstance(blob, (type(None), basestring, cls)) or \
+                hasattr(blob, 'read')
+
+
 class Property(object):
     """Bacis class to collect information about document property."""
 
@@ -109,6 +146,7 @@ class Property(object):
             reprcast=None, default=None):
         self.setter = None
         self.on_get = lambda self, x: x
+        self.on_set = lambda self, x: x
         self._name = name
         self._permissions = permissions
         self._typecast = typecast

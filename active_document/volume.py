@@ -16,6 +16,7 @@
 import os
 import time
 import logging
+from contextlib import contextmanager
 from os.path import exists, join, abspath, isdir
 
 from active_document import env
@@ -25,6 +26,7 @@ from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
 from active_document.commands import to_int, to_list
 from active_document.metadata import BlobProperty, BrowsableProperty
+from active_document.metadata import PropertyMeta
 from active_toolkit import coroutine, util, sockets, enforce
 
 
@@ -130,29 +132,13 @@ class VolumeCommands(CommandsProcessor):
 
     @directory_command(method='POST',
             permissions=env.ACCESS_AUTH)
-    def create(self, document, request):
-        directory = self.volume[document]
-        props = request.content
-        blobs = {}
-
-        enforce('guid' not in props, env.Forbidden,
-                'Property "guid" cannot be set manually')
-
-        for name, value in props.items():
-            prop = directory.metadata[name]
-            prop.assert_access(env.ACCESS_CREATE)
-            if isinstance(prop, BlobProperty):
-                blobs[name] = props.pop(name)
-            else:
-                props[name] = self._prepost(request, prop, value)
-
-        self.before_create(request, props)
-        guid = directory.create(props)
-
-        for name, value in blobs.items():
-            directory.set_blob(guid, name, value)
-
-        return guid
+    def create(self, request):
+        with self._post(request, env.ACCESS_CREATE) as (directory, doc):
+            enforce('guid' not in doc, env.Forbidden,
+                    "Property 'guid' cannot be set manually")
+            self.before_create(request, doc)
+            doc.guid = directory.create(doc)
+            return doc.guid
 
     @directory_command(method='GET',
             arguments={'offset': to_int, 'limit': to_int, 'reply': to_list})
@@ -172,44 +158,19 @@ class VolumeCommands(CommandsProcessor):
 
     @document_command(method='PUT',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
-    def update(self, document, guid, request):
-        directory = self.volume[document]
-        props = request.content
-        blobs = {}
-
-        for name, value in props.items():
-            prop = directory.metadata[name]
-            prop.assert_access(env.ACCESS_WRITE)
-            if isinstance(prop, BlobProperty):
-                blobs[name] = props.pop(name)
-            else:
-                props[name] = self._prepost(request, prop, value)
-
-        self.before_update(request, props)
-        directory.update(guid, props)
-
-        for name, value in blobs.items():
-            directory.set_blob(guid, name, value)
+    def update(self, request):
+        with self._post(request, env.ACCESS_WRITE) as (directory, doc):
+            self.before_update(request, doc)
+            directory.update(doc.guid, doc)
 
     @property_command(method='PUT',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
-    def update_prop(self, document, guid, prop, request, url=None):
-        directory = self.volume[document]
-
-        prop = directory.metadata[prop]
-        prop.assert_access(env.ACCESS_WRITE)
-
-        if not isinstance(prop, BlobProperty):
-            request.content = {prop.name: request.content}
-            return self.update(document, guid, request)
-
-        if url is not None:
-            directory.set_blob(guid, prop.name, url=url)
-        elif request.content is not None:
-            directory.set_blob(guid, prop.name, request.content)
+    def update_prop(self, request, prop, url=None):
+        if url:
+            request.content = {prop: PropertyMeta(url=url)}
         else:
-            directory.set_blob(guid, prop.name, request.content_stream,
-                    request.content_length)
+            request.content = {prop: request.content or request.content_stream}
+        return self.update(request)
 
     @document_command(method='DELETE',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
@@ -246,6 +207,8 @@ class VolumeCommands(CommandsProcessor):
                 return url
             raise env.Redirect(url)
 
+        enforce('path' in meta, env.NotFound, 'BLOB does not exist')
+
         if seqno is not None and seqno >= meta['seqno']:
             response.content_length = 0
             response.content_type = prop.mime_type
@@ -270,11 +233,28 @@ class VolumeCommands(CommandsProcessor):
     def before_update(self, request, props):
         props['mtime'] = int(time.time())
 
-    def _prepost(self, request, prop, value):
-        if prop.localized and isinstance(value, basestring):
-            return {(request.accept_language or self._lang)[0]: value}
-        else:
-            return value
+    @contextmanager
+    def _post(self, request, access):
+        directory = self.volume[request['document']]
+        doc = directory.document_class(request.get('guid'), {})
+        blobs = []
+
+        for name, value in request.content.items():
+            prop = directory.metadata[name]
+            prop.assert_access(access)
+            value = prop.on_set(doc, value)
+            if isinstance(prop, BlobProperty):
+                enforce(PropertyMeta.is_blob(value), 'Invalid BLOB value')
+                blobs.append((name, value))
+            else:
+                if prop.localized and isinstance(value, basestring):
+                    value = {(request.accept_language or self._lang)[0]: value}
+                doc[name] = value
+
+        yield directory, doc
+
+        for name, value in blobs:
+            directory.set_blob(doc.guid, name, value)
 
     def _preget(self, request):
         metadata = self.volume[request['document']].metadata
