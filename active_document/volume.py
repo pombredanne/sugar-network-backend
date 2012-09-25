@@ -15,6 +15,7 @@
 
 import os
 import time
+import json
 import logging
 from contextlib import contextmanager
 from os.path import exists, join, abspath, isdir
@@ -167,9 +168,12 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
     def update_prop(self, request, prop, url=None):
         if url:
-            request.content = {prop: PropertyMeta(url=url)}
+            value = PropertyMeta(url=url)
+        elif request.content is None:
+            value = request.content_stream
         else:
-            request.content = {prop: request.content or request.content_stream}
+            value = request.content
+        request.content = {prop: value}
         return self.update(request)
 
     @document_command(method='DELETE',
@@ -244,6 +248,8 @@ class VolumeCommands(CommandsProcessor):
             prop.assert_access(access)
             value = prop.on_set(doc, value)
             if isinstance(prop, BlobProperty):
+                if prop.mime_type == 'application/json':
+                    value = json.dumps(value)
                 enforce(PropertyMeta.is_blob(value), 'Invalid BLOB value')
                 blobs.append((name, value))
             else:

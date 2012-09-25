@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import shutil
+import hashlib
 from cStringIO import StringIO
 from email.message import Message
 from os.path import dirname, join, abspath, exists
@@ -152,6 +153,64 @@ class VolumeTest(tests.Test):
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
         self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
+    def test_GetBLOBs(self):
+
+        class TestDocument(Document):
+
+            @active_property(BlobProperty)
+            def blob(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob')
+
+        blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
+        blob_meta = {
+                'seqno': 3,
+                'path': blob_path + '.blob',
+                'digest': hashlib.sha1('blob').hexdigest(),
+                'mime_type': 'application/octet-stream',
+                'mtime': os.stat(blob_path).st_mtime,
+                }
+
+        stream = self.call('GET', document='testdocument', guid=guid, prop='blob')
+        self.assertEqual('blob', ''.join([i for i in stream]))
+
+        self.assertEqual(
+                {'guid': guid, 'blob': blob_meta},
+                self.call('GET', document='testdocument', guid=guid, reply=['guid', 'blob']))
+
+        self.assertEqual([
+            {'guid': guid, 'blob': blob_meta},
+            ],
+            self.call('GET', document='testdocument', reply=['guid', 'blob'])['result'])
+
+    def test_JsonBLOB(self):
+
+        class TestDocument(Document):
+
+            @active_property(BlobProperty, mime_type='application/json')
+            def blob(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={'blob': {'foo': None, 'bar': -1}})
+
+        self.assertEqual(
+                '{"foo": null, "bar": -1}',
+                ''.join([i for i in self.call('GET', document='testdocument', guid=guid, prop='blob')]))
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content=0)
+        self.assertEqual(
+                '0',
+                ''.join([i for i in self.call('GET', document='testdocument', guid=guid, prop='blob')]))
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
+        self.assertEqual(
+                'null',
+                ''.join([i for i in self.call('GET', document='testdocument', guid=guid, prop='blob')]))
 
     def test_CommandsGetBlobDirectory(self):
 
@@ -850,33 +909,46 @@ class VolumeTest(tests.Test):
                 return '_%s' % value
 
             @active_property(BlobProperty)
-            def blob(self, meta):
+            def blob1(self, meta):
                 return meta
 
-            @blob.setter
-            def blob(self, value):
+            @blob1.setter
+            def blob1(self, value):
                 return ad.PropertyMeta(url=value)
+
+            @active_property(BlobProperty)
+            def blob2(self, meta):
+                return meta
+
+            @blob2.setter
+            def blob2(self, value):
+                return ' %s ' % value
 
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
         self.assertEqual('1', self.call('GET', document='testdocument', guid=guid, prop='prop'))
-        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
         self.call('PUT', document='testdocument', guid=guid, prop='prop', content='2')
         self.assertEqual('_2', self.call('GET', document='testdocument', guid=guid, prop='prop'))
-        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
         self.call('PUT', document='testdocument', guid=guid, content={'prop': 3})
         self.assertEqual('_3', self.call('GET', document='testdocument', guid=guid, prop='prop'))
-        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+        self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
-        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob2')
+        self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='blob2')
         try:
-            self.call('GET', document='testdocument', guid=guid, prop='blob')
+            self.call('GET', document='testdocument', guid=guid, prop='blob1')
             assert False
         except Redirect, redirect:
             self.assertEqual('blob2', redirect.location)
+
+        guid = self.call('POST', document='testdocument', content={'blob2': 'foo'})
+        self.assertEqual(' foo ', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob2')))
+        self.call('PUT', document='testdocument', guid=guid, prop='blob2', content='bar')
+        self.assertEqual(' bar ', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob2')))
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):
