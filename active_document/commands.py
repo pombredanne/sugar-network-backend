@@ -98,9 +98,6 @@ class Request(dict):
     def __init__(self, *args, **props):
         if args:
             props = args[0]
-        for key in props.keys():
-            if hasattr(self, key):
-                setattr(self, key, props.pop(key))
         dict.__init__(self, props)
         self._pos = 0
 
@@ -124,7 +121,7 @@ class Request(dict):
         self._pos += len(result)
         return result
 
-    def copy(self):
+    def clone(self):
         request = type(self)()
         request.access_level = self.access_level
         request.accept_language = self.accept_language
@@ -135,7 +132,7 @@ class Request(dict):
             content_length=None, **kwargs):
         enforce(self.commands is not None)
 
-        request = self.copy()
+        request = self.clone()
         request.update(kwargs)
         request['method'] = method
         request.content = content

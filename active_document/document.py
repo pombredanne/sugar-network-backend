@@ -23,13 +23,13 @@ from active_document.metadata import active_property
 _logger = logging.getLogger('active_document.document')
 
 
-class Document(dict):
+class Document(object):
 
     #: `Metadata` object that describes the document
     metadata = None
 
     def __init__(self, guid, record, cached_props=None, request=None):
-        dict.__init__(self, cached_props or {})
+        self.props = cached_props or {}
         self.guid = guid
         self._record = record
         self.request = request
@@ -60,7 +60,7 @@ class Document(dict):
         """
         prop = self.metadata[prop]
 
-        value = dict.get(self, prop.name)
+        value = self.props.get(prop.name)
         if value is None and self._record is not None:
             meta = self._record.get(prop.name)
             if meta is not None:
@@ -68,6 +68,7 @@ class Document(dict):
                     value = meta.get('value')
                 else:
                     value = meta
+            self.props[prop.name] = value
 
         if value is not None and accept_language:
             if isinstance(prop, StoredProperty) and prop.localized:

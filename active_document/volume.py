@@ -134,10 +134,10 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH)
     def create(self, request):
         with self._post(request, env.ACCESS_CREATE) as (directory, doc):
-            enforce('guid' not in doc, env.Forbidden,
+            enforce('guid' not in doc.props, env.Forbidden,
                     "Property 'guid' cannot be set manually")
-            self.before_create(request, doc)
-            doc.guid = directory.create(doc)
+            self.before_create(request, doc.props)
+            doc.guid = directory.create(doc.props)
             return doc.guid
 
     @directory_command(method='GET',
@@ -160,8 +160,8 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
     def update(self, request):
         with self._post(request, env.ACCESS_WRITE) as (directory, doc):
-            self.before_update(request, doc)
-            directory.update(doc.guid, doc)
+            self.before_update(request, doc.props)
+            directory.update(doc.guid, doc.props)
 
     @property_command(method='PUT',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
@@ -259,7 +259,7 @@ class VolumeCommands(CommandsProcessor):
             else:
                 if prop.localized and isinstance(value, basestring):
                     value = {(request.accept_language or self._lang)[0]: value}
-                doc[name] = value
+                doc.props[name] = value
 
         yield directory, doc
 

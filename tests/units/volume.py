@@ -169,7 +169,7 @@ class VolumeTest(tests.Test):
 
         blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
         blob_meta = {
-                'seqno': 2,
+                'seqno': 3,
                 'path': blob_path + '.blob',
                 'digest': hashlib.sha1('blob').hexdigest(),
                 'mime_type': 'application/octet-stream',
@@ -957,7 +957,7 @@ class VolumeTest(tests.Test):
         self.assertEqual('0!1!', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
 
     def call(self, method, document=None, guid=None, prop=None,
-            accept_language=None, **kwargs):
+            accept_language=None, content=None, content_stream=None, **kwargs):
 
         class TestRequest(Request):
 
@@ -965,6 +965,8 @@ class VolumeTest(tests.Test):
             content_length = 0
 
         request = TestRequest(kwargs)
+        request.content = content
+        request.content_stream = content_stream
         request.accept_language = accept_language
         request['method'] = method
         if document:
