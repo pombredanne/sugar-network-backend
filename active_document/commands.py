@@ -124,15 +124,20 @@ class Request(dict):
         self._pos += len(result)
         return result
 
+    def copy(self):
+        request = type(self)()
+        request.access_level = self.access_level
+        request.accept_language = self.accept_language
+        request.commands = self.commands
+        return request
+
     def call(self, method, content=None, content_stream=None,
             content_length=None, **kwargs):
         enforce(self.commands is not None)
 
-        kwargs['method'] = method
-        request = type(self)(kwargs)
-        request.access_level = self.access_level
-        request.accept_language = self.accept_language
-        request.commands = self.commands
+        request = self.copy()
+        request.update(kwargs)
+        request['method'] = method
         request.content = content
         request.content_stream = content_stream
         request.content_length = content_length
