@@ -169,7 +169,7 @@ class VolumeTest(tests.Test):
 
         blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
         blob_meta = {
-                'seqno': 3,
+                'seqno': 2,
                 'path': blob_path + '.blob',
                 'digest': hashlib.sha1('blob').hexdigest(),
                 'mime_type': 'application/octet-stream',
@@ -187,31 +187,6 @@ class VolumeTest(tests.Test):
             {'guid': guid, 'blob': blob_meta},
             ],
             self.call('GET', document='testdocument', reply=['guid', 'blob'])['result'])
-
-    def test_JsonBLOB(self):
-
-        class TestDocument(Document):
-
-            @active_property(BlobProperty, mime_type='application/json')
-            def blob(self, value):
-                return value
-
-        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
-        guid = self.call('POST', document='testdocument', content={'blob': {'foo': None, 'bar': -1}})
-
-        self.assertEqual(
-                '{"foo": null, "bar": -1}',
-                ''.join([i for i in self.call('GET', document='testdocument', guid=guid, prop='blob')]))
-
-        self.call('PUT', document='testdocument', guid=guid, prop='blob', content=0)
-        self.assertEqual(
-                '0',
-                ''.join([i for i in self.call('GET', document='testdocument', guid=guid, prop='blob')]))
-
-        self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
-        self.assertEqual(
-                'null',
-                ''.join([i for i in self.call('GET', document='testdocument', guid=guid, prop='blob')]))
 
     def test_CommandsGetBlobDirectory(self):
 
@@ -961,27 +936,25 @@ class VolumeTest(tests.Test):
 
             @blob.setter
             def blob(self, value):
-                if type(value) is int:
-                    value = [value]
+                if '!' not in value:
                     meta = self.meta('blob')
                     if meta:
-                        with file(meta['path']) as f:
-                            value = json.load(f) + value
+                        value = file(meta['path']).read() + value
                     coroutine.spawn(self.post, value)
                 return value
 
             def post(self, value):
-                self.request.call('PUT', document='testdocument', guid=self.guid, prop='blob', content=value + [-1])
+                self.request.call('PUT', document='testdocument', guid=self.guid, prop='blob', content=value + '!')
 
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
 
-        guid = self.call('POST', document='testdocument', content={'blob': 0})
+        guid = self.call('POST', document='testdocument', content={'blob': '0'})
         coroutine.dispatch()
-        self.assertEqual('[0, -1]', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
+        self.assertEqual('0!', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
 
-        self.call('PUT', document='testdocument', guid=guid, prop='blob', content=2)
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='1')
         coroutine.dispatch()
-        self.assertEqual('[0, -1, 2, -1]', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
+        self.assertEqual('0!1!', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):

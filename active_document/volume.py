@@ -15,7 +15,6 @@
 
 import os
 import time
-import json
 import logging
 from contextlib import contextmanager
 from os.path import exists, join, abspath, isdir
@@ -255,8 +254,6 @@ class VolumeCommands(CommandsProcessor):
             prop.assert_access(access)
             value = prop.on_set(doc, value)
             if isinstance(prop, BlobProperty):
-                if prop.mime_type == 'application/json':
-                    value = json.dumps(value)
                 enforce(PropertyMeta.is_blob(value), 'Invalid BLOB value')
                 blobs.append((name, value))
             else:
