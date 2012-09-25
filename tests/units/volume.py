@@ -4,6 +4,7 @@
 import os
 import sys
 import time
+import json
 import shutil
 import hashlib
 from cStringIO import StringIO
@@ -949,6 +950,38 @@ class VolumeTest(tests.Test):
         self.assertEqual(' foo ', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob2')))
         self.call('PUT', document='testdocument', guid=guid, prop='blob2', content='bar')
         self.assertEqual(' bar ', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob2')))
+
+    def test_SubCall(self):
+
+        class TestDocument(Document):
+
+            @active_property(BlobProperty, mime_type='application/json')
+            def blob(self, value):
+                return value
+
+            @blob.setter
+            def blob(self, value):
+                if type(value) is int:
+                    value = [value]
+                    meta = self.meta('blob')
+                    if meta:
+                        with file(meta['path']) as f:
+                            value = json.load(f) + value
+                    coroutine.spawn(self.post, value)
+                return value
+
+            def post(self, value):
+                self.request.call('PUT', document='testdocument', guid=self.guid, prop='blob', content=value + [-1])
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+
+        guid = self.call('POST', document='testdocument', content={'blob': 0})
+        coroutine.dispatch()
+        self.assertEqual('[0, -1]', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content=2)
+        coroutine.dispatch()
+        self.assertEqual('[0, -1, 2, -1]', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, **kwargs):

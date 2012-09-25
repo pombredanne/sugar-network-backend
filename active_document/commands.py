@@ -93,6 +93,7 @@ class Request(dict):
     content_length = None
     access_level = env.ACCESS_REMOTE
     accept_language = None
+    commands = None
 
     def __init__(self, *args, **props):
         if args:
@@ -102,6 +103,11 @@ class Request(dict):
                 setattr(self, key, props.pop(key))
         dict.__init__(self, props)
         self._pos = 0
+
+    @property
+    def volume(self):
+        enforce(self.commands is not None)
+        return self.commands.volume
 
     def __getitem__(self, key):
         enforce(key in self, 'Cannot find %r request argument', key)
@@ -117,6 +123,21 @@ class Request(dict):
             return ''
         self._pos += len(result)
         return result
+
+    def call(self, method, content=None, content_stream=None,
+            content_length=None, **kwargs):
+        enforce(self.commands is not None)
+
+        kwargs['method'] = method
+        request = type(self)(kwargs)
+        request.access_level = self.access_level
+        request.accept_language = self.accept_language
+        request.commands = self.commands
+        request.content = content
+        request.content_stream = content_stream
+        request.content_length = content_length
+
+        return self.commands.call(request, Response())
 
     def __repr__(self):
         args = ['content_length=%r' % self.content_length,
@@ -181,6 +202,8 @@ class CommandsProcessor(object):
 
         enforce(request.access_level & cmd.access_level, env.Forbidden,
                 'Operation is permitted on requester\'s level')
+
+        request.commands = self
 
         for arg, cast in cmd.arguments.items():
             if arg not in request:

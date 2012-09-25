@@ -495,6 +495,29 @@ class CommandsTest(tests.Test):
         self.assertEqual(['pre', 'cmd', 'post'], request['probe'])
         self.assertEqual(['cmd', 'post'], response['probe'])
 
+    def test_SubCall(self):
+
+        class TestCommandsProcessor(CommandsProcessor):
+
+            @ad.volume_command(method='PROBE')
+            def command1(self, request):
+                return request.call('PROBE', cmd='command2')
+
+            @ad.volume_command(method='PROBE')
+            def command2(self, request):
+                return {'access_level': request.access_level, 'accept_language': request.accept_language}
+
+        cp = TestCommandsProcessor()
+
+        request = ad.Request(method='PROBE')
+        request.access_level = -1
+        request.accept_language = 'foo'
+        self.assertEqual({
+            'access_level': -1,
+            'accept_language': 'foo',
+            },
+            cp.call(request, ad.Response()))
+
     def call(self, cp, method, document=None, guid=None, prop=None,
             access_level=env.ACCESS_REMOTE, **kwargs):
 

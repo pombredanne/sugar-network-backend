@@ -28,10 +28,11 @@ class Document(dict):
     #: `Metadata` object that describes the document
     metadata = None
 
-    def __init__(self, guid, record, cached_props=None):
+    def __init__(self, guid, record, cached_props=None, request=None):
         dict.__init__(self, cached_props or {})
         self.guid = guid
         self._record = record
+        self.request = request
 
     @active_property(slot=1000, prefix='IC', typecast=int,
             permissions=env.ACCESS_READ, default=0)

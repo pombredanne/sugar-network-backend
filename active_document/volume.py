@@ -194,6 +194,7 @@ class VolumeCommands(CommandsProcessor):
         directory = self.volume[document]
         prop = directory.metadata[prop]
         doc = directory.get(guid)
+        doc.request = request
 
         prop.assert_access(env.ACCESS_READ)
 
@@ -239,8 +240,14 @@ class VolumeCommands(CommandsProcessor):
 
     @contextmanager
     def _post(self, request, access):
+        enforce(isinstance(request.content, dict), 'Invalid value')
+
         directory = self.volume[request['document']]
-        doc = directory.document_class(request.get('guid'), {})
+        if 'guid' in request:
+            doc = directory.get(request['guid'])
+        else:
+            doc = directory.document_class(None, {})
+        doc.request = request
         blobs = []
 
         for name, value in request.content.items():
@@ -278,6 +285,7 @@ class VolumeCommands(CommandsProcessor):
         result = {}
         lang = request.accept_language or self._lang
         metadata = doc.metadata
+        doc.request = request
         for prop in request['reply']:
             result[prop] = metadata[prop].on_get(doc, doc.get(prop, lang))
         return result
