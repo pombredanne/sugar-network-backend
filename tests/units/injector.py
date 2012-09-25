@@ -33,12 +33,6 @@ class InjectorTest(tests.Test):
             'description': 'description',
             })
 
-        blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
-        self.touch(
-                (blob_path, '{}'),
-                (blob_path + '.blob', json.dumps({})),
-                )
-
         pipe = checkin('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
@@ -57,27 +51,20 @@ class InjectorTest(tests.Test):
             'notes': '',
             })
 
-        blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
-        self.touch(
-                (blob_path, '{}'),
-                (blob_path + '.blob', json.dumps({
-                    'versions': {
-                        '1': {
-                            '*-*': {
-                                'commands': {
-                                    'activity': {
-                                        'exec': 'echo',
-                                        },
-                                    },
-                                'stability': 'stable',
-                                'guid': impl,
-                                'size': 0,
-                                },
+        remote.put(['context', context, 'versions'], {
+            '1': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
                             },
                         },
-                    })),
-                )
-        os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
+                    'stability': 'stable',
+                    'guid': impl,
+                    'size': 0,
+                    },
+                },
+            })
 
         pipe = checkin('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
@@ -127,28 +114,21 @@ class InjectorTest(tests.Test):
             'stability': 'stable',
             'notes': '',
             })
-
-        blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
-        self.touch(
-                (blob_path, '{}'),
-                (blob_path + '.blob', json.dumps({
-                    'versions': {
-                        '1': {
-                            '*-*': {
-                                'commands': {
-                                    'activity': {
-                                        'exec': 'false',
-                                        },
-                                    },
-                                'stability': 'stable',
-                                'guid': impl,
-                                'size': 0,
-                                'extract': 'TestActivitry',
-                                },
+        remote.put(['context', context, 'versions'], {
+            '1': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'false',
                             },
                         },
-                    })),
-                )
+                    'stability': 'stable',
+                    'guid': impl,
+                    'size': 0,
+                    'extract': 'TestActivitry',
+                    },
+                },
+            })
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, '{}'))
@@ -186,41 +166,34 @@ class InjectorTest(tests.Test):
             'notes': '',
             })
 
-        os.unlink('cache/context/%s/%s/feed.meta' % (context[:2], context))
-        blob_path = 'remote/context/%s/%s/feed' % (context[:2], context)
-        self.touch(
-                (blob_path, '{}'),
-                (blob_path + '.blob', json.dumps({
-                    'versions': {
-                        '1': {
-                            '*-*': {
-                                'commands': {
-                                    'activity': {
-                                        'exec': 'false',
-                                        },
-                                    },
-                                'stability': 'stable',
-                                'guid': impl,
-                                'size': 0,
-                                'extract': 'TestActivitry',
-                                },
-                            },
-                        '2': {
-                            '*-*': {
-                                'commands': {
-                                    'activity': {
-                                        'exec': 'true',
-                                        },
-                                    },
-                                'stability': 'stable',
-                                'guid': impl_2,
-                                'size': 0,
-                                'extract': 'TestActivitry',
-                                },
+        remote.put(['context', context, 'versions'], {
+            '1': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'false',
                             },
                         },
-                    })),
-                )
+                    'stability': 'stable',
+                    'guid': impl,
+                    'size': 0,
+                    'extract': 'TestActivitry',
+                    },
+                },
+            '2': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'guid': impl_2,
+                    'size': 0,
+                    'extract': 'TestActivitry',
+                    },
+                },
+            })
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl_2[:2], impl_2)
         self.touch((blob_path, '{}'))
@@ -314,18 +287,12 @@ class InjectorTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'implement': 'dep1',
+            'packages': {
+                lsb_release.distributor_id(): {
+                    'binary': ['dep1.bin'],
+                    },
+                },
             })
-        blob_path = 'remote/context/de/dep1/feed'
-        self.touch(
-                (blob_path, '{}'),
-                (blob_path + '.blob', json.dumps({
-                    'packages': {
-                        lsb_release.distributor_id(): {
-                            'binary': ['dep1.bin'],
-                            },
-                        },
-                    })),
-                )
 
         remote.post(['context'], {
             'type': 'package',
@@ -333,18 +300,12 @@ class InjectorTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'implement': 'dep2',
+            'packages': {
+                lsb_release.distributor_id(): {
+                    'binary': ['dep2.bin'],
+                    },
+                },
             })
-        blob_path = 'remote/context/de/dep2/feed'
-        self.touch(
-                (blob_path, '{}'),
-                (blob_path + '.blob', json.dumps({
-                    'packages': {
-                        lsb_release.distributor_id(): {
-                            'binary': ['dep2.bin'],
-                            },
-                        },
-                    })),
-                )
 
         def resolve(names):
             with file('resolve', 'w') as f:

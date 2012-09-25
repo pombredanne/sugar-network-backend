@@ -235,8 +235,16 @@ class Router(object):
 
 class _Request(Request):
 
-    def __init__(self, environ):
+    environ = None
+    url = None
+    path = None
+    principal = None
+
+    def __init__(self, environ=None):
         Request.__init__(self)
+
+        if not environ:
+            return
 
         self.access_level = ad.ACCESS_REMOTE
         self.environ = environ
@@ -286,6 +294,14 @@ class _Request(Request):
             self['document'], self['guid'] = self.path
         elif scope == 1:
             self['document'], = self.path
+
+    def clone(self):
+        request = Request.clone(self)
+        request.environ = self.environ
+        request.url = self.url
+        request.path = self.path
+        request.principal = self.principal
+        return request
 
 
 class _Response(ad.Response):

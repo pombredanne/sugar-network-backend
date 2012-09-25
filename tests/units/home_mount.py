@@ -202,39 +202,37 @@ class HomeMountTest(tests.Test):
         coroutine.sleep()
 
         self.assertEqual({
-            'versions': {
-                '1': {
-                    '*-*': {
-                        'commands': {
-                            'activity': {
-                                'exec': 'false',
-                                },
+            '1': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'false',
                             },
-                        'stability': 'stable',
-                        'guid': tests.tmpdir + '/Activities/activity-1',
-                        'requires': {},
                         },
+                    'stability': 'stable',
+                    'guid': tests.tmpdir + '/Activities/activity-1',
+                    'requires': {},
                     },
-                '2': {
-                    '*-*': {
-                        'commands': {
-                            'activity': {
-                                'exec': 'true',
-                                },
+                },
+            '2': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
                             },
-                        'stability': 'stable',
-                        'guid': tests.tmpdir + '/Activities/activity-2',
-                        'requires': {
-                            'dep1': {},
-                            'dep2': {'restrictions': [['1', '2']]},
-                            'dep3': {'restrictions': [[None, '2']]},
-                            'dep4': {'restrictions': [['3', None]]},
-                            },
+                        },
+                    'stability': 'stable',
+                    'guid': tests.tmpdir + '/Activities/activity-2',
+                    'requires': {
+                        'dep1': {},
+                        'dep2': {'restrictions': [['1', '2']]},
+                        'dep3': {'restrictions': [[None, '2']]},
+                        'dep4': {'restrictions': [['3', None]]},
                         },
                     },
                 },
             },
-            client.get(['context', 'bundle_id', 'feed'], cmd='get_blob'))
+            client.get(['context', 'bundle_id', 'versions']))
 
 
 if __name__ == '__main__':

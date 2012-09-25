@@ -185,31 +185,21 @@ class NodeMountTest(tests.Test):
             'stability': 'stable',
             'notes': '',
             })
-
-        with file('mnt/context/%s/%s/feed' % (context[:2], context), 'w') as f:
-            json.dump({
-                'seqno': 0,
-                'mime_type': 'application/octet-stream',
-                'digest': 'digest',
-                }, f)
-        with file('mnt/context/%s/%s/feed.blob' % (context[:2], context), 'w') as f:
-            json.dump({
-                'versions': {
-                    '1': {
-                        '*-*': {
-                            'commands': {
-                                'activity': {
-                                    'exec': 'echo',
-                                    },
-                                },
-                            'stability': 'stable',
-                            'guid': impl,
-                            'size': 0,
-                            'extract': 'TestActivitry',
+        remote.put(['context', context, 'versions'], {
+            '1': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
                             },
                         },
+                    'stability': 'stable',
+                    'guid': impl,
+                    'size': 0,
+                    'extract': 'TestActivitry',
                     },
-                }, f)
+                },
+            })
         bundle = zipfile.ZipFile('bundle', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
             '[Activity]',

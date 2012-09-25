@@ -11,7 +11,7 @@ from sugar_network import node
 from sugar_network.toolkit.router import Unauthorized
 from sugar_network.node import stats
 from sugar_network.node.commands import NodeCommands
-from sugar_network.resources.volume import Volume
+from sugar_network.resources.volume import Volume, Request
 from sugar_network.resources.user import User
 
 
@@ -371,7 +371,7 @@ class NodeTest(tests.Test):
 
 
 def call(cp, principal=None, content=None, **kwargs):
-    request = ad.Request(**kwargs)
+    request = Request(**kwargs)
     request.principal = principal
     request.content = content
     request.environ = {'HTTP_HOST': 'localhost'}

@@ -33,6 +33,7 @@ _logger = logging.getLogger('resources.volume')
 class Request(ad.Request):
 
     blobs = None
+    mountpoint = None
 
 
 class Resource(ad.Document):

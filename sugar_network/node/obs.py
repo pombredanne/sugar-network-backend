@@ -26,6 +26,10 @@ obs_url = Option(
         'for master server',
         default='https://obs.sugarlabs.org')
 
+obs_project = Option(
+        'OBS project to use unattended building',
+        default='base')
+
 obs_presolve_project = Option(
         'OBS project to use with packagekit-backend-presolve',
         default='resolve')
@@ -33,13 +37,80 @@ obs_presolve_project = Option(
 
 _logger = logging.getLogger('node.obs')
 _client = None
+_repos = None
+_presolve_repos = None
+
+
+def get_repos():
+    global _repos
+
+    if _repos is None:
+        _repos = []
+        repos = _request('GET', ['build', obs_project.value])
+        for repo in repos.findall('entry'):
+            repo = repo.get('name')
+            if '-' not in repo:
+                continue
+            arches = _request('GET', ['build', obs_project.value, repo])
+            _repos.append({
+                'distributor_id': repo.split('-', 1)[0],
+                'name': repo,
+                'arches': [i.get('name') for i in arches.findall('entry')],
+                })
+
+    return _repos
 
 
 def get_presolve_repos():
+    global _presolve_repos
+
+    if _presolve_repos is None:
+        _presolve_repos = []
+        repos = _request('GET', ['build', obs_presolve_project.value])
+        for repo in repos.findall('entry'):
+            repo = repo.get('name')
+            arches = _request('GET',
+                    ['build', obs_presolve_project.value, repo])
+            for arch in arches.findall('entry'):
+                _presolve_repos.append({
+                    'name': repo,
+                    'arch': arch.get('name'),
+                    })
+
+    return _presolve_repos
+
+
+def resolve(repo, arch, names):
+    for package in names:
+        _request('GET', ['resolve'], params={
+            'project': obs_project.value,
+            'repository': repo,
+            'arch': arch,
+            'package': package,
+            })
+
+
+def presolve(repo, arch, names):
     result = []
-    reply = _request('GET', ['build', obs_presolve_project.value])
-    for i in reply.findall('entry'):
-        result.append(i.get('name'))
+
+    for package in names:
+        reply = _request('GET', ['resolve'], params={
+            'project': obs_presolve_project.value,
+            'repository': repo,
+            'arch': arch,
+            'package': package,
+            'withdeps': '1',
+            # TODO exclude package might be different on different platforms
+            'exclude': 'sugar',
+            })
+        for pkg in reply.findall('binary'):
+            result.append({
+                # TODO more distros after supporting them PK backend
+                'distributor_id': 'Fedora',
+                'name': pkg.get('name'),
+                'url': pkg.get('url'),
+                })
+
     return result
 
 
@@ -49,8 +120,15 @@ def _request(*args, **kwargs):
     if _client is None:
         _client = http.Client(obs_url.value)
 
-    response = _client.request(*args, **kwargs)
+    response = _client.request(*args, allowed=(400, 404), **kwargs)
     enforce(response.headers.get('Content-Type') == 'text/xml',
             'Irregular OBS response')
     # pylint: disable-msg=E1103
-    return ElementTree.parse(response.raw).getroot()
+    reply = ElementTree.parse(response.raw).getroot()
+
+    if response.status_code != 200:
+        summary = reply.find('summary')
+        enforce(summary is not None, 'Unknown OBS error')
+        raise RuntimeError(summary.text)
+
+    return reply

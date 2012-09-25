@@ -159,7 +159,7 @@ class RemoteMountTest(tests.Test):
             ],
             events)
 
-    def test_Subscription_NotifyOnline(self):
+    def ___test_Subscription_NotifyOnline(self):
         self.start_ipc_and_restful_server()
         remote = IPCClient(mountpoint='/')
         local = IPCClient(mountpoint='~')

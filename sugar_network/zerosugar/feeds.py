@@ -13,14 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import json
 import logging
 from os.path import isabs
 
 from zeroinstall.injector import model
 
 from sugar_network.zerosugar import lsb_release, parse_version
-from active_toolkit import util, enforce
+from active_toolkit import util
 
 
 clients = []
@@ -35,14 +34,9 @@ def read(context):
     client = None
     for client in clients:
         try:
-            blob = client.get(['context', context, 'feed'], cmd='get_blob')
-            enforce(blob is not None, 'Feed not found')
-            if 'path' in blob:
-                with file(blob['path']) as f:
-                    feed_content = json.load(f)
-            else:
-                feed_content = blob
-            _logger.debug('Found %r feed in %r mountpoint',
+            feed_content = client.get(['context', context],
+                    reply=['versions', 'packages'])
+            _logger.debug('Found %r in %r mountpoint',
                     context, client.params['mountpoint'])
             break
         except Exception:
@@ -54,13 +48,11 @@ def read(context):
         _logger.warning('No feed for %r context', context)
         return None
 
-    packages = feed_content.get('packages') or {}
-    distro = packages.get(lsb_release.distributor_id())
+    distro = feed_content['packages'].get(lsb_release.distributor_id())
     if distro:
         feed.to_resolve = distro.get('binary')
 
-    versions = feed_content.get('versions') or {}
-    for version, version_data in versions.items():
+    for version, version_data in feed_content['versions'].items():
         for arch, impl_data in version_data.items():
             impl_id = impl_data['guid']
 

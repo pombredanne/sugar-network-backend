@@ -20,7 +20,7 @@ from os.path import isabs, exists, join, basename, isdir
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network.zerosugar import Bundle, Spec
+from sugar_network.zerosugar import Bundle
 from sugar_network.local import activities, cache
 from sugar_network.resources.volume import Request
 from sugar_network import local, checkin, sugar, Client
@@ -116,47 +116,12 @@ class HomeMount(LocalMount):
 
     @ad.property_command(method='GET', cmd='get_blob')
     def get_blob(self, document, guid, prop, request=None):
-        if document == 'context' and prop == 'feed':
-            return self._get_feed(request)
-        elif document == 'implementation' and prop == 'data':
+        if document == 'implementation' and prop == 'data':
             path = activities.guid_to_path(guid)
             if exists(path):
                 return {'path': path}
         else:
             return LocalMount.get_blob(self, document, guid, prop, request)
-
-    def _get_feed(self, request):
-        versions = {}
-
-        for path in activities.checkins(request['guid']):
-            try:
-                spec = Spec(root=path)
-            except Exception:
-                util.exception(_logger, 'Failed to read %r spec file', path)
-                continue
-
-            if request.access_level == ad.ACCESS_LOCAL:
-                impl_id = spec.root
-            else:
-                impl_id = activities.path_to_guid(spec.root)
-
-            versions[spec['version']] = {
-                    '*-*': {
-                        'guid': impl_id,
-                        'stability': 'stable',
-                        'commands': {
-                            'activity': {
-                                'exec': spec['Activity', 'exec'],
-                                },
-                            },
-                        'requires': spec.requires,
-                        },
-                    }
-
-        if not versions:
-            return None
-        else:
-            return {'versions': versions}
 
     def _events_cb(self, event):
         found_commons = False

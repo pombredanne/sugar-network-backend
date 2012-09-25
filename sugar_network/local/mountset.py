@@ -112,29 +112,9 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
                         content={'keep': True}),
                     ad.Response())
 
-    @ad.volume_command(method='GET', cmd='requires')
-    def requires(self, mountpoint, context):
-        mount = self.get(mountpoint)
-        enforce(mount is not None, 'No such mountpoint')
-        mount.mounted.wait()
-
-        requires = set()
-
-        for guid in [context] if isinstance(context, basestring) else context:
-            feed = mount.call(
-                    Request(method='GET', document='context', guid=guid,
-                        prop='feed', accept_language=[self._lang]),
-                    ad.Response())
-            for impls in feed.values():
-                for impl in impls.values():
-                    if 'requires' in impl:
-                        requires.update(impl['requires'].keys())
-
-        return list(requires)
-
     def super_call(self, request, response):
         if 'mountpoint' in request:
-            mountpoint = request.pop('mountpoint')
+            mountpoint = request.mountpoint = request.pop('mountpoint')
         else:
             mountpoint = '/'
         mount = self[mountpoint]

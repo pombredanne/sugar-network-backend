@@ -16,9 +16,12 @@
 from os.path import join
 
 import active_document as ad
-
 from sugar_network import resources, static
+from sugar_network.local import activities
 from sugar_network.resources.volume import Resource
+from sugar_network.zerosugar import Spec
+from sugar_network.node import obs
+from active_toolkit import coroutine, util
 
 
 class Context(Resource):
@@ -87,11 +90,6 @@ class Context(Resource):
     def preview(self, value):
         return value
 
-    @ad.active_property(ad.BlobProperty,
-            permissions=ad.ACCESS_READ, mime_type='application/json')
-    def feed(self, value):
-        return value
-
     @ad.active_property(prefix='K', typecast=bool, default=False)
     def keep(self, value):
         return value
@@ -102,6 +100,57 @@ class Context(Resource):
 
     @ad.active_property(ad.StoredProperty, typecast=[int], default=(-1, -1))
     def position(self, value):
+        return value
+
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    def versions(self, value):
+        if self.request.mountpoint != '~':
+            return value
+
+        versions = {}
+
+        for path in activities.checkins(self.guid):
+            try:
+                spec = Spec(root=path)
+            except Exception:
+                util.exception('Failed to read %r spec file', path)
+                continue
+
+            if self.request.access_level == ad.ACCESS_LOCAL:
+                impl_id = spec.root
+            else:
+                impl_id = activities.path_to_guid(spec.root)
+
+            versions[spec['version']] = {
+                    '*-*': {
+                        'guid': impl_id,
+                        'stability': 'stable',
+                        'commands': {
+                            'activity': {
+                                'exec': spec['Activity', 'exec'],
+                                },
+                            },
+                        'requires': spec.requires,
+                        },
+                    }
+
+        return versions
+
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    def aliases(self, value):
+        return value
+
+    @aliases.setter
+    def aliases(self, value):
+        coroutine.spawn(self._process_aliases, value)
+        return value
+
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    def packages(self, value):
+        return value
+
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    def presolve(self, value):
         return value
 
     @classmethod
@@ -117,3 +166,40 @@ class Context(Resource):
     def exclude(cls, directory, layers, request):
         import logging
         logging.error('exclude> %r %r', layers, request.content)
+
+    def _process_aliases(self, aliases):
+        packages = {}
+        for repo in obs.get_repos():
+            alias = aliases.get(repo['distributor_id'])
+            if not alias or '*' not in alias:
+                continue
+            alias = alias['*'].copy()
+            try:
+                to_resolve = alias.get('binary', []) + \
+                        alias.get('devel', [])
+                for arch in repo['arches']:
+                    obs.resolve(repo['name'], arch, to_resolve)
+                alias['status'] = 'success'
+            except Exception, error:
+                util.exception('Failed to resolve %r', alias)
+                alias = {'status': str(error)}
+            packages[repo['name']] = alias
+
+        presolve = {}
+        for repo in obs.get_presolve_repos():
+            alias = aliases.get(repo['distributor_id'])
+            if not alias or '*' not in alias:
+                continue
+            alias = alias['*'].copy()
+            try:
+                for key, names in alias.items():
+                    alias[key] = \
+                            obs.presolve(repo['name'], repo['arch'], names)
+                alias['status'] = 'success'
+            except Exception, error:
+                util.exception('Failed to preresolve %r', alias)
+                alias = {'status': str(error)}
+            presolve[repo['name']] = alias
+
+        self.request.call('PUT', document='context', guid=self.guid,
+                content={'packages': packages, 'presolve': presolve})
