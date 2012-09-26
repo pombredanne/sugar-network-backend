@@ -94,6 +94,8 @@ class Request(dict):
     access_level = env.ACCESS_REMOTE
     accept_language = None
     commands = None
+    #: UNIX seconds of last modification
+    if_modified_since = None
 
     def __init__(self, *args, **props):
         if args:
@@ -153,6 +155,8 @@ class Response(dict):
 
     content_length = None
     content_type = None
+    #: UNIX seconds of last modification
+    last_modified = None
 
     def __init__(self, *args, **props):
         if args:

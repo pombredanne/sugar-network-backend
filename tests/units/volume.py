@@ -288,7 +288,7 @@ class VolumeTest(tests.Test):
                 sorted(['guid', 'prop']),
                 sorted(self.call('GET', document='testdocument', reply=['prop'])['result'][0].keys()))
 
-    def test_Command_GetBlobBySeqno(self):
+    def test_Command_NotModifiedGet(self):
 
         class TestDocument(Document):
 
@@ -300,34 +300,35 @@ class VolumeTest(tests.Test):
             def blob(self, value):
                 return value
 
-            @active_property(prefix='L', localized=True, default='')
-            def localized_prop(self, value):
-                return value
-
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
 
-        # seqno == 1
         guid = self.call('POST', document='testdocument', content={})
-        # seqno == 2
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content_stream=StringIO('value'))
+        doc = self.volume['testdocument'].get(guid)
 
-        blob = self.call('GET', document='testdocument', guid=guid, prop='blob')
-        self.assertEqual('value', ''.join(blob))
-        self.assertEqual(len('value'), self.response.content_length)
+        try:
+            self.call('GET', document='testdocument', guid=guid, prop='prop', if_modified_since=doc.meta('prop')['mtime'])
+            assert False
+        except ad.NotModified:
+            pass
+        try:
+            self.call('GET', document='testdocument', guid=guid, prop='prop', if_modified_since=doc.meta('prop')['mtime'] + 1)
+            assert False
+        except ad.NotModified:
+            pass
+        self.call('GET', document='testdocument', guid=guid, prop='prop', if_modified_since=doc.meta('prop')['mtime'] - 1)
 
-        blob = self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=0)
-        self.assertEqual('value', ''.join(blob))
-        self.assertEqual(len('value'), self.response.content_length)
-
-        blob = self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=1)
-        self.assertEqual('value', ''.join(blob))
-        self.assertEqual(len('value'), self.response.content_length)
-
-        self.assertEqual(None, self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=2))
-        self.assertEqual(0, self.response.content_length)
-
-        self.assertEqual(None, self.call('GET', document='testdocument', guid=guid, prop='blob', seqno=22))
-        self.assertEqual(0, self.response.content_length)
+        try:
+            self.call('GET', document='testdocument', guid=guid, prop='blob', if_modified_since=doc.meta('blob')['mtime'])
+            assert False
+        except ad.NotModified:
+            pass
+        try:
+            self.call('GET', document='testdocument', guid=guid, prop='blob', if_modified_since=doc.meta('blob')['mtime'] + 1)
+            assert False
+        except ad.NotModified:
+            pass
+        self.call('GET', document='testdocument', guid=guid, prop='blob', if_modified_since=doc.meta('blob')['mtime'] - 1)
 
     def test_LocalizedSet(self):
         env.DEFAULT_LANG = 'en'
@@ -957,7 +958,8 @@ class VolumeTest(tests.Test):
         self.assertEqual('0!1!', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
 
     def call(self, method, document=None, guid=None, prop=None,
-            accept_language=None, content=None, content_stream=None, **kwargs):
+            accept_language=None, content=None, content_stream=None,
+            if_modified_since=None, **kwargs):
 
         class TestRequest(Request):
 
@@ -968,6 +970,7 @@ class VolumeTest(tests.Test):
         request.content = content
         request.content_stream = content_stream
         request.accept_language = accept_language
+        request.if_modified_since = if_modified_since
         request['method'] = method
         if document:
             request['document'] = document

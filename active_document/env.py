@@ -112,6 +112,10 @@ class Redirect(Exception):
         Exception.__init__(self, *args, **kwargs)
 
 
+class NotModified(Exception):
+    pass
+
+
 class Query(object):
 
     def __init__(self, offset=None, limit=None, query='', reply=None,

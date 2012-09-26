@@ -17,3 +17,4 @@
 - IndexProxy should be smarter to take into account sorting of cached documents
 - (?) sugar-datastore like file storage optimizer
 - (?) multilingual order_by
+- (?) after processing Last-Modified/If-Modified-Since in get_prop() command, no need in setting seqno per property

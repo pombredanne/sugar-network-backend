@@ -187,13 +187,19 @@ class VolumeCommands(CommandsProcessor):
         doc = self.volume[document].get(guid)
         return self._get_props(doc, request)
 
-    @property_command(method='GET', arguments={'seqno': to_int})
-    def get_prop(self, document, guid, prop, request, response, seqno=None,
-            part=None):
+    @property_command(method='GET')
+    def get_prop(self, document, guid, prop, request, response, part=None):
         directory = self.volume[document]
         prop = directory.metadata[prop]
         doc = directory.get(guid)
         doc.request = request
+        meta = doc.meta(prop.name)
+
+        if meta is not None:
+            if request.if_modified_since:
+                if meta['mtime'] <= request.if_modified_since:
+                    raise env.NotModified()
+            response.last_modified = meta['mtime']
 
         prop.assert_access(env.ACCESS_READ)
 
@@ -201,7 +207,7 @@ class VolumeCommands(CommandsProcessor):
             value = doc.get(prop.name, request.accept_language or self._lang)
             return prop.on_get(doc, value)
 
-        meta = prop.on_get(doc, doc.meta(prop.name))
+        meta = prop.on_get(doc, meta)
         enforce(meta is not None, env.NotFound, 'BLOB does not exist')
 
         url = meta.url(part)
@@ -212,11 +218,6 @@ class VolumeCommands(CommandsProcessor):
             raise env.Redirect(url)
 
         enforce('path' in meta, env.NotFound, 'BLOB does not exist')
-
-        if seqno is not None and seqno >= meta['seqno']:
-            response.content_length = 0
-            response.content_type = prop.mime_type
-            return None
 
         path = meta['path']
         if isdir(path):
