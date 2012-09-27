@@ -243,15 +243,14 @@ class VolumeTest(tests.Test):
             def blob(self, value):
                 return value
 
-            @active_property(prefix='L', localized=True, default='')
-            def localized_prop(self, value):
-                return value
-
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
 
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
         self.assertEqual('value', self.call('GET', document='testdocument', guid=guid, prop='prop'))
         self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+        self.assertEqual(
+                {'blob': ad.PropertyMeta()},
+                self.call('GET', document='testdocument', guid=guid, reply=['blob']))
 
     def test_Command_ReplyForGET(self):
 

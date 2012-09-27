@@ -16,7 +16,7 @@
 import logging
 
 from active_document import env
-from active_document.metadata import StoredProperty
+from active_document.metadata import StoredProperty, PropertyMeta
 from active_document.metadata import active_property
 
 
@@ -63,11 +63,11 @@ class Document(object):
         value = self.props.get(prop.name)
         if value is None and self._record is not None:
             meta = self._record.get(prop.name)
-            if meta is not None:
-                if isinstance(prop, StoredProperty):
+            if isinstance(prop, StoredProperty):
+                if meta is not None:
                     value = meta.get('value')
-                else:
-                    value = meta
+            else:
+                value = meta or PropertyMeta()
             self.props[prop.name] = value
 
         if value is not None and accept_language:

@@ -16,6 +16,7 @@ import gobject
 
 from __init__ import tests
 
+import active_document as ad
 from active_document import document, storage, env, index
 from active_document import directory as directory_
 from active_document.directory import Directory
@@ -172,7 +173,7 @@ class DocumentTest(tests.Test):
         guid = directory.create({})
         blob_path = join(tests.tmpdir, guid[:2], guid, 'blob')
 
-        self.assertEqual(None, directory.get(guid).blob)
+        self.assertEqual(ad.PropertyMeta(), directory.get(guid).blob)
         self.assertRaises(RuntimeError, directory.update, guid, {'blob': 'foo'})
 
         data = 'payload'
