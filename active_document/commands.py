@@ -96,6 +96,7 @@ class Request(dict):
     commands = None
     #: UNIX seconds of last modification
     if_modified_since = None
+    response = None
 
     def __init__(self, *args, **props):
         if args:
@@ -210,6 +211,7 @@ class CommandsProcessor(object):
                 'Operation is permitted on requester\'s level')
 
         request.commands = self
+        request.response = response
 
         for arg, cast in cmd.arguments.items():
             if arg not in request:
