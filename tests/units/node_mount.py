@@ -4,6 +4,7 @@
 import os
 import json
 import socket
+import urllib2
 import zipfile
 from os.path import exists, abspath, join
 
@@ -277,9 +278,9 @@ class NodeMountTest(tests.Test):
     def test_upload_blob(self):
         mounts = self.start_server()
         mounts[tests.tmpdir + '/mnt'].mounted.wait()
-        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
+        client = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid = remote.post(['context'], {
+        guid = client.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
@@ -287,44 +288,63 @@ class NodeMountTest(tests.Test):
             })
 
         self.touch(('file', 'blob'))
-        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob', file(blob['path']).read())
+        client.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
+        self.assertEqual('blob', client.get(['context', guid, 'preview']).content)
 
         self.touch(('file2', 'blob2'))
-        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file2'), pass_ownership=True)
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob2', file(blob['path']).read())
+        client.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file2'), pass_ownership=True)
+        self.assertEqual('blob2', client.get(['context', guid, 'preview']).content)
         assert not exists('file2')
 
-    def test_GetAbsentBLOB(self):
+    def test_GetBLOBs(self):
         mounts = self.start_server()
         mounts[tests.tmpdir + '/mnt'].mounted.wait()
-        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
+        client = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid = remote.post(['report'], {
-            'context': 'context',
-            'implementation': 'implementation',
-            'description': 'description',
-            })
-
-        self.assertEqual(None, remote.get(['report', guid, 'data'], cmd='get_blob'))
-
-    def test_GetDefaultBLOB(self):
-        mounts = self.start_server()
-        mounts[tests.tmpdir + '/mnt'].mounted.wait()
-        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
-
-        guid = remote.post(['context'], {
+        guid = client.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
 
-        blob = remote.get(['context', guid, 'icon'], cmd='get_blob')
-        assert blob['path'].endswith('missing.png')
-        assert exists(blob['path'])
+        self.touch(('file', 'icon-blob'))
+        client.put(['context', guid, 'icon'], cmd='upload_blob', path=abspath('file'))
+
+        self.assertEqual(
+                'icon-blob',
+                client.get(['context', guid, 'icon']).content)
+        blob_url = 'http://localhost:%s/context/%s/icon?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')
+        self.assertEqual(
+                [{'guid': guid, 'icon': blob_url}],
+                client.get(['context'], reply=['icon'])['result'])
+        self.assertEqual(
+                {'icon': blob_url},
+                client.get(['context', guid], reply=['icon']))
+        self.assertEqual(
+                'icon-blob',
+                urllib2.urlopen(blob_url).read())
+
+    def test_GetAbsentBLOBs(self):
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        client = IPCClient(mountpoint=tests.tmpdir + '/mnt')
+
+        guid = client.post(['report'], {
+            'context': 'context',
+            'implementation': 'implementation',
+            'description': 'description',
+            })
+
+        self.assertRaises(RuntimeError, client.get, ['report', guid, 'data'])
+        blob_url = 'http://localhost:%s/report/%s/data?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')
+        self.assertEqual(
+                [{'guid': guid, 'data': blob_url}],
+                client.get(['report'], reply=['data'])['result'])
+        self.assertEqual(
+                {'data': blob_url},
+                client.get(['report', guid], reply=['data']))
+        self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
 
     def test_get_blob_ExtractImplementations(self):
         Volume.RESOURCES = [

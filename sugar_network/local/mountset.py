@@ -172,41 +172,6 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
         if self.volume is not None:
             self.volume.close()
 
-    @ad.directory_command_pre(method='GET', arguments={'reply': ad.to_list})
-    def _Mountset_find_pre(self, request):
-        self._exclude_blobs(request)
-
-    @ad.directory_command_post(method='GET')
-    def _Mountset_find_post(self, request, response, result):
-        self._include_blobs(request, result['result'])
-        return result
-
-    @ad.document_command_pre(method='GET', arguments={'reply': ad.to_list})
-    def _Mountset_get_pre(self, request):
-        self._exclude_blobs(request)
-
-    @ad.document_command_post(method='GET')
-    def _Mountset_get_post(self, request, response, result):
-        self._include_blobs(request, [result])
-        return result
-
-    def _exclude_blobs(self, request):
-        reply = request.get('reply')
-        if reply:
-            reply_set = set(reply)
-            request.blobs = reply_set & self.get_blobs(request['document'])
-            if request.blobs:
-                reply[:] = list(reply_set - request.blobs)
-
-    def _include_blobs(self, request, result):
-        if not request.blobs:
-            return
-        for props in result:
-            guid = props.get('guid') or request['guid']
-            for name in request.blobs:
-                props[name] = 'http://localhost:%s/%s/%s/%s' % \
-                        (local.ipc_port.value, request['document'], guid, name)
-
     def _discover_masters(self):
         for host in zeroconf.browse_workstations():
             url = 'http://%s:%s' % (host, node.port.default)

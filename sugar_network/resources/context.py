@@ -63,7 +63,7 @@ class Context(Resource):
 
     @ad.active_property(ad.BlobProperty, mime_type='image/png')
     def icon(self, value):
-        if value is None:
+        if not value:
             if 'package' in self['type']:
                 return ad.PropertyMeta(
                         url='/static/images/package.png',
@@ -79,7 +79,7 @@ class Context(Resource):
 
     @ad.active_property(ad.BlobProperty, mime_type='image/svg+xml')
     def artifact_icon(self, value):
-        if value is None:
+        if not value:
             return ad.PropertyMeta(
                     url='/static/images/missing.svg',
                     path=join(static.PATH, 'images', 'missing.svg'),

@@ -19,9 +19,10 @@ from os.path import join
 
 import active_document as ad
 from active_document import directory as ad_directory
-from active_toolkit import coroutine
+from sugar_network import local
 from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
+from active_toolkit import coroutine
 
 
 ad_directory._LAYOUT_VERSION = 2
@@ -32,7 +33,6 @@ _logger = logging.getLogger('resources.volume')
 
 class Request(ad.Request):
 
-    blobs = None
     mountpoint = None
 
 
@@ -148,7 +148,6 @@ class Commands(object):
 
     def __init__(self):
         self._notifier = coroutine.AsyncResult()
-        self._blobs = {}
         self.connect(lambda event: self._notify(event))
 
     def connect(self, callback, condition=None, **kwargs):
@@ -167,14 +166,35 @@ class Commands(object):
         response['Cache-Control'] = 'no-cache'
         return self._pull_events(only_commits)
 
-    def get_blobs(self, document):
-        blobs = self._blobs.get(document)
-        if blobs is None:
-            blobs = self._blobs[document] = set()
-            for prop in self.volume[document].metadata.values():
-                if isinstance(prop, ad.BlobProperty):
-                    blobs.add(prop.name)
-        return blobs
+    @ad.directory_command_post(method='GET')
+    def _Commands_find_post(self, request, response, result):
+        self._mixin_blobs(request, result['result'])
+        return result
+
+    @ad.document_command_post(method='GET')
+    def _Commands_get_post(self, request, response, result):
+        self._mixin_blobs(request, [result])
+        return result
+
+    def _mixin_blobs(self, request, result):
+        if hasattr(request, 'environ'):
+            prefix = 'http://' + request.environ['HTTP_HOST']
+        else:
+            prefix = 'http://localhost:%s' % local.ipc_port.value
+        if request.mountpoint in (None, '/'):
+            postfix = ''
+        else:
+            postfix = '?mountpoint=' + request.mountpoint
+        document = request['document']
+
+        for props in result:
+            guid = props.get('guid') or request['guid']
+            for name, value in props.items():
+                if not isinstance(value, ad.PropertyMeta):
+                    continue
+                props[name] = value.url(
+                        default='/'.join(['', document, guid, name]) + postfix,
+                        prefix=prefix)
 
     def _pull_events(self, only_commits):
         # Otherwise, gevent's WSGI server doesn't sent HTTP status

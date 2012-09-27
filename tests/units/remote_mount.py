@@ -4,6 +4,7 @@
 import os
 import json
 import socket
+import urllib2
 from cStringIO import StringIO
 from os.path import exists, abspath
 
@@ -159,7 +160,7 @@ class RemoteMountTest(tests.Test):
             ],
             events)
 
-    def ___test_Subscription_NotifyOnline(self):
+    def test_Subscription_NotifyOnline(self):
         self.start_ipc_and_restful_server()
         remote = IPCClient(mountpoint='/')
         local = IPCClient(mountpoint='~')
@@ -170,6 +171,7 @@ class RemoteMountTest(tests.Test):
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
+            'keep': True,
             })
 
         def read_events():
@@ -178,13 +180,14 @@ class RemoteMountTest(tests.Test):
                     event.pop('props')
                 events.append(event)
 
+        coroutine.sleep(1)
         job = coroutine.spawn(read_events)
         local.put(['context', guid], {'keep': False})
-        coroutine.sleep(.5)
+        coroutine.sleep(1)
         job.kill()
 
         self.assertEqual([
-            {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 1},
+            {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 4},
             ],
             events)
 
@@ -255,16 +258,45 @@ class RemoteMountTest(tests.Test):
 
         self.touch(('file', 'blob'))
         remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob', file(blob['path']).read())
+        self.assertEqual('blob', remote.get(['context', guid, 'preview']).content)
 
         self.touch(('file2', 'blob2'))
         remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file2'), pass_ownership=True)
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob2', file(blob['path']).read())
+        self.assertEqual('blob2', remote.get(['context', guid, 'preview']).content)
         assert not exists('file2')
 
-    def test_GetAbsentBLOB(self):
+    def test_GetBLOBs(self):
+        self.start_ipc_and_restful_server()
+        remote = IPCClient(mountpoint='/')
+
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.touch(('file', 'icon-blob'))
+        remote.put(['context', guid, 'icon'], cmd='upload_blob', path=abspath('file'))
+        self.touch(('file', 'preview-blob'))
+        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
+
+        self.assertEqual(
+                'preview-blob',
+                remote.get(['context', guid, 'preview']).content)
+        assert local.ipc_port.value != 8800
+        url_prefix = 'http://localhost:8800/context/' + guid
+        self.assertEqual(
+                [{'guid': guid, 'icon': url_prefix + '/icon', 'preview': url_prefix + '/preview'}],
+                remote.get(['context'], reply=['icon', 'preview'])['result'])
+        self.assertEqual(
+                {'icon': url_prefix + '/icon', 'preview': url_prefix + '/preview'},
+                remote.get(['context', guid], reply=['icon', 'preview']))
+        self.assertEqual(
+                'icon-blob',
+                urllib2.urlopen(url_prefix + '/icon').read())
+
+    def test_GetAbsentBLOBs(self):
         self.start_ipc_and_restful_server([User, Report])
         remote = IPCClient(mountpoint='/')
 
@@ -274,79 +306,15 @@ class RemoteMountTest(tests.Test):
             'description': 'description',
             })
 
-        self.assertEqual(None, remote.get(['report', guid, 'data'], cmd='get_blob'))
-
-    def test_GetDefaultBLOB(self):
-        self.start_ipc_and_restful_server()
-        remote = IPCClient(mountpoint='/')
-
-        guid = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-
-        blob = remote.get(['context', guid, 'icon'], cmd='get_blob')
-        assert not blob['path'].endswith('missing.png')
-        assert exists(blob['path'])
-        assert file(blob['path'], 'rb').read() == file('../../../sugar_network/static/images/missing.png', 'rb').read()
-
-    def test_StaleBLOBs(self):
-        self.start_ipc_and_restful_server()
-        remote = IPCClient(mountpoint='/')
-
-        guid = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-
-        self.touch(('file', 'blob-1'))
-        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob-1', file(blob['path']).read())
-
-        cache_path = 'cache/context/%s/%s/preview' % (guid[:2], guid)
-        self.touch((cache_path, 'blob-2'))
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob-2', file(blob['path']).read())
-        seqno = json.load(file(cache_path + '.meta'))['seqno']
-
-        self.touch(('file', 'blob-3'))
-        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob-3', file(blob['path']).read())
-        assert seqno < json.load(file(cache_path + '.meta'))['seqno']
-
-    def test_DoNotStaleBLOBs(self):
-        self.start_ipc_and_restful_server()
-        remote = IPCClient(mountpoint='/')
-
-        guid = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-
-        self.touch(('file', 'blob-1'))
-        remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob-1', file(blob['path']).read())
-
-        cache_path = 'cache/context/%s/%s/preview' % (guid[:2], guid)
-        self.touch((cache_path, 'blob-2'))
-        seqno = json.load(file(cache_path + '.meta'))['seqno']
-
-        # Shift seqno
-        remote.put(['context', guid], {'title': 'title-2'})
-        coroutine.sleep(1)
-
-        blob = remote.get(['context', guid, 'preview'], cmd='get_blob')
-        self.assertEqual('blob-2', file(blob['path']).read())
-        assert seqno < json.load(file(cache_path + '.meta'))['seqno']
+        self.assertRaises(RuntimeError, remote.get, ['report', guid, 'data'])
+        blob_url = 'http://localhost:8800/report/%s/data' % guid
+        self.assertEqual(
+                [{'guid': guid, 'data': blob_url}],
+                remote.get(['report'], reply=['data'])['result'])
+        self.assertEqual(
+                {'data': blob_url},
+                remote.get(['report', guid], reply=['data']))
+        self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
 
 
 if __name__ == '__main__':

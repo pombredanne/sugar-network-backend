@@ -20,6 +20,7 @@
   - zerosugar/pipe.py uses several mountpoints
   - what mountpoints for deps
 - if feed contains regular implementations and packages, solve() will reuse implementations and there is no way to use packages
+- get rid of get_blob, cache only Implementation.data
 
 1.0
 ===

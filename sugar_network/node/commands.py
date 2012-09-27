@@ -135,30 +135,13 @@ class NodeCommands(ad.VolumeCommands, Commands):
             layer.remove('deleted')
         request['layer'] = layer
 
-    @ad.directory_command_post(method='GET')
-    def _NodeCommands_find_post(self, request, response, result):
-        self._mixin_blobs(request, result['result'])
-        return result
-
     @ad.document_command_post(method='GET')
     def _NodeCommands_get_post(self, request, response, result):
         directory = self.volume[request['document']]
         doc = directory.get(request['guid'])
         enforce('deleted' not in doc['layer'], ad.NotFound,
                 'Document deleted')
-        self._mixin_blobs(request, [result])
         return result
-
-    def _mixin_blobs(self, request, result):
-        document = request['document']
-        for props in result:
-            guid = props.get('guid') or request['guid']
-            for name, value in props.items():
-                if not isinstance(value, ad.PropertyMeta):
-                    continue
-                props[name] = value.url(
-                        default='/'.join(['', document, guid, name]),
-                        prefix='http://' + request.environ['HTTP_HOST'])
 
     def _set_author(self, props):
         users = self.volume['user']
