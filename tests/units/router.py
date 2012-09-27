@@ -6,6 +6,7 @@ import time
 import urllib2
 import hashlib
 import tempfile
+from email.utils import formatdate
 from cStringIO import StringIO
 from os.path import exists
 
@@ -318,6 +319,103 @@ class RouterTest(tests.Test):
         self.override(ad, 'default_lang', lambda: 'foo')
         client = Client('http://localhost:8800', sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
+
+    def test_IfModifiedSince(self):
+
+        class TestDocument(Document):
+
+            @ad.active_property(slot=100, typecast=int)
+            def prop(self, value):
+                if not self.request.if_modified_since or self.request.if_modified_since >= value:
+                    return value
+                else:
+                    raise ad.NotModified()
+
+        self.start_master([User, TestDocument])
+        client = Client('http://localhost:8800', sugar_auth=True)
+
+        guid = client.post(['testdocument'], {'prop': 10})
+        self.assertEqual(
+                200,
+                client.request('GET', ['testdocument', guid, 'prop']).status_code)
+        self.assertEqual(
+                200,
+                client.request('GET', ['testdocument', guid, 'prop'], headers={
+                    'If-Modified-Since': formatdate(11, localtime=False, usegmt=True),
+                    }).status_code)
+        self.assertEqual(
+                304,
+                client.request('GET', ['testdocument', guid, 'prop'], headers={
+                    'If-Modified-Since': formatdate(9, localtime=False, usegmt=True),
+                    }).status_code)
+
+    def test_LastModified(self):
+
+        class TestDocument(Document):
+
+            @ad.active_property(slot=100, typecast=int)
+            def prop1(self, value):
+                self.request.response.last_modified = value
+                return value
+
+            @ad.active_property(slot=101, typecast=int)
+            def prop2(self, value):
+                return value
+
+        self.start_master([User, TestDocument])
+        client = Client('http://localhost:8800', sugar_auth=True)
+
+        guid = client.post(['testdocument'], {'prop1': 10, 'prop2': 20})
+        self.assertEqual(
+                formatdate(10, localtime=False, usegmt=True),
+                client.request('GET', ['testdocument', guid, 'prop1']).headers['Last-Modified'])
+        mtime = os.stat('master/testdocument/%s/%s/prop2' % (guid[:2], guid)).st_mtime
+        self.assertEqual(
+                formatdate(mtime, localtime=False, usegmt=True),
+                client.request('GET', ['testdocument', guid, 'prop2']).headers['Last-Modified'])
+
+    def test_StaticFiles(self):
+
+        class TestDocument(Document):
+            pass
+
+        self.start_master([User, TestDocument])
+        client = Client('http://localhost:8800', sugar_auth=True)
+        guid = client.post(['testdocument'], {})
+
+        local_path = '../../../sugar_network/static/images/missing.png'
+        response = client.request('GET', ['static', 'images', 'missing.png'])
+        self.assertEqual(200, response.status_code)
+        assert file(local_path).read() == response.content
+        self.assertEqual(
+                formatdate(os.stat(local_path).st_mtime, localtime=False, usegmt=True),
+                response.headers['Last-Modified'])
+
+    def test_StaticFilesIfModifiedSince(self):
+
+        class TestDocument(Document):
+            pass
+
+        self.start_master([User, TestDocument])
+        client = Client('http://localhost:8800', sugar_auth=True)
+        guid = client.post(['testdocument'], {})
+
+        mtime = os.stat('../../../sugar_network/static/images/missing.png').st_mtime
+        self.assertEqual(
+                304,
+                client.request('GET', ['static', 'images', 'missing.png'], headers={
+                    'If-Modified-Since': formatdate(mtime, localtime=False, usegmt=True),
+                    }).status_code)
+        self.assertEqual(
+                200,
+                client.request('GET', ['static', 'images', 'missing.png'], headers={
+                    'If-Modified-Since': formatdate(mtime - 1, localtime=False, usegmt=True),
+                    }).status_code)
+        self.assertEqual(
+                304,
+                client.request('GET', ['static', 'images', 'missing.png'], headers={
+                    'If-Modified-Since': formatdate(mtime + 1, localtime=False, usegmt=True),
+                    }).status_code)
 
 
 class Document(ad.Document):

@@ -69,27 +69,65 @@ class Client(object):
 
     def get(self, path_=None, **kwargs):
         kwargs.update(self.params)
-        return self.request('GET', path_, params=kwargs)
+        response = self.request('GET', path_, params=kwargs)
+        return self._decode_response(response)
 
     def post(self, path_=None, data_=None, **kwargs):
         kwargs.update(self.params)
-        return self.request('POST', path_, data_,
+        response = self.request('POST', path_, data_,
                 headers={'Content-Type': 'application/json'}, params=kwargs)
+        return self._decode_response(response)
 
     def put(self, path_=None, data_=None, **kwargs):
         kwargs.update(self.params)
-        return self.request('PUT', path_, data_,
+        response = self.request('PUT', path_, data_,
                 headers={'Content-Type': 'application/json'}, params=kwargs)
+        return self._decode_response(response)
 
     def delete(self, path_=None, **kwargs):
         kwargs.update(self.params)
-        return self.request('DELETE', path_, params=kwargs)
+        response = self.request('DELETE', path_, params=kwargs)
+        return self._decode_response(response)
 
-    def request(self, method, path=None, data=None, headers=None, **kwargs):
-        response = self._request(method, path, data, headers, **kwargs)
-        if response.headers.get('Content-Type') == 'application/json':
-            return json.loads(response.content)
-        else:
+    def request(self, method, path=None, data=None, headers=None, allowed=None,
+            **kwargs):
+        if not path:
+            path = ['']
+        if not isinstance(path, basestring):
+            path = '/'.join([i.strip('/') for i in [self.api_url] + path])
+
+        if data is not None and headers and \
+                headers.get('Content-Type') == 'application/json':
+            data = json.dumps(data)
+
+        while True:
+            try:
+                response = requests.request(method, path, data=data,
+                        headers=headers, session=self._session, **kwargs)
+            except requests.exceptions.SSLError:
+                _logger.warning('Use --no-check-certificate to avoid checks')
+                raise
+
+            if response.status_code != 200:
+                if response.status_code == 401:
+                    enforce(self._sugar_auth,
+                            'Operation is not available in anonymous mode')
+                    _logger.info('User is not registered on the server, '
+                            'registering')
+                    self._register()
+                    continue
+                if allowed and response.status_code in allowed:
+                    return response
+                content = response.content
+                try:
+                    error = json.loads(content)
+                except Exception:
+                    _logger.debug('Got %s HTTP error for %r request:\n%s',
+                            response.status_code, path, content)
+                    response.raise_for_status()
+                else:
+                    raise RuntimeError(error['error'])
+
             return response
 
     def call(self, request):
@@ -105,8 +143,9 @@ class Client(object):
         if prop:
             path.append(prop)
 
-        return self.request(method, path, data=request.content, params=params,
-                headers={'Content-Type': 'application/json'})
+        response = self.request(method, path, data=request.content,
+                params=params, headers={'Content-Type': 'application/json'})
+        return self._decode_response(response)
 
     def download(self, url_path, out_path, seqno=None, extract=False):
         if isdir(out_path):
@@ -118,7 +157,7 @@ class Client(object):
         if seqno:
             params['seqno'] = seqno
 
-        response = self._request('GET', url_path, allow_redirects=True,
+        response = self.request('GET', url_path, allow_redirects=True,
                 params=params, allowed=[404])
         if response.status_code != 200:
             return 'application/octet-stream'
@@ -176,54 +215,14 @@ class Client(object):
         return mime_type
 
     def subscribe(self):
-        response = self.request('GET', params={'cmd': 'subscribe'})
+        response = self._decode_response(
+                self.request('GET', params={'cmd': 'subscribe'}))
         for line in _readlines(response.raw):
             if line.startswith('data: '):
                 yield json.loads(line.split(' ', 1)[1])
 
-    def _request(self, method, path, data=None, headers=None, allowed=None,
-            **kwargs):
-        if not path:
-            path = ['']
-        if not isinstance(path, basestring):
-            path = '/'.join([i.strip('/') for i in [self.api_url] + path])
-
-        if data is not None and headers and \
-                headers.get('Content-Type') == 'application/json':
-            data = json.dumps(data)
-
-        while True:
-            try:
-                response = requests.request(method, path, data=data,
-                        headers=headers, session=self._session, **kwargs)
-            except requests.exceptions.SSLError:
-                _logger.warning('Use --no-check-certificate to avoid checks')
-                raise
-
-            if response.status_code != 200:
-                if response.status_code == 401:
-                    enforce(self._sugar_auth,
-                            'Operation is not available in anonymous mode')
-                    _logger.info('User is not registered on the server, '
-                            'registering')
-                    self._register()
-                    continue
-                if allowed and response.status_code in allowed:
-                    return response
-                content = response.content
-                try:
-                    error = json.loads(content)
-                except Exception:
-                    _logger.debug('Got %s HTTP error for %r request:\n%s',
-                            response.status_code, path, content)
-                    response.raise_for_status()
-                else:
-                    raise RuntimeError(error['error'])
-
-            return response
-
     def _register(self):
-        self._request('POST', ['user'],
+        self.request('POST', ['user'],
                 headers={
                     'Content-Type': 'application/json',
                     },
@@ -235,6 +234,12 @@ class Client(object):
                     'pubkey': sugar.pubkey(),
                     },
                 )
+
+    def _decode_response(self, response):
+        if response.headers.get('Content-Type') == 'application/json':
+            return json.loads(response.content)
+        else:
+            return response
 
 
 def _sign(key_path, data):

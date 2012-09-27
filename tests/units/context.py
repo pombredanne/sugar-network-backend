@@ -159,16 +159,16 @@ class ContextTest(tests.Test):
 
         self.assertEqual(
                 {'total': 2, 'result': [{'arch': 'x86', 'name': 'Gentoo-2.1'}, {'arch': 'x86_64', 'name': 'Debian-6.0'}]},
-                client.request('GET', ['packages']))
+                client.get(['packages']))
         self.assertEqual(
                 {'total': 2, 'result': ['package1', 'package2']},
-                client.request('GET', ['packages', 'Gentoo-2.1']))
+                client.get(['packages', 'Gentoo-2.1']))
         self.assertEqual(
                 ['package1-1', 'package1-2'],
-                client.request('GET', ['packages', 'Gentoo-2.1', 'package1']))
+                client.get(['packages', 'Gentoo-2.1', 'package1']))
         self.assertEqual(
                 ['package1-3'],
-                client.request('GET', ['packages', 'Debian-6.0', 'package1']))
+                client.get(['packages', 'Debian-6.0', 'package1']))
         self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Debian-6.0', 'package2'])
         self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Gentoo-2.1', 'package3'])
 

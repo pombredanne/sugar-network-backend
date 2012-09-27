@@ -16,8 +16,10 @@
 import os
 import cgi
 import json
+import time
 import types
 import logging
+from email.utils import parsedate, formatdate
 from urlparse import parse_qsl, urlsplit
 from bisect import bisect_left
 from os.path import join, isfile
@@ -125,6 +127,11 @@ class Router(object):
         if request.path[:1] == ['static']:
             static_path = join(static.PATH, *request.path[1:])
             enforce(isfile(static_path), 'No such file')
+            mtime = os.stat(static_path).st_mtime
+            if request.if_modified_since and \
+                    mtime <= request.if_modified_since:
+                raise ad.NotModified()
+            response.last_modified = mtime
             result = file(static_path)
         else:
             rout = None
@@ -162,6 +169,9 @@ class Router(object):
         except ad.Redirect, error:
             response.status = '303 See Other'
             response['Location'] = error.location
+            response.content_type = None
+        except ad.NotModified:
+            response.status = '304 Not Modified'
             response.content_type = None
         except Exception, error:
             util.exception('Error while processing %r request', request.url)
@@ -285,6 +295,13 @@ class _Request(Request):
                         'Multipart request should contain only one file')
                 self.content_stream = files.list[0].file
 
+        if_modified_since = environ.get('HTTP_IF_MODIFIED_SINCE')
+        if if_modified_since:
+            if_modified_since = parsedate(if_modified_since)
+            enforce(if_modified_since is not None,
+                    'Failed to parse If-Modified-Since')
+            self.if_modified_since = time.mktime(if_modified_since)
+
         scope = len(self.path)
         enforce(scope >= 0 and scope < 4, BadRequest,
                 'Incorrect requested path')
@@ -305,24 +322,33 @@ class _Request(Request):
 
 
 class _Response(ad.Response):
+    # pylint: disable-msg=E0202
 
     status = '200 OK'
 
-    def get_content_length(self):
+    @property
+    def content_length(self):
         return self.get('Content-Length')
 
-    def set_content_length(self, value):
+    @content_length.setter
+    def content_length(self, value):
         self['Content-Length'] = value
 
-    content_length = property(get_content_length, set_content_length)
-
-    def get_content_type(self):
+    @property
+    def content_type(self):
         return self.get('Content-Type')
 
-    def set_content_type(self, value):
+    @content_type.setter
+    def content_type(self, value):
         self['Content-Type'] = value
 
-    content_type = property(get_content_type, set_content_type)
+    @property
+    def last_modified(self):
+        return self.get('Last-Modified')
+
+    @last_modified.setter
+    def last_modified(self, value):
+        self['Last-Modified'] = formatdate(value, localtime=False, usegmt=True)
 
     def items(self):
         for key, value in dict.items(self):
@@ -331,6 +357,11 @@ class _Response(ad.Response):
                     yield key, str(i)
             else:
                 yield key, str(value)
+
+    def __repr__(self):
+        args = ['status=%r' % self.status,
+                ] + ['%s=%r' % i for i in self.items()]
+        return '<active_document.Response %s>' % ' '.join(args)
 
 
 def _parse_accept_language(accept_language):
