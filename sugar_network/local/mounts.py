@@ -358,6 +358,8 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             finally:
                 _logger.info('Got disconnected from %r master', url)
                 _Mount.set_mounted(self, False)
+                self._client.close()
+                self._client = None
 
 
 class NodeMount(LocalMount, _ProxyCommands):

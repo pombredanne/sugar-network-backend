@@ -89,6 +89,7 @@ class Test(unittest.TestCase):
         stats.stats_rras.value = ['RRA:AVERAGE:0.5:1:100']
         stats._cache.clear()
         obs._client = None
+        http._RECONNECTION_NUMBER = 0
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',
