@@ -23,7 +23,7 @@ from sugar_network.toolkit import sugar
 
 api_url = Option(
         'url to connect to Sugar Network server API',
-        default='http://api-testing.network.sugarlabs.org', short_option='-a',
+        default='http://api-devel.network.sugarlabs.org', short_option='-a',
         name='api-url')
 
 certfile = Option(
