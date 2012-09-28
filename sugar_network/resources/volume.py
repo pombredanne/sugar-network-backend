@@ -154,7 +154,7 @@ class Commands(object):
         raise NotImplementedError()
 
     @ad.volume_command(method='GET', cmd='subscribe')
-    def subscribe(self, response, only_commits=False):
+    def subscribe(self, request, response, only_commits=False):
         """Subscribe to Server-Sent Events.
 
         :param only_commits:
@@ -164,7 +164,10 @@ class Commands(object):
         """
         response.content_type = 'text/event-stream'
         response['Cache-Control'] = 'no-cache'
-        return self._pull_events(only_commits)
+        peer = 'anonymous'
+        if hasattr(request, 'environ'):
+            peer = request.environ.get('HTTP_SUGAR_USER') or peer
+        return self._pull_events(peer, only_commits)
 
     @ad.directory_command_post(method='GET')
     def _Commands_find_post(self, request, response, result):
@@ -196,22 +199,24 @@ class Commands(object):
                         default='/'.join(['', document, guid, name]) + postfix,
                         prefix=prefix)
 
-    def _pull_events(self, only_commits):
+    def _pull_events(self, peer, only_commits):
+        _logger.debug('Start pulling events to %s user', peer)
         # Otherwise, gevent's WSGI server doesn't sent HTTP status
         yield '\n'
 
-        while True:
-            event = self._notifier.get()
-
-            if only_commits:
-                if event['event'] != 'commit':
-                    continue
-            else:
-                if event['event'] == 'commit':
-                    # Subscribers already got update notifications enough
-                    continue
-
-            yield 'data: %s\n\n' % json.dumps(event)
+        try:
+            while True:
+                event = self._notifier.get()
+                if only_commits:
+                    if event['event'] != 'commit':
+                        continue
+                else:
+                    if event['event'] == 'commit':
+                        # Subscribers already got update notifications enough
+                        continue
+                yield 'data: %s\n\n' % json.dumps(event)
+        finally:
+            _logger.debug('Stop pulling events to %s user', peer)
 
     def _notify(self, event):
         self._notifier.set(event)

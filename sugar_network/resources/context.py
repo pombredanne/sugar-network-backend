@@ -31,11 +31,6 @@ class Context(Resource):
     def type(self, value):
         return value
 
-    @ad.active_property(slot=1, prefix='N', full_text=True,
-            permissions=ad.ACCESS_READ, default='')
-    def name(self, value):
-        return value
-
     @ad.active_property(prefix='M',
             full_text=True, default=[], typecast=[])
     def implement(self, value):
@@ -135,6 +130,16 @@ class Context(Resource):
                     }
 
         return versions
+
+    @ad.active_property(ad.StoredProperty, typecast=[], default=[])
+    def dependencies(self, value):
+        """Software dependencies.
+
+        This is a transition method how to improve dependencies handling.
+        The regular way should be setting up them in activity.info instead.
+
+        """
+        return value
 
     @ad.active_property(ad.StoredProperty, typecast=dict, default={})
     def aliases(self, value):

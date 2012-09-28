@@ -23,12 +23,12 @@ class DatastoreTest(tests.Test):
 
         datastore.populate(artifacts)
         assert not exists(sn_stamp())
-        self.assertEqual(0, artifacts.find()[1].value)
+        self.assertEqual(0, artifacts.find()[1])
 
         self.touch(sn_stamp())
         datastore.populate(artifacts)
         assert not exists(sn_stamp())
-        self.assertEqual(0, artifacts.find()[1].value)
+        self.assertEqual(0, artifacts.find()[1])
 
         self.touch(sn_stamp())
         os.utime(sn_stamp(), (0, 0))
@@ -37,7 +37,7 @@ class DatastoreTest(tests.Test):
         datastore.populate(artifacts)
         assert exists(sn_stamp())
         assert exists(ds_stamp())
-        self.assertEqual(0, artifacts.find()[1].value)
+        self.assertEqual(0, artifacts.find()[1])
 
     def test_populate(self):
         self.create_mountset([Artifact])

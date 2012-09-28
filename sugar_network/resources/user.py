@@ -32,11 +32,11 @@ class User(ad.Document):
     def color(self, value):
         return value
 
-    @ad.active_property(slot=3, prefix='S', permissions=ad.ACCESS_CREATE)
+    @ad.active_property(prefix='S', permissions=ad.ACCESS_CREATE)
     def machine_sn(self, value):
         return value
 
-    @ad.active_property(slot=4, prefix='U', permissions=ad.ACCESS_CREATE)
+    @ad.active_property(prefix='U', permissions=ad.ACCESS_CREATE)
     def machine_uuid(self, value):
         return value
 
@@ -48,11 +48,11 @@ class User(ad.Document):
     def tags(self, value):
         return value
 
-    @ad.active_property(slot=5, prefix='P', full_text=True, default='')
+    @ad.active_property(prefix='P', full_text=True, default='')
     def location(self, value):
         return value
 
-    @ad.active_property(slot=6, prefix='B', default=0, typecast=int)
+    @ad.active_property(slot=2, prefix='B', default=0, typecast=int)
     def birthday(self, value):
         return value
 

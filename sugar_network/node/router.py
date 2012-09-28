@@ -55,7 +55,7 @@ class Router(router.Router):
         directory = self.commands.volume['context']
         documents, total = directory.find(type='package',
                 offset=request.get('offset'), limit=request.get('limit'))
-        return {'total': total.value, 'result': [i.guid for i in documents]}
+        return {'total': total, 'result': [i.guid for i in documents]}
 
     def _get_package(self, repo, package):
         directory = self.commands.volume['context']

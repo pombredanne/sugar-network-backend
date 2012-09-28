@@ -19,7 +19,20 @@ import active_document as ad
 from sugar_network.zerosugar import GOOD_LICENSES
 
 from sugar_network import resources
+from sugar_network.zerosugar import parse_version
 from sugar_network.resources.volume import Resource
+
+
+def _encode_version(version):
+    result = ''
+    version = parse_version(version)
+    while version:
+        unit, modificator = version[:2]
+        del version[:2]
+        unit = ([0, 0] + unit)[-3:]
+        result += ''.join(['%05d' % i for i in unit])
+        result += '%02d' % (10 + modificator)
+    return result
 
 
 class Implementation(Resource):
@@ -34,17 +47,17 @@ class Implementation(Resource):
     def license(self, value):
         return value
 
-    @ad.active_property(slot=2, prefix='V',
+    @ad.active_property(slot=1, prefix='V', reprcast=_encode_version,
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def version(self, value):
         return value
 
-    @ad.active_property(slot=3, prefix='D',
+    @ad.active_property(slot=2, prefix='D',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ, typecast=int)
     def date(self, value):
         return value
 
-    @ad.active_property(slot=4, prefix='S', full_text=True,
+    @ad.active_property(prefix='S',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
             typecast=resources.STABILITIES)
     def stability(self, value):

@@ -8,7 +8,7 @@ from __init__ import tests
 import active_document as ad
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
-from sugar_network.resources.volume import Volume, Resource, Commands
+from sugar_network.resources.volume import Volume, Resource, Commands, Request
 from active_toolkit import coroutine
 
 
@@ -176,7 +176,7 @@ class VolumeTest(tests.Test):
         events = []
 
         def read_events():
-            for event in cp.subscribe(ad.Response()):
+            for event in cp.subscribe(Request(), ad.Response()):
                 if not event.strip():
                     continue
                 assert event.startswith('data: ')
@@ -218,7 +218,7 @@ class VolumeTest(tests.Test):
         events = []
 
         def read_events():
-            for event in cp.subscribe(ad.Response(), only_commits=True):
+            for event in cp.subscribe(Request(), ad.Response(), only_commits=True):
                 if not event.strip():
                     continue
                 assert event.startswith('data: ')

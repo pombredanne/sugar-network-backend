@@ -22,6 +22,9 @@ from sugar_network.resources.volume import Resource
 
 class Artifact(Resource):
 
+    # All properties are sloted to not fail on `get_uniquevaluesfor()` call
+    # while emulating sugar-datastore interface
+
     @ad.active_property(slot=1, prefix='C', default='')
     def context(self, value):
         return value

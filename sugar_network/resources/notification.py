@@ -21,24 +21,24 @@ from sugar_network.resources.volume import Resource
 
 class Notification(Resource):
 
-    @ad.active_property(slot=1, prefix='T',
+    @ad.active_property(prefix='T',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
             typecast=resources.NOTIFICATION_TYPES)
     def type(self, value):
         return value
 
-    @ad.active_property(slot=2, prefix='K',
+    @ad.active_property(prefix='K',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
             default='', typecast=resources.NOTIFICATION_OBJECT_TYPES)
     def resource(self, value):
         return value
 
-    @ad.active_property(slot=3, prefix='O',
+    @ad.active_property(prefix='O',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ, default='')
     def object(self, value):
         return value
 
-    @ad.active_property(slot=4, prefix='D',
+    @ad.active_property(prefix='D',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ, default='')
     def to(self, value):
         return value

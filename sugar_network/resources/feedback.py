@@ -39,6 +39,6 @@ class Feedback(Resource):
     def content(self, value):
         return value
 
-    @ad.active_property(slot=3, prefix='A', default='')
+    @ad.active_property(prefix='A', default='')
     def solution(self, value):
         return value
