@@ -22,7 +22,7 @@ import xapian
 from active_toolkit import util
 from active_document import index_queue, env
 from active_document.storage import Storage
-from active_document.index import IndexReader, IndexWriter, Total
+from active_document.index import IndexReader, IndexWriter
 from active_document.metadata import StoredProperty
 
 
@@ -103,7 +103,7 @@ class IndexProxy(IndexReader):
             if pages:
                 return pages.pop().find(query, next_page_find)
             elif self._db is None:
-                return [], Total(0)
+                return [], 0
             else:
                 return IndexReader.find(self, query)
 

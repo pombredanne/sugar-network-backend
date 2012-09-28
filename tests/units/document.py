@@ -45,7 +45,7 @@ class DocumentTest(tests.Test):
         directory.create({'slotted': 'slotted', 'not_slotted': 'not_slotted'})
 
         docs, total = directory.find(0, 100, order_by='slotted')
-        self.assertEqual(1, total.value)
+        self.assertEqual(1, total)
         self.assertEqual(
                 [('slotted', 'not_slotted')],
                 [(i.slotted, i.not_slotted) for i in docs])
@@ -84,7 +84,7 @@ class DocumentTest(tests.Test):
         guid = directory.create({'term': 'term', 'not_term': 'not_term'})
 
         docs, total = directory.find(0, 100, term='term')
-        self.assertEqual(1, total.value)
+        self.assertEqual(1, total)
         self.assertEqual(
                 [('term', 'not_term')],
                 [(i.term, i.not_term) for i in docs])
@@ -151,7 +151,7 @@ class DocumentTest(tests.Test):
         guid = directory.create({'wo_default': 'wo_default'})
 
         docs, total = directory.find(0, 100)
-        self.assertEqual(1, total.value)
+        self.assertEqual(1, total)
         self.assertEqual(
                 [('default', 'wo_default', 'not_stored_default')],
                 [(i.w_default, i.wo_default, i.not_stored_default) for i in docs])
@@ -688,6 +688,118 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, doc.get('seqno'))
         self.assertEqual(1, doc.meta('guid')['mtime'])
         assert not exists('document2/gu/guid/blob')
+
+    def __test_Integers(self):
+        db = Index({
+            'prop': ActiveProperty('prop', 1, 'A', typecast=int, full_text=True),
+            })
+
+        db.store('1', {'prop': 9}, True)
+        db.store('2', {'prop': 89}, True)
+        db.store('3', {'prop': 777}, True)
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9},
+                    {'guid': '2', 'prop': 89},
+                    {'guid': '3', 'prop': 777},
+                    ],
+                db._find(order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9},
+                    {'guid': '2', 'prop': 89},
+                    ],
+                db._find(query='prop:0..100', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9},
+                    ],
+                db._find(query='prop:9', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': 89},
+                    ],
+                db._find(query='prop:=89', order_by='prop')[0])
+
+    def __test_Floats(self):
+        db = Index({
+            'prop': ActiveProperty('prop', 1, 'A', typecast=float, full_text=True),
+            })
+
+        db.store('1', {'prop': 9.1}, True)
+        db.store('2', {'prop': 89.2}, True)
+        db.store('3', {'prop': 777.3}, True)
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9.1},
+                    {'guid': '2', 'prop': 89.2},
+                    {'guid': '3', 'prop': 777.3},
+                    ],
+                db._find(order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9.1},
+                    {'guid': '2', 'prop': 89.2},
+                    ],
+                db._find(query='prop:0..100', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': 9.1},
+                    ],
+                db._find(query='prop:9.1', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': 89.2},
+                    ],
+                db._find(query='prop:=89.2', order_by='prop')[0])
+
+    def __test_Booleans(self):
+        db = Index({
+            'prop': ActiveProperty('prop', 1, 'A', typecast=bool, full_text=True),
+            })
+
+        db.store('1', {'prop': True}, True)
+        db.store('2', {'prop': False}, True)
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': False},
+                    {'guid': '1', 'prop': True},
+                    ],
+                db._find(order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': False},
+                    {'guid': '1', 'prop': True},
+                    ],
+                db._find(query='prop:0..100', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': True},
+                    ],
+                db._find(query='prop:1..1', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '2', 'prop': False},
+                    ],
+                db._find(query='prop:0', order_by='prop')[0])
+
+        self.assertEqual(
+                [
+                    {'guid': '1', 'prop': True},
+                    ],
+                db._find(query='prop:=1', order_by='prop')[0])
 
 
 def read_diff(directory, *args, **kwargs):

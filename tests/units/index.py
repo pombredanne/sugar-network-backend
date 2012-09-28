@@ -108,11 +108,11 @@ class IndexTest(tests.Test):
         db.store('2', {'var_1': False}, True)
 
         self.assertEqual(
-                [{'guid': '1', 'var_1': True}],
-                db._find(var_1=True)[0])
+                [{'guid': '1'}],
+                db._find(var_1=True, reply=['guid'])[0])
         self.assertEqual(
-                [{'guid': '2', 'var_1': False}],
-                db._find(var_1=False)[0])
+                [{'guid': '2'}],
+                db._find(var_1=False, reply=['guid'])[0])
 
     def test_find_WithProps(self):
         db = Index({
@@ -282,118 +282,6 @@ class IndexTest(tests.Test):
         self.assertEqual(
                 ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 2),
                 db._find(reply=['var_1'], group_by='var_3'))
-
-    def test_Integers(self):
-        db = Index({
-            'prop': ActiveProperty('prop', 1, 'A', typecast=int, full_text=True),
-            })
-
-        db.store('1', {'prop': 9}, True)
-        db.store('2', {'prop': 89}, True)
-        db.store('3', {'prop': 777}, True)
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9},
-                    {'guid': '2', 'prop': 89},
-                    {'guid': '3', 'prop': 777},
-                    ],
-                db._find(order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9},
-                    {'guid': '2', 'prop': 89},
-                    ],
-                db._find(query='prop:0..100', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9},
-                    ],
-                db._find(query='prop:9', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': 89},
-                    ],
-                db._find(query='prop:=89', order_by='prop')[0])
-
-    def test_Floats(self):
-        db = Index({
-            'prop': ActiveProperty('prop', 1, 'A', typecast=float, full_text=True),
-            })
-
-        db.store('1', {'prop': 9.1}, True)
-        db.store('2', {'prop': 89.2}, True)
-        db.store('3', {'prop': 777.3}, True)
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9.1},
-                    {'guid': '2', 'prop': 89.2},
-                    {'guid': '3', 'prop': 777.3},
-                    ],
-                db._find(order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9.1},
-                    {'guid': '2', 'prop': 89.2},
-                    ],
-                db._find(query='prop:0..100', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9.1},
-                    ],
-                db._find(query='prop:9.1', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': 89.2},
-                    ],
-                db._find(query='prop:=89.2', order_by='prop')[0])
-
-    def test_Booleans(self):
-        db = Index({
-            'prop': ActiveProperty('prop', 1, 'A', typecast=bool, full_text=True),
-            })
-
-        db.store('1', {'prop': True}, True)
-        db.store('2', {'prop': False}, True)
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': False},
-                    {'guid': '1', 'prop': True},
-                    ],
-                db._find(order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': False},
-                    {'guid': '1', 'prop': True},
-                    ],
-                db._find(query='prop:0..100', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': True},
-                    ],
-                db._find(query='prop:1..1', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': False},
-                    ],
-                db._find(query='prop:0', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': True},
-                    ],
-                db._find(query='prop:=1', order_by='prop')[0])
 
     def test_MultipleValues(self):
         db = Index({
@@ -765,12 +653,20 @@ class Index(index.IndexWriter):
             kwargs['reply'] = {}
         if 'order_by' not in kwargs:
             kwargs['order_by'] = 'guid'
-        documents, total = self.find(env.Query(*args, **kwargs))
+
+        mset = self.find(env.Query(*args, **kwargs))
         result = []
-        for guid, props in documents:
-            props['guid'] = guid
+
+        for hit in self.find(env.Query(*args, **kwargs)):
+            props = {}
+            for name in kwargs['reply']:
+                prop = self.metadata[name]
+                if prop.slot is not None:
+                    props[name] = hit.document.get_value(prop.slot).decode('utf8')
+            props['guid'] = hit.document.get_value(0).decode('utf8')
             result.append(props)
-        return result, total
+
+        return result, mset.get_matches_estimated()
 
 
 if __name__ == '__main__':

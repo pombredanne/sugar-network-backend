@@ -165,15 +165,15 @@ class Directory(object):
             i.e., not only documents that are included to the resulting list
 
         """
-        query = env.Query(*args, **kwargs)
-        documents, total = self._index.find(query)
+        mset = self._index.find(env.Query(*args, **kwargs))
 
         def iterate():
-            for guid, props in documents:
+            for hit in mset:
+                guid = hit.document.get_value(0)
                 record = self._storage.get(guid)
-                yield self.document_class(guid, record, props)
+                yield self.document_class(guid, record)
 
-        return iterate(), total
+        return iterate(), mset.get_matches_estimated()
 
     def set_blob(self, guid, prop, data=None, size=None, **kwargs):
         """Receive BLOB property.
@@ -274,7 +274,7 @@ class Directory(object):
 
         while True:
             documents, total = self.find(query='seqno:%s..' % seqno, **query)
-            if not total.value:
+            if not total:
                 break
 
             for doc in documents:

@@ -149,7 +149,7 @@ class VolumeCommands(CommandsProcessor):
         self._preget(request)
         documents, total = self.volume[document].find(**request)
         result = [self._get_props(i, request) for i in documents]
-        return {'total': total.value, 'result': result}
+        return {'total': total, 'result': result}
 
     @document_command(method='GET', cmd='exists')
     def exists(self, document, guid):

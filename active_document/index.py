@@ -116,42 +116,14 @@ class IndexReader(object):
 
         enquire = self._enquire(query.request, query.query, query.order_by,
                 query.group_by)
-        result = self._call_db(enquire.get_mset, query.offset, query.limit,
+        mset = self._call_db(enquire.get_mset, query.offset, query.limit,
                 check_at_least)
-        total = Total(result.get_matches_estimated())
 
-        _logger.debug('Found in %s: %s time=%s total_count=%s parsed=%s',
+        _logger.debug('Found in %s: %s time=%s total=%s parsed=%s',
                 self.metadata.name, query, time.time() - start_timestamp,
-                total.value, enquire.get_query())
+                mset.get_matches_estimated(), enquire.get_query())
 
-        def iterate():
-            for hit in result:
-                props = {}
-                for name in query.reply or self._props.keys():
-                    prop = self._props.get(name)
-                    if prop is None:
-                        continue
-                    if prop.slot is not None and prop.slot != 0 and \
-                            not prop.localized:
-                            # Localized properties will be fetched from storage
-                            # according to requested locale
-                        value = hit.document.get_value(prop.slot)
-                        if prop.typecast is int:
-                            value = int(xapian.sortable_unserialise(value)) \
-                                    if value else 0
-                        elif prop.typecast is float:
-                            value = xapian.sortable_unserialise(value) \
-                                    if value else 0.0
-                        elif prop.typecast is bool:
-                            value = bool(xapian.sortable_unserialise(value)) \
-                                    if value else False
-                        else:
-                            value = value.decode('utf8')
-                        props[name] = value
-                guid = hit.document.get_value(0)
-                yield guid, props
-
-        return iterate(), total
+        return mset
 
     def commit(self):
         """Flush index changes to the disk."""
@@ -451,18 +423,6 @@ class IndexWriter(IndexReader):
             self._commit_cond.wait(timeout)
             self._commit()
             self._commit_cond.clear()
-
-
-class Total(object):
-
-    def __init__(self, value):
-        self.value = value
-
-    def __cmp__(self, other):
-        if isinstance(other, Total):
-            return cmp(self.value, other.value)
-        else:
-            return cmp(self.value, int(other))
 
 
 def _term(prefix, value):
