@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-09-19$
+$Date: 2012-09-30$
 
 """
 
@@ -178,6 +178,9 @@ class Application(object):
 
         logging.basicConfig(level=logging_level, format=logging_format)
 
+    def epilog(self):
+        pass
+
     def start(self):
         self._rundir = abspath(rundir.value or '/var/run/' + self.name)
 
@@ -198,6 +201,7 @@ class Application(object):
             printf.exception('%s %s', _('Aborted'), self.name)
             exit(1)
         finally:
+            self.epilog()
             if not no_hints.value:
                 printf.flush_hints()
 
@@ -258,9 +262,6 @@ class Daemon(Application):
         raise NotImplementedError()
 
     def shutdown(self):
-        pass
-
-    def epilog(self):
         pass
 
     @command('start in daemon mode', name='start', keep_stdout=True)
