@@ -269,9 +269,8 @@ class CommandsProcessor(object):
 class _Command(object):
 
     def __init__(self, args, callback, method='GET', document=None, cmd=None,
-            mime_type='application/json', permissions=0,
-            access_level=env.ACCESS_LEVELS, arguments=None,
-            pre=None, post=None):
+            mime_type=None, permissions=0, access_level=env.ACCESS_LEVELS,
+            arguments=None, pre=None, post=None):
         self.args = args
         self.callback = callback
         self.mime_type = mime_type

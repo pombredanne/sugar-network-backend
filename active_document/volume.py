@@ -131,7 +131,7 @@ class VolumeCommands(CommandsProcessor):
         self._lang = [env.default_lang()]
 
     @directory_command(method='POST',
-            permissions=env.ACCESS_AUTH)
+            permissions=env.ACCESS_AUTH, mime_type='application/json')
     def create(self, request):
         with self._post(request, env.ACCESS_CREATE) as (directory, doc):
             enforce('guid' not in doc.props, env.Forbidden,
@@ -141,7 +141,8 @@ class VolumeCommands(CommandsProcessor):
             return doc.guid
 
     @directory_command(method='GET',
-            arguments={'offset': to_int, 'limit': to_int, 'reply': to_list})
+            arguments={'offset': to_int, 'limit': to_int, 'reply': to_list},
+            mime_type='application/json')
     def find(self, document, request):
         reply = request.setdefault('reply', ['guid'])
         if 'guid' not in reply:
@@ -151,7 +152,8 @@ class VolumeCommands(CommandsProcessor):
         result = [self._get_props(i, request) for i in documents]
         return {'total': total, 'result': result}
 
-    @document_command(method='GET', cmd='exists')
+    @document_command(method='GET', cmd='exists',
+            mime_type='application/json')
     def exists(self, document, guid):
         directory = self.volume[document]
         return directory.exists(guid)
@@ -173,7 +175,7 @@ class VolumeCommands(CommandsProcessor):
         else:
             value = request.content
         request.content = {prop: value}
-        return self.update(request)
+        self.update(request)
 
     @document_command(method='DELETE',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
@@ -181,13 +183,14 @@ class VolumeCommands(CommandsProcessor):
         directory = self.volume[document]
         directory.delete(guid)
 
-    @document_command(method='GET', arguments={'reply': to_list})
+    @document_command(method='GET', arguments={'reply': to_list},
+            mime_type='application/json')
     def get(self, document, guid, request):
         self._preget(request)
         doc = self.volume[document].get(guid)
         return self._get_props(doc, request)
 
-    @property_command(method='GET')
+    @property_command(method='GET', mime_type='application/json')
     def get_prop(self, document, guid, prop, request, response, part=None):
         directory = self.volume[document]
         prop = directory.metadata[prop]
@@ -213,7 +216,6 @@ class VolumeCommands(CommandsProcessor):
         url = meta.url(part)
         if url is not None:
             if not isinstance(url, basestring):
-                response.content_type = 'application/json'
                 return url
             raise env.Redirect(url)
 
