@@ -68,6 +68,10 @@ class Implementation(Resource):
     def notes(self, value):
         return value
 
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    def spec(self, value):
+        return value
+
     @ad.active_property(ad.BlobProperty)
     def data(self, stat):
         return stat

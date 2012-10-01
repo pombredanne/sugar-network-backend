@@ -163,6 +163,12 @@ class MasterCommands(NodeCommands, SyncCommands):
         NodeCommands.__init__(self, volume)
         SyncCommands.__init__(self)
 
+    @ad.document_command(method='PUT', cmd='merge',
+            permissions=ad.ACCESS_AUTH)
+    def merge(self, document, guid, request):
+        directory = self.volume[document]
+        directory.merge(guid, request.content)
+
 
 def _load_pubkey(pubkey):
     pubkey = pubkey.strip()

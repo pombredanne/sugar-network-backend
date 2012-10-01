@@ -1,0 +1,458 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2012 Aleksey Lim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import time
+import getpass
+import logging
+import tempfile
+import subprocess
+from base64 import b64encode
+from os.path import join, exists
+
+import MySQLdb as mdb
+
+import active_document as ad
+from sugar_network import Client
+from sugar_network.toolkit.collection import PersistentSequence, Sequence
+from sugar_network.zerosugar import GOOD_LICENSES, Bundle, parse_version
+from sugar_network.resources.volume import Volume
+from sugar_network.node import data_root
+from sugar_network.local import api_url
+from active_toolkit.options import Option
+from active_toolkit import application
+
+
+DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
+ACTIVITIES_PATH = '/upload/activities'
+EXCLUDE_BUNDLE_IDS = ['net.gcompris']
+SUGAR_GUID = 'sugar'
+SN_GUID = 'sugar-network'
+
+CATEGIORIES_TO_TAGS = {
+        'Search & Discovery': 'discovery',
+        'Documents': 'documents',
+        'Chat, mail and talk': 'conversation',
+        'Programming': 'programming',
+        'Maps & Geography': 'geography',
+        'Media players': 'media',
+        'Teacher tools': 'teacher',
+        'Games': 'games',
+        'Media creation': 'media',
+        'Maths & Science': 'science',
+        'News': 'news',
+        }
+
+MISNAMED_LICENSES = {
+        ('artistic', '2.0'): 'Artistic 2.0',
+        ('cc-by-sa',): 'CC-BY-SA',
+        ('creative', 'share', 'alike'): 'CC-BY-SA',
+        }
+
+
+class Application(application.Application):
+
+    _my_connection = None
+    _volume = None
+    _client = None
+
+    @property
+    def volume(self):
+        if self._volume is None:
+            self._volume = Volume(join(data_root.value, 'db'))
+            self._volume.populate()
+        return self._volume
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = Client(api_url.value)
+        return self._client
+
+    def epilog(self):
+        if self._volume is not None:
+            self._volume.close()
+
+    @application.command(
+            'pull activities.sugarlabs.org content to local db')
+    def pull(self):
+        if not self.volume['context'].exists(SN_GUID):
+            self.volume['context'].create(
+                    guid=SN_GUID,
+                    implement=SN_GUID,
+                    type='project',
+                    title='Sugar Network',
+                    summary='Sugar Network',
+                    description='Sugar Network',
+                    ctime=time.time(), mtime=time.time())
+
+        if not self.volume['context'].exists(SUGAR_GUID):
+            self.volume['context'].create(
+                    guid=SUGAR_GUID,
+                    implement=SUGAR_GUID,
+                    type='package', title='Sugar',
+                    summary='Constructionist learning platform',
+                    description= \
+                        'Sugar provides simple yet powerful means of engaging '
+                        'young children in the world of learning that is '
+                        'opened up by computers and the Internet. With Sugar, '
+                        'even the youngest learner will quickly become '
+                        'proficient in using the computer as a tool to engage '
+                        'in authentic problem-solving. Sugar promotes '
+                        'sharing, collaborative learning, and reflection, '
+                        'developing skills that help them in all aspects '
+                        'of life.',
+                    ctime=time.time(), mtime=time.time(),
+                    )
+
+        if self.args:
+            for addon_id in self.args:
+                self.sync_activities(addon_id)
+        else:
+            self.sync_activities()
+
+    @application.command(
+            'submit pulled activities.sugarlabs.org content to '
+            'Sugar Network server')
+    def push(self):
+        pull_seq = PersistentSequence(join(data_root.value, 'push'), [1, None])
+        last_seqno = None
+        try:
+            for document, directory in self.volume.items():
+                for guid, seqno, diff in directory.diff(pull_seq, limit=1024):
+                    for meta in diff.values():
+                        if 'path' in meta:
+                            with file(meta.pop('path')) as f:
+                                meta['content'] = b64encode(f.read())
+                    self.client.put([document, guid], diff, cmd='merge')
+                    last_seqno = max(last_seqno, seqno)
+        finally:
+            if last_seqno is not None:
+                pull_seq.exclude(1, last_seqno)
+                pull_seq.commit()
+
+    def sync_activities(self, addon_id=None):
+        sql = """
+            SELECT
+                id,
+                guid
+            FROM
+                addons
+            WHERE
+                status > 0 AND status < 5
+            """
+        if addon_id:
+            sql += ' AND id = %s' % addon_id
+
+        for addon_id, bundle_id in self.sqlexec(sql):
+            if [i for i in EXCLUDE_BUNDLE_IDS if i in bundle_id]:
+                continue
+            self.sync_context(addon_id, bundle_id)
+            self.sync_versions(addon_id, bundle_id)
+
+    def sync_versions(self, addon_id, bundle_id):
+        sql = """
+            SELECT
+                versions.version,
+                addons.status,
+                licenses.name,
+                (select max(localized_string) from translations where
+                    id=licenses.text),
+                versions.created,
+                versions.releasenotes,
+                files.filename,
+                (select version from appversions where
+                    id=applications_versions.min),
+                (select version from appversions where
+                    id=applications_versions.max)
+            FROM addons
+                INNER JOIN versions ON versions.addon_id=addons.id
+                LEFT JOIN licenses ON licenses.id=versions.license_id
+                INNER JOIN files ON files.version_id=versions.id
+                INNER JOIN applications_versions ON
+                    applications_versions.version_id=versions.id
+            WHERE
+                addons.status > 0 AND addons.status < 5 AND addons.id = %s
+            """ % addon_id
+
+        recent_version = None
+        recent_impl = None
+
+        for version, status, license_id, alicense, release_date, \
+                releasenotes, filename, sugar_min, sugar_max \
+                in self.sqlexec(sql):
+            try:
+                parsed_version = parse_version(version)
+            except Exception, error:
+                print '-- Cannot parse %r version for %r: %s' % \
+                        (version, bundle_id, error)
+                continue
+
+            if self.volume['implementation'].find(
+                    context=bundle_id, version=version)[1] > 0:
+                continue
+
+            if license_id is None:
+                pass
+            elif license_id == 0:
+                alicense = 'MPLv1.1'
+            elif license_id == 1:
+                alicense = 'GPLv2'
+            elif license_id == 2:
+                alicense = 'GPLv3'
+            elif license_id == 3:
+                alicense = 'LGPLv2'
+            elif license_id == 4:
+                alicense = 'LGPLv3'
+            elif license_id == 5:
+                alicense = 'MIT'
+            elif license_id == 6:
+                alicense = 'BSD'
+            else:
+                parsed_license = self.parse_license(alicense)
+                if not parsed_license:
+                    print '-- Skip bad license %r from %s' % \
+                            (alicense, filename)
+                    continue
+                alicense = parsed_license
+
+            impl = self.sync_implementaiton(bundle_id,
+                    'http://download.sugarlabs.org/activities/%s/%s' % \
+                            (addon_id, filename),
+                    sugar_min, sugar_max,
+                    stability='stable' if status == 4 else 'developer',
+                    date=int(time.mktime(release_date.timetuple())),
+                    notes=self.get_i18n_field(releasenotes),
+                    license=[alicense] if alicense else [],
+                    )
+            if impl and parsed_version > recent_version:
+                recent_version = parsed_version
+                recent_impl = impl
+
+        if recent_version:
+            icon = recent_impl.pop('artifact_icon')
+            self.volume['context'].update(bundle_id, **recent_impl)
+            self.volume['context'].set_blob(bundle_id, 'artifact_icon', icon)
+
+            with tempfile.NamedTemporaryFile() as f:
+                f.write(icon)
+                f.flush()
+
+                path = f.name + '.png'
+                subprocess.check_call([
+                    'convert',
+                    '-background', 'none',
+                    '-adaptive-resize', '55x55',
+                    f.name, path])
+                with file(path) as icon:
+                    self.volume['context'].set_blob(bundle_id, 'icon', icon)
+
+                path = f.name + '.png'
+                subprocess.check_call([
+                    'convert',
+                    '-background', 'none',
+                    '-density', '400',
+                    '-adaptive-resize', '160x120',
+                    f.name, path])
+                with file(path) as icon:
+                    self.volume['context'].set_blob(bundle_id, 'preview', icon)
+
+    def sync_context(self, addon_id, bundle_id):
+        if not self.volume['context'].exists(bundle_id):
+            self.volume['context'].create(guid=bundle_id, type='activity',
+                    implement=bundle_id, title='', summary='', description='',
+                    user=['aslo'], layer=['public'], ctime=0, mtime=0)
+
+        created, modified, title, summary, description, homepage, name = \
+                self.sqlexec("""
+            SELECT
+                addons.created,
+                addons.modified,
+                addons.name,
+                addons.summary,
+                addons.description,
+                (select max(localized_string) from translations where
+                    id=addons.homepage),
+                CONCAT_WS(' ', users.firstname, users.lastname)
+            FROM
+                addons
+                INNER JOIN addons_users on addons_users.addon_id=addons.id
+                INNER JOIN users on users.id=addons_users.user_id
+            WHERE addons.id=%s
+            """ % addon_id)[0]
+        created = int(time.mktime(created.timetuple()))
+        modified = int(time.mktime(modified.timetuple()))
+
+        if self.volume['context'].get(bundle_id)['mtime'] >= modified:
+            return
+        print '-- Update %r activity' % bundle_id
+
+        tags = set()
+        for row in self.sqlexec("""
+                SELECT
+                    (select localized_string from translations where
+                        id=categories.name AND locale='en-US')
+                FROM addons_categories
+                    INNER JOIN categories ON
+                        categories.id=addons_categories.category_id
+                WHERE
+                    addons_categories.addon_id=%s
+                """ % addon_id):
+            tags.add(CATEGIORIES_TO_TAGS[row[0]])
+        for row in self.sqlexec("""
+                SELECT
+                    tags.tag_text
+                FROM users_tags_addons
+                    INNER JOIN tags ON tags.id=users_tags_addons.tag_id
+                    INNER JOIN addons_users ON
+                        addons_users.addon_id=users_tags_addons.addon_id
+                WHERE
+                    users_tags_addons.addon_id=%s
+                """ % addon_id):
+            tags.add(row[0])
+
+        self.volume['context'].update(bundle_id,
+                title=self.get_i18n_field(title),
+                summary=self.get_i18n_field(summary),
+                description=self.get_i18n_field(description),
+                homepage=homepage or '',
+                tags=list(tags),
+                author=[name],
+                ctime=created,
+                mtime=modified)
+
+    def sync_implementaiton(self, context, url, sugar_min, sugar_max,
+            **impl_props):
+        path = url[len(DOWNLOAD_URL):].strip('/').split('/')
+        path = join(ACTIVITIES_PATH, *path)
+        if not exists(path):
+            print '-- Cannot find ASLO bundle at %s' % path
+            return None
+
+        try:
+            bundle = Bundle(path)
+        except Exception, error:
+            print '-- Cannor read %s bundle: %s' % (path, error)
+            return None
+
+        spec = bundle.get_spec()
+        if spec is None:
+            print '-- Bundle %s does not contain spec' % path
+            return None
+
+        if not impl_props['license']:
+            impl_props['license'] = self.parse_license(spec['license'])
+            if not impl_props['license']:
+                print '-- Skip bad license %r from %s' % \
+                        (spec['license'], path)
+                return None
+
+        print '-- Add %r version to %r activity' % (spec['version'], context)
+
+        spec.requires[SUGAR_GUID] = {
+                'restrictions': [
+                    (sugar_min, None),
+                    (None, '0.%s' % (int(sugar_max.split('.')[-1]) + 1)),
+                    ],
+                }
+
+        impl = self.volume['implementation'].create(
+                context=context,
+                version=spec['version'],
+                user=['aslo'],
+                spec={'*-*': {
+                    'commands': spec.commands,
+                    'requires': spec.requires,
+                    'extract': bundle.extract,
+                    }},
+                ctime=time.time(), mtime=time.time(),
+                **impl_props)
+        self.volume['implementation'].set_blob(impl, 'data', url=url)
+
+        icon = bundle.extractfile(join(bundle.extract, spec['icon'])).read()
+        return {'homepage': spec['homepage'] or '',
+                'mime_types': spec['mime_types'] or [],
+                'artifact_icon': icon,
+                }
+
+    def parse_license(self, alicense):
+        for good in GOOD_LICENSES:
+            if not alicense or good in ['ec']:
+                continue
+            if good in alicense:
+                alicense = good
+                break
+        else:
+            for words, good in MISNAMED_LICENSES.items():
+                for i in words:
+                    if i not in alicense.lower():
+                        break
+                else:
+                    alicense = good
+                    break
+            else:
+                return None
+
+        return alicense
+
+    def get_i18n_field(self, id):
+        result = {}
+        if id:
+            for locale, value in self.sqlexec("""
+                    SELECT
+                        locale, localized_string
+                    FROM
+                        translations
+                    WHERE
+                        id = %s""" % id):
+                result[locale] = value
+        return result
+
+    def sqlexec(self, text):
+        if self._my_connection is None:
+            self._my_connection = mdb.connect('localhost',
+                    user.value, getpass.getpass(), database.value)
+        cursor = self._my_connection.cursor()
+        cursor.execute(text)
+        return cursor.fetchall()
+
+
+server = Option(
+        'MySQL server',
+        default='localhost', name='server')
+database = Option(
+        'MySQL database',
+        default='activities', name='database')
+user = Option(
+        'MySQL user',
+        default='root', name='user')
+
+Option.seek('main', [application.debug])
+Option.seek('aslo', [server, user, database])
+Option.seek('node', [data_root])
+Option.seek('local', [api_url])
+
+ad.index_write_queue.value = 1024 * 10
+ad.index_flush_threshold.value = 0
+ad.index_flush_timeout.value = 0
+
+application = Application(
+        name='sugar-network-aslo',
+        description= \
+                'Synchronize Sugar Network content with '
+                'http://activities.sugarlabs.org',
+        config_files=['/etc/sweets.conf', '~/.config/sweets/config'])
+application.start()
