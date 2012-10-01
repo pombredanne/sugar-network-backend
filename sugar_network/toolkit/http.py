@@ -149,7 +149,7 @@ class Client(object):
 
             return response
 
-    def call(self, request):
+    def call(self, request, response=None):
         params = request.copy()
         method = params.pop('method')
         document = params.pop('document')
@@ -162,9 +162,13 @@ class Client(object):
         if prop:
             path.append(prop)
 
-        response = self.request(method, path, data=request.content,
+        reply = self.request(method, path, data=request.content,
                 params=params, headers={'Content-Type': 'application/json'})
-        return self._decode_response(response)
+
+        if response is not None:
+            response.content_type = reply.headers['Content-Type']
+
+        return self._decode_response(reply)
 
     def download(self, url_path, out_path, seqno=None, extract=False):
         if isdir(out_path):

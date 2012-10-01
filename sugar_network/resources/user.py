@@ -56,7 +56,8 @@ class User(ad.Document):
     def birthday(self, value):
         return value
 
-    @ad.document_command(method='GET', cmd='stats-info')
+    @ad.document_command(method='GET', cmd='stats-info',
+            mime_type='application/json')
     def _stats_info(self, request):
         enforce(request.principal == self['guid'], ad.Forbidden,
                 'Operation is permitted only for authors')

@@ -185,7 +185,8 @@ class Commands(object):
     def connect(self, callback, condition=None, **kwargs):
         raise NotImplementedError()
 
-    @ad.volume_command(method='GET', cmd='subscribe')
+    @ad.volume_command(method='GET', cmd='subscribe',
+            mime_type='application/json')
     def subscribe(self, request, response, only_commits=False):
         """Subscribe to Server-Sent Events.
 

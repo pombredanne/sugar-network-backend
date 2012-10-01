@@ -64,12 +64,12 @@ class NodeCommands(ad.VolumeCommands, Commands):
     def connect(self, callback, condition=None, **kwargs):
         self.volume.connect(callback, condition)
 
-    @ad.volume_command(method='GET')
-    def hello(self, response):
-        response.content_type = 'text/html'
+    @ad.volume_command(method='GET', mime_type='text/html')
+    def hello(self):
         return _HELLO_HTML
 
-    @ad.volume_command(method='GET', cmd='stat')
+    @ad.volume_command(method='GET', cmd='stat',
+            mime_type='application/json')
     def stat(self):
         return {'guid': self._guid,
                 'master': self._is_master,

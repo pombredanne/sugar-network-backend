@@ -26,5 +26,4 @@ class Router(router.Router):
 
     def call(self, request, response):
         request.access_level = ad.ACCESS_LOCAL
-        response.content_type = 'application/json'
         return router.Router.call(self, request, response)

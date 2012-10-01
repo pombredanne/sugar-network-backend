@@ -79,7 +79,8 @@ class LocalMount(ad.VolumeCommands, _Mount):
 
         volume.connect(self._events_cb)
 
-    @ad.property_command(method='GET', cmd='get_blob')
+    @ad.property_command(method='GET', cmd='get_blob',
+            mime_type='application/json')
     def get_blob(self, document, guid, prop, request=None):
         directory = self.volume[document]
         prop = directory.metadata[prop]
@@ -114,7 +115,8 @@ class HomeMount(LocalMount):
     def name(self):
         return _('Home')
 
-    @ad.property_command(method='GET', cmd='get_blob')
+    @ad.property_command(method='GET', cmd='get_blob',
+            mime_type='application/json')
     def get_blob(self, document, guid, prop, request=None):
         if document == 'implementation' and prop == 'data':
             path = activities.guid_to_path(guid)
@@ -275,7 +277,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             try:
                 return ad.CommandsProcessor.call(self, request, response)
             except ad.CommandNotFound:
-                return self._client.call(request)
+                return self._client.call(request, response)
 
         return self._proxy_call(request, response, super_call)
 
@@ -286,7 +288,8 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             else:
                 self._connections.kill()
 
-    @ad.property_command(method='GET', cmd='get_blob')
+    @ad.property_command(method='GET', cmd='get_blob',
+            mime_type='application/json')
     def get_blob(self, document, guid, prop):
 
         def download(path, seqno):
@@ -308,7 +311,8 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             if pass_ownership and exists(path):
                 os.unlink(path)
 
-    @ad.property_command(method='GET')
+    @ad.property_command(method='GET',
+            mime_type='application/json')
     def get_prop(self, document, guid, prop, response):
         directory = self._home_volume[document]
         prop = directory.metadata[prop]
@@ -384,7 +388,8 @@ class NodeMount(LocalMount, _ProxyCommands):
     def call(self, request, response):
         return self._proxy_call(request, response, super(NodeMount, self).call)
 
-    @ad.property_command(method='GET', cmd='get_blob')
+    @ad.property_command(method='GET', cmd='get_blob',
+            mime_type='application/json')
     def get_blob(self, document, guid, prop, request=None):
         meta = LocalMount.get_blob(self, document, guid, prop)
         if meta is None:

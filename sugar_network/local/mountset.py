@@ -63,7 +63,8 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
         mount.set_mounted(False)
         dict.__delitem__(self, mountpoint)
 
-    @ad.volume_command(method='GET', cmd='mounts')
+    @ad.volume_command(method='GET', cmd='mounts',
+            mime_type='application/json')
     def mounts(self):
         result = []
         for path, mount in self.items():
@@ -75,7 +76,8 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
                     })
         return result
 
-    @ad.volume_command(method='GET', cmd='mounted')
+    @ad.volume_command(method='GET', cmd='mounted',
+            mime_type='application/json')
     def mounted(self, mountpoint):
         mount = self.get(mountpoint)
         if mount is None:

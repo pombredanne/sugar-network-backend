@@ -341,7 +341,10 @@ class _Response(ad.Response):
 
     @content_type.setter
     def content_type(self, value):
-        self['Content-Type'] = value
+        if value:
+            self['Content-Type'] = value
+        elif 'Content-Type' in self:
+            del self['Content-Type']
 
     @property
     def last_modified(self):

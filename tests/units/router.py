@@ -132,8 +132,12 @@ class RouterTest(tests.Test):
             def get_binary(self, response):
                 pass
 
-            @ad.volume_command(cmd='2')
+            @ad.volume_command(cmd='2', mime_type='application/json')
             def get_json(self, response):
+                pass
+
+            @ad.volume_command(cmd='3')
+            def no_get(self, response):
                 pass
 
         cp = CommandsProcessor()
@@ -154,6 +158,14 @@ class RouterTest(tests.Test):
             },
             lambda *args: None)
         self.assertEqual('null', ''.join([i for i in response]))
+
+        response = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'cmd=3',
+            },
+            lambda *args: None)
+        self.assertEqual('', ''.join([i for i in response]))
 
     def test_Register(self):
         self.fork(self.restful_server, [User, Document])
