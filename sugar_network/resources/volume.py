@@ -36,6 +36,7 @@ _logger = logging.getLogger('resources.volume')
 
 class Request(ad.Request):
 
+    principal = None
     mountpoint = None
 
 

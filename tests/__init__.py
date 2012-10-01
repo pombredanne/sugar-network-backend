@@ -27,7 +27,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.node.commands import NodeCommands, MasterCommands
 from sugar_network.node.router import Router as MasterRouter
-from sugar_network.node import stats, obs
+from sugar_network.node import stats, obs, auth
 from sugar_network.resources.volume import Volume
 
 
@@ -90,6 +90,7 @@ class Test(unittest.TestCase):
         stats._cache.clear()
         obs._client = None
         http._RECONNECTION_NUMBER = 0
+        auth._config = None
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',
@@ -114,6 +115,7 @@ class Test(unittest.TestCase):
 
         self.server = None
         self.mounts = None
+        self.volume = None
 
         self.forks = []
         self.fork_num = fork_num
@@ -134,6 +136,9 @@ class Test(unittest.TestCase):
             pid = self.forks.pop()
             self.assertEqual(0, self.waitpid(pid))
         coroutine.shutdown()
+        if self.volume is not None:
+            self.volume.close()
+            self.volume = None
 
     def waitpid(self, pid, sig=signal.SIGTERM):
         if pid in self.forks:
@@ -273,12 +278,12 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context]
         self.touch('master/master')
-        volume = Volume('master', classes)
-        cp = MasterCommands(volume)
+        self.volume = Volume('master', classes)
+        cp = MasterCommands(self.volume)
         self.server = coroutine.WSGIServer(('localhost', 8800), MasterRouter(cp))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
-        return volume
+        return self.volume
 
 
 def sign(privkey, data):

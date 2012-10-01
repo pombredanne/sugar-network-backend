@@ -249,7 +249,6 @@ class _Request(Request):
     environ = None
     url = None
     path = None
-    principal = None
 
     def __init__(self, environ=None):
         Request.__init__(self)

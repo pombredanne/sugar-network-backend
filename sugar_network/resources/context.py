@@ -20,7 +20,7 @@ from sugar_network import resources, static
 from sugar_network.local import activities
 from sugar_network.resources.volume import Resource
 from sugar_network.zerosugar import Spec
-from sugar_network.node import obs
+from sugar_network.node import obs, auth
 from active_toolkit import coroutine, util
 
 
@@ -158,19 +158,21 @@ class Context(Resource):
     def presolve(self, value):
         return value
 
-    @classmethod
-    @ad.directory_command(method='PUT', cmd='include',
-            arguments={'layers': ad.to_list})
-    def include(cls, directory, layers, request):
-        import logging
-        logging.error('include> %r %r', layers, request.content)
+    @ad.document_command(method='PUT', cmd='attach',
+            permissions=ad.ACCESS_AUTH)
+    def attach(self, request):
+        auth.validate(request, 'root')
+        # TODO Reading layer here is a race
+        layer = list(set(self['layer']) | set(request.content))
+        request.volume['context'].update(self.guid, {'layer': layer})
 
-    @classmethod
-    @ad.directory_command(method='PUT', cmd='exclude',
-            arguments={'layers': ad.to_list})
-    def exclude(cls, directory, layers, request):
-        import logging
-        logging.error('exclude> %r %r', layers, request.content)
+    @ad.document_command(method='PUT', cmd='detach',
+            permissions=ad.ACCESS_AUTH)
+    def detach(self, request):
+        auth.validate(request, 'root')
+        # TODO Reading layer here is a race
+        layer = list(set(self['layer']) - set(request.content))
+        request.volume['context'].update(self.guid, {'layer': layer})
 
     def _process_aliases(self, aliases):
         packages = {}

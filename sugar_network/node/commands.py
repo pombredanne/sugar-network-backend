@@ -21,6 +21,7 @@ from os.path import exists, join
 import active_document as ad
 from sugar_network import node
 from sugar_network.node.sync_master import SyncCommands
+from sugar_network.node import auth
 from sugar_network.resources.volume import Commands
 from sugar_network.toolkit import router
 from active_toolkit import util, enforce
@@ -95,7 +96,8 @@ class NodeCommands(ad.VolumeCommands, Commands):
 
         if cmd.permissions & ad.ACCESS_AUTHOR and 'guid' in request:
             doc = self.volume[request['document']].get(request['guid'])
-            enforce(request.principal in doc['user'], ad.Forbidden,
+            enforce(request.principal in doc['user'] or
+                    auth.try_validate(request, 'root'), ad.Forbidden,
                     'Operation is permitted only for authors')
 
         return cmd
@@ -166,6 +168,7 @@ class MasterCommands(NodeCommands, SyncCommands):
     @ad.document_command(method='PUT', cmd='merge',
             permissions=ad.ACCESS_AUTH)
     def merge(self, document, guid, request):
+        auth.validate(request, 'root')
         directory = self.volume[document]
         directory.merge(guid, request.content)
 
