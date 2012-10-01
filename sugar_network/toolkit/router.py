@@ -64,6 +64,17 @@ def route(method, path):
     return decorate
 
 
+def stream_reader(stream):
+    try:
+        while True:
+            chunk = stream.read(BUFFER_SIZE)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        stream.close()
+
+
 class Router(object):
 
     def __init__(self, commands):
@@ -150,7 +161,7 @@ class Router(object):
                 result.seek(0, 2)
                 response.content_length = result.tell()
                 result.seek(0)
-            result = _stream_reader(result)
+            result = stream_reader(result)
 
         return result
 
@@ -303,8 +314,6 @@ class _Request(Request):
             self.if_modified_since = time.mktime(if_modified_since)
 
         scope = len(self.path)
-        enforce(scope >= 0 and scope < 4, BadRequest,
-                'Incorrect requested path')
         if scope == 3:
             self['document'], self['guid'], self['prop'] = self.path
         elif scope == 2:
@@ -391,14 +400,3 @@ def _parse_accept_language(accept_language):
         langs.insert(len(langs) - index, lang)
 
     return langs
-
-
-def _stream_reader(stream):
-    try:
-        while True:
-            chunk = stream.read(BUFFER_SIZE)
-            if not chunk:
-                break
-            yield chunk
-    finally:
-        stream.close()

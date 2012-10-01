@@ -13,10 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from os.path import join
+
 import active_document as ad
 
 from sugar_network.toolkit import router
-from sugar_network.local import sugar
+from sugar_network.local import sugar, hub_root
 
 
 class Router(router.Router):
@@ -25,5 +27,15 @@ class Router(router.Router):
         return sugar.uid()
 
     def call(self, request, response):
+        if request.environ['PATH_INFO'] == '/hub':
+            raise ad.Redirect('/hub/')
+        if request.path and request.path[0] == 'hub':
+            return self._serve_hub(request.path[1:])
         request.access_level = ad.ACCESS_LOCAL
         return router.Router.call(self, request, response)
+
+    def _serve_hub(self, path):
+        if not path:
+            path = ['index.html']
+        path = join(hub_root.value, *path)
+        return router.stream_reader(file(path, 'rb'))

@@ -78,6 +78,12 @@ ipc_port = Option(
         'port number to listen for incomming connections from IPC clients',
         default=5001, type_cast=int)
 
+hub_root = Option(
+        'path to Contributor Hub site directory to serve from /hub location '
+        'for IPC clients to workaround lack of CORS for SSE while using Hub '
+        'from file:// url',
+        default='/usr/share/sugar-network/hub')
+
 
 def path(*args):
     """Calculate a path from the root.
