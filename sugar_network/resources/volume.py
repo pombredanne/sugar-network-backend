@@ -253,6 +253,7 @@ class Commands(object):
             _logger.debug('Stop pulling events to %s user', peer)
 
     def _notify(self, event):
+        _logger.debug('Publish event: %r', event)
         self._notifier.set(event)
         self._notifier = coroutine.AsyncResult()
         coroutine.dispatch()

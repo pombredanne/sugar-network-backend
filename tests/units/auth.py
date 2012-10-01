@@ -65,6 +65,48 @@ class AuthTest(tests.Test):
         client.put(['context', 'guid'], {'title': 'probe'})
         self.assertEqual('probe', client.get(['context', 'guid', 'title']))
 
+    def test_Anonymous(self):
+        client = Client(sugar_auth=False)
+
+        props = {'implement': 'guid',
+                 'type': 'package',
+                 'title': 'title',
+                 'summary': 'summary',
+                 'description': 'description',
+                 }
+        self.start_master()
+
+        self.assertRaises(RuntimeError, client.post, ['context'], props)
+
+        self.touch(('authorization.conf', [
+            '[anonymous]',
+            'user = True',
+            ]))
+        auth._config = None
+        client.post(['context'], props)
+        self.assertEqual('title', client.get(['context', 'guid', 'title']))
+        self.assertEqual(['anonymous'], client.get(['context', 'guid', 'user']))
+
+        self.stop_servers()
+        self.touch((
+            'master/context/gu/guid/user',
+            '{"seqno": 1, "value": ["fake"]}',
+            ))
+        self.start_master()
+
+        auth._config = None
+        self.assertRaises(RuntimeError, client.put, ['context', 'guid'], {'title': 'probe'})
+
+        self.touch(('authorization.conf', [
+            '[anonymous]',
+            'user = True',
+            'root = True',
+            ]))
+        auth._config = None
+        client.put(['context', 'guid'], {'title': 'probe'})
+        self.assertEqual('probe', client.get(['context', 'guid', 'title']))
+        self.assertEqual(['fake'], client.get(['context', 'guid', 'user']))
+
 
 if __name__ == '__main__':
     tests.main()

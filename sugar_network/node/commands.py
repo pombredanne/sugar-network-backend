@@ -91,7 +91,7 @@ class NodeCommands(ad.VolumeCommands, Commands):
             return
 
         if cmd.permissions & ad.ACCESS_AUTH:
-            enforce(request.principal is not None, router.Unauthorized,
+            enforce(auth.try_validate(request, 'user'), router.Unauthorized,
                     'User is not authenticated')
 
         if cmd.permissions & ad.ACCESS_AUTHOR and 'guid' in request:

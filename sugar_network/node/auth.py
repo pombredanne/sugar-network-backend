@@ -25,16 +25,22 @@ _config = None
 
 
 def validate(request, role):
-    enforce(_validate(request.principal, role), ad.Forbidden,
+    enforce(_validate(request, role), ad.Forbidden,
             'No enough permissions to proceed the operation')
 
 
 def try_validate(request, role):
-    return _validate(request.principal, role) or False
+    return _validate(request, role) or False
 
 
-def _validate(user, role):
+def _validate(request, role):
     global _config
+
+    if role == 'user':
+        if request.principal:
+            return True
+        else:
+            request.principal = 'anonymous'
 
     if _config is None:
         _config = ConfigParser()
@@ -42,6 +48,6 @@ def _validate(user, role):
         if exists(config_path):
             _config.read(config_path)
 
-    if _config.has_option(user, role):
-        return _config.get(user, role).strip().lower() in \
+    if _config.has_option(request.principal, role):
+        return _config.get(request.principal, role).strip().lower() in \
                 ('true', 'on', '1', 'allow')

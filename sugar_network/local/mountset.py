@@ -142,8 +142,6 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
             del self._subscriptions[callback]
 
     def publish(self, event):
-        _logger.debug('Publish event: %r', event)
-
         for callback, condition in self._subscriptions.items():
             for key, value in condition.items():
                 if event.get(key) != value:
