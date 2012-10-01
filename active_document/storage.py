@@ -175,15 +175,22 @@ class Record(object):
         if exists(path):
             return PropertyMeta(path)
 
-    def set(self, prop, mtime=None, **kwargs):
+    def set(self, prop, mtime=None, path=None, content=None, **meta):
         if not exists(self._root):
             os.makedirs(self._root)
-        path = join(self._root, prop)
+        meta_path = join(self._root, prop)
 
-        with util.new_file(path) as f:
-            json.dump(kwargs, f)
+        blob_path = join(self._root, prop + PropertyMeta.BLOB_SUFFIX)
+        if content is not None:
+            with util.new_file(blob_path) as f:
+                f.write(content)
+        elif path and exists(path):
+            util.cptree(path, blob_path)
+
+        with util.new_file(meta_path) as f:
+            json.dump(meta, f)
         if mtime:
-            os.utime(path, (mtime, mtime))
+            os.utime(meta_path, (mtime, mtime))
 
         if prop == 'guid':
             if not mtime:

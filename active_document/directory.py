@@ -18,9 +18,9 @@ import shutil
 import logging
 from os.path import exists, join
 
-from active_document import env, http
+from active_document import env
 from active_document.storage import Storage
-from active_document.metadata import Metadata, BlobProperty
+from active_document.metadata import Metadata
 from active_document.metadata import ActiveProperty, StoredProperty
 from active_toolkit import util, enforce
 
@@ -289,69 +289,45 @@ class Directory(object):
                     meta = doc.meta(name)
                     if meta is None or meta['seqno'] not in accept_range:
                         continue
+                    prop = diff[name] = {'mtime': meta['mtime']}
+                    for i in ('value', 'mime_type', 'digest', 'path', 'url'):
+                        if i in meta:
+                            prop[i] = meta[i]
 
-                    if isinstance(self.metadata[name], BlobProperty):
-                        header = {
-                                'guid': doc.guid,
-                                'prop': name,
-                                'mime_type': meta['mime_type'],
-                                'digest': meta.get('digest'),
-                                'mtime': meta['mtime'],
-                                }
-                        if 'digest' in meta:
-                            header['digest'] = meta['digest']
-                        if 'path' in meta:
-                            with file(meta['path'], 'rb') as f:
-                                yield header, f
-                        elif 'url' in meta:
-                            with http.download(meta['url']) as f:
-                                yield header, f
-                    else:
-                        diff[name] = {
-                                'value': meta['value'],
-                                'mtime': meta['mtime'],
-                                }
-
-                yield {'guid': doc.guid, 'seqno': seqno}, diff
+                yield doc.guid, seqno, diff
 
             seqno += 1
 
-    def merge(self, guid, diff, increment_seqno=True, **kwargs):
+    def merge(self, guid, diff, increment_seqno=True):
         """Apply changes for documents."""
         record = self._storage.get(guid)
-        props = {}
+        seqno = None
+        merged = False
 
-        def merge(fun, **meta):
-            orig_meta = record.get(meta['prop'])
+        for prop, meta in diff.items():
+            orig_meta = record.get(prop)
             if orig_meta is not None and orig_meta['mtime'] >= meta['mtime']:
-                return False
+                continue
             if increment_seqno:
-                if not props:
-                    props['seqno'] = self._seqno.next()
-                meta.update(props)
+                if not seqno:
+                    seqno = self._seqno.next()
+                meta['seqno'] = seqno
             else:
                 meta['seqno'] = (orig_meta or {}).get('seqno') or 0
-            fun(**meta)
-            return True
-
-        merged = False
-        if isinstance(diff, dict):
-            for prop, meta in diff.items():
-                merged |= merge(record.set, prop=prop, **meta)
-        else:
-            merged = merge(record.set_blob, prop=kwargs['prop'], data=diff,
-                    mime_type=kwargs.get('mime_type'),
-                    digest=kwargs.get('digest'),
-                    mtime=kwargs.get('mtime'))
+            record.set(prop, **meta)
+            merged = True
 
         if merged and record.consistent:
+            props = {}
+            if seqno:
+                props['seqno'] = seqno
             self._index.store(guid, props, False,
                     self._pre_store, self._post_store,
                     # No need in after-merge event, further commit event
                     # is enough to avoid events flow on nodes synchronization
-                    None, increment_seqno)
+                    None, False)
 
-        return props.get('seqno')
+        return seqno
 
     def _pre_store(self, guid, changes, event, increment_seqno):
         seqno = changes.get('seqno')
