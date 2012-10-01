@@ -20,7 +20,7 @@ from sugar_network import resources, static
 from sugar_network.local import activities
 from sugar_network.resources.volume import Resource
 from sugar_network.zerosugar import Spec
-from sugar_network.node import obs, auth
+from sugar_network.node import obs
 from active_toolkit import coroutine, util
 
 
@@ -157,22 +157,6 @@ class Context(Resource):
     @ad.active_property(ad.StoredProperty, typecast=dict, default={})
     def presolve(self, value):
         return value
-
-    @ad.document_command(method='PUT', cmd='attach',
-            permissions=ad.ACCESS_AUTH)
-    def attach(self, request):
-        auth.validate(request, 'root')
-        # TODO Reading layer here is a race
-        layer = list(set(self['layer']) | set(request.content))
-        request.volume['context'].update(self.guid, {'layer': layer})
-
-    @ad.document_command(method='PUT', cmd='detach',
-            permissions=ad.ACCESS_AUTH)
-    def detach(self, request):
-        auth.validate(request, 'root')
-        # TODO Reading layer here is a race
-        layer = list(set(self['layer']) - set(request.content))
-        request.volume['context'].update(self.guid, {'layer': layer})
 
     def _process_aliases(self, aliases):
         packages = {}

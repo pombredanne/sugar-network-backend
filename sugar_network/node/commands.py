@@ -102,6 +102,26 @@ class NodeCommands(ad.VolumeCommands, Commands):
 
         return cmd
 
+    @ad.document_command(method='PUT', cmd='attach',
+            permissions=ad.ACCESS_AUTH)
+    def attach(self, document, guid, request):
+        auth.validate(request, 'root')
+        directory = self.volume[document]
+        doc = directory.get(guid)
+        # TODO Reading layer here is a race
+        layer = list(set(doc['layer']) | set(request.content))
+        directory.update(guid, {'layer': layer})
+
+    @ad.document_command(method='PUT', cmd='detach',
+            permissions=ad.ACCESS_AUTH)
+    def detach(self, document, guid, request):
+        auth.validate(request, 'root')
+        directory = self.volume[document]
+        doc = directory.get(guid)
+        # TODO Reading layer here is a race
+        layer = list(set(doc['layer']) - set(request.content))
+        directory.update(guid, {'layer': layer})
+
     def before_create(self, request, props):
         if request['document'] == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
