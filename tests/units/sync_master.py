@@ -529,7 +529,7 @@ class SyncMasterTest(tests.Test):
 
         def diff(*args, **kwargs):
             for i in range(1024):
-                yield {'guid': str(i), 'seqno': i}, {}
+                yield str(i), i, {}
                 coroutine.sleep(.1)
 
         self.override(Directory, 'diff', diff)

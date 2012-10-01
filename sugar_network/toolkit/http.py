@@ -53,7 +53,7 @@ _logger = logging.getLogger('http')
 
 class Client(object):
 
-    def __init__(self, api_url, sugar_auth=False, **kwargs):
+    def __init__(self, api_url='', sugar_auth=False, **kwargs):
         self.api_url = api_url
         self.params = kwargs
         self._sugar_auth = sugar_auth
@@ -81,6 +81,10 @@ class Client(object):
 
     def close(self):
         self._session.close()
+
+    def exists(self, path):
+        response = self.request('GET', path, allowed=[404], params=self.params)
+        return response.status_code != 404
 
     def get(self, path_=None, **kwargs):
         kwargs.update(self.params)
