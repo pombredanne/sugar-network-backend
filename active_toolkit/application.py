@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-09-30$
+$Date: 2012-10-01$
 
 """
 
@@ -85,11 +85,11 @@ class Application(object):
         self.name = name
 
         self._commands = {}
-        for attr in dir(self):
-            attr = getattr(self, attr)
+        for name in dir(self.__class__):
+            attr = getattr(self.__class__, name)
             if hasattr(attr, '_is_command') and \
                     (attr.name != 'config' or 'config_files' in parse_args):
-                self._commands[attr.name or attr.__name__] = attr
+                self._commands[attr.name or name] = getattr(self, name)
 
         parser = OptionParser(usage='%prog [OPTIONS]', description=description,
                 add_help_option=False)
