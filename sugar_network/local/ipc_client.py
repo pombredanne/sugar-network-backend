@@ -27,15 +27,22 @@ class Router(router.Router):
         return sugar.uid()
 
     def call(self, request, response):
-        if request.environ['PATH_INFO'] == '/hub':
-            raise ad.Redirect('/hub/')
         if request.path and request.path[0] == 'hub':
-            return self._serve_hub(request.path[1:])
+            # Since SSE doesn't support CORS for now, have to serve Hub
+            # from HTTP server instead of file:// for IPC users
+            return self._serve_hub(request, response)
         request.access_level = ad.ACCESS_LOCAL
         return router.Router.call(self, request, response)
 
-    def _serve_hub(self, path):
+    def _serve_hub(self, request, response):
+        if request.environ['PATH_INFO'] == '/hub':
+            raise ad.Redirect('/hub/')
+        path = request.path[1:]
         if not path:
             path = ['index.html']
         path = join(hub_root.value, *path)
+        if path.endswith('.js'):
+            response.content_type = 'text/javascript'
+        if path.endswith('.css'):
+            response.content_type = 'text/css'
         return router.stream_reader(file(path, 'rb'))

@@ -81,7 +81,7 @@ class Context(Resource):
                     mime_type='image/svg+xml')
         return value
 
-    @ad.active_property(ad.BlobProperty)
+    @ad.active_property(ad.BlobProperty, mime_type='image/png')
     def preview(self, value):
         return value
 
