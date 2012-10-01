@@ -60,9 +60,9 @@ class ObsTest(tests.Test):
             ]))
 
         self.assertEqual([
-            {'name': 'Debian-6.0', 'arch': 'i586'},
-            {'name': 'Debian-6.0', 'arch': 'x86_64'},
-            {'name': 'Fedora-11', 'arch': 'i586'},
+            {'distributor_id': 'Fedora', 'name': 'Debian-6.0', 'arch': 'i586'},
+            {'distributor_id': 'Fedora', 'name': 'Debian-6.0', 'arch': 'x86_64'},
+            {'distributor_id': 'Fedora', 'name': 'Fedora-11', 'arch': 'i586'},
             ],
             obs.get_presolve_repos())
 

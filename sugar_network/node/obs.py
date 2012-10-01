@@ -73,6 +73,8 @@ def get_presolve_repos():
                     ['build', obs_presolve_project.value, repo])
             for arch in arches.findall('entry'):
                 _presolve_repos.append({
+                    # TODO more distros after supporting them PK backend
+                    'distributor_id': 'Fedora',
                     'name': repo,
                     'arch': arch.get('name'),
                     })
