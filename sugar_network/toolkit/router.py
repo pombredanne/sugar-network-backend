@@ -225,12 +225,13 @@ class Router(object):
             return False
 
         valid = True
-        if origin == 'null':
+        if origin == 'null' or origin.startswith('file://'):
             # True all time for local apps
             pass
         else:
             if self._host is None:
-                self._host = coroutine.gethostbyname(environ['HTTP_HOST'])
+                http_host = environ['HTTP_HOST'].split(':', 1)[0]
+                self._host = coroutine.gethostbyname(http_host)
             ip = coroutine.gethostbyname(urlsplit(origin).hostname)
             valid = (self._host == ip)
 
