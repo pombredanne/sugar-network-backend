@@ -97,7 +97,7 @@ class RouterTest(tests.Test):
         client.put(['document', guid_2, 'blob'], payload)
         self.assertEqual(
                 payload,
-                client.get(['document', guid_2, 'blob']).content)
+                client.request('GET', ['document', guid_2, 'blob']).content)
 
         client.delete(['document', guid_2])
 
@@ -223,7 +223,7 @@ class RouterTest(tests.Test):
         client = Client('http://localhost:8800', sugar_auth=True)
         guid = client.post(['document2'], {'term': 'probe'})
         content = urllib2.urlopen(URL).read()
-        assert content == client.get(['document2', guid, 'blob']).content
+        assert content == client.request('GET', ['document2', guid, 'blob']).content
 
     def test_Request_MultipleQueryArguments(self):
         request = _Request({

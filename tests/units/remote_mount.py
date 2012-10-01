@@ -258,11 +258,11 @@ class RemoteMountTest(tests.Test):
 
         self.touch(('file', 'blob'))
         remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
-        self.assertEqual('blob', remote.get(['context', guid, 'preview']).content)
+        self.assertEqual('blob', remote.request('GEt', ['context', guid, 'preview']).content)
 
         self.touch(('file2', 'blob2'))
         remote.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file2'), pass_ownership=True)
-        self.assertEqual('blob2', remote.get(['context', guid, 'preview']).content)
+        self.assertEqual('blob2', remote.request('GET', ['context', guid, 'preview']).content)
         assert not exists('file2')
 
     def test_GetBLOBs(self):
@@ -283,7 +283,7 @@ class RemoteMountTest(tests.Test):
 
         self.assertEqual(
                 'preview-blob',
-                remote.get(['context', guid, 'preview']).content)
+                remote.request('GET', ['context', guid, 'preview']).content)
         assert local.ipc_port.value != 8800
         url_prefix = 'http://localhost:8800/context/' + guid
         self.assertEqual(

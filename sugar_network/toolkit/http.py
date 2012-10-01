@@ -82,33 +82,29 @@ class Client(object):
         self._session.close()
 
     def exists(self, path):
-        response = self.request('GET', path, allowed=[404], params=self.params)
+        response = self.request('GET', path, allowed=[404])
         return response.status_code != 404
 
     def get(self, path_=None, **kwargs):
-        kwargs.update(self.params)
         response = self.request('GET', path_, params=kwargs)
-        return self._decode_response(response)
+        return self._decode_reply(response)
 
     def post(self, path_=None, data_=None, **kwargs):
-        kwargs.update(self.params)
         response = self.request('POST', path_, data_,
                 headers={'Content-Type': 'application/json'}, params=kwargs)
-        return self._decode_response(response)
+        return self._decode_reply(response)
 
     def put(self, path_=None, data_=None, **kwargs):
-        kwargs.update(self.params)
         response = self.request('PUT', path_, data_,
                 headers={'Content-Type': 'application/json'}, params=kwargs)
-        return self._decode_response(response)
+        return self._decode_reply(response)
 
     def delete(self, path_=None, **kwargs):
-        kwargs.update(self.params)
         response = self.request('DELETE', path_, params=kwargs)
-        return self._decode_response(response)
+        return self._decode_reply(response)
 
     def request(self, method, path=None, data=None, headers=None, allowed=None,
-            **kwargs):
+            params=None, **kwargs):
         if not path:
             path = ['']
         if not isinstance(path, basestring):
@@ -118,10 +114,16 @@ class Client(object):
                 headers.get('Content-Type') == 'application/json':
             data = json.dumps(data)
 
+        if params is None:
+            params = self.params
+        else:
+            params.update(self.params)
+
         while True:
             try:
                 response = requests.request(method, path, data=data,
-                        headers=headers, session=self._session, **kwargs)
+                        headers=headers, session=self._session, params=params,
+                        **kwargs)
             except requests.exceptions.SSLError:
                 _logger.warning('Use --no-check-certificate to avoid checks')
                 raise
@@ -167,7 +169,7 @@ class Client(object):
         if response is not None:
             response.content_type = reply.headers['Content-Type']
 
-        return self._decode_response(reply)
+        return self._decode_reply(reply)
 
     def download(self, url_path, out_path, seqno=None, extract=False):
         if isdir(out_path):
@@ -280,11 +282,9 @@ class Client(object):
                     },
                 )
 
-    def _decode_response(self, response):
+    def _decode_reply(self, response):
         if response.headers.get('Content-Type') == 'application/json':
             return json.loads(response.content)
-        else:
-            return response
 
 
 def _sign(data):

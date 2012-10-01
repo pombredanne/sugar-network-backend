@@ -289,11 +289,11 @@ class NodeMountTest(tests.Test):
 
         self.touch(('file', 'blob'))
         client.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file'))
-        self.assertEqual('blob', client.get(['context', guid, 'preview']).content)
+        self.assertEqual('blob', client.request('GET', ['context', guid, 'preview']).content)
 
         self.touch(('file2', 'blob2'))
         client.put(['context', guid, 'preview'], cmd='upload_blob', path=abspath('file2'), pass_ownership=True)
-        self.assertEqual('blob2', client.get(['context', guid, 'preview']).content)
+        self.assertEqual('blob2', client.request('GET', ['context', guid, 'preview']).content)
         assert not exists('file2')
 
     def test_GetBLOBs(self):
@@ -313,7 +313,7 @@ class NodeMountTest(tests.Test):
 
         self.assertEqual(
                 'icon-blob',
-                client.get(['context', guid, 'icon']).content)
+                client.request('GEt', ['context', guid, 'icon']).content)
         blob_url = 'http://localhost:%s/context/%s/icon?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')
         self.assertEqual(
                 [{'guid': guid, 'icon': blob_url}],
