@@ -67,9 +67,8 @@ class Client(object):
         headers = {'Accept-Language': ad.default_lang()}
         if self._sugar_auth:
             uid = sugar.uid()
-            key_path = sugar.profile_path('owner.key')
             headers['sugar_user'] = uid
-            headers['sugar_user_signature'] = _sign(key_path, uid)
+            headers['sugar_user_signature'] = _sign(uid)
 
         self._session = Session(headers=headers, verify=verify, prefetch=False)
 
@@ -288,8 +287,8 @@ class Client(object):
             return response
 
 
-def _sign(key_path, data):
-    key = DSA.load_key(key_path)
+def _sign(data):
+    key = DSA.load_key(sugar.privkey_path())
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
 
 

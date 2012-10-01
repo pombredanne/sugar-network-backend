@@ -26,7 +26,7 @@ from os.path import join, exists
 import MySQLdb as mdb
 
 import active_document as ad
-from sugar_network import Client
+from sugar_network import sugar, Client
 from sugar_network.toolkit.collection import PersistentSequence, Sequence
 from sugar_network.zerosugar import GOOD_LICENSES, Bundle, parse_version
 from sugar_network.resources.volume import Volume
@@ -423,27 +423,27 @@ class Application(application.Application):
 
     def sqlexec(self, text):
         if self._my_connection is None:
-            self._my_connection = mdb.connect('localhost',
-                    user.value, getpass.getpass(), database.value)
+            self._my_connection = mdb.connect(mysql_server.value,
+                    mysql_user.value, getpass.getpass(), mysql_database.value)
         cursor = self._my_connection.cursor()
         cursor.execute(text)
         return cursor.fetchall()
 
 
-server = Option(
+mysql_server = Option(
         'MySQL server',
-        default='localhost', name='server')
-database = Option(
+        default='localhost', name='mysql_server')
+mysql_database = Option(
         'MySQL database',
-        default='activities', name='database')
-user = Option(
+        default='activities', name='mysql_database')
+mysql_user = Option(
         'MySQL user',
-        default='root', name='user')
+        default='root', name='mysql_user')
 
 Option.seek('main', [application.debug])
-Option.seek('aslo', [server, user, database])
+Option.seek('aslo', [mysql_server, mysql_user, mysql_database])
 Option.seek('node', [data_root])
-Option.seek('local', [api_url])
+Option.seek('local', [api_url, sugar.keyfile])
 
 ad.index_write_queue.value = 1024 * 10
 ad.index_flush_threshold.value = 0
