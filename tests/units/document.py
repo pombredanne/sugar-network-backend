@@ -9,6 +9,7 @@ import json
 import time
 import urllib2
 import hashlib
+from base64 import b64encode
 from cStringIO import StringIO
 from os.path import join, exists
 
@@ -722,7 +723,7 @@ class DocumentTest(tests.Test):
         self.assertEqual('blob-1', file('document/1/1/blob.blob').read())
 
         directory.merge('1', {
-            'blob': {'mtime': 5, 'content': 'blob-2'},
+            'blob': {'mtime': 5, 'content': b64encode('blob-2')},
             })
 
         self.assertEqual(5, doc.meta('blob')['mtime'])

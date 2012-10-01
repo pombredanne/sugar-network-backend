@@ -19,6 +19,7 @@ import time
 import json
 import shutil
 import hashlib
+from base64 import b64decode
 from os.path import exists, join, isdir, basename, relpath, lexists, isabs
 
 from active_document import env
@@ -183,7 +184,7 @@ class Record(object):
         blob_path = join(self._root, prop + PropertyMeta.BLOB_SUFFIX)
         if content is not None:
             with util.new_file(blob_path) as f:
-                f.write(content)
+                f.write(b64decode(content))
         elif path and exists(path):
             util.cptree(path, blob_path)
 
