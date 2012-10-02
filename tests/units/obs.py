@@ -131,10 +131,10 @@ class ObsTest(tests.Test):
             ]))
 
         self.assertEqual([
-            {'distributor_id': 'Fedora', 'url': 'http://pkg1-1.prm', 'name': 'pkg1-1'},
-            {'distributor_id': 'Fedora', 'url': 'http://pkg1-2.prm', 'name': 'pkg1-2'},
-            {'distributor_id': 'Fedora', 'url': 'http://pkg2-1.prm', 'name': 'pkg2-1'},
-            {'distributor_id': 'Fedora', 'url': 'http://pkg2-2.prm', 'name': 'pkg2-2'},
+            {'url': 'http://pkg1-1.prm', 'name': 'pkg1-1'},
+            {'url': 'http://pkg1-2.prm', 'name': 'pkg1-2'},
+            {'url': 'http://pkg2-1.prm', 'name': 'pkg2-1'},
+            {'url': 'http://pkg2-2.prm', 'name': 'pkg2-2'},
             ],
             obs.presolve('repo', 'arch', ['pkg1', 'pkg2']))
 

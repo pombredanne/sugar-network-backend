@@ -172,9 +172,12 @@ class Context(Resource):
             try:
                 to_resolve = alias.get('binary', []) + \
                         alias.get('devel', [])
-                for arch in repo['arches']:
-                    obs.resolve(repo['name'], arch, to_resolve)
-                alias['status'] = 'success'
+                if to_resolve:
+                    for arch in repo['arches']:
+                        obs.resolve(repo['name'], arch, to_resolve)
+                    alias['status'] = 'success'
+                else:
+                    alias['status'] = 'no packages to resolve'
             except Exception, error:
                 util.exception('Failed to resolve %r', alias)
                 alias = {'status': str(error)}

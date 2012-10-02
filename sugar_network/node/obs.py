@@ -107,8 +107,6 @@ def presolve(repo, arch, names):
             })
         for pkg in reply.findall('binary'):
             result.append({
-                # TODO more distros after supporting them PK backend
-                'distributor_id': 'Fedora',
                 'name': pkg.get('name'),
                 'url': pkg.get('url'),
                 })

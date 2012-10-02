@@ -301,7 +301,8 @@ class Application(application.Application):
             break
 
     def _sync(self, volume):
-        docs, __ = volume['context'].find(limit=ad.MAX_LIMIT, keep_impl=[1, 2])
+        contexts = volume['context']
+        docs, __ = contexts.find(limit=ad.MAX_LIMIT, keep_impl=[1, 2])
         for context in docs:
             if not activities.ensure_checkins(context.guid):
                 contexts.update(context.guid, keep_impl=0)
@@ -320,6 +321,7 @@ local.tmpdir.value = sugar.profile_path('tmp')
 Option.seek('main', [application.debug])
 Option.seek('webui', webui)
 Option.seek('local', local)
+Option.seek('local', [sugar.keyfile])
 Option.seek('node', [node.port, node.sync_dirs])
 Option.seek('stats', stats)
 Option.seek('active-document', ad)

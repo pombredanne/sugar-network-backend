@@ -1,3 +1,4 @@
+- from service API, return 304 HTTP status w/o pinging remote SN server
 - check if moon icon is uptodate
 - reuse the same data dir for all SN resources for the same context
 - GC BLOBs cache

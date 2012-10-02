@@ -42,6 +42,7 @@ ACTIVITIES_PATH = '/upload/activities'
 EXCLUDE_BUNDLE_IDS = ['net.gcompris']
 SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
+PACKAGES_GUID = 'packages'
 
 CATEGIORIES_TO_TAGS = {
         'Search & Discovery': 'discovery',
@@ -118,6 +119,18 @@ class Application(application.Application):
                         'of life.',
                     ctime=time.time(), mtime=time.time(),
                     )
+
+        if not self.volume['context'].exists(PACKAGES_GUID):
+            self.volume['context'].create(
+                    guid=PACKAGES_GUID,
+                    implement=PACKAGES_GUID,
+                    type='project',
+                    title='Packages',
+                    summary='Collection of GNU/Linux packages metadata',
+                    description='Collection of GNU/Linux packages metadata',
+                    ctime=time.time(), mtime=time.time())
+            self.volume['context'].set_blob(PACKAGES_GUID, 'icon',
+                    url='/static/images/package.png')
 
         if self.args:
             for addon_id in self.args:
