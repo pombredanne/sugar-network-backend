@@ -187,7 +187,7 @@ class RemoteMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 4},
+            {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 5},
             ],
             events)
 

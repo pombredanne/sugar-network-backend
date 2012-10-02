@@ -58,32 +58,36 @@ class Context(Resource):
 
     @ad.active_property(ad.BlobProperty, mime_type='image/png')
     def icon(self, value):
-        if not value:
-            if 'package' in self['type']:
-                return ad.PropertyMeta(
-                        url='/static/images/package.png',
-                        path=join(static.PATH, 'images', 'package.png'),
-                        mime_type='image/png')
-            else:
-                return ad.PropertyMeta(
-                        url='/static/images/missing.png',
-                        path=join(static.PATH, 'images', 'missing.png'),
-                        mime_type='image/png')
-        else:
+        if value:
             return value
+        if 'package' in self['type']:
+            return ad.PropertyMeta(
+                    url='/static/images/package.png',
+                    path=join(static.PATH, 'images', 'package.png'),
+                    mime_type='image/png')
+        else:
+            return ad.PropertyMeta(
+                    url='/static/images/missing.png',
+                    path=join(static.PATH, 'images', 'missing.png'),
+                    mime_type='image/png')
 
     @ad.active_property(ad.BlobProperty, mime_type='image/svg+xml')
     def artifact_icon(self, value):
-        if not value:
-            return ad.PropertyMeta(
-                    url='/static/images/missing.svg',
-                    path=join(static.PATH, 'images', 'missing.svg'),
-                    mime_type='image/svg+xml')
-        return value
+        if value:
+            return value
+        return ad.PropertyMeta(
+                url='/static/images/missing.svg',
+                path=join(static.PATH, 'images', 'missing.svg'),
+                mime_type='image/svg+xml')
 
     @ad.active_property(ad.BlobProperty, mime_type='image/png')
     def preview(self, value):
-        return value
+        if value:
+            return value
+        return ad.PropertyMeta(
+                url='/static/images/missing.png',
+                path=join(static.PATH, 'images', 'missing.png'),
+                mime_type='image/png')
 
     @ad.active_property(prefix='K', typecast=bool, default=False)
     def keep(self, value):
