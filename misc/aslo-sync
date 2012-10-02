@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import time
 import getpass
 import logging
@@ -229,15 +230,20 @@ class Application(application.Application):
                     continue
                 alicense = parsed_license
 
-            impl = self.sync_implementaiton(bundle_id,
-                    'http://download.sugarlabs.org/activities/%s/%s' % \
-                            (addon_id, filename),
-                    sugar_min, sugar_max,
-                    stability='stable' if status == 4 else 'developer',
-                    date=int(time.mktime(release_date.timetuple())),
-                    notes=self.get_i18n_field(releasenotes),
-                    license=[alicense] if alicense else [],
-                    )
+            try:
+                impl = self.sync_implementaiton(bundle_id,
+                        'http://download.sugarlabs.org/activities/%s/%s' % \
+                                (addon_id, filename),
+                        sugar_min, sugar_max,
+                        stability='stable' if status == 4 else 'developer',
+                        date=int(time.mktime(release_date.timetuple())),
+                        notes=self.get_i18n_field(releasenotes),
+                        license=[alicense] if alicense else [],
+                        )
+            except Exception, error:
+                print '-- Failed to sync %s for %s: %s' % (version, bundle_id, error)
+                continue
+
             if impl and parsed_version > recent_version:
                 recent_version = parsed_version
                 recent_impl = impl
@@ -250,25 +256,13 @@ class Application(application.Application):
             with tempfile.NamedTemporaryFile() as f:
                 f.write(icon)
                 f.flush()
-
-                path = f.name + '.png'
-                subprocess.check_call([
-                    'convert',
-                    '-background', 'none',
+                self.svg_to_png(f.name, 'context', bundle_id, 'icon', [
                     '-adaptive-resize', '55x55',
-                    f.name, path])
-                with file(path) as icon:
-                    self.volume['context'].set_blob(bundle_id, 'icon', icon)
-
-                path = f.name + '.png'
-                subprocess.check_call([
-                    'convert',
-                    '-background', 'none',
+                    ])
+                self.svg_to_png(f.name, 'context', bundle_id, 'preview', [
                     '-density', '400',
                     '-adaptive-resize', '160x120',
-                    f.name, path])
-                with file(path) as icon:
-                    self.volume['context'].set_blob(bundle_id, 'preview', icon)
+                    ])
 
     def sync_context(self, addon_id, bundle_id):
         if not self.volume['context'].exists(bundle_id):
@@ -429,6 +423,21 @@ class Application(application.Application):
         cursor.execute(text)
         return cursor.fetchall()
 
+    def svg_to_png(self, src, document, guid, prop, args):
+        dst = src + '.png'
+        try:
+            subprocess.check_call(
+                    ['convert', '-background', 'none'] + \
+                    args + \
+                    [src, dst])
+            with file(dst) as f:
+                self.volume[document].set_blob(guid, prop, f)
+        except Exception, error:
+            print '-- Cannot convert SVG icon: %s' % error
+        finally:
+            if exists(dst):
+                os.unlink(dst)
+
 
 mysql_server = Option(
         'MySQL server',
@@ -448,6 +457,9 @@ Option.seek('local', [api_url, sugar.keyfile])
 ad.index_write_queue.value = 1024 * 10
 ad.index_flush_threshold.value = 0
 ad.index_flush_timeout.value = 0
+
+sugar.nickname = lambda: 'aslo'
+sugar.color = lambda: '#000000,#000000'
 
 application = Application(
         name='sugar-network-aslo',
