@@ -222,37 +222,37 @@ class HomeMountTest(tests.Test):
                 self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.assertEqual({
-            '1': {
-                '*-*': {
-                    'commands': {
-                        'activity': {
-                            'exec': 'false',
-                            },
-                        },
-                    'stability': 'stable',
-                    'guid': tests.tmpdir + '/Activities/activity-1',
-                    'requires': {},
-                    },
-                },
-            '2': {
-                '*-*': {
-                    'commands': {
-                        'activity': {
-                            'exec': 'true',
-                            },
-                        },
-                    'stability': 'stable',
-                    'guid': tests.tmpdir + '/Activities/activity-2',
-                    'requires': {
-                        'dep1': {},
-                        'dep2': {'restrictions': [['1', '2']]},
-                        'dep3': {'restrictions': [[None, '2']]},
-                        'dep4': {'restrictions': [['3', None]]},
+        self.assertEqual([
+            {
+                'version': '1',
+                'arch': '*-*',
+                'commands': {
+                    'activity': {
+                        'exec': 'false',
                         },
                     },
+                'stability': 'stable',
+                'guid': tests.tmpdir + '/Activities/activity-1',
+                'requires': {},
                 },
-            },
+            {
+                'version': '2',
+                'arch': '*-*',
+                'commands': {
+                    'activity': {
+                        'exec': 'true',
+                        },
+                    },
+                'stability': 'stable',
+                'guid': tests.tmpdir + '/Activities/activity-2',
+                'requires': {
+                    'dep1': {},
+                    'dep2': {'restrictions': [['1', '2']]},
+                    'dep3': {'restrictions': [[None, '2']]},
+                    'dep4': {'restrictions': [['3', None]]},
+                    },
+                },
+            ],
             client.get(['context', 'bundle_id', 'versions']))
 
 

@@ -215,7 +215,12 @@ class _ProxyCommands(object):
                 if home.exists(guid):
                     home.update(guid, patch)
                 elif [True for prop, value in patch.items() if value]:
-                    copy = Request(method='GET', document='context', guid=guid)
+                    copy = Request(method='GET', document='context', guid=guid,
+                            reply=[
+                                'type', 'implement', 'title', 'summary',
+                                'description', 'homepage', 'mime_types',
+                                'dependencies',
+                                ])
                     copy.accept_language = request.accept_language
                     props = super_call(copy, ad.Response())
                     props.update(patch)

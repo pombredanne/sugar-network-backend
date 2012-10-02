@@ -185,9 +185,7 @@ class NodeMountTest(tests.Test):
             'date': 0,
             'stability': 'stable',
             'notes': '',
-            })
-        remote.put(['context', context, 'versions'], {
-            '1': {
+            'spec': {
                 '*-*': {
                     'commands': {
                         'activity': {
@@ -195,7 +193,6 @@ class NodeMountTest(tests.Test):
                             },
                         },
                     'stability': 'stable',
-                    'guid': impl,
                     'size': 0,
                     'extract': 'TestActivitry',
                     },

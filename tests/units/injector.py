@@ -49,10 +49,7 @@ class InjectorTest(tests.Test):
             'date': 0,
             'stability': 'stable',
             'notes': '',
-            })
-
-        remote.put(['context', context, 'versions'], {
-            '1': {
+            'spec': {
                 '*-*': {
                     'commands': {
                         'activity': {
@@ -60,7 +57,6 @@ class InjectorTest(tests.Test):
                             },
                         },
                     'stability': 'stable',
-                    'guid': impl,
                     'size': 0,
                     },
                 },
@@ -113,9 +109,7 @@ class InjectorTest(tests.Test):
             'date': 0,
             'stability': 'stable',
             'notes': '',
-            })
-        remote.put(['context', context, 'versions'], {
-            '1': {
+            'spec': {
                 '*-*': {
                     'commands': {
                         'activity': {
@@ -123,7 +117,6 @@ class InjectorTest(tests.Test):
                             },
                         },
                     'stability': 'stable',
-                    'guid': impl,
                     'size': 0,
                     'extract': 'TestActivitry',
                     },
@@ -164,23 +157,7 @@ class InjectorTest(tests.Test):
             'date': 0,
             'stability': 'stable',
             'notes': '',
-            })
-
-        remote.put(['context', context, 'versions'], {
-            '1': {
-                '*-*': {
-                    'commands': {
-                        'activity': {
-                            'exec': 'false',
-                            },
-                        },
-                    'stability': 'stable',
-                    'guid': impl,
-                    'size': 0,
-                    'extract': 'TestActivitry',
-                    },
-                },
-            '2': {
+            'spec': {
                 '*-*': {
                     'commands': {
                         'activity': {
@@ -188,7 +165,6 @@ class InjectorTest(tests.Test):
                             },
                         },
                     'stability': 'stable',
-                    'guid': impl_2,
                     'size': 0,
                     'extract': 'TestActivitry',
                     },

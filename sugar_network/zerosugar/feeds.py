@@ -52,33 +52,31 @@ def read(context):
     if distro:
         feed.to_resolve = distro.get('binary')
 
-    for version, version_data in feed_content['versions'].items():
-        for arch, impl_data in version_data.items():
-            impl_id = impl_data['guid']
+    for release in feed_content['versions']:
+        impl_id = release['guid']
 
-            impl = _Implementation(feed, impl_id, None)
-            impl.client = client
-            impl.version = parse_version(version)
-            impl.released = 0
-            impl.arch = arch
-            impl.upstream_stability = \
-                    model.stability_levels[impl_data['stability']]
-            impl.requires.extend(_read_requires(impl_data.get('requires')))
+        impl = _Implementation(feed, impl_id, None)
+        impl.client = client
+        impl.version = parse_version(release['version'])
+        impl.released = 0
+        impl.arch = release['arch']
+        impl.upstream_stability = model.stability_levels[release['stability']]
+        impl.requires.extend(_read_requires(release.get('requires')))
 
-            if isabs(impl_id):
-                impl.local_path = impl_id
-            else:
-                impl.add_download_source(impl_id,
-                        impl_data.get('size') or 0, impl_data.get('extract'))
+        if isabs(impl_id):
+            impl.local_path = impl_id
+        else:
+            impl.add_download_source(impl_id,
+                    release.get('size') or 0, release.get('extract'))
 
-            for name, command in impl_data['commands'].items():
-                impl.commands[name] = _Command(name, command)
+        for name, command in release['commands'].items():
+            impl.commands[name] = _Command(name, command)
 
-            for name, insert, mode in impl_data.get('bindings') or []:
-                binding = model.EnvironmentBinding(name, insert, mode=mode)
-                impl.bindings.append(binding)
+        for name, insert, mode in release.get('bindings') or []:
+            binding = model.EnvironmentBinding(name, insert, mode=mode)
+            impl.bindings.append(binding)
 
-            feed.implementations[impl_id] = impl
+        feed.implementations[impl_id] = impl
 
     return feed
 

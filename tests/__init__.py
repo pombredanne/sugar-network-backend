@@ -25,6 +25,7 @@ from sugar_network.local.mountset import Mountset
 from sugar_network import local, node
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
+from sugar_network.resources.implementation import Implementation
 from sugar_network.node.commands import NodeCommands, MasterCommands
 from sugar_network.node.router import Router as MasterRouter
 from sugar_network.node import stats, obs, auth
@@ -97,6 +98,7 @@ class Test(unittest.TestCase):
                 'sugar_network.resources.user',
                 'sugar_network.resources.context',
                 'sugar_network.resources.report',
+                'sugar_network.resources.implementation',
                 ]
 
         sugar.nickname = lambda: 'test'
@@ -226,7 +228,7 @@ class Test(unittest.TestCase):
 
     def start_server(self, classes=None, root=True):
         if classes is None:
-            classes = [User, Context]
+            classes = [User, Context, Implementation]
         volume = Volume('local', classes)
         self.mounts = Mountset(volume)
         self.mounts['~'] = HomeMount(volume)
@@ -264,7 +266,7 @@ class Test(unittest.TestCase):
         node.find_limit.value = 1024
         ad.index_write_queue.value = 10
 
-        volume = Volume('remote', classes or [User, Context])
+        volume = Volume('remote', classes or [User, Context, Implementation])
         cp = NodeCommands(volume)
         httpd = coroutine.WSGIServer(('localhost', 8800), Router(cp))
         try:
@@ -277,7 +279,7 @@ class Test(unittest.TestCase):
 
     def start_master(self, classes=None):
         if classes is None:
-            classes = [User, Context]
+            classes = [User, Context, Implementation]
         self.touch('master/master')
         self.volume = Volume('master', classes)
         cp = MasterCommands(self.volume)

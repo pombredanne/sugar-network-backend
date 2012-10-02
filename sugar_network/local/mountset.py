@@ -114,6 +114,10 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
                         content={'keep': True}),
                     ad.Response())
 
+    @ad.volume_command(method='POST', cmd='publish')
+    def _publish(self, request):
+        self.publish(request.content)
+
     def super_call(self, request, response):
         if 'mountpoint' in request:
             mountpoint = request.mountpoint = request.pop('mountpoint')
