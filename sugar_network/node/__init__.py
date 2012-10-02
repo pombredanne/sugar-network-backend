@@ -61,3 +61,7 @@ pull_timeout = Option(
         'delay in seconds to return to sync-pull requester to wait until '
         'pull request will be ready',
         default=30, type_cast=int)
+
+static_url = Option(
+        'url prefix to use for static files that should be served via API '
+        'server; if omited, HTTP_HOST request value will be used')

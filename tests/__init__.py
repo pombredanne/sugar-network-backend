@@ -75,6 +75,7 @@ class Test(unittest.TestCase):
         node.tmpdir.value = tmpdir + '/tmp'
         node.data_root.value = tmpdir
         node.sync_dirs.value = []
+        node.static_url.value = None
         ad.index_write_queue.value = 10
         local.local_root.value = tmpdir
         local.activity_dirs.value = [tmpdir + '/Activities']

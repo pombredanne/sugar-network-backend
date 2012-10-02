@@ -324,6 +324,16 @@ class NodeTest(tests.Test):
             ],
             call(cp, method='GET', document='report', reply=['guid', 'data', 'layer'])['result'])
 
+        node.static_url.value = 'static_url'
+        self.assertEqual(
+                sorted([
+                    {'guid': guid1, 'icon': 'static_url/static/images/missing.png', 'layer': ['public']},
+                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                    {'guid': guid3, 'icon': 'static_url/foo/bar', 'layer': ['public']},
+                    {'guid': guid5, 'icon': ['static_url/1', 'http://2'], 'layer': ['public']},
+                    ]),
+                sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
+
     def test_DeletedDocuments(self):
         volume = Volume('db')
         cp = NodeCommands(volume)
