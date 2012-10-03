@@ -171,7 +171,10 @@ class Client(object):
         if response is not None:
             response.content_type = reply.headers['Content-Type']
 
-        return self._decode_reply(reply)
+        result = self._decode_reply(reply)
+        if result is None:
+            result = reply.content
+        return result
 
     def download(self, url_path, out_path, seqno=None, extract=False):
         if isdir(out_path):
