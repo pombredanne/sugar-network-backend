@@ -212,10 +212,10 @@ class Router(object):
                 result_streamed = False
             result = '%s(%s);' % (js_callback, json.dumps(result))
             response.content_length = len(result)
-        elif not result_streamed and \
-                response.content_type == 'application/json':
-            result = json.dumps(result)
-            response.content_length = len(result)
+        elif not result_streamed:
+            if response.content_type == 'application/json':
+                result = json.dumps(result)
+            response.content_length = len(result) if result else 0
 
         _logger.debug('Called %s: response=%r result=%r streamed=%r',
                 request_repr, response, result, result_streamed)
@@ -337,11 +337,11 @@ class _Response(ad.Response):
 
     @property
     def content_length(self):
-        return self.get('Content-Length')
+        return int(self.get('Content-Length') or '0')
 
     @content_length.setter
     def content_length(self, value):
-        self['Content-Length'] = value
+        self['Content-Length'] = str(value)
 
     @property
     def content_type(self):
