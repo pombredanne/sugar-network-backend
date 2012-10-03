@@ -158,6 +158,9 @@ class _ProxyCommands(object):
         self._home_volume = home_mount
 
     def _proxy_call(self, request, response, super_call):
+        if 'document' not in request:
+            return super_call(request, response)
+
         patch = {}
         result = None
         command = request['method'], request.get('cmd')

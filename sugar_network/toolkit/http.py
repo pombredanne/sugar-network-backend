@@ -153,11 +153,13 @@ class Client(object):
     def call(self, request, response=None):
         params = request.copy()
         method = params.pop('method')
-        document = params.pop('document')
+        document = params.pop('document') if 'document' in params else None
         guid = params.pop('guid') if 'guid' in params else None
         prop = params.pop('prop') if 'prop' in params else None
 
-        path = [document]
+        path = []
+        if document:
+            path.append(document)
         if guid:
             path.append(guid)
         if prop:
