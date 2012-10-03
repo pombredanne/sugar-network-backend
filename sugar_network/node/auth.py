@@ -48,6 +48,10 @@ def _validate(request, role):
         if exists(config_path):
             _config.read(config_path)
 
-    if _config.has_option(request.principal, role):
-        return _config.get(request.principal, role).strip().lower() in \
+    user = request.principal
+    if not _config.has_section(user):
+        user = 'DEFAULT'
+
+    if _config.has_option(user, role):
+        return _config.get(user, role).strip().lower() in \
                 ('true', 'on', '1', 'allow')
