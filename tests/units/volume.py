@@ -284,7 +284,7 @@ class VolumeTest(tests.Test):
                 sorted(self.call('GET', document='testdocument', reply=['prop', 'guid'])['result'][0].keys()))
 
         self.assertEqual(
-                sorted(['guid', 'prop']),
+                sorted(['prop']),
                 sorted(self.call('GET', document='testdocument', reply=['prop'])['result'][0].keys()))
 
     def test_Command_NotModifiedGet(self):
@@ -407,7 +407,7 @@ class VolumeTest(tests.Test):
                 'value_ru',
                 self.call('GET', document='testdocument', guid=guid, accept_language=['ru', 'es'], prop='localized_prop'))
         self.assertEqual(
-                [{'guid': guid, 'localized_prop': 'value_ru'}],
+                [{'localized_prop': 'value_ru'}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'ru', 'es'], reply=['localized_prop'])['result'])
 
         self.assertEqual(
@@ -417,7 +417,7 @@ class VolumeTest(tests.Test):
                 'value_ru',
                 self.call('GET', document='testdocument', guid=guid, accept_language=['ru-RU', 'es'], prop='localized_prop'))
         self.assertEqual(
-                [{'guid': guid, 'localized_prop': 'value_ru'}],
+                [{'localized_prop': 'value_ru'}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'ru-RU', 'es'], reply=['localized_prop'])['result'])
 
         self.assertEqual(
@@ -427,7 +427,7 @@ class VolumeTest(tests.Test):
                 'value_es',
                 self.call('GET', document='testdocument', guid=guid, accept_language=['es', 'ru'], prop='localized_prop'))
         self.assertEqual(
-                [{'guid': guid, 'localized_prop': 'value_es'}],
+                [{'localized_prop': 'value_es'}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'es', 'ru'], reply=['localized_prop'])['result'])
 
         self.assertEqual(
@@ -437,7 +437,7 @@ class VolumeTest(tests.Test):
                 'value_en',
                 self.call('GET', document='testdocument', guid=guid, accept_language=['fr', 'za'], prop='localized_prop'))
         self.assertEqual(
-                [{'guid': guid, 'localized_prop': 'value_en'}],
+                [{'localized_prop': 'value_en'}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
 
         env.DEFAULT_LANG = 'foo'
@@ -450,7 +450,7 @@ class VolumeTest(tests.Test):
                 'value_%s' % fallback_lang,
                 self.call('GET', document='testdocument', guid=guid, accept_language=['fr', 'za'], prop='localized_prop'))
         self.assertEqual(
-                [{'guid': guid, 'localized_prop': 'value_%s' % fallback_lang}],
+                [{'localized_prop': 'value_%s' % fallback_lang}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
 
     def test_LazyOpen(self):
@@ -955,6 +955,24 @@ class VolumeTest(tests.Test):
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='1')
         coroutine.dispatch()
         self.assertEqual('0!1!', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
+
+    def test_Group(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+
+        self.call('POST', document='testdocument', content={'prop': 1})
+        self.call('POST', document='testdocument', content={'prop': 2})
+        self.call('POST', document='testdocument', content={'prop': 1})
+
+        self.assertEqual(
+                sorted([{'prop': '1'}, {'prop': '2'}]),
+                sorted(self.call('GET', document='testdocument', reply='prop', group_by='prop')['result']))
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,

@@ -143,10 +143,9 @@ class VolumeCommands(CommandsProcessor):
     @directory_command(method='GET',
             arguments={'offset': to_int, 'limit': to_int, 'reply': to_list},
             mime_type='application/json')
-    def find(self, document, request):
-        reply = request.setdefault('reply', ['guid'])
-        if 'guid' not in reply:
-            reply.append('guid')
+    def find(self, document, reply, request):
+        if not reply:
+            request['reply'] = ['guid']
         self._preget(request)
         documents, total = self.volume[document].find(**request)
         result = [self._get_props(i, request) for i in documents]
