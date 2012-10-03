@@ -192,6 +192,14 @@ class MasterCommands(NodeCommands, SyncCommands):
         directory = self.volume[document]
         directory.merge(guid, request.content)
 
+    @ad.volume_command(method='GET', cmd='whoami',
+            mime_type='application/json')
+    def whoami(self, request):
+        roles = []
+        if auth.try_validate(request, 'root'):
+            roles.append('root')
+        return {'roles': roles}
+
 
 def _load_pubkey(pubkey):
     pubkey = pubkey.strip()
