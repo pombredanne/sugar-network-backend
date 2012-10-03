@@ -88,6 +88,9 @@ class Document(object):
     def __getitem__(self, prop):
         return self.get(prop)
 
+    def __setitem__(self, prop, value):
+        self.props[prop] = value
+
     def _localize(self, value, accept_language):
         if not value:
             return ''
