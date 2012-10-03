@@ -10,7 +10,7 @@ from os.path import exists, abspath
 from __init__ import tests
 
 from active_toolkit import sockets, coroutine
-from sugar_network.resources.report import Report
+from sugar_network.resources.artifact import Artifact
 from sugar_network import local
 from sugar_network.local import activities
 from sugar_network import IPCClient
@@ -132,7 +132,7 @@ class HomeMountTest(tests.Test):
         blob_url = 'http://localhost:%s/context/%s/icon?mountpoint=~' % (local.ipc_port.value, guid)
         self.assertEqual(
                 [{'guid': guid, 'icon': blob_url}],
-                client.get(['context'], reply=['icon'])['result'])
+                client.get(['context'], reply=['guid', 'icon'])['result'])
         self.assertEqual(
                 {'icon': blob_url},
                 client.get(['context', guid], reply=['icon']))
@@ -141,23 +141,19 @@ class HomeMountTest(tests.Test):
                 urllib2.urlopen(blob_url).read())
 
     def test_GetAbsentBLOBs(self):
-        self.start_server([Report])
+        self.start_server([Artifact])
         client = IPCClient(mountpoint='~')
 
-        guid = client.post(['report'], {
-            'context': 'context',
-            'implementation': 'implementation',
-            'description': 'description',
-            })
+        guid = client.post(['artifact'], {})
 
-        self.assertRaises(RuntimeError, client.get, ['report', guid, 'data'])
-        blob_url = 'http://localhost:%s/report/%s/data?mountpoint=~' % (local.ipc_port.value, guid)
+        self.assertRaises(RuntimeError, client.get, ['artifact', guid, 'data'])
+        blob_url = 'http://localhost:%s/artifact/%s/data?mountpoint=~' % (local.ipc_port.value, guid)
         self.assertEqual(
                 [{'guid': guid, 'data': blob_url}],
-                client.get(['report'], reply=['data'])['result'])
+                client.get(['artifact'], reply=['guid', 'data'])['result'])
         self.assertEqual(
                 {'data': blob_url},
-                client.get(['report', guid], reply=['data']))
+                client.get(['artifact', guid], reply=['data']))
         self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
 
     def test_Subscription(self):

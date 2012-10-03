@@ -20,7 +20,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network import local, sugar
 from sugar_network.resources.volume import Volume
-from sugar_network.resources.report import Report
+from sugar_network.resources.artifact import Artifact
 from sugar_network.local.ipc_client import Router as IPCRouter
 from sugar_network import IPCClient
 
@@ -42,7 +42,7 @@ class NodeMountTest(tests.Test):
         self.touch(('mnt/node', 'node'))
         local.mounts_root.value = tests.tmpdir
 
-        volume = Volume('local', [User, Context, Report])
+        volume = Volume('local', [User, Context, Artifact])
         self.mounts = Mountset(volume)
         self.server = coroutine.WSGIServer(
                 ('localhost', local.ipc_port.value), IPCRouter(self.mounts))
@@ -314,7 +314,7 @@ class NodeMountTest(tests.Test):
         blob_url = 'http://localhost:%s/context/%s/icon?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')
         self.assertEqual(
                 [{'guid': guid, 'icon': blob_url}],
-                client.get(['context'], reply=['icon'])['result'])
+                client.get(['context'], reply=['guid', 'icon'])['result'])
         self.assertEqual(
                 {'icon': blob_url},
                 client.get(['context', guid], reply=['icon']))
@@ -327,20 +327,16 @@ class NodeMountTest(tests.Test):
         mounts[tests.tmpdir + '/mnt'].mounted.wait()
         client = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid = client.post(['report'], {
-            'context': 'context',
-            'implementation': 'implementation',
-            'description': 'description',
-            })
+        guid = client.post(['artifact'], {})
 
-        self.assertRaises(RuntimeError, client.get, ['report', guid, 'data'])
-        blob_url = 'http://localhost:%s/report/%s/data?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')
+        self.assertRaises(RuntimeError, client.get, ['artifact', guid, 'data'])
+        blob_url = 'http://localhost:%s/artifact/%s/data?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')
         self.assertEqual(
                 [{'guid': guid, 'data': blob_url}],
-                client.get(['report'], reply=['data'])['result'])
+                client.get(['artifact'], reply=['guid', 'data'])['result'])
         self.assertEqual(
                 {'data': blob_url},
-                client.get(['report', guid], reply=['data']))
+                client.get(['artifact', guid], reply=['data']))
         self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
 
     def test_get_blob_ExtractImplementations(self):

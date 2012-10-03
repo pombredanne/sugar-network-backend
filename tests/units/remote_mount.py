@@ -18,7 +18,7 @@ from sugar_network.local.mountset import Mountset
 from sugar_network.toolkit import sugar, http
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network.resources.report import Report
+from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.volume import Volume
 from sugar_network import IPCClient
 
@@ -288,7 +288,7 @@ class RemoteMountTest(tests.Test):
         url_prefix = 'http://localhost:8800/context/' + guid
         self.assertEqual(
                 [{'guid': guid, 'icon': url_prefix + '/icon', 'preview': url_prefix + '/preview'}],
-                remote.get(['context'], reply=['icon', 'preview'])['result'])
+                remote.get(['context'], reply=['guid', 'icon', 'preview'])['result'])
         self.assertEqual(
                 {'icon': url_prefix + '/icon', 'preview': url_prefix + '/preview'},
                 remote.get(['context', guid], reply=['icon', 'preview']))
@@ -297,23 +297,19 @@ class RemoteMountTest(tests.Test):
                 urllib2.urlopen(url_prefix + '/icon').read())
 
     def test_GetAbsentBLOBs(self):
-        self.start_ipc_and_restful_server([User, Report])
+        self.start_ipc_and_restful_server([User, Artifact])
         remote = IPCClient(mountpoint='/')
 
-        guid = remote.post(['report'], {
-            'context': 'context',
-            'implementation': 'implementation',
-            'description': 'description',
-            })
+        guid = remote.post(['artifact'], {})
 
-        self.assertRaises(RuntimeError, remote.get, ['report', guid, 'data'])
-        blob_url = 'http://localhost:8800/report/%s/data' % guid
+        self.assertRaises(RuntimeError, remote.get, ['artifact', guid, 'data'])
+        blob_url = 'http://localhost:8800/artifact/%s/data' % guid
         self.assertEqual(
                 [{'guid': guid, 'data': blob_url}],
-                remote.get(['report'], reply=['data'])['result'])
+                remote.get(['artifact'], reply=['guid', 'data'])['result'])
         self.assertEqual(
                 {'data': blob_url},
-                remote.get(['report', guid], reply=['data']))
+                remote.get(['artifact', guid], reply=['data']))
         self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
 
 

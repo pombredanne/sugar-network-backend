@@ -97,7 +97,7 @@ class Test(unittest.TestCase):
         Volume.RESOURCES = [
                 'sugar_network.resources.user',
                 'sugar_network.resources.context',
-                'sugar_network.resources.report',
+                'sugar_network.resources.artifact',
                 'sugar_network.resources.implementation',
                 ]
 
