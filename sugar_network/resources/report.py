@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from gettext import gettext as _
+
 import active_document as ad
 
 from sugar_network.resources.volume import Resource
@@ -30,11 +32,33 @@ class Report(Resource):
     def implementation(self, value):
         return value
 
+    @implementation.setter
+    def implementation(self, value):
+        if value:
+            version = self.request.volume['implementation'].get(value)
+            self['version'] = version['version']
+        return value
+
     @ad.active_property(prefix='D', full_text=True, localized=True,
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def description(self, value):
         return value
 
+    @ad.active_property(ad.StoredProperty,
+            permissions=ad.ACCESS_READ, default=_('Unknown'))
+    def version(self, value):
+        return value
+
     @ad.active_property(ad.BlobProperty)
     def data(self, value):
         return value
+
+    @ad.document_command(method='GET', cmd='log',
+            mime_type='text/html')
+    def log(self, guid):
+        # In further implementations, `data` might be a tarball
+        data = self.meta('data')
+        if data and 'path' in data:
+            return file(data['path'], 'rb')
+        else:
+            return ''
