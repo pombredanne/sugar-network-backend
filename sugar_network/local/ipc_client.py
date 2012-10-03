@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 from os.path import join
 
 import active_document as ad
@@ -28,21 +29,29 @@ class Router(router.Router):
 
     def call(self, request, response):
         if request.path and request.path[0] == 'hub':
-            # Since SSE doesn't support CORS for now, have to serve Hub
-            # from HTTP server instead of file:// for IPC users
             return self._serve_hub(request, response)
         request.access_level = ad.ACCESS_LOCAL
         return router.Router.call(self, request, response)
 
     def _serve_hub(self, request, response):
+        # XXX Since SSE doesn't support CORS for now, have to
+        # serve Hub via HTTP instead of file:// for IPC users
         if request.environ['PATH_INFO'] == '/hub':
             raise ad.Redirect('/hub/')
+
         path = request.path[1:]
         if not path:
             path = ['index.html']
         path = join(hub_root.value, *path)
+
+        mtime = os.stat(path).st_mtime
+        if request.if_modified_since >= mtime:
+            raise ad.NotModified()
+
         if path.endswith('.js'):
             response.content_type = 'text/javascript'
         if path.endswith('.css'):
             response.content_type = 'text/css'
+        response.last_modified = mtime
+
         return router.stream_reader(file(path, 'rb'))
