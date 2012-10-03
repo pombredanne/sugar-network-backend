@@ -8,7 +8,7 @@ summary   = Active Record pattern implementation to use Xapian as a "NoSQL repla
 license   = GPLv3+
 homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Active_Document
 
-version   = 0.5
+version   = 0.6
 stability = developer
 
 requires  = m2crypto; gevent; werkzeug
