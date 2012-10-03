@@ -44,6 +44,18 @@ SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
 PACKAGES_GUID = 'packages'
 
+SUGAR_RELEASES = {
+        (0, 82): 'sugar-0.82',
+        (0, 84): 'sugar-0.84',
+        (0, 86): 'sugar-0.86',
+        (0, 88): 'sugar-0.88',
+        (0, 90): 'sugar-0.90',
+        (0, 92): 'sugar-0.92',
+        (0, 94): 'sugar-0.94',
+        (0, 96): 'sugar-0.96',
+        (0, 98): 'sugar-0.98',
+        }
+
 CATEGIORIES_TO_TAGS = {
         'Search & Discovery': 'discovery',
         'Documents': 'documents',
@@ -376,10 +388,18 @@ class Application(application.Application):
                     ],
                 }
 
+        requires = []
+        sugar_min = tuple(parse_version(sugar_min)[0])
+        sugar_max = tuple(parse_version(sugar_max)[0])
+        for release, name in SUGAR_RELEASES.items():
+            if release >= sugar_min and release <= sugar_max:
+                requires.append(name)
+
         impl = self.volume['implementation'].create(
                 context=context,
                 version=spec['version'],
                 user=['aslo'],
+                requires=requires,
                 spec={'*-*': {
                     'commands': spec.commands,
                     'requires': spec.requires,

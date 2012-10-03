@@ -63,6 +63,11 @@ class Implementation(Resource):
     def stability(self, value):
         return value
 
+    @ad.active_property(prefix='R', typecast=[], default=[],
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def requires(self, value):
+        return value
+
     @ad.active_property(prefix='N', full_text=True, localized=True,
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def notes(self, value):
