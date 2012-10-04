@@ -66,9 +66,15 @@ class Client(object):
 
         headers = {'Accept-Language': ad.default_lang()}
         if self._sugar_auth:
-            uid = sugar.uid()
-            headers['sugar_user'] = uid
-            headers['sugar_user_signature'] = _sign(uid)
+            privkey_path = sugar.privkey_path()
+            if not exists(privkey_path):
+                _logger.warning('Sugar session was never started, '
+                        'fallback to anonymous mode')
+                self._sugar_auth = False
+            else:
+                uid = sugar.uid()
+                headers['sugar_user'] = uid
+                headers['sugar_user_signature'] = _sign(privkey_path, uid)
 
         self._session = Session(headers=headers, verify=verify, prefetch=False)
 
@@ -292,8 +298,8 @@ class Client(object):
             return json.loads(response.content)
 
 
-def _sign(data):
-    key = DSA.load_key(sugar.privkey_path())
+def _sign(privkey_path, data):
+    key = DSA.load_key(privkey_path)
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
 
 

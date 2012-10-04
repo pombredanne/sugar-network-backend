@@ -120,9 +120,11 @@ class Application(application.Application):
             result = IPCClient().call(request, response)
 
         finally:
-            if pid_path:
+            if server is not None:
                 server.close()
+            if mountset is not None:
                 mountset.close()
+            if pid_path:
                 os.unlink(pid_path)
 
         if result:

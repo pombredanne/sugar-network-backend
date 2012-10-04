@@ -78,13 +78,13 @@ def privkey_path():
     path = keyfile.value
     if not path:
         path = profile_path('owner.key')
-    enforce(exists(path),
-            'Sugar session was never started, no privkey')
     return path
 
 
 def pubkey():
     pubkey_path = privkey_path() + '.pub'
+    enforce(exists(pubkey_path),
+            'Sugar session was never started, no privkey')
     with file(pubkey_path) as f:
         for line in f.readlines():
             line = line.strip()
