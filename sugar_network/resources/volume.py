@@ -288,19 +288,15 @@ class VolumeCommands(ad.VolumeCommands):
 
         """
         enforce(document == 'context')
+        enforce(repo, 'Argument %r should be set', 'repo')
         context = self.volume['context'].get(guid)
-        versions, total = self.volume['implementation'].find(
-                limit=1, order_by='-version', context=guid, layer=layer)
-        enforce(total, ad.NotFound, 'No implementations')
 
-        result = context['dependencies']
+        result = []
 
-        spec = [i for i in versions][0]['spec']
-        for dep in spec.get('*-*', {}).get('requires', {}).keys():
-            try:
-                dep = self.volume['context'].get(dep)
-            except Exception:
-                continue
-            result.extend(dep['packages'].get(repo, {}).get('binary', []))
+        for package in context['dependencies']:
+            dep = self.volume['context'].get(package)
+            enforce(repo in dep['packages'],
+                    'No packages for %r on %r', package, repo)
+            result.extend(dep['packages'][repo].get('binary') or [])
 
         return result
