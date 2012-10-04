@@ -39,6 +39,12 @@ anonymous = Option(
         default=False, type_cast=Option.bool_cast, action='store_true',
         name='anonymous')
 
+porcelain = Option(
+        'give the output in an easy-to-parse format for scripts',
+        default=False, type_cast=Option.bool_cast, action='store_true',
+        name='porcelain')
+
+
 _ESCAPE_VALUE_RE = re.compile('([^\[\]\{\}0-9][^\]\[\{\}]+)')
 
 
@@ -105,6 +111,7 @@ class Application(application.Application):
                     sugar.uid = lambda: 'anonymous'
                     sugar.nickname = lambda: 'anonymous'
                     sugar.color = lambda: '#000000,#000000'
+                    sugar.privkey_path = lambda: '/fake/path'
                 else:
                     toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
                 volume = Volume(local.db_path())
@@ -128,7 +135,15 @@ class Application(application.Application):
                 os.unlink(pid_path)
 
         if result:
-            if reply:
+            if porcelain.value:
+                if type(result) in (list, tuple):
+                    for i in result:
+                        # TODO
+                        print i
+                else:
+                    # TODO
+                    print i
+            elif reply:
                 for key in reply:
                     key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
                     print eval('result%s' % key)
@@ -138,7 +153,7 @@ class Application(application.Application):
 
 # New defaults
 application.debug.value = sugar.logger_level()
-Option.seek('main', [application.debug, anonymous])
+Option.seek('main', [application.debug, anonymous, porcelain])
 Option.seek('local', [local.api_url, local.layers, local.ipc_port])
 
 locale.setlocale(locale.LC_ALL, '')
