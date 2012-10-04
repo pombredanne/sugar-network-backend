@@ -288,11 +288,12 @@ class VolumeCommands(ad.VolumeCommands):
 
         """
         enforce(document == 'context')
+        context = self.volume['context'].get(guid)
         versions, total = self.volume['implementation'].find(
                 limit=1, order_by='-version', context=guid, layer=layer)
         enforce(total, ad.NotFound, 'No implementations')
 
-        result = []
+        result = context['dependencies']
 
         spec = [i for i in versions][0]['spec']
         for dep in spec.get('*-*', {}).get('requires', {}).keys():
