@@ -22,7 +22,7 @@ import active_document as ad
 from sugar_network import node
 from sugar_network.node.sync_master import SyncCommands
 from sugar_network.node import auth
-from sugar_network.resources.volume import Commands
+from sugar_network.resources.volume import Commands, VolumeCommands
 from sugar_network.toolkit import router
 from active_toolkit import util, enforce
 
@@ -32,10 +32,10 @@ _DEFAULT_MASTER_GUID = 'api-testing.network.sugarlabs.org'
 _logger = logging.getLogger('node.commands')
 
 
-class NodeCommands(ad.VolumeCommands, Commands):
+class NodeCommands(VolumeCommands, Commands):
 
     def __init__(self, volume):
-        ad.VolumeCommands.__init__(self, volume)
+        VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
         self._is_master = False
 
@@ -86,7 +86,7 @@ class NodeCommands(ad.VolumeCommands, Commands):
         directory.update(guid, {'layer': ['deleted']})
 
     def resolve(self, request):
-        cmd = ad.VolumeCommands.resolve(self, request)
+        cmd = VolumeCommands.resolve(self, request)
         if cmd is None:
             return
 
@@ -152,12 +152,12 @@ class NodeCommands(ad.VolumeCommands, Commands):
                 implement = implement[0]
             props['guid'] = implement
 
-        ad.VolumeCommands.before_create(self, request, props)
+        VolumeCommands.before_create(self, request, props)
 
     def before_update(self, request, props):
         if 'user' in props:
             self._set_author(props)
-        ad.VolumeCommands.before_update(self, request, props)
+        VolumeCommands.before_update(self, request, props)
 
     @ad.directory_command_pre(method='GET')
     def _NodeCommands_find_pre(self, request):

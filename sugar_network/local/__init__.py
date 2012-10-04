@@ -71,7 +71,7 @@ tmpdir = Option(
 
 ipc_port = Option(
         'port number to listen for incomming connections from IPC clients',
-        default=5001, type_cast=int)
+        default=5001, type_cast=int, name='ipc_port')
 
 hub_root = Option(
         'path to Contributor Hub site directory to serve from /hub location '

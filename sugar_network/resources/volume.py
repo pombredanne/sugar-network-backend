@@ -25,7 +25,7 @@ from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit import http
 from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import coroutine
+from active_toolkit import coroutine, enforce
 
 
 ad_directory._LAYOUT_VERSION = 2
@@ -266,3 +266,40 @@ class Commands(object):
         self._notifier.set(event)
         self._notifier = coroutine.AsyncResult()
         coroutine.dispatch()
+
+
+class VolumeCommands(ad.VolumeCommands):
+
+    @ad.document_command(method='GET', cmd='deplist',
+            mime_type='application/json')
+    def deplist(self, document, guid, repo, layer):
+        """List of native packages context is dependening on.
+
+        Command return only GNU/Linux package names and ignores
+        Sugar Network dependencies.
+
+        :param repo:
+            OBS repository name to get package names for, e.g.,
+            Fedora-14
+        :param layer:
+            restrict dependencies only to the specified Sugar Network layer
+        :returns:
+            list of package names
+
+        """
+        enforce(document == 'context')
+        versions, total = self.volume['implementation'].find(
+                limit=1, order_by='-version', context=guid, layer=layer)
+        enforce(total, ad.NotFound, 'No implementations')
+
+        result = []
+
+        spec = [i for i in versions][0]['spec']
+        for dep in spec.get('*-*', {}).get('requires', {}).keys():
+            try:
+                dep = self.volume['context'].get(dep)
+            except Exception:
+                continue
+            result.extend(dep['packages'].get(repo, {}).get('binary', []))
+
+        return result

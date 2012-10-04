@@ -23,7 +23,7 @@ import active_document as ad
 from sugar_network.zerosugar import Bundle
 from sugar_network.local import activities, cache
 from sugar_network.zerosugar import Spec
-from sugar_network.resources.volume import Request
+from sugar_network.resources.volume import Request, VolumeCommands
 from sugar_network import local, checkin, sugar, Client
 from active_toolkit import util, coroutine, enforce
 
@@ -72,10 +72,10 @@ class _Mount(object):
             self.publisher(event)
 
 
-class LocalMount(ad.VolumeCommands, _Mount):
+class LocalMount(VolumeCommands, _Mount):
 
     def __init__(self, volume):
-        ad.VolumeCommands.__init__(self, volume)
+        VolumeCommands.__init__(self, volume)
         _Mount.__init__(self)
 
         volume.connect(self._events_cb)
@@ -131,7 +131,7 @@ class LocalMount(ad.VolumeCommands, _Mount):
     def before_create(self, request, props):
         props['user'] = [sugar.uid()]
         props['author'] = [sugar.nickname()]
-        ad.VolumeCommands.before_create(self, request, props)
+        VolumeCommands.before_create(self, request, props)
 
     def _events_cb(self, event):
         event['mountpoint'] = self.mountpoint

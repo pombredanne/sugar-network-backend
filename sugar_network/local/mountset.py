@@ -88,31 +88,29 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
 
     @ad.volume_command(method='PUT', cmd='checkin')
     def checkin(self, mountpoint, request):
-        mount = self.get(mountpoint)
+        mount = self.get(mountpoint or '/')
         enforce(mount is not None, 'No such mountpoint')
         mount.mounted.wait()
 
         for guid in (request.content or '').split():
             _logger.info('Checkin %r context', guid)
-            mount.call(
-                    Request(method='PUT', document='context', guid=guid,
-                        accept_language=[self._lang],
-                        content={'keep_impl': 2, 'keep': False}),
-                    ad.Response())
+            request = Request(method='PUT', document='context', guid=guid,
+                    accept_language=[self._lang])
+            request.content = {'keep_impl': 2, 'keep': False}
+            mount.call(request, ad.Response())
 
     @ad.volume_command(method='PUT', cmd='keep')
     def keep(self, mountpoint, request):
-        mount = self.get(mountpoint)
+        mount = self.get(mountpoint or '/')
         enforce(mount is not None, 'No such mountpoint')
         mount.mounted.wait()
 
         for guid in (request.content or '').split():
             _logger.info('Keep %r context', guid)
-            mount.call(
-                    Request(method='PUT', document='context', guid=guid,
-                        accept_language=[self._lang],
-                        content={'keep': True}),
-                    ad.Response())
+            request = Request(method='PUT', document='context', guid=guid,
+                    accept_language=[self._lang])
+            request.content = {'keep': True}
+            mount.call(request, ad.Response())
 
     @ad.volume_command(method='POST', cmd='publish')
     def _publish(self, request):

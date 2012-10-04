@@ -17,6 +17,7 @@
 
 import os
 import re
+import sys
 import json
 import shlex
 import locale
@@ -27,6 +28,7 @@ from sugar_network import local, sugar, toolkit, IPCClient
 from sugar_network.resources.volume import Volume, Request
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.mounts import HomeMount, RemoteMount
+from sugar_network.local.ipc_client import Router
 from active_toolkit.options import Option
 from active_toolkit import printf, application, coroutine, enforce
 
@@ -94,7 +96,8 @@ class Application(application.Application):
                 request[arg] = value
 
         pid_path = None
-        cp = None
+        server = None
+        mountset = None
         try:
             if not self.check_for_instance():
                 pid_path = self.new_instance()
@@ -105,27 +108,24 @@ class Application(application.Application):
                 else:
                     toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
                 volume = Volume(local.db_path())
-                cp = Mountset(volume)
-                cp['~'] = HomeMount(volume)
-                cp['/'] = RemoteMount(volume)
-                cp['/'].mounted.wait()
-            else:
-                cp = IPCClient()
+                mountset = Mountset(volume)
+                mountset['~'] = HomeMount(volume)
+                mountset['/'] = RemoteMount(volume)
+                mountset['/'].mounted.wait()
+                server = coroutine.WSGIServer(
+                        ('localhost', local.ipc_port.value), Router(mountset))
+                coroutine.spawn(server.serve_forever)
+                coroutine.dispatch()
 
-            def events_cb(events):
-                for event in events:
-                    pass
-
-            coroutine.spawn(events_cb, cp.subscribe())
-            coroutine.dispatch()
-            result = cp.call(request, response)
+            result = IPCClient().call(request, response)
 
         finally:
-            cp.close()
             if pid_path:
+                server.close()
+                mountset.close()
                 os.unlink(pid_path)
 
-        if result is not None:
+        if result:
             if reply:
                 for key in reply:
                     key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
@@ -137,7 +137,7 @@ class Application(application.Application):
 # New defaults
 application.debug.value = sugar.logger_level()
 Option.seek('main', [application.debug, anonymous])
-Option.seek('local', [local.api_url, local.layers])
+Option.seek('local', [local.api_url, local.layers, local.ipc_port])
 
 locale.setlocale(locale.LC_ALL, '')
 
