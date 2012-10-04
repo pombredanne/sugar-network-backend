@@ -215,7 +215,7 @@ class MasterCommands(NodeCommands, SyncCommands):
         roles = []
         if auth.try_validate(request, 'root'):
             roles.append('root')
-        return {'roles': roles}
+        return {'roles': roles, 'user': request.principal}
 
 
 def _load_pubkey(pubkey):
