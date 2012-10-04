@@ -99,6 +99,23 @@ class IndexTest(tests.Test):
                   {'guid': '3', 'var_1': '3'}], 3),
                 db._find(query='var_3:ю OR var_2:у', reply=['var_1'], order_by='guid'))
 
+    def test_find_NoneFilters(self):
+        db = Index({
+            'prop': ActiveProperty('prop', 1, 'P', full_text=True),
+            })
+
+        db.store('guid', {'prop': 'value'}, True)
+
+        self.assertEqual(
+                [{'guid': 'guid', 'prop': 'value'}],
+                db._find(reply=['prop'])[0])
+        self.assertEqual(
+                [{'guid': 'guid', 'prop': 'value'}],
+                db._find(prop=None, reply=['prop'])[0])
+        self.assertEqual(
+                [{'guid': 'guid', 'prop': 'value'}],
+                db._find(guid=None, reply=['prop'])[0])
+
     def test_find_WithTypeCast(self):
         db = Index({
             'var_1': ActiveProperty('var_1', 1, 'A', typecast=bool),

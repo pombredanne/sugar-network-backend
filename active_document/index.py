@@ -173,6 +173,8 @@ class IndexReader(object):
             sub_queries = []
             not_queries = []
             for needle in value if type(value) in (tuple, list) else [value]:
+                if needle is None:
+                    continue
                 needle = prop.to_string(needle)[0]
                 if needle.startswith('!'):
                     term = _term(prop.prefix, needle[1:])
