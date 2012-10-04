@@ -122,6 +122,23 @@ class NodeCommands(ad.VolumeCommands, Commands):
         layer = list(set(doc['layer']) - set(request.content))
         directory.update(guid, {'layer': layer})
 
+    @ad.document_command(method='GET', cmd='feed',
+            mime_type='application/json')
+    def feed(self, guid, layer, request):
+        result = []
+
+        impls, __ = self.volume['implementation'].find(
+                limit=ad.MAX_LIMIT, context=guid, layer=layer)
+        for impl in impls:
+            for arch, spec in impl['spec'].items():
+                spec['guid'] = impl.guid
+                spec['version'] = impl['version']
+                spec['arch'] = arch
+                spec['stability'] = impl['stability']
+                result.append(spec)
+
+        return result
+
     def before_create(self, request, props):
         if request['document'] == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])

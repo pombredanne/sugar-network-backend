@@ -17,9 +17,7 @@ from os.path import join
 
 import active_document as ad
 from sugar_network import resources, static
-from sugar_network.local import activities
 from sugar_network.resources.volume import Resource
-from sugar_network.zerosugar import Spec
 from sugar_network.node import obs
 from active_toolkit import coroutine, util
 
@@ -101,14 +99,6 @@ class Context(Resource):
     def position(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty,
-            permissions=ad.ACCESS_READ, default='')
-    def versions(self, value):
-        if self.request.mountpoint == '~':
-            return self._list_checked_in_versions()
-        else:
-            return self._list_versions()
-
     @ad.active_property(ad.StoredProperty, typecast=[], default=[])
     def dependencies(self, value):
         """Software dependencies.
@@ -175,48 +165,3 @@ class Context(Resource):
 
         self.request.call('PUT', document='context', guid=self.guid,
                 content={'packages': packages, 'presolve': presolve})
-
-    def _list_checked_in_versions(self):
-        result = []
-
-        for path in activities.checkins(self.guid):
-            try:
-                spec = Spec(root=path)
-            except Exception:
-                util.exception('Failed to read %r spec file', path)
-                continue
-
-            if self.request.access_level == ad.ACCESS_LOCAL:
-                impl_id = spec.root
-            else:
-                impl_id = activities.path_to_guid(spec.root)
-
-            result.append({
-                'guid': impl_id,
-                'version': spec['version'],
-                'arch': '*-*',
-                'stability': 'stable',
-                'commands': {
-                    'activity': {
-                        'exec': spec['Activity', 'exec'],
-                        },
-                    },
-                'requires': spec.requires,
-                })
-
-        return result
-
-    def _list_versions(self):
-        result = []
-
-        impls, __ = self.request.volume['implementation'].find(
-                limit=ad.MAX_LIMIT, context=self.guid)
-        for impl in impls:
-            for arch, spec in impl['spec'].items():
-                spec['guid'] = impl.guid
-                spec['version'] = impl['version']
-                spec['arch'] = arch
-                spec['stability'] = impl['stability']
-                result.append(spec)
-
-        return result

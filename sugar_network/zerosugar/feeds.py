@@ -18,7 +18,7 @@ from os.path import isabs
 
 from zeroinstall.injector import model
 
-from sugar_network.zerosugar import lsb_release, parse_version
+from sugar_network.zerosugar import parse_version
 from active_toolkit import util
 
 
@@ -34,8 +34,7 @@ def read(context):
     client = None
     for client in clients:
         try:
-            feed_content = client.get(['context', context],
-                    reply=['versions', 'packages'])
+            feed_content = client.get(['context', context], cmd='feed')
             _logger.debug('Found %r in %r mountpoint',
                     context, client.params['mountpoint'])
             break
@@ -48,11 +47,12 @@ def read(context):
         _logger.warning('No feed for %r context', context)
         return None
 
-    distro = feed_content['packages'].get(lsb_release.distributor_id())
-    if distro:
-        feed.to_resolve = distro.get('binary')
+    # TODO
+    #distro = feed_content['packages'].get(lsb_release.distributor_id())
+    #if distro:
+    #    feed.to_resolve = distro.get('binary')
 
-    for release in feed_content['versions']:
+    for release in feed_content:
         impl_id = release['guid']
 
         impl = _Implementation(feed, impl_id, None)
@@ -61,7 +61,8 @@ def read(context):
         impl.released = 0
         impl.arch = release['arch']
         impl.upstream_stability = model.stability_levels[release['stability']]
-        impl.requires.extend(_read_requires(release.get('requires')))
+        # TODO
+        #impl.requires.extend(_read_requires(release.get('requires')))
 
         if isabs(impl_id):
             impl.local_path = impl_id
