@@ -188,7 +188,7 @@ class Commands(object):
 
     @ad.volume_command(method='GET', cmd='subscribe',
             mime_type='application/json')
-    def subscribe(self, request, response, only_commits=False):
+    def subscribe(self, request=None, response=None, only_commits=False):
         """Subscribe to Server-Sent Events.
 
         :param only_commits:
@@ -196,8 +196,9 @@ class Commands(object):
             that is useful to minimize interactions between server and clients
 
         """
-        response.content_type = 'text/event-stream'
-        response['Cache-Control'] = 'no-cache'
+        if response is not None:
+            response.content_type = 'text/event-stream'
+            response['Cache-Control'] = 'no-cache'
         peer = 'anonymous'
         if hasattr(request, 'environ'):
             peer = request.environ.get('HTTP_SUGAR_USER') or peer

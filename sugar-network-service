@@ -17,13 +17,10 @@
 
 import os
 import sys
-import json
-import shlex
 import errno
 import signal
 import locale
 import logging
-from contextlib import contextmanager
 from os.path import join, abspath, exists
 
 import active_document as ad
@@ -56,7 +53,6 @@ class NullHandler(logging.Handler):
 class Application(application.Application):
 
     _ipc_server = None
-    _events = {}
 
     def __init__(self, **kwargs):
         application.Application.__init__(self, **kwargs)
@@ -105,7 +101,7 @@ class Application(application.Application):
 
         printf.info('Index database in %r', local.local_root.value)
 
-        volume = Volume(self._db_path)
+        volume = Volume(local.db_path())
         try:
             volume.populate()
             activities.populate(volume['context'], local.activity_dirs.value)
@@ -113,54 +109,25 @@ class Application(application.Application):
             volume.close()
 
     @application.command(
-            'start sneakernet synchronization; if PATH is specified, '
-            'use it as a synchronization directory; otherwise, '
-            'look for mounts (in --mounts-root) that contain '
-            'sugar-network-sync/ subdirectory',
-            args='[PATH]')
-    def offline_sync(self):
-        with self._rendezvous():
-            path = None
-            if self.args:
-                path = self.args.pop(0)
-            Client.call('POST', cmd='start_sync', rewind=True, path=path)
-            self._events['sync_complete'].wait()
-
-    @application.command(hidden=True)
-    def POST(self):
-        self._call('POST', sys.stdin.read())
-
-    @application.command(hidden=True)
-    def PUT(self):
-        self._call('PUT', sys.stdin.read())
-
-    @application.command(hidden=True)
-    def GET(self):
-        result = self._call('GET', None)
-
-        if type(result) in (list, set, tuple):
-            for i in result:
-                print i
-        elif type(result) is dict:
-            print json.dumps(result, indent=2)
-        else:
-            print result
-
-    @application.command(
             'start service and log to standard output')
     def debug(self):
-        self._start()
+        self.start_service()
 
     @application.command(
             'start service and log to files',
             name='start', keep_stdout=True)
-    def _start(self):
+    def start_service(self):
         if self.check_for_instance():
             printf.info('%s is already run', self.name)
             exit(1)
 
         jobs = coroutine.Pool()
-        mountset = self._mountset()
+
+        toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+        volume = Volume(local.db_path(), lazy_open=local.lazy_open.value)
+        mountset = Mountset(volume)
+        mountset['~'] = HomeMount(volume)
+        mountset['/'] = RemoteMount(volume)
 
         def delayed_start(event=None):
             logging.info('Proceed delayed start')
@@ -209,86 +176,6 @@ class Application(application.Application):
             mountset.close()
             os.unlink(pid_path)
 
-    def _mountset(self):
-        if local.anonymous.value:
-            sugar.uid = lambda: 'anonymous'
-            sugar.nickname = lambda: 'anonymous'
-            sugar.color = lambda: '#000000,#000000'
-        else:
-            # In case if it is new Sugar Shell profile
-            toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
-
-        volume = Volume(self._db_path, lazy_open=local.lazy_open.value)
-        mountset = Mountset(volume)
-        mountset['~'] = HomeMount(volume)
-        mountset['/'] = RemoteMount(volume)
-
-        return mountset
-
-    @contextmanager
-    def _rendezvous(self):
-
-        def events_cb(event):
-            if event['event'] == 'sync_start':
-                printf.info('Synchronize with %(path)s directory' % event)
-            elif event['event'] == 'sync_progress':
-                printf.progress(event['progress'])
-            elif event['event'] == 'sync_continue':
-                printf.info('Mounted synchronization disk(s) is full, ' \
-                        'mount new one to %s', local.mounts_root.value)
-            elif event['event'] == 'sync_error':
-                printf.info('Failed to sync, %(error)s' % event)
-            elif event['event'] == 'sync_complete':
-                self._events['sync_complete'].set()
-
-        self._events['sync_complete'] = coroutine.Event()
-
-        pid_path = None
-        mountset = None
-        try:
-            if not self.check_for_instance():
-                printf.info('%s is not started, ' \
-                        'launch it for this command only', self.name)
-                pid_path = self.new_instance()
-                mountset = self._mountset()
-                dbus_thread.spawn_service(Network)
-                coroutine.spawn(dbus_thread.start, mountset)
-                coroutine.dispatch()
-                mountset.opened.wait()
-
-            Client.connect(events_cb)
-            yield
-
-        finally:
-            if mountset is not None:
-                mountset.close()
-                os.unlink(pid_path)
-
-    def _call(self, method, content=None):
-        kwargs = {}
-        for arg in self.args:
-            pair = shlex.split(arg)
-            if not pair:
-                continue
-            pair = pair[0]
-            enforce('=' in pair, 'No "=" assign symbol in %r expression', arg)
-            arg, value = pair.split('=', 1)
-            arg = arg.strip()
-            enforce(arg, 'No argument name in %r expression', arg)
-            if arg in kwargs:
-                if isinstance(kwargs[arg], basestring):
-                    kwargs[arg] = [kwargs[arg]]
-                kwargs[arg].append(value)
-            else:
-                kwargs[arg] = value
-
-        with self._rendezvous():
-            return Client.call(method, content=content, **kwargs)
-
-    @property
-    def _db_path(self):
-        return join(local.local_root.value, 'local')
-
     def __SIGCHLD_cb(self):
         while True:
             try:
@@ -326,8 +213,8 @@ Option.seek('node', [node.port, node.sync_dirs])
 Option.seek('stats', stats)
 Option.seek('active-document', ad)
 
-application = Application(
-        name='sugar-network-service',
+app = Application(
+        name='sugar-network',
         description='Sugar Network service.',
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
                  'for details.',
@@ -337,4 +224,4 @@ application = Application(
             '~/.config/sweets/config',
             sugar.profile_path('sweets.conf'),
             ])
-application.start()
+app.start()

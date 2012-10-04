@@ -69,11 +69,6 @@ tmpdir = Option(
         'if specified, use this directory for temporary files, such files '
         'might take hunder of megabytes while node synchronizing')
 
-anonymous = Option(
-        'use anonymous user to access to Sugar Network server; '
-        'only read-only operations are available in this mode',
-        default=False, type_cast=Option.bool_cast, action='store_true')
-
 ipc_port = Option(
         'port number to listen for incomming connections from IPC clients',
         default=5001, type_cast=int)
@@ -86,7 +81,8 @@ hub_root = Option(
 
 layers = Option(
         'space separated list of layers to restrict Sugar Network content by',
-        default=[], type_cast=Option.list_cast, type_repr=Option.list_repr)
+        default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
+        name='layers')
 
 
 def path(*args):
@@ -142,3 +138,7 @@ def ensure_path(*args):
                 raise
 
     return abspath(result)
+
+
+def db_path():
+    return join(local_root.value, 'local')
