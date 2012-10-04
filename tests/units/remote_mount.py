@@ -18,6 +18,7 @@ from sugar_network.local.mountset import Mountset
 from sugar_network.toolkit import sugar, http
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
+from sugar_network.resources.implementation import Implementation
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.volume import Volume
 from sugar_network import IPCClient
@@ -313,7 +314,7 @@ class RemoteMountTest(tests.Test):
         self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
 
     def test_RestrictLayers(self):
-        self.start_ipc_and_restful_server()
+        self.start_ipc_and_restful_server([User, Context, Implementation, Artifact])
         remote = IPCClient(mountpoint='/')
 
         context = remote.post(['context'], {
@@ -331,6 +332,7 @@ class RemoteMountTest(tests.Test):
             'notes': '',
             'spec': {'*-*': {}},
             })
+        artifact = remote.post(['artifact'], {})
 
         self.assertEqual(
                 [{'layer': ['public']}],
@@ -351,6 +353,16 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(
                 [{'layer': ['public']}],
                 remote.get(['implementation'], reply='layer', layer='public')['result'])
+
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['artifact'], reply='layer')['result'])
+        self.assertEqual(
+                [],
+                remote.get(['artifact'], reply='layer', layer='foo')['result'])
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['artifact'], reply='layer', layer='public')['result'])
 
         self.assertEqual(
                 [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
@@ -383,6 +395,16 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(
                 [{'layer': ['public']}],
                 remote.get(['implementation'], reply='layer', layer='public')['result'])
+
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['artifact'], reply='layer')['result'])
+        self.assertEqual(
+                [],
+                remote.get(['artifact'], reply='layer', layer='foo')['result'])
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['artifact'], reply='layer', layer='public')['result'])
 
         self.assertEqual(
                 [],
