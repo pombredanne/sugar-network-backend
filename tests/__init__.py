@@ -84,6 +84,7 @@ class Test(unittest.TestCase):
         local.server_mode.value = False
         local.mounts_root.value = None
         local.ipc_port.value = 5101
+        local.layers.value = None
         mounts_monitor.stop()
         mounts_monitor._COMPLETE_MOUNT_TIMEOUT = .1
         stats.stats_root.value = tmpdir + '/stats'

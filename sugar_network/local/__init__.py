@@ -84,6 +84,10 @@ hub_root = Option(
         'from file:// url',
         default='/usr/share/sugar-network/hub')
 
+layers = Option(
+        'space separated list of layers to restrict Sugar Network content by',
+        default=[], type_cast=Option.list_cast, type_repr=Option.list_repr)
+
 
 def path(*args):
     """Calculate a path from the root.

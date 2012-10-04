@@ -312,6 +312,88 @@ class RemoteMountTest(tests.Test):
                 remote.get(['artifact', guid], reply=['data']))
         self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
 
+    def test_RestrictLayers(self):
+        self.start_ipc_and_restful_server()
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            'spec': {'*-*': {}},
+            })
+
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['context'], reply='layer')['result'])
+        self.assertEqual(
+                [],
+                remote.get(['context'], reply='layer', layer='foo')['result'])
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['context'], reply='layer', layer='public')['result'])
+
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['implementation'], reply='layer')['result'])
+        self.assertEqual(
+                [],
+                remote.get(['implementation'], reply='layer', layer='foo')['result'])
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['implementation'], reply='layer', layer='public')['result'])
+
+        self.assertEqual(
+                [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+                remote.get(['context', context], cmd='feed'))
+        self.assertEqual(
+                [],
+                remote.get(['context', context], cmd='feed', layer='foo'))
+        self.assertEqual(
+                [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+                remote.get(['context', context], cmd='feed', layer='public'))
+
+        local.layers.value = ['foo', 'bar']
+
+        self.assertEqual(
+                [],
+                remote.get(['context'], reply='layer')['result'])
+        self.assertEqual(
+                [],
+                remote.get(['context'], reply='layer', layer='foo')['result'])
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['context'], reply='layer', layer='public')['result'])
+
+        self.assertEqual(
+                [],
+                remote.get(['implementation'], reply='layer')['result'])
+        self.assertEqual(
+                [],
+                remote.get(['implementation'], reply='layer', layer='foo')['result'])
+        self.assertEqual(
+                [{'layer': ['public']}],
+                remote.get(['implementation'], reply='layer', layer='public')['result'])
+
+        self.assertEqual(
+                [],
+                remote.get(['context', context], cmd='feed'))
+        self.assertEqual(
+                [],
+                remote.get(['context', context], cmd='feed', layer='foo'))
+        self.assertEqual(
+                [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+                remote.get(['context', context], cmd='feed', layer='public'))
+
 
 if __name__ == '__main__':
     tests.main()

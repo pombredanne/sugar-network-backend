@@ -314,6 +314,8 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             try:
                 return ad.CommandsProcessor.call(self, request, response)
             except ad.CommandNotFound:
+                if local.layers.value and 'layer' not in request:
+                    request['layer'] = local.layers.value
                 return self._client.call(request, response)
 
         return self._proxy_call(request, response, super_call)
