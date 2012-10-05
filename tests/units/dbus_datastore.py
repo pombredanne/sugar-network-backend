@@ -45,7 +45,7 @@ class DbusDatastoreTest(tests.Test):
 
     def test_create_Empty(self):
         guid = self.ds.create({}, '', False, timeout=3)
-
+        self.assertEqual(5, len(guid.split('-')))
         self.assertEqual({
             'uid': guid,
             'activity': '',
@@ -192,21 +192,12 @@ class DbusDatastoreTest(tests.Test):
                 sorted(entries))
 
         # offset/limit
-        entries, total = self.ds.find({'offset': 0, 'limit':2}, ['uid', 'title', 'term'], timeout=3)
+        entries, total = self.ds.find({'offset': 0, 'limit': 2}, ['uid', 'title', 'term'], timeout=3)
         self.assertEqual(3, total)
-        self.assertEqual(
-                sorted([
-                    {'uid': guid_1, 'title': 'title-1', 'term': 'value-1'},
-                    {'uid': guid_2, 'title': 'title-2', 'term': 'value-2'},
-                    ]),
-                sorted(entries))
+        self.assertEqual(2, len(entries))
         entries, total = self.ds.find({'offset': 2, 'limit':2}, ['uid', 'title', 'term'], timeout=3)
         self.assertEqual(3, total)
-        self.assertEqual(
-                sorted([
-                    {'uid': guid_3, 'title': 'title-3', 'term': 'value-3'},
-                    ]),
-                sorted(entries))
+        self.assertEqual(1, len(entries))
 
         # fulltext search
         entries, total = self.ds.find({'query': 'title'}, ['uid', 'title', 'term'], timeout=3)
@@ -257,10 +248,15 @@ class DbusDatastoreTest(tests.Test):
                 entries)
 
         # order by not mapped property
-        entries, total = self.ds.find({'order_by': '+title'}, ['uid'], timeout=3)
+        entries, total = self.ds.find({'order_by': 'title'}, ['uid'], timeout=3)
         self.assertEqual(3, total)
         self.assertEqual(
                 [{'uid': guid_1}, {'uid': guid_2}, {'uid': guid_3}],
+                entries)
+        entries, total = self.ds.find({'order_by': ['+title']}, ['uid'], timeout=3)
+        self.assertEqual(3, total)
+        self.assertEqual(
+                [{'uid': guid_3}, {'uid': guid_2}, {'uid': guid_1}],
                 entries)
         entries, total = self.ds.find({'order_by': '-title'}, ['uid'], timeout=3)
         self.assertEqual(3, total)

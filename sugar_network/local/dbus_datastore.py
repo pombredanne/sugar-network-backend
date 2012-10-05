@@ -15,6 +15,7 @@
 
 import os
 import time
+import uuid
 import tempfile
 from cStringIO import StringIO
 from os.path import exists
@@ -77,9 +78,12 @@ class Datastore(dbus_thread.Service):
     @method(_INTERFACE, in_signature='a{sv}sb', out_signature='s',
             async_callbacks=('reply_cb', 'error_cb'), byte_arrays=True)
     def create(self, props, file_path, transfer_ownership, reply_cb, error_cb):
+        # XXX sugar-datastore clients, like Scratch, might rely on having
+        # particular GUID size, so, do the same what sugar-datastore does
+        props['uid'] = str(uuid.uuid4())
         props['timestamp'] = int(props.get('timestamp', 0) or time.time())
         self._update('POST', props, file_path, transfer_ownership,
-                reply_cb, error_cb)
+                reply_cb, error_cb, cmd='create_with_guid')
 
     @method(_INTERFACE, in_signature='sa{sv}sb', out_signature='',
             async_callbacks=('reply_cb', 'error_cb'), byte_arrays=True)
@@ -118,7 +122,8 @@ class Datastore(dbus_thread.Service):
         query = request.get('query')
         order_by = request.get('order_by')
         if order_by:
-            order_by = order_by[0]
+            if not isinstance(order_by, basestring):
+                order_by = order_by[0]
             if order_by[0] in ('+', '-'):
                 # Revert sign for Journal
                 sign = '+' if order_by[0] == '-' else '-'

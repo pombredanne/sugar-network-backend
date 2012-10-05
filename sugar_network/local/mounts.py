@@ -144,6 +144,14 @@ class HomeMount(LocalMount):
     def name(self):
         return _('Home')
 
+    @ad.directory_command(method='POST', cmd='create_with_guid',
+            permissions=ad.ACCESS_AUTH, mime_type='application/json')
+    def create_with_guid(self, request):
+        with self._post(request, ad.ACCESS_CREATE) as (directory, doc):
+            enforce('guid' in doc.props, 'GUID should be specified')
+            self.before_create(request, doc.props)
+            return directory.create(doc.props)
+
     @ad.property_command(method='GET', cmd='get_blob',
             mime_type='application/json')
     def get_blob(self, document, guid, prop, request=None):
