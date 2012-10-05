@@ -272,7 +272,7 @@ class VolumeCommands(ad.VolumeCommands):
 
     @ad.document_command(method='GET', cmd='deplist',
             mime_type='application/json')
-    def deplist(self, document, guid, repo, layer):
+    def deplist(self, document, guid, repo):
         """List of native packages context is dependening on.
 
         Command return only GNU/Linux package names and ignores
@@ -281,8 +281,6 @@ class VolumeCommands(ad.VolumeCommands):
         :param repo:
             OBS repository name to get package names for, e.g.,
             Fedora-14
-        :param layer:
-            restrict dependencies only to the specified Sugar Network layer
         :returns:
             list of package names
 

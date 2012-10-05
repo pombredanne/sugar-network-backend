@@ -23,5 +23,4 @@ install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
             install -m 0755 -D sugar-network-server %(DESTDIR)s/%(BINDIR)s/sugar-network-server &&
             install -m 0755 -D misc/offline-sync %(DESTDIR)s/%(BINDIR)s/sugar-network-sync &&
             install -m 0755 -D misc/aslo-sync %(DESTDIR)s/%(DATADIR)s/%(name)s/aslo-sync &&
-            cp -r examples %(DESTDIR)s/%(DATADIR)s/%(name)s/ &&
             true
