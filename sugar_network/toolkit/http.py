@@ -22,7 +22,6 @@ import time
 import shutil
 import logging
 import hashlib
-import tempfile
 from os.path import isdir, exists, dirname, join
 
 import requests
@@ -33,7 +32,7 @@ import active_document as ad
 from sugar_network.zerosugar import Bundle
 from active_toolkit.sockets import decode_multipart, BUFFER_SIZE
 from sugar_network.toolkit import sugar
-from sugar_network import local
+from sugar_network import local, toolkit
 from active_toolkit import coroutine, enforce
 
 # Let toolkit.http work in concurrence
@@ -233,7 +232,7 @@ class Client(object):
                 shutil.rmtree(out_path, ignore_errors=True)
                 raise
         elif extract:
-            tmp_file = tempfile.NamedTemporaryFile(delete=False)
+            tmp_file = toolkit.NamedTemporaryFile(delete=False)
             try:
                 if fetch(tmp_file):
                     tmp_file.close()

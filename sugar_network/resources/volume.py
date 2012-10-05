@@ -15,12 +15,11 @@
 
 import json
 import logging
-import tempfile
 from os.path import join
 
 import active_document as ad
 from active_document import directory as ad_directory
-from sugar_network import local, node
+from sugar_network import local, node, toolkit
 from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit import http
@@ -161,7 +160,7 @@ class Volume(ad.SingleVolume):
         content_length = response.headers.get('Content-Length')
         content_length = int(content_length) if content_length else 0
 
-        ostream = tempfile.NamedTemporaryFile()
+        ostream = toolkit.NamedTemporaryFile()
         try:
             chunk_size = min(content_length, BUFFER_SIZE)
             # pylint: disable-msg=E1103

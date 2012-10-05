@@ -19,17 +19,15 @@ import time
 import gzip
 import tarfile
 import logging
-import tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
 from os.path import join, exists
 
 import active_document as ad
+from sugar_network import toolkit
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, enforce
 
-
-TMPDIR = None
 
 _RESERVED_SIZE = 1024 * 1024
 _MAX_PACKET_SIZE = 1024 * 1024 * 100
@@ -66,7 +64,7 @@ class InPacket(object):
                 self._file = stream = file(path, 'rb')
             elif not hasattr(stream, 'seek'):
                 # tarfile/gzip/zip might require seeking
-                self._file = tempfile.TemporaryFile(dir=TMPDIR)
+                self._file = toolkit.NamedTemporaryFile()
 
                 if hasattr(stream, 'read'):
                     while True:
@@ -325,7 +323,7 @@ class OutPacket(object):
             self._flush(0, True)
             limit = self._enforce_limit()
 
-            with tempfile.TemporaryFile(dir=TMPDIR) as arcfile:
+            with toolkit.NamedTemporaryFile() as arcfile:
                 while True:
                     limit -= len(chunk)
                     if limit <= 0:
@@ -418,7 +416,7 @@ class OutFilePacket(OutPacket):
     def __init__(self, root=None, **kwargs):
         stream = None
         if root is None:
-            stream = tempfile.NamedTemporaryFile(dir=TMPDIR)
+            stream = toolkit.NamedTemporaryFile()
         OutPacket.__init__(self, root=root, stream=stream, **kwargs)
 
 

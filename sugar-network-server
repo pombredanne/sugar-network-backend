@@ -24,7 +24,7 @@ import active_document as ad
 import sugar_network_webui as webui
 from active_toolkit import coroutine, application
 from active_toolkit.options import Option
-from sugar_network import node, local
+from sugar_network import node, local, toolkit
 from sugar_network.local.mounts import LocalMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.mounts import LocalMount
@@ -40,9 +40,8 @@ class Application(application.Daemon):
     jobs = coroutine.Pool()
 
     def run(self):
-        if node.tmpdir.value and not exists(node.tmpdir.value):
-            os.makedirs(node.tmpdir.value)
-        sneakernet.TMPDIR = node.tmpdir.value
+        if toolkit.tmpdir.value and not exists(toolkit.tmpdir.value):
+            os.makedirs(toolkit.tmpdir.value)
 
         ssl_args = {}
         if node.keyfile.value:
@@ -90,6 +89,7 @@ locale.setlocale(locale.LC_ALL, '')
 Option.seek('main', application)
 Option.seek('webui', webui)
 Option.seek('node', node)
+Option.seek('node', [toolkit.tmpdir])
 Option.seek('stats', stats)
 Option.seek('obs', obs)
 Option.seek('active-document', ad)

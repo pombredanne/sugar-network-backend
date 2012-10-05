@@ -65,10 +65,6 @@ lazy_open = Option(
         'do not open all indexes at once on startup',
         default=True, type_cast=Option.bool_cast, action='store_true')
 
-tmpdir = Option(
-        'if specified, use this directory for temporary files, such files '
-        'might take hunder of megabytes while node synchronizing')
-
 ipc_port = Option(
         'port number to listen for incomming connections from IPC clients',
         default=5001, type_cast=int, name='ipc_port')

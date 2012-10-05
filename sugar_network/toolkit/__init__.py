@@ -16,10 +16,18 @@
 import os
 import logging
 import hashlib
+import tempfile
 from os.path import isfile, lexists, exists, dirname
 
+from active_toolkit.options import Option
 from active_toolkit import util
 
+
+tmpdir = Option(
+        'if specified, use this directory for temporary files; such files '
+        'might take considerable number of bytes while downloading of '
+        'synchronizing Sugar Network content',
+        name='tmpdir')
 
 _logger = logging.getLogger('toolkit')
 
@@ -79,3 +87,9 @@ def svg_to_png(src_path, dst_path, width, height):
     svg.render_cairo(context)
 
     surface.write_to_png(dst_path)
+
+
+def NamedTemporaryFile(*args, **kwargs):
+    if tmpdir.value:
+        kwargs['dir'] = tmpdir.value
+    return tempfile.NamedTemporaryFile(*args, **kwargs)

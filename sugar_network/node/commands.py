@@ -15,11 +15,10 @@
 
 import logging
 import hashlib
-import tempfile
 from os.path import exists, join
 
 import active_document as ad
-from sugar_network import node
+from sugar_network import node, toolkit
 from sugar_network.node.sync_master import SyncCommands
 from sugar_network.node import auth
 from sugar_network.resources.volume import Commands, VolumeCommands
@@ -224,7 +223,7 @@ class MasterCommands(NodeCommands, SyncCommands):
 def _load_pubkey(pubkey):
     pubkey = pubkey.strip()
     try:
-        with tempfile.NamedTemporaryFile() as key_file:
+        with toolkit.NamedTemporaryFile() as key_file:
             key_file.file.write(pubkey)
             key_file.file.flush()
             # SSH key needs to be converted to PKCS8 to ket M2Crypto read it

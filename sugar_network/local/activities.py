@@ -16,7 +16,6 @@
 import os
 import hashlib
 import logging
-import tempfile
 from os.path import join, exists, lexists, relpath, dirname, basename, isdir
 from os.path import abspath, islink
 
@@ -164,7 +163,7 @@ class _Inotify(Inotify):
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):
                 self._contexts.set_blob(context, 'artifact_icon', icon_path)
-                with tempfile.NamedTemporaryFile() as f:
+                with toolkit.NamedTemporaryFile() as f:
                     toolkit.svg_to_png(icon_path, f.name, 32, 32)
                     self._contexts.set_blob(context, 'icon', f.name)
 

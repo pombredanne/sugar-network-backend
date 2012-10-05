@@ -24,7 +24,7 @@ from os.path import exists, join
 from pylru import lrucache
 
 import active_document as ad
-from sugar_network import node
+from sugar_network import node, toolkit
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
         OutPacket, DiskFull
 from sugar_network.toolkit.collection import Sequence
@@ -172,7 +172,7 @@ class _Pull(object):
         self.exception = None
         self.seconds_remained = 0
         self.content_type = None
-        self._path = join(node.tmpdir.value, pull_key + '.pull')
+        self._path = join(toolkit.tmpdir.value, pull_key + '.pull')
         self._job = None
 
         if exists(self._path):

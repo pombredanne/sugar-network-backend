@@ -47,10 +47,6 @@ find_limit = Option(
         'limit the resulting list for search requests',
         default=32, type_cast=int)
 
-tmpdir = Option(
-        'if specified, use this directory for temporary files, such files '
-                'might take hunder of megabytes while node synchronizing')
-
 sync_dirs = Option(
         'colon separated list of paths to directories to synchronize with '
                 'master server',

@@ -22,7 +22,7 @@ from sugar_network.toolkit.router import Router
 from sugar_network.local.ipc_client import Router as IPCRouter
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
-from sugar_network import local, node
+from sugar_network import local, node, toolkit
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
@@ -73,7 +73,6 @@ class Test(unittest.TestCase):
         ad.index_flush_timeout.value = 0
         ad.index_flush_threshold.value = 1
         node.find_limit.value = 1024
-        node.tmpdir.value = tmpdir + '/tmp'
         node.data_root.value = tmpdir
         node.sync_dirs.value = []
         node.static_url.value = None
@@ -94,6 +93,7 @@ class Test(unittest.TestCase):
         obs._client = None
         http._RECONNECTION_NUMBER = 0
         auth._config = None
+        toolkit.tmpdir.value = tmpdir + '/tmp'
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',
@@ -107,7 +107,6 @@ class Test(unittest.TestCase):
 
         sneakernet._RESERVED_SIZE = 0
         sneakernet._PACKET_COMPRESS_MODE = ''
-        sneakernet.TMPDIR = tmpdir + '/tmp'
         os.makedirs('tmp')
 
         self._logfile = file(self.logfile + '.out', 'a')
