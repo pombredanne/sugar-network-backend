@@ -95,10 +95,13 @@ class NodeCommands(VolumeCommands, Commands):
                     'User is not authenticated')
 
         if cmd.permissions & ad.ACCESS_AUTHOR and 'guid' in request:
-            doc = self.volume[request['document']].get(request['guid'])
-            enforce(request.principal in doc['user'] or
-                    auth.try_validate(request, 'root'), ad.Forbidden,
-                    'Operation is permitted only for authors')
+            if request['document'] == 'user':
+                allowed = (request.principal == request['guid'])
+            else:
+                doc = self.volume[request['document']].get(request['guid'])
+                allowed = (request.principal in doc['user'])
+            enforce(allowed or auth.try_validate(request, 'root'),
+                    ad.Forbidden, 'Operation is permitted only for authors')
 
         return cmd
 

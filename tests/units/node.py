@@ -180,6 +180,23 @@ class NodeTest(tests.Test):
         call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal='principal')
         call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
+    def test_ForbiddenCommandsForUserResource(self):
+        cp = NodeCommands(Volume('db', [User]))
+
+        call(cp, method='POST', document='user', principal='fake', content={
+            'name': 'user1',
+            'color': '',
+            'machine_sn': '',
+            'machine_uuid': '',
+            'pubkey': tests.PUBKEY,
+            })
+        self.assertEqual('user1', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
+
+        self.assertRaises(Unauthorized, call, cp, method='PUT', document='user', guid=tests.UID, content={'name': 'user2'})
+        self.assertRaises(ad.Forbidden, call, cp, method='PUT', document='user', guid=tests.UID, principal='fake', content={'name': 'user2'})
+        call(cp, method='PUT', document='user', guid=tests.UID, principal=tests.UID, content={'name': 'user2'})
+        self.assertEqual('user2', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
+
     def test_SetUser(self):
         cp = NodeCommands(Volume('db'))
 
