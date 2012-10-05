@@ -131,13 +131,14 @@ def _activity_env(selection, environ):
             (selection.local_path, environ['PYTHONPATH'])
     environ['SUGAR_LOCALEDIR'] = join(selection.local_path, 'locale')
 
-    bin_path = join(selection.local_path, 'bin')
-    if exists(bin_path):
-        environ['PATH'] = bin_path + ':' + environ['PATH']
-        # TODO Do it only once on unzip
-        # Activities might call bin/* files but python zipfile module
-        # doesn't set exec permissions while extracting
-        for filename in os.listdir(bin_path):
-            os.chmod(join(bin_path, filename), 0755)
+    # TODO Do it only once on unzip
+    # Activities might call bin/* files but python zipfile module
+    # doesn't set exec permissions while extracting
+    for exec_dir in ('bin', 'activity'):
+        bin_path = join(selection.local_path, exec_dir)
+        if exists(bin_path):
+            environ['PATH'] = bin_path + ':' + environ['PATH']
+            for filename in os.listdir(bin_path):
+                os.chmod(join(bin_path, filename), 0755)
 
     os.chdir(selection.local_path)
