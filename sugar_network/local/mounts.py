@@ -206,11 +206,12 @@ class _ProxyCommands(object):
                             reply.remove(prop)
                     request['reply'] = reply
             elif command in (('POST', None), ('PUT', None)):
-                for prop in _LOCAL_PROPS.keys():
-                    if prop in request.content:
-                        patch[prop] = request.content.pop(prop)
-                if not request.content:
+                if request.content is None:
                     result = guid
+                else:
+                    for prop in _LOCAL_PROPS.keys():
+                        if prop in request.content:
+                            patch[prop] = request.content.pop(prop)
 
         if result is None:
             result = super_call(request, response)

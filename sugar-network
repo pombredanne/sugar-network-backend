@@ -70,6 +70,13 @@ class Application(application.Application):
         self._call('GET', None)
 
     def _call(self, method, content=None):
+        if content:
+            try:
+                content = json.loads(content)
+            except Exception, error:
+                printf.info('Cannot parse JSON from stdin: %s', error)
+                return
+
         request = Request(method=method)
         request.content = content
         response = ad.Response()
