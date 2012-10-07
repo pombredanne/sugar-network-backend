@@ -6,6 +6,7 @@ import json
 from __init__ import tests
 
 import active_document as ad
+from sugar_network import node
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
 from sugar_network.resources.volume import Volume, Resource, Commands, Request
@@ -247,6 +248,92 @@ class VolumeTest(tests.Test):
             ],
             events)
 
+    def test_MixinBlobUrls(self):
+        volume = Volume('db')
+        cp = TestCommands(volume)
+
+        guid1 = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title1',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        guid2 = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title2',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        volume['context'].set_blob(guid2, 'icon', url='http://foo/bar')
+        guid3 = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title3',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        volume['context'].set_blob(guid3, 'icon', url='/foo/bar')
+        guid4 = call(cp, method='POST', document='artifact', principal='principal', content={
+            })
+        guid5 = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title5',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        volume['context'].set_blob(guid5, 'icon', url={'file1': {'order': 1, 'url': '/1'}, 'file2': {'order': 2, 'url': 'http://2'}})
+
+        # No GUID in reply
+        self.assertEqual(
+                {'icon': 'http://localhost/static/images/missing.png'},
+                call(cp, method='GET', document='context', guid=guid1, reply=['icon']))
+        self.assertEqual(
+                {'icon': 'http://foo/bar'},
+                call(cp, method='GET', document='context', guid=guid2, reply=['icon']))
+        self.assertEqual(
+                {'icon': 'http://localhost/foo/bar'},
+                call(cp, method='GET', document='context', guid=guid3, reply=['icon']))
+        self.assertEqual(
+                {'data': 'http://localhost/artifact/%s/data' % guid4},
+                call(cp, method='GET', document='artifact', guid=guid4, reply=['data']))
+        self.assertRaises(RuntimeError, call, cp, method='GET', document='context', reply=['icon'])
+
+        # GUID in reply
+        self.assertEqual(
+                {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
+                call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon', 'layer']))
+        self.assertEqual(
+                {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                call(cp, method='GET', document='context', guid=guid2, reply=['guid', 'icon', 'layer']))
+        self.assertEqual(
+                {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
+                call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon', 'layer']))
+        self.assertEqual(
+                {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ['public']},
+                call(cp, method='GET', document='artifact', guid=guid4, reply=['guid', 'data', 'layer']))
+        self.assertEqual(
+                sorted([
+                    {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
+                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                    {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
+                    {'guid': guid5, 'icon': ['http://localhost/1', 'http://2'], 'layer': ['public']},
+                    ]),
+                sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
+
+        self.assertEqual([
+            {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ['public']},
+            ],
+            call(cp, method='GET', document='artifact', reply=['guid', 'data', 'layer'])['result'])
+
+        node.static_url.value = 'static_url'
+        self.assertEqual(
+                sorted([
+                    {'guid': guid1, 'icon': 'static_url/static/images/missing.png', 'layer': ['public']},
+                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                    {'guid': guid3, 'icon': 'static_url/foo/bar', 'layer': ['public']},
+                    {'guid': guid5, 'icon': ['static_url/1', 'http://2'], 'layer': ['public']},
+                    ]),
+                sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
+
 
 class TestCommands(ad.VolumeCommands, Commands):
 
@@ -265,6 +352,14 @@ def read_packet(packet):
             i.pop('diff')
         result.append(i)
     return result
+
+
+def call(cp, principal=None, content=None, **kwargs):
+    request = Request(**kwargs)
+    request.principal = principal
+    request.content = content
+    request.environ = {'HTTP_HOST': 'localhost'}
+    return cp.call(request, ad.Response())
 
 
 if __name__ == '__main__':

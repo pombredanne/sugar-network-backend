@@ -215,11 +215,6 @@ class Commands(object):
 
     def _mixin_blobs(self, request, result):
         requested_guid = request.get('guid')
-        if not requested_guid:
-            reply = request.get('reply')
-            if reply and 'guid' not in reply:
-                return
-
         if node.static_url.value:
             prefix = node.static_url.value
         elif hasattr(request, 'environ'):
@@ -237,6 +232,8 @@ class Commands(object):
             for name, value in props.items():
                 if not isinstance(value, ad.PropertyMeta):
                     continue
+                enforce(guid, 'No way to get BLOB urls if %r was not '
+                        'in %r parameter', 'guid', 'reply')
                 props[name] = value.url(
                         default='/'.join(['', document, guid, name]) + postfix,
                         prefix=prefix)
