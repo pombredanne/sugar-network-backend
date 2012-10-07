@@ -2,11 +2,12 @@
 # sugar-lint: disable
 
 import json
+from os.path import exists
 
 from __init__ import tests
 
 import active_document as ad
-from sugar_network import node
+from sugar_network import node, sugar
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
 from sugar_network.resources.volume import Volume, Resource, Commands, Request
@@ -333,6 +334,42 @@ class VolumeTest(tests.Test):
                     {'guid': guid5, 'icon': ['static_url/1', 'http://2'], 'layer': ['public']},
                     ]),
                 sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
+
+    def test_Populate(self):
+        self.touch(
+                ('db/context/1/1/guid', '{"value": "1"}'),
+                ('db/context/1/1/ctime', '{"value": 1}'),
+                ('db/context/1/1/mtime', '{"value": 1}'),
+                ('db/context/1/1/seqno', '{"value": 0}'),
+                )
+
+        ds_path = sugar.profile_path('datastore')
+        self.touch(ds_path + '/index_updated')
+        self.touch((ds_path + '/2/2/metadata/uid', '2'))
+
+        volume = Volume('db', lazy_open=True)
+        cp = TestCommands(volume)
+
+        assert not exists('db/context/index')
+        assert not exists('db/artifact/index')
+
+        self.assertEqual(
+                [],
+                call(cp, method='GET', document='context')['result'])
+        coroutine.dispatch()
+        self.assertEqual(
+                [{'guid': '1'}],
+                call(cp, method='GET', document='context')['result'])
+        assert exists('db/context/index')
+
+        self.assertEqual(
+                [],
+                call(cp, method='GET', document='artifact')['result'])
+        coroutine.dispatch()
+        self.assertEqual(
+                [{'guid': '2'}],
+                call(cp, method='GET', document='artifact')['result'])
+        assert exists('db/artifact/index')
 
 
 class TestCommands(ad.VolumeCommands, Commands):

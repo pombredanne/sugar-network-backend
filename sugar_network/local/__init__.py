@@ -63,7 +63,7 @@ mounts_root = Option(
 
 lazy_open = Option(
         'do not open all indexes at once on startup',
-        default=True, type_cast=Option.bool_cast, action='store_true')
+        default=False, type_cast=Option.bool_cast, action='store_true')
 
 ipc_port = Option(
         'port number to listen for incomming connections from IPC clients',

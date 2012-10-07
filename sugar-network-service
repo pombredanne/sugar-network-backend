@@ -103,6 +103,8 @@ class Application(application.Application):
         volume = Volume(local.db_path())
         try:
             volume.populate()
+            datastore.populate(volume['artifact'])
+            self._sync(volume)
             activities.populate(volume['context'], local.activity_dirs.value)
         finally:
             volume.close()
@@ -132,8 +134,6 @@ class Application(application.Application):
             logging.info('Proceed delayed start')
             mountset.disconnect(delayed_start)
 
-            mountset.volume.populate()
-            datastore.populate(mountset.volume['artifact'])
             self._sync(mountset.volume)
 
             logging.info('Listening for IPC requests on %s port',

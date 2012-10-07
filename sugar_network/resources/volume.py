@@ -20,6 +20,7 @@ from os.path import join
 import active_document as ad
 from active_document import directory as ad_directory
 from sugar_network import local, node, toolkit
+from sugar_network.local import datastore
 from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit import http
@@ -77,8 +78,16 @@ class Volume(ad.SingleVolume):
     def __init__(self, root, document_classes=None, lazy_open=False):
         if document_classes is None:
             document_classes = Volume.RESOURCES
-        ad.SingleVolume.__init__(self, root, document_classes, lazy_open)
         self._downloader = None
+        self._populators = coroutine.Pool()
+        ad.SingleVolume.__init__(self, root, document_classes, lazy_open)
+
+    def close(self):
+        if self._downloader is not None:
+            self._downloader.close()
+            self._downloader = None
+        self._populators.kill()
+        ad.SingleVolume.close(self)
 
     def notify(self, event):
         if event['event'] == 'update' and 'props' in event and \
@@ -149,6 +158,17 @@ class Volume(ad.SingleVolume):
             # this place, `push_seq` should contain not-collapsed sequence
             orig_seq.floor(push_seq.last)
             out_packet.push(force=True, cmd='sn_commit', sequence=orig_seq)
+
+    def _open(self, name, document):
+        directory = ad.SingleVolume._open(self, name, document)
+        self._populators.spawn(self._populate, directory)
+        return directory
+
+    def _populate(self, directory):
+        for __ in directory.populate():
+            coroutine.dispatch()
+        if directory.metadata.name == 'artifact':
+            datastore.populate(directory)
 
     def _download_blob(self, url):
         _logger.debug('Download %r blob', url)
