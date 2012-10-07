@@ -729,6 +729,18 @@ class DocumentTest(tests.Test):
         self.assertEqual(5, doc.meta('blob')['mtime'])
         self.assertEqual('blob-2', file('document/1/1/blob.blob').read())
 
+    def test_MalformedGUIDs(self):
+
+        class Document(document.Document):
+            pass
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        self.assertRaises(RuntimeError, directory.create, {'guid': 'foo/bar'})
+        self.assertRaises(RuntimeError, directory.create, {'guid': 'foo bar'})
+        self.assertRaises(RuntimeError, directory.create, {'guid': 'foo#bar'})
+        assert directory.create({'guid': 'foo-bar.1-2'})
+
     def __test_Integers(self):
         db = Index({
             'prop': ActiveProperty('prop', 1, 'A', typecast=int, full_text=True),

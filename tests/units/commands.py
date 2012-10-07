@@ -236,20 +236,6 @@ class CommandsTest(tests.Test):
             ],
             calls)
 
-    def test_MalformedGUIDs(self):
-        calls = []
-
-        class TestCommandsProcessor(CommandsProcessor):
-
-            @document_command(method='PROBE')
-            def command(self, **kwargs):
-                pass
-
-        cp = TestCommandsProcessor()
-
-        self.call(cp, 'PROBE', document='testdocument', guid='guid')
-        self.assertRaises(RuntimeError, self.call, cp, 'PROBE', document='testdocument', guid='foo/bar')
-
     def test_AccessLevel(self):
         calls = []
 

@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import re
 import logging
 
 from active_document import env
@@ -21,8 +20,6 @@ from active_toolkit import enforce
 
 
 _logger = logging.getLogger('active_document.commands')
-
-_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 
 def command(scope, **kwargs):
@@ -201,11 +198,6 @@ class CommandsProcessor(object):
     def call(self, request, response):
         cmd = self.resolve(request)
         enforce(cmd is not None, CommandNotFound, 'Unsupported command')
-
-        guid = request.get('guid')
-        if guid is not None:
-            enforce(_GUID_RE.match(guid) is not None,
-                    'Specified malformed GUID')
 
         enforce(request.access_level & cmd.access_level, env.Forbidden,
                 'Operation is permitted on requester\'s level')
