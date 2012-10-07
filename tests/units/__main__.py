@@ -8,8 +8,6 @@ from volume import *
 from local import *
 from node import *
 from dbus_client import *
-from datastore import *
-from dbus_datastore import *
 from sneakernet import *
 from router import *
 from files_sync import *

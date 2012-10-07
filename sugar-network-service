@@ -29,8 +29,7 @@ import sugar_network_webui as webui
 from sugar_network import toolkit, local, node
 from sugar_network.toolkit import sugar, sneakernet
 from sugar_network.toolkit import dbus_thread, mounts_monitor
-from sugar_network.local import activities, datastore
-from sugar_network.local.dbus_datastore import Datastore
+from sugar_network.local import activities
 from sugar_network.local.dbus_network import Network
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
@@ -103,7 +102,6 @@ class Application(application.Application):
         volume = Volume(local.db_path())
         try:
             volume.populate()
-            datastore.populate(volume['artifact'])
             self._sync(volume)
             activities.populate(volume['context'], local.activity_dirs.value)
         finally:
@@ -158,7 +156,6 @@ class Application(application.Application):
             mountset.connect(delayed_start, event='delayed-start')
         else:
             delayed_start()
-        dbus_thread.spawn_service(Datastore)
         dbus_thread.spawn_service(Network)
 
         pid_path = self.new_instance()

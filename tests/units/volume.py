@@ -343,15 +343,9 @@ class VolumeTest(tests.Test):
                 ('db/context/1/1/seqno', '{"value": 0}'),
                 )
 
-        ds_path = sugar.profile_path('datastore')
-        self.touch(ds_path + '/index_updated')
-        self.touch((ds_path + '/2/2/metadata/uid', '2'))
-
         volume = Volume('db', lazy_open=True)
         cp = TestCommands(volume)
-
         assert not exists('db/context/index')
-        assert not exists('db/artifact/index')
 
         self.assertEqual(
                 [],
@@ -361,15 +355,6 @@ class VolumeTest(tests.Test):
                 [{'guid': '1'}],
                 call(cp, method='GET', document='context')['result'])
         assert exists('db/context/index')
-
-        self.assertEqual(
-                [],
-                call(cp, method='GET', document='artifact')['result'])
-        coroutine.dispatch()
-        self.assertEqual(
-                [{'guid': '2'}],
-                call(cp, method='GET', document='artifact')['result'])
-        assert exists('db/artifact/index')
 
 
 class TestCommands(ad.VolumeCommands, Commands):

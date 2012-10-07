@@ -20,7 +20,6 @@ from os.path import join
 import active_document as ad
 from active_document import directory as ad_directory
 from sugar_network import local, node, toolkit
-from sugar_network.local import datastore
 from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit import http
@@ -167,8 +166,6 @@ class Volume(ad.SingleVolume):
     def _populate(self, directory):
         for __ in directory.populate():
             coroutine.dispatch()
-        if directory.metadata.name == 'artifact':
-            datastore.populate(directory)
 
     def _download_blob(self, url):
         _logger.debug('Download %r blob', url)
