@@ -245,6 +245,7 @@ class Directory(object):
                         guid, self.metadata.name)
                 record.invalidate()
 
+        self._index.checkpoint()
         if found:
             self._save_layout()
             self.commit()

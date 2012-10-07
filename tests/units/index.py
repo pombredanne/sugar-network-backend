@@ -371,22 +371,40 @@ class IndexTest(tests.Test):
         self.assertEqual(1, len(deleted))
 
     def test_mtime(self):
+        # No index at start; checkpoint didn't happen
         db = Index({})
+        self.assertEqual(0, db.mtime)
+        db.store('1', {}, True)
+        db.commit()
+        db.close()
+
+        # Index exists at start; checkpoint didn't happen
+        db = Index({})
+        self.assertEqual(0, db.mtime)
+        db.store('2', {}, True)
+        db.commit()
         self.assertEqual(0, db.mtime)
         db.close()
 
+        # Index exists at start; mtime exists at start; checkpoint didn't happen
+        self.touch('index/mtime')
+        os.utime('index/mtime', (1, 1))
         db = Index({})
-        db.store('1', {}, True)
+        self.assertEqual(1, db.mtime)
+        db.store('3', {}, True)
         db.commit()
-        self.assertNotEqual(0, db.mtime)
-        mtime = db.mtime
+        self.assertEqual(1, db.mtime)
+        db.close()
 
-        time.sleep(1)
-
+        # Index exists at start; checkpoint happened
         db = Index({})
-        db.store('2', {}, True)
+        db.checkpoint()
+        self.assertNotEqual(1, db.mtime)
+        os.utime('index/mtime', (1, 1))
+        self.assertEqual(1, db.mtime)
+        db.store('4', {}, True)
         db.commit()
-        self.assertNotEqual(mtime, db.mtime)
+        self.assertNotEqual(1, db.mtime)
         db.close()
 
     def test_find_OrderByGUIDAllTime(self):

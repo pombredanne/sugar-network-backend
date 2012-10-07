@@ -270,8 +270,10 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
+        self.assertEqual(0, directory._index.mtime)
         for i in directory.populate():
             pass
+        self.assertNotEqual(0, directory._index.mtime)
 
         doc = directory.get('1')
         self.assertEqual(1, doc['ctime'])

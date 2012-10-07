@@ -45,6 +45,7 @@ class IndexReader(object):
         self._props = {}
         self._path = root
         self._mtime_path = join(self._path, 'mtime')
+        self._dirty = True
         self._commit_cb = commit_cb
 
         for name, prop in self.metadata.items():
@@ -376,6 +377,11 @@ class IndexWriter(IndexReader):
         # Trigger condition to reset waiting for `index_flush_timeout` timeout
         self._commit_cond.set()
 
+    def checkpoint(self):
+        with file(self._mtime_path, 'w'):
+            pass
+        self._dirty = False
+
     def _do_open(self):
         try:
             self._db = xapian.WritableDatabase(self._path,
@@ -399,8 +405,8 @@ class IndexWriter(IndexReader):
             self._db.commit()
         else:
             self._db.flush()
-        with file(self._mtime_path, 'w'):
-            pass
+        if not self._dirty:
+            self.checkpoint()
         self._pending_updates = 0
 
         _logger.debug('Commit %r changes took %s seconds',
