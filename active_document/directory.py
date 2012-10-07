@@ -229,17 +229,21 @@ class Directory(object):
             if migrate:
                 self._storage.migrate(guid)
 
-            props = {}
             record = self._storage.get(guid)
-            for name, prop in self.metadata.items():
-                if not isinstance(prop, StoredProperty):
-                    continue
-                meta = record.get(name)
-                if meta is not None:
-                    props[name] = meta['value']
-            self._index.store(guid, props, None, None, None)
-
-            yield
+            try:
+                props = {}
+                for name, prop in self.metadata.items():
+                    if not isinstance(prop, StoredProperty):
+                        continue
+                    meta = record.get(name)
+                    if meta is not None:
+                        props[name] = meta['value']
+                self._index.store(guid, props, None, None, None)
+                yield
+            except Exception:
+                util.exception('Cannot populate %r in %r, invalidate it',
+                        guid, self.metadata.name)
+                record.invalidate()
 
         if found:
             self._save_layout()

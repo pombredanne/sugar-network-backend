@@ -246,7 +246,7 @@ class DocumentTest(tests.Test):
                 [],
                 [i.prop for i in directory.find(0, 1024)[0]])
 
-    def test_crawler(self):
+    def test_populate(self):
 
         class Document(document.Document):
 
@@ -289,6 +289,47 @@ class DocumentTest(tests.Test):
                     (2, 2, 'prop-2'),
                     ],
                 [(i.ctime, i.mtime, i.prop) for i in directory.find(0, 10)[0]])
+
+    def test_populate_IgnoreBadDocuments(self):
+
+        class Document(document.Document):
+
+            @active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        self.touch(
+                ('1/1/guid', '{"value": "1"}'),
+                ('1/1/ctime', '{"value": 1}'),
+                ('1/1/mtime', '{"value": 1}'),
+                ('1/1/prop', '{"value": "prop-1"}'),
+                ('1/1/seqno', '{"value": 0}'),
+
+                ('2/2/guid', '{"value": "2"}'),
+                ('2/2/ctime', ''),
+                ('2/2/mtime', '{"value": 2}'),
+                ('2/2/prop', '{"value": "prop-2"}'),
+                ('2/2/seqno', '{"value": 0}'),
+
+                ('3/3/guid', ''),
+                ('3/3/ctime', ''),
+                ('3/3/mtime', ''),
+                ('3/3/prop', ''),
+                ('3/3/seqno', ''),
+                )
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        populated = 0
+        for i in directory.populate():
+            populated += 1
+        self.assertEqual(1, populated)
+        self.assertEqual(
+                ['1'],
+                [i.guid for i in directory.find(0, 10)[0]])
+        assert exists('1/1/guid')
+        assert not exists('2/2/guid')
+        assert not exists('3/3/guid')
 
     def test_create_with_guid(self):
 

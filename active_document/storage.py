@@ -171,6 +171,11 @@ class Record(object):
     def consistent(self):
         return exists(join(self._root, 'guid'))
 
+    def invalidate(self):
+        guid_path = join(self._root, 'guid')
+        if exists(guid_path):
+            os.unlink(guid_path)
+
     def get(self, prop):
         path = join(self._root, prop)
         if exists(path):
