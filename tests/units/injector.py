@@ -6,16 +6,16 @@ import json
 import shutil
 import zipfile
 from cStringIO import StringIO
-from os.path import exists
+from os.path import exists, dirname
 
 from __init__ import tests
 
-from active_toolkit import coroutine
-from sugar_network import checkin, launch
+from active_toolkit import coroutine, enforce
+from sugar_network import checkin, launch, zeroinstall
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.zerosugar import lsb_release, packagekit
+from sugar_network.zerosugar import lsb_release, packagekit, injector
 from sugar_network.local import activities
 from sugar_network import IPCClient
 
@@ -113,7 +113,7 @@ class InjectorTest(tests.Test):
                 '*-*': {
                     'commands': {
                         'activity': {
-                            'exec': 'false',
+                            'exec': 'true',
                             },
                         },
                     'stability': 'stable',
@@ -184,6 +184,7 @@ class InjectorTest(tests.Test):
             ]))
         bundle.close()
 
+        shutil.rmtree('cache', ignore_errors=True)
         pipe = launch('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
@@ -299,6 +300,52 @@ class InjectorTest(tests.Test):
         self.assertEqual('exec', [i for i in pipe][-1].get('state'))
         self.assertEqual(['dep1.bin', 'dep2.bin'], json.load(file('resolve')))
         self.assertEqual(['dep2.bin'], json.load(file('install')))
+
+    def test_CacheSet(self):
+        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+
+        self.assertEqual('solved', injector._solve('~', 'context'))
+        self.assertEqual('solved', json.load(file('cache/solutions/~/context')))
+
+        self.assertEqual('solved', injector._solve('/', 'context'))
+        self.assertEqual('solved', json.load(file('cache/solutions/\\/context')))
+
+        self.assertEqual('solved', injector._solve('/foo/bar', 'context'))
+        self.assertEqual('solved', json.load(file('cache/solutions/\\foo\\bar/context')))
+
+    def test_CacheGet(self):
+        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+
+        cached_path = 'cache/solutions/~/context'
+        self.touch((cached_path, '"cached"'))
+        os.utime(cached_path, (1, 1))
+        os.utime(dirname(cached_path), (1, 1))
+        self.assertEqual('cached', injector._solve('~', 'context'))
+        self.assertEqual('cached', json.load(file(cached_path)))
+
+        os.utime(cached_path, (2, 2))
+        self.assertEqual('cached', injector._solve('~', 'context'))
+        self.assertEqual('cached', json.load(file(cached_path)))
+
+        os.utime(dirname(cached_path), (3, 3))
+        self.assertEqual('solved', injector._solve('~', 'context'))
+        self.assertEqual('solved', json.load(file(cached_path)))
+
+    def test_CacheReuseOnSolveFails(self):
+        self.override(zeroinstall, 'solve', lambda *args: enforce(False))
+
+        self.assertRaises(RuntimeError, injector._solve, '~', 'context')
+
+        cached_path = 'cache/solutions/~/context'
+        self.touch((cached_path, '"cached"'))
+        os.utime(cached_path, (1, 1))
+        os.utime(dirname(cached_path), (1, 1))
+        self.assertEqual('cached', injector._solve('~', 'context'))
+        self.assertEqual('cached', json.load(file(cached_path)))
+
+        os.utime(dirname(cached_path), (3, 3))
+        self.assertEqual('cached', injector._solve('~', 'context'))
+        self.assertEqual('cached', json.load(file(cached_path)))
 
 
 if __name__ == '__main__':

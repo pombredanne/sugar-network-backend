@@ -41,11 +41,14 @@ reader.load_feed_from_cache = lambda url, * args, ** kwargs: _load_feed(url)
 reader.check_readable = lambda * args, ** kwargs: True
 
 _logger = logging.getLogger('zeroinstall')
-_client = IPCClient()
 _mountpoints = []
+_client = None
 
 
 def solve(mountpoint, context):
+    global _client
+    _client = IPCClient()
+
     _mountpoints.append(mountpoint)
     if mountpoint != '~':
         _mountpoints.append('~')

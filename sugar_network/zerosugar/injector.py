@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import json
 import shutil
 import logging
 from os.path import join, exists, basename
@@ -95,32 +96,43 @@ def _make(solution):
 
 
 def _solve(mountpoint, context):
-    solution = _get_cached_solution(mountpoint, context)
-    if solution is not None and not solution.stale:
-        return solution
+    pipe.progress('analyze')
+
+    cache_dir = local.path('cache', 'solutions', mountpoint.replace('/', '\\'))
+    cache_path = join(cache_dir, context)
+
+    if exists(cache_path) and \
+            os.stat(cache_dir).st_mtime <= os.stat(cache_path).st_mtime:
+        try:
+            with file(cache_path) as f:
+                return json.load(f)
+        except Exception, error:
+            _logger.debug('Cannot open %r solution: %s', cache_path, error)
 
     from sugar_network import zeroinstall
 
-    pipe.progress('analyze')
     try:
         solution = zeroinstall.solve(mountpoint, context)
     except Exception:
-        if solution is None:
-            raise
-        util.exception(_logger, 'Cannot solve remote solution %r, '
-                'fallback to stale cached version', context)
+        if exists(cache_path):
+            print cache_path
+            try:
+                with file(cache_path) as f:
+                    solution = json.load(f)
+                    util.exception(_logger,
+                            'Cannot solve %r, fallback to stale solution',
+                            context)
+                    return solution
+            except Exception, error:
+                _logger.debug('Cannot open %r solution: %s', cache_path, error)
+        raise
     else:
-        _set_cached_solution(mountpoint, context, solution)
+        if not exists(cache_dir):
+            os.makedirs(cache_dir)
+        with file(cache_path, 'w') as f:
+            json.dump(solution, f)
 
     return solution
-
-
-def _get_cached_solution(mountpoint, context):
-    pass
-
-
-def _set_cached_solution(mountpoint, context, solution):
-    pass
 
 
 def _activity_env(impl, environ):
@@ -137,7 +149,7 @@ def _activity_env(impl, environ):
     environ['SUGAR_BUNDLE_NAME'] = impl['name']
     environ['SUGAR_BUNDLE_VERSION'] = impl['version']
     environ['SUGAR_ACTIVITY_ROOT'] = root
-    environ['PYTHONPATH'] = '%s:%s' % (impl_path, environ['PYTHONPATH'])
+    environ['PYTHONPATH'] = impl_path + ':' + environ.get('PYTHONPATH', '')
     environ['SUGAR_LOCALEDIR'] = join(impl_path, 'locale')
 
     # TODO Do it only once on unzip
