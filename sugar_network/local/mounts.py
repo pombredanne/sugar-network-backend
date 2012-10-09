@@ -20,9 +20,8 @@ from os.path import isabs, exists, join, basename, isdir
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network.zerosugar import Bundle
+from sugar_network.zerosugar.bundle import Bundle
 from sugar_network.local import activities, cache
-from sugar_network.zerosugar import Spec
 from sugar_network.resources.volume import Request, VolumeCommands
 from sugar_network import local, checkin, sugar, Client
 from active_toolkit import util, coroutine, enforce
@@ -99,34 +98,6 @@ class LocalMount(VolumeCommands, _Mount):
         finally:
             if pass_ownership and exists(path):
                 os.unlink(path)
-
-    @ad.document_command(method='GET', cmd='feed',
-            mime_type='application/json')
-    def feed(self, guid):
-        result = []
-
-        for path in activities.checkins(guid):
-            try:
-                spec = Spec(root=path)
-            except Exception:
-                util.exception('Failed to read %r spec file', path)
-                continue
-
-            result.append({
-                'guid': spec.root,
-                'version': spec['version'],
-                'arch': '*-*',
-                'stability': 'stable',
-                'commands': {
-                    'activity': {
-                        'exec': spec['Activity', 'exec'],
-                        },
-                    },
-                'requires': spec.requires,
-                })
-
-        enforce(result, 'No versions')
-        return result
 
     def before_create(self, request, props):
         props['user'] = [sugar.uid()]

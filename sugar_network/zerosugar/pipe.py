@@ -21,9 +21,7 @@ import logging
 import threading
 from os.path import exists
 
-from sugar_network import IPCClient
-from sugar_network.zerosugar import feeds
-from sugar_network.toolkit import sugar
+from sugar_network import sugar
 from active_toolkit import coroutine, util
 
 
@@ -58,14 +56,6 @@ def fork(callback, mountpoint, context, *args):
                     'mountpoint': mountpoint,
                     'context': context,
                     })
-
-        # TODO Stub
-        feeds.clients.append(IPCClient(mountpoint=mountpoint))
-        if mountpoint != '~':
-            feeds.clients.append(IPCClient(mountpoint='~'))
-        if mountpoint != '/':
-            feeds.clients.append(IPCClient(mountpoint='/'))
-
         try:
             callback(mountpoint, context, *args)
         except Exception, error:

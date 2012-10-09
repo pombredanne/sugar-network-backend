@@ -130,7 +130,7 @@ class InjectorTest(tests.Test):
             '[Activity]',
             'name = TestActivitry',
             'bundle_id = %s' % context,
-            'exec = false',
+            'exec = true',
             'icon = icon',
             'activity_version = 1',
             'license=Public Domain',
@@ -146,7 +146,6 @@ class InjectorTest(tests.Test):
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'exec', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'failure', 'implementation': impl, 'error': 'Exited with status 1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
 
@@ -238,7 +237,7 @@ class InjectorTest(tests.Test):
             ],
             [i for i in pipe])
 
-    def ___test_InstallDeps(self):
+    def test_InstallDeps(self):
         self.touch(('Activities/activity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',

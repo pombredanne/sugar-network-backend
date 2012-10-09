@@ -14,9 +14,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from sugar_network.toolkit import sugar
-from sugar_network.local.activities import checkins
 from sugar_network.local import api_url, server_mode
 from sugar_network_webui import webui_port
+
+
+def checkins(*args, **kwargs):
+    from sugar_network.local import activities
+    return activities.checkins(*args, **kwargs)
 
 
 def launch(*args, **kwargs):

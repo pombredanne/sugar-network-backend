@@ -249,7 +249,7 @@ class HomeMountTest(tests.Test):
                     },
                 },
             ],
-            client.get(['context', 'bundle_id'], cmd='feed'))
+            client.get(['context', 'bundle_id', 'versions']))
 
 
 if __name__ == '__main__':

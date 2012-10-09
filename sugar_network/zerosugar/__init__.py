@@ -12,30 +12,3 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-import sys
-from os.path import join, abspath, dirname
-sys.path.insert(0, join(abspath(dirname(__file__)), 'lib'))
-
-from .spec import Spec, parse_version, format_version
-from .bundle import Bundle, BundleError
-from .licenses import GOOD_LICENSES
-
-
-def _init():
-    from zeroinstall.injector import reader, model
-    from sugar_network.zerosugar import feeds
-    from active_toolkit import enforce
-
-    def Interface_init(self, url):
-        enforce(url)
-        self.uri = url
-        self.reset()
-
-    model.Interface.__init__ = Interface_init
-    reader.load_feed_from_cache = \
-            lambda url, * args, ** kwargs: feeds.read(url)
-    reader.check_readable = lambda * args, ** kwargs: True
-
-
-_init()

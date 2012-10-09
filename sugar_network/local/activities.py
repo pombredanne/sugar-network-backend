@@ -19,7 +19,7 @@ import logging
 from os.path import join, exists, lexists, relpath, dirname, basename, isdir
 from os.path import abspath, islink
 
-from sugar_network.zerosugar import Spec
+from sugar_network.zerosugar.spec import Spec
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
         IN_MOVED_TO, IN_MOVED_FROM

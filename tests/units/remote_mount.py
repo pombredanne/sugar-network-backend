@@ -313,6 +313,64 @@ class RemoteMountTest(tests.Test):
                 remote.get(['artifact', guid], reply=['data']))
         self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
 
+    def test_Feed(self):
+        self.start_ipc_and_restful_server([User, Context, Implementation, Artifact])
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl1 = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            'spec': {'*-*': {}},
+            })
+        impl2 = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '2',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            'spec': {'*-*': {
+                'requires': {
+                    'dep1': {},
+                    'dep2': {'restrictions': [['1', '2']]},
+                    'dep3': {'restrictions': [[None, '2']]},
+                    'dep4': {'restrictions': [['3', None]]},
+                    },
+                }},
+            })
+
+        self.assertEqual([
+            {
+                'version': '1',
+                'arch': '*-*',
+                'stability': 'stable',
+                'guid': impl1,
+                },
+            {
+                'version': '2',
+                'arch': '*-*',
+                'stability': 'stable',
+                'guid': impl2,
+                'requires': {
+                    'dep1': {},
+                    'dep2': {'restrictions': [['1', '2']]},
+                    'dep3': {'restrictions': [[None, '2']]},
+                    'dep4': {'restrictions': [['3', None]]},
+                    },
+                },
+            ],
+            remote.get(['context', context, 'versions']))
+
     def test_RestrictLayers(self):
         self.start_ipc_and_restful_server([User, Context, Implementation, Artifact])
         remote = IPCClient(mountpoint='/')
@@ -366,13 +424,13 @@ class RemoteMountTest(tests.Test):
 
         self.assertEqual(
                 [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
-                remote.get(['context', context], cmd='feed'))
+                remote.get(['context', context, 'versions']))
         self.assertEqual(
                 [],
-                remote.get(['context', context], cmd='feed', layer='foo'))
+                remote.get(['context', context, 'versions'], layer='foo'))
         self.assertEqual(
                 [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
-                remote.get(['context', context], cmd='feed', layer='public'))
+                remote.get(['context', context, 'versions'], layer='public'))
 
         local.layers.value = ['foo', 'bar']
 
@@ -408,13 +466,13 @@ class RemoteMountTest(tests.Test):
 
         self.assertEqual(
                 [],
-                remote.get(['context', context], cmd='feed'))
+                remote.get(['context', context, 'versions']))
         self.assertEqual(
                 [],
-                remote.get(['context', context], cmd='feed', layer='foo'))
+                remote.get(['context', context, 'versions'], layer='foo'))
         self.assertEqual(
                 [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
-                remote.get(['context', context], cmd='feed', layer='public'))
+                remote.get(['context', context, 'versions'], layer='public'))
 
 
 if __name__ == '__main__':

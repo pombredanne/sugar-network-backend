@@ -25,8 +25,6 @@ import dbus
 import gobject
 from dbus.mainloop.glib import DBusGMainLoop
 
-from zeroinstall.injector import distro
-
 from sugar_network.zerosugar import pipe
 from active_toolkit import enforce
 
@@ -169,6 +167,8 @@ class _Transaction(object):
         self.error_details = details
 
     def __package_cb(self, status, pk_id, summary):
+        from zeroinstall.injector import distro
+
         package_name, version, arch, __ = pk_id.split(';')
         clean_version = distro.try_cleanup_distro_version(version)
         if not clean_version:

@@ -29,7 +29,7 @@ from requests.sessions import Session
 from M2Crypto import DSA
 
 import active_document as ad
-from sugar_network.zerosugar import Bundle
+from sugar_network.zerosugar.bundle import Bundle
 from active_toolkit.sockets import decode_multipart, BUFFER_SIZE
 from sugar_network.toolkit import sugar
 from sugar_network import local, toolkit
