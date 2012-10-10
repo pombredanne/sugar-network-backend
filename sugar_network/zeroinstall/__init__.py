@@ -41,24 +41,30 @@ reader.load_feed_from_cache = lambda url, * args, ** kwargs: _load_feed(url)
 reader.check_readable = lambda * args, ** kwargs: True
 
 _logger = logging.getLogger('zeroinstall')
-_mountpoints = []
+_mountpoints = None
 _client = None
 
 
 def solve(mountpoint, context):
-    global _client
-    _client = IPCClient()
+    global _mountpoints, _client
 
-    _mountpoints.append(mountpoint)
+    _mountpoints = [mountpoint]
     if mountpoint != '~':
         _mountpoints.append('~')
     if mountpoint != '/':
         _mountpoints.append('/')
 
-    requirement = Requirements(context)
-    # TODO
-    requirement.command = 'activity'
+    _client = IPCClient()
+    try:
+        requirement = Requirements(context)
+        # TODO
+        requirement.command = 'activity'
+        return _solve(requirement)
+    finally:
+        _client.close()
 
+
+def _solve(requirement):
     config = Config()
     driver = Driver(config, requirement)
     driver.solver.record_details = True
