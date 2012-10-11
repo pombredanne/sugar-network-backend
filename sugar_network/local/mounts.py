@@ -176,6 +176,9 @@ class _ProxyCommands(object):
 
         if not reply:
             reply = request['reply'] = []
+        else:
+            # Do not modify original list
+            reply = request['reply'] = request['reply'][:]
 
         mixin = {}
         for prop, default in _LOCAL_PROPS.items():
@@ -207,6 +210,10 @@ class _ProxyCommands(object):
     def get(self, request, response, document, guid, reply):
         if document != 'context':
             return self.proxy_call(request, response)
+
+        if reply:
+            # Do not modify original list
+            reply = request['reply'] = request['reply'][:]
 
         mixin = {}
         for prop, default in _LOCAL_PROPS.items():
