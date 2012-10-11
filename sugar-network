@@ -74,8 +74,8 @@ class Application(application.Application):
             try:
                 content = json.loads(content)
             except Exception, error:
-                printf.info('Cannot parse JSON from stdin: %s', error)
-                return
+                # TODO
+                content = content.strip()
 
         request = Request(method=method)
         request.content = content
