@@ -146,7 +146,7 @@ class HomeMount(LocalMount):
                 found_commons = True
 
         if not found_commons:
-            # These local properties exposed from `_proxy_call` as well
+            # These local properties exposed from `_ProxyCommands` as well
             event['mountpoint'] = self.mountpoint
         self.publish(event)
 
@@ -165,89 +165,152 @@ class _ProxyCommands(object):
     def __init__(self, home_mount):
         self._home_volume = home_mount
 
-    def _proxy_call(self, request, response, super_call):
-        if 'document' not in request:
-            return super_call(request, response)
+    def proxy_call(self, request, response):
+        raise ad.CommandNotFound()
 
-        patch = {}
-        result = None
-        command = request['method'], request.get('cmd')
-        document = request['document']
-        guid = request.get('guid')
+    @ad.directory_command(method='GET',
+            arguments={'reply': ad.to_list}, mime_type='application/json')
+    def find(self, request, response, document, reply):
+        if document != 'context':
+            return self.proxy_call(request, response)
 
-        if document == 'context':
-            if command == ('GET', None):
-                if 'reply' in request:
-                    reply = request.get('reply', [])[:]
-                    for prop, default in _LOCAL_PROPS.items():
-                        if prop in reply:
-                            patch[prop] = default
-                            reply.remove(prop)
-                    request['reply'] = reply
-            elif command in (('POST', None), ('PUT', None)):
-                if request.content is None:
-                    result = guid
-                else:
-                    for prop in _LOCAL_PROPS.keys():
-                        if prop in request.content:
-                            patch[prop] = request.content.pop(prop)
+        if not reply:
+            reply = request['reply'] = []
 
-        if result is None:
-            result = super_call(request, response)
+        mixin = {}
+        for prop, default in _LOCAL_PROPS.items():
+            if prop in reply:
+                mixin[prop] = default
+                reply.remove(prop)
 
-        if document == 'context' and patch:
+        if not mixin:
+            return self.proxy_call(request, response)
+
+        if 'guid' not in reply:
+            # GUID is needed to mixin local values
+            reply.append('guid')
+        result = self.proxy_call(request, response)
+
+        if mixin:
             home = self._home_volume['context']
-            if command == ('GET', None):
-                if guid:
-                    if home.exists(guid):
-                        to_patch = home.get(guid).properties(patch.keys())
-                    else:
-                        to_patch = patch
-                    result.update(to_patch)
+            for props in result['result']:
+                if home.exists(props['guid']):
+                    patch = home.get(props['guid']).properties(mixin.keys())
                 else:
-                    for props in result['result']:
-                        if home.exists(props['guid']):
-                            to_patch = home.get(props['guid']).properties(
-                                    patch.keys())
-                        else:
-                            to_patch = patch
-                        props.update(to_patch)
-            else:
-                if command == ('POST', None):
-                    guid = result
-
-                to_checkin = False
-                if 'keep_impl' in patch and \
-                        (not home.exists(guid) or
-                        patch['keep_impl'] != home.get(guid)['keep_impl']):
-                    if patch['keep_impl']:
-                        to_checkin = True
-                        patch['keep_impl'] = 1
-
-                if home.exists(guid):
-                    home.update(guid, patch)
-                elif [True for prop, value in patch.items() if value]:
-                    copy = Request(method='GET', document='context', guid=guid,
-                            reply=[
-                                'type', 'implement', 'title', 'summary',
-                                'description', 'homepage', 'mime_types',
-                                'dependencies',
-                                ])
-                    copy.accept_language = request.accept_language
-                    props = super_call(copy, ad.Response())
-                    props.update(patch)
-                    props['guid'] = guid
-                    props['user'] = [sugar.uid()]
-                    home.create(props)
-                    for prop in ('icon', 'artifact_icon', 'preview'):
-                        blob = self.get_blob('context', guid, prop)
-                        if blob:
-                            home.set_blob(guid, prop, blob['path'])
-
-                if to_checkin:
-                    self._checkin(guid)
+                    patch = mixin
+                props.update(patch)
 
         return result
+
+    @ad.document_command(method='GET',
+            arguments={'reply': ad.to_list}, mime_type='application/json')
+    def get(self, request, response, document, guid, reply):
+        if document != 'context':
+            return self.proxy_call(request, response)
+
+        mixin = {}
+        for prop, default in _LOCAL_PROPS.items():
+            if not reply:
+                mixin[prop] = default
+            elif prop in reply:
+                mixin[prop] = default
+                reply.remove(prop)
+
+        if not mixin:
+            return self.proxy_call(request, response)
+
+        if reply is None or reply:
+            result = self.proxy_call(request, response)
+        else:
+            result = {}
+
+        home = self._home_volume['context']
+        if home.exists(guid):
+            patch = home.get(guid).properties(mixin.keys())
+        else:
+            patch = mixin
+        result.update(patch)
+
+        return result
+
+    @ad.property_command(method='GET', mime_type='application/json')
+    def get_prop(self, request, response, document, guid, prop):
+        if document == 'context' and prop in _LOCAL_PROPS:
+            home = self._home_volume['context']
+            if home.exists(guid):
+                return home.get(guid)[prop]
+            else:
+                return _LOCAL_PROPS[prop]
+        else:
+            return self.proxy_call(request, response)
+
+    @ad.directory_command(method='POST',
+            permissions=ad.ACCESS_AUTH, mime_type='application/json')
+    def create(self, request, response):
+        return self._proxy_update(request, response)
+
+    @ad.document_command(method='PUT',
+            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
+    def update(self, request, response):
+        self._proxy_update(request, response)
+
+    @ad.property_command(method='PUT',
+            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
+    def update_prop(self, request, response, prop):
+        if prop not in _LOCAL_PROPS:
+            self.proxy_call(request, response)
+        else:
+            request.content = {request.pop('prop'): request.content}
+            self._proxy_update(request, response)
+
+    def _proxy_update(self, request, response):
+        if request['document'] != 'context':
+            return self.proxy_call(request, response)
+
+        home = self._home_volume['context']
+        mixin = {}
+        to_checkin = False
+
+        for prop in request.content.keys():
+            if prop in _LOCAL_PROPS:
+                mixin[prop] = request.content.pop(prop)
+
+        if request['method'] == 'POST':
+            guid = self.proxy_call(request, response)
+        else:
+            if request.content:
+                self.proxy_call(request, response)
+            guid = request['guid']
+
+        if 'keep_impl' in mixin and (not home.exists(guid) or
+                mixin['keep_impl'] != home.get(guid)['keep_impl']):
+            if mixin['keep_impl']:
+                to_checkin = True
+                mixin['keep_impl'] = 1
+
+        if home.exists(guid):
+            home.update(guid, mixin)
+        elif [i for i in mixin.values() if i is not None]:
+            copy = Request(method='GET', document='context', guid=guid,
+                    reply=[
+                        'type', 'implement', 'title', 'summary', 'description',
+                        'homepage', 'mime_types', 'dependencies',
+                        ])
+            copy.accept_language = request.accept_language
+            props = self.proxy_call(copy, ad.Response())
+            props.update(mixin)
+            props['guid'] = guid
+            props['user'] = [sugar.uid()]
+            home.create(props)
+            for prop in ('icon', 'artifact_icon', 'preview'):
+                blob = self.get_blob('context', guid, prop)
+                if blob:
+                    home.set_blob(guid, prop, blob['path'])
+
+        if to_checkin:
+            self._checkin(guid)
+
+        return guid
 
     def _checkin(self, guid):
         for event in checkin(self.mountpoint, guid, 'activity'):
@@ -288,19 +351,18 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             self._api_urls.append(local.api_url.value)
         self._connections = coroutine.Pool()
 
+    def proxy_call(self, request, response):
+        if local.layers.value and request.get('document') in \
+                ('context', 'implementation') and \
+                'layer' not in request:
+            request['layer'] = local.layers.value
+        return self._client.call(request, response)
+
     def call(self, request, response):
-
-        def super_call(request, response):
-            try:
-                return ad.CommandsProcessor.call(self, request, response)
-            except ad.CommandNotFound:
-                if local.layers.value and request.get('document') in \
-                        ('context', 'implementation') and \
-                        'layer' not in request:
-                    request['layer'] = local.layers.value
-                return self._client.call(request, response)
-
-        return self._proxy_call(request, response, super_call)
+        try:
+            return ad.CommandsProcessor.call(self, request, response)
+        except ad.CommandNotFound:
+            return self.proxy_call(request, response)
 
     def set_mounted(self, value):
         if value != self.mounted.is_set():
@@ -334,12 +396,13 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
     @ad.property_command(method='GET',
             mime_type='application/json')
-    def get_prop(self, document, guid, prop, response):
+    def get_prop(self, request, response, document, guid, prop):
         directory = self._home_volume[document]
         prop = directory.metadata[prop]
 
         if not isinstance(prop, ad.BlobProperty):
-            raise ad.CommandNotFound()
+            return _ProxyCommands.get_prop(self,
+                    request, response, document, guid, prop.name)
 
         meta = self.get_blob(document, guid, prop.name)
         enforce(meta is not None, ad.NotFound)
@@ -406,9 +469,6 @@ class NodeMount(LocalMount, _ProxyCommands):
     def master_guid(self):
         return self._master_guid
 
-    def call(self, request, response):
-        return self._proxy_call(request, response, super(NodeMount, self).call)
-
     @ad.property_command(method='GET', cmd='get_blob',
             mime_type='application/json')
     def get_blob(self, document, guid, prop, request=None):
@@ -427,3 +487,6 @@ class NodeMount(LocalMount, _ProxyCommands):
                     self._node_guid, extract)
 
         return meta
+
+    def proxy_call(self, request, response):
+        return LocalMount.call(self, request, response)
