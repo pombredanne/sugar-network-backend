@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 from ConfigParser import ConfigParser
 from os.path import join, exists
 
@@ -21,6 +22,7 @@ from sugar_network import node
 from active_toolkit import enforce
 
 
+_config_mtime = 0
 _config = None
 
 
@@ -33,20 +35,29 @@ def try_validate(request, role):
     return _validate(request, role) or False
 
 
+def reset():
+    global _config_mtime
+    _config_mtime = 0
+
+
 def _validate(request, role):
-    global _config
+    global _config_mtime, _config
+
+    config_path = join(node.data_root.value, 'authorization.conf')
+    if exists(config_path):
+        mtime = os.stat(config_path).st_mtime
+        if mtime > _config_mtime:
+            _config_mtime = mtime
+            _config = ConfigParser()
+            _config.read(config_path)
+    if _config is None:
+        return
 
     if role == 'user':
         if request.principal:
             return True
         else:
             request.principal = 'anonymous'
-
-    if _config is None:
-        _config = ConfigParser()
-        config_path = join(node.data_root.value, 'authorization.conf')
-        if exists(config_path):
-            _config.read(config_path)
 
     user = request.principal
     if not _config.has_section(user):

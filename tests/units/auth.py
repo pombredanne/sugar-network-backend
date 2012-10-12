@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
+
 from __init__ import tests
 
 import active_document as ad
@@ -61,7 +63,7 @@ class AuthTest(tests.Test):
             '[%s]' % tests.UID,
             'root = True',
             ]))
-        auth._config = None
+        auth.reset()
         client.put(['context', 'guid'], {'title': 'probe'})
         self.assertEqual('probe', client.get(['context', 'guid', 'title']))
 
@@ -82,7 +84,7 @@ class AuthTest(tests.Test):
             '[anonymous]',
             'user = True',
             ]))
-        auth._config = None
+        auth.reset()
         client.post(['context'], props)
         self.assertEqual('title', client.get(['context', 'guid', 'title']))
         self.assertEqual(['anonymous'], client.get(['context', 'guid', 'user']))
@@ -94,7 +96,7 @@ class AuthTest(tests.Test):
             ))
         self.start_master()
 
-        auth._config = None
+        auth.reset()
         self.assertRaises(RuntimeError, client.put, ['context', 'guid'], {'title': 'probe'})
 
         self.touch(('authorization.conf', [
@@ -102,10 +104,37 @@ class AuthTest(tests.Test):
             'user = True',
             'root = True',
             ]))
-        auth._config = None
+        auth.reset()
         client.put(['context', 'guid'], {'title': 'probe'})
         self.assertEqual('probe', client.get(['context', 'guid', 'title']))
         self.assertEqual(['fake'], client.get(['context', 'guid', 'user']))
+
+    def test_LiveUpdate(self):
+        client = Client(sugar_auth=False)
+
+        props = {'implement': 'guid',
+                 'type': 'package',
+                 'title': 'title',
+                 'summary': 'summary',
+                 'description': 'description',
+                 }
+        self.start_master()
+
+        self.touch(('authorization.conf', ''))
+        os.utime('authorization.conf', (1, 1))
+        self.assertRaises(RuntimeError, client.post, ['context'], props)
+
+        self.touch(('authorization.conf', [
+            '[anonymous]',
+            'user = True',
+            ]))
+        os.utime('authorization.conf', (2, 2))
+        client.post(['context'], props)
+        self.assertEqual(['anonymous'], client.get(['context', 'guid', 'user']))
+
+        self.touch(('authorization.conf', ''))
+        os.utime('authorization.conf', (3, 3))
+        self.assertRaises(RuntimeError, client.post, ['context'], props)
 
 
 if __name__ == '__main__':

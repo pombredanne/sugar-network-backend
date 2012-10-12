@@ -92,7 +92,7 @@ class Test(unittest.TestCase):
         stats._cache.clear()
         obs._client = None
         http._RECONNECTION_NUMBER = 0
-        auth._config = None
+        auth.reset()
         toolkit.tmpdir.value = tmpdir + '/tmp'
 
         Volume.RESOURCES = [
