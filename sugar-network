@@ -138,6 +138,11 @@ class Application(application.Application):
             else:
                 request[arg] = value
 
+        mountpoint = request.get('mountpoint')
+        if mountpoint and mountpoint == os.environ['HOME']:
+            # Convert back shell replacement for '~' symbol
+            request['mountpoint'] = '~'
+
         pid_path = None
         server = None
         mountset = None
@@ -154,8 +159,9 @@ class Application(application.Application):
                 volume = Volume(local.db_path())
                 mountset = Mountset(volume)
                 mountset['~'] = HomeMount(volume)
-                mountset['/'] = RemoteMount(volume)
-                mountset['/'].mounted.wait()
+                if not mountpoint or mountpoint == '/':
+                    mountset['/'] = RemoteMount(volume)
+                    mountset['/'].mounted.wait()
                 server = coroutine.WSGIServer(
                         ('localhost', local.ipc_port.value), Router(mountset))
                 coroutine.spawn(server.serve_forever)
