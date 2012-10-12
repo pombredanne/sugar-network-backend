@@ -154,7 +154,7 @@ class Test(unittest.TestCase):
         try:
             __, status = os.waitpid(pid, 0)
             return os.WEXITSTATUS(status)
-        except OSError:
+        except Exception:
             return 0
 
     def override(self, mod, name, new_handler):

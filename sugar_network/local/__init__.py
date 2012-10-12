@@ -36,7 +36,7 @@ no_check_certificate = Option(
 
 local_root = Option(
         'path to the directory to keep all local data',
-        default=sugar.profile_path('network'))
+        default=sugar.profile_path('network'), name='local_root')
 
 activity_dirs = Option(
         'colon separated list of paths to directories with Sugar '

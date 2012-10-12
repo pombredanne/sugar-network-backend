@@ -18,9 +18,9 @@
 import os
 import re
 import sys
-import json
 import shlex
 import locale
+from json import dumps, loads
 from os.path import join
 
 import active_document as ad
@@ -44,6 +44,18 @@ porcelain = Option(
         default=False, type_cast=Option.bool_cast, action='store_true',
         name='porcelain')
 
+post_data = Option(
+        'send content as a string from POST or PUT command',
+        name='post_data', short_option='-d')
+
+post_file = Option(
+        'send content of the specified file from POST or PUT command',
+        name='post_file', short_option='-f')
+
+json = Option(
+        'treat POST or PUT command content as a JSON data',
+        name='json', short_option='-j')
+
 
 _ESCAPE_VALUE_RE = re.compile('([^\[\]\{\}0-9][^\]\[\{\}]+)')
 
@@ -57,30 +69,43 @@ class Application(application.Application):
     @application.command(
             'send POST API request')
     def POST(self):
-        self._call('POST', sys.stdin.read())
+        self._call('POST', True)
 
     @application.command(
             'send PUT API request')
     def PUT(self):
-        self._call('PUT', sys.stdin.read())
+        self._call('PUT', True)
 
     @application.command(
             'send GET API request')
     def GET(self):
-        self._call('GET', None)
+        self._call('GET', False)
 
-    def _call(self, method, content=None):
-        if content:
-            try:
-                content = json.loads(content)
-            except Exception, error:
-                # TODO
-                content = content.strip()
-
+    def _call(self, method, post):
         request = Request(method=method)
-        request.content = content
         response = ad.Response()
         reply = []
+
+        if post:
+            if post_data.value is None and post_file.value is None:
+                json.value = True
+                post_data.value = sys.stdin.read()
+
+            if post_data.value:
+                request.content = post_data.value.strip()
+            elif post_file.value:
+                with file(post_file.value, 'rb') as f:
+                    # TODO Avoid loading entire file
+                    request.content = f.read()
+
+            request.content_type = 'application/octet-stream'
+            if json.value:
+                try:
+                    request.content = loads(request.content)
+                    request.content_type = 'application/json'
+                except Exception:
+                    # TODO
+                    pass
 
         if self.args and self.args[0].startswith('/'):
             path = self.args.pop(0).strip('/').split('/')
@@ -155,13 +180,17 @@ class Application(application.Application):
                     key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
                     print eval('result%s' % key)
             else:
-                print json.dumps(result, indent=2)
+                print dumps(result, indent=2)
 
 
 # New defaults
 application.debug.value = sugar.logger_level()
-Option.seek('main', [application.debug, anonymous, porcelain])
-Option.seek('local', [local.api_url, local.layers, local.ipc_port])
+Option.seek('main', [
+    application.debug, anonymous, porcelain, post_data, post_file, json,
+    ])
+Option.seek('local', [
+    local.api_url, local.layers, local.ipc_port, local.local_root,
+    ])
 
 locale.setlocale(locale.LC_ALL, '')
 

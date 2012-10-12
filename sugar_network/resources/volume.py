@@ -37,6 +37,7 @@ class Request(ad.Request):
 
     principal = None
     mountpoint = None
+    content_type = None
 
 
 class Resource(ad.Document):

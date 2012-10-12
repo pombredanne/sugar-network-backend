@@ -95,12 +95,12 @@ class Client(object):
         return self._decode_reply(response)
 
     def post(self, path_=None, data_=None, **kwargs):
-        response = self.request('POST', path_, data_,
+        response = self.request('POST', path_, json.dumps(data_),
                 headers={'Content-Type': 'application/json'}, params=kwargs)
         return self._decode_reply(response)
 
     def put(self, path_=None, data_=None, **kwargs):
-        response = self.request('PUT', path_, data_,
+        response = self.request('PUT', path_, json.dumps(data_),
                 headers={'Content-Type': 'application/json'}, params=kwargs)
         return self._decode_reply(response)
 
@@ -114,10 +114,6 @@ class Client(object):
             path = ['']
         if not isinstance(path, basestring):
             path = '/'.join([i.strip('/') for i in [self.api_url] + path])
-
-        if data is not None and headers and \
-                headers.get('Content-Type') == 'application/json':
-            data = json.dumps(data)
 
         if params is None:
             params = self.params
@@ -170,8 +166,25 @@ class Client(object):
         if prop:
             path.append(prop)
 
+        if request.content_type == 'application/json':
+            request.content = json.dumps(request.content)
+
+        headers = None
+        if request.content is not None:
+            headers = {}
+            headers['Content-Type'] = \
+                    request.content_type or 'application/octet-stream'
+            headers['Content-Length'] = str(len(request.content))
+        elif request.content_stream is not None:
+            headers = {}
+            headers['Content-Type'] = \
+                    request.content_type or 'application/octet-stream'
+            # TODO Avoid reading the full content at once
+            request.content = request.content_stream.read()
+            headers['Content-Length'] = str(len(request.content))
+
         reply = self.request(method, path, data=request.content,
-                params=params, headers={'Content-Type': 'application/json'})
+                params=params, headers=headers)
 
         if response is not None:
             response.content_type = reply.headers['Content-Type']
@@ -279,18 +292,13 @@ class Client(object):
         return pull_events(handshake())
 
     def _register(self):
-        self.request('POST', ['user'],
-                headers={
-                    'Content-Type': 'application/json',
-                    },
-                data={
-                    'name': sugar.nickname() or '',
-                    'color': sugar.color() or '#000000,#000000',
-                    'machine_sn': sugar.machine_sn() or '',
-                    'machine_uuid': sugar.machine_uuid() or '',
-                    'pubkey': sugar.pubkey(),
-                    },
-                )
+        self.post(['user'], {
+            'name': sugar.nickname() or '',
+            'color': sugar.color() or '#000000,#000000',
+            'machine_sn': sugar.machine_sn() or '',
+            'machine_uuid': sugar.machine_uuid() or '',
+            'pubkey': sugar.pubkey(),
+            })
 
     def _decode_reply(self, response):
         if response.headers.get('Content-Type') == 'application/json':

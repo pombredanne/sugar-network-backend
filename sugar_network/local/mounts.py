@@ -271,7 +271,7 @@ class _ProxyCommands(object):
             self._proxy_update(request, response)
 
     def _proxy_update(self, request, response):
-        if request['document'] != 'context':
+        if 'prop' in request or request['document'] != 'context':
             return self.proxy_call(request, response)
 
         home = self._home_volume['context']
@@ -320,7 +320,7 @@ class _ProxyCommands(object):
         return guid
 
     def _checkin(self, guid):
-        for event in checkin(self.mountpoint, guid, 'activity'):
+        for event in checkin(self.mountpoint, guid):
             # TODO Publish checkin progress
             if event['state'] == 'failure':
                 self.publish({
