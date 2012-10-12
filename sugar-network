@@ -77,6 +77,11 @@ class Application(application.Application):
         self._call('PUT', True)
 
     @application.command(
+            'send DELETE API request')
+    def DELETE(self):
+        self._call('DELETE', False)
+
+    @application.command(
             'send GET API request')
     def GET(self):
         self._call('GET', False)
