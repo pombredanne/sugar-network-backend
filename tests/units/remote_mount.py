@@ -266,9 +266,9 @@ class RemoteMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'guid': guid, 'seqno': 2, 'document': 'context', 'event': 'create', 'mountpoint': '/'},
-            {'guid': guid, 'seqno': 3, 'document': 'context', 'event': 'update', 'mountpoint': '/'},
-            {'guid': guid, 'seqno': 4, 'event': 'delete', 'document': 'context', 'mountpoint': '/'},
+            {'guid': guid, 'document': 'context', 'event': 'create', 'mountpoint': '/'},
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '/'},
+            {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '/'},
             ],
             events)
 
@@ -299,7 +299,7 @@ class RemoteMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 5},
+            {'document': 'context', 'event': 'update', 'guid': guid},
             ],
             events)
 

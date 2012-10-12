@@ -184,8 +184,8 @@ class HomeMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'guid': guid, 'seqno': 1, 'document': 'context', 'event': 'create'},
-            {'guid': guid, 'seqno': 2, 'document': 'context', 'event': 'update', 'mountpoint': '~'},
+            {'guid': guid, 'document': 'context', 'event': 'create'},
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~'},
             {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '~'},
             ],
             events)
