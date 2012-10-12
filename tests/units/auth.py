@@ -9,6 +9,7 @@ import active_document as ad
 from sugar_network.node import auth
 from sugar_network import IPCClient, Client
 from sugar_network.resources.volume import Request
+from sugar_network.resources.user import User
 from active_toolkit import enforce
 
 
@@ -135,6 +136,28 @@ class AuthTest(tests.Test):
         self.touch(('authorization.conf', ''))
         os.utime('authorization.conf', (3, 3))
         self.assertRaises(RuntimeError, client.post, ['context'], props)
+
+    def test_DefaultAuthorization(self):
+
+        class Document(ad.Document):
+
+            @classmethod
+            @ad.directory_command(method='GET', cmd='probe1',
+                    mime_type='application/json')
+            def probe1(cls, directory):
+                return 'ok1'
+
+            @classmethod
+            @ad.directory_command(method='GET', cmd='probe2',
+                    permissions=ad.ACCESS_AUTH, mime_type='application/json')
+            def probe2(cls, directory):
+                return 'ok2'
+
+        self.start_master([User, Document])
+        client = Client(sugar_auth=True)
+
+        self.assertEqual('ok1', client.get(['document'], cmd='probe1'))
+        self.assertEqual('ok2', client.get(['document'], cmd='probe2'))
 
 
 if __name__ == '__main__':

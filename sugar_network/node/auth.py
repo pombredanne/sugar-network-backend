@@ -43,6 +43,12 @@ def reset():
 def _validate(request, role):
     global _config_mtime, _config
 
+    if role == 'user':
+        if request.principal:
+            return True
+        else:
+            request.principal = 'anonymous'
+
     config_path = join(node.data_root.value, 'authorization.conf')
     if exists(config_path):
         mtime = os.stat(config_path).st_mtime
@@ -52,12 +58,6 @@ def _validate(request, role):
             _config.read(config_path)
     if _config is None:
         return
-
-    if role == 'user':
-        if request.principal:
-            return True
-        else:
-            request.principal = 'anonymous'
 
     user = request.principal
     if not _config.has_section(user):
