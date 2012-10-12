@@ -56,7 +56,7 @@ class IndexReader(object):
     def mtime(self):
         """UNIX seconds of the last `commit()` call."""
         if exists(self._mtime_path):
-            return os.stat(self._mtime_path).st_mtime
+            return int(os.stat(self._mtime_path).st_mtime)
         else:
             return 0
 

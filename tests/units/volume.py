@@ -169,7 +169,7 @@ class VolumeTest(tests.Test):
 
         blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
         blob_meta = {
-                'seqno': 3,
+                'seqno': 2,
                 'path': blob_path + '.blob',
                 'digest': hashlib.sha1('blob').hexdigest(),
                 'mime_type': 'application/octet-stream',
@@ -741,8 +741,8 @@ class VolumeTest(tests.Test):
 
         volume.populate()
         self.assertEqual([
-            {'event': 'commit', 'document': 'document1', 'seqno': 0},
-            {'event': 'populate', 'document': 'document1', 'seqno': 0},
+            {'event': 'commit', 'document': 'document1'},
+            {'event': 'populate', 'document': 'document1'},
             ],
             events)
         del events[:]
@@ -750,14 +750,14 @@ class VolumeTest(tests.Test):
         volume['document1'].create(guid='guid1')
         volume['document2'].create(guid='guid2')
         self.assertEqual([
-            {'event': 'create', 'document': 'document1', 'seqno': 1, 'guid': 'guid1', 'props': {
+            {'event': 'create', 'document': 'document1', 'guid': 'guid1', 'props': {
                 'ctime': 0,
                 'mtime': 0,
                 'seqno': 0,
                 'prop': '',
                 'guid': 'guid1',
                 }},
-            {'event': 'create', 'document': 'document2', 'seqno': 2, 'guid': 'guid2', 'props': {
+            {'event': 'create', 'document': 'document2', 'guid': 'guid2', 'props': {
                 'ctime': 0,
                 'mtime': 0,
                 'seqno': 0,
@@ -771,10 +771,10 @@ class VolumeTest(tests.Test):
         volume['document1'].update('guid1', prop='foo')
         volume['document2'].update('guid2', prop='bar')
         self.assertEqual([
-            {'event': 'update', 'document': 'document1', 'seqno': 3, 'guid': 'guid1', 'props': {
+            {'event': 'update', 'document': 'document1', 'guid': 'guid1', 'props': {
                 'prop': 'foo',
                 }},
-            {'event': 'update', 'document': 'document2', 'seqno': 4, 'guid': 'guid2', 'props': {
+            {'event': 'update', 'document': 'document2', 'guid': 'guid2', 'props': {
                 'prop': 'bar',
                 }},
             ],
@@ -783,7 +783,7 @@ class VolumeTest(tests.Test):
 
         volume['document2'].set_blob('guid2', 'blob', StringIO('blob'))
         self.assertEqual([
-            {'event': 'update', 'document': 'document2', 'seqno': 5, 'guid': 'guid2', 'props': {
+            {'event': 'update', 'document': 'document2', 'guid': 'guid2', 'props': {
                 'seqno': 5,
                 }},
             ],
@@ -801,8 +801,8 @@ class VolumeTest(tests.Test):
         volume['document2'].commit()
 
         self.assertEqual([
-            {'event': 'commit', 'document': 'document1', 'seqno': 5},
-            {'event': 'commit', 'document': 'document2', 'seqno': 5},
+            {'event': 'commit', 'document': 'document1'},
+            {'event': 'commit', 'document': 'document2'},
             ],
             events)
 

@@ -17,14 +17,13 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/util.py$
-$Date: 2012-08-05$
+$Date: 2012-10-09$
 
 """
 
 import os
 import sys
 import logging
-import subprocess
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
 
 
@@ -146,6 +145,8 @@ def call(cmd, stdin=None, asserts=False, raw=False, error_cb=None, **kwargs):
         `None` on errors, otherwise `str` value of stdout
 
     """
+    import subprocess
+
     stdout, stderr = None, None
     returncode = 1
     try:

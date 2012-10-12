@@ -161,8 +161,10 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
     def update(self, request):
         with self._post(request, env.ACCESS_WRITE) as (directory, doc):
+            modified = bool(doc.props)
             self.before_update(request, doc.props)
-            directory.update(doc.guid, doc.props)
+            if modified:
+                directory.update(doc.guid, doc.props)
 
     @property_command(method='PUT',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)

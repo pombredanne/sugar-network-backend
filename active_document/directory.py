@@ -74,6 +74,10 @@ class Directory(object):
 
         _logger.debug('Initiated %r document', document_class)
 
+    @property
+    def mtime(self):
+        return self._index.mtime
+
     def close(self):
         """Flush index write pending queue and close the index."""
         self._index.close()
@@ -249,7 +253,7 @@ class Directory(object):
         if found:
             self._save_layout()
             self.commit()
-            self._notify({'event': 'populate', 'seqno': self._seqno.value})
+            self._notify({'event': 'populate'})
 
     def diff(self, accept_range, limit):
         """Return documents' properties for specified times range.
@@ -370,7 +374,6 @@ class Directory(object):
 
     def _post_store(self, guid, changes, event, increment_seqno):
         if event:
-            event['seqno'] = self._seqno.value
             self._notify(event)
 
     def _post_delete(self, guid, event):
@@ -379,7 +382,7 @@ class Directory(object):
 
     def _post_commit(self):
         self._seqno.commit()
-        self._notify({'event': 'commit', 'seqno': self._seqno.value})
+        self._notify({'event': 'commit'})
 
     def _post(self, guid, props, new):
         for prop_name, value in props.items():
