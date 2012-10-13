@@ -60,6 +60,12 @@ class IndexReader(object):
         else:
             return 0
 
+    @mtime.setter
+    def mtime(self, value):
+        with file(self._mtime_path, 'w'):
+            pass
+        os.utime(self._mtime_path, (value, value))
+
     def get_cached(self, guid):
         """Return cached document.
 

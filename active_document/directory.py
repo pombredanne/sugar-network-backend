@@ -78,6 +78,11 @@ class Directory(object):
     def mtime(self):
         return self._index.mtime
 
+    @mtime.setter
+    def mtime(self, value):
+        self._index.mtime = value
+        self._notify({'event': 'populate', 'props': {'mtime': value}})
+
     def close(self):
         """Flush index write pending queue and close the index."""
         self._index.close()
