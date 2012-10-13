@@ -19,9 +19,9 @@ import shutil
 import logging
 from os.path import join, exists, basename
 
-from sugar_network import local, sugar, IPCClient
-from sugar_network.zerosugar import pipe
-from active_toolkit import util, enforce
+from sugar_network import local, sugar
+from sugar_network.zerosugar import pipe, cache
+from active_toolkit import util
 
 
 _logger = logging.getLogger('zerosugar.injector')
@@ -31,8 +31,8 @@ def launch(mountpoint, context, args=None):
     return pipe.fork(_launch, mountpoint, context, args)
 
 
-def checkin(mountpoint, context):
-    return pipe.fork(_checkin, mountpoint, context)
+def clone(mountpoint, context):
+    return pipe.fork(_clone, mountpoint, context)
 
 
 def _launch(mountpoint, context, args):
@@ -50,21 +50,21 @@ def _launch(mountpoint, context, args):
     os.execvpe(args[0], args, os.environ)
 
 
-def _checkin(mountpoint, context):
+def _clone(mountpoint, context):
     solution = _solve(mountpoint, context)
     _make(solution)
 
-    checkedin = []
+    cloned = []
     try:
         for impl in solution:
             dst_path = util.unique_filename(
                     local.activity_dirs.value[0], basename(impl['path']))
-            checkedin.append(dst_path)
-            _logger.info('Checkin implementation to %r', dst_path)
+            cloned.append(dst_path)
+            _logger.info('Clone implementation to %r', dst_path)
             util.cptree(impl['path'], dst_path)
     except Exception:
-        while checkedin:
-            shutil.rmtree(checkedin.pop(), ignore_errors=True)
+        while cloned:
+            shutil.rmtree(cloned.pop(), ignore_errors=True)
         raise
 
 
@@ -77,17 +77,11 @@ def _make(solution):
         from sugar_network.zerosugar import packagekit
         packagekit.install(to_install)
 
-    client = IPCClient()
     for impl in solution:
         if 'mountpoint' not in impl or 'path' in impl:
             continue
-        # TODO Per download progress
-        pipe.progress('download')
-        bundle = client.get(
-                ['implementation', impl['id'], 'data'],
-                cmd='get_blob', mountpoint=impl['mountpoint'])
-        enforce(bundle and 'path' in bundle, 'Cannot download implementation')
-        impl_path = bundle['path']
+        # TODO Process different mountpoints
+        impl_path = cache.get(impl['id'])
         if 'prefix' in impl:
             impl_path = join(impl_path, impl['prefix'])
         impl['path'] = impl_path

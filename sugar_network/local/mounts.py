@@ -14,15 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import shutil
 import logging
-from os.path import isabs, exists, join, basename, isdir
+from os.path import isabs, exists, join, basename
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network.local import activities
+from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Request, VolumeCommands
-from sugar_network import local, checkin, sugar, Client
+from sugar_network import local, sugar, Client
 from active_toolkit import util, coroutine, enforce
 
 
@@ -122,21 +121,13 @@ class HomeMount(LocalMount):
                     continue
                 if prop == 'keep_impl':
                     if props[prop] == 0:
-                        self._checkout(event['guid'])
+                        clones.wipeout(event['guid'])
                 found_commons = True
 
         if not found_commons:
             # These local properties exposed from `_ProxyCommands` as well
             event['mountpoint'] = self.mountpoint
         self.publish(event)
-
-    def _checkout(self, guid):
-        for path in activities.checkins(guid):
-            _logger.info('Checkout %r implementation from %r', guid, path)
-            if isdir(path):
-                shutil.rmtree(path)
-            else:
-                os.unlink(path)
 
 
 class _ProxyCommands(object):
@@ -256,7 +247,7 @@ class _ProxyCommands(object):
 
         home = self._home_volume['context']
         mixin = {}
-        to_checkin = False
+        to_clone = False
 
         for prop in request.content.keys():
             if prop in _LOCAL_PROPS:
@@ -272,7 +263,7 @@ class _ProxyCommands(object):
         if 'keep_impl' in mixin and (not home.exists(guid) or
                 mixin['keep_impl'] != home.get(guid)['keep_impl']):
             if mixin['keep_impl']:
-                to_checkin = True
+                to_clone = True
                 mixin['keep_impl'] = 1
 
         if home.exists(guid):
@@ -295,14 +286,14 @@ class _ProxyCommands(object):
                 if blob:
                     home.set_blob(guid, prop, blob)
 
-        if to_checkin:
-            self._checkin(guid)
+        if to_clone:
+            self._clone(guid)
 
         return guid
 
-    def _checkin(self, guid):
-        for event in checkin(self.mountpoint, guid):
-            # TODO Publish checkin progress
+    def _clone(self, guid):
+        for event in injector.clone(self.mountpoint, guid):
+            # TODO Publish clone progress
             if event['state'] == 'failure':
                 self.publish({
                     'event': 'alert',
@@ -310,7 +301,7 @@ class _ProxyCommands(object):
                     'severity': 'error',
                     'message': _('Cannot check-in %s implementation') % guid,
                     })
-                for __ in activities.checkins(guid):
+                for __ in clones.walk(guid):
                     keep_impl = 2
                     break
                 else:

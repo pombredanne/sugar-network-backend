@@ -86,14 +86,14 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
             mount.set_mounted(True)
         return mount.mounted.is_set()
 
-    @ad.volume_command(method='PUT', cmd='checkin')
-    def checkin(self, mountpoint, request):
+    @ad.volume_command(method='PUT', cmd='clone')
+    def clone(self, mountpoint, request):
         mount = self.get(mountpoint or '/')
         enforce(mount is not None, 'No such mountpoint')
         mount.mounted.wait()
 
         for guid in (request.content or '').split():
-            _logger.info('Checkin %r context', guid)
+            _logger.info('Clone %r context', guid)
             request = Request(method='PUT', document='context', guid=guid,
                     accept_language=[self._lang])
             request.content = {'keep_impl': 2, 'keep': False}

@@ -12,7 +12,7 @@ from __init__ import tests
 from active_toolkit import sockets, coroutine
 from sugar_network.resources.artifact import Artifact
 from sugar_network import local
-from sugar_network.local import activities
+from sugar_network.zerosugar import clones
 from sugar_network import IPCClient
 
 
@@ -214,7 +214,7 @@ class HomeMountTest(tests.Test):
         self.start_server()
         client = IPCClient(mountpoint='~')
 
-        monitor = coroutine.spawn(activities.monitor,
+        monitor = coroutine.spawn(clones.monitor,
                 self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 

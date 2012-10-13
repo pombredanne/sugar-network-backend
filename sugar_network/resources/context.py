@@ -17,8 +17,8 @@ from os.path import join
 
 import active_document as ad
 from sugar_network import resources, static
-from sugar_network.local import activities
 from sugar_network.resources.volume import Resource
+from sugar_network.zerosugar import clones
 from sugar_network.zerosugar.spec import Spec
 from sugar_network.node import obs
 from active_toolkit import coroutine, util
@@ -133,7 +133,7 @@ class Context(Resource):
         result = []
 
         if self.request.mountpoint == '~':
-            for path in activities.checkins(self.guid):
+            for path in clones.walk(self.guid):
                 try:
                     spec = Spec(root=path)
                 except Exception:

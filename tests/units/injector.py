@@ -11,12 +11,11 @@ from os.path import exists, dirname
 from __init__ import tests
 
 from active_toolkit import coroutine, enforce
-from sugar_network import checkin, launch, zeroinstall
+from sugar_network import zeroinstall
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.zerosugar import lsb_release, packagekit, injector
-from sugar_network.local import activities
+from sugar_network.zerosugar import lsb_release, packagekit, injector, clones
 from sugar_network import IPCClient
 
 
@@ -33,7 +32,7 @@ class InjectorTest(tests.Test):
             'description': 'description',
             })
 
-        pipe = checkin('/', context)
+        pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
@@ -58,28 +57,29 @@ class InjectorTest(tests.Test):
                         },
                     'stability': 'stable',
                     'size': 0,
+                    'extract': 'topdir',
                     },
                 },
             })
 
-        pipe = checkin('/', context)
+        pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'failure', 'error': 'Cannot download implementation', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'failure', 'error': 'BLOB does not exist', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
-        os.unlink('cache/implementation/%s/%s/data.meta' % (impl[:2], impl))
+        assert not exists('cache/implementation/%s' % impl)
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, '{}'))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('probe', 'probe')
+        bundle.writestr('topdir/probe', 'probe')
         bundle.close()
 
-        pipe = checkin('/', context)
+        pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
@@ -88,9 +88,25 @@ class InjectorTest(tests.Test):
             {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
+        assert exists('cache/implementation/%s' % impl)
+        assert exists('Activities/topdir/probe')
+        self.assertEqual('probe', file('Activities/topdir/probe').read())
 
-        assert exists('Activities/data/probe')
-        self.assertEqual('probe', file('Activities/data/probe').read())
+        os.unlink(blob_path)
+        os.unlink(blob_path + '.blob')
+        shutil.rmtree('Activities')
+
+        pipe = injector.clone('/', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s_3.log' % context
+        self.assertEqual([
+            {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            ],
+            [i for i in pipe])
+        assert exists('cache/implementation/%s' % impl)
+        assert exists('Activities/topdir/probe')
+        self.assertEqual('probe', file('Activities/topdir/probe').read())
 
     def test_launch_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
@@ -137,7 +153,7 @@ class InjectorTest(tests.Test):
             ]))
         bundle.close()
 
-        pipe = launch('/', context)
+        pipe = injector.launch('/', context)
 
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
@@ -185,7 +201,7 @@ class InjectorTest(tests.Test):
         bundle.close()
 
         shutil.rmtree('cache', ignore_errors=True)
-        pipe = launch('/', context)
+        pipe = injector.launch('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
@@ -200,7 +216,7 @@ class InjectorTest(tests.Test):
         self.start_server()
 
         context = 'fake'
-        pipe = launch('~', context)
+        pipe = injector.launch('~', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '~', 'context': context, 'log_path': log_path},
@@ -221,14 +237,14 @@ class InjectorTest(tests.Test):
             ]))
 
         self.start_server()
-        monitor = coroutine.spawn(activities.monitor,
+        monitor = coroutine.spawn(clones.monitor,
                 self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
         context = 'bundle_id'
         impl = tests.tmpdir + '/Activities/activity'
 
-        pipe = launch('~', context)
+        pipe = injector.launch('~', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '~', 'context': context, 'log_path': log_path},
@@ -253,7 +269,7 @@ class InjectorTest(tests.Test):
         self.touch('remote/master')
         self.start_ipc_and_restful_server([User, Context, Implementation])
         remote = IPCClient(mountpoint='/')
-        monitor = coroutine.spawn(activities.monitor,
+        monitor = coroutine.spawn(clones.monitor,
                 self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
@@ -296,7 +312,7 @@ class InjectorTest(tests.Test):
         self.override(packagekit, 'install', install)
 
         context = 'bundle_id'
-        pipe = launch('~', context)
+        pipe = injector.launch('~', context)
         self.assertEqual('exec', [i for i in pipe][-1].get('state'))
         self.assertEqual(['dep1.bin', 'dep2.bin'], json.load(file('resolve')))
         self.assertEqual(['dep2.bin'], json.load(file('install')))

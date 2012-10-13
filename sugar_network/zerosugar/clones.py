@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import shutil
 import hashlib
 import logging
 from os.path import join, exists, lexists, relpath, dirname, basename, isdir
@@ -29,20 +30,10 @@ from sugar_network import toolkit, local
 from active_toolkit import coroutine, util
 
 
-_logger = logging.getLogger('local.activities')
+_logger = logging.getLogger('zerosugar.clones')
 
 
-def path_to_guid(path):
-    return hashlib.sha1(path).hexdigest()
-
-
-def guid_to_path(impl_id):
-    path = local.path('activities', 'checkins', impl_id)
-    if lexists(path):
-        return _read_checkin_path(path)
-
-
-def checkins(context):
+def walk(context):
     root = _context_path(context, '')
     if not exists(root):
         return
@@ -53,7 +44,7 @@ def checkins(context):
             yield os.readlink(path)
 
 
-def ensure_checkins(context):
+def ensure_clones(context):
     root = _context_path(context, '')
     if not exists(root):
         return False
@@ -69,6 +60,15 @@ def ensure_checkins(context):
                 found = True
 
     return found
+
+
+def wipeout(context):
+    for path in walk(context):
+        _logger.info('Wipe out %r implementation from %r', context, path)
+        if isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.unlink(path)
 
 
 def monitor(contexts, paths):
@@ -122,17 +122,17 @@ class _Inotify(Inotify):
                             event, filename)
                 coroutine.dispatch()
 
-    def found(self, impl_path):
-        hashed_path, checkin_path = _checkin_path(impl_path)
+    def found(self, clone_path):
+        hashed_path, checkin_path = _checkin_path(clone_path)
         if exists(checkin_path):
             return
 
-        _logger.debug('Checking in activity from %r', impl_path)
+        _logger.debug('Checking in activity from %r', clone_path)
 
         try:
-            spec = Spec(root=impl_path)
+            spec = Spec(root=clone_path)
         except Exception:
-            util.exception(_logger, 'Cannot read %r spec', impl_path)
+            util.exception(_logger, 'Cannot read %r spec', clone_path)
             return
 
         context = spec['Activity', 'bundle_id']
@@ -140,7 +140,7 @@ class _Inotify(Inotify):
         context_path = _ensure_context_path(context, hashed_path)
         if lexists(context_path):
             os.unlink(context_path)
-        os.symlink(impl_path, context_path)
+        os.symlink(clone_path, context_path)
 
         if lexists(checkin_path):
             os.unlink(checkin_path)
@@ -182,12 +182,12 @@ class _Inotify(Inotify):
         toolkit.symlink(src_path, dst_path)
         toolkit.spawn('update-mime-database', self._mime_dir)
 
-    def lost(self, impl_path):
-        __, checkin_path = _checkin_path(impl_path)
+    def lost(self, clone_path):
+        __, checkin_path = _checkin_path(clone_path)
         if not lexists(checkin_path):
             return
 
-        _logger.debug('Checking out activity from %r', impl_path)
+        _logger.debug('Checking out activity from %r', clone_path)
 
         context_path = _read_checkin_path(checkin_path)
         context_dir = dirname(context_path)
@@ -202,7 +202,7 @@ class _Inotify(Inotify):
             os.unlink(context_path)
         os.unlink(checkin_path)
 
-        self._checkout_activity(impl_path)
+        self._checkout_activity(clone_path)
 
     def lost_mimetypes(self, impl_path):
         hashed_path, __ = _checkin_path(impl_path)
@@ -228,12 +228,12 @@ class _Inotify(Inotify):
                         join(self._icons_dir,
                             mime_type.replace('/', '-') + '.svg'))
 
-    def _checkout_activity(self, impl_path):
+    def _checkout_activity(self, clone_path):
         if exists(self._icons_dir):
             for filename in os.listdir(self._icons_dir):
                 path = join(self._icons_dir, filename)
                 if islink(path) and \
-                        os.readlink(path).startswith(impl_path + os.sep):
+                        os.readlink(path).startswith(clone_path + os.sep):
                     os.unlink(path)
 
 
@@ -244,7 +244,7 @@ class _Root(object):
         self._monitor = monitor_
         self._nodes = {}
 
-        _logger.info('Start monitoring %r activities root', self.path)
+        _logger.info('Start monitoring %r implementations root', self.path)
 
         self._monitor.add_watch(self.path,
                 IN_DELETE_SELF | IN_CREATE | IN_DELETE |
@@ -370,9 +370,9 @@ class _ActivityDir(object):
             self.lost(filename)
 
 
-def _checkin_path(impl_path):
-    hashed_path = path_to_guid(impl_path)
-    return hashed_path, local.path('activities', 'checkins', hashed_path)
+def _checkin_path(clone_path):
+    hashed_path = hashlib.sha1(clone_path).hexdigest()
+    return hashed_path, local.path('clones', 'checkin', hashed_path)
 
 
 def _read_checkin_path(checkin_path):
@@ -380,8 +380,8 @@ def _read_checkin_path(checkin_path):
 
 
 def _context_path(context, hashed_path):
-    return local.path('activities', 'context', context, hashed_path)
+    return local.path('clones', 'context', context, hashed_path)
 
 
 def _ensure_context_path(context, hashed_path):
-    return local.ensure_path('activities', 'context', context, hashed_path)
+    return local.ensure_path('clones', 'context', context, hashed_path)
