@@ -71,9 +71,12 @@ class NodeCommands(VolumeCommands, Commands):
     @ad.volume_command(method='GET', cmd='stat',
             mime_type='application/json')
     def stat(self):
+        documents = {}
+        for name, directory in self.volume.items():
+            documents[name] = {'mtime': directory.mtime}
         return {'guid': self._guid,
                 'master': self._is_master,
-                'seqno': self.volume.seqno.value,
+                'documents': documents,
                 }
 
     @ad.document_command(method='DELETE',

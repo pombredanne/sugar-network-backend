@@ -17,14 +17,22 @@ import os
 import json
 import shutil
 import logging
-from os.path import join, exists, basename
+from os.path import join, exists, basename, dirname
 
 from sugar_network import local, sugar
-from sugar_network.zerosugar import pipe, cache
+from sugar_network.zerosugar import pipe, cache, lsb_release
 from active_toolkit import util
 
 
+_PMS_PATHS = {
+        'Debian': '/var/lib/dpkg/status',
+        'Fedora': '/var/lib/rpm/Packages',
+        'Ubuntu': '/var/lib/dpkg/status',
+        }
+
 _logger = logging.getLogger('zerosugar.injector')
+_pms_path = _PMS_PATHS.get(lsb_release.distributor_id())
+_mtime = None
 
 
 def launch(mountpoint, context, args=None):
@@ -33,6 +41,11 @@ def launch(mountpoint, context, args=None):
 
 def clone(mountpoint, context):
     return pipe.fork(_clone, mountpoint, context)
+
+
+def invalidate_solutions(mtime):
+    global _mtime
+    _mtime = mtime
 
 
 def _launch(mountpoint, context, args):
@@ -92,39 +105,20 @@ def _make(solution):
 def _solve(mountpoint, context):
     pipe.progress('analyze')
 
-    cache_dir = local.path('cache', 'solutions', mountpoint.replace('/', '\\'))
-    cache_path = join(cache_dir, context)
-
-    if exists(cache_path) and \
-            os.stat(cache_dir).st_mtime <= os.stat(cache_path).st_mtime:
-        try:
-            with file(cache_path) as f:
-                return json.load(f)
-        except Exception, error:
-            _logger.debug('Cannot open %r solution: %s', cache_path, error)
+    cached_path, solution, stale = _get_cached_solution(mountpoint, context)
+    if stale is False:
+        return solution
 
     from sugar_network import zeroinstall
 
     try:
         solution = zeroinstall.solve(mountpoint, context)
     except Exception:
-        if exists(cache_path):
-            print cache_path
-            try:
-                with file(cache_path) as f:
-                    solution = json.load(f)
-                    util.exception(_logger,
-                            'Cannot solve %r, fallback to stale solution',
-                            context)
-                    return solution
-            except Exception, error:
-                _logger.debug('Cannot open %r solution: %s', cache_path, error)
-        raise
+        if solution is None:
+            raise
+        util.exception(_logger, 'Fallback to stale %r solution', context)
     else:
-        if not exists(cache_dir):
-            os.makedirs(cache_dir)
-        with file(cache_path, 'w') as f:
-            json.dump(solution, f)
+        _set_cached_solution(cached_path, solution)
 
     return solution
 
@@ -157,3 +151,40 @@ def _activity_env(impl, environ):
                 os.chmod(join(bin_path, filename), 0755)
 
     os.chdir(impl_path)
+
+
+def _get_cached_solution(mountpoint, guid):
+    path = local.path('cache', 'solutions', mountpoint.replace('/', '#'),
+            guid[:2], guid)
+
+    solution = None
+    if exists(path):
+        try:
+            with file(path) as f:
+                api_url, solution = json.load(f)
+        except Exception, error:
+            _logger.debug('Cannot open %r solution: %s', path, error)
+    if solution is None:
+        return path, None, None
+
+    stale = (api_url != local.api_url.value)
+    if _mtime is not None:
+        stale = (_mtime > os.stat(path).st_mtime)
+    if not stale and _pms_path is not None:
+        stale = (os.stat(_pms_path).st_mtime > os.stat(path).st_mtime)
+    if not stale:
+        for impl in solution:
+            spec = impl.get('spec')
+            if spec and exists(spec):
+                stale = (os.stat(spec).st_mtime > os.stat(path).st_mtime)
+                if stale:
+                    break
+
+    return path, solution, stale
+
+
+def _set_cached_solution(path, solution):
+    if not exists(dirname(path)):
+        os.makedirs(dirname(path))
+    with file(path, 'w') as f:
+        json.dump([local.api_url.value, solution], f)

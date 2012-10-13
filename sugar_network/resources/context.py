@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import time
 from os.path import join
 
 import active_document as ad
@@ -204,3 +205,6 @@ class Context(Resource):
 
         self.request.call('PUT', document='context', guid=self.guid,
                 content={'packages': packages, 'presolve': presolve})
+
+        # Shift mtime to invalidate solutions
+        self.request.volume['implementation'].mtime = int(time.time())

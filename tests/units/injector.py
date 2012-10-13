@@ -16,7 +16,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.zerosugar import lsb_release, packagekit, injector, clones
-from sugar_network import IPCClient
+from sugar_network import IPCClient, local
 
 
 class InjectorTest(tests.Test):
@@ -317,51 +317,102 @@ class InjectorTest(tests.Test):
         self.assertEqual(['dep1.bin', 'dep2.bin'], json.load(file('resolve')))
         self.assertEqual(['dep2.bin'], json.load(file('install')))
 
-    def test_CacheSet(self):
+    def test_SolutionsCache_Set(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
 
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual('solved', json.load(file('cache/solutions/~/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/~/co/context')))
 
         self.assertEqual('solved', injector._solve('/', 'context'))
-        self.assertEqual('solved', json.load(file('cache/solutions/\\/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/#/co/context')))
 
         self.assertEqual('solved', injector._solve('/foo/bar', 'context'))
-        self.assertEqual('solved', json.load(file('cache/solutions/\\foo\\bar/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/#foo#bar/co/context')))
 
-    def test_CacheGet(self):
+    def test_SolutionsCache_InvalidateByAPIUrl(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        cached_path = 'cache/solutions/~/co/context'
 
-        cached_path = 'cache/solutions/~/context'
-        self.touch((cached_path, '"cached"'))
+        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+
+        local.api_url.value = 'fake'
+        self.assertEqual('solved', injector._solve('~', 'context'))
+        self.assertEqual(['fake', 'solved'], json.load(file(cached_path)))
+
+    def test_SolutionsCache_InvalidateByMtime(self):
+        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        cached_path = 'cache/solutions/~/co/context'
+
+        injector.invalidate_solutions(1)
+        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
         os.utime(cached_path, (1, 1))
-        os.utime(dirname(cached_path), (1, 1))
-        self.assertEqual('cached', injector._solve('~', 'context'))
-        self.assertEqual('cached', json.load(file(cached_path)))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
-        self.assertEqual('cached', injector._solve('~', 'context'))
-        self.assertEqual('cached', json.load(file(cached_path)))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
 
-        os.utime(dirname(cached_path), (3, 3))
+        injector.invalidate_solutions(3)
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual('solved', json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
+
+    def test_SolutionsCache_InvalidateByPMSMtime(self):
+        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        cached_path = 'cache/solutions/~/co/context'
+
+        injector._pms_path = 'pms'
+        self.touch('pms')
+        os.utime('pms', (1, 1))
+        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
+        os.utime(cached_path, (1, 1))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+
+        os.utime(cached_path, (2, 2))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+
+        os.utime('pms', (3, 3))
+        self.assertEqual('solved', injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
+
+    def test_SolutionsCache_InvalidateBySpecMtime(self):
+        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        cached_path = 'cache/solutions/~/co/context'
+
+        self.touch('spec')
+        os.utime('spec', (1, 1))
+        self.touch((cached_path, '["http://localhost:8800", [{"spec": "spec"}]]'))
+        os.utime(cached_path, (1, 1))
+        self.assertEqual([{"spec": "spec"}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], json.load(file(cached_path)))
+
+        os.utime(cached_path, (2, 2))
+        self.assertEqual([{"spec": "spec"}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], json.load(file(cached_path)))
+
+        os.utime('spec', (3, 3))
+        self.assertEqual('solved', injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
 
     def test_CacheReuseOnSolveFails(self):
         self.override(zeroinstall, 'solve', lambda *args: enforce(False))
+        cached_path = 'cache/solutions/~/co/context'
 
         self.assertRaises(RuntimeError, injector._solve, '~', 'context')
 
-        cached_path = 'cache/solutions/~/context'
-        self.touch((cached_path, '"cached"'))
+        injector.invalidate_solutions(1)
+        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
         os.utime(cached_path, (1, 1))
-        os.utime(dirname(cached_path), (1, 1))
-        self.assertEqual('cached', injector._solve('~', 'context'))
-        self.assertEqual('cached', json.load(file(cached_path)))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(["http://localhost:8800", [{}]], json.load(file(cached_path)))
 
-        os.utime(dirname(cached_path), (3, 3))
-        self.assertEqual('cached', injector._solve('~', 'context'))
-        self.assertEqual('cached', json.load(file(cached_path)))
+        injector.invalidate_solutions(3)
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(["http://localhost:8800", [{}]], json.load(file(cached_path)))
 
 
 if __name__ == '__main__':

@@ -117,6 +117,8 @@ def _solve(requirement):
                 'version': sel.version,
                 'name': feed.name,
                 }
+        if isabs(sel.id):
+            impl['spec'] = join(sel.id, 'activity', 'activity.info')
         if not feed.packaged:
             impl['mountpoint'] = feed.mountpoint
         if sel.local_path:

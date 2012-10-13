@@ -23,6 +23,7 @@ from sugar_network.local.ipc_client import Router as IPCRouter
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
 from sugar_network import local, node, toolkit
+from sugar_network.zerosugar import injector
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
@@ -94,6 +95,8 @@ class Test(unittest.TestCase):
         http._RECONNECTION_NUMBER = 0
         auth.reset()
         toolkit.tmpdir.value = tmpdir + '/tmp'
+        injector.invalidate_solutions(None)
+        injector._pms_path = None
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',

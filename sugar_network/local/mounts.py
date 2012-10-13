@@ -323,7 +323,6 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         _ProxyCommands.__init__(self, home_volume)
 
         self._client = None
-        self._seqno = 0
         self._remote_volume_guid = None
         self._api_urls = []
         if local.api_url.value:
@@ -381,16 +380,18 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
             try:
                 stat = self._client.get(cmd='stat')
-                self._seqno = stat.get('seqno') or 0
-                self._remote_volume_guid = stat.get('guid')
+                injector.invalidate_solutions(
+                        stat['documents']['implementation']['mtime'])
+                self._remote_volume_guid = stat['guid']
 
                 _logger.info('Connected to %r master', url)
                 _Mount.set_mounted(self, True)
 
                 for event in subscription:
-                    seqno = event.get('seqno')
-                    if seqno:
-                        self._seqno = seqno
+                    if event.get('document') == 'implementation':
+                        mtime = event.get('props', {}).get('mtime')
+                        if mtime:
+                            injector.invalidate_solutions(mtime)
                     event['mountpoint'] = self.mountpoint
                     self.publish(event)
             except Exception:
