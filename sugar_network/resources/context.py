@@ -13,12 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import time
 from os.path import join
 
 import active_document as ad
 from sugar_network import resources, static
-from sugar_network.local import activities
 from sugar_network.resources.volume import Resource
+from sugar_network.zerosugar import clones
 from sugar_network.zerosugar.spec import Spec
 from sugar_network.node import obs
 from active_toolkit import coroutine, util
@@ -133,7 +134,7 @@ class Context(Resource):
         result = []
 
         if self.request.mountpoint == '~':
-            for path in activities.checkins(self.guid):
+            for path in clones.walk(self.guid):
                 try:
                     spec = Spec(root=path)
                 except Exception:
@@ -204,3 +205,6 @@ class Context(Resource):
 
         self.request.call('PUT', document='context', guid=self.guid,
                 content={'packages': packages, 'presolve': presolve})
+
+        # Shift mtime to invalidate solutions
+        self.request.volume['implementation'].mtime = int(time.time())

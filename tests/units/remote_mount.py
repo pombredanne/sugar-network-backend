@@ -22,6 +22,7 @@ from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.volume import Volume
+from sugar_network.zerosugar import injector
 from sugar_network import IPCClient
 
 
@@ -266,9 +267,9 @@ class RemoteMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'guid': guid, 'seqno': 2, 'document': 'context', 'event': 'create', 'mountpoint': '/'},
-            {'guid': guid, 'seqno': 3, 'document': 'context', 'event': 'update', 'mountpoint': '/'},
-            {'guid': guid, 'seqno': 4, 'event': 'delete', 'document': 'context', 'mountpoint': '/'},
+            {'guid': guid, 'document': 'context', 'event': 'create', 'mountpoint': '/'},
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '/'},
+            {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '/'},
             ],
             events)
 
@@ -299,7 +300,7 @@ class RemoteMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 5},
+            {'document': 'context', 'event': 'update', 'guid': guid},
             ],
             events)
 
@@ -409,7 +410,7 @@ class RemoteMountTest(tests.Test):
                 urllib2.urlopen(url_prefix + '/icon').read())
 
     def test_GetAbsentBLOBs(self):
-        self.start_ipc_and_restful_server([User, Context, Artifact])
+        self.start_ipc_and_restful_server([User, Context, Artifact, Implementation])
         remote = IPCClient(mountpoint='/')
 
         guid = remote.post(['artifact'], {})
@@ -584,6 +585,54 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(
                 [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
                 remote.get(['context', context, 'versions'], layer='public'))
+
+    def test_InvalidateSolutions(self):
+        self.start_ipc_and_restful_server([User, Context, Implementation, Artifact])
+        remote = IPCClient(mountpoint='/')
+        self.assertNotEqual(None, injector._mtime)
+
+        mtime = injector._mtime
+        coroutine.sleep(1.5)
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        assert injector._mtime == mtime
+
+        impl1 = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            'spec': {'*-*': {}},
+            })
+        assert injector._mtime > mtime
+
+        mtime = injector._mtime
+        coroutine.sleep(1.5)
+
+        impl2 = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '2',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            'spec': {'*-*': {
+                'requires': {
+                    'dep1': {},
+                    'dep2': {'restrictions': [['1', '2']]},
+                    'dep3': {'restrictions': [[None, '2']]},
+                    'dep4': {'restrictions': [['3', None]]},
+                    },
+                }},
+            })
+        assert injector._mtime > mtime
 
 
 if __name__ == '__main__':

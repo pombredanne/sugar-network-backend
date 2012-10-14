@@ -12,7 +12,7 @@ from __init__ import tests
 from active_toolkit import sockets, coroutine
 from sugar_network.resources.artifact import Artifact
 from sugar_network import local
-from sugar_network.local import activities
+from sugar_network.zerosugar import clones
 from sugar_network import IPCClient
 
 
@@ -184,8 +184,8 @@ class HomeMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'guid': guid, 'seqno': 1, 'document': 'context', 'event': 'create'},
-            {'guid': guid, 'seqno': 2, 'document': 'context', 'event': 'update', 'mountpoint': '~'},
+            {'guid': guid, 'document': 'context', 'event': 'create'},
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~'},
             {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '~'},
             ],
             events)
@@ -214,7 +214,7 @@ class HomeMountTest(tests.Test):
         self.start_server()
         client = IPCClient(mountpoint='~')
 
-        monitor = coroutine.spawn(activities.monitor,
+        monitor = coroutine.spawn(clones.monitor,
                 self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 

@@ -51,11 +51,10 @@ class Network(dbus_thread.Service):
         self.call(reply_cb, error_cb, method='GET', mountpoint=mountpoint,
                 document=document, guid=guid, reply=reply)
 
-    @method(_INTERFACE, in_signature='ssss', out_signature='a{sv}',
+    @method(_INTERFACE, in_signature='ssss', out_signature='s',
             async_callbacks=('reply_cb', 'error_cb'))
-    def GetBlob(self, mountpoint, document, guid, prop, reply_cb, error_cb):
-        self.call(lambda result: reply_cb(result or {}), error_cb,
-                method='GET', cmd='get_blob', mountpoint=mountpoint,
+    def GetProp(self, mountpoint, document, guid, prop, reply_cb, error_cb):
+        self.call(reply_cb, error_cb, method='GET', mountpoint=mountpoint,
                 document=document, guid=guid, prop=prop)
 
     @method(_INTERFACE, in_signature='ssasa{sv}', out_signature='aa{sv}u',

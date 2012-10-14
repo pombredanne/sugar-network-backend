@@ -15,24 +15,19 @@
 
 # pylint: disable-msg=E1103
 
-import os
-import cgi
 import json
 import time
-import shutil
 import logging
 import hashlib
-from os.path import isdir, exists, dirname, join
+from os.path import exists
 
 import requests
 from requests.sessions import Session
 from M2Crypto import DSA
 
 import active_document as ad
-from sugar_network.zerosugar.bundle import Bundle
-from active_toolkit.sockets import decode_multipart, BUFFER_SIZE
 from sugar_network.toolkit import sugar
-from sugar_network import local, toolkit
+from sugar_network import local
 from active_toolkit import coroutine, enforce
 
 # Let toolkit.http work in concurrence
@@ -193,73 +188,6 @@ class Client(object):
         if result is None:
             result = reply.content
         return result
-
-    def download(self, url_path, out_path, seqno=None, extract=False):
-        if isdir(out_path):
-            shutil.rmtree(out_path)
-        elif not exists(dirname(out_path)):
-            os.makedirs(dirname(out_path))
-
-        params = {}
-        if seqno:
-            params['seqno'] = seqno
-
-        response = self.request('GET', url_path, allow_redirects=True,
-                params=params, allowed=[404])
-        if response.status_code != 200:
-            return 'application/octet-stream'
-
-        mime_type = response.headers.get('Content-Type') or \
-                'application/octet-stream'
-
-        content_length = response.headers.get('Content-Length')
-        content_length = int(content_length) if content_length else 0
-        if seqno and not content_length:
-            # Local cacheed versions is not stale
-            return mime_type
-
-        def fetch(f):
-            _logger.debug('Download %r BLOB to %r',
-                    '/'.join(url_path), out_path)
-            chunk_size = min(content_length, BUFFER_SIZE)
-            empty = True
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                empty = False
-                f.write(chunk)
-            return not empty
-
-        def fetch_multipart(stream, size, boundary):
-            stream.readline = None
-            for filename, content in decode_multipart(stream, size, boundary):
-                dst_path = join(out_path, filename)
-                if not exists(dirname(dst_path)):
-                    os.makedirs(dirname(dst_path))
-                shutil.move(content.name, dst_path)
-
-        content_type, params = cgi.parse_header(mime_type)
-        if content_type.split('/', 1)[0] == 'multipart':
-            try:
-                fetch_multipart(response.raw, content_length,
-                        params['boundary'])
-            except Exception:
-                shutil.rmtree(out_path, ignore_errors=True)
-                raise
-        elif extract:
-            tmp_file = toolkit.NamedTemporaryFile(delete=False)
-            try:
-                if fetch(tmp_file):
-                    tmp_file.close()
-                    with Bundle(tmp_file.name, 'application/zip') as bundle:
-                        bundle.extractall(out_path)
-            finally:
-                if exists(tmp_file.name):
-                    os.unlink(tmp_file.name)
-        else:
-            with file(out_path, 'w') as f:
-                if not fetch(f):
-                    os.unlink(out_path)
-
-        return mime_type
 
     def subscribe(self):
 

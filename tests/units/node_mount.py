@@ -14,13 +14,13 @@ import active_document as ad
 from active_toolkit import coroutine, sockets
 from sugar_network.local.mounts import HomeMount
 from sugar_network.local.mountset import Mountset
-from sugar_network.local import activities
 from sugar_network.toolkit import mounts_monitor
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network import local, sugar
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.artifact import Artifact
+from sugar_network.zerosugar import clones
 from sugar_network.local.ipc_client import Router as IPCRouter
 from sugar_network import IPCClient
 
@@ -170,7 +170,7 @@ class NodeMountTest(tests.Test):
         mounts['~'] = HomeMount(mounts.volume)
         local = IPCClient(mountpoint='~')
         remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
-        coroutine.spawn(activities.monitor, mounts.volume['context'], ['Activities'])
+        coroutine.spawn(clones.monitor, mounts.volume['context'], ['Activities'])
 
         context = remote.post(['context'], {
             'type': 'activity',

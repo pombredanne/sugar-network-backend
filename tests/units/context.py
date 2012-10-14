@@ -172,6 +172,47 @@ class ContextTest(tests.Test):
         self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Debian-6.0', 'package2'])
         self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Gentoo-2.1', 'package3'])
 
+    def test_InvalidateSolutions(self):
+        self.override(obs, 'get_repos', lambda: [
+            {'distributor_id': 'Gentoo', 'name': 'Gentoo-2.1', 'arches': ['x86_64']},
+            ])
+        self.override(obs, 'get_presolve_repos', lambda: [
+            ])
+        self.override(obs, 'resolve', lambda repo, arch, names: ['fake'])
+        self.override(obs, 'presolve', lambda repo, arch, names: ['%s-%s-%s' % (repo, arch, i) for i in names])
+
+        self.start_server()
+        client = IPCClient(mountpoint='~')
+
+        events = []
+        def read_events():
+            for event in client.subscribe():
+                if event.get('document') == 'implementation':
+                    events.append(event)
+        job = coroutine.spawn(read_events)
+
+        guid = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        client.put(['context', guid, 'aliases'], {
+            'Gentoo': {
+                '*': {
+                    'binary': ['bin'],
+                    'devel': ['devel'],
+                    },
+                },
+            })
+        coroutine.dispatch()
+        self.assertEqual({
+            'Gentoo-2.1': {'status': 'success', 'binary': ['bin'], 'devel': ['devel']},
+            },
+            client.get(['context', guid, 'packages']))
+        self.assertEqual(1, len(events))
+        assert 'mtime' in events[0]['props']
+
 
 if __name__ == '__main__':
     tests.main()

@@ -14,16 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import shutil
 import logging
-from os.path import isabs, exists, join, basename, isdir
+from os.path import isabs, exists, join, basename
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network.zerosugar.bundle import Bundle
-from sugar_network.local import activities, cache
+from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Request, VolumeCommands
-from sugar_network import local, checkin, sugar, Client
+from sugar_network import local, sugar, Client
 from active_toolkit import util, coroutine, enforce
 
 
@@ -79,15 +77,6 @@ class LocalMount(VolumeCommands, _Mount):
 
         volume.connect(self._events_cb)
 
-    @ad.property_command(method='GET', cmd='get_blob',
-            mime_type='application/json')
-    def get_blob(self, document, guid, prop, request=None):
-        directory = self.volume[document]
-        prop = directory.metadata[prop]
-        prop.assert_access(ad.ACCESS_READ)
-        doc = directory.get(guid)
-        return prop.on_get(doc, doc.meta(prop.name))
-
     @ad.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
         directory = self.volume[document]
@@ -123,16 +112,6 @@ class HomeMount(LocalMount):
             self.before_create(request, doc.props)
             return directory.create(doc.props)
 
-    @ad.property_command(method='GET', cmd='get_blob',
-            mime_type='application/json')
-    def get_blob(self, document, guid, prop, request=None):
-        if document == 'implementation' and prop == 'data':
-            path = activities.guid_to_path(guid)
-            if exists(path):
-                return {'path': path}
-        else:
-            return LocalMount.get_blob(self, document, guid, prop, request)
-
     def _events_cb(self, event):
         found_commons = False
         props = event.get('props')
@@ -142,21 +121,13 @@ class HomeMount(LocalMount):
                     continue
                 if prop == 'keep_impl':
                     if props[prop] == 0:
-                        self._checkout(event['guid'])
+                        clones.wipeout(event['guid'])
                 found_commons = True
 
         if not found_commons:
             # These local properties exposed from `_ProxyCommands` as well
             event['mountpoint'] = self.mountpoint
         self.publish(event)
-
-    def _checkout(self, guid):
-        for path in activities.checkins(guid):
-            _logger.info('Checkout %r implementation from %r', guid, path)
-            if isdir(path):
-                shutil.rmtree(path)
-            else:
-                os.unlink(path)
 
 
 class _ProxyCommands(object):
@@ -276,7 +247,7 @@ class _ProxyCommands(object):
 
         home = self._home_volume['context']
         mixin = {}
-        to_checkin = False
+        to_clone = False
 
         for prop in request.content.keys():
             if prop in _LOCAL_PROPS:
@@ -292,7 +263,7 @@ class _ProxyCommands(object):
         if 'keep_impl' in mixin and (not home.exists(guid) or
                 mixin['keep_impl'] != home.get(guid)['keep_impl']):
             if mixin['keep_impl']:
-                to_checkin = True
+                to_clone = True
                 mixin['keep_impl'] = 1
 
         if home.exists(guid):
@@ -310,18 +281,19 @@ class _ProxyCommands(object):
             props['user'] = [sugar.uid()]
             home.create(props)
             for prop in ('icon', 'artifact_icon', 'preview'):
-                blob = self.get_blob('context', guid, prop)
+                copy['prop'] = prop
+                blob = self.proxy_call(copy, ad.Response())
                 if blob:
-                    home.set_blob(guid, prop, blob['path'])
+                    home.set_blob(guid, prop, blob)
 
-        if to_checkin:
-            self._checkin(guid)
+        if to_clone:
+            self._clone(guid)
 
         return guid
 
-    def _checkin(self, guid):
-        for event in checkin(self.mountpoint, guid):
-            # TODO Publish checkin progress
+    def _clone(self, guid):
+        for event in injector.clone(self.mountpoint, guid):
+            # TODO Publish clone progress
             if event['state'] == 'failure':
                 self.publish({
                     'event': 'alert',
@@ -329,7 +301,7 @@ class _ProxyCommands(object):
                     'severity': 'error',
                     'message': _('Cannot check-in %s implementation') % guid,
                     })
-                for __ in activities.checkins(guid):
+                for __ in clones.walk(guid):
                     keep_impl = 2
                     break
                 else:
@@ -351,7 +323,6 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         _ProxyCommands.__init__(self, home_volume)
 
         self._client = None
-        self._seqno = 0
         self._remote_volume_guid = None
         self._api_urls = []
         if local.api_url.value:
@@ -378,17 +349,6 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             else:
                 self._connections.kill()
 
-    @ad.property_command(method='GET', cmd='get_blob',
-            mime_type='application/json')
-    def get_blob(self, document, guid, prop):
-
-        def download(path, seqno):
-            return self._client.download([document, guid, prop], path, seqno,
-                    document == 'implementation' and prop == 'data')
-
-        return cache.get_blob(document, guid, prop, self._seqno,
-                self._remote_volume_guid, download)
-
     @ad.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
         enforce(isabs(path), 'Path is not absolute')
@@ -400,21 +360,6 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         finally:
             if pass_ownership and exists(path):
                 os.unlink(path)
-
-    @ad.property_command(method='GET',
-            mime_type='application/json')
-    def get_prop(self, request, response, document, guid, prop):
-        directory = self._home_volume[document]
-        prop = directory.metadata[prop]
-
-        if not isinstance(prop, ad.BlobProperty):
-            return _ProxyCommands.get_prop(self,
-                    request, response, document, guid, prop.name)
-
-        meta = self.get_blob(document, guid, prop.name)
-        enforce(meta is not None, ad.NotFound)
-        response.content_type = meta['mime_type']
-        return file(meta['path'], 'rb')
 
     def mount(self, url=None):
         if url and url not in self._api_urls:
@@ -435,17 +380,18 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
             try:
                 stat = self._client.get(cmd='stat')
-                # pylint: disable-msg=E1103
-                self._seqno = stat.get('seqno') or 0
-                self._remote_volume_guid = stat.get('guid')
+                injector.invalidate_solutions(
+                        stat['documents']['implementation']['mtime'])
+                self._remote_volume_guid = stat['guid']
 
                 _logger.info('Connected to %r master', url)
                 _Mount.set_mounted(self, True)
 
                 for event in subscription:
-                    seqno = event.get('seqno')
-                    if seqno:
-                        self._seqno = seqno
+                    if event.get('document') == 'implementation':
+                        mtime = event.get('props', {}).get('mtime')
+                        if mtime:
+                            injector.invalidate_solutions(mtime)
                     event['mountpoint'] = self.mountpoint
                     self.publish(event)
             except Exception:
@@ -475,25 +421,6 @@ class NodeMount(LocalMount, _ProxyCommands):
     @property
     def master_guid(self):
         return self._master_guid
-
-    @ad.property_command(method='GET', cmd='get_blob',
-            mime_type='application/json')
-    def get_blob(self, document, guid, prop, request=None):
-        meta = LocalMount.get_blob(self, document, guid, prop)
-        if meta is None:
-            return
-
-        if document == 'implementation' and prop == 'data':
-
-            def extract(path, seqno):
-                with Bundle(meta['path'], 'application/zip') as bundle:
-                    bundle.extractall(path)
-                return meta['mime_type']
-
-            return cache.get_blob(document, guid, prop, meta['seqno'],
-                    self._node_guid, extract)
-
-        return meta
 
     def proxy_call(self, request, response):
         return LocalMount.call(self, request, response)

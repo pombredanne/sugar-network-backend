@@ -161,7 +161,7 @@ class VolumeTest(tests.Test):
         volume['document'].update('guid', layer=['deleted'])
 
         self.assertEqual([
-            {'event': 'delete', 'document': 'document', 'seqno': 2, 'guid': 'guid'},
+            {'event': 'delete', 'document': 'document', 'guid': 'guid'},
             ],
             events)
 
@@ -201,8 +201,8 @@ class VolumeTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'guid': 'guid', 'seqno': 1, 'document': 'document', 'event': 'create'},
-            {'guid': 'guid', 'seqno': 2, 'document': 'document', 'event': 'update'},
+            {'guid': 'guid', 'document': 'document', 'event': 'create'},
+            {'guid': 'guid', 'document': 'document', 'event': 'update'},
             {'guid': 'guid', 'event': 'delete', 'document': u'document'},
             ],
             events)
@@ -243,9 +243,9 @@ class VolumeTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'seqno': 1, 'document': 'document', 'event': 'commit'},
-            {'seqno': 2, 'document': 'document', 'event': 'commit'},
-            {'seqno': 2, 'document': 'document', 'event': 'commit'},
+            {'document': 'document', 'event': 'commit'},
+            {'document': 'document', 'event': 'commit'},
+            {'document': 'document', 'event': 'commit'},
             ],
             events)
 

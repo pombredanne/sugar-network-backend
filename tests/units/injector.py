@@ -11,13 +11,12 @@ from os.path import exists, dirname
 from __init__ import tests
 
 from active_toolkit import coroutine, enforce
-from sugar_network import checkin, launch, zeroinstall
+from sugar_network import zeroinstall
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.zerosugar import lsb_release, packagekit, injector
-from sugar_network.local import activities
-from sugar_network import IPCClient
+from sugar_network.zerosugar import lsb_release, packagekit, injector, clones
+from sugar_network import IPCClient, local
 
 
 class InjectorTest(tests.Test):
@@ -33,7 +32,7 @@ class InjectorTest(tests.Test):
             'description': 'description',
             })
 
-        pipe = checkin('/', context)
+        pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
@@ -58,28 +57,29 @@ class InjectorTest(tests.Test):
                         },
                     'stability': 'stable',
                     'size': 0,
+                    'extract': 'topdir',
                     },
                 },
             })
 
-        pipe = checkin('/', context)
+        pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'failure', 'error': 'Cannot download implementation', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'failure', 'error': 'BLOB does not exist', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
-        os.unlink('cache/implementation/%s/%s/data.meta' % (impl[:2], impl))
+        assert not exists('cache/implementation/%s' % impl)
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, '{}'))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('probe', 'probe')
+        bundle.writestr('topdir/probe', 'probe')
         bundle.close()
 
-        pipe = checkin('/', context)
+        pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
@@ -88,9 +88,25 @@ class InjectorTest(tests.Test):
             {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
+        assert exists('cache/implementation/%s' % impl)
+        assert exists('Activities/topdir/probe')
+        self.assertEqual('probe', file('Activities/topdir/probe').read())
 
-        assert exists('Activities/data/probe')
-        self.assertEqual('probe', file('Activities/data/probe').read())
+        os.unlink(blob_path)
+        os.unlink(blob_path + '.blob')
+        shutil.rmtree('Activities')
+
+        pipe = injector.clone('/', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s_3.log' % context
+        self.assertEqual([
+            {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            ],
+            [i for i in pipe])
+        assert exists('cache/implementation/%s' % impl)
+        assert exists('Activities/topdir/probe')
+        self.assertEqual('probe', file('Activities/topdir/probe').read())
 
     def test_launch_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
@@ -137,7 +153,7 @@ class InjectorTest(tests.Test):
             ]))
         bundle.close()
 
-        pipe = launch('/', context)
+        pipe = injector.launch('/', context)
 
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
@@ -185,7 +201,7 @@ class InjectorTest(tests.Test):
         bundle.close()
 
         shutil.rmtree('cache', ignore_errors=True)
-        pipe = launch('/', context)
+        pipe = injector.launch('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '/', 'context': context, 'log_path': log_path},
@@ -200,7 +216,7 @@ class InjectorTest(tests.Test):
         self.start_server()
 
         context = 'fake'
-        pipe = launch('~', context)
+        pipe = injector.launch('~', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '~', 'context': context, 'log_path': log_path},
@@ -221,14 +237,14 @@ class InjectorTest(tests.Test):
             ]))
 
         self.start_server()
-        monitor = coroutine.spawn(activities.monitor,
+        monitor = coroutine.spawn(clones.monitor,
                 self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
         context = 'bundle_id'
         impl = tests.tmpdir + '/Activities/activity'
 
-        pipe = launch('~', context)
+        pipe = injector.launch('~', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
             {'state': 'boot', 'mountpoint': '~', 'context': context, 'log_path': log_path},
@@ -253,7 +269,7 @@ class InjectorTest(tests.Test):
         self.touch('remote/master')
         self.start_ipc_and_restful_server([User, Context, Implementation])
         remote = IPCClient(mountpoint='/')
-        monitor = coroutine.spawn(activities.monitor,
+        monitor = coroutine.spawn(clones.monitor,
                 self.mounts.volume['context'], ['Activities'])
         coroutine.sleep()
 
@@ -296,56 +312,107 @@ class InjectorTest(tests.Test):
         self.override(packagekit, 'install', install)
 
         context = 'bundle_id'
-        pipe = launch('~', context)
+        pipe = injector.launch('~', context)
         self.assertEqual('exec', [i for i in pipe][-1].get('state'))
         self.assertEqual(['dep1.bin', 'dep2.bin'], json.load(file('resolve')))
         self.assertEqual(['dep2.bin'], json.load(file('install')))
 
-    def test_CacheSet(self):
+    def test_SolutionsCache_Set(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
 
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual('solved', json.load(file('cache/solutions/~/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/~/co/context')))
 
         self.assertEqual('solved', injector._solve('/', 'context'))
-        self.assertEqual('solved', json.load(file('cache/solutions/\\/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/#/co/context')))
 
         self.assertEqual('solved', injector._solve('/foo/bar', 'context'))
-        self.assertEqual('solved', json.load(file('cache/solutions/\\foo\\bar/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/#foo#bar/co/context')))
 
-    def test_CacheGet(self):
+    def test_SolutionsCache_InvalidateByAPIUrl(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        cached_path = 'cache/solutions/~/co/context'
 
-        cached_path = 'cache/solutions/~/context'
-        self.touch((cached_path, '"cached"'))
+        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+
+        local.api_url.value = 'fake'
+        self.assertEqual('solved', injector._solve('~', 'context'))
+        self.assertEqual(['fake', 'solved'], json.load(file(cached_path)))
+
+    def test_SolutionsCache_InvalidateByMtime(self):
+        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        cached_path = 'cache/solutions/~/co/context'
+
+        injector.invalidate_solutions(1)
+        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
         os.utime(cached_path, (1, 1))
-        os.utime(dirname(cached_path), (1, 1))
-        self.assertEqual('cached', injector._solve('~', 'context'))
-        self.assertEqual('cached', json.load(file(cached_path)))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
-        self.assertEqual('cached', injector._solve('~', 'context'))
-        self.assertEqual('cached', json.load(file(cached_path)))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
 
-        os.utime(dirname(cached_path), (3, 3))
+        injector.invalidate_solutions(3)
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual('solved', json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
+
+    def test_SolutionsCache_InvalidateByPMSMtime(self):
+        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        cached_path = 'cache/solutions/~/co/context'
+
+        injector._pms_path = 'pms'
+        self.touch('pms')
+        os.utime('pms', (1, 1))
+        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
+        os.utime(cached_path, (1, 1))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+
+        os.utime(cached_path, (2, 2))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+
+        os.utime('pms', (3, 3))
+        self.assertEqual('solved', injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
+
+    def test_SolutionsCache_InvalidateBySpecMtime(self):
+        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        cached_path = 'cache/solutions/~/co/context'
+
+        self.touch('spec')
+        os.utime('spec', (1, 1))
+        self.touch((cached_path, '["http://localhost:8800", [{"spec": "spec"}]]'))
+        os.utime(cached_path, (1, 1))
+        self.assertEqual([{"spec": "spec"}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], json.load(file(cached_path)))
+
+        os.utime(cached_path, (2, 2))
+        self.assertEqual([{"spec": "spec"}], injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], json.load(file(cached_path)))
+
+        os.utime('spec', (3, 3))
+        self.assertEqual('solved', injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
 
     def test_CacheReuseOnSolveFails(self):
         self.override(zeroinstall, 'solve', lambda *args: enforce(False))
+        cached_path = 'cache/solutions/~/co/context'
 
         self.assertRaises(RuntimeError, injector._solve, '~', 'context')
 
-        cached_path = 'cache/solutions/~/context'
-        self.touch((cached_path, '"cached"'))
+        injector.invalidate_solutions(1)
+        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
         os.utime(cached_path, (1, 1))
-        os.utime(dirname(cached_path), (1, 1))
-        self.assertEqual('cached', injector._solve('~', 'context'))
-        self.assertEqual('cached', json.load(file(cached_path)))
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(["http://localhost:8800", [{}]], json.load(file(cached_path)))
 
-        os.utime(dirname(cached_path), (3, 3))
-        self.assertEqual('cached', injector._solve('~', 'context'))
-        self.assertEqual('cached', json.load(file(cached_path)))
+        injector.invalidate_solutions(3)
+        self.assertEqual([{}], injector._solve('~', 'context'))
+        self.assertEqual(["http://localhost:8800", [{}]], json.load(file(cached_path)))
 
 
 if __name__ == '__main__':
