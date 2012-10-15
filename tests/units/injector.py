@@ -21,7 +21,7 @@ from sugar_network import IPCClient, local
 
 class InjectorTest(tests.Test):
 
-    def test_checkin_Online(self):
+    def test_clone_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
         remote = IPCClient(mountpoint='/')
 
@@ -400,6 +400,55 @@ class InjectorTest(tests.Test):
         injector.invalidate_solutions(3)
         self.assertEqual([{}], injector._solve('~', 'context'))
         self.assertEqual(["http://localhost:8800", [{}]], json.load(file(cached_path)))
+
+    def test_clone_SetExecPermissionsForActivities(self):
+        self.start_ipc_and_restful_server([User, Context, Implementation])
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'topdir',
+                    },
+                },
+            })
+        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        self.touch((blob_path, '{}'))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
+        bundle.writestr('topdir/activity/foo', '')
+        bundle.writestr('topdir/bin/bar', '')
+        bundle.writestr('topdir/bin/probe', '')
+        bundle.writestr('topdir/file1', '')
+        bundle.writestr('topdir/test/file2', '')
+        bundle.close()
+
+        pipe = injector.clone('/', context)
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
+        self.assertEqual('ready', [i for i in pipe][-1]['state'])
+        assert os.access('Activities/topdir/activity/foo', os.X_OK)
+        assert os.access('Activities/topdir/bin/bar', os.X_OK)
+        assert os.access('Activities/topdir/bin/probe', os.X_OK)
+        assert not os.access('Activities/topdir/file1', os.X_OK)
+        assert not os.access('Activities/topdir/test/file2', os.X_OK)
 
 
 if __name__ == '__main__':

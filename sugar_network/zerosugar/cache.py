@@ -55,4 +55,13 @@ def get(guid):
             shutil.rmtree(path, ignore_errors=True)
             raise
 
+    topdir = os.listdir(path)[-1:]
+    if topdir:
+        for exec_dir in ('bin', 'activity'):
+            bin_path = join(path, topdir[0], exec_dir)
+            if not exists(bin_path):
+                continue
+            for filename in os.listdir(bin_path):
+                os.chmod(join(bin_path, filename), 0755)
+
     return path

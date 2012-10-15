@@ -132,6 +132,11 @@ def _activity_env(impl, environ):
         if not exists(path):
             os.makedirs(path)
 
+    environ['PATH'] = ':'.join([
+        join(impl_path, 'activity'),
+        join(impl_path, 'bin'),
+        environ['PATH'],
+        ])
     environ['SUGAR_BUNDLE_PATH'] = impl_path
     environ['SUGAR_BUNDLE_ID'] = impl['context']
     environ['SUGAR_BUNDLE_NAME'] = impl['name']
@@ -139,16 +144,6 @@ def _activity_env(impl, environ):
     environ['SUGAR_ACTIVITY_ROOT'] = root
     environ['PYTHONPATH'] = impl_path + ':' + environ.get('PYTHONPATH', '')
     environ['SUGAR_LOCALEDIR'] = join(impl_path, 'locale')
-
-    # TODO Do it only once on unzip
-    # Activities might call bin/* files but python zipfile module
-    # doesn't set exec permissions while extracting
-    for exec_dir in ('bin', 'activity'):
-        bin_path = join(impl_path, exec_dir)
-        if exists(bin_path):
-            environ['PATH'] = bin_path + ':' + environ['PATH']
-            for filename in os.listdir(bin_path):
-                os.chmod(join(bin_path, filename), 0755)
 
     os.chdir(impl_path)
 
