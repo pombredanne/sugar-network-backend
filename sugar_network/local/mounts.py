@@ -380,8 +380,9 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
             try:
                 stat = self._client.get(cmd='stat')
-                injector.invalidate_solutions(
-                        stat['documents']['implementation']['mtime'])
+                if 'documents' in stat:
+                    injector.invalidate_solutions(
+                            stat['documents']['implementation']['mtime'])
                 self._remote_volume_guid = stat['guid']
 
                 _logger.info('Connected to %r master', url)

@@ -20,7 +20,7 @@ from os.path import isabs, join, abspath, dirname
 from sugar_network import IPCClient
 from sugar_network.zerosugar import packagekit, lsb_release
 from sugar_network.zerosugar.spec import parse_version
-from active_toolkit import util, enforce
+from active_toolkit import util
 
 sys.path.insert(0, join(abspath(dirname(__file__)), 'zeroinstall-injector'))
 
@@ -31,7 +31,6 @@ from zeroinstall.injector.requirements import Requirements
 
 
 def Interface_init(self, url):
-    enforce(url)
     self.uri = url
     self.reset()
 
@@ -75,19 +74,15 @@ def _solve(requirement):
         if driver.solver.ready:
             break
 
-        missed = []
         packaged_feeds = []
         to_resolve = []
 
         for url in driver.solver.feeds_used:
             feed = config.iface_cache.get_feed(url)
-            if feed is None:
-                missed.append(url)
-            elif feed.to_resolve:
+            if feed is not None and feed.to_resolve:
                 packaged_feeds.append(feed)
                 to_resolve.extend(feed.to_resolve)
 
-        enforce(not missed, 'Cannot find feed(s) for %s', ', '.join(missed))
         if not to_resolve:
             break
 
@@ -189,6 +184,9 @@ def _load_feed(context):
             impl.bindings.append(binding)
 
         feed.implementations[impl_id] = impl
+
+    if not feed.to_resolve and not feed.implementations:
+        _logger.debug('No implementations for %r', context)
 
     return feed
 

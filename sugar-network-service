@@ -33,7 +33,7 @@ from sugar_network.local.dbus_network import Network
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.ipc_client import Router
-from sugar_network.zerosugar import implementations
+from sugar_network.zerosugar import clones
 from sugar_network.node import stats
 from sugar_network.resources.volume import Volume
 from active_toolkit.options import Option
@@ -103,8 +103,7 @@ class Application(application.Application):
         try:
             volume.populate()
             self._sync(volume)
-            implementations.populate(
-                    volume['context'], local.activity_dirs.value)
+            clones.populate(volume['context'], local.activity_dirs.value)
         finally:
             volume.close()
 
@@ -141,7 +140,7 @@ class Application(application.Application):
                     Router(mountset))
             jobs.spawn(server.serve_forever)
 
-            jobs.spawn(implementations.monitor, mountset.volume['context'],
+            jobs.spawn(clones.monitor, mountset.volume['context'],
                     local.activity_dirs.value)
 
             if webui.webui.value:
@@ -188,7 +187,7 @@ class Application(application.Application):
         contexts = volume['context']
         docs, __ = contexts.find(limit=ad.MAX_LIMIT, keep_impl=[1, 2])
         for context in docs:
-            if not implementations.ensure_clones(context.guid):
+            if not clones.ensure_clones(context.guid):
                 contexts.update(context.guid, keep_impl=0)
 
 

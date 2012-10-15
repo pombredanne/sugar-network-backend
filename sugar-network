@@ -54,7 +54,8 @@ post_file = Option(
 
 json = Option(
         'treat POST or PUT command content as a JSON data',
-        name='json', short_option='-j')
+        name='json', short_option='-j', default=False,
+        type_cast=Option.bool_cast, action='store_true')
 
 
 _ESCAPE_VALUE_RE = re.compile('([^\[\]\{\}0-9][^\]\[\{\}]+)')
@@ -177,7 +178,10 @@ class Application(application.Application):
             if pid_path:
                 os.unlink(pid_path)
 
-        if result:
+        if not result:
+            return
+
+        if response.content_type == 'application/json':
             if porcelain.value:
                 if type(result) in (list, tuple):
                     for i in result:
@@ -192,6 +196,8 @@ class Application(application.Application):
                     print eval('result%s' % key)
             else:
                 print dumps(result, indent=2)
+        else:
+            sys.stdout.write(result)
 
 
 # New defaults

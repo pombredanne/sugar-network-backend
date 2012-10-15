@@ -37,7 +37,7 @@ class SyncTest(tests.Test):
             self.waitpid(self.service_pid, signal.SIGINT)
         tests.Test.tearDown(self)
 
-    def test_Checkin(self):
+    def test_Clone(self):
         context = self.call(['POST', '/context'], stdin={
             'type': 'activity',
             'title': 'title1',
@@ -67,7 +67,7 @@ class SyncTest(tests.Test):
         bundle.close()
         self.call(['PUT', '/implementation/%s/data' % impl, '--post-file=bundle'])
 
-        self.call(['PUT', 'cmd=checkin'], stdin=context)
+        self.call(['PUT', 'cmd=clone'], stdin=context)
         assert exists('service/Activities/topdir/probe')
         self.assertEqual('ok', file('service/Activities/topdir/probe').read())
 
@@ -91,8 +91,8 @@ class SyncTest(tests.Test):
         privkey_path = '.sugar/default/owner.key'
         os.unlink(privkey_path)
 
-        self.call(['PUT', 'cmd=checkin', '--anonymous', 'mountpoint=/'], stdin='context')
-        self.call(['PUT', 'cmd=keep', '--anonymous', 'mountpoint=~'], stdin='context')
+        self.call(['PUT', 'cmd=clone', '--anonymous'], stdin='context')
+        self.call(['PUT', 'cmd=keep', '--anonymous'], stdin='context')
 
         assert not exists(privkey_path)
         assert exists('Activities/Chat.activity/activity/activity.info')

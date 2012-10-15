@@ -212,19 +212,6 @@ class InjectorTest(tests.Test):
             ],
             [i for i in pipe])
 
-    def test_MissedFeeds(self):
-        self.start_server()
-
-        context = 'fake'
-        pipe = injector.launch('~', context)
-        log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
-        self.assertEqual([
-            {'state': 'boot', 'mountpoint': '~', 'context': context, 'log_path': log_path},
-            {'state': 'analyze', 'mountpoint': '~', 'context': context, 'log_path': log_path},
-            {'state': 'failure', 'error': 'Cannot find feed(s) for %s' % context, 'mountpoint': '~', 'context': context, 'log_path': log_path},
-            ],
-            [i for i in pipe])
-
     def test_launch_Offline(self):
         self.touch(('Activities/activity/activity/activity.info', [
             '[Activity]',
