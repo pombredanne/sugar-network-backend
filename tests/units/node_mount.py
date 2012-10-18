@@ -327,7 +327,11 @@ class NodeMountTest(tests.Test):
         mounts[tests.tmpdir + '/mnt'].mounted.wait()
         client = IPCClient(mountpoint=tests.tmpdir + '/mnt')
 
-        guid = client.post(['artifact'], {})
+        guid = client.post(['artifact'], {
+            'context': 'context',
+            'title': 'title',
+            'description': 'description',
+            })
 
         self.assertRaises(RuntimeError, client.get, ['artifact', guid, 'data'])
         blob_url = 'http://localhost:%s/artifact/%s/data?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')

@@ -144,7 +144,11 @@ class HomeMountTest(tests.Test):
         self.start_server([Artifact])
         client = IPCClient(mountpoint='~')
 
-        guid = client.post(['artifact'], {})
+        guid = client.post(['artifact'], {
+            'context': 'context',
+            'title': 'title',
+            'description': 'description',
+            })
 
         self.assertRaises(RuntimeError, client.get, ['artifact', guid, 'data'])
         blob_url = 'http://localhost:%s/artifact/%s/data?mountpoint=~' % (local.ipc_port.value, guid)

@@ -20,6 +20,7 @@ import logging
 from os.path import join, exists, basename, dirname
 
 from sugar_network import local, sugar
+from sugar_network.local import journal
 from sugar_network.zerosugar import pipe, cache, lsb_release
 from active_toolkit import util
 
@@ -35,12 +36,33 @@ _pms_path = _PMS_PATHS.get(lsb_release.distributor_id())
 _mtime = None
 
 
-def launch(mountpoint, context, args=None):
-    return pipe.fork(_launch, mountpoint, context, args)
+def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
+        uri=None, color=None):
+    if object_id:
+        if not activity_id:
+            activity_id = journal.get(object_id, 'activity_id')
+        if not color:
+            color = journal.get(object_id, 'icon-color')
+
+    if args is None:
+        args = []
+    args.extend([
+        '-b', guid,
+        '-a', activity_id or journal.create_activity_id(),
+        ])
+    if object_id:
+        args.extend(['-o', object_id])
+    if uri:
+        args.extend(['-u', uri])
+
+    session = None
+    if color:
+        session = {'color': color}
+    return pipe.fork(_launch, mountpoint, guid, args, session)
 
 
-def clone(mountpoint, context):
-    return pipe.fork(_clone, mountpoint, context)
+def clone(mountpoint, guid):
+    return pipe.fork(_clone, mountpoint, guid)
 
 
 def invalidate_solutions(mtime):
@@ -48,11 +70,11 @@ def invalidate_solutions(mtime):
     _mtime = mtime
 
 
-def _launch(mountpoint, context, args):
+def _launch(mountpoint, context, args, session):
     if args is None:
         args = []
 
-    solution = _solve(mountpoint, context)
+    solution = _solve(mountpoint, context, session)
     _make(solution)
 
     args = solution[0]['command'] + args
@@ -102,8 +124,8 @@ def _make(solution):
     pipe.progress('ready', session={'implementation': solution[0]['id']})
 
 
-def _solve(mountpoint, context):
-    pipe.progress('analyze')
+def _solve(mountpoint, context, session=None):
+    pipe.progress('analyze', session=session)
 
     cached_path, solution, stale = _get_cached_solution(mountpoint, context)
     if stale is False:

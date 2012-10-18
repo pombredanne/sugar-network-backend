@@ -274,6 +274,9 @@ class VolumeTest(tests.Test):
             })
         volume['context'].set_blob(guid3, 'icon', url='/foo/bar')
         guid4 = call(cp, method='POST', document='artifact', principal='principal', content={
+            'context': 'context',
+            'title': 'title',
+            'description': 'description',
             })
         guid5 = call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
@@ -341,6 +344,7 @@ class VolumeTest(tests.Test):
                 ('db/context/1/1/ctime', '{"value": 1}'),
                 ('db/context/1/1/mtime', '{"value": 1}'),
                 ('db/context/1/1/seqno', '{"value": 0}'),
+                ('db/context/1/1/title', '{"value": {}}'),
                 )
 
         volume = Volume('db', lazy_open=True)

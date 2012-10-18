@@ -50,7 +50,7 @@ def fork(callback, mountpoint, context, *args):
     _pipe = fd_w
 
     def thread_func():
-        progress(state='boot',
+        progress(state='fork',
                 session={
                     'log_path': _setup_logging(context),
                     'mountpoint': mountpoint,
@@ -107,7 +107,7 @@ class _Pipe(object):
 
         event = json.loads(event)
         if 'session' in event:
-            self._session.update(event.pop('session'))
+            self._session.update(event.pop('session') or {})
         event.update(self._session)
         return event
 

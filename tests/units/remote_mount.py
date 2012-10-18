@@ -413,7 +413,11 @@ class RemoteMountTest(tests.Test):
         self.start_ipc_and_restful_server([User, Context, Artifact, Implementation])
         remote = IPCClient(mountpoint='/')
 
-        guid = remote.post(['artifact'], {})
+        guid = remote.post(['artifact'], {
+            'context': 'context',
+            'title': 'title',
+            'description': 'description',
+            })
 
         self.assertRaises(RuntimeError, remote.get, ['artifact', guid, 'data'])
         blob_url = 'http://localhost:8800/artifact/%s/data' % guid
@@ -502,7 +506,11 @@ class RemoteMountTest(tests.Test):
             'notes': '',
             'spec': {'*-*': {}},
             })
-        artifact = remote.post(['artifact'], {})
+        artifact = remote.post(['artifact'], {
+            'context': 'context',
+            'title': 'title',
+            'description': 'description',
+            })
 
         self.assertEqual(
                 [{'layer': ['public']}],

@@ -18,21 +18,6 @@ from sugar_network.local import api_url, server_mode
 from sugar_network_webui import webui_port
 
 
-def launch(*args, **kwargs):
-    from sugar_network.zerosugar import injector
-    return injector.launch(*args, **kwargs)
-
-
-def clone(*args, **kwargs):
-    from sugar_network.zerosugar import injector
-    return injector.clone(*args, **kwargs)
-
-
-def wipeout(*args, **kwargs):
-    import sugar_network.zerosugar.clones
-    return sugar_network.zerosugar.clones.wipeout(*args, **kwargs)
-
-
 def clones(*args, **kwargs):
     import sugar_network.zerosugar.clones
     return sugar_network.zerosugar.clones.walk(*args, **kwargs)

@@ -88,6 +88,11 @@ class LocalMount(VolumeCommands, _Mount):
             if pass_ownership and exists(path):
                 os.unlink(path)
 
+    def url(self, *path):
+        enforce(self.mounted.is_set(), 'Not mounter')
+        api_url = 'http://localhost:%s' % local.ipc_port.value
+        return '/'.join((api_url,) + path)
+
     def before_create(self, request, props):
         props['user'] = [sugar.uid()]
         props['author'] = [sugar.nickname()]
@@ -287,28 +292,23 @@ class _ProxyCommands(object):
                     home.set_blob(guid, prop, blob)
 
         if to_clone:
-            self._clone(guid)
+            for event in injector.clone(self.mountpoint, guid):
+                # TODO Publish clone progress
+                if event['state'] == 'failure':
+                    self.publish({
+                        'event': 'alert',
+                        'mountpoint': self.mountpoint,
+                        'severity': 'error',
+                        'message': _('Cannot clone %s implementation') % guid,
+                        })
+            for __ in clones.walk(guid):
+                keep_impl = 2
+                break
+            else:
+                keep_impl = 0
+            self._home_volume['context'].update(guid, {'keep_impl': keep_impl})
 
         return guid
-
-    def _clone(self, guid):
-        for event in injector.clone(self.mountpoint, guid):
-            # TODO Publish clone progress
-            if event['state'] == 'failure':
-                self.publish({
-                    'event': 'alert',
-                    'mountpoint': self.mountpoint,
-                    'severity': 'error',
-                    'message': _('Cannot check-in %s implementation') % guid,
-                    })
-                for __ in clones.walk(guid):
-                    keep_impl = 2
-                    break
-                else:
-                    keep_impl = 0
-                self._home_volume['context'].update(guid,
-                        {'keep_impl': keep_impl})
-                break
 
 
 class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
@@ -317,6 +317,10 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
     def name(self):
         return _('Network')
 
+    def url(self, *path):
+        enforce(self.mounted.is_set(), 'Not mounter')
+        return '/'.join((self._url,) + path)
+
     def __init__(self, home_volume):
         ad.CommandsProcessor.__init__(self)
         _Mount.__init__(self)
@@ -324,6 +328,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
 
         self._client = None
         self._remote_volume_guid = None
+        self._url = None
         self._api_urls = []
         if local.api_url.value:
             self._api_urls.append(local.api_url.value)
@@ -386,6 +391,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
                 self._remote_volume_guid = stat['guid']
 
                 _logger.info('Connected to %r master', url)
+                self._url = url
                 _Mount.set_mounted(self, True)
 
                 for event in subscription:

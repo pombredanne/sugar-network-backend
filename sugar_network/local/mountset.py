@@ -21,10 +21,12 @@ import active_document as ad
 
 from sugar_network import local, node
 from sugar_network.toolkit import zeroconf, netlink, network, mounts_monitor
+from sugar_network.local import journal
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.router import Router
 from sugar_network.node.sync_node import SyncCommands
+from sugar_network.zerosugar import injector
 from sugar_network.resources.volume import Volume, Commands, Request
 from active_toolkit import util, coroutine, enforce
 
@@ -34,7 +36,8 @@ _DB_DIRNAME = '.sugar-network'
 _logger = logging.getLogger('local.mountset')
 
 
-class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
+class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
+        SyncCommands):
 
     def __init__(self, home_volume):
         self.opened = coroutine.Event()
@@ -88,49 +91,103 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
 
     @ad.volume_command(method='PUT', cmd='clone')
     def clone(self, mountpoint, request):
-        mount = self.get(mountpoint or '/')
+        mount = self.get(mountpoint)
         enforce(mount is not None, 'No such mountpoint')
         mount.mounted.wait()
 
         for guid in (request.content or '').split():
             _logger.info('Clone %r context', guid)
-            request = Request(method='PUT', document='context', guid=guid,
-                    accept_language=[self._lang])
+            request = Request(method='PUT', document='context', guid=guid)
+            request.accept_language = [self._lang]
             request.content = {'keep_impl': 2, 'keep': False}
             mount.call(request, ad.Response())
 
     @ad.volume_command(method='PUT', cmd='keep')
     def keep(self, mountpoint, request):
-        mount = self.get(mountpoint or '/')
+        mount = self.get(mountpoint)
         enforce(mount is not None, 'No such mountpoint')
         mount.mounted.wait()
 
         for guid in (request.content or '').split():
             _logger.info('Keep %r context', guid)
-            request = Request(method='PUT', document='context', guid=guid,
-                    accept_language=[self._lang])
+            request = Request(method='PUT', document='context', guid=guid)
+            request.accept_language = [self._lang]
             request.content = {'keep': True}
             mount.call(request, ad.Response())
 
     @ad.volume_command(method='POST', cmd='publish')
-    def _publish(self, request):
-        self.publish(request.content)
+    def publish(self, event, request=None):
+        if request is not None:
+            event = request.content
+
+        for callback, condition in self._subscriptions.items():
+            for key, value in condition.items():
+                if event.get(key) != value:
+                    break
+            else:
+                try:
+                    callback(event)
+                except Exception:
+                    util.exception(_logger, 'Failed to dispatch %r', event)
+
+    @ad.document_command(method='GET', cmd='launch',
+            arguments={'args': ad.to_list})
+    def launch(self, mountpoint, document, guid, args, context=None,
+            activity_id=None, object_id=None, uri=None, color=None):
+        enforce(document == 'context', 'Only contexts can be launched')
+
+        mount = self[mountpoint]
+        if context and '/' in context:
+            jobject_mountpoint, context = context.rstrip('/', 1)
+            mount = self[jobject_mountpoint or '/']
+
+        if context and not object_id:
+            request = Request(method='GET', document='implementation',
+                    context=context, stability='stable', order_by='-version',
+                    limit=1, reply=['guid'])
+            impls = mount.call(request, ad.Response())['result']
+            enforce(impls, ad.NotFound, 'No implementations')
+            object_id = impls[0].pop('guid')
+
+        if object_id and not journal.exists(object_id):
+            if context:
+                props = mount.call(
+                        Request(method='GET',
+                            document='context', guid=context,
+                            reply=['title', 'description']),
+                        ad.Response())
+                props['preview'] = mount.url('context', context, 'preview')
+                props['data'] = mount.url('implementation', object_id, 'data')
+            else:
+                props = mount.call(
+                        Request(method='GET',
+                            document='artifact', guid=object_id,
+                            reply=['title', 'description']),
+                        ad.Response())
+                props['preview'] = mount.url('artifact', object_id, 'preview')
+                props['data'] = mount.url('artifact', object_id, 'data')
+            journal.update(object_id, **props)
+
+        for event in injector.launch(mountpoint, guid, args,
+                activity_id=activity_id, object_id=object_id, uri=uri,
+                color=color):
+            event['event'] = 'launch'
+            self.publish(event)
 
     def super_call(self, request, response):
-        if 'mountpoint' in request:
-            mountpoint = request.mountpoint = request.pop('mountpoint')
-        else:
-            mountpoint = '/'
-        mount = self[mountpoint]
-        if mountpoint == '/':
+        mount = self[request.mountpoint]
+        if request.mountpoint == '/':
             mount.set_mounted(True)
-        enforce(mount.mounted.is_set(), '%r is not mounted', mountpoint)
+        enforce(mount.mounted.is_set(), '%r is unmounted', request.mountpoint)
         return mount.call(request, response)
 
     def call(self, request, response=None):
         if response is None:
             response = ad.Response()
         request.accept_language = [self._lang]
+        request.mountpoint = request.get('mountpoint')
+        if not request.mountpoint:
+            request.mountpoint = request['mountpoint'] = '/'
         try:
             return ad.CommandsProcessor.call(self, request, response)
         except ad.CommandNotFound:
@@ -143,26 +200,15 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
         if callback in self._subscriptions:
             del self._subscriptions[callback]
 
-    def publish(self, event):
-        for callback, condition in self._subscriptions.items():
-            for key, value in condition.items():
-                if event.get(key) != value:
-                    break
-            else:
-                try:
-                    callback(event)
-                except Exception:
-                    util.exception(_logger, 'Failed to dispatch %r', event)
-
     def open(self):
         try:
             mounts_monitor.connect(_DB_DIRNAME,
                     self._found_mount, self._lost_mount)
             if '/' in self:
                 if local.api_url.value:
-                    crawler = self._wait_for_master
+                    crawler = self._wait_for_server
                 else:
-                    crawler = self._discover_masters
+                    crawler = self._discover_server
                 self._jobs.spawn(crawler)
         finally:
             self.opened.set()
@@ -176,12 +222,12 @@ class Mountset(dict, ad.CommandsProcessor, Commands, SyncCommands):
         if self.volume is not None:
             self.volume.close()
 
-    def _discover_masters(self):
+    def _discover_server(self):
         for host in zeroconf.browse_workstations():
             url = 'http://%s:%s' % (host, node.port.default)
             self['/'].mount(url)
 
-    def _wait_for_master(self):
+    def _wait_for_server(self):
         with netlink.Netlink(socket.NETLINK_ROUTE, netlink.RTMGRP_IPV4_ROUTE |
                 netlink.RTMGRP_IPV6_ROUTE | netlink.RTMGRP_NOTIFY) as monitor:
             while True:

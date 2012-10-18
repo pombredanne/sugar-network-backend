@@ -1,3 +1,4 @@
+- forbit reupload blobs for Implementation and Artifact docs
 - use Context.dependencies while processing feed request
 - from service API, return 304 HTTP status w/o pinging remote SN server
 - check if moon icon is uptodate
