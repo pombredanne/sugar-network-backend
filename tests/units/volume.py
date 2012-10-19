@@ -222,10 +222,6 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
-                sorted(['ctime', 'prop', 'mtime', 'guid', 'localized_prop']),
-                sorted(self.call('GET', document='testdocument', guid=guid).keys()))
-
-        self.assertEqual(
                 ['guid', 'prop'],
                 self.call('GET', document='testdocument', guid=guid, reply=['guid', 'prop']).keys())
 

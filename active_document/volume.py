@@ -25,9 +25,7 @@ from active_document.index import IndexWriter
 from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
 from active_document.commands import to_int, to_list
-from active_document.metadata import BlobProperty, BrowsableProperty
-from active_document.metadata import StoredProperty
-from active_document.metadata import PropertyMeta
+from active_document.metadata import BlobProperty, StoredProperty, PropertyMeta
 from active_toolkit import coroutine, util, enforce
 
 
@@ -261,10 +259,7 @@ class VolumeCommands(CommandsProcessor):
             for prop in reply:
                 metadata[prop].assert_access(env.ACCESS_READ)
         else:
-            for prop in metadata.values():
-                if isinstance(prop, BrowsableProperty) and \
-                        prop.permissions & env.ACCESS_READ:
-                    reply.append(prop.name)
+            reply.append('guid')
 
     def _get_props(self, doc, request):
         result = {}
