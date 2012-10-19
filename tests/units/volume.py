@@ -18,7 +18,7 @@ from __init__ import tests
 import active_document as ad
 from active_document import env, document, SingleVolume, \
         Request, Response, Document, active_property, \
-        BlobProperty, NotFound, Redirect
+        BlobProperty, NotFound
 from active_document.volume import VolumeCommands
 from active_toolkit import sockets, coroutine
 
@@ -145,12 +145,10 @@ class VolumeTest(tests.Test):
         self.assertRaises(RuntimeError, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content={'path': '/'})
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob1')
-        stream = self.call('GET', document='testdocument', guid=guid, prop='blob')
-        self.assertEqual('blob1', ''.join([i for i in stream]))
+        self.assertEqual('blob1', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content_stream=StringIO('blob2'))
-        stream = self.call('GET', document='testdocument', guid=guid, prop='blob')
-        self.assertEqual('blob2', ''.join([i for i in stream]))
+        self.assertEqual('blob2', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
         self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
@@ -176,8 +174,7 @@ class VolumeTest(tests.Test):
                 'mtime': os.stat(blob_path).st_mtime,
                 }
 
-        stream = self.call('GET', document='testdocument', guid=guid, prop='blob')
-        self.assertEqual('blob', ''.join([i for i in stream]))
+        self.assertEqual('blob', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
 
         self.assertEqual(
                 {'guid': guid, 'blob': blob_meta},
@@ -187,49 +184,6 @@ class VolumeTest(tests.Test):
             {'guid': guid, 'blob': blob_meta},
             ],
             self.call('GET', document='testdocument', reply=['guid', 'blob'])['result'])
-
-    def test_CommandsGetBlobDirectory(self):
-
-        class TestDocument(Document):
-
-            @active_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-            @active_property(BlobProperty)
-            def blob(self, value):
-                return value
-
-            @active_property(prefix='L', localized=True, default='')
-            def localized_prop(self, value):
-                return value
-
-        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
-        guid = self.call('POST', document='testdocument', content={})
-
-        blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
-        self.touch((blob_path, '{}'))
-        self.touch((blob_path + '.blob/1/2/3', 'a'))
-        self.touch((blob_path + '.blob/4/5', 'b'))
-        self.touch((blob_path + '.blob/6', 'c'))
-
-        stream = StringIO()
-        for chunk in self.call('GET', document='testdocument', guid=guid, prop='blob'):
-            stream.write(chunk)
-        stream.seek(0)
-
-        msg = Message()
-        msg['content-type'] = self.response.content_type
-
-        files = sockets.decode_multipart(stream, self.response.content_length,
-                msg.get_boundary())
-        self.assertEqual(
-                sorted([
-                    ('1/2/3', 'a'),
-                    ('4/5', 'b'),
-                    ('6', 'c'),
-                    ]),
-                sorted([(name, content.read()) for name, content in files]))
 
     def test_CommandsGetAbsentBlobs(self):
 
@@ -515,49 +469,9 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={})
         self.call('PUT', document='testdocument', guid=guid, prop='blob', url='http://sugarlabs.org')
 
-        try:
-            self.call('GET', document='testdocument', guid=guid, prop='blob')
-            assert False
-        except Redirect, redirect:
-            self.assertEqual('http://sugarlabs.org', redirect.location)
-
-    def test_CompositeBlobs(self):
-
-        class TestDocument(Document):
-
-            @active_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-            @active_property(BlobProperty)
-            def blob(self, value):
-                return value
-
-            @active_property(prefix='L', localized=True, default='')
-            def localized_prop(self, value):
-                return value
-
-        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
-        guid = self.call('POST', document='testdocument', content={})
-        self.call('PUT', document='testdocument', guid=guid, prop='blob', url={
-            'file3': {'order': 3, 'url': 'url3', 'foo': 'bar'},
-            'file2': {'order': 2, 'url': 'url2', 'probe': None},
-            'file1': {'order': 1, 'url': 'url1'},
-            })
-
-        self.assertEqual([
-            'url1',
-            'url2',
-            'url3',
-            ],
-            self.call('GET', document='testdocument', guid=guid, prop='blob'))
-        self.assertRaises(env.NotFound,
-                self.call, 'GET', document='testdocument', guid=guid, prop='blob', part='fake')
-        try:
-            self.call('GET', document='testdocument', guid=guid, prop='blob', part='file2')
-            assert False
-        except Redirect, redirect:
-            self.assertEqual('url2', redirect.location)
+        self.assertEqual(
+                'http://sugarlabs.org',
+                self.call('GET', document='testdocument', guid=guid, prop='blob')['url'])
 
     def test_before_create(self):
 
@@ -844,18 +758,14 @@ class VolumeTest(tests.Test):
                 meta['path'] = 'new-blob'
                 return meta
 
-            @active_property(BlobProperty)
-            def empty_blob(self, meta):
-                return ad.PropertyMeta(url='http://sugarlabs.org')
-
         self.volume = SingleVolume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
         self.touch(('new-blob', 'new-blob'))
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='old-blob')
 
         self.assertEqual(
-                ['new-blob'],
-                [i for i in self.call('GET', document='testdocument', guid=guid, prop='blob')])
+                'new-blob',
+                self.call('GET', document='testdocument', guid=guid, prop='blob')['path'])
         self.assertEqual(
                 '1',
                 self.call('GET', document='testdocument', guid=guid, prop='prop1'))
@@ -865,12 +775,6 @@ class VolumeTest(tests.Test):
         self.assertEqual(
                 {'prop1': '1', 'prop2': -1},
                 self.call('GET', document='testdocument', guid=guid, reply=['prop1', 'prop2']))
-
-        try:
-            self.call('GET', document='testdocument', guid=guid, prop='empty_blob')
-            assert False
-        except Redirect, redirect:
-            self.assertEqual('http://sugarlabs.org', redirect.location)
 
     def test_properties_OverrideSet(self):
 
@@ -915,16 +819,13 @@ class VolumeTest(tests.Test):
         self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='blob2')
-        try:
-            self.call('GET', document='testdocument', guid=guid, prop='blob1')
-            assert False
-        except Redirect, redirect:
-            self.assertEqual('blob2', redirect.location)
+        self.assertEqual('blob2', self.call('GET', document='testdocument', guid=guid, prop='blob1')['url'])
 
         guid = self.call('POST', document='testdocument', content={'blob2': 'foo'})
-        self.assertEqual(' foo ', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob2')))
+        self.assertEqual(' foo ', file(self.call('GET', document='testdocument', guid=guid, prop='blob2')['path']).read())
+
         self.call('PUT', document='testdocument', guid=guid, prop='blob2', content='bar')
-        self.assertEqual(' bar ', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob2')))
+        self.assertEqual(' bar ', file(self.call('GET', document='testdocument', guid=guid, prop='blob2')['path']).read())
 
     def test_SubCall(self):
 
@@ -950,11 +851,11 @@ class VolumeTest(tests.Test):
 
         guid = self.call('POST', document='testdocument', content={'blob': '0'})
         coroutine.dispatch()
-        self.assertEqual('0!', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
+        self.assertEqual('0!', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='1')
         coroutine.dispatch()
-        self.assertEqual('0!1!', ''.join(self.call('GET', document='testdocument', guid=guid, prop='blob')))
+        self.assertEqual('0!1!', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
 
     def test_Group(self):
 

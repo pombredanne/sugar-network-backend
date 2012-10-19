@@ -95,10 +95,10 @@ class Request(dict):
     if_modified_since = None
     response = None
 
-    def __init__(self, *args, **props):
-        if args:
-            props = args[0]
-        dict.__init__(self, props)
+    def __init__(self, props_=None, **kwargs):
+        if props_ is not None:
+            kwargs = props_
+        dict.__init__(self, kwargs)
         self._pos = 0
 
     @property
@@ -195,13 +195,15 @@ class CommandsProcessor(object):
     def super_call(self, request, response):
         raise CommandNotFound()
 
-    def call(self, request, response):
+    def call(self, request, response=None):
         cmd = self.resolve(request)
         enforce(cmd is not None, CommandNotFound, 'Unsupported command')
 
         enforce(request.access_level & cmd.access_level, env.Forbidden,
                 'Operation is permitted on requester\'s level')
 
+        if response is None:
+            response = Response()
         request.commands = self
         request.response = response
 

@@ -17,7 +17,7 @@ import os
 import time
 import logging
 from contextlib import contextmanager
-from os.path import exists, join, abspath, isdir
+from os.path import exists, join, abspath
 
 from active_document import env
 from active_document.directory import Directory
@@ -26,8 +26,9 @@ from active_document.commands import document_command, directory_command
 from active_document.commands import CommandsProcessor, property_command
 from active_document.commands import to_int, to_list
 from active_document.metadata import BlobProperty, BrowsableProperty
+from active_document.metadata import StoredProperty
 from active_document.metadata import PropertyMeta
-from active_toolkit import coroutine, util, sockets, enforce
+from active_toolkit import coroutine, util, enforce
 
 
 _logger = logging.getLogger('active_document.volume')
@@ -207,31 +208,14 @@ class VolumeCommands(CommandsProcessor):
 
         prop.assert_access(env.ACCESS_READ)
 
-        if not isinstance(prop, BlobProperty):
+        if isinstance(prop, StoredProperty):
             value = doc.get(prop.name, request.accept_language or self._lang)
             return prop.on_get(doc, value)
-
-        meta = prop.on_get(doc, meta)
-        enforce(meta is not None, env.NotFound, 'BLOB does not exist')
-
-        url = meta.url(part)
-        if url is not None:
-            if not isinstance(url, basestring):
-                return url
-            raise env.Redirect(url)
-
-        enforce('path' in meta, env.NotFound, 'BLOB does not exist')
-
-        path = meta['path']
-        if isdir(path):
-            dir_info, dir_reader = sockets.encode_directory(path)
-            response.content_length = dir_info.content_length
-            response.content_type = dir_info.content_type
-            return dir_reader
         else:
-            response.content_length = os.stat(path).st_size
-            response.content_type = prop.mime_type
-            return _file_reader(path)
+            meta = prop.on_get(doc, meta)
+            enforce(meta is not None and ('path' in meta or 'url' in meta),
+                    env.NotFound, 'BLOB does not exist')
+            return meta
 
     def before_create(self, request, props):
         ts = int(time.time())
@@ -290,12 +274,3 @@ class VolumeCommands(CommandsProcessor):
         for prop in request['reply']:
             result[prop] = metadata[prop].on_get(doc, doc.get(prop, lang))
         return result
-
-
-def _file_reader(path):
-    with file(path, 'rb') as f:
-        while True:
-            chunk = f.read(sockets.BUFFER_SIZE)
-            if not chunk:
-                break
-            yield chunk

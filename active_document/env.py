@@ -105,13 +105,6 @@ class Forbidden(Exception):
     pass
 
 
-class Redirect(Exception):
-
-    def __init__(self, location, *args, **kwargs):
-        self.location = location
-        Exception.__init__(self, *args, **kwargs)
-
-
 class NotModified(Exception):
     pass
 
