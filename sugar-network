@@ -197,6 +197,8 @@ class Application(application.Application):
             else:
                 print dumps(result, indent=2)
         else:
+            if hasattr(result, 'read'):
+                result = result.read()
             sys.stdout.write(result)
 
 

@@ -41,6 +41,15 @@ class HTTPStatus(Exception):
     result = None
 
 
+class Redirect(HTTPStatus):
+
+    status = '303 See Other'
+
+    def __init__(self, location):
+        HTTPStatus.__init__(self)
+        self.headers = {'Location': location}
+
+
 class BadRequest(HTTPStatus):
 
     status = '400 Bad Request'
@@ -72,7 +81,8 @@ def stream_reader(stream):
                 break
             yield chunk
     finally:
-        stream.close()
+        if hasattr(stream, 'close'):
+            stream.close()
 
 
 class Router(object):
@@ -153,8 +163,14 @@ class Router(object):
             else:
                 result = self.commands.call(request, response)
 
-        if hasattr(result, 'read'):
+        if isinstance(result, ad.PropertyMeta):
+            if 'url' in result:
+                raise Redirect(result['url'])
             # pylint: disable-msg=E1103
+            response.content_type = result.get('mime_type')
+            result = file(result['path'], 'rb')
+
+        if hasattr(result, 'read'):
             if hasattr(result, 'fileno'):
                 response.content_length = os.fstat(result.fileno()).st_size
             elif hasattr(result, 'seek'):
@@ -177,9 +193,9 @@ class Router(object):
         result = None
         try:
             result = self.call(request, response)
-        except ad.Redirect, error:
-            response.status = '303 See Other'
-            response['Location'] = error.location
+        except Redirect, error:
+            response.status = error.status
+            response.update(error.headers)
             response.content_type = None
         except ad.NotModified:
             response.status = '304 Not Modified'

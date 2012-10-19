@@ -37,7 +37,7 @@ class Router(router.Router):
         # XXX Since SSE doesn't support CORS for now, have to
         # serve Hub via HTTP instead of file:// for IPC users
         if request.environ['PATH_INFO'] == '/hub':
-            raise ad.Redirect('/hub/')
+            raise router.Redirect('/hub/')
 
         path = request.path[1:]
         if not path:

@@ -10,7 +10,7 @@ import active_document as ad
 from sugar_network import node, sugar
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
-from sugar_network.resources.volume import Volume, Resource, Commands, Request
+from sugar_network.resources.volume import Volume, Resource, Commands, Request, VolumeCommands
 from active_toolkit import coroutine
 
 
@@ -278,13 +278,6 @@ class VolumeTest(tests.Test):
             'title': 'title',
             'description': 'description',
             })
-        guid5 = call(cp, method='POST', document='context', principal='principal', content={
-            'type': 'activity',
-            'title': 'title5',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        volume['context'].set_blob(guid5, 'icon', url={'file1': {'order': 1, 'url': '/1'}, 'file2': {'order': 2, 'url': 'http://2'}})
 
         # No GUID in reply
         self.assertEqual(
@@ -319,7 +312,6 @@ class VolumeTest(tests.Test):
                     {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
                     {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
                     {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
-                    {'guid': guid5, 'icon': ['http://localhost/1', 'http://2'], 'layer': ['public']},
                     ]),
                 sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
 
@@ -334,7 +326,6 @@ class VolumeTest(tests.Test):
                     {'guid': guid1, 'icon': 'static_url/static/images/missing.png', 'layer': ['public']},
                     {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
                     {'guid': guid3, 'icon': 'static_url/foo/bar', 'layer': ['public']},
-                    {'guid': guid5, 'icon': ['static_url/1', 'http://2'], 'layer': ['public']},
                     ]),
                 sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
 
@@ -361,10 +352,10 @@ class VolumeTest(tests.Test):
         assert exists('db/context/index')
 
 
-class TestCommands(ad.VolumeCommands, Commands):
+class TestCommands(VolumeCommands, Commands):
 
     def __init__(self, volume):
-        ad.VolumeCommands.__init__(self, volume)
+        VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
 
     def connect(self, callback, condition=None, **kwargs):

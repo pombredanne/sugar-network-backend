@@ -186,7 +186,7 @@ class Client(object):
 
         result = self._decode_reply(reply)
         if result is None:
-            result = reply.content
+            result = reply.raw
         return result
 
     def subscribe(self):

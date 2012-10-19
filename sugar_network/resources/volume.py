@@ -194,8 +194,6 @@ class Volume(ad.SingleVolume):
 
 class Commands(object):
 
-    volume = None
-
     def __init__(self):
         self._notifier = coroutine.AsyncResult()
         self.connect(lambda event: self._notify(event))
@@ -220,41 +218,6 @@ class Commands(object):
         if hasattr(request, 'environ'):
             peer = request.environ.get('HTTP_SUGAR_USER') or peer
         return self._pull_events(peer, only_commits)
-
-    @ad.directory_command_post(method='GET')
-    def _Commands_find_post(self, request, response, result):
-        self._mixin_blobs(request, result['result'])
-        return result
-
-    @ad.document_command_post(method='GET')
-    def _Commands_get_post(self, request, response, result):
-        self._mixin_blobs(request, [result])
-        return result
-
-    def _mixin_blobs(self, request, result):
-        requested_guid = request.get('guid')
-        if node.static_url.value:
-            prefix = node.static_url.value
-        elif hasattr(request, 'environ'):
-            prefix = 'http://' + request.environ['HTTP_HOST']
-        else:
-            prefix = 'http://localhost:%s' % local.ipc_port.value
-        if request.mountpoint in (None, '/'):
-            postfix = ''
-        else:
-            postfix = '?mountpoint=' + request.mountpoint
-        document = request['document']
-
-        for props in result:
-            guid = props.get('guid') or requested_guid
-            for name, value in props.items():
-                if not isinstance(value, ad.PropertyMeta):
-                    continue
-                enforce(guid, 'No way to get BLOB urls if %r was not '
-                        'in %r parameter', 'guid', 'reply')
-                props[name] = value.url(
-                        default='/'.join(['', document, guid, name]) + postfix,
-                        prefix=prefix)
 
     def _pull_events(self, peer, only_commits):
         _logger.debug('Start pulling events to %s user', peer)
@@ -312,3 +275,55 @@ class VolumeCommands(ad.VolumeCommands):
             result.extend(dep['packages'][repo].get('binary') or [])
 
         return result
+
+    @ad.directory_command_post(method='GET')
+    def _VolumeCommands_find_post(self, request, response, result):
+        self._mixin_blobs(request, result['result'])
+        return result
+
+    @ad.document_command_post(method='GET')
+    def _VolumeCommands_get_post(self, request, response, result):
+        self._mixin_blobs(request, [result])
+        return result
+
+    def _mixin_blobs(self, request, result):
+        if 'reply' not in request:
+            return
+
+        blobs = []
+        metadata = self.volume[request['document']].metadata
+        for prop in request['reply']:
+            if isinstance(metadata[prop], ad.BlobProperty):
+                blobs.append(prop)
+        if not blobs:
+            return
+
+        requested_guid = request.get('guid')
+        enforce(requested_guid or 'guid' in request['reply'],
+                'No way to get BLOB urls if GUID was not specified')
+
+        if node.static_url.value:
+            prefix = node.static_url.value
+        elif hasattr(request, 'environ'):
+            prefix = 'http://' + request.environ['HTTP_HOST']
+        else:
+            prefix = 'http://localhost:%s' % local.ipc_port.value
+        if request.mountpoint in (None, '/'):
+            postfix = ''
+        else:
+            postfix = '?mountpoint=' + request.mountpoint
+
+        _logger.error('> %r', result)
+        for props in result:
+            for name in blobs:
+                url = props[name].get('url')
+                if url is None:
+                    url = '/'.join([
+                        '',
+                        request['document'],
+                        props.get('guid') or requested_guid,
+                        name,
+                        ]) + postfix
+                if url.startswith('/'):
+                    url = prefix + url
+                props[name] = url
