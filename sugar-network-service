@@ -43,33 +43,13 @@ from active_toolkit import util, printf, application, coroutine, enforce
 VERSION = '0.4'
 
 
-class NullHandler(logging.Handler):
-
-    def emit(self, record):
-        pass
-
-
 class Application(application.Application):
 
     _ipc_server = None
 
     def __init__(self, **kwargs):
         application.Application.__init__(self, **kwargs)
-
-        if application.debug.value < 3:
-            for log_name in (
-                    'requests.packages.urllib3.connectionpool',
-                    'requests.packages.urllib3.poolmanager',
-                    'requests.packages.urllib3.response',
-                    'requests.packages.urllib3',
-                    'inotify',
-                    'netlink',
-                    'sneakernet',
-                    'toolkit',
-                    ):
-                logger = logging.getLogger(log_name)
-                logger.propagate = False
-                logger.addHandler(NullHandler())
+        local.set_logging_verbose(application.debug.value)
 
         new_root = (local.local_root.value != local.local_root.default)
         local.local_root.value = abspath(local.local_root.value)
