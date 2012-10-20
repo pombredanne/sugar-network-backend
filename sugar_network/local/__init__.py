@@ -45,7 +45,6 @@ activity_dirs = Option(
         type_cast=Option.paths_cast, type_repr=Option.paths_repr, default=[
             expanduser('~/Activities'),
             '/usr/share/sugar/activities',
-            '/opt/sweets',
             ])
 
 server_mode = Option(
