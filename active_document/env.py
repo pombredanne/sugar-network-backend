@@ -105,10 +105,6 @@ class Forbidden(Exception):
     pass
 
 
-class NotModified(Exception):
-    pass
-
-
 class Query(object):
 
     def __init__(self, offset=None, limit=None, query='', reply=None,
