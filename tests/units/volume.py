@@ -237,48 +237,6 @@ class VolumeTest(tests.Test):
                 sorted(['prop']),
                 sorted(self.call('GET', document='testdocument', reply=['prop'])['result'][0].keys()))
 
-    def test_Command_NotModifiedGet(self):
-
-        class TestDocument(Document):
-
-            @active_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-            @active_property(BlobProperty)
-            def blob(self, value):
-                return value
-
-        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
-
-        guid = self.call('POST', document='testdocument', content={})
-        self.call('PUT', document='testdocument', guid=guid, prop='blob', content_stream=StringIO('value'))
-        doc = self.volume['testdocument'].get(guid)
-
-        try:
-            self.call('GET', document='testdocument', guid=guid, prop='prop', if_modified_since=doc.meta('prop')['mtime'])
-            assert False
-        except ad.NotModified:
-            pass
-        try:
-            self.call('GET', document='testdocument', guid=guid, prop='prop', if_modified_since=doc.meta('prop')['mtime'] + 1)
-            assert False
-        except ad.NotModified:
-            pass
-        self.call('GET', document='testdocument', guid=guid, prop='prop', if_modified_since=doc.meta('prop')['mtime'] - 1)
-
-        try:
-            self.call('GET', document='testdocument', guid=guid, prop='blob', if_modified_since=doc.meta('blob')['mtime'])
-            assert False
-        except ad.NotModified:
-            pass
-        try:
-            self.call('GET', document='testdocument', guid=guid, prop='blob', if_modified_since=doc.meta('blob')['mtime'] + 1)
-            assert False
-        except ad.NotModified:
-            pass
-        self.call('GET', document='testdocument', guid=guid, prop='blob', if_modified_since=doc.meta('blob')['mtime'] - 1)
-
     def test_LocalizedSet(self):
         env.DEFAULT_LANG = 'en'
 

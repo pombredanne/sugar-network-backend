@@ -91,8 +91,6 @@ class Request(dict):
     access_level = env.ACCESS_REMOTE
     accept_language = None
     commands = None
-    #: UNIX seconds of last modification
-    if_modified_since = None
     response = None
 
     def __init__(self, props_=None, **kwargs):

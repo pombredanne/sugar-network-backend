@@ -196,13 +196,6 @@ class VolumeCommands(CommandsProcessor):
         prop = directory.metadata[prop]
         doc = directory.get(guid)
         doc.request = request
-        meta = doc.meta(prop.name)
-
-        if meta is not None:
-            if request.if_modified_since:
-                if meta['mtime'] <= request.if_modified_since:
-                    raise env.NotModified()
-            response.last_modified = meta['mtime']
 
         prop.assert_access(env.ACCESS_READ)
 
@@ -210,7 +203,7 @@ class VolumeCommands(CommandsProcessor):
             value = doc.get(prop.name, request.accept_language or self._lang)
             return prop.on_get(doc, value)
         else:
-            meta = prop.on_get(doc, meta)
+            meta = prop.on_get(doc, doc.meta(prop.name))
             enforce(meta is not None and ('path' in meta or 'url' in meta),
                     env.NotFound, 'BLOB does not exist')
             return meta
