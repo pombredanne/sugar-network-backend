@@ -131,6 +131,14 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                 except Exception:
                     util.exception(_logger, 'Failed to dispatch %r', event)
 
+    @ad.document_command(method='GET', cmd='make')
+    def make(self, mountpoint, document, guid):
+        enforce(document == 'context', 'Only contexts can be launched')
+
+        for event in injector.make(mountpoint, guid):
+            event['event'] = 'make'
+            self.publish(event)
+
     @ad.document_command(method='GET', cmd='launch',
             arguments={'args': ad.to_list})
     def launch(self, mountpoint, document, guid, args, context=None,

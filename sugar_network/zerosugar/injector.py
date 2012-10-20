@@ -36,6 +36,10 @@ _pms_path = _PMS_PATHS.get(lsb_release.distributor_id())
 _mtime = None
 
 
+def make(mountpoint, guid):
+    return pipe.fork(_make, mountpoint, guid)
+
+
 def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
         uri=None, color=None):
     if object_id:
@@ -70,40 +74,9 @@ def invalidate_solutions(mtime):
     _mtime = mtime
 
 
-def _launch(mountpoint, context, args, session):
-    if args is None:
-        args = []
-
+def _make(mountpoint, context, session=None):
     solution = _solve(mountpoint, context, session)
-    _make(solution)
 
-    args = solution[0]['command'] + args
-    _logger.info('Executing %r from %r: %s', context, mountpoint, args)
-    pipe.progress('exec')
-
-    _activity_env(solution[0], os.environ)
-    os.execvpe(args[0], args, os.environ)
-
-
-def _clone(mountpoint, context):
-    solution = _solve(mountpoint, context)
-    _make(solution)
-
-    cloned = []
-    try:
-        for impl in solution:
-            dst_path = util.unique_filename(
-                    local.activity_dirs.value[0], basename(impl['path']))
-            cloned.append(dst_path)
-            _logger.info('Clone implementation to %r', dst_path)
-            util.cptree(impl['path'], dst_path)
-    except Exception:
-        while cloned:
-            shutil.rmtree(cloned.pop(), ignore_errors=True)
-        raise
-
-
-def _make(solution):
     to_install = []
     for impl in solution:
         if 'install' in impl:
@@ -122,13 +95,47 @@ def _make(solution):
         impl['path'] = impl_path
 
     pipe.progress('ready', session={'implementation': solution[0]['id']})
+    return solution
+
+
+def _launch(mountpoint, context, args, session):
+    if args is None:
+        args = []
+
+    solution = _make(mountpoint, context, session)
+
+    args = solution[0]['command'] + args
+    _logger.info('Executing %r from %r: %s', context, mountpoint, args)
+    pipe.progress('exec')
+
+    _activity_env(solution[0], os.environ)
+    os.execvpe(args[0], args, os.environ)
+
+
+def _clone(mountpoint, context):
+    solution = _make(mountpoint, context)
+
+    cloned = []
+    try:
+        for impl in solution:
+            dst_path = util.unique_filename(
+                    local.activity_dirs.value[0], basename(impl['path']))
+            cloned.append(dst_path)
+            _logger.info('Clone implementation to %r', dst_path)
+            util.cptree(impl['path'], dst_path)
+    except Exception:
+        while cloned:
+            shutil.rmtree(cloned.pop(), ignore_errors=True)
+        raise
 
 
 def _solve(mountpoint, context, session=None):
+    _logger.debug('Solve %r from %r', context, mountpoint)
     pipe.progress('analyze', session=session)
 
     cached_path, solution, stale = _get_cached_solution(mountpoint, context)
     if stale is False:
+        _logger.debug('Reuse cached solution')
         return solution
 
     from sugar_network import zeroinstall
@@ -138,7 +145,7 @@ def _solve(mountpoint, context, session=None):
     except Exception:
         if solution is None:
             raise
-        util.exception(_logger, 'Fallback to stale %r solution', context)
+        util.exception(_logger, 'Fallback to stale solution')
     else:
         _set_cached_solution(cached_path, solution)
 

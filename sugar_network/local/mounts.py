@@ -187,15 +187,15 @@ class _ProxyCommands(object):
         if document != 'context':
             return self.proxy_call(request, response)
 
-        if reply:
+        if not reply:
+            reply = request['reply'] = ['guid']
+        else:
             # Do not modify original list
             reply = request['reply'] = request['reply'][:]
 
         mixin = {}
         for prop, default in _LOCAL_PROPS.items():
-            if not reply:
-                mixin[prop] = default
-            elif prop in reply:
+            if prop in reply:
                 mixin[prop] = default
                 reply.remove(prop)
 
