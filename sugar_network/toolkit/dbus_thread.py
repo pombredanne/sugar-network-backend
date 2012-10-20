@@ -19,7 +19,6 @@ import threading
 import dbus
 import gobject
 from dbus.service import Object
-from dbus.mainloop.glib import threads_init, DBusGMainLoop
 
 import active_document as ad
 from active_toolkit import util, coroutine
@@ -33,9 +32,6 @@ _call_queue = coroutine.AsyncQueue()
 
 
 def start(commands_processor):
-    gobject.threads_init()
-    threads_init()
-
     mainloop = gobject.MainLoop()
     thread = threading.Thread(target=_mainloop_thread, args=[mainloop])
     thread.daemon = True
@@ -108,7 +104,6 @@ class Service(Object):
 
 
 def _mainloop_thread(mainloop):
-    DBusGMainLoop(set_as_default=True)
 
     def Disconnected_cb():
         _logger.info('Service disconnected from the bus, will exit')
