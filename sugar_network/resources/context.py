@@ -37,7 +37,7 @@ class Context(Resource):
     def implement(self, value):
         return value
 
-    @ad.active_property(prefix='S', full_text=True, localized=True)
+    @ad.active_property(slot=1, prefix='S', full_text=True, localized=True)
     def title(self, value):
         return value
 

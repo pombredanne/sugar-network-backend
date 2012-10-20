@@ -24,5 +24,6 @@ from auth import *
 from context import *
 from implementation import *
 from obs import *
+from journal import *
 
 tests.main()

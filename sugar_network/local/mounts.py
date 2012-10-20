@@ -341,7 +341,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             request['layer'] = local.layers.value
         return self._client.call(request, response)
 
-    def call(self, request, response):
+    def call(self, request, response=None):
         try:
             return ad.CommandsProcessor.call(self, request, response)
         except ad.CommandNotFound:
@@ -376,11 +376,11 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
     def _connect(self):
         for url in self._api_urls:
             try:
-                _logger.debug('Connecting to %r master', url)
+                _logger.debug('Connecting to %r node', url)
                 self._client = Client(url)
                 subscription = self._client.subscribe()
             except Exception:
-                util.exception(_logger, 'Cannot connect to %r master', url)
+                util.exception(_logger, 'Cannot connect to %r node', url)
                 continue
 
             try:
@@ -390,7 +390,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
                             stat['documents']['implementation']['mtime'])
                 self._remote_volume_guid = stat['guid']
 
-                _logger.info('Connected to %r master', url)
+                _logger.info('Connected to %r node', url)
                 self._url = url
                 _Mount.set_mounted(self, True)
 
@@ -404,7 +404,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             except Exception:
                 util.exception(_logger, 'Failed to dispatch remote event')
             finally:
-                _logger.info('Got disconnected from %r master', url)
+                _logger.info('Got disconnected from %r node', url)
                 _Mount.set_mounted(self, False)
                 self._client.close()
                 self._client = None

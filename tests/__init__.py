@@ -146,7 +146,7 @@ class Test(unittest.TestCase):
             self.volume.close()
             self.volume = None
 
-    def waitpid(self, pid, sig=signal.SIGTERM):
+    def waitpid(self, pid, sig=signal.SIGTERM, ignore_status=False):
         if pid in self.forks:
             self.forks.remove(pid)
         if sig:
@@ -156,6 +156,8 @@ class Test(unittest.TestCase):
                 pass
         try:
             __, status = os.waitpid(pid, 0)
+            if ignore_status:
+                return 0
             return os.WEXITSTATUS(status)
         except Exception:
             return 0
@@ -205,10 +207,14 @@ class Test(unittest.TestCase):
             return pid
 
         self.fork_num += 1
+        logfile = file('%s-%s.log' % (tmpdir, self.fork_num), 'w')
+        os.dup2(logfile.fileno(), 1)
+        os.dup2(logfile.fileno(), 2)
+        logfile.close()
+
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG,
-                filename='%s-%s.log' % (tmpdir, self.fork_num))
+        logging.basicConfig(level=logging.DEBUG)
 
         coroutine.shutdown()
         try:
@@ -217,8 +223,6 @@ class Test(unittest.TestCase):
         except Exception:
             logging.exception('Child failed')
             result = 1
-        sys.stdout.flush()
-        sys.stderr.flush()
         os._exit(result)
 
     def popen(self, *args, **kwargs):

@@ -1929,7 +1929,7 @@
         <dia:point val="17.2175,59.8"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="17.1999,59.7824;20.4413,64.7856"/>
+        <dia:rectangle val="17.1999,59.7824;20.4412,64.7856"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
@@ -2509,7 +2509,7 @@
         <dia:point val="67,33"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="66.985,32.985;82.145,61.815"/>
+        <dia:rectangle val="66.985,32.985;82.145,48.615"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="67,33"/>
@@ -2518,7 +2518,7 @@
         <dia:real val="15.130000000000001"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="28.800000000000004"/>
+        <dia:real val="15.600000000000001"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Artifact#</dia:string>
@@ -2636,52 +2636,6 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#keep#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#bool [R W L]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#false#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#Is Artifact favorite#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#mime_type#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#enum [R WN F]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#""#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#Artifact's MIME type#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
             <dia:string>#title#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
@@ -2715,75 +2669,6 @@
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Long description#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#activity_id#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#str [R WA]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#""#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#ID of Sugar Activity session that created this Artifact#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#filesize#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#int [R W S L]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#0#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#Size in bytes of `data` BLOB; makes sense only for local database#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#traits#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#dict [R WN]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#{}#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#A dictionary of extra properties associated with the Artifact#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -3707,7 +3592,7 @@
           <dia:point val="63,20.3"/>
         </dia:attribute>
         <dia:attribute name="obj_bb">
-          <dia:rectangle val="63,19.6864;82.6911,20.4873"/>
+          <dia:rectangle val="63,19.705;82.6725,20.45"/>
         </dia:attribute>
         <dia:attribute name="text">
           <dia:composite type="text">
