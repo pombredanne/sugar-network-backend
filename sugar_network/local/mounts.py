@@ -321,11 +321,12 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         enforce(self.mounted.is_set(), 'Not mounter')
         return '/'.join((self._url,) + path)
 
-    def __init__(self, home_volume):
+    def __init__(self, home_volume, listen_events=True):
         ad.CommandsProcessor.__init__(self)
         _Mount.__init__(self)
         _ProxyCommands.__init__(self, home_volume)
 
+        self._listen_events = listen_events
         self._client = None
         self._remote_volume_guid = None
         self._url = None
@@ -378,22 +379,26 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             try:
                 _logger.debug('Connecting to %r node', url)
                 self._client = Client(url)
-                subscription = self._client.subscribe()
+                stat = self._client.get(cmd='stat')
+                if self._listen_events:
+                    subscription = self._client.subscribe()
             except Exception:
                 util.exception(_logger, 'Cannot connect to %r node', url)
                 continue
 
+            if 'documents' in stat:
+                injector.invalidate_solutions(
+                        stat['documents']['implementation']['mtime'])
+            self._remote_volume_guid = stat['guid']
+
+            _logger.info('Connected to %r node', url)
+            self._url = url
+            _Mount.set_mounted(self, True)
+
+            if not self._listen_events:
+                break
+
             try:
-                stat = self._client.get(cmd='stat')
-                if 'documents' in stat:
-                    injector.invalidate_solutions(
-                            stat['documents']['implementation']['mtime'])
-                self._remote_volume_guid = stat['guid']
-
-                _logger.info('Connected to %r node', url)
-                self._url = url
-                _Mount.set_mounted(self, True)
-
                 for event in subscription:
                     if event.get('document') == 'implementation':
                         mtime = event.get('props', {}).get('mtime')

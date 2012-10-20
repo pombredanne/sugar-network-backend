@@ -162,7 +162,7 @@ class Application(application.Application):
                 mountset = Mountset(volume)
                 mountset['~'] = HomeMount(volume)
                 if not mountpoint or mountpoint == '/':
-                    mountset['/'] = RemoteMount(volume)
+                    mountset['/'] = RemoteMount(volume, listen_events=False)
                     mountset['/'].mounted.wait()
                 server = coroutine.WSGIServer(
                         ('localhost', local.ipc_port.value), Router(mountset))
