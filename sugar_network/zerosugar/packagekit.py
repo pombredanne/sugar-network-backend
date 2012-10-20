@@ -23,7 +23,7 @@ from gettext import gettext as _
 
 import dbus
 import gobject
-from dbus.mainloop.glib import DBusGMainLoop
+from dbus.mainloop.glib import threads_init, DBusGMainLoop
 
 from sugar_network.zerosugar import pipe
 from active_toolkit import enforce
@@ -36,8 +36,6 @@ _logger = logging.getLogger('zerosugar.packagekit')
 _pk = None
 _pk_max_resolve = 100
 _pk_max_install = 2500
-
-DBusGMainLoop(set_as_default=True)
 
 
 def resolve(names):
@@ -167,10 +165,10 @@ class _Transaction(object):
         self.error_details = details
 
     def __package_cb(self, status, pk_id, summary):
-        from zeroinstall.injector import distro
+        from sugar_network import zeroinstall
 
         package_name, version, arch, __ = pk_id.split(';')
-        clean_version = distro.try_cleanup_distro_version(version)
+        clean_version = zeroinstall.try_cleanup_distro_version(version)
         if not clean_version:
             _logger.warn('Cannot parse distribution version "%s" '
                     'for package "%s"', version, package_name)
@@ -178,7 +176,7 @@ class _Transaction(object):
                 'pk_id': str(pk_id),
                 'version': clean_version,
                 'name': package_name,
-                'arch': distro.canonical_machine(arch),
+                'arch': zeroinstall.canonical_machine(arch),
                 'installed': (status == 'installed'),
                 }
         _logger.debug('Resolved PackageKit name: %r', package)
@@ -194,6 +192,9 @@ def _get_pk():
         else:
             return _pk
 
+    gobject.threads_init()
+    threads_init()
+    DBusGMainLoop(set_as_default=True)
     try:
         bus = dbus.SystemBus()
         pk_object = bus.get_object('org.freedesktop.PackageKit',

@@ -24,7 +24,7 @@ from active_toolkit import util
 
 sys.path.insert(0, join(abspath(dirname(__file__)), 'zeroinstall-injector'))
 
-from zeroinstall.injector import reader, model
+from zeroinstall.injector import reader, model, distro
 from zeroinstall.injector.config import Config
 from zeroinstall.injector.driver import Driver
 from zeroinstall.injector.requirements import Requirements
@@ -38,6 +38,9 @@ def Interface_init(self, url):
 model.Interface.__init__ = Interface_init
 reader.load_feed_from_cache = lambda url, * args, ** kwargs: _load_feed(url)
 reader.check_readable = lambda * args, ** kwargs: True
+
+try_cleanup_distro_version = distro.try_cleanup_distro_version
+canonical_machine = distro.canonical_machine
 
 _logger = logging.getLogger('zeroinstall')
 _mountpoints = None
@@ -156,9 +159,9 @@ def _load_feed(context):
     feed.mountpoint = mountpoint
     feed.name = feed_content['title']
 
-    distro = feed_content['packages'].get(lsb_release.distributor_id())
-    if distro:
-        feed.to_resolve = distro.get('binary')
+    distr = feed_content['packages'].get(lsb_release.distributor_id())
+    if distr:
+        feed.to_resolve = distr.get('binary')
 
     for release in feed_content['versions']:
         impl_id = release['guid']

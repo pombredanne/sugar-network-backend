@@ -92,8 +92,8 @@ class Commands(object):
                 guid = str(item['uid'])
                 result.append({
                         'guid': guid,
-                        'title': str(item['title']),
-                        'description': str(item['description']),
+                        'title': str(item.get('title', '')),
+                        'description': str(item.get('description', '')),
                         'preview': preview_url(guid),
                         })
             response.content_type = 'application/json'
