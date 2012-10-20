@@ -7,7 +7,6 @@ from spec import *
 from volume import *
 from local import *
 from node import *
-from dbus_client import *
 from sneakernet import *
 from router import *
 from files_sync import *

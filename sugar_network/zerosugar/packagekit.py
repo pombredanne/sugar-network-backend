@@ -25,7 +25,7 @@ import dbus
 import gobject
 from dbus.mainloop.glib import threads_init, DBusGMainLoop
 
-from sugar_network.zerosugar import pipe
+from sugar_network.toolkit import pipe
 from active_toolkit import enforce
 
 
@@ -41,7 +41,7 @@ _pk_max_install = 2500
 def resolve(names):
     enforce(_get_pk() is not None, 'Cannot connect to PackageKit')
 
-    pipe.progress('resolve',
+    pipe.feedback('resolve',
             message=_('Resolving %s package name(s)') % len(names))
     _logger.debug('Resolve names %r', names)
     result = {}
@@ -67,7 +67,7 @@ def resolve(names):
 def install(packages):
     ids = [i['pk_id'] for i in packages]
 
-    pipe.progress('install',
+    pipe.feedback('install',
             message=_('Installing %s package(s)') % len(packages))
     _logger.debug('Ask PackageKit to install %r packages', ids)
 

@@ -25,11 +25,11 @@ from sugar_network import sugar
 from active_toolkit import coroutine, util
 
 
-_logger = logging.getLogger('zerosugar.pipe')
+_logger = logging.getLogger('pipe')
 _pipe = None
 
 
-def progress(state, **event):
+def feedback(state, **event):
     if _pipe is None:
         return
     event['state'] = state
@@ -37,12 +37,13 @@ def progress(state, **event):
     os.write(_pipe, '\n')
 
 
-def fork(callback, mountpoint, context, *args):
+def fork(callback, logname=None, session=None, **kwargs):
     fd_r, fd_w = os.pipe()
 
     pid = os.fork()
     if pid:
         os.close(fd_w)
+        _logger.debug('Fork %s%r with %s pid', callback, kwargs, pid)
         return _Pipe(pid, fd_r)
 
     os.close(fd_r)
@@ -50,18 +51,17 @@ def fork(callback, mountpoint, context, *args):
     _pipe = fd_w
 
     def thread_func():
-        progress(state='fork',
-                session={
-                    'log_path': _setup_logging(context),
-                    'mountpoint': mountpoint,
-                    'context': context,
-                    })
+        if logname:
+            session['log_path'] = _setup_logging(logname)
+        feedback('fork', session=session)
         try:
-            callback(mountpoint, context, *args)
+            callback(**kwargs)
         except Exception, error:
             util.exception(_logger)
-            progress(state='failure', error=str(error))
+            feedback('failure', error=str(error))
 
+    if session is None:
+        session = {}
     # Avoid a mess with current thread coroutines
     thread = threading.Thread(target=thread_func)
     thread.start()
@@ -97,10 +97,12 @@ class _Pipe(object):
                 pass
             failure = _decode_exit_failure(status)
             if failure:
+                _logger.debug('Process %s failed: %s', self._pid, failure)
                 event = {'state': 'failure', 'error': failure}
                 event.update(self._session)
                 return event
             else:
+                _logger.debug('Process %s successfully exited', self._pid)
                 self._file.close()
                 self._file = None
                 return None
@@ -114,12 +116,20 @@ class _Pipe(object):
     def __iter__(self):
         if self._file is None:
             return
-        while True:
-            coroutine.select([self._file.fileno()], [], [])
-            event = self.read()
-            if event is None:
-                break
-            yield event
+
+        try:
+            while True:
+                coroutine.select([self._file.fileno()], [], [])
+                event = self.read()
+                if event is None:
+                    break
+                yield event
+        finally:
+            if self._file is not None:
+                _logger.debug('Kill %s process', self._pid)
+                os.kill(self._pid, signal.SIGTERM)
+                while self.read() is not None:
+                    pass
 
 
 def _decode_exit_failure(status):

@@ -21,7 +21,8 @@ from os.path import join, exists, basename, dirname
 
 from sugar_network import local, sugar
 from sugar_network.local import journal
-from sugar_network.zerosugar import pipe, cache, lsb_release
+from sugar_network.zerosugar import cache, lsb_release
+from sugar_network.toolkit import pipe
 from active_toolkit import util
 
 
@@ -37,7 +38,12 @@ _mtime = None
 
 
 def make(mountpoint, guid):
-    return pipe.fork(_make, mountpoint, guid)
+    session = {
+            'mountpoint': mountpoint,
+            'context': guid,
+            }
+    return pipe.fork(_make, logname=guid, session=session,
+            mountpoint=mountpoint, context=guid)
 
 
 def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
@@ -59,14 +65,23 @@ def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
     if uri:
         args.extend(['-u', uri])
 
-    session = None
+    session = {
+            'mountpoint': mountpoint,
+            'context': guid,
+            }
     if color:
-        session = {'color': color}
-    return pipe.fork(_launch, mountpoint, guid, args, session)
+        session['color'] = color
+    return pipe.fork(_launch, logname=guid, session=session,
+            mountpoint=mountpoint, context=guid, args=args)
 
 
 def clone(mountpoint, guid):
-    return pipe.fork(_clone, mountpoint, guid)
+    session = {
+            'mountpoint': mountpoint,
+            'context': guid,
+            }
+    return pipe.fork(_clone, logname=guid, session=session,
+            mountpoint=mountpoint, context=guid)
 
 
 def invalidate_solutions(mtime):
@@ -74,8 +89,9 @@ def invalidate_solutions(mtime):
     _mtime = mtime
 
 
-def _make(mountpoint, context, session=None):
-    solution = _solve(mountpoint, context, session)
+def _make(mountpoint, context):
+    pipe.feedback('analyze', mountpoint=mountpoint, context=context)
+    solution = _solve(mountpoint, context)
 
     to_install = []
     for impl in solution:
@@ -94,19 +110,16 @@ def _make(mountpoint, context, session=None):
             impl_path = join(impl_path, impl['prefix'])
         impl['path'] = impl_path
 
-    pipe.progress('ready', session={'implementation': solution[0]['id']})
+    pipe.feedback('ready', session={'implementation': solution[0]['id']})
     return solution
 
 
-def _launch(mountpoint, context, args, session):
-    if args is None:
-        args = []
+def _launch(mountpoint, context, args):
+    solution = _make(mountpoint, context)
 
-    solution = _make(mountpoint, context, session)
-
-    args = solution[0]['command'] + args
+    args = solution[0]['command'] + (args or [])
     _logger.info('Executing %r from %r: %s', context, mountpoint, args)
-    pipe.progress('exec')
+    pipe.feedback('exec')
 
     _activity_env(solution[0], os.environ)
     os.execvpe(args[0], args, os.environ)
@@ -129,9 +142,8 @@ def _clone(mountpoint, context):
         raise
 
 
-def _solve(mountpoint, context, session=None):
+def _solve(mountpoint, context):
     _logger.debug('Solve %r from %r', context, mountpoint)
-    pipe.progress('analyze', session=session)
 
     cached_path, solution, stale = _get_cached_solution(mountpoint, context)
     if stale is False:

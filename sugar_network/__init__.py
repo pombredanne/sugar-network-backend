@@ -34,8 +34,3 @@ def IPCClient(**kwargs):
     from sugar_network.toolkit import http
     from sugar_network.local import ipc_port
     return http.Client('http://localhost:%s' % ipc_port.value, **kwargs)
-
-
-def DBusClient(*args, **kwargs):
-    from sugar_network.local import dbus_client
-    return dbus_client.DBusClient(*args, **kwargs)

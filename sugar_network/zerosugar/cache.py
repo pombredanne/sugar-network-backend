@@ -21,7 +21,7 @@ from os.path import exists, join
 from sugar_network import toolkit, Client
 from sugar_network.local import local_root
 from sugar_network.zerosugar.bundle import Bundle
-from sugar_network.zerosugar import pipe
+from sugar_network.toolkit import pipe
 from active_toolkit.sockets import BUFFER_SIZE
 
 
@@ -35,7 +35,7 @@ def get(guid):
 
     _logger.debug('Fetch %r implementation', guid)
     # TODO Per download progress
-    pipe.progress('download')
+    pipe.feedback('download')
 
     response = Client().request('GET', ['implementation', guid, 'data'],
             allow_redirects=True)
