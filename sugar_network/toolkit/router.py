@@ -95,14 +95,8 @@ class Router(object):
         self._host = None
         self._routes = {}
 
-        cls = self.__class__
-        while cls is not None:
-            for name in dir(cls):
-                attr = getattr(self, name)
-                if hasattr(attr, 'route'):
-                    self._routes[attr.route] = attr
-            # pylint: disable-msg=E1101
-            cls = cls.__base__
+        self._scan_for_routes(commands)
+        self._scan_for_routes(self)
 
         if 'SSH_ASKPASS' in os.environ:
             # Otherwise ssh-keygen will popup auth dialogs on registeration
@@ -269,6 +263,16 @@ class Router(object):
             _logger.info('Disallow cross-site for %r origin', origin)
             self._invalid_origins.add(origin)
         return valid
+
+    def _scan_for_routes(self, obj):
+        cls = obj.__class__
+        while cls is not None:
+            for name in dir(cls):
+                attr = getattr(obj, name)
+                if hasattr(attr, 'route'):
+                    self._routes[attr.route] = attr
+            # pylint: disable-msg=E1101
+            cls = cls.__base__
 
 
 class _Request(Request):
