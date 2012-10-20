@@ -14,7 +14,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import node, sugar, Client
-from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route
+from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route, Redirect
 from active_toolkit import util
 from sugar_network.resources.user import User
 from sugar_network.resources.volume import Volume
@@ -217,7 +217,7 @@ class RouterTest(tests.Test):
 
             @ad.active_property(ad.BlobProperty)
             def blob(self, value):
-                raise ad.Redirect(URL)
+                raise Redirect(URL)
 
         self.fork(self.restful_server, [User, Document2])
         client = Client('http://localhost:8800', sugar_auth=True)
