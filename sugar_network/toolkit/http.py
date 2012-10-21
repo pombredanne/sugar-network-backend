@@ -29,14 +29,6 @@ from sugar_network.toolkit import sugar
 from sugar_network import local
 from active_toolkit import coroutine, util, enforce
 
-# Let toolkit.http work in concurrence
-from gevent import monkey
-# XXX No DNS because `toolkit.network.res_init()` doesn't work otherwise
-monkey.patch_socket(dns=False)
-monkey.patch_select()
-monkey.patch_ssl()
-monkey.patch_time()
-
 
 _RECONNECTION_NUMBER = 1
 _RECONNECTION_TIMEOUT = 3

@@ -23,6 +23,8 @@ import locale
 import logging
 from os.path import join, abspath, exists
 
+from gevent import monkey
+
 import active_document as ad
 import sugar_network_webui as webui
 from sugar_network import toolkit, local, node
@@ -167,6 +169,13 @@ class Application(application.Application):
             if not clones.ensure_clones(context.guid):
                 contexts.update(context.guid, keep_impl=0)
 
+
+# Let toolkit.http work in concurrence
+# XXX No DNS because `toolkit.network.res_init()` doesn't work otherwise
+monkey.patch_socket(dns=False)
+monkey.patch_select()
+monkey.patch_ssl()
+monkey.patch_time()
 
 locale.setlocale(locale.LC_ALL, '')
 

@@ -20,6 +20,8 @@ import locale
 import logging
 from os.path import exists
 
+from gevent import monkey
+
 import active_document as ad
 import sugar_network_webui as webui
 from active_toolkit import coroutine, application
@@ -83,6 +85,13 @@ class Application(application.Daemon):
     def shutdown(self):
         self.jobs.kill()
 
+
+# Let toolkit.http work in concurrence
+# XXX No DNS because `toolkit.network.res_init()` doesn't work otherwise
+monkey.patch_socket(dns=False)
+monkey.patch_select()
+monkey.patch_ssl()
+monkey.patch_time()
 
 locale.setlocale(locale.LC_ALL, '')
 
