@@ -28,7 +28,7 @@ from gevent import monkey
 import active_document as ad
 import sugar_network_webui as webui
 from sugar_network import toolkit, local, node
-from sugar_network.toolkit import sugar, sneakernet
+from sugar_network.toolkit import sugar
 from sugar_network.toolkit import mounts_monitor
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
@@ -40,12 +40,13 @@ from active_toolkit.options import Option
 from active_toolkit import util, printf, application, coroutine, enforce
 
 
-VERSION = '0.4'
+replace = Option(
+        'if service already launched, replace it by new instance',
+        default=False, type_cast=Option.bool_cast,
+        action='store_true', name='replace')
 
 
 class Application(application.Application):
-
-    _ipc_server = None
 
     def __init__(self, **kwargs):
         application.Application.__init__(self, **kwargs)
@@ -96,9 +97,19 @@ class Application(application.Application):
             'start service and log to files',
             name='start', keep_stdout=True)
     def start_service(self):
-        if self.check_for_instance():
-            printf.info('%s is already run', self.name)
-            exit(1)
+        while True:
+            pid = self.check_for_instance()
+            if not pid:
+                break
+            if not replace.value:
+                printf.info('%s is already run', self.name)
+                exit(1)
+            try:
+                logging.info('Kill previous %r instance', pid)
+                os.kill(pid, signal.SIGTERM)
+            except Exception:
+                pass
+            coroutine.sleep(.5)
 
         jobs = coroutine.Pool()
 
@@ -187,7 +198,7 @@ node.trust_users.value = True
 # and will brake offline synchronization logic
 toolkit.tmpdir.value = sugar.profile_path('tmp')
 
-Option.seek('main', [application.debug])
+Option.seek('main', [application.debug, replace])
 Option.seek('webui', webui)
 Option.seek('local', local)
 Option.seek('local', [sugar.keyfile, toolkit.tmpdir])
@@ -200,7 +211,6 @@ app = Application(
         description='Sugar Network service.',
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
                  'for details.',
-        version=VERSION,
         config_files=[
             '/etc/sweets.conf',
             '~/.config/sweets/config',
