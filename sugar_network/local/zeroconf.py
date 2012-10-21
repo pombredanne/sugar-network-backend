@@ -15,10 +15,7 @@
 
 import logging
 
-import dbus
-
-from active_toolkit import coroutine
-from sugar_network.toolkit import dbus_thread
+from sugar_network.toolkit import pipe
 
 
 _LOOKUP_RESULT_LOCAL = 8
@@ -35,17 +32,20 @@ _logger = logging.getLogger('zeroconf')
 def browse_workstations():
     _logger.info('Start browsing hosts using Avahi')
 
-    queue = coroutine.AsyncQueue()
-    dbus_thread.spawn(_browser, queue)
-
-    try:
-        for address in queue:
-            yield address
-    finally:
-        _logger.info('Stop browsing hosts using Avahi')
+    for event in pipe.fork(_browser):
+        if event['state'] == 'resolve':
+            yield event['address']
 
 
-def _browser(queue):
+def _browser():
+    import dbus
+    import gobject
+    from dbus.mainloop.glib import threads_init, DBusGMainLoop
+
+    gobject.threads_init()
+    threads_init()
+    DBusGMainLoop(set_as_default=True)
+
     bus = dbus.SystemBus()
     server = dbus.Interface(bus.get_object(_DBUS_NAME, '/'),
             'org.freedesktop.Avahi.Server')
@@ -61,7 +61,7 @@ def _browser(queue):
     def ResolveService_cb(interface, protocol, name, type_, domain,
             host, aprotocol, address, port, txt, flags):
         _logger.debug('Got new address: %s', address)
-        queue.put(str(address))
+        pipe.feedback('resolve', address=str(address))
 
     def ItemRemove_cb(interface, protocol, name, type_, domain, *args):
         _logger.debug('Got removed workstation: %s', name)
@@ -77,15 +77,11 @@ def _browser(queue):
     browser.connect_to_signal('ItemNew', ItemNew_cb)
     browser.connect_to_signal('ItemRemove', ItemRemove_cb)
 
+    gobject.MainLoop().run()
+
 
 if __name__ == '__main__':
-    from sugar_network.local.mountset import Mountset
-
+    from pprint import pprint
     logging.basicConfig(level=logging.DEBUG)
-    dbus_job = coroutine.spawn(dbus_thread.start, Mountset(None))
-
-    try:
-        for i in browse_workstations():
-            pass
-    finally:
-        dbus_job.kill()
+    for __ in browse_workstations():
+        pprint(__)

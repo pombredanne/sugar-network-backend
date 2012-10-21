@@ -211,6 +211,10 @@ class MountsetTest(tests.Test):
         self.assertRaises(ad.NotFound, mounts.launch, '~', 'context', 'app', [], object_id='object_id')
 
     def test_launch_ResumeArtifact(self):
+        updates = []
+        self.override(journal.Commands, '__init__', lambda *args: None)
+        self.override(journal.Commands, 'journal_update', lambda self, *args, **kwargs: updates.append((args, kwargs)))
+
         mounts = self.mountset()
         mounts['~'] = HomeMount(mounts.volume)
 
@@ -220,12 +224,12 @@ class MountsetTest(tests.Test):
             'title': 'title',
             'description': 'description',
             })
+        mounts.volume['artifact'].set_blob('artifact', 'preview', url='preview', mtime=1)
+        mounts.volume['artifact'].set_blob('artifact', 'data', url='data', mtime=1)
         coroutine.dispatch()
         del self.events[:]
 
         self.override(injector, 'launch', lambda *args, **kwargs: [{'args': args, 'kwargs': kwargs}])
-        updates = []
-        self.override(journal, 'update', lambda *args, **kwargs: updates.append((args, kwargs)))
         self.override(journal, 'exists', lambda *args: False)
 
         mounts.launch('~', 'context', 'app', [], object_id='artifact')
@@ -234,8 +238,18 @@ class MountsetTest(tests.Test):
             (('artifact',), {
                 'title': 'title',
                 'description': 'description',
-                'preview': 'http://localhost:5101/artifact/artifact/preview',
-                'data': 'http://localhost:5101/artifact/artifact/data',
+                'preview': {
+                    'url': 'preview',
+                    'mime_type': 'image/png',
+                    'seqno': 2,
+                    'mtime': 1,
+                    },
+                'data': {
+                    'url': 'data',
+                    'mime_type': 'application/octet-stream',
+                    'seqno': 3,
+                    'mtime': 1,
+                    },
                 }),
             ],
             updates)
@@ -246,6 +260,10 @@ class MountsetTest(tests.Test):
         del self.events[:]
 
     def test_launch_ResumeContext(self):
+        updates = []
+        self.override(journal.Commands, '__init__', lambda *args: None)
+        self.override(journal.Commands, 'journal_update', lambda self, *args, **kwargs: updates.append((args, kwargs)))
+
         mounts = self.mountset()
         mounts['~'] = HomeMount(mounts.volume)
 
@@ -256,6 +274,7 @@ class MountsetTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
+        mounts.volume['context'].set_blob('context', 'preview', url='preview', mtime=1)
         mounts.volume['implementation'].create({
             'guid': 'impl1',
             'context': 'context',
@@ -265,6 +284,7 @@ class MountsetTest(tests.Test):
             'stability': 'stable',
             'notes': '',
             })
+        mounts.volume['implementation'].set_blob('impl1', 'data', url='data', mtime=1)
         mounts.volume['implementation'].create({
             'guid': 'impl2',
             'context': 'context',
@@ -274,12 +294,11 @@ class MountsetTest(tests.Test):
             'stability': 'stable',
             'notes': '',
             })
+        mounts.volume['implementation'].set_blob('impl2', 'data', url='data', mtime=1)
         coroutine.dispatch()
         del self.events[:]
 
         self.override(injector, 'launch', lambda *args, **kwargs: [{'args': args, 'kwargs': kwargs}])
-        updates = []
-        self.override(journal, 'update', lambda *args, **kwargs: updates.append((args, kwargs)))
         self.override(journal, 'exists', lambda *args: False)
 
         mounts.launch('~', 'context', 'app', [], context='context')
@@ -288,8 +307,18 @@ class MountsetTest(tests.Test):
             (('impl2',), {
                 'title': 'title',
                 'description': 'description',
-                'preview': 'http://localhost:5101/context/context/preview',
-                'data': 'http://localhost:5101/implementation/impl2/data',
+                'preview': {
+                    'url': 'preview',
+                    'mime_type': 'image/png',
+                    'seqno': 2,
+                    'mtime': 1,
+                    },
+                'data': {
+                    'url': 'data',
+                    'mime_type': 'application/octet-stream',
+                    'seqno': 6,
+                    'mtime': 1,
+                    },
                 }),
             ],
             updates)
@@ -306,8 +335,18 @@ class MountsetTest(tests.Test):
             (('impl1',), {
                 'title': 'title',
                 'description': 'description',
-                'preview': 'http://localhost:5101/context/context/preview',
-                'data': 'http://localhost:5101/implementation/impl1/data',
+                'preview': {
+                    'url': 'preview',
+                    'mime_type': 'image/png',
+                    'seqno': 2,
+                    'mtime': 1,
+                    },
+                'data': {
+                    'url': 'data',
+                    'mime_type': 'application/octet-stream',
+                    'seqno': 4,
+                    'mtime': 1,
+                    },
                 }),
             ],
             updates)

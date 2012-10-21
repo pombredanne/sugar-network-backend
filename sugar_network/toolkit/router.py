@@ -41,7 +41,16 @@ class HTTPStatus(Exception):
     result = None
 
 
-class Redirect(HTTPStatus):
+class HTTPStatusPass(HTTPStatus):
+    pass
+
+
+class NotModified(HTTPStatusPass):
+
+    status = '304 Not Modified'
+
+
+class Redirect(HTTPStatusPass):
 
     status = '303 See Other'
 
@@ -95,14 +104,8 @@ class Router(object):
         self._host = None
         self._routes = {}
 
-        cls = self.__class__
-        while cls is not None:
-            for name in dir(cls):
-                attr = getattr(self, name)
-                if hasattr(attr, 'route'):
-                    self._routes[attr.route] = attr
-            # pylint: disable-msg=E1101
-            cls = cls.__base__
+        self._scan_for_routes(commands)
+        self._scan_for_routes(self)
 
         if 'SSH_ASKPASS' in os.environ:
             # Otherwise ssh-keygen will popup auth dialogs on registeration
@@ -146,14 +149,7 @@ class Router(object):
 
         request.principal = self.authenticate(request)
         if request.path[:1] == ['static']:
-            static_path = join(static.PATH, *request.path[1:])
-            enforce(isfile(static_path), 'No such file')
-            mtime = os.stat(static_path).st_mtime
-            if request.if_modified_since and \
-                    mtime <= request.if_modified_since:
-                raise ad.NotModified()
-            response.last_modified = mtime
-            result = file(static_path)
+            result = ad.PropertyMeta(path=join(static.PATH, *request.path[1:]))
         else:
             rout = None
             if request.path:
@@ -166,9 +162,17 @@ class Router(object):
         if isinstance(result, ad.PropertyMeta):
             if 'url' in result:
                 raise Redirect(result['url'])
-            # pylint: disable-msg=E1103
+
+            path = result['path']
+            mtime = result.get('mtime') or os.stat(path).st_mtime
+            if request.if_modified_since and mtime and \
+                    mtime <= request.if_modified_since:
+                raise NotModified()
+            response.last_modified = mtime
+
+            enforce(isfile(path), 'No such file')
             response.content_type = result.get('mime_type')
-            result = file(result['path'], 'rb')
+            result = file(path, 'rb')
 
         if hasattr(result, 'read'):
             if hasattr(result, 'fileno'):
@@ -193,12 +197,10 @@ class Router(object):
         result = None
         try:
             result = self.call(request, response)
-        except Redirect, error:
+        except HTTPStatusPass, error:
             response.status = error.status
-            response.update(error.headers)
-            response.content_type = None
-        except ad.NotModified:
-            response.status = '304 Not Modified'
+            if error.headers:
+                response.update(error.headers)
             response.content_type = None
         except Exception, error:
             util.exception('Error while processing %r request', request.url)
@@ -269,6 +271,16 @@ class Router(object):
             _logger.info('Disallow cross-site for %r origin', origin)
             self._invalid_origins.add(origin)
         return valid
+
+    def _scan_for_routes(self, obj):
+        cls = obj.__class__
+        while cls is not None:
+            for name in dir(cls):
+                attr = getattr(obj, name)
+                if hasattr(attr, 'route'):
+                    self._routes[attr.route] = attr
+            # pylint: disable-msg=E1101
+            cls = cls.__base__
 
 
 class _Request(Request):

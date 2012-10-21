@@ -14,7 +14,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import node, sugar, Client
-from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route, Redirect
+from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route, Redirect, NotModified
 from active_toolkit import util
 from sugar_network.resources.user import User
 from sugar_network.resources.volume import Volume
@@ -341,7 +341,7 @@ class RouterTest(tests.Test):
                 if not self.request.if_modified_since or self.request.if_modified_since >= value:
                     return value
                 else:
-                    raise ad.NotModified()
+                    raise NotModified()
 
         self.start_master([User, TestDocument])
         client = Client('http://localhost:8800', sugar_auth=True)
@@ -374,17 +374,24 @@ class RouterTest(tests.Test):
             def prop2(self, value):
                 return value
 
+            @ad.active_property(ad.BlobProperty)
+            def prop3(self, value):
+                return value
+
         self.start_master([User, TestDocument])
         client = Client('http://localhost:8800', sugar_auth=True)
 
-        guid = client.post(['testdocument'], {'prop1': 10, 'prop2': 20})
+        guid = client.post(['testdocument'], {'prop1': 10, 'prop2': 20, 'prop3': 'blob'})
         self.assertEqual(
                 formatdate(10, localtime=False, usegmt=True),
                 client.request('GET', ['testdocument', guid, 'prop1']).headers['Last-Modified'])
-        mtime = os.stat('master/testdocument/%s/%s/prop2' % (guid[:2], guid)).st_mtime
+        self.assertEqual(
+                None,
+                client.request('GET', ['testdocument', guid, 'prop2']).headers['Last-Modified'])
+        mtime = os.stat('master/testdocument/%s/%s/prop3' % (guid[:2], guid)).st_mtime
         self.assertEqual(
                 formatdate(mtime, localtime=False, usegmt=True),
-                client.request('GET', ['testdocument', guid, 'prop2']).headers['Last-Modified'])
+                client.request('GET', ['testdocument', guid, 'prop3']).headers['Last-Modified'])
 
     def test_StaticFiles(self):
 
@@ -427,6 +434,38 @@ class RouterTest(tests.Test):
                 304,
                 client.request('GET', ['static', 'images', 'missing.png'], headers={
                     'If-Modified-Since': formatdate(mtime + 1, localtime=False, usegmt=True),
+                    }).status_code)
+
+    def test_IfModifiedSinceForBlobs(self):
+
+        class TestDocument(Document):
+
+            @ad.active_property(ad.BlobProperty)
+            def blob(self, value):
+                return value
+
+        self.start_master([User, TestDocument])
+        client = Client('http://localhost:8800', sugar_auth=True)
+
+        guid = client.post(['testdocument'], {'blob': 'value'})
+        blob_path = 'master/testdocument/%s/%s/blob' % (guid[:2], guid)
+
+        os.utime(blob_path, (10, 10))
+        self.assertEqual(
+                304,
+                client.request('GET', ['testdocument', guid, 'blob'], headers={
+                    'If-Modified-Since': formatdate(11, localtime=False, usegmt=True),
+                    }).status_code)
+        self.assertEqual(
+                304,
+                client.request('GET', ['testdocument', guid, 'blob'], headers={
+                    'If-Modified-Since': formatdate(10, localtime=False, usegmt=True),
+                    }).status_code)
+
+        self.assertEqual(
+                200,
+                client.request('GET', ['testdocument', guid, 'blob'], headers={
+                    'If-Modified-Since': formatdate(9, localtime=False, usegmt=True),
                     }).status_code)
 
 

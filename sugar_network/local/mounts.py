@@ -187,15 +187,15 @@ class _ProxyCommands(object):
         if document != 'context':
             return self.proxy_call(request, response)
 
-        if reply:
+        if not reply:
+            reply = request['reply'] = ['guid']
+        else:
             # Do not modify original list
             reply = request['reply'] = request['reply'][:]
 
         mixin = {}
         for prop, default in _LOCAL_PROPS.items():
-            if not reply:
-                mixin[prop] = default
-            elif prop in reply:
+            if prop in reply:
                 mixin[prop] = default
                 reply.remove(prop)
 
@@ -321,11 +321,12 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         enforce(self.mounted.is_set(), 'Not mounter')
         return '/'.join((self._url,) + path)
 
-    def __init__(self, home_volume):
+    def __init__(self, home_volume, listen_events=True):
         ad.CommandsProcessor.__init__(self)
         _Mount.__init__(self)
         _ProxyCommands.__init__(self, home_volume)
 
+        self._listen_events = listen_events
         self._client = None
         self._remote_volume_guid = None
         self._url = None
@@ -341,7 +342,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             request['layer'] = local.layers.value
         return self._client.call(request, response)
 
-    def call(self, request, response):
+    def call(self, request, response=None):
         try:
             return ad.CommandsProcessor.call(self, request, response)
         except ad.CommandNotFound:
@@ -376,24 +377,28 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
     def _connect(self):
         for url in self._api_urls:
             try:
-                _logger.debug('Connecting to %r master', url)
+                _logger.debug('Connecting to %r node', url)
                 self._client = Client(url)
-                subscription = self._client.subscribe()
+                stat = self._client.get(cmd='stat')
+                if self._listen_events:
+                    subscription = self._client.subscribe()
             except Exception:
-                util.exception(_logger, 'Cannot connect to %r master', url)
+                util.exception(_logger, 'Cannot connect to %r node', url)
                 continue
 
+            if 'documents' in stat:
+                injector.invalidate_solutions(
+                        stat['documents']['implementation']['mtime'])
+            self._remote_volume_guid = stat['guid']
+
+            _logger.info('Connected to %r node', url)
+            self._url = url
+            _Mount.set_mounted(self, True)
+
+            if not self._listen_events:
+                break
+
             try:
-                stat = self._client.get(cmd='stat')
-                if 'documents' in stat:
-                    injector.invalidate_solutions(
-                            stat['documents']['implementation']['mtime'])
-                self._remote_volume_guid = stat['guid']
-
-                _logger.info('Connected to %r master', url)
-                self._url = url
-                _Mount.set_mounted(self, True)
-
                 for event in subscription:
                     if event.get('document') == 'implementation':
                         mtime = event.get('props', {}).get('mtime')
@@ -404,7 +409,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             except Exception:
                 util.exception(_logger, 'Failed to dispatch remote event')
             finally:
-                _logger.info('Got disconnected from %r master', url)
+                _logger.info('Got disconnected from %r node', url)
                 _Mount.set_mounted(self, False)
                 self._client.close()
                 self._client = None

@@ -46,7 +46,7 @@ class Router(router.Router):
 
         mtime = os.stat(path).st_mtime
         if request.if_modified_since >= mtime:
-            raise ad.NotModified()
+            raise router.NotModified()
 
         if path.endswith('.js'):
             response.content_type = 'text/javascript'

@@ -13,10 +13,11 @@ from __init__ import tests
 from active_toolkit import coroutine, enforce
 from sugar_network import zeroinstall
 from sugar_network.local import journal
+from sugar_network.toolkit import pipe
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.zerosugar import lsb_release, packagekit, injector, clones, pipe
+from sugar_network.zerosugar import lsb_release, packagekit, injector, clones
 from sugar_network import IPCClient, local
 
 
@@ -453,7 +454,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_Arguments(self):
         forks = []
-        self.override(pipe, 'fork', lambda callback, mountpoint, context, args, session: forks.append(args))
+        self.override(pipe, 'fork', lambda callback, logname, session, args, **kwargs: forks.append(args))
         self.override(journal, 'create_activity_id', lambda: 'new_activity_id')
 
         injector.launch('/', 'app')

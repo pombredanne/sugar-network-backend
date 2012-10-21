@@ -66,6 +66,7 @@ class Application(application.Application):
     def __init__(self, **kwargs):
         application.Application.__init__(self, **kwargs)
         application.rundir.value = join(local.local_root.value, 'run')
+        local.set_logging_verbose(application.debug.value)
 
     @application.command(
             'send POST API request')
@@ -161,7 +162,7 @@ class Application(application.Application):
                 mountset = Mountset(volume)
                 mountset['~'] = HomeMount(volume)
                 if not mountpoint or mountpoint == '/':
-                    mountset['/'] = RemoteMount(volume)
+                    mountset['/'] = RemoteMount(volume, listen_events=False)
                     mountset['/'].mounted.wait()
                 server = coroutine.WSGIServer(
                         ('localhost', local.ipc_port.value), Router(mountset))

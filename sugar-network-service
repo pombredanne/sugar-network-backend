@@ -25,11 +25,9 @@ from os.path import join, abspath, exists
 
 import active_document as ad
 import sugar_network_webui as webui
-
 from sugar_network import toolkit, local, node
 from sugar_network.toolkit import sugar, sneakernet
-from sugar_network.toolkit import dbus_thread, mounts_monitor
-from sugar_network.local.dbus_network import Network
+from sugar_network.toolkit import mounts_monitor
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.ipc_client import Router
@@ -43,33 +41,13 @@ from active_toolkit import util, printf, application, coroutine, enforce
 VERSION = '0.4'
 
 
-class NullHandler(logging.Handler):
-
-    def emit(self, record):
-        pass
-
-
 class Application(application.Application):
 
     _ipc_server = None
 
     def __init__(self, **kwargs):
         application.Application.__init__(self, **kwargs)
-
-        if application.debug.value < 3:
-            for log_name in (
-                    'requests.packages.urllib3.connectionpool',
-                    'requests.packages.urllib3.poolmanager',
-                    'requests.packages.urllib3.response',
-                    'requests.packages.urllib3',
-                    'inotify',
-                    'netlink',
-                    'sneakernet',
-                    'toolkit',
-                    ):
-                logger = logging.getLogger(log_name)
-                logger.propagate = False
-                logger.addHandler(NullHandler())
+        local.set_logging_verbose(application.debug.value)
 
         new_root = (local.local_root.value != local.local_root.default)
         local.local_root.value = abspath(local.local_root.value)
@@ -156,12 +134,11 @@ class Application(application.Application):
             mountset.connect(delayed_start, event='delayed-start')
         else:
             delayed_start()
-        dbus_thread.spawn_service(Network)
 
         pid_path = self.new_instance()
         try:
             mountset.open()
-            dbus_thread.start(mountset)
+            jobs.join()
         except KeyboardInterrupt:
             util.exception('%s interrupted', self.name)
         except Exception:

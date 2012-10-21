@@ -13,59 +13,35 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from gettext import gettext as _
+from os.path import join
 
 import active_document as ad
-
+from sugar_network import static
 from sugar_network.resources.volume import Resource
 
 
 class Artifact(Resource):
 
-    # All properties are sloted to not fail on `get_uniquevaluesfor()` call
-    # while emulating sugar-datastore interface
-
-    @ad.active_property(slot=1, prefix='C', default='')
+    @ad.active_property(prefix='C')
     def context(self, value):
         return value
 
-    @ad.active_property(slot=2, prefix='K', typecast=bool, default=False)
-    def keep(self, value):
-        return value
-
-    @ad.active_property(slot=3, prefix='T', full_text=True, default='')
-    def mime_type(self, value):
-        return value
-
-    @ad.active_property(slot=4, prefix='S', full_text=True,
-            default=_('Unnamed'), localized=True)
+    @ad.active_property(slot=1, prefix='S', full_text=True, localized=True)
     def title(self, value):
         return value
 
-    @ad.active_property(slot=5, prefix='D', default='', full_text=True,
-            localized=True)
+    @ad.active_property(prefix='D', full_text=True, localized=True)
     def description(self, value):
         return value
 
-    @ad.active_property(slot=6, prefix='A', default='')
-    def activity_id(self, value):
-        return value
-
-    @ad.active_property(slot=7, prefix='Z', typecast=int, default=0)
-    def filesize(self, value):
-        return value
-
-    @ad.active_property(slot=8, prefix='M', typecast=int, default=0)
-    def timestamp(self, value):
-        return value
-
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
-    def traits(self, value):
-        return value
-
-    @ad.active_property(ad.BlobProperty)
+    @ad.active_property(ad.BlobProperty, mime_type='image/png')
     def preview(self, value):
-        return value
+        if value:
+            return value
+        return ad.PropertyMeta(
+                url='/static/images/missing.png',
+                path=join(static.PATH, 'images', 'missing.png'),
+                mime_type='image/png')
 
     @ad.active_property(ad.BlobProperty)
     def data(self, value):

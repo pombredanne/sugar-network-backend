@@ -20,8 +20,8 @@ from os.path import join, exists
 import active_document as ad
 
 from sugar_network import local, node
-from sugar_network.toolkit import zeroconf, netlink, network, mounts_monitor
-from sugar_network.local import journal
+from sugar_network.toolkit import netlink, network, mounts_monitor
+from sugar_network.local import journal, zeroconf
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.router import Router
@@ -50,6 +50,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         ad.CommandsProcessor.__init__(self, home_volume)
         SyncCommands.__init__(self, local.path('sync'))
         Commands.__init__(self)
+        journal.Commands.__init__(self)
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, 'Unknown mountpoint %r', mountpoint)
@@ -100,7 +101,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             request = Request(method='PUT', document='context', guid=guid)
             request.accept_language = [self._lang]
             request.content = {'keep_impl': 2, 'keep': False}
-            mount.call(request, ad.Response())
+            mount.call(request)
 
     @ad.volume_command(method='PUT', cmd='keep')
     def keep(self, mountpoint, request):
@@ -113,7 +114,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             request = Request(method='PUT', document='context', guid=guid)
             request.accept_language = [self._lang]
             request.content = {'keep': True}
-            mount.call(request, ad.Response())
+            mount.call(request)
 
     @ad.volume_command(method='POST', cmd='publish')
     def publish(self, event, request=None):
@@ -130,6 +131,14 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                 except Exception:
                     util.exception(_logger, 'Failed to dispatch %r', event)
 
+    @ad.document_command(method='GET', cmd='make')
+    def make(self, mountpoint, document, guid):
+        enforce(document == 'context', 'Only contexts can be launched')
+
+        for event in injector.make(mountpoint, guid):
+            event['event'] = 'make'
+            self.publish(event)
+
     @ad.document_command(method='GET', cmd='launch',
             arguments={'args': ad.to_list})
     def launch(self, mountpoint, document, guid, args, context=None,
@@ -145,7 +154,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             request = Request(method='GET', document='implementation',
                     context=context, stability='stable', order_by='-version',
                     limit=1, reply=['guid'])
-            impls = mount.call(request, ad.Response())['result']
+            impls = mount.call(request)['result']
             enforce(impls, ad.NotFound, 'No implementations')
             object_id = impls[0].pop('guid')
 
@@ -154,19 +163,26 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                 props = mount.call(
                         Request(method='GET',
                             document='context', guid=context,
-                            reply=['title', 'description']),
-                        ad.Response())
-                props['preview'] = mount.url('context', context, 'preview')
-                props['data'] = mount.url('implementation', object_id, 'data')
+                            reply=['title', 'description']))
+                props['preview'] = mount.call(
+                        Request(method='GET', document='context',
+                            guid=context, prop='preview'))
+                props['data'] = mount.call(
+                        Request(method='GET', document='implementation',
+                            guid=object_id, prop='data'))
             else:
                 props = mount.call(
                         Request(method='GET',
                             document='artifact', guid=object_id,
-                            reply=['title', 'description']),
-                        ad.Response())
-                props['preview'] = mount.url('artifact', object_id, 'preview')
-                props['data'] = mount.url('artifact', object_id, 'data')
-            journal.update(object_id, **props)
+                            reply=['title', 'description']))
+                props['preview'] = mount.call(
+                        Request(method='GET', document='artifact',
+                            guid=object_id, prop='preview'))
+                props['data'] = mount.call(
+                        Request(method='GET', document='artifact',
+                            guid=object_id, prop='data'))
+
+            self.journal_update(object_id, **props)
 
         for event in injector.launch(mountpoint, guid, args,
                 activity_id=activity_id, object_id=object_id, uri=uri,
@@ -182,8 +198,6 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         return mount.call(request, response)
 
     def call(self, request, response=None):
-        if response is None:
-            response = ad.Response()
         request.accept_language = [self._lang]
         request.mountpoint = request.get('mountpoint')
         if not request.mountpoint:
