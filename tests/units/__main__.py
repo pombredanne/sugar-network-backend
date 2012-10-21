@@ -4,6 +4,7 @@ from __init__ import tests
 
 from collection import *
 from spec import *
+from http import *
 from volume import *
 from local import *
 from node import *

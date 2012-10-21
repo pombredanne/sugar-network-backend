@@ -151,9 +151,9 @@ class Router(object):
         if request.path[:1] == ['static']:
             result = ad.PropertyMeta(path=join(static.PATH, *request.path[1:]))
         else:
-            rout = None
-            if request.path:
-                rout = self._routes.get((request['method'], request.path[0]))
+            rout = self._routes.get((
+                request['method'],
+                request.path[0] if request.path else ''))
             if rout:
                 result = rout(request, response)
             else:
