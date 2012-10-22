@@ -23,6 +23,8 @@ import locale
 from json import dumps, loads
 from os.path import join
 
+from gevent import monkey
+
 import active_document as ad
 from sugar_network import local, sugar, toolkit, IPCClient
 from sugar_network.resources.volume import Volume, Request
@@ -202,6 +204,12 @@ class Application(application.Application):
                 result = result.read()
             sys.stdout.write(result)
 
+# Let toolkit.http work in concurrence
+# XXX No DNS because `toolkit.network.res_init()` doesn't work otherwise
+monkey.patch_socket(dns=False)
+monkey.patch_select()
+monkey.patch_ssl()
+monkey.patch_time()
 
 # New defaults
 application.debug.value = sugar.logger_level()

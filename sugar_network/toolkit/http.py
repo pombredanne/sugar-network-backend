@@ -16,7 +16,6 @@
 # pylint: disable-msg=E1103
 
 import json
-import time
 import logging
 import hashlib
 from os.path import exists
@@ -28,15 +27,7 @@ from M2Crypto import DSA
 import active_document as ad
 from sugar_network.toolkit import sugar
 from sugar_network import local
-from active_toolkit import coroutine, enforce
-
-# Let toolkit.http work in concurrence
-from gevent import monkey
-# XXX No DNS because `toolkit.network.res_init()` doesn't work otherwise
-monkey.patch_socket(dns=False)
-monkey.patch_select()
-monkey.patch_ssl()
-monkey.patch_time()
+from active_toolkit import coroutine, util, enforce
 
 
 _RECONNECTION_NUMBER = 1
@@ -190,34 +181,7 @@ class Client(object):
         return result
 
     def subscribe(self):
-
-        def handshake():
-            _logger.debug('Subscribe to %r', self.api_url)
-            return self.request('GET', params={'cmd': 'subscribe'}).raw
-
-        def pull_events(stream):
-            retries = _RECONNECTION_NUMBER
-            while True:
-                start_time = time.time()
-                try:
-                    if stream is None:
-                        stream = handshake()
-                    for line in _readlines(stream):
-                        if line.startswith('data: '):
-                            yield json.loads(line.split(' ', 1)[1])
-                except Exception:
-                    if time.time() - start_time > _RECONNECTION_TIMEOUT * 10:
-                        retries = _RECONNECTION_NUMBER
-                    if retries <= 0:
-                        raise
-                _logger.debug('Re-subscribe to %r in %s second(s)',
-                        self.api_url, _RECONNECTION_TIMEOUT)
-                self.close()
-                coroutine.sleep(_RECONNECTION_TIMEOUT)
-                retries -= 1
-                stream = None
-
-        return pull_events(handshake())
+        return _Subscription(self, _RECONNECTION_NUMBER)
 
     def _register(self):
         self.post(['user'], {
@@ -231,6 +195,67 @@ class Client(object):
     def _decode_reply(self, response):
         if response.headers.get('Content-Type') == 'application/json':
             return json.loads(response.content)
+        else:
+            return response.content
+
+
+class _Subscription(object):
+
+    def __init__(self, client, tries):
+        self._tries = tries or 1
+        self._client = client
+        self._response = None
+
+    def __iter__(self):
+        while True:
+            event = self.pull()
+            if event is not None:
+                yield event
+
+    def fileno(self):
+        # pylint: disable-msg=W0212
+        return self._handshake()._fp.fp
+
+    def pull(self):
+        for a_try in (1, 0):
+            stream = self._handshake()
+            try:
+                line = _readline(stream)
+                enforce(line is not None, 'Subscription aborted')
+                break
+            except Exception:
+                if a_try == 0:
+                    raise
+                util.exception('Failed to read from %r subscription, '
+                        'will resubscribe', self._client.api_url)
+
+        if line.startswith('data: '):
+            try:
+                return json.loads(line.split(' ', 1)[1])
+            except Exception:
+                util.exception('Failed to parse %r event from %r subscription',
+                        line, self._client.api_url)
+
+    def _handshake(self):
+        if self._response is not None:
+            return self._response.raw
+
+        _logger.debug('Subscribe to %r', self._client.api_url)
+
+        for a_try in reversed(xrange(self._tries)):
+            try:
+                self._response = self._client.request('GET',
+                        params={'cmd': 'subscribe'})
+                break
+            except Exception:
+                if a_try == 0:
+                    raise
+                util.exception(_logger,
+                        'Cannot subscribe to %r, retry in %s second(s)',
+                        self._client.api_url, _RECONNECTION_TIMEOUT)
+                coroutine.sleep(_RECONNECTION_TIMEOUT)
+
+        return self._response.raw
 
 
 def _sign(privkey_path, data):
@@ -238,14 +263,16 @@ def _sign(privkey_path, data):
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
 
 
-def _readlines(stream):
-    line = ''
+def _readline(stream):
+    line = None
     while True:
         char = stream.read(1)
         if not char:
             break
-        if char == '\n':
-            yield line
-            line = ''
+        if line is None:
+            line = char
         else:
             line += char
+        if char == '\n':
+            break
+    return line

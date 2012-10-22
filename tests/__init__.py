@@ -14,6 +14,7 @@ from os.path import dirname, join, exists, abspath, isfile
 
 import requests
 from M2Crypto import DSA
+from gevent import monkey
 
 import active_document as ad
 from active_toolkit import coroutine
@@ -36,6 +37,11 @@ from sugar_network.resources.volume import Volume
 root = abspath(dirname(__file__))
 tmproot = join(root, '.tmp')
 tmpdir = None
+
+monkey.patch_socket(dns=False)
+monkey.patch_select()
+monkey.patch_ssl()
+monkey.patch_time()
 
 
 def main():
