@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/printf.py$
-$Date: 2012-08-16$
+$Date: 2012-10-22$
 
 """
 
@@ -35,6 +35,9 @@ BOLD = '\033[1m'
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = \
         ['\033[1;%dm' % (30 + i_) for i_ in range(8)]
 
+stdout = sys.stdout
+stderr = sys.stderr
+
 _hints = []
 _last_line_len = 0
 _last_progress = []
@@ -50,7 +53,7 @@ def dump(message, *args):
         `%` arguments to expand `message` value
 
     """
-    _dump(False, sys.stdout, '', [message, args], '\n')
+    _dump(False, stdout, '', [message, args], '\n')
 
 
 def info(message, *args):
@@ -62,7 +65,7 @@ def info(message, *args):
         `%` arguments to expand `message` value
 
     """
-    _dump(True, sys.stderr, None, [message, args], '\n')
+    _dump(True, stderr, None, [message, args], '\n')
     _dump_progress()
 
 
@@ -103,7 +106,7 @@ def exception(message=None, *args):
         message += ': %s' % error
     else:
         message = str(error)
-    _dump(True, sys.stderr, None, message, '\n')
+    _dump(True, stderr, None, message, '\n')
 
     if logging.getLogger().level > logging.INFO:
         hint('Use -D argument for debug info, '
@@ -112,7 +115,7 @@ def exception(message=None, *args):
         hint('Use -DD argument for full debuging output and tracebacks')
     else:
         for i in tb_list:
-            _dump(True, sys.stderr, '   ', i, '\n')
+            _dump(True, stderr, '   ', i, '\n')
 
     _dump_progress()
 
@@ -128,7 +131,7 @@ def scan_yn(message, *args):
         `True` if user's input was `Y`
 
     """
-    _dump(True, sys.stderr, None, [message, args], ' [Y/N] ')
+    _dump(True, stderr, None, [message, args], ' [Y/N] ')
     answer = raw_input()
     _dump_progress()
     return answer and answer in 'Yy'
@@ -153,7 +156,7 @@ def progress(message, *args):
 def clear_progress():
     """Clear status line on program exit."""
     if _last_line_len:
-        sys.stderr.write(chr(13) + ' ' * _last_line_len + chr(13))
+        stderr.write(chr(13) + ' ' * _last_line_len + chr(13))
 
 
 def hint(message, *args):
@@ -179,7 +182,7 @@ def flush_hints():
     if _hints:
         dump('')
     while _hints:
-        _dump(True, sys.stderr, '-- Hint: ', _hints.pop(0), '\n')
+        _dump(True, stderr, '-- Hint: ', _hints.pop(0), '\n')
 
 
 def _dump(is_status, stream, prefix, *args):
@@ -222,5 +225,5 @@ def _dump(is_status, stream, prefix, *args):
 
 
 def _dump_progress():
-    _dump(True, sys.stderr, '   ', _last_progress, chr(13))
-    sys.stderr.flush()
+    _dump(True, stderr, '   ', _last_progress, chr(13))
+    stderr.flush()

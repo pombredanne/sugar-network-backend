@@ -17,12 +17,13 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/application.py$
-$Date: 2012-10-01$
+$Date: 2012-10-22$
 
 """
 
 import os
 import sys
+import time
 import signal
 import logging
 import textwrap
@@ -44,6 +45,11 @@ foreground = Option(
         _('do not send the application into the background'),
         default=False, type_cast=Option.bool_cast, short_option='-F',
         action='store_true', name='foreground')
+
+replace = Option(
+        'if application is already launched, replace it by new instance',
+        default=False, type_cast=Option.bool_cast,
+        action='store_true', name='replace')
 
 no_hints = Option(
         _('suppress suggesting hints'),
@@ -247,9 +253,12 @@ class Application(object):
         if not exists(log_dir):
             os.makedirs(log_dir)
         enforce(os.access(log_dir, os.W_OK), 'No write access to %s', log_dir)
+
+        # printf should still output to original streams
+        printf.stdout = os.fdopen(os.dup(sys.stdout.fileno()), 'w')
+        printf.stderr = os.fdopen(os.dup(sys.stderr.fileno()), 'w')
+
         log_path = join(log_dir, '%s.log' % self.name)
-        sys.stdout.flush()
-        sys.stderr.flush()
         logfile = file(log_path, 'a+')
         os.dup2(logfile.fileno(), sys.stdout.fileno())
         os.dup2(logfile.fileno(), sys.stderr.fileno())
@@ -258,6 +267,8 @@ class Application(object):
 
 class Daemon(Application):
 
+    _accept_pipe = None
+
     def run(self):
         raise NotImplementedError()
 
@@ -265,20 +276,31 @@ class Daemon(Application):
         pass
 
     @command('start in daemon mode', name='start', keep_stdout=True)
-    def _cmd_start(self):
-        pid = self.check_for_instance()
-        if pid:
-            printf.info('%s is already run with pid %s', self.name, pid)
-            return 1
+    def cmd_start(self):
+        while True:
+            pid = self.check_for_instance()
+            if not pid:
+                break
+            if not replace.value:
+                printf.info('%s is already run with pid %s', self.name, pid)
+                return 1
+            try:
+                printf.info('Kill previous %r instance', pid)
+                os.kill(pid, signal.SIGTERM)
+            except Exception:
+                pass
+            time.sleep(.5)
+
         if foreground.value:
             self._launch()
         else:
             self.ensure_pidfile_path()
             self._daemonize()
+
         return 0
 
     @command('stop daemon', name='stop')
-    def _cmd_stop(self):
+    def cmd_stop(self):
         pid = self.check_for_instance()
         if pid:
             os.kill(pid, signal.SIGTERM)
@@ -288,7 +310,7 @@ class Daemon(Application):
             return 1
 
     @command('check for launched daemon', name='status')
-    def _cmd_status(self):
+    def cmd_status(self):
         pid = self.check_for_instance()
         if pid:
             printf.info('%s started', self.name)
@@ -298,13 +320,18 @@ class Daemon(Application):
             return 1
 
     @command('reopen log files in daemon mode', name='reload')
-    def _cmd_reload(self):
+    def cmd_reload(self):
         pid = self.check_for_instance()
         if not pid:
             printf.info('%s is not run', self.name)
             return 1
         os.kill(pid, signal.SIGHUP)
         logging.info('Reload %s process', self.name)
+
+    def accept(self):
+        if self._accept_pipe is not None:
+            os.close(self._accept_pipe)
+            self._accept_pipe = None
 
     def _launch(self):
         logging.info('Start %s', self.name)
@@ -321,15 +348,23 @@ class Daemon(Application):
         signal.signal(signal.SIGTERM, sigterm_cb)
         signal.signal(signal.SIGHUP, sighup_cb)
 
+        pid_path = self.new_instance()
         try:
             self.run()
         finally:
             self.epilog()
+            os.unlink(pid_path)
 
     def _daemonize(self):
+        accept_pipe = os.pipe()
         if os.fork() > 0:
+            os.close(accept_pipe[1])
+            os.read(accept_pipe[0], 1)
             # Exit parent of the first child
             return
+
+        os.close(accept_pipe[0])
+        self._accept_pipe = accept_pipe[1]
 
         # Decouple from parent environment
         os.chdir(os.sep)
@@ -345,7 +380,6 @@ class Daemon(Application):
             stdin = file('/dev/null')
             os.dup2(stdin.fileno(), sys.stdin.fileno())
 
-        pid_path = self.new_instance()
         try:
             self._launch()
         except Exception:
@@ -354,8 +388,6 @@ class Daemon(Application):
         else:
             logging.info('Stopped %s', self.name)
             status = 0
-        finally:
-            os.unlink(pid_path)
 
         exit(status)
 
