@@ -96,6 +96,13 @@ class Application(application.Daemon):
         mountset['~'] = HomeMount(volume)
         mountset['/'] = RemoteMount(volume)
 
+        logging.info('Listening for IPC requests on %s port',
+                local.ipc_port.value)
+        server = coroutine.WSGIServer(('localhost', local.ipc_port.value),
+                Router(mountset))
+        self.jobs.spawn(server.serve_forever)
+        self.accept()
+
         def delayed_start(event=None):
             logging.info('Proceed delayed start')
             mountset.disconnect(delayed_start)
@@ -113,12 +120,6 @@ class Application(application.Daemon):
             if local.mounts_root.value:
                 self.jobs.spawn(mountpoints.monitor,
                         abspath(local.mounts_root.value))
-
-        logging.info('Listening for IPC requests on %s port',
-                local.ipc_port.value)
-        server = coroutine.WSGIServer(('localhost', local.ipc_port.value),
-                Router(mountset))
-        self.jobs.spawn(server.serve_forever)
 
         if local.delayed_start.value:
             mountset.connect(delayed_start, event='delayed-start')

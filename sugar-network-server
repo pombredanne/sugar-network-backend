@@ -60,6 +60,7 @@ class Application(application.Daemon):
         server = coroutine.WSGIServer((node.host.value, node.port.value),
                 Router(cp), **ssl_args)
         self.jobs.spawn(server.serve_forever)
+        self.accept()
 
         if webui.webui.value:
             # XXX Until implementing regular web users
