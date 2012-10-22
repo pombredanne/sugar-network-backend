@@ -38,12 +38,11 @@ _mtime = None
 
 
 def make(mountpoint, guid):
-    session = {
-            'mountpoint': mountpoint,
-            'context': guid,
-            }
-    return pipe.fork(_make, logname=guid, session=session,
-            mountpoint=mountpoint, context=guid)
+    return pipe.fork(_make, logname=guid, mountpoint=mountpoint, context=guid,
+            session={
+                'mountpoint': mountpoint,
+                'context': guid,
+                })
 
 
 def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
@@ -65,23 +64,21 @@ def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
     if uri:
         args.extend(['-u', uri])
 
-    session = {
-            'mountpoint': mountpoint,
-            'context': guid,
-            }
-    if color:
-        session['color'] = color
-    return pipe.fork(_launch, logname=guid, session=session,
-            mountpoint=mountpoint, context=guid, args=args)
+    return pipe.fork(_launch, logname=guid, mountpoint=mountpoint,
+            context=guid, args=args, session={
+                'mountpoint': mountpoint,
+                'context': guid,
+                'activity_id': activity_id,
+                'color': color,
+                })
 
 
 def clone(mountpoint, guid):
-    session = {
-            'mountpoint': mountpoint,
-            'context': guid,
-            }
-    return pipe.fork(_clone, logname=guid, session=session,
-            mountpoint=mountpoint, context=guid)
+    return pipe.fork(_clone, logname=guid, mountpoint=mountpoint, context=guid,
+            session={
+                'mountpoint': mountpoint,
+                'context': guid,
+                })
 
 
 def invalidate_solutions(mtime):
@@ -90,7 +87,7 @@ def invalidate_solutions(mtime):
 
 
 def _make(mountpoint, context):
-    pipe.feedback('analyze', mountpoint=mountpoint, context=context)
+    pipe.feedback('analyze')
     solution = _solve(mountpoint, context)
 
     to_install = []

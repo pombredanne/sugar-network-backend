@@ -159,11 +159,11 @@ class InjectorTest(tests.Test):
 
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'exec', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'exec', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
             ],
             [i for i in pipe])
 
@@ -206,11 +206,11 @@ class InjectorTest(tests.Test):
         pipe = injector.launch('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'ready', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'exec', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'ready', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'exec', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
             ],
             [i for i in pipe])
 
@@ -236,10 +236,10 @@ class InjectorTest(tests.Test):
         pipe = injector.launch('~', context, activity_id='activity_id')
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '~', 'context': context, 'log_path': log_path},
-            {'state': 'analyze', 'mountpoint': '~', 'context': context, 'log_path': log_path},
-            {'state': 'ready', 'implementation': impl, 'mountpoint': '~', 'context': context, 'log_path': log_path},
-            {'state': 'exec', 'implementation': impl, 'mountpoint': '~', 'context': context, 'log_path': log_path},
+            {'state': 'fork', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'analyze', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'ready', 'implementation': impl, 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exec', 'implementation': impl, 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
             ],
             [i for i in pipe])
 

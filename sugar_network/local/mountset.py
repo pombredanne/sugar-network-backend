@@ -184,11 +184,14 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
             self.journal_update(object_id, **props)
 
-        for event in injector.launch(mountpoint, guid, args,
-                activity_id=activity_id, object_id=object_id, uri=uri,
-                color=color):
-            event['event'] = 'launch'
-            self.publish(event)
+        def do_launch():
+            for event in injector.launch(mountpoint, guid, args,
+                    activity_id=activity_id, object_id=object_id, uri=uri,
+                    color=color):
+                event['event'] = 'launch'
+                self.publish(event)
+
+        self._jobs.spawn(do_launch)
 
     def super_call(self, request, response):
         mount = self[request.mountpoint]
