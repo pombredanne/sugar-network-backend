@@ -39,29 +39,23 @@ from active_toolkit.options import Option
 from active_toolkit import util, printf, application, coroutine, enforce
 
 
-replace = Option(
-        'if service already launched, replace it by new instance',
-        default=False, type_cast=Option.bool_cast,
-        action='store_true', name='replace')
-
-
-class Application(application.Application):
+class Application(application.Daemon):
 
     def __init__(self, **kwargs):
-        application.Application.__init__(self, **kwargs)
+        application.Daemon.__init__(self, **kwargs)
+
+        self.jobs = coroutine.Pool()
         local.set_logging_verbose(application.debug.value)
 
         new_root = (local.local_root.value != local.local_root.default)
         local.local_root.value = abspath(local.local_root.value)
-
         if new_root:
             application.logdir.value = join(local.local_root.value, 'log')
         else:
             application.logdir.value = sugar.profile_path('logs')
-        application.rundir.value = join(local.local_root.value, 'run')
-
         if not exists(toolkit.tmpdir.value):
             os.makedirs(toolkit.tmpdir.value)
+        application.rundir.value = join(local.local_root.value, 'run')
 
         coroutine.signal(signal.SIGCHLD, self.__SIGCHLD_cb)
 
@@ -88,30 +82,14 @@ class Application(application.Application):
             volume.close()
 
     @application.command(
-            'start service and log to standard output')
+            'start service and log to standard output',
+            hidden=True)
     def debug(self):
-        self.start_service()
+        printf.info('Use "start --foreground" command instead')
+        application.foreground.value = True
+        self.cmd_start()
 
-    @application.command(
-            'start service and log to files',
-            name='start', keep_stdout=True)
-    def start_service(self):
-        while True:
-            pid = self.check_for_instance()
-            if not pid:
-                break
-            if not replace.value:
-                printf.info('%s is already run', self.name)
-                exit(1)
-            try:
-                logging.info('Kill previous %r instance', pid)
-                os.kill(pid, signal.SIGTERM)
-            except Exception:
-                pass
-            coroutine.sleep(.5)
-
-        jobs = coroutine.Pool()
-
+    def run(self):
         toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
         volume = Volume(local.db_path(), lazy_open=local.lazy_open.value)
         mountset = Mountset(volume)
@@ -123,43 +101,41 @@ class Application(application.Application):
             mountset.disconnect(delayed_start)
 
             self._sync(mountset.volume)
-
-            logging.info('Listening for IPC requests on %s port',
-                    local.ipc_port.value)
-            server = coroutine.WSGIServer(('localhost', local.ipc_port.value),
-                    Router(mountset))
-            jobs.spawn(server.serve_forever)
-
-            jobs.spawn(clones.monitor, mountset.volume['context'],
+            self.jobs.spawn(clones.monitor, mountset.volume['context'],
                     local.activity_dirs.value)
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
                 server = coroutine.WSGIServer(host, webui.get_app(mountset))
-                jobs.spawn(server.serve_forever)
+                self.jobs.spawn(server.serve_forever)
 
             if local.mounts_root.value:
                 self.jobs.spawn(mountpoints.monitor,
                         abspath(local.mounts_root.value))
+
+        logging.info('Listening for IPC requests on %s port',
+                local.ipc_port.value)
+        server = coroutine.WSGIServer(('localhost', local.ipc_port.value),
+                Router(mountset))
+        self.jobs.spawn(server.serve_forever)
 
         if local.delayed_start.value:
             mountset.connect(delayed_start, event='delayed-start')
         else:
             delayed_start()
 
-        pid_path = self.new_instance()
         try:
             mountset.open()
-            jobs.join()
+            self.jobs.join()
         except KeyboardInterrupt:
             util.exception('%s interrupted', self.name)
-        except Exception:
-            util.exception('%s aborted', self.name)
         finally:
-            jobs.kill()
+            self.jobs.kill()
             mountset.close()
-            os.unlink(pid_path)
+
+    def shutdown(self):
+        self.jobs.kill()
 
     def __SIGCHLD_cb(self):
         while True:
@@ -197,7 +173,7 @@ node.trust_users.value = True
 # and will brake offline synchronization logic
 toolkit.tmpdir.value = sugar.profile_path('tmp')
 
-Option.seek('main', [application.debug, replace])
+Option.seek('main', application)
 Option.seek('webui', webui)
 Option.seek('local', local)
 Option.seek('local', [sugar.keyfile, toolkit.tmpdir])
