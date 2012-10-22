@@ -103,6 +103,12 @@ class Application(application.Application):
             self._volume.close()
 
     @application.command(
+            'consecutively launch of pull and push commands')
+    def sync(self):
+        self.pull()
+        self.push()
+
+    @application.command(
             'pull activities.sugarlabs.org content to local db')
     def pull(self):
         if not self.volume['context'].exists(SN_GUID):
@@ -483,8 +489,12 @@ class Application(application.Application):
 
     def sqlexec(self, text):
         if self._my_connection is None:
+            password = mysql_password.value
+            if not password:
+                password = getpass.getpass()
             self._my_connection = mdb.connect(mysql_server.value,
-                    mysql_user.value, getpass.getpass(), mysql_database.value)
+                    mysql_user.value, password, mysql_database.value)
+
         cursor = self._my_connection.cursor()
         cursor.execute(text)
         return cursor.fetchall()
@@ -514,9 +524,12 @@ mysql_database = Option(
 mysql_user = Option(
         'MySQL user',
         default='root', name='mysql_user')
+mysql_password = Option(
+        'MySQL password',
+        name='mysql_password')
 
 Option.seek('main', [application.debug])
-Option.seek('aslo', [mysql_server, mysql_user, mysql_database])
+Option.seek('aslo', [mysql_server, mysql_user, mysql_password, mysql_database])
 Option.seek('node', [data_root])
 Option.seek('local', [api_url, sugar.keyfile])
 
