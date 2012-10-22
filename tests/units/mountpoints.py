@@ -6,15 +6,15 @@ import shutil
 
 from __init__ import tests
 
-from sugar_network.toolkit import mounts_monitor
+from sugar_network.toolkit import mountpoints
 from active_toolkit import coroutine
 
 
-class MountsMonitorTest(tests.Test):
+class MountpointsTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        mounts_monitor._COMPLETE_MOUNT_TIMEOUT = 0.01
+        mountpoints._COMPLETE_MOUNT_TIMEOUT = 0.01
 
     def test_Populate(self):
         self.touch('mnt/1/foo')
@@ -23,22 +23,22 @@ class MountsMonitorTest(tests.Test):
         self.touch('mnt/3/fake')
         os.makedirs('mnt/4')
 
-        mounts_monitor.start('mnt')
-
         found = []
-        mounts_monitor.connect('foo', found.append, None)
-        mounts_monitor.connect('bar', found.append, None)
+        mountpoints.connect('foo', found.append, None)
+        mountpoints.connect('bar', found.append, None)
+
+        mountpoints.populate('mnt')
         self.assertEqual(
                 sorted(['mnt/1', 'mnt/2', 'mnt/2']),
                 sorted(found))
 
     def test_Found(self):
         os.makedirs('mnt')
-        mounts_monitor.start('mnt')
+        coroutine.spawn(mountpoints.monitor, 'mnt')
 
         found = []
-        mounts_monitor.connect('foo', found.append, None)
-        mounts_monitor.connect('bar', found.append, None)
+        mountpoints.connect('foo', found.append, None)
+        mountpoints.connect('bar', found.append, None)
 
         coroutine.dispatch()
         self.touch('mnt/1/foo')
@@ -54,12 +54,12 @@ class MountsMonitorTest(tests.Test):
 
     def test_Lost(self):
         os.makedirs('mnt')
-        mounts_monitor.start('mnt')
+        coroutine.spawn(mountpoints.monitor, 'mnt')
 
         found = []
         lost = []
-        mounts_monitor.connect('foo', found.append, lost.append)
-        mounts_monitor.connect('bar', found.append, lost.append)
+        mountpoints.connect('foo', found.append, lost.append)
+        mountpoints.connect('bar', found.append, lost.append)
 
         coroutine.dispatch()
         self.touch('mnt/1/foo')
@@ -82,12 +82,12 @@ class MountsMonitorTest(tests.Test):
                 sorted(lost))
 
     def test_FoundTimeout(self):
-        mounts_monitor._COMPLETE_MOUNT_TIMEOUT = 2
+        mountpoints._COMPLETE_MOUNT_TIMEOUT = 2
         os.makedirs('mnt')
-        mounts_monitor.start('mnt')
+        coroutine.spawn(mountpoints.monitor, 'mnt')
 
         found = []
-        mounts_monitor.connect('probe', found.append, None)
+        mountpoints.connect('probe', found.append, None)
 
         coroutine.dispatch()
         self.touch('mnt/1/probe')

@@ -28,8 +28,7 @@ from gevent import monkey
 import active_document as ad
 import sugar_network_webui as webui
 from sugar_network import toolkit, local, node
-from sugar_network.toolkit import sugar
-from sugar_network.toolkit import mounts_monitor
+from sugar_network.toolkit import sugar, mountpoints
 from sugar_network.local.mounts import HomeMount, RemoteMount
 from sugar_network.local.mountset import Mountset
 from sugar_network.local.ipc_client import Router
@@ -141,7 +140,8 @@ class Application(application.Application):
                 jobs.spawn(server.serve_forever)
 
             if local.mounts_root.value:
-                mounts_monitor.start(abspath(local.mounts_root.value))
+                self.jobs.spawn(mountpoints.monitor,
+                        abspath(local.mounts_root.value))
 
         if local.delayed_start.value:
             mountset.connect(delayed_start, event='delayed-start')
@@ -157,7 +157,6 @@ class Application(application.Application):
         except Exception:
             util.exception('%s aborted', self.name)
         finally:
-            mounts_monitor.stop()
             jobs.kill()
             mountset.close()
             os.unlink(pid_path)

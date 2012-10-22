@@ -22,7 +22,7 @@ from gettext import gettext as _
 
 import active_document as ad
 from sugar_network import node, local
-from sugar_network.toolkit import mounts_monitor, sneakernet, files_sync
+from sugar_network.toolkit import mountpoints, sneakernet, files_sync
 from sugar_network.toolkit.collection import MutableStack
 from sugar_network.toolkit.collection import Sequence, PersistentSequence
 from sugar_network.toolkit.sneakernet import OutFilePacket, DiskFull
@@ -50,7 +50,7 @@ class SyncCommands(object):
         self._sync_script = join(dirname(sys.argv[0]), 'sugar-network-sync')
         self._mount = None
 
-        mounts_monitor.connect(_SYNC_DIRNAME,
+        mountpoints.connect(_SYNC_DIRNAME,
                 self.__found_mountcb, self.__lost_mount_cb)
 
     @property

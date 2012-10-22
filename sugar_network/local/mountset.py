@@ -20,7 +20,7 @@ from os.path import join, exists
 import active_document as ad
 
 from sugar_network import local, node
-from sugar_network.toolkit import netlink, network, mounts_monitor
+from sugar_network.toolkit import netlink, network, mountpoints
 from sugar_network.local import journal, zeroconf
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
@@ -216,7 +216,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
     def open(self):
         try:
-            mounts_monitor.connect(_DB_DIRNAME,
+            mountpoints.connect(_DB_DIRNAME,
                     self._found_mount, self._lost_mount)
             if '/' in self:
                 if local.api_url.value:

@@ -15,7 +15,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.implementation import Implementation
-from sugar_network.toolkit import http, mounts_monitor
+from sugar_network.toolkit import http, mountpoints
 from sugar_network import local, sugar, node
 from sugar_network.resources.volume import Volume
 from sugar_network.local.mounts import HomeMount, RemoteMount
@@ -59,7 +59,8 @@ class MountsetTest(tests.Test):
         coroutine.dispatch()
         self.events_job = coroutine.spawn(read_events)
         coroutine.sleep(.5)
-        mounts_monitor.start(tests.tmpdir)
+        mountpoints.populate(tests.tmpdir)
+        coroutine.spawn(mountpoints.monitor, tests.tmpdir)
         coroutine.dispatch()
 
         return mounts
