@@ -125,9 +125,12 @@ class Commands(object):
             preview = preview.read()
             if hasattr(preview, 'close'):
                 preview.close()
-        else:
+        elif isinstance(preview, dict):
             with file(preview['path'], 'rb') as f:
                 preview = f.read()
+        else:
+            import dbus
+            preview = dbus.ByteArray(preview)
 
         if hasattr(data, 'read'):
             with NamedTemporaryFile(delete=False) as f:
@@ -138,9 +141,14 @@ class Commands(object):
                     f.write(chunk)
                 data = f.name
                 transfer_ownership = True
-        else:
+        elif isinstance(preview, dict):
             data = data['path']
             transfer_ownership = False
+        else:
+            with NamedTemporaryFile(delete=False) as f:
+                f.write(data)
+                data = f.name
+                transfer_ownership = True
 
         self._ds.update(guid, {
             'title': title,

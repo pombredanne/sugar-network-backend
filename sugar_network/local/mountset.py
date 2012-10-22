@@ -142,7 +142,8 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
     @ad.document_command(method='GET', cmd='launch',
             arguments={'args': ad.to_list})
     def launch(self, mountpoint, document, guid, args, context=None,
-            activity_id=None, object_id=None, uri=None, color=None):
+            activity_id=None, object_id=None, uri=None, color=None,
+            no_spawn=None):
         enforce(document == 'context', 'Only contexts can be launched')
 
         mount = self[mountpoint]
@@ -191,7 +192,10 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                 event['event'] = 'launch'
                 self.publish(event)
 
-        self._jobs.spawn(do_launch)
+        if no_spawn:
+            do_launch()
+        else:
+            self._jobs.spawn(do_launch)
 
     def super_call(self, request, response):
         mount = self[request.mountpoint]
