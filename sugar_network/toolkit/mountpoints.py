@@ -24,31 +24,40 @@ from active_toolkit import coroutine, util
 
 _COMPLETE_MOUNT_TIMEOUT = 3
 
-_root = None
-_jobs = coroutine.Pool()
+_logger = logging.getLogger('mountpoints')
 _connects = {}
 _found = {}
 
-_logger = logging.getLogger('mounts_monitor')
+
+def populate(root):
+    for name in os.listdir(root):
+        _found_mount(join(root, name))
 
 
-def start(root):
-    global _root
-    if _jobs:
-        return
-    _root = root
-    _logger.info('Start monitoring %r for mounts', _root)
-    for name in os.listdir(_root):
-        _found_mount(join(_root, name))
-    _jobs.spawn(_monitor)
+def monitor(root):
+    _logger.info('Start monitoring %r for mounts', root)
 
+    populate(root)
 
-def stop():
-    if _jobs:
-        _logger.info('Stop monitoring %r for mounts', _root)
-        _jobs.kill()
-    _connects.clear()
-    _found.clear()
+    with Inotify() as inotify:
+        inotify.add_watch(root, IN_DELETE_SELF | IN_CREATE |
+                IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM)
+        while not inotify.closed:
+            coroutine.select([inotify.fileno()], [], [])
+            for name, event, __ in inotify.read():
+                path = join(root, name)
+                if event & IN_DELETE_SELF:
+                    _logger.warning('Lost %r, cannot monitor anymore', root)
+                    inotify.close()
+                    break
+                elif event & (IN_DELETE | IN_MOVED_FROM):
+                    _lost_mount(path)
+                elif event & (IN_CREATE | IN_MOVED_TO):
+                    # Right after moutning, access to newly mounted directory
+                    # might be restricted; let the system enough time
+                    # to complete mounting routines
+                    coroutine.sleep(_COMPLETE_MOUNT_TIMEOUT)
+                    _found_mount(path)
 
 
 def connect(filename, found_cb, lost_cb):
@@ -87,25 +96,3 @@ def _call(path, filename, cb):
         cb(path)
     except Exception:
         util.exception(_logger, 'Cannot call %r for %r mount', cb, path)
-
-
-def _monitor():
-    with Inotify() as monitor:
-        monitor.add_watch(_root, IN_DELETE_SELF | IN_CREATE |
-                IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM)
-        while not monitor.closed:
-            coroutine.select([monitor.fileno()], [], [])
-            for name, event, __ in monitor.read():
-                path = join(_root, name)
-                if event & IN_DELETE_SELF:
-                    _logger.warning('Lost %r, cannot monitor anymore', _root)
-                    monitor.close()
-                    break
-                elif event & (IN_DELETE | IN_MOVED_FROM):
-                    _lost_mount(path)
-                elif event & (IN_CREATE | IN_MOVED_TO):
-                    # Right after moutning, access to newly mounted directory
-                    # might be restricted; let the system enough time
-                    # to complete mounting routines
-                    coroutine.sleep(_COMPLETE_MOUNT_TIMEOUT)
-                    _found_mount(path)

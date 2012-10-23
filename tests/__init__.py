@@ -18,7 +18,7 @@ from gevent import monkey
 
 import active_document as ad
 from active_toolkit import coroutine
-from sugar_network.toolkit import sugar, http, sneakernet, mounts_monitor
+from sugar_network.toolkit import sugar, http, sneakernet, mountpoints
 from sugar_network.toolkit.router import Router
 from sugar_network.local.ipc_client import Router as IPCRouter
 from sugar_network.local.mounts import HomeMount, RemoteMount
@@ -91,8 +91,9 @@ class Test(unittest.TestCase):
         local.mounts_root.value = None
         local.ipc_port.value = 5101
         local.layers.value = None
-        mounts_monitor.stop()
-        mounts_monitor._COMPLETE_MOUNT_TIMEOUT = .1
+        mountpoints._connects.clear()
+        mountpoints._found.clear()
+        mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
         stats.stats_root.value = tmpdir + '/stats'
         stats.stats_step.value = 1
         stats.stats_rras.value = ['RRA:AVERAGE:0.5:1:100']

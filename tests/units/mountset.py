@@ -15,7 +15,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.implementation import Implementation
-from sugar_network.toolkit import http, mounts_monitor
+from sugar_network.toolkit import http, mountpoints
 from sugar_network import local, sugar, node
 from sugar_network.resources.volume import Volume
 from sugar_network.local.mounts import HomeMount, RemoteMount
@@ -59,7 +59,8 @@ class MountsetTest(tests.Test):
         coroutine.dispatch()
         self.events_job = coroutine.spawn(read_events)
         coroutine.sleep(.5)
-        mounts_monitor.start(tests.tmpdir)
+        mountpoints.populate(tests.tmpdir)
+        coroutine.spawn(mountpoints.monitor, tests.tmpdir)
         coroutine.dispatch()
 
         return mounts
@@ -191,7 +192,7 @@ class MountsetTest(tests.Test):
         self.assertRaises(RuntimeError, mounts.launch, '~', 'fake', 'app', [])
 
         mounts.launch('~', 'context', 'app', [])
-        coroutine.dispatch()
+        coroutine.sleep(1)
         self.assertEqual([
             {'event': 'launch', 'args': ['~', 'app', []], 'kwargs': {'color': None, 'activity_id': None, 'uri': None, 'object_id': None}},
             ],
@@ -200,7 +201,7 @@ class MountsetTest(tests.Test):
 
         self.override(journal, 'exists', lambda *args: True)
         mounts.launch('~', 'context', 'app', [], object_id='object_id')
-        coroutine.dispatch()
+        coroutine.sleep(1)
         self.assertEqual([
             {'event': 'launch', 'args': ['~', 'app', []], 'kwargs': {'color': None, 'activity_id': None, 'uri': None, 'object_id': 'object_id'}},
             ],
@@ -233,7 +234,7 @@ class MountsetTest(tests.Test):
         self.override(journal, 'exists', lambda *args: False)
 
         mounts.launch('~', 'context', 'app', [], object_id='artifact')
-        coroutine.dispatch()
+        coroutine.sleep(1)
         self.assertEqual([
             (('artifact',), {
                 'title': 'title',
@@ -302,7 +303,7 @@ class MountsetTest(tests.Test):
         self.override(journal, 'exists', lambda *args: False)
 
         mounts.launch('~', 'context', 'app', [], context='context')
-        coroutine.dispatch()
+        coroutine.sleep(1)
         self.assertEqual([
             (('impl2',), {
                 'title': 'title',
@@ -330,7 +331,7 @@ class MountsetTest(tests.Test):
         del self.events[:]
 
         mounts.launch('~', 'context', 'app', [], context='context', object_id='impl1')
-        coroutine.dispatch()
+        coroutine.sleep(1)
         self.assertEqual([
             (('impl1',), {
                 'title': 'title',

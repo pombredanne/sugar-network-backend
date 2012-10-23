@@ -14,7 +14,7 @@ import active_document as ad
 from active_toolkit import coroutine, sockets
 from sugar_network.local.mounts import HomeMount
 from sugar_network.local.mountset import Mountset
-from sugar_network.toolkit import mounts_monitor
+from sugar_network.toolkit import mountpoints
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network import local, sugar
@@ -48,7 +48,8 @@ class NodeMountTest(tests.Test):
                 ('localhost', local.ipc_port.value), IPCRouter(self.mounts))
         coroutine.spawn(self.server.serve_forever)
         self.mounts.open()
-        mounts_monitor.start(tests.tmpdir)
+        mountpoints.populate(tests.tmpdir)
+        coroutine.spawn(mountpoints.monitor, tests.tmpdir)
         self.mounts.opened.wait()
 
         return self.mounts

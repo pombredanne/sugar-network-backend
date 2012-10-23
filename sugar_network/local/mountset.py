@@ -20,7 +20,7 @@ from os.path import join, exists
 import active_document as ad
 
 from sugar_network import local, node
-from sugar_network.toolkit import netlink, network, mounts_monitor
+from sugar_network.toolkit import netlink, network, mountpoints
 from sugar_network.local import journal, zeroconf
 from sugar_network.local.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
@@ -142,7 +142,8 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
     @ad.document_command(method='GET', cmd='launch',
             arguments={'args': ad.to_list})
     def launch(self, mountpoint, document, guid, args, context=None,
-            activity_id=None, object_id=None, uri=None, color=None):
+            activity_id=None, object_id=None, uri=None, color=None,
+            no_spawn=None):
         enforce(document == 'context', 'Only contexts can be launched')
 
         mount = self[mountpoint]
@@ -184,11 +185,17 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
             self.journal_update(object_id, **props)
 
-        for event in injector.launch(mountpoint, guid, args,
-                activity_id=activity_id, object_id=object_id, uri=uri,
-                color=color):
-            event['event'] = 'launch'
-            self.publish(event)
+        def do_launch():
+            for event in injector.launch(mountpoint, guid, args,
+                    activity_id=activity_id, object_id=object_id, uri=uri,
+                    color=color):
+                event['event'] = 'launch'
+                self.publish(event)
+
+        if no_spawn:
+            do_launch()
+        else:
+            self._jobs.spawn(do_launch)
 
     def super_call(self, request, response):
         mount = self[request.mountpoint]
@@ -216,7 +223,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
     def open(self):
         try:
-            mounts_monitor.connect(_DB_DIRNAME,
+            mountpoints.connect(_DB_DIRNAME,
                     self._found_mount, self._lost_mount)
             if '/' in self:
                 if local.api_url.value:

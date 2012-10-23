@@ -29,7 +29,9 @@ import MySQLdb as mdb
 import active_document as ad
 from sugar_network import sugar, Client
 from sugar_network.toolkit.collection import PersistentSequence, Sequence
-from sugar_network.zerosugar import GOOD_LICENSES, Bundle, parse_version
+from sugar_network.zerosugar.licenses import GOOD_LICENSES
+from sugar_network.zerosugar.spec import parse_version
+from sugar_network.zerosugar.bundle import Bundle
 from sugar_network.resources.volume import Volume
 from sugar_network.node import data_root
 from sugar_network.local import api_url
@@ -39,7 +41,7 @@ from active_toolkit import application
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
 ACTIVITIES_PATH = '/upload/activities'
-EXCLUDE_BUNDLE_IDS = ['net.gcompris']
+EXCLUDE_BUNDLE_IDS = ['net.gcompris.']
 SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
 PACKAGES_GUID = 'packages'
@@ -99,6 +101,12 @@ class Application(application.Application):
     def epilog(self):
         if self._volume is not None:
             self._volume.close()
+
+    @application.command(
+            'consecutively launch of pull and push commands')
+    def sync(self):
+        self.pull()
+        self.push()
 
     @application.command(
             'pull activities.sugarlabs.org content to local db')
@@ -188,6 +196,37 @@ class Application(application.Application):
                 continue
             self.sync_context(addon_id, bundle_id)
             self.sync_versions(addon_id, bundle_id)
+            self.sync_reviews(addon_id, bundle_id)
+
+    def sync_reviews(self, addon_id, bundle_id):
+        sql = """
+            SELECT
+                reviews.id,
+                reviews.created,
+                reviews.title,
+                reviews.body,
+                IF(users.firstname!="", CONCAT_WS(' ', users.firstname, users.lastname), users.nickname)
+            FROM
+                reviews
+                INNER JOIN versions ON versions.id = reviews.version_id
+                INNER JOIN users ON users.id=reviews.user_id
+            WHERE
+                reply_to IS NULL AND versions.addon_id = %s
+            """ % addon_id
+        directory = self.volume['feedback']
+        for guid, created, title, content, author in self.sqlexec(sql):
+            if directory.exists(str(guid)):
+                continue
+            directory.create(
+                    guid=str(guid),
+                    ctime=int(time.mktime(created.timetuple())),
+                    mtime=int(time.mktime(created.timetuple())),
+                    context=bundle_id,
+                    type='review',
+                    title=self.get_i18n_field(title),
+                    content=self.get_i18n_field(content),
+                    author=[author],
+                    )
 
     def sync_versions(self, addon_id, bundle_id):
         sql = """
@@ -305,7 +344,7 @@ class Application(application.Application):
                 addons.description,
                 (select max(localized_string) from translations where
                     id=addons.homepage),
-                CONCAT_WS(' ', users.firstname, users.lastname)
+                IF(users.firstname != '', CONCAT_WS(' ', users.firstname, users.lastname), users.nickname)
             FROM
                 addons
                 INNER JOIN addons_users on addons_users.addon_id=addons.id
@@ -450,8 +489,12 @@ class Application(application.Application):
 
     def sqlexec(self, text):
         if self._my_connection is None:
+            password = mysql_password.value
+            if not password:
+                password = getpass.getpass()
             self._my_connection = mdb.connect(mysql_server.value,
-                    mysql_user.value, getpass.getpass(), mysql_database.value)
+                    mysql_user.value, password, mysql_database.value)
+
         cursor = self._my_connection.cursor()
         cursor.execute(text)
         return cursor.fetchall()
@@ -481,9 +524,12 @@ mysql_database = Option(
 mysql_user = Option(
         'MySQL user',
         default='root', name='mysql_user')
+mysql_password = Option(
+        'MySQL password',
+        name='mysql_password')
 
 Option.seek('main', [application.debug])
-Option.seek('aslo', [mysql_server, mysql_user, mysql_database])
+Option.seek('aslo', [mysql_server, mysql_user, mysql_password, mysql_database])
 Option.seek('node', [data_root])
 Option.seek('local', [api_url, sugar.keyfile])
 
