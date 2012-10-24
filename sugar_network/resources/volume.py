@@ -19,7 +19,7 @@ from os.path import join
 
 import active_document as ad
 from active_document import directory as ad_directory
-from sugar_network import local, node, toolkit
+from sugar_network import client, node, toolkit
 from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit import http
@@ -308,7 +308,7 @@ class VolumeCommands(ad.VolumeCommands):
         elif hasattr(request, 'environ'):
             prefix = 'http://' + request.environ['HTTP_HOST']
         else:
-            prefix = 'http://localhost:%s' % local.ipc_port.value
+            prefix = 'http://localhost:%s' % client.ipc_port.value
         if request.mountpoint in (None, '/'):
             postfix = ''
         else:

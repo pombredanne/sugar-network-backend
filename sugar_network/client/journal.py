@@ -22,13 +22,13 @@ import logging
 from tempfile import NamedTemporaryFile
 
 import active_document as ad
-from sugar_network import local
+from sugar_network import client
 from sugar_network.toolkit import sugar, router
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import enforce
 
 
-_logger = logging.getLogger('local.journal')
+_logger = logging.getLogger('client.journal')
 _ds = None
 
 
@@ -80,7 +80,7 @@ class Commands(object):
 
         def preview_url(guid):
             return 'http://localhost:%s/journal/%s/preview' % \
-                    (local.ipc_port.value, guid)
+                    (client.ipc_port.value, guid)
 
         if len(request.path) == 1:
             if 'order_by' in request:
@@ -141,7 +141,7 @@ class Commands(object):
                     f.write(chunk)
                 data = f.name
                 transfer_ownership = True
-        elif isinstance(preview, dict):
+        elif isinstance(data, dict):
             data = data['path']
             transfer_ownership = False
         else:

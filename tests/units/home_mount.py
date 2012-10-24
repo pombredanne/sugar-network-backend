@@ -11,7 +11,7 @@ from __init__ import tests
 
 from active_toolkit import sockets, coroutine
 from sugar_network.resources.artifact import Artifact
-from sugar_network import local
+from sugar_network import client as local
 from sugar_network.zerosugar import clones
 from sugar_network import IPCClient
 

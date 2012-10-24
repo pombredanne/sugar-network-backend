@@ -19,7 +19,7 @@ from os.path import join
 import active_document as ad
 
 from sugar_network.toolkit import router
-from sugar_network.local import sugar, hub_root
+from sugar_network.client import sugar, hub_root
 
 
 class Router(router.Router):

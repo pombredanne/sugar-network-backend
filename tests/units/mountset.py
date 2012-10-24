@@ -10,19 +10,19 @@ from __init__ import tests
 
 import active_document as ad
 from active_toolkit import coroutine, sockets
-from sugar_network.local.mountset import Mountset
+from sugar_network.client.mountset import Mountset
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.implementation import Implementation
 from sugar_network.toolkit import http, mountpoints
-from sugar_network import local, sugar, node
+from sugar_network import client as local, sugar, node
 from sugar_network.resources.volume import Volume
-from sugar_network.local.mounts import HomeMount, RemoteMount
-from sugar_network.local.ipc_client import Router as IPCRouter
+from sugar_network.client.mounts import HomeMount, RemoteMount
+from sugar_network.client.ipc_client import Router as IPCRouter
 from sugar_network import IPCClient, Client
 from sugar_network.zerosugar import injector
-from sugar_network.local import journal
+from sugar_network.client import journal
 
 
 class MountsetTest(tests.Test):

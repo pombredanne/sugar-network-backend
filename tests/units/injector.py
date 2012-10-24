@@ -12,13 +12,13 @@ from __init__ import tests
 
 from active_toolkit import coroutine, enforce
 from sugar_network import zeroinstall
-from sugar_network.local import journal
+from sugar_network.client import journal
 from sugar_network.toolkit import pipe
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.zerosugar import lsb_release, packagekit, injector, clones
-from sugar_network import IPCClient, local
+from sugar_network import IPCClient, client as local
 
 
 class InjectorTest(tests.Test):

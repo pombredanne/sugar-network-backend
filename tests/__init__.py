@@ -20,10 +20,10 @@ import active_document as ad
 from active_toolkit import coroutine
 from sugar_network.toolkit import sugar, http, sneakernet, mountpoints
 from sugar_network.toolkit.router import Router
-from sugar_network.local.ipc_client import Router as IPCRouter
-from sugar_network.local.mounts import HomeMount, RemoteMount
-from sugar_network.local.mountset import Mountset
-from sugar_network import local, node, toolkit
+from sugar_network.client.ipc_client import Router as IPCRouter
+from sugar_network.client.mounts import HomeMount, RemoteMount
+from sugar_network.client.mountset import Mountset
+from sugar_network import client, node, toolkit
 from sugar_network.zerosugar import injector
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
@@ -84,13 +84,13 @@ class Test(unittest.TestCase):
         node.sync_dirs.value = []
         node.static_url.value = None
         ad.index_write_queue.value = 10
-        local.local_root.value = tmpdir
-        local.activity_dirs.value = [tmpdir + '/Activities']
-        local.api_url.value = 'http://localhost:8800'
-        local.server_mode.value = False
-        local.mounts_root.value = None
-        local.ipc_port.value = 5101
-        local.layers.value = None
+        client.local_root.value = tmpdir
+        client.activity_dirs.value = [tmpdir + '/Activities']
+        client.api_url.value = 'http://localhost:8800'
+        client.server_mode.value = False
+        client.mounts_root.value = None
+        client.ipc_port.value = 5101
+        client.layers.value = None
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
@@ -249,7 +249,7 @@ class Test(unittest.TestCase):
         if root:
             self.mounts['/'] = RemoteMount(volume)
         self.server = coroutine.WSGIServer(
-                ('localhost', local.ipc_port.value), IPCRouter(self.mounts))
+                ('localhost', client.ipc_port.value), IPCRouter(self.mounts))
         coroutine.spawn(self.server.serve_forever)
         self.mounts.open()
         self.mounts.opened.wait()

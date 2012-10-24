@@ -6,7 +6,7 @@ import select
 from __init__ import tests
 
 import active_document as ad
-from sugar_network import local
+from sugar_network import client as local
 from sugar_network.toolkit import router, http
 from active_toolkit import coroutine
 

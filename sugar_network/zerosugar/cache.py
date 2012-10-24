@@ -19,7 +19,7 @@ import logging
 from os.path import exists, join
 
 from sugar_network import toolkit, Client
-from sugar_network.local import local_root
+from sugar_network.client import local_root
 from sugar_network.zerosugar.bundle import Bundle
 from sugar_network.toolkit import pipe
 from active_toolkit.sockets import BUFFER_SIZE

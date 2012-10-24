@@ -21,7 +21,7 @@ from gettext import gettext as _
 import active_document as ad
 from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Request, VolumeCommands
-from sugar_network import local, sugar, Client
+from sugar_network import client, sugar, Client
 from active_toolkit import util, coroutine, enforce
 
 
@@ -31,7 +31,7 @@ _LOCAL_PROPS = {
         'position': (-1, -1),
         }
 
-_logger = logging.getLogger('local.mounts')
+_logger = logging.getLogger('client.mounts')
 
 
 class _Mount(object):
@@ -90,7 +90,7 @@ class LocalMount(VolumeCommands, _Mount):
 
     def url(self, *path):
         enforce(self.mounted.is_set(), 'Not mounter')
-        api_url = 'http://localhost:%s' % local.ipc_port.value
+        api_url = 'http://localhost:%s' % client.ipc_port.value
         return '/'.join((api_url,) + path)
 
     def before_create(self, request, props):
@@ -331,15 +331,15 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         self._remote_volume_guid = None
         self._url = None
         self._api_urls = []
-        if local.api_url.value:
-            self._api_urls.append(local.api_url.value)
+        if client.api_url.value:
+            self._api_urls.append(client.api_url.value)
         self._connections = coroutine.Pool()
 
     def proxy_call(self, request, response):
-        if local.layers.value and request.get('document') in \
+        if client.layers.value and request.get('document') in \
                 ('context', 'implementation') and \
                 'layer' not in request:
-            request['layer'] = local.layers.value
+            request['layer'] = client.layers.value
         return self._client.call(request, response)
 
     def call(self, request, response=None):

@@ -11,7 +11,7 @@ import gobject
 from __init__ import tests
 
 import active_document as ad
-from sugar_network.local import journal
+from sugar_network.client import journal
 from sugar_network.resources.volume import Request
 
 

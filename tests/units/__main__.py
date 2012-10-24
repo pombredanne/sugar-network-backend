@@ -6,7 +6,7 @@ from collection import *
 from spec import *
 from http import *
 from volume import *
-from local import *
+from client import *
 from node import *
 from sneakernet import *
 from router import *

@@ -21,7 +21,7 @@ from os.path import join, dirname, exists, basename
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network import node, local
+from sugar_network import node, client
 from sugar_network.toolkit import mountpoints, sneakernet, files_sync
 from sugar_network.toolkit.collection import MutableStack
 from sugar_network.toolkit.collection import Sequence, PersistentSequence
@@ -121,7 +121,7 @@ class SyncCommands(object):
             with OutFilePacket(path, limit=accept_length,
                     src=self._mount.node_guid, dst=self._mount.master_guid,
                     session=session, seqno=self._mount.volume.seqno.value,
-                    api_url=local.api_url.value) as packet:
+                    api_url=client.api_url.value) as packet:
                 if session_is_new:
                     for directory, sync in self._file_syncs.items():
                         packet.push(cmd='files_pull', directory=directory,

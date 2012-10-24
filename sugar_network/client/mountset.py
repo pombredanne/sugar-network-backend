@@ -19,10 +19,10 @@ from os.path import join, exists
 
 import active_document as ad
 
-from sugar_network import local, node
+from sugar_network import client, node
 from sugar_network.toolkit import netlink, network, mountpoints
-from sugar_network.local import journal, zeroconf
-from sugar_network.local.mounts import LocalMount, NodeMount
+from sugar_network.client import journal, zeroconf
+from sugar_network.client.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.router import Router
 from sugar_network.node.sync_node import SyncCommands
@@ -33,7 +33,7 @@ from active_toolkit import util, coroutine, enforce
 
 _DB_DIRNAME = '.sugar-network'
 
-_logger = logging.getLogger('local.mountset')
+_logger = logging.getLogger('client.mountset')
 
 
 class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
@@ -48,7 +48,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
         dict.__init__(self)
         ad.CommandsProcessor.__init__(self, home_volume)
-        SyncCommands.__init__(self, local.path('sync'))
+        SyncCommands.__init__(self, client.path('sync'))
         Commands.__init__(self)
         journal.Commands.__init__(self)
 
@@ -226,7 +226,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             mountpoints.connect(_DB_DIRNAME,
                     self._found_mount, self._lost_mount)
             if '/' in self:
-                if local.api_url.value:
+                if client.api_url.value:
                     crawler = self._wait_for_server
                 else:
                     crawler = self._discover_server
@@ -252,7 +252,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         with netlink.Netlink(socket.NETLINK_ROUTE, netlink.RTMGRP_IPV4_ROUTE |
                 netlink.RTMGRP_IPV6_ROUTE | netlink.RTMGRP_NOTIFY) as monitor:
             while True:
-                self['/'].mount(local.api_url.value)
+                self['/'].mount(client.api_url.value)
                 coroutine.select([monitor.fileno()], [], [])
                 message = monitor.read()
                 if message is None:
@@ -279,8 +279,8 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         del self[path]
 
     def _mount_volume(self, path):
-        lazy_open = local.lazy_open.value
-        server_mode = local.server_mode.value and exists(join(path, 'node'))
+        lazy_open = client.lazy_open.value
+        server_mode = client.server_mode.value and exists(join(path, 'node'))
 
         if server_mode:
             if self._servers:

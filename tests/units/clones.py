@@ -12,8 +12,8 @@ import active_document as ad
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from active_toolkit import coroutine, util
-from sugar_network.local.mounts import HomeMount
-from sugar_network.local.mountset import Mountset
+from sugar_network.client.mounts import HomeMount
+from sugar_network.client.mountset import Mountset
 from sugar_network.zerosugar import clones
 from sugar_network.toolkit import sugar
 from sugar_network.resources.volume import Volume
