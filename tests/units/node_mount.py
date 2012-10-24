@@ -21,7 +21,7 @@ from sugar_network import client as local, sugar
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.artifact import Artifact
 from sugar_network.zerosugar import clones
-from sugar_network.client.ipc_client import Router as IPCRouter
+from sugar_network.client.ipc import Router as IPCRouter
 from sugar_network import IPCClient
 
 

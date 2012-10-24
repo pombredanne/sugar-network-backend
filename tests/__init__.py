@@ -20,7 +20,7 @@ import active_document as ad
 from active_toolkit import coroutine
 from sugar_network.toolkit import sugar, http, sneakernet, mountpoints
 from sugar_network.toolkit.router import Router
-from sugar_network.client.ipc_client import Router as IPCRouter
+from sugar_network.client.ipc import Router as IPCRouter
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network import client, node, toolkit

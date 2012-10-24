@@ -13,7 +13,7 @@ from __init__ import tests
 import active_document as ad
 from active_toolkit import sockets, coroutine
 from sugar_network import client as local
-from sugar_network.client.ipc_client import Router as IPCRouter
+from sugar_network.client.ipc import Router as IPCRouter
 from sugar_network.client.mounts import RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.toolkit import sugar, http

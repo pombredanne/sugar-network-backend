@@ -19,7 +19,7 @@ from sugar_network.toolkit import http, mountpoints
 from sugar_network import client as local, sugar, node
 from sugar_network.resources.volume import Volume
 from sugar_network.client.mounts import HomeMount, RemoteMount
-from sugar_network.client.ipc_client import Router as IPCRouter
+from sugar_network.client.ipc import Router as IPCRouter
 from sugar_network import IPCClient, Client
 from sugar_network.zerosugar import injector
 from sugar_network.client import journal
