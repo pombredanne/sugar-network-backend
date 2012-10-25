@@ -26,7 +26,7 @@ from M2Crypto import DSA
 
 import active_document as ad
 from sugar_network.toolkit import sugar
-from sugar_network import local
+from sugar_network import client
 from active_toolkit import coroutine, util, enforce
 
 
@@ -44,10 +44,10 @@ class Client(object):
         self._sugar_auth = sugar_auth
 
         verify = True
-        if local.no_check_certificate.value:
+        if client.no_check_certificate.value:
             verify = False
-        elif local.certfile.value:
-            verify = local.certfile.value
+        elif client.certfile.value:
+            verify = client.certfile.value
 
         headers = {'Accept-Language': ad.default_lang()}
         if self._sugar_auth:
@@ -201,9 +201,9 @@ class Client(object):
 
 class _Subscription(object):
 
-    def __init__(self, client, tries):
+    def __init__(self, aclient, tries):
         self._tries = tries or 1
-        self._client = client
+        self._client = aclient
         self._response = None
 
     def __iter__(self):

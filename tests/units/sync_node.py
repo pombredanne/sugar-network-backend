@@ -12,7 +12,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network.toolkit.sneakernet import InPacket, OutFilePacket
-from sugar_network.local import api_url
+from sugar_network.client import api_url
 from sugar_network.node import sync_node
 from sugar_network.toolkit import sneakernet
 from sugar_network.resources.volume import Volume

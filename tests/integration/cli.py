@@ -26,7 +26,7 @@ class SyncTest(tests.Test):
         util.cptree('../../data/node', 'node')
         self.service_pid = None
 
-        self.node_pid = self.popen(['sugar-network-server', '-F', 'start',
+        self.node_pid = self.popen(['sugar-network-node', '-F', 'start',
             '--port=8100', '--data-root=node', '--tmpdir=tmp', '-DDD',
             '--rundir=run',
             ])
@@ -153,7 +153,7 @@ class SyncTest(tests.Test):
         cmd = ['sugar-network', '--local-root=service', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd
 
         if '--anonymous' not in cmd and not self.service_pid:
-            self.service_pid = self.popen(['sugar-network-service',
+            self.service_pid = self.popen(['sugar-network-client',
                 '-DDDF', 'start',
                 '--activity-dirs=service/Activities', '--local-root=service',
                 '--mounts-root=mnt', '--tmpdir=tmp', '--ipc-port=5101',

@@ -15,7 +15,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import Client
-from sugar_network.local import local_root
+from sugar_network.client import local_root
 
 from sugar_network import sugar
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket

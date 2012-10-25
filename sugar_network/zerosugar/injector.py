@@ -19,8 +19,8 @@ import shutil
 import logging
 from os.path import join, exists, basename, dirname
 
-from sugar_network import local, sugar
-from sugar_network.local import journal
+from sugar_network import client, sugar
+from sugar_network.client import journal
 from sugar_network.zerosugar import cache, lsb_release
 from sugar_network.toolkit import pipe
 from active_toolkit import util
@@ -129,7 +129,7 @@ def _clone(mountpoint, context):
     try:
         for impl in solution:
             dst_path = util.unique_filename(
-                    local.activity_dirs.value[0], basename(impl['path']))
+                    client.activity_dirs.value[0], basename(impl['path']))
             cloned.append(dst_path)
             _logger.info('Clone implementation to %r', dst_path)
             util.cptree(impl['path'], dst_path)
@@ -187,7 +187,7 @@ def _activity_env(impl, environ):
 
 
 def _get_cached_solution(mountpoint, guid):
-    path = local.path('cache', 'solutions', mountpoint.replace('/', '#'),
+    path = client.path('cache', 'solutions', mountpoint.replace('/', '#'),
             guid[:2], guid)
 
     solution = None
@@ -200,7 +200,7 @@ def _get_cached_solution(mountpoint, guid):
     if solution is None:
         return path, None, None
 
-    stale = (api_url != local.api_url.value)
+    stale = (api_url != client.api_url.value)
     if _mtime is not None:
         stale = (_mtime > os.stat(path).st_mtime)
     if not stale and _pms_path is not None:
@@ -220,4 +220,4 @@ def _set_cached_solution(path, solution):
     if not exists(dirname(path)):
         os.makedirs(dirname(path))
     with file(path, 'w') as f:
-        json.dump([local.api_url.value, solution], f)
+        json.dump([client.api_url.value, solution], f)

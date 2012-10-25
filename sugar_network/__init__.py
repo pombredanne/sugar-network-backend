@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from sugar_network.toolkit import sugar
-from sugar_network.local import api_url, server_mode
+from sugar_network.client import api_url, server_mode
 from sugar_network_webui import webui_port
 
 
@@ -32,5 +32,5 @@ def Client(url=None, sugar_auth=True, **kwargs):
 
 def IPCClient(**kwargs):
     from sugar_network.toolkit import http
-    from sugar_network.local import ipc_port
+    from sugar_network.client import ipc_port
     return http.Client('http://localhost:%s' % ipc_port.value, **kwargs)

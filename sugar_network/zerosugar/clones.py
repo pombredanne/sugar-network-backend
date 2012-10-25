@@ -26,7 +26,7 @@ from sugar_network.toolkit.inotify import Inotify, \
         IN_MOVED_TO, IN_MOVED_FROM
 from active_document import DEFAULT_LANG
 from sugar_network.toolkit import sugar
-from sugar_network import toolkit, local
+from sugar_network import toolkit, client
 from active_toolkit import coroutine, util
 
 
@@ -144,7 +144,7 @@ class _Inotify(Inotify):
 
         if lexists(checkin_path):
             os.unlink(checkin_path)
-        local.ensure_path(checkin_path)
+        client.ensure_path(checkin_path)
         os.symlink(relpath(context_path, dirname(checkin_path)), checkin_path)
 
         if self._contexts.exists(context):
@@ -372,7 +372,7 @@ class _ActivityDir(object):
 
 def _checkin_path(clone_path):
     hashed_path = hashlib.sha1(clone_path).hexdigest()
-    return hashed_path, local.path('clones', 'checkin', hashed_path)
+    return hashed_path, client.path('clones', 'checkin', hashed_path)
 
 
 def _read_checkin_path(checkin_path):
@@ -380,8 +380,8 @@ def _read_checkin_path(checkin_path):
 
 
 def _context_path(context, hashed_path):
-    return local.path('clones', 'context', context, hashed_path)
+    return client.path('clones', 'context', context, hashed_path)
 
 
 def _ensure_context_path(context, hashed_path):
-    return local.ensure_path('clones', 'context', context, hashed_path)
+    return client.ensure_path('clones', 'context', context, hashed_path)

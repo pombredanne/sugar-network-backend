@@ -27,11 +27,11 @@ from gevent import monkey
 
 import active_document as ad
 import sugar_network_webui as webui
-from sugar_network import toolkit, local, node
+from sugar_network import toolkit, client, node
 from sugar_network.toolkit import sugar, mountpoints
-from sugar_network.local.mounts import HomeMount, RemoteMount
-from sugar_network.local.mountset import Mountset
-from sugar_network.local.ipc_client import Router
+from sugar_network.client.mounts import HomeMount, RemoteMount
+from sugar_network.client.mountset import Mountset
+from sugar_network.client.ipc import Router
 from sugar_network.zerosugar import clones
 from sugar_network.node import stats
 from sugar_network.resources.volume import Volume
@@ -45,17 +45,17 @@ class Application(application.Daemon):
         application.Daemon.__init__(self, **kwargs)
 
         self.jobs = coroutine.Pool()
-        local.set_logging_verbose(application.debug.value)
+        client.set_logging_verbose(application.debug.value)
 
-        new_root = (local.local_root.value != local.local_root.default)
-        local.local_root.value = abspath(local.local_root.value)
+        new_root = (client.local_root.value != client.local_root.default)
+        client.local_root.value = abspath(client.local_root.value)
         if new_root:
-            application.logdir.value = join(local.local_root.value, 'log')
+            application.logdir.value = join(client.local_root.value, 'log')
         else:
             application.logdir.value = sugar.profile_path('logs')
         if not exists(toolkit.tmpdir.value):
             os.makedirs(toolkit.tmpdir.value)
-        application.rundir.value = join(local.local_root.value, 'run')
+        application.rundir.value = join(client.local_root.value, 'run')
 
         coroutine.signal(signal.SIGCHLD, self.__SIGCHLD_cb)
 
@@ -71,19 +71,17 @@ class Application(application.Daemon):
             sugar.uid = lambda: 'index'
             sugar.nickname = lambda: 'index'
 
-        printf.info('Index database in %r', local.local_root.value)
+        printf.info('Index database in %r', client.local_root.value)
 
-        volume = Volume(local.db_path())
+        volume = Volume(client.db_path())
         try:
             volume.populate()
             self._sync(volume)
-            clones.populate(volume['context'], local.activity_dirs.value)
+            clones.populate(volume['context'], client.activity_dirs.value)
         finally:
             volume.close()
 
-    @application.command(
-            'start service and log to standard output',
-            hidden=True)
+    @application.command(hidden=True)
     def debug(self):
         printf.info('Use "start --foreground" command instead')
         application.foreground.value = True
@@ -91,14 +89,14 @@ class Application(application.Daemon):
 
     def run(self):
         toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
-        volume = Volume(local.db_path(), lazy_open=local.lazy_open.value)
+        volume = Volume(client.db_path(), lazy_open=client.lazy_open.value)
         mountset = Mountset(volume)
         mountset['~'] = HomeMount(volume)
         mountset['/'] = RemoteMount(volume)
 
         logging.info('Listening for IPC requests on %s port',
-                local.ipc_port.value)
-        server = coroutine.WSGIServer(('localhost', local.ipc_port.value),
+                client.ipc_port.value)
+        server = coroutine.WSGIServer(('localhost', client.ipc_port.value),
                 Router(mountset))
         self.jobs.spawn(server.serve_forever)
         self.accept()
@@ -109,7 +107,7 @@ class Application(application.Daemon):
 
             self._sync(mountset.volume)
             self.jobs.spawn(clones.monitor, mountset.volume['context'],
-                    local.activity_dirs.value)
+                    client.activity_dirs.value)
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
@@ -117,11 +115,11 @@ class Application(application.Daemon):
                 server = coroutine.WSGIServer(host, webui.get_app(mountset))
                 self.jobs.spawn(server.serve_forever)
 
-            if local.mounts_root.value:
+            if client.mounts_root.value:
                 self.jobs.spawn(mountpoints.monitor,
-                        abspath(local.mounts_root.value))
+                        abspath(client.mounts_root.value))
 
-        if local.delayed_start.value:
+        if client.delayed_start.value:
             mountset.connect(delayed_start, event='delayed-start')
         else:
             delayed_start()
@@ -176,15 +174,15 @@ toolkit.tmpdir.value = sugar.profile_path('tmp')
 
 Option.seek('main', application)
 Option.seek('webui', webui)
-Option.seek('local', local)
-Option.seek('local', [sugar.keyfile, toolkit.tmpdir])
+Option.seek('client', client)
+Option.seek('client', [sugar.keyfile, toolkit.tmpdir])
 Option.seek('node', [node.port, node.sync_dirs])
 Option.seek('stats', stats)
 Option.seek('active-document', ad)
 
 app = Application(
-        name='sugar-network',
-        description='Sugar Network service.',
+        name='sugar-network-client',
+        description='Sugar Network client application.',
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
                  'for details.',
         config_files=[
