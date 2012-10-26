@@ -4,7 +4,6 @@
 import os
 import sys
 import time
-import json
 import shutil
 import hashlib
 from cStringIO import StringIO

@@ -255,16 +255,34 @@ class MigrateTest(tests.Test):
         for i in directory.populate():
             pass
 
-        assert exists('gu/guid/prop1')
+        assert not exists('gu/guid/prop1')
         assert exists('gu/guid/prop2')
 
         doc = directory.get('guid')
         self.assertEqual(
-                {'value': None, 'seqno': 0, 'mtime': os.stat('gu/guid/prop1').st_mtime},
-                doc.meta('prop1'))
-        self.assertEqual(
-                {'value': 'default', 'seqno': 0, 'mtime': os.stat('gu/guid/prop1').st_mtime},
+                {'value': 'default', 'seqno': 0, 'mtime': os.stat('gu/guid/prop2').st_mtime},
                 doc.meta('prop2'))
+
+    def test_ConvertFromJson(self):
+
+        class Document(document.Document):
+
+            @active_property(prefix='P', default='value')
+            def prop(self, value):
+                return value
+
+        guid_value = '{"value": "guid"}'
+        self.touch(('gu/guid/guid', guid_value))
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+        for i in directory.populate():
+            pass
+
+        doc = directory.get('guid')
+        self.assertEqual(
+                {'value': 'guid', 'mtime': os.stat('gu/guid/guid').st_mtime},
+                doc.meta('guid'))
+        self.assertNotEqual(guid_value, file('gu/guid/guid').read())
 
 
 if __name__ == '__main__':

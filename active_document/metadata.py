@@ -14,8 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import json
 import types
+import cPickle as pickle
 from os.path import exists
 
 from active_document import env
@@ -113,7 +113,7 @@ class PropertyMeta(dict):
     def __init__(self, path_=None, **meta):
         if path_:
             with file(path_) as f:
-                meta.update(json.load(f))
+                meta.update(pickle.load(f))
             if exists(path_ + PropertyMeta.BLOB_SUFFIX):
                 meta['path'] = path_ + PropertyMeta.BLOB_SUFFIX
             meta['mtime'] = os.stat(path_).st_mtime

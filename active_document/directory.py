@@ -27,7 +27,7 @@ from active_toolkit import util, enforce
 
 
 # To invalidate existed index on stcuture changes
-_LAYOUT_VERSION = 1
+_LAYOUT_VERSION = 3
 
 _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
@@ -66,7 +66,7 @@ class Directory(object):
             if exists(index_path):
                 _logger.warning('%r layout is stale, remove index',
                         self.metadata.name)
-            shutil.rmtree(index_path, ignore_errors=True)
+                shutil.rmtree(index_path, ignore_errors=True)
             self._save_layout()
 
         self._storage = Storage(root, self.metadata)

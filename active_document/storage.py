@@ -19,6 +19,7 @@ import time
 import json
 import shutil
 import hashlib
+import cPickle as pickle
 from base64 import b64decode
 from os.path import exists, join, isdir, basename, relpath, lexists, isabs
 
@@ -95,16 +96,24 @@ class Storage(object):
         if exists(path):
             seqno = int(os.stat(path).st_mtime)
             with file(join(root, 'seqno'), 'w') as f:
-                json.dump({'seqno': seqno, 'value': seqno}, f)
+                pickle.dump({'seqno': seqno, 'value': seqno}, f)
             os.unlink(path)
 
         for name, prop in self.metadata.items():
             path = join(root, name)
             if exists(path + '.seqno'):
                 self._migrate_to_1(path, prop)
-            elif not exists(path):
-                if not isinstance(prop, BlobProperty):
-                    record.set(name, seqno=0, value=prop.default)
+                continue
+            if exists(path):
+                with file(path) as f:
+                    meta = f.read()
+                if meta:
+                    if meta[0] == '{':
+                        with file(path, 'w') as f:
+                            pickle.dump(json.loads(meta), f)
+                    continue
+            if not isinstance(prop, BlobProperty) and prop.default is not None:
+                record.set(name, seqno=0, value=prop.default)
 
     def _migrate_to_1(self, path, prop):
         meta = {'seqno': int(os.stat(path + '.seqno').st_mtime)}
@@ -143,7 +152,7 @@ class Storage(object):
 
         if meta is not None:
             with file(path, 'w') as f:
-                json.dump(meta, f)
+                pickle.dump(meta, f)
             if mtime is not None:
                 os.utime(path, (mtime, mtime))
 
@@ -194,7 +203,7 @@ class Record(object):
             util.cptree(path, blob_path)
 
         with util.new_file(meta_path) as f:
-            json.dump(meta, f)
+            pickle.dump(meta, f)
         if mtime:
             os.utime(meta_path, (mtime, mtime))
 

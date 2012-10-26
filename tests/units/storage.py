@@ -3,9 +3,9 @@
 
 import os
 import time
-import json
 import hashlib
 import threading
+import cPickle as pickle
 from cStringIO import StringIO
 from os.path import exists
 
@@ -35,7 +35,7 @@ class StorageTest(tests.Test):
         storage = self.storage([StoredProperty('prop')])
 
         self.assertEqual(None, storage.get('guid').get('prop'))
-        self.touch(('gu/guid/prop', json.dumps({
+        self.touch(('gu/guid/prop', pickle.dumps({
             'value': 'value',
             'foo': 'bar',
             })))

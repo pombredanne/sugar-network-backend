@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
-import json
-
 from __init__ import tests
 
 from active_document import metadata
