@@ -14,9 +14,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import json
 import shutil
 import logging
+import cPickle as pickle
 from os.path import join, exists, basename, dirname
 
 from sugar_network import client, sugar
@@ -194,7 +194,7 @@ def _get_cached_solution(mountpoint, guid):
     if exists(path):
         try:
             with file(path) as f:
-                api_url, solution = json.load(f)
+                api_url, solution = pickle.load(f)
         except Exception, error:
             _logger.debug('Cannot open %r solution: %s', path, error)
     if solution is None:
@@ -220,4 +220,4 @@ def _set_cached_solution(path, solution):
     if not exists(dirname(path)):
         os.makedirs(dirname(path))
     with file(path, 'w') as f:
-        json.dump([client.api_url.value, solution], f)
+        pickle.dump([client.api_url.value, solution], f)

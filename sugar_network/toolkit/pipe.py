@@ -15,10 +15,11 @@
 
 import os
 import sys
-import json
+import struct
 import signal
 import logging
 import threading
+import cPickle as pickle
 from os.path import exists
 
 from sugar_network import sugar
@@ -33,8 +34,9 @@ def feedback(state, **event):
     if _pipe is None:
         return
     event['state'] = state
-    os.write(_pipe, json.dumps(event))
-    os.write(_pipe, '\n')
+    event = pickle.dumps(event)
+    os.write(_pipe, struct.pack('i', len(event)))
+    os.write(_pipe, event)
 
 
 def fork(callback, logname=None, session=None, **kwargs):
@@ -88,30 +90,31 @@ class _Pipe(object):
         if self._file is None:
             return None
 
-        event = self._file.readline()
-        if not event:
-            status = 0
-            try:
-                __, status = os.waitpid(self._pid, 0)
-            except OSError:
-                pass
-            failure = _decode_exit_failure(status)
-            if failure:
-                _logger.debug('Process %s failed: %s', self._pid, failure)
-                event = {'state': 'failure', 'error': failure}
-                event.update(self._session)
-                return event
-            else:
-                _logger.debug('Process %s successfully exited', self._pid)
-                self._file.close()
-                self._file = None
-                return None
+        event_length = self._file.read(struct.calcsize('i'))
+        if event_length:
+            event_length = struct.unpack('i', event_length)[0]
+            event = pickle.loads(self._file.read(event_length))
+            if 'session' in event:
+                self._session.update(event.pop('session') or {})
+            event.update(self._session)
+            return event
 
-        event = json.loads(event)
-        if 'session' in event:
-            self._session.update(event.pop('session') or {})
-        event.update(self._session)
-        return event
+        status = 0
+        try:
+            __, status = os.waitpid(self._pid, 0)
+        except OSError:
+            pass
+        failure = _decode_exit_failure(status)
+        if failure:
+            _logger.debug('Process %s failed: %s', self._pid, failure)
+            event = {'state': 'failure', 'error': failure}
+            event.update(self._session)
+            return event
+        else:
+            _logger.debug('Process %s successfully exited', self._pid)
+            self._file.close()
+            self._file = None
+            return None
 
     def __iter__(self):
         if self._file is None:
