@@ -18,7 +18,6 @@ import logging
 from os.path import join
 
 import active_document as ad
-from active_document import directory as ad_directory
 from sugar_network import client, node, toolkit
 from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
@@ -27,7 +26,6 @@ from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import coroutine, enforce
 
 
-ad_directory._LAYOUT_VERSION = 2
 _DIFF_CHUNK = 1024
 
 _logger = logging.getLogger('resources.volume')
@@ -282,15 +280,21 @@ class VolumeCommands(ad.VolumeCommands):
         self._mixin_blobs(request, result['result'])
         return result
 
+    @ad.document_command_pre(method='GET', arguments={'reply': ad.to_list})
+    def _VolumeCommands_get_pre(self, request):
+        if 'reply' not in request:
+            reply = request['reply'] = []
+            for prop in self.volume[request['document']].metadata.values():
+                if prop.permissions & ad.ACCESS_READ and \
+                        not (prop.permissions & ad.ACCESS_LOCAL):
+                    reply.append(prop.name)
+
     @ad.document_command_post(method='GET')
     def _VolumeCommands_get_post(self, request, response, result):
         self._mixin_blobs(request, [result])
         return result
 
     def _mixin_blobs(self, request, result):
-        if 'reply' not in request:
-            return
-
         blobs = []
         metadata = self.volume[request['document']].metadata
         for prop in request['reply']:
@@ -314,7 +318,6 @@ class VolumeCommands(ad.VolumeCommands):
         else:
             postfix = '?mountpoint=' + request.mountpoint
 
-        _logger.error('> %r', result)
         for props in result:
             for name in blobs:
                 url = props[name].get('url')
