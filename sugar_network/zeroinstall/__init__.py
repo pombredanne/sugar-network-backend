@@ -143,7 +143,7 @@ def _load_feed(context):
     for mountpoint in _mountpoints:
         try:
             feed_content = _client.get(['context', context],
-                    reply=['title', 'packages', 'versions'],
+                    reply=['title', 'packages', 'versions', 'dependencies'],
                     mountpoint=mountpoint)
             _logger.debug('Found %r in %r mountpoint', context, mountpoint)
             break
@@ -171,6 +171,8 @@ def _load_feed(context):
         impl.released = 0
         impl.arch = release['arch']
         impl.upstream_stability = model.stability_levels[release['stability']]
+        for i in feed_content['dependencies']:
+            impl.requires.append(_Dependency(i, {}))
         impl.requires.extend(_read_requires(release.get('requires')))
 
         if isabs(impl_id):

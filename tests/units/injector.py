@@ -468,6 +468,89 @@ class InjectorTest(tests.Test):
             ],
             forks)
 
+    def test_ProcessCommonDependencies(self):
+        self.touch('remote/master')
+        self.start_ipc_and_restful_server([User, Context, Implementation])
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'dependencies': ['dep1', 'dep2'],
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'requires': {
+                        'dep2': {'restrictions': [['1', '2']]},
+                        'dep3': {},
+                    },
+                },
+            }})
+        remote.post(['context'], {
+            'implement': 'dep1',
+            'type': 'package',
+            'title': 'title1',
+            'summary': 'summary',
+            'description': 'description',
+            'packages': {
+                lsb_release.distributor_id(): {
+                    'binary': ['dep1.bin'],
+                    },
+                },
+            })
+        remote.post(['context'], {
+            'implement': 'dep2',
+            'type': 'package',
+            'title': 'title2',
+            'summary': 'summary',
+            'description': 'description',
+            'packages': {
+                lsb_release.distributor_id(): {
+                    'binary': ['dep2.bin'],
+                    },
+                },
+            })
+        remote.post(['context'], {
+            'implement': 'dep3',
+            'type': 'package',
+            'title': 'title3',
+            'summary': 'summary',
+            'description': 'description',
+            'packages': {
+                lsb_release.distributor_id(): {
+                    'binary': ['dep3.bin'],
+                    },
+                },
+            })
+
+        def resolve(names):
+            return dict([(i, {'name': i, 'pk_id': i, 'version': '1', 'arch': '*', 'installed': True}) for i in names])
+
+        self.override(packagekit, 'resolve', resolve)
+
+        self.assertEqual(
+                sorted([
+                    {'version': '1', 'id': 'dep1', 'context': 'dep1', 'name': 'title1'},
+                    {'version': '1', 'id': 'dep2', 'context': 'dep2', 'name': 'title2'},
+                    {'version': '1', 'id': 'dep3', 'context': 'dep3', 'name': 'title3'},
+                    {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl},
+                    ]),
+                sorted(zeroinstall.solve('/', context)))
+
 
 if __name__ == '__main__':
     tests.main()
