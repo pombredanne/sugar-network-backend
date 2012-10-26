@@ -19,7 +19,6 @@ class NodeTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        stats.stats.value = True
         stats.stats_root.value = 'stats'
         stats.stats_step.value = 1
 
@@ -104,16 +103,16 @@ class NodeTest(tests.Test):
         self.assertEqual({
             'guid': guid,
             'title': 'title',
-            'layer': ['public'],
+            'layer': ('public',),
             },
             call(cp, method='GET', document='context', guid=guid, reply=['guid', 'title', 'layer']))
-        self.assertEqual(['public'], volume['context'].get(guid)['layer'])
+        self.assertEqual(('public',), volume['context'].get(guid)['layer'])
 
         call(cp, method='DELETE', document='context', guid=guid, principal='principal')
 
         assert exists(guid_path)
         self.assertRaises(ad.NotFound, call, cp, method='GET', document='context', guid=guid, reply=['guid', 'title'])
-        self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
+        self.assertEqual(('deleted',), volume['context'].get(guid)['layer'])
 
     def test_RegisterUser(self):
         cp = NodeCommands(Volume('db', [User]))
@@ -206,7 +205,7 @@ class NodeTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        self.assertEqual(['principal'], call(cp, method='GET', document='context', guid=guid, prop='user'))
+        self.assertEqual(('principal',), call(cp, method='GET', document='context', guid=guid, prop='user'))
 
     def test_SetAuthor(self):
         cp = NodeCommands(Volume('db'))
@@ -235,7 +234,7 @@ class NodeTest(tests.Test):
             })
 
         self.assertEqual(
-                ['user1'],
+                ('user1',),
                 call(cp, method='GET', document='context', guid=context1, prop='author'))
 
         context2 = call(cp, method='POST', document='context', principal='fake', content={
@@ -245,7 +244,7 @@ class NodeTest(tests.Test):
             'description': 'description',
             })
         self.assertEqual(
-                [],
+                (),
                 call(cp, method='GET', document='context', guid=context2, prop='author'))
 
     def test_find_MaxLimit(self):
@@ -319,7 +318,7 @@ class NodeTest(tests.Test):
             'implement': 'foo',
             })
         self.assertEqual(
-                {'guid': 'foo', 'implement': ['foo'], 'title': 'title'},
+                {'guid': 'foo', 'implement': ('foo',), 'title': 'title'},
                 call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'implement', 'title']))
 
 

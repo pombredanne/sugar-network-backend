@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import json
+import cPickle as pickle
 from os.path import exists
 
 from __init__ import tests
@@ -296,46 +297,49 @@ class VolumeTest(tests.Test):
 
         # GUID in reply
         self.assertEqual(
-                {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
+                {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ('public',)},
                 call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ('public',)},
                 call(cp, method='GET', document='context', guid=guid2, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
+                {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ('public',)},
                 call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ['public']},
+                {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ('public',)},
                 call(cp, method='GET', document='artifact', guid=guid4, reply=['guid', 'data', 'layer']))
         self.assertEqual(
                 sorted([
-                    {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
-                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
-                    {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
+                    {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ('public',)},
+                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ('public',)},
+                    {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ('public',)},
                     ]),
                 sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
 
         self.assertEqual([
-            {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ['public']},
+            {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ('public',)},
             ],
             call(cp, method='GET', document='artifact', reply=['guid', 'data', 'layer'])['result'])
 
         node.static_url.value = 'static_url'
         self.assertEqual(
                 sorted([
-                    {'guid': guid1, 'icon': 'static_url/static/images/missing.png', 'layer': ['public']},
-                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
-                    {'guid': guid3, 'icon': 'static_url/foo/bar', 'layer': ['public']},
+                    {'guid': guid1, 'icon': 'static_url/static/images/missing.png', 'layer': ('public',)},
+                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ('public',)},
+                    {'guid': guid3, 'icon': 'static_url/foo/bar', 'layer': ('public',)},
                     ]),
                 sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
 
     def test_Populate(self):
         self.touch(
-                ('db/context/1/1/guid', '{"value": "1"}'),
-                ('db/context/1/1/ctime', '{"value": 1}'),
-                ('db/context/1/1/mtime', '{"value": 1}'),
-                ('db/context/1/1/seqno', '{"value": 0}'),
-                ('db/context/1/1/title', '{"value": {}}'),
+                ('db/context/1/1/guid', pickle.dumps({"value": "1"})),
+                ('db/context/1/1/ctime', pickle.dumps({"value": 1})),
+                ('db/context/1/1/mtime', pickle.dumps({"value": 1})),
+                ('db/context/1/1/seqno', pickle.dumps({"value": 0})),
+                ('db/context/1/1/type', pickle.dumps({"value": "activity"})),
+                ('db/context/1/1/title', pickle.dumps({"value": {}})),
+                ('db/context/1/1/summary', pickle.dumps({"value": {}})),
+                ('db/context/1/1/description', pickle.dumps({"value": {}})),
                 )
 
         volume = Volume('db', lazy_open=True)

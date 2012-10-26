@@ -76,7 +76,7 @@ class InjectorTest(tests.Test):
         assert not exists('cache/implementation/%s' % impl)
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, '{}'))
+        self.touch((blob_path, pickle.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('topdir/probe', 'probe')
         bundle.close()
@@ -142,7 +142,7 @@ class InjectorTest(tests.Test):
             })
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, '{}'))
+        self.touch((blob_path, pickle.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
             '[Activity]',
@@ -189,7 +189,7 @@ class InjectorTest(tests.Test):
             })
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl_2[:2], impl_2)
-        self.touch((blob_path, '{}'))
+        self.touch((blob_path, pickle.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
             '[Activity]',
@@ -434,7 +434,7 @@ class InjectorTest(tests.Test):
                 },
             })
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, '{}'))
+        self.touch((blob_path, pickle.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('topdir/activity/foo', '')
         bundle.writestr('topdir/bin/bar', '')

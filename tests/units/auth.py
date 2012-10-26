@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import os
+import cPickle as pickle
 
 from __init__ import tests
 
@@ -54,7 +55,7 @@ class AuthTest(tests.Test):
 
         self.touch((
             'master/context/gu/guid/user',
-            '{"seqno": 1, "value": ["fake"]}',
+            pickle.dumps({"seqno": 1, "value": ["fake"]}),
             ))
 
         self.start_master()
@@ -93,7 +94,7 @@ class AuthTest(tests.Test):
         self.stop_servers()
         self.touch((
             'master/context/gu/guid/user',
-            '{"seqno": 1, "value": ["fake"]}',
+            pickle.dumps({"seqno": 1, "value": ["fake"]}),
             ))
         self.start_master()
 
