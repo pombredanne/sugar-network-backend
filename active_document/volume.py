@@ -230,12 +230,21 @@ class VolumeCommands(CommandsProcessor):
 
         for name, value in request.content.items():
             prop = directory.metadata[name]
-            prop.assert_access(access)
             value = prop.on_set(doc, value)
+
             if isinstance(prop, BlobProperty):
                 enforce(PropertyMeta.is_blob(value), 'Invalid BLOB value')
+                if access == env.ACCESS_WRITE:
+                    if doc.meta(name) is None:
+                        blob_access = env.ACCESS_CREATE
+                    else:
+                        blob_access = env.ACCESS_WRITE
+                else:
+                    blob_access = access
+                prop.assert_access(blob_access)
                 blobs.append((name, value))
             else:
+                prop.assert_access(access)
                 if prop.localized and isinstance(value, basestring):
                     value = {(request.accept_language or self._lang)[0]: value}
                 doc.props[name] = value

@@ -694,6 +694,31 @@ class VolumeTest(tests.Test):
         self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='prop', content='value')
         self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content='value')
 
+    def test_BlobsWritePermissions(self):
+
+        class TestDocument(Document):
+
+            @active_property(BlobProperty, permissions=ad.ACCESS_CREATE | ad.ACCESS_WRITE)
+            def blob1(self, value):
+                return value
+
+            @active_property(BlobProperty, permissions=ad.ACCESS_CREATE)
+            def blob2(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+
+        guid = self.call('POST', document='testdocument', content={})
+        self.call('PUT', document='testdocument', guid=guid, content={'blob1': 'value1', 'blob2': 'value2'})
+        self.call('PUT', document='testdocument', guid=guid, content={'blob1': 'value1'})
+        self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'blob2': 'value2_'})
+
+        guid = self.call('POST', document='testdocument', content={})
+        self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='value1')
+        self.call('PUT', document='testdocument', guid=guid, prop='blob2', content='value2')
+        self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='value1_')
+        self.assertRaises(ad.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='blob2', content='value2_')
+
     def test_properties_OverrideGet(self):
 
         class TestDocument(Document):
