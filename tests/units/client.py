@@ -48,7 +48,7 @@ class LocalTest(tests.Test):
         guid = cp.call(request, ad.Response())
 
         self.assertEqual(
-                ['uid'],
+                ('uid',),
                 cp.volume['context'].get(guid)['user'])
 
     def test_SetAuthor(self):
@@ -65,7 +65,7 @@ class LocalTest(tests.Test):
         guid = cp.call(request, ad.Response())
 
         self.assertEqual(
-                ['nickname'],
+                ('nickname',),
                 cp.volume['context'].get(guid)['author'])
 
 

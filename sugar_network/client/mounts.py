@@ -147,14 +147,11 @@ class _ProxyCommands(object):
     @ad.directory_command(method='GET',
             arguments={'reply': ad.to_list}, mime_type='application/json')
     def find(self, request, response, document, reply):
-        if document != 'context':
+        if document != 'context' or 'reply' not in request:
             return self.proxy_call(request, response)
 
-        if not reply:
-            reply = request['reply'] = []
-        else:
-            # Do not modify original list
-            reply = request['reply'] = request['reply'][:]
+        # Do not modify original list
+        reply = request['reply'] = request['reply'][:]
 
         mixin = {}
         for prop, default in _LOCAL_PROPS.items():
@@ -184,14 +181,11 @@ class _ProxyCommands(object):
     @ad.document_command(method='GET',
             arguments={'reply': ad.to_list}, mime_type='application/json')
     def get(self, request, response, document, guid, reply):
-        if document != 'context':
+        if document != 'context' or 'reply' not in request:
             return self.proxy_call(request, response)
 
-        if not reply:
-            reply = request['reply'] = ['guid']
-        else:
-            # Do not modify original list
-            reply = request['reply'] = request['reply'][:]
+        # Do not modify original list
+        reply = request['reply'] = request['reply'][:]
 
         mixin = {}
         for prop, default in _LOCAL_PROPS.items():

@@ -90,19 +90,23 @@ class Context(Resource):
                 path=join(static.PATH, 'images', 'missing.png'),
                 mime_type='image/png')
 
-    @ad.active_property(prefix='K', typecast=bool, default=False)
+    @ad.active_property(prefix='K', typecast=bool, default=False,
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def keep(self, value):
         return value
 
-    @ad.active_property(prefix='L', typecast=[0, 1, 2], default=0)
+    @ad.active_property(prefix='L', typecast=[0, 1, 2], default=0,
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def keep_impl(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=[int], default=(-1, -1))
+    @ad.active_property(ad.StoredProperty, typecast=[int], default=(-1, -1),
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def position(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=[], default=[])
+    @ad.active_property(ad.StoredProperty, typecast=[], default=[],
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def dependencies(self, value):
         """Software dependencies.
 
@@ -112,7 +116,8 @@ class Context(Resource):
         """
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={},
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def aliases(self, value):
         return value
 
@@ -121,15 +126,18 @@ class Context(Resource):
         coroutine.spawn(self._process_aliases, value)
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={},
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def packages(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={},
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def presolve(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=[], default=[])
+    @ad.active_property(ad.StoredProperty, typecast=[], default=[],
+            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
     def versions(self, value):
         result = []
 

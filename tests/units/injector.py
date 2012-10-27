@@ -2,9 +2,9 @@
 # sugar-lint: disable
 
 import os
-import json
 import shutil
 import zipfile
+import cPickle as pickle
 from cStringIO import StringIO
 from os.path import exists, dirname
 
@@ -76,7 +76,7 @@ class InjectorTest(tests.Test):
         assert not exists('cache/implementation/%s' % impl)
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, '{}'))
+        self.touch((blob_path, pickle.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('topdir/probe', 'probe')
         bundle.close()
@@ -142,7 +142,7 @@ class InjectorTest(tests.Test):
             })
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, '{}'))
+        self.touch((blob_path, pickle.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
             '[Activity]',
@@ -189,7 +189,7 @@ class InjectorTest(tests.Test):
             })
 
         blob_path = 'remote/implementation/%s/%s/data' % (impl_2[:2], impl_2)
-        self.touch((blob_path, '{}'))
+        self.touch((blob_path, pickle.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
             '[Activity]',
@@ -290,12 +290,12 @@ class InjectorTest(tests.Test):
 
         def resolve(names):
             with file('resolve', 'w') as f:
-                json.dump(names, f)
+                pickle.dump(names, f)
             return dict([(i, {'name': i, 'pk_id': i, 'version': '0', 'arch': '*', 'installed': i == 'dep1.bin'}) for i in names])
 
         def install(packages):
             with file('install', 'w') as f:
-                json.dump([i['name'] for i in packages], f)
+                pickle.dump([i['name'] for i in packages], f)
 
         self.override(packagekit, 'resolve', resolve)
         self.override(packagekit, 'install', install)
@@ -303,50 +303,50 @@ class InjectorTest(tests.Test):
         context = 'bundle_id'
         pipe = injector.launch('~', context)
         self.assertEqual('exec', [i for i in pipe][-1].get('state'))
-        self.assertEqual(['dep1.bin', 'dep2.bin'], json.load(file('resolve')))
-        self.assertEqual(['dep2.bin'], json.load(file('install')))
+        self.assertEqual(['dep1.bin', 'dep2.bin'], pickle.load(file('resolve')))
+        self.assertEqual(['dep2.bin'], pickle.load(file('install')))
 
     def test_SolutionsCache_Set(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
 
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/~/co/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file('cache/solutions/~/co/context')))
 
         self.assertEqual('solved', injector._solve('/', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/#/co/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file('cache/solutions/#/co/context')))
 
         self.assertEqual('solved', injector._solve('/foo/bar', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file('cache/solutions/#foo#bar/co/context')))
+        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file('cache/solutions/#foo#bar/co/context')))
 
     def test_SolutionsCache_InvalidateByAPIUrl(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
         cached_path = 'cache/solutions/~/co/context'
 
-        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{}]])))
         self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
 
         local.api_url.value = 'fake'
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['fake', 'solved'], json.load(file(cached_path)))
+        self.assertEqual(['fake', 'solved'], pickle.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByMtime(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
         cached_path = 'cache/solutions/~/co/context'
 
         injector.invalidate_solutions(1)
-        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{}]])))
         os.utime(cached_path, (1, 1))
         self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByPMSMtime(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
@@ -355,18 +355,18 @@ class InjectorTest(tests.Test):
         injector._pms_path = 'pms'
         self.touch('pms')
         os.utime('pms', (1, 1))
-        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{}]])))
         os.utime(cached_path, (1, 1))
         self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
 
         os.utime('pms', (3, 3))
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateBySpecMtime(self):
         self.override(zeroinstall, 'solve', lambda *args: 'solved')
@@ -374,18 +374,18 @@ class InjectorTest(tests.Test):
 
         self.touch('spec')
         os.utime('spec', (1, 1))
-        self.touch((cached_path, '["http://localhost:8800", [{"spec": "spec"}]]'))
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{"spec": "spec"}]])))
         os.utime(cached_path, (1, 1))
         self.assertEqual([{"spec": "spec"}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual([{"spec": "spec"}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], pickle.load(file(cached_path)))
 
         os.utime('spec', (3, 3))
         self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], json.load(file(cached_path)))
+        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file(cached_path)))
 
     def test_CacheReuseOnSolveFails(self):
         self.override(zeroinstall, 'solve', lambda *args: enforce(False))
@@ -394,14 +394,14 @@ class InjectorTest(tests.Test):
         self.assertRaises(RuntimeError, injector._solve, '~', 'context')
 
         injector.invalidate_solutions(1)
-        self.touch((cached_path, '["http://localhost:8800", [{}]]'))
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{}]])))
         os.utime(cached_path, (1, 1))
         self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(["http://localhost:8800", [{}]], json.load(file(cached_path)))
+        self.assertEqual(["http://localhost:8800", [{}]], pickle.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
         self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(["http://localhost:8800", [{}]], json.load(file(cached_path)))
+        self.assertEqual(["http://localhost:8800", [{}]], pickle.load(file(cached_path)))
 
     def test_clone_SetExecPermissionsForActivities(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
@@ -434,7 +434,7 @@ class InjectorTest(tests.Test):
                 },
             })
         blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, '{}'))
+        self.touch((blob_path, pickle.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('topdir/activity/foo', '')
         bundle.writestr('topdir/bin/bar', '')
