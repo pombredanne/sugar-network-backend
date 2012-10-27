@@ -22,6 +22,8 @@ from injector import *
 from mountset import *
 from auth import *
 from context import *
+from comment import *
+from solution import *
 from implementation import *
 from obs import *
 from journal import *

@@ -4,9 +4,7 @@
   - restrict sync content, especially for actiivity versions
 
 - after reconnection to subscription (eg, when HTTP proxy closed the connection), recall cmd=stat
-- forbit reupload blobs for Implementation and Artifact docs
 - GC implementations cache
-- synchronize local "keep" resources
 - get all localized strings from activity.info while populating local contexts
 - activities migth need MIME registering while checking-in
 - changed pulls should take into account accept_length
@@ -14,4 +12,3 @@
 - more consistent launch; right now
   - zerosugar/pipe.py uses several mountpoints
   - what mountpoints for deps
-- (?) delete local document on unsetting keep/keep_impl

@@ -15,28 +15,33 @@
 
 import active_document as ad
 
+from sugar_network import resources
 from sugar_network.resources.volume import Resource
 
 
-class Solution(Resource):
+class Review(Resource):
 
     @ad.active_property(prefix='C',
-            permissions=ad.ACCESS_READ)
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='P',
+    @ad.active_property(prefix='A', default='',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
-    def feedback(self, value):
+    def artifact(self, value):
         return value
 
-    @feedback.setter
-    def feedback(self, value):
-        if value:
-            feedback = self.request.volume['feedback'].get(value)
-            self['context'] = feedback['context']
+    @ad.active_property(prefix='S', full_text=True, localized=True,
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def title(self, value):
         return value
 
-    @ad.active_property(prefix='N', full_text=True, localized=True)
+    @ad.active_property(prefix='N', full_text=True, localized=True,
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def content(self, value):
+        return value
+
+    @ad.active_property(slot=1, typecast=resources.RATINGS,
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def rating(self, value):
         return value

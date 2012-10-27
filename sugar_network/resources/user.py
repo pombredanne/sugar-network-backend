@@ -32,11 +32,13 @@ class User(ad.Document):
     def color(self, value):
         return value
 
-    @ad.active_property(prefix='S', permissions=ad.ACCESS_CREATE)
+    @ad.active_property(prefix='S', default='',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_WRITE)
     def machine_sn(self, value):
         return value
 
-    @ad.active_property(prefix='U', permissions=ad.ACCESS_CREATE)
+    @ad.active_property(prefix='U', default='',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_WRITE)
     def machine_uuid(self, value):
         return value
 
@@ -67,7 +69,7 @@ class User(ad.Document):
         for name, __, last_update in rrd.dbs:
             status[name] = last_update + stats.stats_step.value
         # TODO Process client configuration in more general manner
-        return {'enable': stats.stats.value,
+        return {'enable': True,
                 'step': stats.stats_step.value,
                 'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
                 'status': status,

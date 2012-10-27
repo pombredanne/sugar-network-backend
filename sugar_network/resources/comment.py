@@ -15,21 +15,50 @@
 
 import active_document as ad
 
-from sugar_network import resources
 from sugar_network.resources.volume import Resource
 
 
 class Comment(Resource):
 
-    @ad.active_property(prefix='T',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
-            typecast=resources.COMMENT_PARENTS)
-    def parent_resource(self, value):
+    @ad.active_property(prefix='C',
+            permissions=ad.ACCESS_READ)
+    def context(self, value):
         return value
 
-    @ad.active_property(prefix='P',
+    @ad.active_property(prefix='R', default='',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
-    def parent(self, value):
+    def review(self, value):
+        return value
+
+    @review.setter
+    def review(self, value):
+        if value:
+            review = self.request.volume['review'].get(value)
+            self['context'] = review['context']
+        return value
+
+    @ad.active_property(prefix='F', default='',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def feedback(self, value):
+        return value
+
+    @feedback.setter
+    def feedback(self, value):
+        if value:
+            feedback = self.request.volume['feedback'].get(value)
+            self['context'] = feedback['context']
+        return value
+
+    @ad.active_property(prefix='S', default='',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def solution(self, value):
+        return value
+
+    @solution.setter
+    def solution(self, value):
+        if value:
+            solution = self.request.volume['solution'].get(value)
+            self['context'] = solution['context']
         return value
 
     @ad.active_property(prefix='M', full_text=True, localized=True,

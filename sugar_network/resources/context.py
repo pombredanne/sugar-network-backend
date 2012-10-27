@@ -90,6 +90,21 @@ class Context(Resource):
                 path=join(static.PATH, 'images', 'missing.png'),
                 mime_type='image/png')
 
+    @ad.active_property(slot=2, typecast=int, default=0,
+            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    def downloads(self, value):
+        return value
+
+    @ad.active_property(slot=3, typecast=resources.RATINGS, default=0,
+            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    def rating(self, value):
+        return value
+
+    @ad.active_property(ad.StoredProperty, typecast=int, default=0,
+            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    def reviews(self, value):
+        return value
+
     @ad.active_property(prefix='K', typecast=bool, default=False,
             permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def keep(self, value):
@@ -127,17 +142,17 @@ class Context(Resource):
         return value
 
     @ad.active_property(ad.StoredProperty, typecast=dict, default={},
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL | ad.ACCESS_SYSTEM)
     def packages(self, value):
         return value
 
     @ad.active_property(ad.StoredProperty, typecast=dict, default={},
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
+            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL | ad.ACCESS_SYSTEM)
     def presolve(self, value):
         return value
 
     @ad.active_property(ad.StoredProperty, typecast=[], default=[],
-            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL | ad.ACCESS_SYSTEM)
     def versions(self, value):
         result = []
 

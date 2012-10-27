@@ -22,15 +22,18 @@ from sugar_network.resources.volume import Resource
 
 class Artifact(Resource):
 
-    @ad.active_property(prefix='C')
+    @ad.active_property(prefix='C',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def context(self, value):
         return value
 
-    @ad.active_property(slot=1, prefix='S', full_text=True, localized=True)
+    @ad.active_property(slot=1, prefix='S', full_text=True, localized=True,
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def title(self, value):
         return value
 
-    @ad.active_property(prefix='D', full_text=True, localized=True)
+    @ad.active_property(prefix='D', full_text=True, localized=True,
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def description(self, value):
         return value
 

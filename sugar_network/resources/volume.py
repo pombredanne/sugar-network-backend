@@ -70,6 +70,7 @@ class Volume(ad.SingleVolume):
             'sugar_network.resources.notification',
             'sugar_network.resources.feedback',
             'sugar_network.resources.report',
+            'sugar_network.resources.review',
             'sugar_network.resources.solution',
             'sugar_network.resources.user',
             )
