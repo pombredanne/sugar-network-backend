@@ -1,6 +1,8 @@
+*~
 .*
 *.tar.*
 doc/build
 tmp
 misc/db/**
 misc/log
+doc/objects.png
