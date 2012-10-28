@@ -6,6 +6,8 @@ import socket
 import shutil
 from os.path import exists
 
+import requests
+
 from __init__ import tests
 
 import active_document as ad
@@ -19,7 +21,7 @@ from sugar_network.toolkit import http, mountpoints
 from sugar_network import client as local, sugar, node
 from sugar_network.resources.volume import Volume
 from sugar_network.client.mounts import HomeMount, RemoteMount
-from sugar_network.client.ipc import Router as IPCRouter
+from sugar_network.toolkit.router import IPCRouter
 from sugar_network import IPCClient, Client
 from sugar_network.zerosugar import injector
 from sugar_network.client import journal
@@ -357,6 +359,25 @@ class MountsetTest(tests.Test):
             ],
             self.events)
         del self.events[:]
+
+    def test_Hub(self):
+        mounts = self.mountset()
+        client = IPCClient()
+        url = 'http://localhost:%s' % local.ipc_port.value
+
+        response = requests.request('GET', url + '/hub', allow_redirects=False)
+        self.assertEqual(303, response.status_code)
+        self.assertEqual('/hub/', response.headers['Location'])
+
+        local.hub_root.value = '.'
+        index_html = '<html><body>index</body></html>'
+        self.touch(('index.html', index_html))
+
+        response = requests.request('GET', url + '/hub', allow_redirects=True)
+        self.assertEqual(index_html, response.content)
+
+        response = requests.request('GET', url + '/hub/', allow_redirects=False)
+        self.assertEqual(index_html, response.content)
 
 
 if __name__ == '__main__':

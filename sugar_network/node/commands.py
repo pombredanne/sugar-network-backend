@@ -20,7 +20,7 @@ from os.path import exists, join
 import active_document as ad
 from sugar_network import node, toolkit
 from sugar_network.node.sync_master import SyncCommands
-from sugar_network.node import auth
+from sugar_network.node import auth, obs
 from sugar_network.resources.volume import Commands, VolumeCommands
 from sugar_network.toolkit import router
 from active_toolkit import util, enforce
@@ -61,8 +61,22 @@ class NodeCommands(VolumeCommands, Commands):
     def is_master(self):
         return self._is_master
 
-    def connect(self, callback, condition=None, **kwargs):
-        self.volume.connect(callback, condition)
+    @router.route('GET', '/packages')
+    def packages(self, request, response):
+        response.content_type = 'application/json'
+        if len(request.path) == 1:
+            return self._list_repos()
+        elif len(request.path) == 2:
+            return self._list_packages(request)
+        elif len(request.path) == 3:
+            return self._get_package(request.path[1], request.path[2])
+        else:
+            raise RuntimeError('Incorrect path')
+
+    @router.route('HEADER', '/packages')
+    def try_packages(self, request, response):
+        enforce(len(request.path) == 3, 'Incorrect path')
+        self._get_package(request.path[1], request.path[2])
 
     @ad.volume_command(method='GET', mime_type='text/html')
     def hello(self):
@@ -87,6 +101,26 @@ class NodeCommands(VolumeCommands, Commands):
         directory = self.volume[document]
         directory.update(guid, {'layer': ['deleted']})
 
+    @ad.document_command(method='PUT', cmd='attach',
+            permissions=ad.ACCESS_AUTH)
+    def attach(self, document, guid, request):
+        auth.validate(request, 'root')
+        directory = self.volume[document]
+        doc = directory.get(guid)
+        # TODO Reading layer here is a race
+        layer = list(set(doc['layer']) | set(request.content))
+        directory.update(guid, {'layer': layer})
+
+    @ad.document_command(method='PUT', cmd='detach',
+            permissions=ad.ACCESS_AUTH)
+    def detach(self, document, guid, request):
+        auth.validate(request, 'root')
+        directory = self.volume[document]
+        doc = directory.get(guid)
+        # TODO Reading layer here is a race
+        layer = list(set(doc['layer']) - set(request.content))
+        directory.update(guid, {'layer': layer})
+
     def resolve(self, request):
         cmd = VolumeCommands.resolve(self, request)
         if cmd is None:
@@ -107,25 +141,8 @@ class NodeCommands(VolumeCommands, Commands):
 
         return cmd
 
-    @ad.document_command(method='PUT', cmd='attach',
-            permissions=ad.ACCESS_AUTH)
-    def attach(self, document, guid, request):
-        auth.validate(request, 'root')
-        directory = self.volume[document]
-        doc = directory.get(guid)
-        # TODO Reading layer here is a race
-        layer = list(set(doc['layer']) | set(request.content))
-        directory.update(guid, {'layer': layer})
-
-    @ad.document_command(method='PUT', cmd='detach',
-            permissions=ad.ACCESS_AUTH)
-    def detach(self, document, guid, request):
-        auth.validate(request, 'root')
-        directory = self.volume[document]
-        doc = directory.get(guid)
-        # TODO Reading layer here is a race
-        layer = list(set(doc['layer']) - set(request.content))
-        directory.update(guid, {'layer': layer})
+    def connect(self, callback, condition=None, **kwargs):
+        self.volume.connect(callback, condition)
 
     def before_create(self, request, props):
         if request['document'] == 'user':
@@ -182,6 +199,30 @@ class NodeCommands(VolumeCommands, Commands):
             if user['name']:
                 authors.append(user['name'])
         props['author'] = authors
+
+    def _list_repos(self):
+        if self.is_master:
+            # Node should not depend on OBS
+            repos = obs.get_presolve_repos()
+        else:
+            repos = []
+        return {'total': len(repos), 'result': repos}
+
+    def _list_packages(self, request):
+        directory = self.volume['context']
+        documents, total = directory.find(type='package',
+                offset=request.get('offset'), limit=request.get('limit'))
+        return {'total': total, 'result': [i.guid for i in documents]}
+
+    def _get_package(self, repo, package):
+        directory = self.volume['context']
+        context = directory.get(package)
+        enforce('package' in context.get('type'), ad.NotFound,
+                'Is not a package')
+        presolve = context.get('presolve', {}).get(repo)
+        enforce(presolve and 'binary' in presolve, ad.NotFound,
+                'No presolve info')
+        return presolve['binary']
 
 
 class MasterCommands(NodeCommands, SyncCommands):

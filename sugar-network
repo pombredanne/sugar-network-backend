@@ -27,10 +27,10 @@ from gevent import monkey
 
 import active_document as ad
 from sugar_network import client, sugar, toolkit, IPCClient
+from sugar_network.toolkit.router import IPCRouter
 from sugar_network.resources.volume import Volume, Request
 from sugar_network.client.mountset import Mountset
 from sugar_network.client.mounts import HomeMount, RemoteMount
-from sugar_network.client.ipc import Router
 from active_toolkit.options import Option
 from active_toolkit import printf, application, coroutine, enforce
 
@@ -167,7 +167,8 @@ class Application(application.Application):
                     mountset['/'] = RemoteMount(volume, listen_events=False)
                     mountset['/'].mounted.wait()
                 server = coroutine.WSGIServer(
-                        ('localhost', client.ipc_port.value), Router(mountset))
+                        ('localhost', client.ipc_port.value),
+                        IPCRouter(mountset))
                 coroutine.spawn(server.serve_forever)
                 coroutine.dispatch()
 

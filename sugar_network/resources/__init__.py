@@ -14,9 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 CONTEXT_TYPES = ['activity', 'project', 'package']
-COMMENT_PARENTS = ['feedback', 'solution']
 NOTIFICATION_TYPES = ['create', 'update', 'delete', 'vote']
-FEEDBACK_TYPES = ['question', 'idea', 'problem', 'review']
+FEEDBACK_TYPES = ['question', 'idea', 'problem']
 
 NOTIFICATION_OBJECT_TYPES = [
         '', 'content', 'feedback', 'solution', 'artifact', 'version', 'report',
@@ -25,3 +24,5 @@ NOTIFICATION_OBJECT_TYPES = [
 STABILITIES = [
         'insecure', 'buggy', 'developer', 'testing', 'stable',
         ]
+
+RATINGS = [0, 1, 2, 3, 4, 5]

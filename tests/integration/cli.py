@@ -6,6 +6,7 @@ import json
 import signal
 import shutil
 import zipfile
+import cPickle as pickle
 from os.path import exists
 
 import requests
@@ -86,7 +87,7 @@ class SyncTest(tests.Test):
         self.call(['PUT', 'cmd=keep'], stdin=context)
 
         assert exists(path)
-        self.assertEqual(True, json.load(file(path))['value'])
+        self.assertEqual(True, pickle.load(file(path))['value'])
 
     def test_UsecaseOOB(self):
         privkey_path = '.sugar/default/owner.key'
@@ -97,7 +98,7 @@ class SyncTest(tests.Test):
 
         assert not exists(privkey_path)
         assert exists('Activities/Chat.activity/activity/activity.info')
-        self.assertEqual(True, json.load(file('service/local/context/co/context/keep'))['value'])
+        self.assertEqual(True, pickle.load(file('service/local/context/co/context/keep'))['value'])
 
     def test_ResumeRemoteArtifact(self):
         self.ds_pid = self.fork(os.execvp, 'datastore-service', ['datastore-service'])

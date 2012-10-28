@@ -19,8 +19,7 @@ from gevent import monkey
 import active_document as ad
 from active_toolkit import coroutine
 from sugar_network.toolkit import sugar, http, sneakernet, mountpoints
-from sugar_network.toolkit.router import Router
-from sugar_network.client.ipc import Router as IPCRouter
+from sugar_network.toolkit.router import Router, IPCRouter
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network import client, node, toolkit
@@ -29,7 +28,6 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.node.commands import NodeCommands, MasterCommands
-from sugar_network.node.router import Router as MasterRouter
 from sugar_network.node import stats, obs, auth
 from sugar_network.resources.volume import Volume
 
@@ -97,7 +95,7 @@ class Test(unittest.TestCase):
         stats.stats_root.value = tmpdir + '/stats'
         stats.stats_step.value = 1
         stats.stats_rras.value = ['RRA:AVERAGE:0.5:1:100']
-        stats._cache.clear()
+        stats._rrd_cache.clear()
         obs._client = None
         http._RECONNECTION_NUMBER = 0
         auth.reset()
@@ -297,7 +295,7 @@ class Test(unittest.TestCase):
         self.touch('master/master')
         self.volume = Volume('master', classes)
         cp = MasterCommands(self.volume)
-        self.server = coroutine.WSGIServer(('localhost', 8800), MasterRouter(cp))
+        self.server = coroutine.WSGIServer(('localhost', 8800), Router(cp))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
         return self.volume

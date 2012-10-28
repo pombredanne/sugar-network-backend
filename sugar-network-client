@@ -29,9 +29,9 @@ import active_document as ad
 import sugar_network_webui as webui
 from sugar_network import toolkit, client, node
 from sugar_network.toolkit import sugar, mountpoints
+from sugar_network.toolkit.router import IPCRouter
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.client.mountset import Mountset
-from sugar_network.client.ipc import Router
 from sugar_network.zerosugar import clones
 from sugar_network.node import stats
 from sugar_network.resources.volume import Volume
@@ -97,7 +97,7 @@ class Application(application.Daemon):
         logging.info('Listening for IPC requests on %s port',
                 client.ipc_port.value)
         server = coroutine.WSGIServer(('localhost', client.ipc_port.value),
-                Router(mountset))
+                IPCRouter(mountset))
         self.jobs.spawn(server.serve_forever)
         self.accept()
 
