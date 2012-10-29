@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import socket
 import logging
 from os.path import join, exists
@@ -20,11 +21,10 @@ from os.path import join, exists
 import active_document as ad
 
 from sugar_network import client, node
-from sugar_network.toolkit import netlink, network, mountpoints
+from sugar_network.toolkit import netlink, network, mountpoints, router
 from sugar_network.client import journal, zeroconf
 from sugar_network.client.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
-from sugar_network.node.router import Router
 from sugar_network.node.sync_node import SyncCommands
 from sugar_network.zerosugar import injector
 from sugar_network.resources.volume import Volume, Commands, Request
@@ -66,6 +66,33 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         mount = self[mountpoint]
         mount.set_mounted(False)
         dict.__delitem__(self, mountpoint)
+
+    @router.route('GET', '/hub')
+    def hub(self, request, response):
+        """Serve Hub via HTTP instead of file:// for IPC users.
+
+        Since SSE doesn't support CORS for now.
+
+        """
+        if request.environ['PATH_INFO'] == '/hub':
+            raise router.Redirect('/hub/')
+
+        path = request.path[1:]
+        if not path:
+            path = ['index.html']
+        path = join(client.hub_root.value, *path)
+
+        mtime = os.stat(path).st_mtime
+        if request.if_modified_since >= mtime:
+            raise router.NotModified()
+
+        if path.endswith('.js'):
+            response.content_type = 'text/javascript'
+        if path.endswith('.css'):
+            response.content_type = 'text/css'
+        response.last_modified = mtime
+
+        return router.stream_reader(file(path, 'rb'))
 
     @ad.volume_command(method='GET', cmd='mounts',
             mime_type='application/json')
@@ -297,7 +324,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             _logger.info('Start %r server on %s port',
                     volume.root, node.port.value)
             server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
-                    Router(NodeCommands(volume)))
+                    router.Router(NodeCommands(volume)))
             self._servers.spawn(server.serve_forever)
 
             # Let servers start before publishing mount event

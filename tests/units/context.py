@@ -114,64 +114,6 @@ class ContextTest(tests.Test):
             },
             client.get(['context', guid, 'presolve']))
 
-    def test_PackagesRoute(self):
-        self.override(obs, 'get_presolve_repos', lambda: [
-            {'name': 'Gentoo-2.1', 'arch': 'x86'},
-            {'name': 'Debian-6.0', 'arch': 'x86_64'},
-            ])
-
-        volume = self.start_master()
-        client = Client()
-
-        client.post(['context'], {
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'implement': 'package1',
-            'presolve': {
-                'Gentoo-2.1': {'status': 'success', 'binary': ['package1-1', 'package1-2']},
-                'Debian-6.0': {'status': 'success', 'binary': ['package1-3']},
-                },
-            })
-        client.post(['context'], {
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'implement': 'package2',
-            'presolve': {
-                'Gentoo-2.1': {'status': 'success', 'devel': ['package2-1', 'package2-2']},
-                'Debian-6.0': {'status': 'success', 'devel': ['package2-3']},
-                },
-            })
-        client.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'implement': 'package3',
-            'presolve': {
-                'Gentoo-2.1': {'status': 'success', 'binary': ['package3-1', 'package3-2']},
-                'Debian-6.0': {'status': 'success', 'binary': ['package3-3']},
-                },
-            })
-
-        self.assertEqual(
-                {'total': 2, 'result': [{'arch': 'x86', 'name': 'Gentoo-2.1'}, {'arch': 'x86_64', 'name': 'Debian-6.0'}]},
-                client.get(['packages']))
-        self.assertEqual(
-                {'total': 2, 'result': ['package1', 'package2']},
-                client.get(['packages', 'Gentoo-2.1']))
-        self.assertEqual(
-                ['package1-1', 'package1-2'],
-                client.get(['packages', 'Gentoo-2.1', 'package1']))
-        self.assertEqual(
-                ['package1-3'],
-                client.get(['packages', 'Debian-6.0', 'package1']))
-        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Debian-6.0', 'package2'])
-        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Gentoo-2.1', 'package3'])
-
     def test_InvalidateSolutions(self):
         self.override(obs, 'get_repos', lambda: [
             {'distributor_id': 'Gentoo', 'name': 'Gentoo-2.1', 'arches': ['x86_64']},

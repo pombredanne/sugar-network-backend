@@ -41,7 +41,6 @@ from active_toolkit import application
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
 ACTIVITIES_PATH = '/upload/activities'
-EXCLUDE_BUNDLE_IDS = ['net.gcompris.']
 SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
 PACKAGES_GUID = 'packages'
@@ -76,6 +75,55 @@ MISNAMED_LICENSES = {
         ('artistic', '2.0'): 'Artistic 2.0',
         ('cc-by-sa',): 'CC-BY-SA',
         ('creative', 'share', 'alike'): 'CC-BY-SA',
+        }
+
+IGNORE_ADDONS = frozenset([
+        'net.gcompris.',    # Exclude per-activity GC addons
+        'org.laptop.GmailActivity', # Licensing question
+        'com.batovi.SuperVampireNinjaZero', # Licensing question
+        ])
+
+IGNORE_VERSIONS = frozenset([
+        30410,  # Bad version number
+        30906,  # No spec
+        29269,  # No file
+        29311,  # No file
+        29464,  # No file
+        30074,  # No file
+        30234,  # No file
+        ])
+
+LICENSES_MAP = {
+        'org.laptop.x2o': ['GPLv2+'],
+        'org.wesnoth.Wesnoth': ['GPLv2'],
+        'org.laptop.Micropolis': ['GPLv3'],
+        'org.gvr.olpc.GvRng': ['GPLv2'],
+        'org.laptop.bridge': ['GPLv3'],
+        'org.laptop.pippy.Lines': ['GPLv2+'],
+        'org.laptop.pippy.Snow': ['GPLv2+'],
+        'org.laptop.pippy.Bounce': ['GPLv2+'],
+        'org.laptop.xolympics': ['GPLv3'],
+        'org.laptop.FirefoxActivity': ['MPLv2.0', 'GPLv2', 'LGPLv2'],
+        'com.mediamason.geoquiz': ['GPLv3+'],
+        'uy.edu.fing.geirea.leerpendrive': ['GPLv3+'],
+        'org.winehq.Wine': ['LGPLv2.1'],
+        'org.x.tuxsuper': ['GPLv2'],
+        'com.ywwg.Sonata': ['GPLv3'],
+        'org.laptop.StarChart': ['GPLv2+'],
+        'rw.olpc.Learn': ['GPLv2', 'CC-BY-SA'],
+        'org.kiwix.Kiwix': ['GPLv3'],
+        'org.laptop.community.TypingTurtle': ['GPLv3'],
+        'org.sugarlabs.IRC': ['GPLv2+'],
+        'org.laptop.community.Finance': ['GPLv3+'],
+        'org.sugarlabs.InfoSlicer': ['GPLv2+'],
+        'org.laptop.sugar.DistributeActivity': ['GPLv2+'],
+        'org.laptop.community.Colors': ['GPLv3+'],
+        'org.laptop.Develop': ['GPLv2+'],
+        'org.worldwideworkshop.JokeMachineActivity': ['GPLv2+'],
+        'org.worldwideworkshop.olpc.storybuilder': ['GPLv2+'],
+        'org.blender.blender': ['GPLv2+'],
+        'org.laptop.physics': ['GPLv3'],
+        'au.net.acid.Jam2Jam1': ['GPLv2+'],
         }
 
 
@@ -192,7 +240,7 @@ class Application(application.Application):
             sql += ' AND id = %s' % addon_id
 
         for addon_id, bundle_id in self.sqlexec(sql):
-            if [i for i in EXCLUDE_BUNDLE_IDS if i in bundle_id]:
+            if [i for i in IGNORE_ADDONS if i in bundle_id]:
                 continue
             self.sync_context(addon_id, bundle_id)
             self.sync_versions(addon_id, bundle_id)
@@ -231,6 +279,7 @@ class Application(application.Application):
     def sync_versions(self, addon_id, bundle_id):
         sql = """
             SELECT
+                versions.id,
                 versions.version,
                 addons.status,
                 licenses.name,
@@ -256,9 +305,12 @@ class Application(application.Application):
         recent_version = None
         recent_impl = None
 
-        for version, status, license_id, alicense, release_date, \
+        for version_id, version, status, license_id, alicense, release_date, \
                 releasenotes, filename, sugar_min, sugar_max \
                 in self.sqlexec(sql):
+            if version_id in IGNORE_VERSIONS:
+                continue
+
             try:
                 parsed_version = parse_version(version)
             except Exception, error:
@@ -273,26 +325,29 @@ class Application(application.Application):
             if license_id is None:
                 pass
             elif license_id == 0:
-                alicense = 'MPLv1.1'
+                alicense = ['MPLv1.1']
             elif license_id == 1:
-                alicense = 'GPLv2'
+                alicense = ['GPLv2']
             elif license_id == 2:
-                alicense = 'GPLv3'
+                alicense = ['GPLv3']
             elif license_id == 3:
-                alicense = 'LGPLv2'
+                alicense = ['LGPLv2']
             elif license_id == 4:
-                alicense = 'LGPLv3'
+                alicense = ['LGPLv3']
             elif license_id == 5:
-                alicense = 'MIT'
+                alicense = ['MIT']
             elif license_id == 6:
-                alicense = 'BSD'
+                alicense = ['BSD']
             else:
                 parsed_license = self.parse_license(alicense)
-                if not parsed_license:
-                    print '-- Skip bad license %r from %s' % \
-                            (alicense, filename)
+                if parsed_license:
+                    alicense = [parsed_license]
+                elif bundle_id in LICENSES_MAP:
+                    alicense = LICENSES_MAP[bundle_id]
+                else:
+                    print '-- Skip bad license %r from %s of %s' % \
+                            (alicense, filename, addon_id)
                     continue
-                alicense = parsed_license
 
             try:
                 impl = self.sync_implementaiton(bundle_id,
@@ -302,7 +357,7 @@ class Application(application.Application):
                         stability='stable' if status == 4 else 'developer',
                         date=int(time.mktime(release_date.timetuple())),
                         notes=self.get_i18n_field(releasenotes),
-                        license=[alicense] if alicense else [],
+                        license=alicense if alicense else [],
                         )
             except Exception, error:
                 print '-- Failed to sync %s for %s: %s' % (version, bundle_id, error)
@@ -396,6 +451,8 @@ class Application(application.Application):
             **impl_props):
         path = url[len(DOWNLOAD_URL):].strip('/').split('/')
         path = join(ACTIVITIES_PATH, *path)
+        if path.endswith('.xol'):
+            return None
         if not exists(path):
             print '-- Cannot find ASLO bundle at %s' % path
             return None
@@ -414,9 +471,12 @@ class Application(application.Application):
         if not impl_props['license']:
             impl_props['license'] = self.parse_license(spec['license'])
             if not impl_props['license']:
-                print '-- Skip bad license %r from %s' % \
-                        (spec['license'], path)
-                return None
+                if context in LICENSES_MAP:
+                    impl_props['license'] = LICENSES_MAP[context]
+                else:
+                    print '-- Skip bad license %r from %s' % \
+                            (spec['license'], path)
+                    return None
 
         print '-- Add %r version to %r activity' % (spec['version'], context)
 

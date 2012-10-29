@@ -26,6 +26,7 @@ from os.path import join, isfile
 
 import active_document as ad
 from sugar_network import static
+from sugar_network.toolkit import sugar
 from sugar_network.resources.volume import Request
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import coroutine, util, enforce
@@ -281,6 +282,16 @@ class Router(object):
                     self._routes[attr.route] = attr
             # pylint: disable-msg=E1101
             cls = cls.__base__
+
+
+class IPCRouter(Router):
+
+    def authenticate(self, request):
+        return sugar.uid()
+
+    def call(self, request, response):
+        request.access_level = ad.ACCESS_LOCAL
+        return Router.call(self, request, response)
 
 
 class _Request(Request):
