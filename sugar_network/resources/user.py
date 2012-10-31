@@ -67,10 +67,10 @@ class User(ad.Document):
         status = {}
         rrd = stats.get_rrd(self.guid)
         for name, __, last_update in rrd.dbs:
-            status[name] = last_update + stats.stats_step.value
+            status[name] = last_update + stats.stats_user_step.value
         # TODO Process client configuration in more general manner
         return {'enable': True,
-                'step': stats.stats_step.value,
+                'step': stats.stats_user_step.value,
                 'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
                 'status': status,
                 }

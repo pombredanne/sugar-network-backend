@@ -24,39 +24,89 @@ from sugar_network.toolkit.rrd import Rrd, ReadOnlyRrd
 from sugar_network.toolkit.collection import Sequence, PersistentSequence
 
 
-stats = Option(
-        'enable stats collecting',
-        default=False, type_cast=Option.bool_cast, action='store_true')
-
 stats_root = Option(
         'path to the root directory for placing stats',
         default='/var/lib/sugar-network/stats')
 
-stats_step = Option(
-        'step interval in seconds for RRD databases',
+stats_node_step = Option(
+        'step interval in seconds for node RRD databases',
+        default=60 * 5, type_cast=int)
+
+stats_node_rras = Option(
+        'space separated list of RRAs for node RRD databases',
+        default=[
+            'RRA:AVERAGE:0.5:1:288',      # one day with 5min step
+            'RRA:AVERAGE:0.5:3:672',      # one week with 15min step
+            'RRA:AVERAGE:0.5:12:744',     # one month with 1h step
+            'RRA:AVERAGE:0.5:144:732',    # one year with 12h step
+            'RRA:AVERAGE:0.5:288:36600',  # hundred years with 24h step
+            ],
+        type_cast=Option.list_cast, type_repr=Option.list_repr)
+
+stats_user_step = Option(
+        'step interval in seconds for users\' RRD databases',
         default=60, type_cast=int)
 
-stats_rras = Option(
-        'space separated list of RRAs for RRD databases',
-        default=['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
+stats_user_rras = Option(
+        'space separated list of RRAs for users\' RRD databases',
+        default=[
+            'RRA:AVERAGE:0.5:1:4320',   # one day with 60s step
+            'RRA:AVERAGE:0.5:5:2016',   # one week with 5min step
+            ],
         type_cast=Option.list_cast, type_repr=Option.list_repr)
 
 
+_RELATED_STATS = {
+        # document: [(owner_document, owner_prop)]
+        'comment': {
+            'props': {
+                },
+            'posts': [
+                ('solution', 'commented'),
+                ('feedback', 'commented'),
+                ('review', 'commented'),
+                ],
+            },
+        'implementation': {
+            'props': {
+                'data': ('context', 'downloaded'),
+                },
+            'posts': [
+                ('context', 'released'),
+                ],
+            },
+        'report': {
+            'props': {
+                },
+            'posts': [
+                ('context', 'failed'),
+                ],
+            },
+        'review': {
+            'props': {
+                },
+            'posts': [
+                ('artifact', 'reviewed'),
+                ('context', 'reviewed'),
+                ],
+            },
+        }
+
 _logger = logging.getLogger('node.stats')
-_cache = lrucache(32)
+_user_cache = lrucache(32)
 
 
 def get_rrd(user):
-    if user in _cache:
-        return _cache[user]
+    if user in _user_cache:
+        return _user_cache[user]
     else:
-        rrd = _cache[user] = Rrd(join(stats_root.value, user[:2], user),
-                stats_step.value, stats_rras.value)
+        rrd = _user_cache[user] = Rrd(_rrd_path(user),
+                stats_user_step.value, stats_user_rras.value)
         return rrd
 
 
 def pull(in_seq, packet):
-    for user, rrd in _walk_rrd():
+    for user, rrd in _walk_rrd(join(stats_root.value, 'user')):
         in_seq.setdefault(user, {})
 
         for db, db_start, db_end in rrd.dbs:
@@ -85,18 +135,196 @@ def pull(in_seq, packet):
 def commit(sequences):
     for user, dbs in sequences.items():
         for db, merged in dbs.items():
-            seq = PersistentSequence(
-                    join(stats_root.value, user[:2], user, db + '.push'),
-                    [1, None])
+            seq = PersistentSequence(_rrd_path(user, db + '.push'), [1, None])
             seq.exclude(merged)
             seq.commit()
 
 
-def _walk_rrd():
-    if not exists(stats_root.value):
+class NodeStats(object):
+
+    def __init__(self, volume):
+        self._volume = volume
+        self._rrd = Rrd(join(stats_root.value, 'node'),
+                stats_node_step.value, stats_node_rras.value)
+
+        self._stats = {
+                'user': _UserStats(),
+                'context': _ContextStats(),
+                'review': _ReviewStats(),
+                'feedback': _FeedbackStats(),
+                'solution': _SolutionStats(),
+                'artifact': _ArtifactStats(),
+                }
+
+        for document, stats in self._stats.items():
+            type(stats).total = volume[document].find(limit=0)[1]
+        _FeedbackStats.solutions = _FeedbackStats.total - \
+                volume['feedback'].find(limit=0, solution='')[1]
+
+    def log(self, request):
+        document = request.get('document')
+        if request.principal is None or not document or \
+                request.get('cmd') is not None:
+            return
+
+        method = request['method']
+        context = None
+
+        stats = self._stats.get(document)
+        if stats is not None:
+            if method == 'POST':
+                stats.total += 1
+                stats.created += 1
+            elif method == 'PUT':
+                stats.updated += 1
+                if document == 'context':
+                    context = request['guid']
+                elif document == 'feedback' and 'solution' in request.content:
+                    if request.content['solution'] is None:
+                        stats.rejected += 1
+                        type(stats).solutions -= 1
+                    else:
+                        stats.solved += 1
+                        type(stats).solutions += 1
+            elif method == 'DELETE':
+                stats.total -= 1
+                stats.deleted += 1
+            elif method == 'GET':
+                if 'guid' not in request:
+                    context = request.get('context')
+                    if not context and stats.OWNER and stats.OWNER in request:
+                        owner = self._volume[stats.OWNER]
+                        context = owner.get(request[stats.OWNER])['context']
+                else:
+                    guid = request['guid']
+                    if document == 'context':
+                        context = guid
+                    elif document != 'user':
+                        context = self._volume[document].get(guid)['context']
+                    if 'prop' in request:
+                        prop = stats.PROPS.get(request['prop'])
+                        if prop:
+                            setattr(stats, prop, getattr(stats, prop) + 1)
+                    else:
+                        stats.viewed += 1
+
+        related = _RELATED_STATS.get(document)
+        if related:
+            if method == 'POST':
+                for owner, prop in related['posts']:
+                    if owner not in request.content:
+                        continue
+                    if not context:
+                        guid = request.content[owner]
+                        if owner == 'context':
+                            context = guid
+                        else:
+                            context = self._volume[owner].get(guid)['context']
+                    stats = self._stats[owner]
+                    setattr(stats, prop, getattr(stats, prop) + 1)
+                    # It is important to break after the first hit,
+                    # eg, `review.context` will be set all time when
+                    # `review.artifact` is optional
+                    break
+            elif method == 'GET' and 'prop' in request:
+                related = related['props'].get(request['prop'])
+                if related:
+                    owner, prop = related
+                    stats = self._stats[owner]
+                    setattr(stats, prop, getattr(stats, prop) + 1)
+
+        if context:
+            self._stats['context'].active.add(context)
+
+        stats = self._stats['user']
+        if method in ('POST', 'PUT', 'DELETE'):
+            stats.effective.add(request.principal)
+        stats.active.add(request.principal)
+
+    def commit(self, timestamp=None):
+        for document, stats in self._stats.items():
+            values = {}
+            for attr in dir(stats):
+                if attr[0] == '_' or attr[0].isupper():
+                    continue
+                value = getattr(stats, attr)
+                if type(value) is set:
+                    value = len(value)
+                values[attr] = value
+
+            self._rrd.put(document, values, timestamp=timestamp)
+            self._stats[document] = type(stats)()
+
+
+class _Stats(object):
+
+    OWNER = None
+    PROPS = {}
+
+    total = 0
+    created = 0
+    updated = 0
+    deleted = 0
+    viewed = 0
+
+
+class _UserStats(_Stats):
+
+    def __init__(self):
+        self.active = set()
+        self.effective = set()
+
+
+class _ContextStats(_Stats):
+
+    released = 0
+    failed = 0
+    downloaded = 0
+    reviewed = 0
+
+    def __init__(self):
+        self.active = set()
+
+
+class _ReviewStats(_Stats):
+
+    OWNER = 'artifact'
+
+    commented = 0
+
+
+class _FeedbackStats(_Stats):
+
+    solutions = 0
+    solved = 0
+    rejected = 0
+    commented = 0
+
+
+class _SolutionStats(_Stats):
+
+    OWNER = 'feedback'
+
+    commented = 0
+
+
+class _ArtifactStats(_Stats):
+
+    PROPS = {'data': 'downloaded'}
+
+    downloaded = 0
+    reviewed = 0
+
+
+def _rrd_path(user, *args):
+    return join(stats_root.value, 'user', user[:2], user, *args)
+
+
+def _walk_rrd(root):
+    if not exists(root):
         return
-    for users_dirname in os.listdir(stats_root.value):
-        users_dir = join(stats_root.value, users_dirname)
+    for users_dirname in os.listdir(root):
+        users_dir = join(root, users_dirname)
         if not isdir(users_dir):
             continue
         for user in os.listdir(users_dir):

@@ -46,8 +46,6 @@ def _validate(request, role):
     if role == 'user':
         if request.principal:
             return True
-        else:
-            request.principal = 'anonymous'
 
     config_path = join(node.data_root.value, 'authorization.conf')
     if exists(config_path):
@@ -59,7 +57,7 @@ def _validate(request, role):
     if _config is None:
         return
 
-    user = request.principal
+    user = request.principal or 'anonymous'
     if not _config.has_section(user):
         user = 'DEFAULT'
 

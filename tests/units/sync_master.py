@@ -271,13 +271,13 @@ class SyncMasterTest(tests.Test):
             ],
             [i for i in packet])
 
-        __, __, values = rrdtool.fetch('stats/us/user1/db1.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 2))
+        __, __, values = rrdtool.fetch('stats/user/us/user1/db1.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 2))
         self.assertEqual([(1,), (2,), (None,)], values)
 
-        __, __, values = rrdtool.fetch('stats/us/user1/db2.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 3))
+        __, __, values = rrdtool.fetch('stats/user/us/user1/db2.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 3))
         self.assertEqual([(None,), (None,), (3,), (None,)], values)
 
-        __, __, values = rrdtool.fetch('stats/us/user2/db3.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 4))
+        __, __, values = rrdtool.fetch('stats/user/us/user2/db3.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 4))
         self.assertEqual([(None,), (None,), (None,), (4,), (None,)], values)
 
     def test_pull_ProcessPulls(self):

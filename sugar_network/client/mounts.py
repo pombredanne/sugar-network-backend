@@ -373,17 +373,17 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             try:
                 _logger.debug('Connecting to %r node', url)
                 self._client = Client(url)
-                stat = self._client.get(cmd='stat')
+                info = self._client.get(cmd='info')
                 if self._listen_events:
                     subscription = self._client.subscribe()
             except Exception:
                 util.exception(_logger, 'Cannot connect to %r node', url)
                 continue
 
-            if 'documents' in stat:
+            if 'documents' in info:
                 injector.invalidate_solutions(
-                        stat['documents']['implementation']['mtime'])
-            self._remote_volume_guid = stat['guid']
+                        info['documents']['implementation']['mtime'])
+            self._remote_volume_guid = info['guid']
 
             _logger.info('Connected to %r node', url)
             self._url = url
