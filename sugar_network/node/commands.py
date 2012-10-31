@@ -19,8 +19,6 @@ from os.path import exists, join
 
 import active_document as ad
 from sugar_network import node, toolkit
-from sugar_network.node.sync_master import SyncCommands
-from sugar_network.node.stats import stats_node_step, NodeStats
 from sugar_network.node import auth, obs
 from sugar_network.resources.volume import Commands, VolumeCommands
 from sugar_network.toolkit import router
@@ -34,14 +32,11 @@ _logger = logging.getLogger('node.commands')
 
 class NodeCommands(VolumeCommands, Commands):
 
-    def __init__(self, volume):
+    def __init__(self, volume, stats=None):
         VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
         self._is_master = False
-        self._stats = None
-
-        if stats_node_step.value:
-            self._stats = NodeStats(volume)
+        self._stats = stats
 
         node_path = join(volume.root, 'node')
         master_path = join(volume.root, 'master')
@@ -125,6 +120,21 @@ class NodeCommands(VolumeCommands, Commands):
         # TODO Reading layer here is a race
         layer = list(set(doc['layer']) - set(request.content))
         directory.update(guid, {'layer': layer})
+
+    @ad.document_command(method='PUT', cmd='merge',
+            permissions=ad.ACCESS_AUTH)
+    def merge(self, document, guid, request):
+        auth.validate(request, 'root')
+        directory = self.volume[document]
+        directory.merge(guid, request.content)
+
+    @ad.volume_command(method='GET', cmd='whoami',
+            mime_type='application/json')
+    def whoami(self, request):
+        roles = []
+        if auth.try_validate(request, 'root'):
+            roles.append('root')
+        return {'roles': roles, 'guid': request.principal}
 
     def call(self, request, response=None):
         try:
@@ -239,28 +249,6 @@ class NodeCommands(VolumeCommands, Commands):
         enforce(presolve and 'binary' in presolve, ad.NotFound,
                 'No presolve info')
         return presolve['binary']
-
-
-class MasterCommands(NodeCommands, SyncCommands):
-
-    def __init__(self, volume):
-        NodeCommands.__init__(self, volume)
-        SyncCommands.__init__(self)
-
-    @ad.document_command(method='PUT', cmd='merge',
-            permissions=ad.ACCESS_AUTH)
-    def merge(self, document, guid, request):
-        auth.validate(request, 'root')
-        directory = self.volume[document]
-        directory.merge(guid, request.content)
-
-    @ad.volume_command(method='GET', cmd='whoami',
-            mime_type='application/json')
-    def whoami(self, request):
-        roles = []
-        if auth.try_validate(request, 'root'):
-            roles.append('root')
-        return {'roles': roles, 'guid': request.principal}
 
 
 def _load_pubkey(pubkey):

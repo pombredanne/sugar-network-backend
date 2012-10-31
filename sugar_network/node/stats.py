@@ -143,9 +143,11 @@ def commit(sequences):
 class NodeStats(object):
 
     def __init__(self, volume):
+        path = join(stats_root.value, 'node')
+        _logger.info('Start collecting node stats in %r', path)
+
         self._volume = volume
-        self._rrd = Rrd(join(stats_root.value, 'node'),
-                stats_node_step.value, stats_node_rras.value)
+        self._rrd = Rrd(path, stats_node_step.value, stats_node_rras.value)
 
         self._stats = {
                 'user': _UserStats(),
@@ -242,6 +244,8 @@ class NodeStats(object):
         stats.active.add(request.principal)
 
     def commit(self, timestamp=None):
+        _logger.debug('Commit node stats')
+
         for document, stats in self._stats.items():
             values = {}
             for attr in dir(stats):
@@ -251,7 +255,6 @@ class NodeStats(object):
                 if type(value) is set:
                     value = len(value)
                 values[attr] = value
-
             self._rrd.put(document, values, timestamp=timestamp)
             self._stats[document] = type(stats)()
 

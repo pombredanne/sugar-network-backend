@@ -27,7 +27,7 @@ from sugar_network.zerosugar import injector
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.node.commands import NodeCommands, MasterCommands
+from sugar_network.node.commands import NodeCommands
 from sugar_network.node import stats, obs, auth
 from sugar_network.resources.volume import Volume
 
@@ -294,7 +294,7 @@ class Test(unittest.TestCase):
             classes = [User, Context, Implementation]
         self.touch('master/master')
         self.volume = Volume('master', classes)
-        cp = MasterCommands(self.volume)
+        cp = NodeCommands(self.volume)
         self.server = coroutine.WSGIServer(('localhost', 8800), Router(cp))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
