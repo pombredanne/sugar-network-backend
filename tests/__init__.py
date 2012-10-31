@@ -93,9 +93,9 @@ class Test(unittest.TestCase):
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
         stats.stats_root.value = tmpdir + '/stats'
-        stats.stats_step.value = 1
-        stats.stats_rras.value = ['RRA:AVERAGE:0.5:1:100']
-        stats._rrd_cache.clear()
+        stats.stats_node_step.value = 0
+        stats.stats_user_step.value = 1
+        stats._user_cache.clear()
         obs._client = None
         http._RECONNECTION_NUMBER = 0
         auth.reset()

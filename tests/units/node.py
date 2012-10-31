@@ -20,7 +20,8 @@ class NodeTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         stats.stats_root.value = 'stats'
-        stats.stats_step.value = 1
+        stats.stats_user_step.value = 1
+        stats.stats_user_rras.value = ['RRA:AVERAGE:0.5:1:100']
 
     def test_stats(self):
         volume = Volume('db')
@@ -40,7 +41,7 @@ class NodeTest(tests.Test):
             'enable': True,
             'status': {},
             'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats.stats_step.value,
+            'step': stats.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
@@ -54,7 +55,7 @@ class NodeTest(tests.Test):
                 'test': ts + 2,
                 },
             'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats.stats_step.value,
+            'step': stats.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
@@ -68,7 +69,7 @@ class NodeTest(tests.Test):
                 'test': ts + 3,
                 },
             'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats.stats_step.value,
+            'step': stats.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
@@ -83,7 +84,7 @@ class NodeTest(tests.Test):
                 'test2': ts + 4,
                 },
             'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats.stats_step.value,
+            'step': stats.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 

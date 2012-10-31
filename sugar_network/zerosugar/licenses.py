@@ -30,6 +30,7 @@ GOOD_LICENSES = frozenset([
     'AGPLv3',
     'AGPLv3+',
     'AGPLv3 with exceptions',
+    'Afmparse',
     'ADSL',
     'AMDPLPA',
     'ASL 1.0',

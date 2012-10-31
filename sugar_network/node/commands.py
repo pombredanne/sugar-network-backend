@@ -20,6 +20,7 @@ from os.path import exists, join
 import active_document as ad
 from sugar_network import node, toolkit
 from sugar_network.node.sync_master import SyncCommands
+from sugar_network.node.stats import stats_node_step, NodeStats
 from sugar_network.node import auth, obs
 from sugar_network.resources.volume import Commands, VolumeCommands
 from sugar_network.toolkit import router
@@ -37,6 +38,10 @@ class NodeCommands(VolumeCommands, Commands):
         VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
         self._is_master = False
+        self._stats = None
+
+        if stats_node_step.value:
+            self._stats = NodeStats(volume)
 
         node_path = join(volume.root, 'node')
         master_path = join(volume.root, 'master')
@@ -82,9 +87,9 @@ class NodeCommands(VolumeCommands, Commands):
     def hello(self):
         return _HELLO_HTML
 
-    @ad.volume_command(method='GET', cmd='stat',
+    @ad.volume_command(method='GET', cmd='info',
             mime_type='application/json')
-    def stat(self):
+    def info(self):
         documents = {}
         for name, directory in self.volume.items():
             documents[name] = {'mtime': directory.mtime}
@@ -121,6 +126,17 @@ class NodeCommands(VolumeCommands, Commands):
         layer = list(set(doc['layer']) - set(request.content))
         directory.update(guid, {'layer': layer})
 
+    def call(self, request, response=None):
+        try:
+            return VolumeCommands.call(self, request, response)
+        except router.HTTPStatusPass:
+            if self._stats is not None:
+                self._stats.log(request)
+            raise
+        else:
+            if self._stats is not None:
+                self._stats.log(request)
+
     def resolve(self, request):
         cmd = VolumeCommands.resolve(self, request)
         if cmd is None:
@@ -147,7 +163,7 @@ class NodeCommands(VolumeCommands, Commands):
     def before_create(self, request, props):
         if request['document'] == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
-        else:
+        elif request.principal:
             props['user'] = [request.principal]
             self._set_author(props)
 

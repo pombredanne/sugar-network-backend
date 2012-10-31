@@ -89,7 +89,7 @@ class AuthTest(tests.Test):
         auth.reset()
         client.post(['context'], props)
         self.assertEqual('title', client.get(['context', 'guid', 'title']))
-        self.assertEqual(['anonymous'], client.get(['context', 'guid', 'user']))
+        self.assertEqual([], client.get(['context', 'guid', 'user']))
 
         self.stop_servers()
         self.touch((
@@ -132,7 +132,7 @@ class AuthTest(tests.Test):
             ]))
         os.utime('authorization.conf', (2, 2))
         client.post(['context'], props)
-        self.assertEqual(['anonymous'], client.get(['context', 'guid', 'user']))
+        self.assertEqual([], client.get(['context', 'guid', 'user']))
 
         self.touch(('authorization.conf', ''))
         os.utime('authorization.conf', (3, 3))

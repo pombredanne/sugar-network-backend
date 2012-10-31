@@ -27,5 +27,6 @@ from solution import *
 from implementation import *
 from obs import *
 from journal import *
+from stats import *
 
 tests.main()

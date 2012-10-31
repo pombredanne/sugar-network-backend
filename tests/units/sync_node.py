@@ -259,9 +259,9 @@ class SyncNodeTest(tests.Test):
         node.sync('mnt', session=0)
         assert exists(master_packet.path)
 
-        self.assertEqual([[3, None]], json.load(file('stats/us/user1/db1.push')))
-        self.assertEqual([[1, 2], [5, None]], json.load(file('stats/us/user1/db2.push')))
-        self.assertEqual([[1, 4], [7, None]], json.load(file('stats/us/user2/db3.push')))
+        self.assertEqual([[3, None]], json.load(file('stats/user/us/user1/db1.push')))
+        self.assertEqual([[1, 2], [5, None]], json.load(file('stats/user/us/user1/db2.push')))
+        self.assertEqual([[1, 4], [7, None]], json.load(file('stats/user/us/user2/db3.push')))
 
     def test_sync_session(self):
         node = SyncCommands('node', 'master')
@@ -322,14 +322,14 @@ class SyncNodeTest(tests.Test):
         node = SyncCommands('node', 'master')
 
         ts = int(time.time())
-        os.makedirs('stats/1/1')
-        rrdtool.create('stats/1/1/db1.rrd', '--start', str(ts), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
-        rrdtool.update('stats/1/1/db1.rrd', '%s:1' % (ts + 1), '%s:2' % (ts + 2))
-        rrdtool.create('stats/1/1/db2.rrd', '--start', str(ts + 2), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
-        rrdtool.update('stats/1/1/db2.rrd', '%s:3' % (ts + 3), '%s:4' % (ts + 4))
-        os.makedirs('stats/2/2')
-        rrdtool.create('stats/2/2/db3.rrd', '--start', str(ts + 4), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
-        rrdtool.update('stats/2/2/db3.rrd', '%s:5' % (ts + 5))
+        os.makedirs('stats/user/1/1')
+        rrdtool.create('stats/user/1/1/db1.rrd', '--start', str(ts), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
+        rrdtool.update('stats/user/1/1/db1.rrd', '%s:1' % (ts + 1), '%s:2' % (ts + 2))
+        rrdtool.create('stats/user/1/1/db2.rrd', '--start', str(ts + 2), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
+        rrdtool.update('stats/user/1/1/db2.rrd', '%s:3' % (ts + 3), '%s:4' % (ts + 4))
+        os.makedirs('stats/user/2/2')
+        rrdtool.create('stats/user/2/2/db3.rrd', '--start', str(ts + 4), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
+        rrdtool.update('stats/user/2/2/db3.rrd', '%s:5' % (ts + 5))
 
         node.sync('mnt', session=0)
 
@@ -356,9 +356,9 @@ class SyncNodeTest(tests.Test):
         node = SyncCommands('node', 'master')
 
         ts = int(time.time())
-        os.makedirs('stats/us/user')
-        rrdtool.create('stats/us/user/db.rrd', '--start', str(ts), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
-        rrdtool.update('stats/us/user/db.rrd', '%s:1' % (ts + 1), '%s:2' % (ts + 2))
+        os.makedirs('stats/user/us/user')
+        rrdtool.create('stats/user/us/user/db.rrd', '--start', str(ts), '-s', '1', 'DS:f:GAUGE:1:U:U', 'RRA:AVERAGE:0.5:1:100')
+        rrdtool.update('stats/user/us/user/db.rrd', '%s:1' % (ts + 1), '%s:2' % (ts + 2))
 
         node.volume['document'].create(guid='1', prop='*' * 1024)
 
