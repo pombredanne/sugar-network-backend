@@ -84,7 +84,7 @@ class SyncCommands(object):
                     user = record['user']
 
                     rrd = stats.get_rrd(user)
-                    rrd.put(db, record['values'], record['timestamp'])
+                    rrd[db].put(record['values'], record['timestamp'])
 
                     user_seq = stats_pushed.setdefault(user, {})
                     db_seq = user_seq.setdefault(db, Sequence())

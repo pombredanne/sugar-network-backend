@@ -5,7 +5,7 @@ import time
 
 from __init__ import tests
 
-from sugar_network.toolkit.rrd import ReadOnlyRrd
+from sugar_network.toolkit.rrd import Rrd
 from sugar_network.node.stats import stats_node_step, NodeStats
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
@@ -404,8 +404,6 @@ class StatsTest(tests.Test):
         self.assertEqual(1, stats._stats['artifact'].total)
         self.assertEqual(0, stats._stats['artifact'].viewed)
 
-        rrd = ReadOnlyRrd('stats/node')
-
         self.assertEqual([
             [('feedback', ts, {
                 'updated': 0.0,
@@ -465,7 +463,7 @@ class StatsTest(tests.Test):
                 'released': 0.0,
                 })],
             ],
-            [[(name,) + i for i in rrd.get(name, start, end)] for name, start, end in rrd.dbs])
+            [[(db.name,) + i for i in db.get(db.first, db.last)] for db in Rrd('stats/node', 1)])
 
 
 if __name__ == '__main__':

@@ -26,6 +26,7 @@ from active_toolkit import util, enforce
 
 
 _DEFAULT_MASTER_GUID = 'api-testing.network.sugarlabs.org'
+_MAX_STATS_LENGTH = 100
 
 _logger = logging.getLogger('node.commands')
 
@@ -92,6 +93,46 @@ class NodeCommands(VolumeCommands, Commands):
                 'master': self._is_master,
                 'documents': documents,
                 }
+
+    @ad.volume_command(method='GET', cmd='stats',
+            mime_type='application/json', arguments={
+                'start': ad.to_int,
+                'end': ad.to_int,
+                'resolution': ad.to_int,
+                'source': ad.to_list,
+                })
+    def stats(self, start, end, resolution, source):
+        if not source:
+            return {}
+
+        enforce(self._stats is not None, 'Node stats is disabled')
+        enforce(start < end, "Argument 'start' should be less than 'end'")
+        enforce(resolution > 0, "Argument 'resolution' should be more than 0")
+
+        min_resolution = (end - start) / _MAX_STATS_LENGTH
+        if resolution < min_resolution:
+            _logger.debug('Resulution is too short, use %s instead',
+                    min_resolution)
+            resolution = min_resolution
+
+        dbs = {}
+        for i in source:
+            enforce('.' in i, 'Misnamed source name')
+            db_name, ds_name = i.split('.', 1)
+            dbs.setdefault(db_name, []).append(ds_name)
+        result = {}
+
+        for db in self._stats.rrd:
+            if db.name not in dbs:
+                continue
+            stats = result[db.name] = []
+            for ts, ds_values in db.get(start, end, resolution):
+                values = {}
+                for name in dbs[db.name]:
+                    values[name] = ds_values.get(name)
+                stats.append((ts, values))
+
+        return result
 
     @ad.document_command(method='DELETE',
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)

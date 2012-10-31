@@ -8,10 +8,19 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import node, Client
+from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit.router import Unauthorized
 from sugar_network.node import stats, obs
 from sugar_network.node.commands import NodeCommands
+from sugar_network.node.stats import stats_node_step, stats_node_rras, NodeStats
 from sugar_network.resources.volume import Volume, Request
+from sugar_network.resources.user import User
+from sugar_network.resources.context import Context
+from sugar_network.resources.implementation import Implementation
+from sugar_network.resources.review import Review
+from sugar_network.resources.feedback import Feedback
+from sugar_network.resources.artifact import Artifact
+from sugar_network.resources.solution import Solution
 from sugar_network.resources.user import User
 
 
@@ -23,7 +32,7 @@ class NodeTest(tests.Test):
         stats.stats_user_step.value = 1
         stats.stats_user_rras.value = ['RRA:AVERAGE:0.5:1:100']
 
-    def test_stats(self):
+    def test_UserStats(self):
         volume = Volume('db')
         cp = NodeCommands(volume)
 
@@ -87,6 +96,38 @@ class NodeTest(tests.Test):
             'step': stats.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
+
+    def test_NodeStats(self):
+        stats_node_step.value = 1
+        rrd = Rrd('stats/node', stats_node_step.value, stats_node_rras.value)
+
+        ts = int(time.time()) / 3 * 3
+        for i in range(100):
+            rrd['user'].put({'total': i}, ts + i)
+
+        volume = Volume('db', [User, Context, Review, Feedback, Solution, Artifact])
+        stats = NodeStats(volume)
+        cp = NodeCommands(volume, stats)
+
+        self.assertEqual({
+            'user': [
+                (ts + 0, {'total': 0.0}),
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 2.0}),
+                (ts + 3, {'total': 3.0}),
+                ],
+            },
+            cp.stats(ts, ts + 3, 1, ['user.total']))
+
+        self.assertEqual({
+            'user': [
+                (ts + 3, {'total': 2.0}),
+                (ts + 6, {'total': 5.0}),
+                (ts + 9, {'total': 8.0}),
+                (ts + 12, {'total': 11.0}),
+                ],
+            },
+            cp.stats(ts, ts + 12, 3, ['user.total']))
 
     def test_HandleDeletes(self):
         volume = Volume('db')
