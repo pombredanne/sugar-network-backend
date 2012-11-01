@@ -22,7 +22,7 @@ import logging
 from email.utils import parsedate, formatdate
 from urlparse import parse_qsl, urlsplit
 from bisect import bisect_left
-from os.path import join, isfile
+from os.path import join, isfile, exists
 
 import active_document as ad
 from sugar_network import static
@@ -155,10 +155,18 @@ class Router(object):
             rout = self._routes.get((
                 request['method'],
                 request.path[0] if request.path else ''))
-            if rout:
-                result = rout(request, response)
-            else:
-                result = self.commands.call(request, response)
+            try:
+                if rout:
+                    result = rout(request, response)
+                else:
+                    result = self.commands.call(request, response)
+            except ad.BadRequest:
+                static_path = join(static.PATH, *request.path)
+                if request['method'] == 'GET' and 'cmd' not in request and \
+                        exists(static_path):
+                    result = ad.PropertyMeta(path=static_path)
+                else:
+                    raise
 
         if isinstance(result, ad.PropertyMeta):
             if 'url' in result:
@@ -317,6 +325,8 @@ class _Request(Request):
         self.accept_language = _parse_accept_language(
                 environ.get('HTTP_ACCEPT_LANGUAGE'))
         self.principal = None
+
+        enforce('..' not in self.path, 'Relative url path')
 
         query = environ.get('QUERY_STRING') or ''
         for attr, value in parse_qsl(query):
