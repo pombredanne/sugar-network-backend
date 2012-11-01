@@ -99,7 +99,8 @@ class _Volume(dict):
     def __getitem__(self, name):
         directory = self.get(name)
         if directory is None:
-            enforce(name in self._to_open, 'Unknown %r document', name)
+            enforce(name in self._to_open, env.BadRequest,
+                    'Unknown %r document', name)
             directory = self[name] = self._open(name, self._to_open.pop(name))
         return directory
 

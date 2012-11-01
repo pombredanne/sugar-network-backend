@@ -95,6 +95,11 @@ def default_lang():
         return DEFAULT_LANG
 
 
+class BadRequest(Exception):
+    """Bad requested resource."""
+    pass
+
+
 class NotFound(Exception):
     """Resource was not found."""
     pass
