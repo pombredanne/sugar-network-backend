@@ -65,9 +65,9 @@ class User(ad.Document):
                 'Operation is permitted only for authors')
 
         status = {}
-        rrd = stats.get_rrd(self.guid)
-        for name, __, last_update in rrd.dbs:
-            status[name] = last_update + stats.stats_user_step.value
+        for db in stats.get_rrd(self.guid):
+            status[db.name] = db.last + stats.stats_user_step.value
+
         # TODO Process client configuration in more general manner
         return {'enable': True,
                 'step': stats.stats_user_step.value,
@@ -84,4 +84,4 @@ class User(ad.Document):
         values = request.content['values']
         rrd = stats.get_rrd(self.guid)
         for timestamp, values in values:
-            rrd.put(name, values, timestamp)
+            rrd[name].put(values, timestamp)

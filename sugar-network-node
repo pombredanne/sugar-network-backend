@@ -31,7 +31,7 @@ from sugar_network.client.mounts import LocalMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.client.mounts import LocalMount
 from sugar_network.node import stats, obs
-from sugar_network.node.commands import MasterCommands
+from sugar_network.node.commands import NodeCommands
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import sugar, sneakernet
 from sugar_network.toolkit.router import Router
@@ -53,7 +53,12 @@ class Application(application.Daemon):
 
         volume = Volume(node.data_root.value)
         self.jobs.spawn(volume.populate)
-        cp = MasterCommands(volume)
+
+        node_stats = None
+        if stats.stats_node_step.value:
+            node_stats = stats.NodeStats(volume)
+            self.jobs.spawn(self._commit_stats, node_stats)
+        cp = NodeCommands(volume, node_stats)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)
@@ -85,6 +90,11 @@ class Application(application.Daemon):
 
     def shutdown(self):
         self.jobs.kill()
+
+    def _commit_stats(self, node_stats):
+        while True:
+            coroutine.sleep(stats.stats_node_step.value)
+            node_stats.commit()
 
 
 # Let toolkit.http work in concurrence

@@ -19,8 +19,6 @@ from os.path import exists, join
 
 import active_document as ad
 from sugar_network import node, toolkit
-from sugar_network.node.sync_master import SyncCommands
-from sugar_network.node.stats import stats_node_step, NodeStats
 from sugar_network.node import auth, obs
 from sugar_network.resources.volume import Commands, VolumeCommands
 from sugar_network.toolkit import router
@@ -28,20 +26,18 @@ from active_toolkit import util, enforce
 
 
 _DEFAULT_MASTER_GUID = 'api-testing.network.sugarlabs.org'
+_MAX_STATS_LENGTH = 100
 
 _logger = logging.getLogger('node.commands')
 
 
 class NodeCommands(VolumeCommands, Commands):
 
-    def __init__(self, volume):
+    def __init__(self, volume, stats=None):
         VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
         self._is_master = False
-        self._stats = None
-
-        if stats_node_step.value:
-            self._stats = NodeStats(volume)
+        self._stats = stats
 
         node_path = join(volume.root, 'node')
         master_path = join(volume.root, 'master')
@@ -98,6 +94,46 @@ class NodeCommands(VolumeCommands, Commands):
                 'documents': documents,
                 }
 
+    @ad.volume_command(method='GET', cmd='stats',
+            mime_type='application/json', arguments={
+                'start': ad.to_int,
+                'end': ad.to_int,
+                'resolution': ad.to_int,
+                'source': ad.to_list,
+                })
+    def stats(self, start, end, resolution, source):
+        if not source:
+            return {}
+
+        enforce(self._stats is not None, 'Node stats is disabled')
+        enforce(start < end, "Argument 'start' should be less than 'end'")
+        enforce(resolution > 0, "Argument 'resolution' should be more than 0")
+
+        min_resolution = (end - start) / _MAX_STATS_LENGTH
+        if resolution < min_resolution:
+            _logger.debug('Resulution is too short, use %s instead',
+                    min_resolution)
+            resolution = min_resolution
+
+        dbs = {}
+        for i in source:
+            enforce('.' in i, 'Misnamed source name')
+            db_name, ds_name = i.split('.', 1)
+            dbs.setdefault(db_name, []).append(ds_name)
+        result = {}
+
+        for db in self._stats.rrd:
+            if db.name not in dbs:
+                continue
+            stats = result[db.name] = []
+            for ts, ds_values in db.get(start, end, resolution):
+                values = {}
+                for name in dbs[db.name]:
+                    values[name] = ds_values.get(name)
+                stats.append((ts, values))
+
+        return result
+
     @ad.document_command(method='DELETE',
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
     def delete(self, document, guid):
@@ -125,6 +161,21 @@ class NodeCommands(VolumeCommands, Commands):
         # TODO Reading layer here is a race
         layer = list(set(doc['layer']) - set(request.content))
         directory.update(guid, {'layer': layer})
+
+    @ad.document_command(method='PUT', cmd='merge',
+            permissions=ad.ACCESS_AUTH)
+    def merge(self, document, guid, request):
+        auth.validate(request, 'root')
+        directory = self.volume[document]
+        directory.merge(guid, request.content)
+
+    @ad.volume_command(method='GET', cmd='whoami',
+            mime_type='application/json')
+    def whoami(self, request):
+        roles = []
+        if auth.try_validate(request, 'root'):
+            roles.append('root')
+        return {'roles': roles, 'guid': request.principal}
 
     def call(self, request, response=None):
         try:
@@ -239,28 +290,6 @@ class NodeCommands(VolumeCommands, Commands):
         enforce(presolve and 'binary' in presolve, ad.NotFound,
                 'No presolve info')
         return presolve['binary']
-
-
-class MasterCommands(NodeCommands, SyncCommands):
-
-    def __init__(self, volume):
-        NodeCommands.__init__(self, volume)
-        SyncCommands.__init__(self)
-
-    @ad.document_command(method='PUT', cmd='merge',
-            permissions=ad.ACCESS_AUTH)
-    def merge(self, document, guid, request):
-        auth.validate(request, 'root')
-        directory = self.volume[document]
-        directory.merge(guid, request.content)
-
-    @ad.volume_command(method='GET', cmd='whoami',
-            mime_type='application/json')
-    def whoami(self, request):
-        roles = []
-        if auth.try_validate(request, 'root'):
-            roles.append('root')
-        return {'roles': roles, 'guid': request.principal}
 
 
 def _load_pubkey(pubkey):

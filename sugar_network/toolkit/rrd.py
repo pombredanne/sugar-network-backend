@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/rrd.py$
-$Date: 2012-08-09$
+$Date: 2012-10-31$
 
 """
 
@@ -42,11 +42,11 @@ _logger = logging.getLogger('sugar_stats')
 
 class Rrd(object):
 
-    def __init__(self, root, step, rras):
+    def __init__(self, root, step, rras=None):
         self._root = root
         self._step = step
         # rrdtool knows nothing about `unicode`
-        self._rras = [i.encode('utf8') for i in rras]
+        self._rras = [i.encode('utf8') for i in rras or []]
         self._dbsets = {}
 
         if not exists(self._root):
@@ -56,7 +56,14 @@ class Rrd(object):
             match = _DB_FILENAME_RE.match(filename)
             if match is not None:
                 name, revision = match.groups()
-                self._dbset(name).load(filename, int(revision or 0))
+                self.get(name).load(filename, int(revision or 0))
+
+    def __iter__(self):
+        for i in self._dbsets.values():
+            yield i
+
+    def __getitem__(self, name):
+        return self.get(name)
 
     @property
     def root(self):
@@ -66,20 +73,7 @@ class Rrd(object):
     def step(self):
         return self._step
 
-    @property
-    def dbs(self):
-        for name, dbset in self._dbsets.items():
-            db = dbset.db
-            if db is not None:
-                yield name, db.first, db.last_update
-
-    def put(self, name, values, timestamp=None):
-        self._dbset(name).put(values, timestamp)
-
-    def get(self, name, start=None, end=None):
-        return self._dbset(name).get(start, end)
-
-    def _dbset(self, name):
+    def get(self, name):
         db = self._dbsets.get(name)
         if db is None:
             db = self._dbsets[name] = \
@@ -87,20 +81,11 @@ class Rrd(object):
         return db
 
 
-class ReadOnlyRrd(Rrd):
-
-    def __init__(self, root):
-        Rrd.__init__(self, root, 1, [])
-
-    def put(self, name, values, timestamp=None):
-        raise RuntimeError('Write access is denied')
-
-
 class _DbSet(object):
 
     def __init__(self, root, name, step, rras):
         self._root = root
-        self._name = name
+        self.name = name
         self._step = step
         self._rras = rras
         self._revisions = []
@@ -108,9 +93,14 @@ class _DbSet(object):
         self.__db = None
 
     @property
-    def db(self):
+    def first(self):
         if self._revisions:
-            return self._revisions[-1]
+            return self._revisions[0].first
+
+    @property
+    def last(self):
+        if self._revisions:
+            return self._revisions[-1].last
 
     def load(self, filename, revision):
         _logger.debug('Load %s database from %s with revision %s',
@@ -132,9 +122,9 @@ class _DbSet(object):
         if db is None:
             return
 
-        if timestamp <= db.last_update:
+        if timestamp <= db.last:
             _logger.warning('Database %s updated at %s, %s in the past',
-                    db.path, db.last_update, timestamp)
+                    db.path, db.last, timestamp)
             return
 
         value = [str(timestamp)]
@@ -145,26 +135,29 @@ class _DbSet(object):
 
         db.put(':'.join(value))
 
-    def get(self, start=None, end=None):
+    def get(self, start=None, end=None, resolution=None):
         if not self._revisions:
             return
+
+        if not resolution:
+            resolution = self._step
 
         if start is None:
             start = self._revisions[0].first
         if end is None:
-            end = self._revisions[-1].last_update
+            end = self._revisions[-1].last
 
         revisions = []
         for db in reversed(self._revisions):
             revisions.append(db)
-            if db.last_update <= start:
+            if db.last <= start:
                 break
 
-        start = start / self._step * self._step - self._step
-        end = end / self._step * self._step - self._step
+        start = start - start % self._step - self._step
+        end = end - end % self._step - self._step
 
         for db in reversed(revisions):
-            db_end = min(end, db.last_update - self._step)
+            db_end = min(end, db.last - self._step)
             while start <= db_end:
                 until = max(start,
                         min(start + _FETCH_PAGE, db_end))
@@ -172,7 +165,8 @@ class _DbSet(object):
                         str(db.path),
                         'AVERAGE',
                         '--start', str(start),
-                        '--end', str(until))
+                        '--end', str(until),
+                        '--resolution', str(resolution))
                 for raw_row in rows:
                     row_start += row_step
                     row = {}
@@ -188,22 +182,22 @@ class _DbSet(object):
         if self.__db is None and self._field_names:
             if self._revisions:
                 db = self._revisions[-1]
-                if db.last_update >= timestamp:
+                if db.last >= timestamp:
                     _logger.warning(
                             'Database %s updated at %s, %s in the past',
-                            db.path, db.last_update, timestamp)
+                            db.path, db.last, timestamp)
                     return None
                 if db.step != self._step or db.rras != self._rras or \
                         db.field_names != self._field_names:
                     db = self._create_db(self._field_names, db.revision + 1,
-                            db.last_update)
+                            db.last)
             else:
                 db = self._create_db(self._field_names, 0, timestamp)
             self.__db = db
         return self.__db
 
     def _create_db(self, field_names, revision, timestamp):
-        filename = self._name
+        filename = self.name
         if revision:
             filename += '-%s' % revision
         filename += '.rrd'
@@ -235,7 +229,7 @@ class _Db(object):
 
         info = rrdtool.info(self.path)
         self.step = info['step']
-        self.last_update = info['last_update']
+        self.last = info['last_update']
 
         fields = {}
         rras = {}
@@ -265,7 +259,7 @@ class _Db(object):
 
     def put(self, value):
         rrdtool.update(self.path, str(value))
-        self.last_update = rrdtool.info(self.path)['last_update']
+        self.last = rrdtool.info(self.path)['last_update']
 
     @property
     def first(self):

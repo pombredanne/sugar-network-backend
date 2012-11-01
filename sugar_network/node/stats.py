@@ -20,7 +20,7 @@ from os.path import join, exists, isdir
 from pylru import lrucache
 
 from active_toolkit.options import Option
-from sugar_network.toolkit.rrd import Rrd, ReadOnlyRrd
+from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit.collection import Sequence, PersistentSequence
 
 
@@ -109,26 +109,26 @@ def pull(in_seq, packet):
     for user, rrd in _walk_rrd(join(stats_root.value, 'user')):
         in_seq.setdefault(user, {})
 
-        for db, db_start, db_end in rrd.dbs:
-            seq = in_seq[user].get(db)
+        for db in rrd:
+            seq = in_seq[user].get(db.name)
             if seq is None:
-                seq = in_seq[user][db] = PersistentSequence(
-                        join(rrd.root, db + '.push'), [1, None])
+                seq = in_seq[user][db.name] = PersistentSequence(
+                        join(rrd.root, db.name + '.push'), [1, None])
             elif seq is not dict:
-                seq = in_seq[user][db] = Sequence(seq)
+                seq = in_seq[user][db.name] = Sequence(seq)
             out_seq = Sequence()
 
             def dump():
                 for start, end in seq:
                     for timestamp, values in \
-                            rrd.get(db, max(start, db_start), end or db_end):
+                            db.get(max(start, db.first), end or db.last):
                         yield {'timestamp': timestamp, 'values': values}
                         seq.exclude(start, timestamp)
                         out_seq.include(start, timestamp)
                         start = timestamp
 
-            packet.push(dump(), arcname=join('stats', user, db),
-                    cmd='stats_push', user=user, db=db,
+            packet.push(dump(), arcname=join('stats', user, db.name),
+                    cmd='stats_push', user=user, db=db.name,
                     sequence=out_seq)
 
 
@@ -143,9 +143,11 @@ def commit(sequences):
 class NodeStats(object):
 
     def __init__(self, volume):
+        path = join(stats_root.value, 'node')
+        _logger.info('Start collecting node stats in %r', path)
+
         self._volume = volume
-        self._rrd = Rrd(join(stats_root.value, 'node'),
-                stats_node_step.value, stats_node_rras.value)
+        self.rrd = Rrd(path, stats_node_step.value, stats_node_rras.value)
 
         self._stats = {
                 'user': _UserStats(),
@@ -242,6 +244,8 @@ class NodeStats(object):
         stats.active.add(request.principal)
 
     def commit(self, timestamp=None):
+        _logger.debug('Commit node stats')
+
         for document, stats in self._stats.items():
             values = {}
             for attr in dir(stats):
@@ -251,8 +255,7 @@ class NodeStats(object):
                 if type(value) is set:
                     value = len(value)
                 values[attr] = value
-
-            self._rrd.put(document, values, timestamp=timestamp)
+            self.rrd[document].put(values, timestamp=timestamp)
             self._stats[document] = type(stats)()
 
 
@@ -328,4 +331,4 @@ def _walk_rrd(root):
         if not isdir(users_dir):
             continue
         for user in os.listdir(users_dir):
-            yield user, ReadOnlyRrd(join(users_dir, user))
+            yield user, Rrd(join(users_dir, user), stats_user_step.value)
