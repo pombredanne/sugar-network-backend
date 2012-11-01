@@ -15,7 +15,7 @@ from os.path import exists
 from __init__ import tests
 
 import active_document as ad
-from sugar_network import node, sugar, Client
+from sugar_network import node, sugar, static, Client
 from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route, Redirect, NotModified
 from active_toolkit import util
 from sugar_network.resources.user import User
@@ -203,15 +203,6 @@ class RouterTest(tests.Test):
             user = router.authenticate(request)
             self.assertEqual(tests.UID, user)
 
-    def test_UrlPath(self):
-        self.fork(self.restful_server, [User, Document])
-        client = Client('http://localhost:8800', sugar_auth=True)
-
-        guid = client.post(['///document//'], {'term': 'probe'})
-        self.assertEqual(
-                'probe',
-                client.get(['///document///', '///' + guid + '////'], reply='term').get('term'))
-
     def test_HandleRedirects(self):
         URL = 'http://sugarlabs.org'
 
@@ -236,6 +227,34 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 {'a1': ['v1', 'v3', 'v5'], 'a2': 'v2', 'a3': ['v4', 'v6'], 'method': 'GET'},
                 request)
+
+    def test_Register_UrlPath(self):
+        self.assertEqual(
+                [],
+                _Request({'REQUEST_METHOD': 'GET', 'PATH_INFO': ''}).path)
+        self.assertEqual(
+                [],
+                _Request({'REQUEST_METHOD': 'GET', 'PATH_INFO': '/'}).path)
+        self.assertEqual(
+                ['foo'],
+                _Request({'REQUEST_METHOD': 'GET', 'PATH_INFO': 'foo'}).path)
+        self.assertEqual(
+                ['foo', 'bar'],
+                _Request({'REQUEST_METHOD': 'GET', 'PATH_INFO': 'foo/bar'}).path)
+        self.assertEqual(
+                ['foo', 'bar'],
+                _Request({'REQUEST_METHOD': 'GET', 'PATH_INFO': '/foo/bar/'}).path)
+        self.assertEqual(
+                ['foo', 'bar'],
+                _Request({'REQUEST_METHOD': 'GET', 'PATH_INFO': '///foo////bar////'}).path)
+
+    def test_Request_FailOnRelativePaths(self):
+        self.assertRaises(RuntimeError, _Request, {'REQUEST_METHOD': 'GET', 'PATH_INFO': '..'})
+        self.assertRaises(RuntimeError, _Request, {'REQUEST_METHOD': 'GET', 'PATH_INFO': '/..'})
+        self.assertRaises(RuntimeError, _Request, {'REQUEST_METHOD': 'GET', 'PATH_INFO': '/../'})
+        self.assertRaises(RuntimeError, _Request, {'REQUEST_METHOD': 'GET', 'PATH_INFO': '../bar'})
+        self.assertRaises(RuntimeError, _Request, {'REQUEST_METHOD': 'GET', 'PATH_INFO': '/foo/../bar'})
+        self.assertRaises(RuntimeError, _Request, {'REQUEST_METHOD': 'GET', 'PATH_INFO': '/foo/..'})
 
     def test_parse_accept_language(self):
         self.assertEqual(
@@ -437,6 +456,34 @@ class RouterTest(tests.Test):
                 client.request('GET', ['static', 'images', 'missing.png'], headers={
                     'If-Modified-Since': formatdate(mtime + 1, localtime=False, usegmt=True),
                     }).status_code)
+
+    def test_StaticFilesFromRoot(self):
+
+        class TestDocument(Document):
+            pass
+
+        self.override(static, 'PATH', '.')
+        self.start_master([User, TestDocument])
+        client = Client('http://localhost:8800')
+
+        self.touch(('robots.txt', 'foo'))
+        response = client.request('GET', ['robots.txt'])
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('foo', response.content)
+
+        self.touch(('foo/bar', 'probe'))
+        response = client.request('GET', ['foo', 'bar'])
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('probe', response.content)
+
+        response = client.request('POST', ['robots.txt'], allowed=[500])
+        self.assertEqual(500, response.status_code)
+
+        response = client.request('PUT', ['robots.txt'], allowed=[500])
+        self.assertEqual(500, response.status_code)
+
+        response = client.request('GET', ['robots.txt'], params={'cmd': 'foo'}, allowed=[500])
+        self.assertEqual(500, response.status_code)
 
     def test_IfModifiedSinceForBlobs(self):
 
