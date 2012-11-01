@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import re
 import os
 import time
+import json
 import urllib2
 import hashlib
 import tempfile
@@ -467,6 +469,29 @@ class RouterTest(tests.Test):
                 client.request('GET', ['testdocument', guid, 'blob'], headers={
                     'If-Modified-Since': formatdate(9, localtime=False, usegmt=True),
                     }).status_code)
+
+    def test_JsonpCallback(self):
+        self.start_master([User, Document])
+        client = Client('http://localhost:8800')
+
+        response = client.request(
+                'POST',
+                ['document'],
+                json.dumps({'term': 'value'}),
+                params={'callback': 'foo'},
+                headers={'Content-Type': 'application/json'})
+        guid = re.match('foo\("([^"]+)"\);', response.content)
+        assert guid is not None
+        guid = guid.groups()[0]
+
+        response = client.request(
+                'GET',
+                ['document'],
+                params={'callback': 'bar', 'reply': 'guid'},
+                headers={'Content-Type': 'application/json'})
+        self.assertEqual(
+                'bar({"total": 1, "result": [{"guid": "%s"}]});' % guid,
+                response.content)
 
 
 class Document(ad.Document):
