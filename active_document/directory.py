@@ -110,6 +110,7 @@ class Directory(object):
         if 'guid' in props:
             guid = props['guid']
             enforce(_GUID_RE.match(guid) is not None, 'Malformed GUID')
+            enforce(not self.exists(guid), 'Document already exists')
         else:
             guid = props['guid'] = env.uuid()
 

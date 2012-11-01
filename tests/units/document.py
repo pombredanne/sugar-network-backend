@@ -189,6 +189,16 @@ class DocumentTest(tests.Test):
             directory.get(guid).meta('blob'))
         self.assertEqual(data, file(blob_path + '.blob').read())
 
+    def test_create_FailOnExisted(self):
+
+        class Document(document.Document):
+            pass
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+        guid = directory.create(guid='guid')
+        assert guid == 'guid'
+        self.assertRaises(RuntimeError, directory.create, guid='guid')
+
     def test_update(self):
 
         class Document(document.Document):
