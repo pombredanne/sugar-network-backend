@@ -12,6 +12,7 @@ from sugar_network import node, sugar
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
 from sugar_network.resources.volume import Volume, Resource, Commands, Request, VolumeCommands
+from sugar_network.resources.user import User
 from active_toolkit import coroutine
 
 
@@ -297,36 +298,36 @@ class VolumeTest(tests.Test):
 
         # GUID in reply
         self.assertEqual(
-                {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ('public',)},
+                {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
                 call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ('public',)},
+                {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
                 call(cp, method='GET', document='context', guid=guid2, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ('public',)},
+                {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
                 call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon', 'layer']))
         self.assertEqual(
-                {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ('public',)},
+                {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ['public']},
                 call(cp, method='GET', document='artifact', guid=guid4, reply=['guid', 'data', 'layer']))
         self.assertEqual(
                 sorted([
-                    {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ('public',)},
-                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ('public',)},
-                    {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ('public',)},
+                    {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
+                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                    {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
                     ]),
                 sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
 
         self.assertEqual([
-            {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ('public',)},
+            {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ['public']},
             ],
             call(cp, method='GET', document='artifact', reply=['guid', 'data', 'layer'])['result'])
 
         node.static_url.value = 'static_url'
         self.assertEqual(
                 sorted([
-                    {'guid': guid1, 'icon': 'static_url/static/images/missing.png', 'layer': ('public',)},
-                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ('public',)},
-                    {'guid': guid3, 'icon': 'static_url/foo/bar', 'layer': ('public',)},
+                    {'guid': guid1, 'icon': 'static_url/static/images/missing.png', 'layer': ['public']},
+                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
+                    {'guid': guid3, 'icon': 'static_url/foo/bar', 'layer': ['public']},
                     ]),
                 sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
 
@@ -355,6 +356,145 @@ class VolumeTest(tests.Test):
                 call(cp, method='GET', document='context')['result'])
         assert exists('db/context/index')
 
+    def test_Authors(self):
+
+        class Document(Resource):
+            pass
+
+        volume = Volume('db', [User, Document])
+        cp = TestCommands(volume)
+
+        guid = call(cp, method='POST', document='document', content={}, principal='user')
+        self.assertEqual(
+                {'user': 1},
+                call(cp, method='GET', document='document', guid=guid, prop='authority'))
+        self.assertEqual(
+                {'user': 1},
+                volume['document'].get(guid)['authority'])
+        self.assertEqual(
+                [],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                [],
+                volume['document'].get(guid)['author'])
+
+        volume['user'].create(guid='user1', color='', pubkey='', name='User1')
+        volume['user'].create(guid='user2', color='', pubkey='', name='User2')
+        volume['user'].create(guid='user3', color='', pubkey='', name='User3')
+
+        guid = call(cp, method='POST', document='document', content={}, principal='user1')
+        self.assertEqual(
+                {'user1': 1},
+                call(cp, method='GET', document='document', guid=guid, prop='authority'))
+        self.assertEqual(
+                {'user1': 1},
+                volume['document'].get(guid)['authority'])
+        self.assertEqual(
+                ['User1'],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                [('User1', False)],
+                volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, prop='author', content='User2')
+        self.assertEqual(
+                ['User2', 'User1'],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                [('User2', True), ('User1', False)],
+                volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, prop='author', content=['User2', 'User3'])
+        self.assertEqual(
+                ['User2', 'User3', 'User1'],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                [('User2', True), ('User3', True), ('User1', False)],
+                volume['document'].get(guid)['author'])
+
+    def test_AddUser(self):
+
+        class Document(Resource):
+            pass
+
+        volume = Volume('db', [User, Document])
+        cp = TestCommands(volume)
+
+        volume['user'].create(guid='user1', color='', pubkey='', name='User1')
+        volume['user'].create(guid='user2', color='', pubkey='', name='User2')
+        volume['user'].create(guid='user3', color='', pubkey='', name='User3')
+
+        guid = call(cp, method='POST', document='document', content={}, principal='user1')
+        self.assertEqual(
+                {'user1': 1},
+                call(cp, method='GET', document='document', guid=guid, prop='authority'))
+        self.assertEqual(
+                {'user1': 1},
+                volume['document'].get(guid)['authority'])
+        self.assertEqual(
+                ['User1'],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                [('User1', False)],
+                volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2', role=2)
+        self.assertEqual(
+                {'user1': 1, 'user2': 2},
+                call(cp, method='GET', document='document', guid=guid, prop='authority'))
+        self.assertEqual(
+                {'user1': 1, 'user2': 2},
+                volume['document'].get(guid)['authority'])
+        self.assertEqual(
+                ['User1', 'User2'],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                [('User1', False), ('User2', False)],
+                volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, prop='author', content='User#1')
+        self.assertEqual(
+                ['User#1', 'User1', 'User2'],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                [('User#1', True), ('User1', False), ('User2', False)],
+                volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user3', role=3)
+        call(cp, method='PUT', document='document', guid=guid, prop='author', content=['User#2', 'User#3'])
+        self.assertEqual(
+                ['User#2', 'User#3', 'User1', 'User2', 'User3'],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                [('User#2', True), ('User#3', True), ('User1', False), ('User2', False), ('User3', False)],
+                volume['document'].get(guid)['author'])
+
+    def test_DelUser(self):
+
+        class Document(Resource):
+            pass
+
+        volume = Volume('db', [User, Document])
+        cp = TestCommands(volume)
+
+        volume['user'].create(guid='user1', color='', pubkey='', name='User1')
+        volume['user'].create(guid='user2', color='', pubkey='', name='User2')
+        volume['user'].create(guid='user3', color='', pubkey='', name='User3')
+
+        guid = call(cp, method='POST', document='document', content={}, principal='user1')
+        self.assertRaises(RuntimeError, call, cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user1', principal='user1')
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2', role=2)
+        self.assertEqual(
+                {'user1': 1, 'user2': 2},
+                volume['document'].get(guid)['authority'])
+
+        self.assertRaises(RuntimeError, call, cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user2', principal='user2')
+        call(cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user1', principal='user2')
+        self.assertEqual(
+                {'user2': 2},
+                volume['document'].get(guid)['authority'])
+
 
 class TestCommands(VolumeCommands, Commands):
 
@@ -380,6 +520,7 @@ def call(cp, principal=None, content=None, **kwargs):
     request.principal = principal
     request.content = content
     request.environ = {'HTTP_HOST': 'localhost'}
+    request.commands = cp
     return cp.call(request, ad.Response())
 
 

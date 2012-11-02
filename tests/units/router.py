@@ -19,12 +19,27 @@ from sugar_network import node, sugar, static, Client
 from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route, Redirect, NotModified
 from active_toolkit import util
 from sugar_network.resources.user import User
-from sugar_network.resources.volume import Volume
+from sugar_network.resources.volume import Volume, Resource
 
 
 class RouterTest(tests.Test):
 
     def test_Walkthrough(self):
+
+        class Document(Resource):
+
+            @ad.active_property(slot=1, prefix='A', full_text=True, default='')
+            def term(self, value):
+                return value
+
+            @ad.active_property(ad.StoredProperty, default='')
+            def stored(self, value):
+                return value
+
+            @ad.active_property(ad.BlobProperty)
+            def blob(self, value):
+                return value
+
         self.fork(self.restful_server, [User, Document])
         client = Client('http://localhost:8800', sugar_auth=True)
 
@@ -35,9 +50,8 @@ class RouterTest(tests.Test):
             'term': 'term',
             'guid': guid_1,
             'layer': ['public'],
-            'user': [sugar.uid()],
             },
-            client.get(['document', guid_1], reply='stored,term,guid,layer,user'))
+            client.get(['document', guid_1], reply='stored,term,guid,layer'))
 
         guid_2 = client.post(['document'], {'term': 'term2', 'stored': 'stored2'})
 
@@ -46,9 +60,8 @@ class RouterTest(tests.Test):
             'term': 'term2',
             'guid': guid_2,
             'layer': ['public'],
-            'user': [sugar.uid()],
             },
-            client.get(['document', guid_2], reply='stored,term,guid,layer,user'))
+            client.get(['document', guid_2], reply='stored,term,guid,layer'))
 
         reply = client.get(['document'], reply='guid,stored,term')
         self.assertEqual(2, reply['total'])
@@ -66,9 +79,8 @@ class RouterTest(tests.Test):
             'term': 'term3',
             'guid': guid_2,
             'layer': ['public'],
-            'user': [sugar.uid()],
             },
-            client.get(['document', guid_2], reply='stored,term,guid,layer,user'))
+            client.get(['document', guid_2], reply='stored,term,guid,layer'))
 
         self.assertEqual(
                 {'total': 2,
@@ -170,6 +182,17 @@ class RouterTest(tests.Test):
         self.assertEqual('', ''.join([i for i in response]))
 
     def test_Register(self):
+
+        class Document(Resource):
+
+            @ad.active_property(slot=1, prefix='A', full_text=True, default='')
+            def term(self, value):
+                return value
+
+            @ad.active_property(ad.StoredProperty, default='')
+            def stored(self, value):
+                return value
+
         self.fork(self.restful_server, [User, Document])
 
         client = Client('http://localhost:8800', sugar_auth=False)
@@ -181,6 +204,17 @@ class RouterTest(tests.Test):
         self.assertEqual(sugar.uid(), client.get(['user', sugar.uid(), 'guid']))
 
     def test_Authenticate(self):
+
+        class Document(Resource):
+
+            @ad.active_property(slot=1, prefix='A', full_text=True, default='')
+            def term(self, value):
+                return value
+
+            @ad.active_property(ad.StoredProperty, default='')
+            def stored(self, value):
+                return value
+
         pid = self.fork(self.restful_server, [User, Document])
         client = Client('http://localhost:8800', sugar_auth=True)
         client.post(['document'], {'term': 'term', 'stored': 'stored'})
@@ -206,11 +240,15 @@ class RouterTest(tests.Test):
     def test_HandleRedirects(self):
         URL = 'http://sugarlabs.org'
 
-        class Document2(Document):
+        class Document2(Resource):
 
             @ad.active_property(ad.BlobProperty)
             def blob(self, value):
                 raise Redirect(URL)
+
+            @ad.active_property(slot=1, prefix='A', full_text=True, default='')
+            def term(self, value):
+                return value
 
         self.fork(self.restful_server, [User, Document2])
         client = Client('http://localhost:8800', sugar_auth=True)
@@ -316,7 +354,7 @@ class RouterTest(tests.Test):
 
     def test_GetLocalizedProps(self):
 
-        class TestDocument(Document):
+        class TestDocument(Resource):
 
             @ad.active_property(slot=100, localized=True)
             def prop(self, value):
@@ -355,7 +393,7 @@ class RouterTest(tests.Test):
 
     def test_IfModifiedSince(self):
 
-        class TestDocument(Document):
+        class TestDocument(Resource):
 
             @ad.active_property(slot=100, typecast=int)
             def prop(self, value):
@@ -384,7 +422,7 @@ class RouterTest(tests.Test):
 
     def test_LastModified(self):
 
-        class TestDocument(Document):
+        class TestDocument(Resource):
 
             @ad.active_property(slot=100, typecast=int)
             def prop1(self, value):
@@ -416,14 +454,14 @@ class RouterTest(tests.Test):
 
     def test_StaticFiles(self):
 
-        class TestDocument(Document):
+        class TestDocument(Resource):
             pass
 
         self.start_master([User, TestDocument])
         client = Client('http://localhost:8800', sugar_auth=True)
         guid = client.post(['testdocument'], {})
 
-        local_path = '../../../sugar_network/static/images/missing.png'
+        local_path = '../../../sugar_network/static/httpdocs/images/missing.png'
         response = client.request('GET', ['static', 'images', 'missing.png'])
         self.assertEqual(200, response.status_code)
         assert file(local_path).read() == response.content
@@ -433,14 +471,14 @@ class RouterTest(tests.Test):
 
     def test_StaticFilesIfModifiedSince(self):
 
-        class TestDocument(Document):
+        class TestDocument(Resource):
             pass
 
         self.start_master([User, TestDocument])
         client = Client('http://localhost:8800', sugar_auth=True)
         guid = client.post(['testdocument'], {})
 
-        mtime = os.stat('../../../sugar_network/static/images/missing.png').st_mtime
+        mtime = os.stat('../../../sugar_network/static/httpdocs/images/missing.png').st_mtime
         self.assertEqual(
                 304,
                 client.request('GET', ['static', 'images', 'missing.png'], headers={
@@ -459,7 +497,7 @@ class RouterTest(tests.Test):
 
     def test_StaticFilesFromRoot(self):
 
-        class TestDocument(Document):
+        class TestDocument(Resource):
             pass
 
         self.override(static, 'PATH', '.')
@@ -487,7 +525,7 @@ class RouterTest(tests.Test):
 
     def test_IfModifiedSinceForBlobs(self):
 
-        class TestDocument(Document):
+        class TestDocument(Resource):
 
             @ad.active_property(ad.BlobProperty)
             def blob(self, value):
@@ -518,6 +556,13 @@ class RouterTest(tests.Test):
                     }).status_code)
 
     def test_JsonpCallback(self):
+
+        class Document(Resource):
+
+            @ad.active_property(slot=1, prefix='A', full_text=True, default='')
+            def term(self, value):
+                return value
+
         self.start_master([User, Document])
         client = Client('http://localhost:8800')
 
@@ -539,34 +584,6 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 'bar({"total": 1, "result": [{"guid": "%s"}]});' % guid,
                 response.content)
-
-
-class Document(ad.Document):
-
-    @ad.active_property(prefix='RU', typecast=[], default=[],
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
-    def user(self, value):
-        return value
-
-    @ad.active_property(prefix='L', typecast=[], default=['public'])
-    def layer(self, value):
-        return value
-
-    @ad.active_property(slot=1, prefix='A', full_text=True, default='')
-    def term(self, value):
-        return value
-
-    @ad.active_property(ad.StoredProperty, default='')
-    def stored(self, value):
-        return value
-
-    @ad.active_property(ad.BlobProperty)
-    def blob(self, value):
-        return value
-
-    @ad.active_property(ad.StoredProperty, default='')
-    def author(self, value):
-        return value
 
 
 if __name__ == '__main__':

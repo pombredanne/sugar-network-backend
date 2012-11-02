@@ -33,7 +33,7 @@ class Comment(Resource):
     @review.setter
     def review(self, value):
         if value:
-            review = self.request.volume['review'].get(value)
+            review = self.volume['review'].get(value)
             self['context'] = review['context']
         return value
 
@@ -45,7 +45,7 @@ class Comment(Resource):
     @feedback.setter
     def feedback(self, value):
         if value:
-            feedback = self.request.volume['feedback'].get(value)
+            feedback = self.volume['feedback'].get(value)
             self['context'] = feedback['context']
         return value
 
@@ -57,7 +57,7 @@ class Comment(Resource):
     @solution.setter
     def solution(self, value):
         if value:
-            solution = self.request.volume['solution'].get(value)
+            solution = self.volume['solution'].get(value)
             self['context'] = solution['context']
         return value
 

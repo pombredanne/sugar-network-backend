@@ -112,6 +112,7 @@ class Test(unittest.TestCase):
 
         sugar.nickname = lambda: 'test'
         sugar.color = lambda: '#000000,#000000'
+        self.override(sugar, 'uid', lambda: UID)
 
         sneakernet._RESERVED_SIZE = 0
         sneakernet._PACKET_COMPRESS_MODE = ''

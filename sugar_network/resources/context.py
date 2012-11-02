@@ -176,7 +176,7 @@ class Context(Resource):
                     'requires': spec.requires,
                     })
         else:
-            impls, __ = self.request.volume['implementation'].find(
+            impls, __ = self.volume['implementation'].find(
                     limit=ad.MAX_LIMIT, context=self.guid,
                     layer=self.request.get('layer'))
             for impl in impls:
@@ -230,4 +230,4 @@ class Context(Resource):
                 content={'packages': packages, 'presolve': presolve})
 
         # Shift mtime to invalidate solutions
-        self.request.volume['implementation'].mtime = int(time.time())
+        self.volume['implementation'].mtime = int(time.time())

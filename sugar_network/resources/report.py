@@ -35,7 +35,7 @@ class Report(Resource):
     @implementation.setter
     def implementation(self, value):
         if value:
-            version = self.request.volume['implementation'].get(value)
+            version = self.volume['implementation'].get(value)
             self['version'] = version['version']
         return value
 

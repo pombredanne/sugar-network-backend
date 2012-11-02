@@ -54,8 +54,8 @@ class AuthTest(tests.Test):
         self.stop_servers()
 
         self.touch((
-            'master/context/gu/guid/user',
-            pickle.dumps({"seqno": 1, "value": ["fake"]}),
+            'master/context/gu/guid/authority',
+            pickle.dumps({"seqno": 1, "value": {"fake": 1}}),
             ))
 
         self.start_master()
@@ -89,12 +89,12 @@ class AuthTest(tests.Test):
         auth.reset()
         client.post(['context'], props)
         self.assertEqual('title', client.get(['context', 'guid', 'title']))
-        self.assertEqual([], client.get(['context', 'guid', 'user']))
+        self.assertEqual({}, client.get(['context', 'guid', 'authority']))
 
         self.stop_servers()
         self.touch((
-            'master/context/gu/guid/user',
-            pickle.dumps({"seqno": 1, "value": ["fake"]}),
+            'master/context/gu/guid/authority',
+            pickle.dumps({"seqno": 1, "value": {"fake": 1}}),
             ))
         self.start_master()
 
@@ -109,7 +109,7 @@ class AuthTest(tests.Test):
         auth.reset()
         client.put(['context', 'guid'], {'title': 'probe'})
         self.assertEqual('probe', client.get(['context', 'guid', 'title']))
-        self.assertEqual(['fake'], client.get(['context', 'guid', 'user']))
+        self.assertEqual({'fake': 1}, client.get(['context', 'guid', 'authority']))
 
     def test_LiveUpdate(self):
         client = Client(sugar_auth=False)
@@ -132,7 +132,7 @@ class AuthTest(tests.Test):
             ]))
         os.utime('authorization.conf', (2, 2))
         client.post(['context'], props)
-        self.assertEqual([], client.get(['context', 'guid', 'user']))
+        self.assertEqual({}, client.get(['context', 'guid', 'authority']))
 
         self.touch(('authorization.conf', ''))
         os.utime('authorization.conf', (3, 3))
@@ -142,14 +142,12 @@ class AuthTest(tests.Test):
 
         class Document(ad.Document):
 
-            @classmethod
-            @ad.directory_command(method='GET', cmd='probe1',
+            @ad.document_command(method='GET', cmd='probe1',
                     mime_type='application/json')
             def probe1(cls, directory):
                 return 'ok1'
 
-            @classmethod
-            @ad.directory_command(method='GET', cmd='probe2',
+            @ad.document_command(method='GET', cmd='probe2',
                     permissions=ad.ACCESS_AUTH, mime_type='application/json')
             def probe2(cls, directory):
                 return 'ok2'
@@ -157,8 +155,9 @@ class AuthTest(tests.Test):
         self.start_master([User, Document])
         client = Client(sugar_auth=True)
 
-        self.assertEqual('ok1', client.get(['document'], cmd='probe1'))
-        self.assertEqual('ok2', client.get(['document'], cmd='probe2'))
+        guid = client.post(['document'], {})
+        self.assertEqual('ok1', client.get(['document', guid], cmd='probe1'))
+        self.assertEqual('ok2', client.get(['document', guid], cmd='probe2'))
 
 
 if __name__ == '__main__':
