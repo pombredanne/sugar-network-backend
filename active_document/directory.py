@@ -391,19 +391,6 @@ class Directory(object):
         self._notify({'event': 'commit'})
 
     def _post(self, guid, props, new):
-        for prop_name, value in props.items():
-            prop = self.metadata[prop_name]
-            enforce(isinstance(prop, StoredProperty),
-                    'Property %r in %r cannot be set',
-                    prop_name, self.metadata.name)
-            try:
-                props[prop_name] = prop.decode(value)
-            except Exception:
-                error = 'Value %r for %r property for %r is invalid' % \
-                        (value, prop_name, self.metadata.name)
-                util.exception(error)
-                raise RuntimeError(error)
-
         event = {'event': 'create' if new else 'update',
                  'props': props.copy(),
                  'guid': guid,

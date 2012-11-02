@@ -236,6 +236,19 @@ class VolumeTest(tests.Test):
                 sorted(['prop']),
                 sorted(self.call('GET', document='testdocument', reply=['prop'])['result'][0].keys()))
 
+    def test_DecodeBeforeSetting(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, typecast=int)
+            def prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+
+        guid = self.call(method='POST', document='testdocument', content={'prop': '-1'})
+        self.assertEqual(-1, self.call(method='GET', document='testdocument', guid=guid, prop='prop'))
+
     def test_LocalizedSet(self):
         env.DEFAULT_LANG = 'en'
 
@@ -850,7 +863,7 @@ class VolumeTest(tests.Test):
         self.call('POST', document='testdocument', content={'prop': 1})
 
         self.assertEqual(
-                sorted([{'prop': '1'}, {'prop': '2'}]),
+                sorted([{'prop': 1}, {'prop': 2}]),
                 sorted(self.call('GET', document='testdocument', reply='prop', group_by='prop')['result']))
 
     def test_CallSetterEvenIfThereIsNoCreatePermissions(self):
@@ -870,7 +883,7 @@ class VolumeTest(tests.Test):
         self.assertRaises(ad.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 1})
 
         guid = self.call('POST', document='testdocument', content={})
-        self.assertEqual('1', self.call('GET', document='testdocument', guid=guid, prop='prop'))
+        self.assertEqual(1, self.call('GET', document='testdocument', guid=guid, prop='prop'))
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,

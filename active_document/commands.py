@@ -282,6 +282,7 @@ class _ObjectCommand(_Command):
 
     def get_args(self, request):
         document = self._directory.get(request['guid'])
+        document.request = request
         return (document,)
 
 

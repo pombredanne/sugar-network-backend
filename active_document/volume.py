@@ -250,7 +250,13 @@ class VolumeCommands(CommandsProcessor):
             else:
                 if prop.localized and isinstance(value, basestring):
                     value = {(request.accept_language or self._lang)[0]: value}
-                doc.props[name] = value
+                try:
+                    doc.props[name] = prop.decode(value)
+                except Exception, error:
+                    error = 'Value %r for %r property is invalid: %s' % \
+                            (value, prop.name, error)
+                    util.exception(error)
+                    raise RuntimeError(error)
 
         yield directory, doc
 

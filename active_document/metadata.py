@@ -182,6 +182,8 @@ class Property(object):
 
     def decode(self, value):
         """Convert property value according to its `typecast`."""
+        if self.typecast is None:
+            return value
         return _decode(self.typecast, value)
 
     def to_string(self, value):
@@ -351,7 +353,7 @@ def _decode(typecast, value):
                 value, ', '.join([str(i) for i in typecast]))
     elif isinstance(typecast, types.FunctionType):
         value = typecast(value)
-    elif typecast in [None, str]:
+    elif typecast is str:
         if isinstance(value, unicode):
             value = value.encode('utf-8')
         else:

@@ -169,13 +169,10 @@ class DocumentTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        self.assertRaises(RuntimeError, directory.create, {'blob': 'probe'})
-
         guid = directory.create({})
         blob_path = join(tests.tmpdir, guid[:2], guid, 'blob')
 
         self.assertEqual(ad.PropertyMeta(), directory.get(guid).blob)
-        self.assertRaises(RuntimeError, directory.update, guid, {'blob': 'foo'})
 
         data = 'payload'
         directory.set_blob(guid, 'blob', StringIO(data))
