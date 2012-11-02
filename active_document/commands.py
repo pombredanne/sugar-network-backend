@@ -99,11 +99,6 @@ class Request(dict):
         dict.__init__(self, kwargs)
         self._pos = 0
 
-    @property
-    def volume(self):
-        enforce(self.commands is not None)
-        return self.commands.volume
-
     def __getitem__(self, key):
         enforce(key in self, 'Cannot find %r request argument', key)
         return self.get(key)
@@ -183,12 +178,8 @@ class CommandsProcessor(object):
         if volume is not None:
             for directory in volume.values():
                 for scope, kwargs in _scan_class(directory.document_class):
-                    if scope == 'directory':
-                        cmd = _ClassCommand(directory, **kwargs)
-                        self._commands[scope].add(cmd)
-                    elif scope in ('document', 'property'):
-                        cmd = _ObjectCommand(directory, **kwargs)
-                        self._commands[scope].add(cmd)
+                    cmd = _ObjectCommand(directory, **kwargs)
+                    self._commands[scope].add(cmd)
 
     def super_call(self, request, response):
         raise CommandNotFound()
@@ -214,11 +205,12 @@ class CommandsProcessor(object):
                 raise RuntimeError('Cannot typecast %r command argument: %s' %
                         (arg, error))
 
-        args, kwargs = cmd.get_args(request)
+        args = cmd.get_args(request)
 
         for pre in cmd.pre:
             pre(*args, request=request)
 
+        kwargs = {}
         for arg in cmd.kwarg_names:
             if arg == 'request':
                 kwargs[arg] = request
@@ -275,32 +267,22 @@ class _Command(object):
         self.post = post
 
     def get_args(self, request):
-        return self.args, {}
+        return self.args
 
     def __repr__(self):
         return '%s(method=%s, cmd=%s, document=%s)' % \
                 ((self.callback.__name__,) + self.key)
 
 
-class _ClassCommand(_Command):
-
-    def __init__(self, directory, **kwargs):
-        _Command.__init__(self, [], document=directory.metadata.name, **kwargs)
-        self._directory = directory
-
-    def get_args(self, request):
-        return (), {'directory': self._directory}
-
-
 class _ObjectCommand(_Command):
 
     def __init__(self, directory, **kwargs):
-        _Command.__init__(self, [], document=directory.metadata.name, **kwargs)
+        _Command.__init__(self, (), document=directory.metadata.name, **kwargs)
         self._directory = directory
 
     def get_args(self, request):
         document = self._directory.get(request['guid'])
-        return (document,), {}
+        return (document,)
 
 
 class _Commands(dict):
@@ -332,13 +314,9 @@ def _scan_class(root_cls, is_document_class=True):
             attr = getattr(cls, name)
             if not hasattr(attr, 'scope'):
                 continue
-            if is_document_class:
-                if attr.scope == 'directory':
-                    enforce(attr.im_self is not None,
-                            'Command should be a @classmethod')
-                elif attr.scope in ('document', 'property'):
-                    enforce(attr.im_self is None,
-                            'Command should not be a @classmethod')
+            enforce(not is_document_class or
+                    attr.scope in ('document', 'property'),
+                    'Wrong scale command')
             key = (attr.scope,
                    attr.kwargs.get('method') or 'GET',
                    attr.kwargs.get('cmd'))

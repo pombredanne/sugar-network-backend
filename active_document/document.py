@@ -34,6 +34,14 @@ class Document(object):
         self._record = record
         self.request = request
 
+    @property
+    def volume(self):
+        return self.request.commands.volume
+
+    @property
+    def directory(self):
+        return self.volume[self.metadata.name]
+
     @active_property(slot=1000, prefix='IC', typecast=int,
             permissions=env.ACCESS_READ, default=0)
     def ctime(self, value):

@@ -140,37 +140,6 @@ class CommandsTest(tests.Test):
             ],
             calls)
 
-    def test_ClassDirectoryCommands(self):
-        calls = []
-
-        class TestDocument(Document):
-
-            @classmethod
-            @directory_command(method='PROBE')
-            def command_1(cls, directory, **kwargs):
-                calls.append(('command_1', kwargs))
-
-            @classmethod
-            @directory_command(method='PROBE', cmd='command_2')
-            def command_2(cls, directory, **kwargs):
-                calls.append(('command_2', kwargs))
-
-        volume = SingleVolume(tests.tmpdir, [TestDocument])
-        cp = CommandsProcessor(volume)
-
-        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
-        self.call(cp, 'PROBE', document='testdocument')
-        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', document='fakedocument')
-        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_1', document='testdocument')
-        self.call(cp, 'PROBE', cmd='command_2', document='testdocument')
-        self.assertRaises(CommandNotFound, self.call, cp, 'PROBE', cmd='command_2', document='fakedocument')
-
-        self.assertEqual([
-            ('command_1', {}),
-            ('command_2', {}),
-            ],
-            calls)
-
     def test_ClassDodcumentCommands(self):
         calls = []
 
