@@ -137,6 +137,10 @@ class VolumeCommands(CommandsProcessor):
             enforce('guid' not in doc.props, env.Forbidden,
                     "Property 'guid' cannot be set manually")
             self.before_create(request, doc.props)
+            for prop in directory.metadata.values():
+                if prop.on_set is not None and \
+                        not prop.permissions & env.ACCESS_CREATE:
+                    doc[prop.name] = prop.on_set(doc, prop.default)
             doc.guid = directory.create(doc.props)
             return doc.guid
 
@@ -231,21 +235,19 @@ class VolumeCommands(CommandsProcessor):
 
         for name, value in request.content.items():
             prop = directory.metadata[name]
-            value = prop.on_set(doc, value)
-
-            if isinstance(prop, BlobProperty):
-                enforce(PropertyMeta.is_blob(value), 'Invalid BLOB value')
-                if access == env.ACCESS_WRITE:
-                    if doc.meta(name) is None:
-                        blob_access = env.ACCESS_CREATE
-                    else:
-                        blob_access = env.ACCESS_WRITE
+            if isinstance(prop, BlobProperty) and access == env.ACCESS_WRITE:
+                if doc.meta(name) is None:
+                    prop.assert_access(env.ACCESS_CREATE)
                 else:
-                    blob_access = access
-                prop.assert_access(blob_access)
-                blobs.append((name, value))
+                    prop.assert_access(env.ACCESS_WRITE)
             else:
                 prop.assert_access(access)
+            if prop.on_set is not None:
+                value = prop.on_set(doc, value)
+            if isinstance(prop, BlobProperty):
+                enforce(PropertyMeta.is_blob(value), 'Invalid BLOB value')
+                blobs.append((name, value))
+            else:
                 if prop.localized and isinstance(value, basestring):
                     value = {(request.accept_language or self._lang)[0]: value}
                 doc.props[name] = value

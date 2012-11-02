@@ -132,7 +132,7 @@ class Property(object):
             reprcast=None, default=None):
         self.setter = None
         self.on_get = lambda self, x: x
-        self.on_set = lambda self, x: x
+        self.on_set = None
         self._name = name
         self._permissions = permissions
         self._typecast = typecast

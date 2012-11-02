@@ -853,6 +853,25 @@ class VolumeTest(tests.Test):
                 sorted([{'prop': '1'}, {'prop': '2'}]),
                 sorted(self.call('GET', document='testdocument', reply='prop', group_by='prop')['result']))
 
+    def test_CallSetterEvenIfThereIsNoCreatePermissions(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, permissions=ad.ACCESS_READ, default=0)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value + 1
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+
+        self.assertRaises(ad.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 1})
+
+        guid = self.call('POST', document='testdocument', content={})
+        self.assertEqual('1', self.call('GET', document='testdocument', guid=guid, prop='prop'))
+
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,
             if_modified_since=None, **kwargs):
