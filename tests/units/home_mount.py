@@ -10,6 +10,7 @@ from os.path import exists, abspath
 from __init__ import tests
 
 from active_toolkit import sockets, coroutine
+from sugar_network.resources.user import User
 from sugar_network.resources.artifact import Artifact
 from sugar_network import client as local
 from sugar_network.zerosugar import clones
@@ -141,7 +142,7 @@ class HomeMountTest(tests.Test):
                 urllib2.urlopen(blob_url).read())
 
     def test_GetAbsentBLOBs(self):
-        self.start_server([Artifact])
+        self.start_server([User, Artifact])
         client = IPCClient(mountpoint='~')
 
         guid = client.post(['artifact'], {

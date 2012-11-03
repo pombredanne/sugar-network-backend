@@ -83,6 +83,12 @@ class NodeCommands(VolumeCommands, Commands):
     def hello(self):
         return _HELLO_HTML
 
+    @ad.volume_command(method='GET', cmd='stat',
+            mime_type='application/json')
+    def stat(self):
+        # TODO Remove, it is deprecated
+        return self.info()
+
     @ad.volume_command(method='GET', cmd='info',
             mime_type='application/json')
     def info(self):
@@ -202,7 +208,7 @@ class NodeCommands(VolumeCommands, Commands):
                 allowed = (request.principal == request['guid'])
             else:
                 doc = self.volume[request['document']].get(request['guid'])
-                allowed = (request.principal in doc['user'])
+                allowed = (request.principal in doc['authority'])
             enforce(allowed or auth.try_validate(request, 'root'),
                     ad.Forbidden, 'Operation is permitted only for authors')
 
@@ -214,9 +220,6 @@ class NodeCommands(VolumeCommands, Commands):
     def before_create(self, request, props):
         if request['document'] == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
-        elif request.principal:
-            props['user'] = [request.principal]
-            self._set_author(props)
 
         if self._is_master and 'implement' in props:
             implement = props['implement']
@@ -225,11 +228,6 @@ class NodeCommands(VolumeCommands, Commands):
             props['guid'] = implement
 
         VolumeCommands.before_create(self, request, props)
-
-    def before_update(self, request, props):
-        if 'user' in props:
-            self._set_author(props)
-        VolumeCommands.before_update(self, request, props)
 
     @ad.directory_command_pre(method='GET')
     def _NodeCommands_find_pre(self, request):
@@ -253,19 +251,6 @@ class NodeCommands(VolumeCommands, Commands):
         enforce('deleted' not in doc['layer'], ad.NotFound,
                 'Document deleted')
         return result
-
-    def _set_author(self, props):
-        users = self.volume['user']
-        authors = []
-        for user_guid in props['user']:
-            if not users.exists(user_guid):
-                _logger.warning('No %r user to set author property',
-                        user_guid)
-                continue
-            user = users.get(user_guid)
-            if user['name']:
-                authors.append(user['name'])
-        props['author'] = authors
 
     def _list_repos(self):
         if self.is_master:

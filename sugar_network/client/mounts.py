@@ -21,7 +21,7 @@ from gettext import gettext as _
 import active_document as ad
 from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Request, VolumeCommands
-from sugar_network import client, sugar, Client
+from sugar_network import client, Client
 from active_toolkit import util, coroutine, enforce
 
 
@@ -92,11 +92,6 @@ class LocalMount(VolumeCommands, _Mount):
         enforce(self.mounted.is_set(), 'Not mounter')
         api_url = 'http://localhost:%s' % client.ipc_port.value
         return '/'.join((api_url,) + path)
-
-    def before_create(self, request, props):
-        props['user'] = [sugar.uid()]
-        props['author'] = [sugar.nickname()]
-        VolumeCommands.before_create(self, request, props)
 
     def _events_cb(self, event):
         event['mountpoint'] = self.mountpoint
@@ -277,7 +272,6 @@ class _ProxyCommands(object):
             props = self.proxy_call(copy, ad.Response())
             props.update(mixin)
             props['guid'] = guid
-            props['user'] = [sugar.uid()]
             home.create(props)
             for prop in ('icon', 'artifact_icon', 'preview'):
                 copy['prop'] = prop

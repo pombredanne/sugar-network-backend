@@ -893,16 +893,16 @@
         <dia:point val="12,6"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="11.985,5.985;23.785,32.015"/>
+        <dia:rectangle val="11.985,5.985;23.77,28.015"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="12,6"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
-        <dia:real val="11.77"/>
+        <dia:real val="11.754999999999999"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="26"/>
+        <dia:real val="22"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Resource#</dia:string>
@@ -1066,16 +1066,16 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#user#</dia:string>
+            <dia:string>#authority#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#[User] [R WA]#</dia:string>
+            <dia:string>#dict [R S]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#The author(s) of the object; might be omitted if Object was created by the Network; only Contexts might have multiple Users#</dia:string>
+            <dia:string>#Users related to this object; see the Wiki for details#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -1092,13 +1092,13 @@
             <dia:string>#author#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#[str] [R S F]#</dia:string>
+            <dia:string>#[str] [R WA S F]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#The same as `user` but contains User's names, i.e., `nickname` and `fullname`; property will be auto updated on `user` change#</dia:string>
+            <dia:string>#Authors' names#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>

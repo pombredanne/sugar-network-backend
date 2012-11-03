@@ -33,7 +33,7 @@ class Solution(Resource):
     @feedback.setter
     def feedback(self, value):
         if value:
-            feedback = self.request.volume['feedback'].get(value)
+            feedback = self.volume['feedback'].get(value)
             self['context'] = feedback['context']
         return value
 

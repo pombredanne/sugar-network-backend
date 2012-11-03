@@ -13,7 +13,7 @@ from sugar_network.toolkit.router import Unauthorized
 from sugar_network.node import stats, obs
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.stats import stats_node_step, stats_node_rras, NodeStats
-from sugar_network.resources.volume import Volume, Request
+from sugar_network.resources.volume import Volume, Request, Resource
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
@@ -145,16 +145,16 @@ class NodeTest(tests.Test):
         self.assertEqual({
             'guid': guid,
             'title': 'title',
-            'layer': ('public',),
+            'layer': ['public'],
             },
             call(cp, method='GET', document='context', guid=guid, reply=['guid', 'title', 'layer']))
-        self.assertEqual(('public',), volume['context'].get(guid)['layer'])
+        self.assertEqual(['public'], volume['context'].get(guid)['layer'])
 
         call(cp, method='DELETE', document='context', guid=guid, principal='principal')
 
         assert exists(guid_path)
         self.assertRaises(ad.NotFound, call, cp, method='GET', document='context', guid=guid, reply=['guid', 'title'])
-        self.assertEqual(('deleted',), volume['context'].get(guid)['layer'])
+        self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
 
     def test_RegisterUser(self):
         cp = NodeCommands(Volume('db', [User]))
@@ -171,35 +171,26 @@ class NodeTest(tests.Test):
 
     def test_UnauthorizedCommands(self):
 
-        class Document(ad.Document):
+        class Document(Resource):
 
-            @classmethod
-            @ad.directory_command(method='GET', cmd='probe1',
+            @ad.document_command(method='GET', cmd='probe1',
                     permissions=ad.ACCESS_AUTH)
             def probe1(self, directory):
                 pass
 
-            @classmethod
-            @ad.directory_command(method='GET', cmd='probe2')
+            @ad.document_command(method='GET', cmd='probe2')
             def probe2(self, directory):
                 pass
 
-        cp = NodeCommands(Volume('db', [Document]))
-        self.assertRaises(Unauthorized, call, cp, method='GET', cmd='probe1', document='document')
-        call(cp, method='GET', cmd='probe1', document='document', principal='user')
-        call(cp, method='GET', cmd='probe2', document='document')
+        cp = NodeCommands(Volume('db', [User, Document]))
+        guid = call(cp, method='POST', document='document', principal='user', content={})
+        self.assertRaises(Unauthorized, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
+        call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal='user')
+        call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
     def test_ForbiddenCommands(self):
 
-        class Document(ad.Document):
-
-            @ad.active_property(prefix='U', typecast=[], default=[])
-            def user(self, value):
-                return value
-
-            @ad.active_property(prefix='A', typecast=[], default=[])
-            def author(self, value):
-                return value
+        class Document(Resource):
 
             @ad.document_command(method='GET', cmd='probe1',
                     permissions=ad.ACCESS_AUTHOR)
@@ -214,7 +205,7 @@ class NodeTest(tests.Test):
             pass
 
         cp = NodeCommands(Volume('db', [User, Document]))
-        guid = call(cp, method='POST', document='document', principal='principal', content={'user': ['principal']})
+        guid = call(cp, method='POST', document='document', principal='principal', content={})
 
         self.assertRaises(ad.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
         self.assertRaises(ad.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid, principal='fake')
@@ -247,47 +238,9 @@ class NodeTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        self.assertEqual(('principal',), call(cp, method='GET', document='context', guid=guid, prop='user'))
-
-    def test_SetAuthor(self):
-        cp = NodeCommands(Volume('db'))
-
-        call(cp, method='POST', document='user', principal=tests.UID, content={
-            'name': 'user1',
-            'color': '',
-            'machine_sn': '',
-            'machine_uuid': '',
-            'pubkey': tests.PUBKEY,
-            })
-
-        call(cp, method='POST', document='user', principal=tests.UID2, content={
-            'name': 'user1',
-            'color': '',
-            'machine_sn': '',
-            'machine_uuid': '',
-            'pubkey': tests.PUBKEY2,
-            })
-
-        context1 = call(cp, method='POST', document='context', principal=tests.UID, content={
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-
         self.assertEqual(
-                ('user1',),
-                call(cp, method='GET', document='context', guid=context1, prop='author'))
-
-        context2 = call(cp, method='POST', document='context', principal='fake', content={
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        self.assertEqual(
-                (),
-                call(cp, method='GET', document='context', guid=context2, prop='author'))
+                {'principal': 1},
+                call(cp, method='GET', document='context', guid=guid, prop='authority'))
 
     def test_find_MaxLimit(self):
         cp = NodeCommands(Volume('db'))
