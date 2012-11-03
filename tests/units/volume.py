@@ -885,6 +885,39 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={})
         self.assertEqual(1, self.call('GET', document='testdocument', guid=guid, prop='prop'))
 
+    def test_ReturnDefualtsForMissedProps(self):
+
+        class TestDocument(Document):
+
+            @active_property(slot=1, default='default')
+            def prop(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={'prop': 'set'})
+
+        self.assertEqual(
+                [{'prop': 'set'}],
+                self.call('GET', document='testdocument', reply='prop')['result'])
+        self.assertEqual(
+                {'prop': 'set'},
+                self.call('GET', document='testdocument', guid=guid, reply='prop'))
+        self.assertEqual(
+                'set',
+                self.call('GET', document='testdocument', guid=guid, prop='prop'))
+
+        os.unlink('testdocument/%s/%s/prop' % (guid[:2], guid))
+
+        self.assertEqual(
+                [{'prop': 'default'}],
+                self.call('GET', document='testdocument', reply='prop')['result'])
+        self.assertEqual(
+                {'prop': 'default'},
+                self.call('GET', document='testdocument', guid=guid, reply='prop'))
+        self.assertEqual(
+                'default',
+                self.call('GET', document='testdocument', guid=guid, prop='prop'))
+
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,
             if_modified_since=None, **kwargs):

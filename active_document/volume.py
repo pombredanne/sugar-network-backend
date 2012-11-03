@@ -206,7 +206,10 @@ class VolumeCommands(CommandsProcessor):
 
         if isinstance(prop, StoredProperty):
             value = doc.get(prop.name, request.accept_language or self._lang)
-            return prop.on_get(doc, value)
+            value = prop.on_get(doc, value)
+            if value is None:
+                value = prop.default
+            return value
         else:
             meta = prop.on_get(doc, doc.meta(prop.name))
             enforce(meta is not None and ('path' in meta or 'url' in meta),
@@ -277,6 +280,10 @@ class VolumeCommands(CommandsProcessor):
         lang = request.accept_language or self._lang
         metadata = doc.metadata
         doc.request = request
-        for prop in request['reply']:
-            result[prop] = metadata[prop].on_get(doc, doc.get(prop, lang))
+        for name in request['reply']:
+            prop = metadata[name]
+            value = prop.on_get(doc, doc.get(name, lang))
+            if value is None:
+                value = prop.default
+            result[name] = value
         return result
