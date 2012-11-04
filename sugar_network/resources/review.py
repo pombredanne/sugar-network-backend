@@ -31,6 +31,13 @@ class Review(Resource):
     def artifact(self, value):
         return value
 
+    @artifact.setter
+    def artifact(self, value):
+        if value and not self['context']:
+            artifact = self.volume['artifact'].get(value)
+            self['context'] = artifact['context']
+        return value
+
     @ad.active_property(prefix='S', full_text=True, localized=True,
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def title(self, value):
