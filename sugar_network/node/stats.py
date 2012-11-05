@@ -56,42 +56,6 @@ stats_user_rras = Option(
         type_cast=Option.list_cast, type_repr=Option.list_repr)
 
 
-_RELATED_STATS = {
-        # document: [(owner_document, owner_prop)]
-        'comment': {
-            'props': {
-                },
-            'posts': [
-                ('solution', 'commented'),
-                ('feedback', 'commented'),
-                ('review', 'commented'),
-                ],
-            },
-        'implementation': {
-            'props': {
-                'data': ('context', 'downloaded'),
-                },
-            'posts': [
-                ('context', 'released'),
-                ],
-            },
-        'report': {
-            'props': {
-                },
-            'posts': [
-                ('context', 'failed'),
-                ],
-            },
-        'review': {
-            'props': {
-                },
-            'posts': [
-                ('artifact', 'reviewed'),
-                ('context', 'reviewed'),
-                ],
-            },
-        }
-
 _logger = logging.getLogger('node.stats')
 _user_cache = lrucache(32)
 
@@ -148,121 +112,100 @@ class NodeStats(object):
 
         self._volume = volume
         self.rrd = Rrd(path, stats_node_step.value, stats_node_rras.value)
+        self._stats = {}
 
-        self._stats = {
-                'user': _UserStats(),
-                'context': _ContextStats(),
-                'review': _ReviewStats(),
-                'feedback': _FeedbackStats(),
-                'solution': _SolutionStats(),
-                'artifact': _ArtifactStats(),
-                }
-
-        for document, stats in self._stats.items():
-            type(stats).total = volume[document].find(limit=0)[1]
-        _FeedbackStats.solutions = _FeedbackStats.total - \
-                volume['feedback'].find(limit=0, solution='')[1]
+        for cls in (_UserStats, _ContextStats, _ImplementationStats,
+                _ReportStats, _ReviewStats, _FeedbackStats, _SolutionStats,
+                _ArtifactStats, _CommentStats):
+            self._stats[cls.DOCUMENT] = cls(self._stats, volume)
 
     def log(self, request):
-        document = request.get('document')
-        if request.principal is None or not document or \
-                request.get('cmd') is not None:
+        if request.principal is None or 'cmd' in request:
             return
+        stats = self._stats.get(request.get('document'))
+        if stats is not None:
+            stats.log(request)
 
-        method = request['method']
+    def commit(self, timestamp=None):
+        _logger.debug('Commit node stats')
+
+        for document, stats in self._stats.items():
+            values = stats.commit()
+            if values is not None:
+                self.rrd[document].put(values, timestamp=timestamp)
+
+
+class _ObjectStats(object):
+
+    downloaded = 0
+    reviews = 0
+    rating = 0
+
+
+class _Stats(object):
+
+    DOCUMENT = None
+    OWNERS = []
+
+    active = None
+
+    def __init__(self, stats, volume):
+        self._stats = stats
+        self._volume = volume
+
+    def log(self, request):
         context = None
 
-        stats = self._stats.get(document)
-        if stats is not None:
-            if method == 'POST':
-                stats.total += 1
-                stats.created += 1
-            elif method == 'PUT':
-                stats.updated += 1
-                if document == 'context':
-                    context = request['guid']
-                elif document == 'feedback' and 'solution' in request.content:
-                    if request.content['solution'] is None:
-                        stats.rejected += 1
-                        type(stats).solutions -= 1
-                    else:
-                        stats.solved += 1
-                        type(stats).solutions += 1
-            elif method == 'DELETE':
-                stats.total -= 1
-                stats.deleted += 1
-            elif method == 'GET':
-                if 'guid' not in request:
-                    context = request.get('context')
-                    if not context and stats.OWNER and stats.OWNER in request:
-                        owner = self._volume[stats.OWNER]
-                        context = owner.get(request[stats.OWNER])['context']
+        def parse_context(props):
+            for owner in self.OWNERS:
+                guid = props.get(owner)
+                if not guid:
+                    continue
+                if owner == 'context':
+                    return guid
                 else:
-                    guid = request['guid']
-                    if document == 'context':
-                        context = guid
-                    elif document != 'user':
-                        context = self._volume[document].get(guid)['context']
-                    if 'prop' in request:
-                        prop = stats.PROPS.get(request['prop'])
-                        if prop:
-                            setattr(stats, prop, getattr(stats, prop) + 1)
-                    else:
-                        stats.viewed += 1
+                    return self._volume[owner].get(guid)['context']
 
-        related = _RELATED_STATS.get(document)
-        if related:
-            if method == 'POST':
-                for owner, prop in related['posts']:
-                    if owner not in request.content:
-                        continue
-                    if not context:
-                        guid = request.content[owner]
-                        if owner == 'context':
-                            context = guid
-                        else:
-                            context = self._volume[owner].get(guid)['context']
-                    stats = self._stats[owner]
-                    setattr(stats, prop, getattr(stats, prop) + 1)
-                    # It is important to break after the first hit,
-                    # eg, `review.context` will be set all time when
-                    # `review.artifact` is optional
-                    break
-            elif method == 'GET' and 'prop' in request:
-                related = related['props'].get(request['prop'])
-                if related:
-                    owner, prop = related
-                    stats = self._stats[owner]
-                    setattr(stats, prop, getattr(stats, prop) + 1)
-
-        if context:
-            self._stats['context'].active.add(context)
+        method = request['method']
+        if method == 'GET':
+            if 'guid' in request:
+                if self.DOCUMENT == 'context':
+                    context = request['guid']
+                elif self.DOCUMENT != 'user':
+                    doc = self._volume[self.DOCUMENT].get(request['guid'])
+                    context = doc['context']
+            else:
+                context = parse_context(request)
+        elif method == 'PUT':
+            guid = request['guid']
+            if self.DOCUMENT == 'context':
+                context = guid
+            else:
+                context = request.content.get('context')
+                if not context:
+                    context = self._volume[self.DOCUMENT].get(guid)['context']
+        elif method == 'POST':
+            context = parse_context(request.content)
 
         stats = self._stats['user']
         if method in ('POST', 'PUT', 'DELETE'):
             stats.effective.add(request.principal)
         stats.active.add(request.principal)
 
-    def commit(self, timestamp=None):
-        _logger.debug('Commit node stats')
+        if context:
+            return self._stats['context'].active_object(context)
 
-        for document, stats in self._stats.items():
-            values = {}
-            for attr in dir(stats):
-                if attr[0] == '_' or attr[0].isupper():
-                    continue
-                value = getattr(stats, attr)
-                if type(value) is set:
-                    value = len(value)
-                values[attr] = value
-            self.rrd[document].put(values, timestamp=timestamp)
-            self._stats[document] = type(stats)()
+    def active_object(self, guid):
+        result = self.active.get(guid)
+        if result is None:
+            result = self.active[guid] = _ObjectStats()
+        return result
+
+    def commit(self):
+        pass
 
 
-class _Stats(object):
-
-    OWNER = None
-    PROPS = {}
+class _ResourceStats(_Stats):
 
     total = 0
     created = 0
@@ -270,53 +213,251 @@ class _Stats(object):
     deleted = 0
     viewed = 0
 
+    def __init__(self, stats, volume):
+        _Stats.__init__(self, stats, volume)
+        self.total = volume[self.DOCUMENT].find(limit=0)[1]
 
-class _UserStats(_Stats):
+    def log(self, request):
+        result = _Stats.log(self, request)
 
-    def __init__(self):
+        method = request['method']
+        if method == 'GET':
+            if 'guid' in request and 'prop' not in request:
+                self.viewed += 1
+        elif method == 'PUT':
+            self.updated += 1
+        elif method == 'POST':
+            self.total += 1
+            self.created += 1
+        elif method == 'DELETE':
+            self.total -= 1
+            self.deleted += 1
+
+        return result
+
+    def commit(self):
+        if type(self.active) is dict:
+            directory = self._volume[self.DOCUMENT]
+            for guid, stats in self.active.items():
+                if not stats.downloaded and not stats.reviews:
+                    continue
+                props = {}
+                doc = directory.get(guid)
+                if stats.downloaded:
+                    props['downloads'] = doc['downloads'] + stats.downloaded
+                if stats.reviews:
+                    reviews, rating = doc['reviews']
+                    reviews += stats.reviews
+                    rating += stats.rating
+                    props['reviews'] = [reviews, rating]
+                    props['rating'] = int(round(float(rating) / reviews))
+                directory.update(guid, props)
+
+        result = {}
+        for attr in dir(self):
+            if attr[0] == '_' or attr[0].isupper():
+                continue
+            value = getattr(self, attr)
+            if type(value) in (set, dict):
+                value = len(value)
+            if type(value) in (int, long):
+                result[attr] = value
+
+        self.created = 0
+        self.updated = 0
+        self.deleted = 0
+        self.viewed = 0
+
+        return result
+
+
+class _UserStats(_ResourceStats):
+
+    DOCUMENT = 'user'
+
+    def __init__(self, stats, volume):
+        _ResourceStats.__init__(self, stats, volume)
         self.active = set()
         self.effective = set()
 
+    def commit(self):
+        result = _ResourceStats.commit(self)
+        self.active.clear()
+        self.effective.clear()
+        return result
 
-class _ContextStats(_Stats):
+
+class _ContextStats(_ResourceStats):
+
+    DOCUMENT = 'context'
+
+    downloaded = 0
 
     released = 0
     failed = 0
-    downloaded = 0
     reviewed = 0
 
-    def __init__(self):
-        self.active = set()
+    def __init__(self, stats, volume):
+        _ResourceStats.__init__(self, stats, volume)
+        self.active = {}
+
+    def commit(self):
+        result = _ResourceStats.commit(self)
+        self.downloaded = 0
+        self.released = 0
+        self.failed = 0
+        self.reviewed = 0
+        self.active.clear()
+        return result
 
 
-class _ReviewStats(_Stats):
+class _ImplementationStats(_Stats):
 
-    OWNER = 'artifact'
+    DOCUMENT = 'implementation'
+    OWNERS = ['context']
+
+    def log(self, request):
+        context = _Stats.log(self, request)
+
+        method = request['method']
+        if method == 'GET':
+            if request.get('prop') == 'data':
+                self._stats['context'].downloaded += 1
+                context.downloaded += 1
+        elif method == 'POST':
+            self._stats['context'].released += 1
+
+
+class _ReportStats(_Stats):
+
+    DOCUMENT = 'report'
+    OWNERS = ['context', 'implementation']
+
+    def log(self, request):
+        _Stats.log(self, request)
+
+        if request['method'] == 'POST':
+            self._stats['context'].failed += 1
+
+
+class _ReviewStats(_ResourceStats):
+
+    DOCUMENT = 'review'
+    OWNERS = ['artifact', 'context']
 
     commented = 0
 
+    def log(self, request):
+        context = _ResourceStats.log(self, request)
 
-class _FeedbackStats(_Stats):
+        if request['method'] == 'POST':
+            if 'artifact' in request.content:
+                artifact = self._stats['artifact']
+                stats = artifact.active_object(request.content['artifact'])
+                artifact.reviewed += 1
+            else:
+                stats = context
+                self._stats['context'].reviewed += 1
+            stats.reviews += 1
+            stats.rating += request.content['rating']
+
+    def commit(self):
+        result = _ResourceStats.commit(self)
+        self.commented = 0
+        return result
+
+
+class _FeedbackStats(_ResourceStats):
+
+    DOCUMENT = 'feedback'
+    OWNERS = ['context']
 
     solutions = 0
     solved = 0
     rejected = 0
-    commented = 0
-
-
-class _SolutionStats(_Stats):
-
-    OWNER = 'feedback'
 
     commented = 0
 
+    def __init__(self, stats, volume):
+        _ResourceStats.__init__(self, stats, volume)
 
-class _ArtifactStats(_Stats):
+        not_solved = volume['feedback'].find(limit=0, solution='')[1]
+        self.solutions = self.total - not_solved
 
-    PROPS = {'data': 'downloaded'}
+    def log(self, request):
+        _ResourceStats.log(self, request)
+
+        if request['method'] in ('POST', 'PUT'):
+            if 'solution' in request.content:
+                if request.content['solution'] is None:
+                    self.rejected += 1
+                    self.solutions -= 1
+                else:
+                    self.solved += 1
+                    self.solutions += 1
+
+    def commit(self):
+        result = _ResourceStats.commit(self)
+        self.solved = 0
+        self.rejected = 0
+        self.commented = 0
+        return result
+
+
+class _SolutionStats(_ResourceStats):
+
+    DOCUMENT = 'solution'
+    OWNERS = ['feedback']
+
+    commented = 0
+
+    def commit(self):
+        result = _ResourceStats.commit(self)
+        self.commented = 0
+        return result
+
+
+class _ArtifactStats(_ResourceStats):
+
+    DOCUMENT = 'artifact'
+    OWNERS = ['context']
 
     downloaded = 0
     reviewed = 0
+
+    def __init__(self, stats, volume):
+        _ResourceStats.__init__(self, stats, volume)
+        self.active = {}
+
+    def log(self, request):
+        _ResourceStats.log(self, request)
+
+        if request['method'] == 'GET':
+            if request.get('prop') == 'data':
+                self.active_object(request['guid']).downloaded += 1
+                self.downloaded += 1
+
+    def commit(self):
+        result = _ResourceStats.commit(self)
+        self.downloaded = 0
+        self.reviewed = 0
+        self.active.clear()
+        return result
+
+
+class _CommentStats(_Stats):
+
+    DOCUMENT = 'comment'
+    OWNERS = ['solution', 'feedback', 'review']
+
+    def log(self, request):
+        _Stats.log(self, request)
+
+        if request['method'] == 'POST':
+            for owner in ('solution', 'feedback', 'review'):
+                if owner in request.content:
+                    self._stats[owner].commented += 1
+                    break
 
 
 def _rrd_path(user, *args):

@@ -25,6 +25,7 @@ from context import *
 from comment import *
 from solution import *
 from implementation import *
+from review import *
 from obs import *
 from journal import *
 from stats import *

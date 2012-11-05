@@ -16,7 +16,7 @@
 from os.path import join
 
 import active_document as ad
-from sugar_network import static
+from sugar_network import resources, static
 from sugar_network.resources.volume import Resource
 
 
@@ -36,6 +36,24 @@ class Artifact(Resource):
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def description(self, value):
         return value
+
+    @ad.active_property(slot=2, typecast=int, default=0,
+            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    def downloads(self, value):
+        return value
+
+    @ad.active_property(slot=3, typecast=resources.RATINGS, default=0,
+            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    def rating(self, value):
+        return value
+
+    @ad.active_property(ad.StoredProperty, typecast=[], default=[0, 0],
+            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    def reviews(self, value):
+        if value is None:
+            return 0
+        else:
+            return value[0]
 
     @ad.active_property(ad.BlobProperty, mime_type='image/png')
     def preview(self, value):

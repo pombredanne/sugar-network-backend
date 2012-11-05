@@ -100,10 +100,13 @@ class Context(Resource):
     def rating(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=int, default=0,
+    @ad.active_property(ad.StoredProperty, typecast=[], default=[0, 0],
             permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
     def reviews(self, value):
-        return value
+        if value is None:
+            return 0
+        else:
+            return value[0]
 
     @ad.active_property(prefix='K', typecast=bool, default=False,
             permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
