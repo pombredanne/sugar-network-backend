@@ -68,7 +68,7 @@ class Application(application.Application):
     def __init__(self, **kwargs):
         application.Application.__init__(self, **kwargs)
         application.rundir.value = join(client.local_root.value, 'run')
-        client.set_logging_verbose(application.debug.value)
+        toolkit.init_logging(application.debug.value)
 
     @application.command(
             'send POST API request')

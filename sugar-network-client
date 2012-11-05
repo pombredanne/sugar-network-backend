@@ -45,7 +45,7 @@ class Application(application.Daemon):
         application.Daemon.__init__(self, **kwargs)
 
         self.jobs = coroutine.Pool()
-        client.set_logging_verbose(application.debug.value)
+        toolkit.init_logging(application.debug.value)
 
         new_root = (client.local_root.value != client.local_root.default)
         client.local_root.value = abspath(client.local_root.value)

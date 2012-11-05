@@ -127,7 +127,7 @@ class NodeStats(object):
             stats.log(request)
 
     def commit(self, timestamp=None):
-        _logger.debug('Commit node stats')
+        _logger.heartbeat('Commit node stats')
 
         for document, stats in self._stats.items():
             values = stats.commit()

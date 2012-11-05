@@ -42,6 +42,8 @@ class Application(application.Daemon):
     jobs = coroutine.Pool()
 
     def run(self):
+        toolkit.init_logging(application.debug.value)
+
         if toolkit.tmpdir.value and not exists(toolkit.tmpdir.value):
             os.makedirs(toolkit.tmpdir.value)
 

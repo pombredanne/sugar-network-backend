@@ -244,7 +244,7 @@ class Router(object):
                 result = json.dumps(result)
             response.content_length = len(result) if result else 0
 
-        _logger.debug('Called %s: response=%r result=%r streamed=%r',
+        _logger.trace('Called %s: response=%r result=%r streamed=%r',
                 request_repr, response, result, result_streamed)
 
         start_response(response.status, response.items())
