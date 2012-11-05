@@ -18,10 +18,10 @@ import logging
 from os.path import join
 
 import active_document as ad
-from sugar_network import client, node, toolkit
+from sugar_network import client, node, toolkit, static
 from sugar_network.toolkit.sneakernet import DiskFull
 from sugar_network.toolkit.collection import Sequence
-from sugar_network.toolkit import http
+from sugar_network.toolkit import http, router
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import coroutine, enforce
 
@@ -45,14 +45,6 @@ def _reprcast_authors(value):
         else:
             result.append(i[0])
     return result
-
-
-class Request(ad.Request):
-
-    principal = None
-    mountpoint = None
-    content_type = None
-    if_modified_since = None
 
 
 class Resource(ad.Document):
@@ -274,6 +266,21 @@ class Commands(object):
     def connect(self, callback, condition=None, **kwargs):
         raise NotImplementedError()
 
+    @router.route('GET', '/robots.txt')
+    def robots(self, request, response):
+        response.content_type = 'text/plain'
+        return _ROBOTS_TXT
+
+    @router.route('GET', '/favicon.ico')
+    def favicon(self, request, response):
+        return ad.PropertyMeta(
+                path=join(static.PATH, 'favicon.ico'),
+                mime_type='image/x-icon')
+
+    @ad.volume_command(method='GET', mime_type='text/html')
+    def hello(self):
+        return _HELLO_HTML
+
     @ad.volume_command(method='GET', cmd='subscribe',
             mime_type='application/json')
     def subscribe(self, request=None, response=None, only_commits=False):
@@ -405,3 +412,15 @@ class VolumeCommands(ad.VolumeCommands):
                 if url.startswith('/'):
                     url = prefix + url
                 props[name] = url
+
+
+_HELLO_HTML = """\
+<h2>Welcome to Sugar Network API!</h2>
+Consult <a href="http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/API">
+Sugar Labs Wiki</a> to learn how it can be used.
+"""
+
+_ROBOTS_TXT = """\
+User-agent: *
+Disallow: /
+"""

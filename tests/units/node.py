@@ -13,7 +13,7 @@ from sugar_network.toolkit.router import Unauthorized
 from sugar_network.node import stats, obs
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.stats import stats_node_step, stats_node_rras, NodeStats
-from sugar_network.resources.volume import Volume, Request, Resource
+from sugar_network.resources.volume import Volume, Resource
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
@@ -22,6 +22,7 @@ from sugar_network.resources.feedback import Feedback
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.solution import Solution
 from sugar_network.resources.user import User
+from sugar_network.toolkit.router import Request
 
 
 class NodeTest(tests.Test):

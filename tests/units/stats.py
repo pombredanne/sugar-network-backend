@@ -14,7 +14,8 @@ from sugar_network.resources.review import Review
 from sugar_network.resources.feedback import Feedback
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.solution import Solution
-from sugar_network.resources.volume import Volume, Request
+from sugar_network.resources.volume import Volume
+from sugar_network.toolkit.router import Request
 
 
 class StatsTest(tests.Test):

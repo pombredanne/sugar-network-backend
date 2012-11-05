@@ -11,8 +11,9 @@ import active_document as ad
 from sugar_network import node, sugar
 from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
-from sugar_network.resources.volume import Volume, Resource, Commands, Request, VolumeCommands
+from sugar_network.resources.volume import Volume, Resource, Commands, VolumeCommands
 from sugar_network.resources.user import User
+from sugar_network.toolkit.router import Request
 from active_toolkit import coroutine
 
 

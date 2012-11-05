@@ -22,12 +22,11 @@ import logging
 from email.utils import parsedate, formatdate
 from urlparse import parse_qsl, urlsplit
 from bisect import bisect_left
-from os.path import join, isfile, exists
+from os.path import join, isfile
 
 import active_document as ad
 from sugar_network import static
 from sugar_network.toolkit import sugar
-from sugar_network.resources.volume import Request
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import coroutine, util, enforce
 
@@ -95,6 +94,14 @@ def stream_reader(stream):
             stream.close()
 
 
+class Request(ad.Request):
+
+    principal = None
+    mountpoint = None
+    content_type = None
+    if_modified_since = None
+
+
 class Router(object):
 
     def __init__(self, commands):
@@ -155,18 +162,10 @@ class Router(object):
             rout = self._routes.get((
                 request['method'],
                 request.path[0] if request.path else ''))
-            try:
-                if rout:
-                    result = rout(request, response)
-                else:
-                    result = self.commands.call(request, response)
-            except ad.BadRequest:
-                static_path = join(static.PATH, *request.path)
-                if request['method'] == 'GET' and 'cmd' not in request and \
-                        exists(static_path):
-                    result = ad.PropertyMeta(path=static_path)
-                else:
-                    raise
+            if rout:
+                result = rout(request, response)
+            else:
+                result = self.commands.call(request, response)
 
         if isinstance(result, ad.PropertyMeta):
             if 'url' in result:
@@ -180,7 +179,8 @@ class Router(object):
             response.last_modified = mtime
 
             enforce(isfile(path), 'No such file')
-            response.content_type = result.get('mime_type')
+            response.content_type = result.get('mime_type') or \
+                    'application/octet-stream'
             result = file(path, 'rb')
 
         if hasattr(result, 'read'):

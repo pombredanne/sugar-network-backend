@@ -12,7 +12,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network.client import journal
-from sugar_network.resources.volume import Request
+from sugar_network.toolkit.router import Request
 
 
 class JournalTest(tests.Test):
