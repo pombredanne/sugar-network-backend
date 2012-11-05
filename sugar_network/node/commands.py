@@ -181,7 +181,7 @@ class NodeCommands(VolumeCommands, Commands):
 
     def call(self, request, response=None):
         try:
-            return VolumeCommands.call(self, request, response)
+            result = VolumeCommands.call(self, request, response)
         except router.HTTPStatusPass:
             if self._stats is not None:
                 self._stats.log(request)
@@ -189,6 +189,7 @@ class NodeCommands(VolumeCommands, Commands):
         else:
             if self._stats is not None:
                 self._stats.log(request)
+        return result
 
     def resolve(self, request):
         cmd = VolumeCommands.resolve(self, request)
