@@ -124,6 +124,7 @@ class Test(unittest.TestCase):
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=self.logfile)
+        toolkit.init_logging(10)
 
         self.server = None
         self.mounts = None
