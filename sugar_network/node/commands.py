@@ -79,10 +79,6 @@ class NodeCommands(VolumeCommands, Commands):
         enforce(len(request.path) == 3, 'Incorrect path')
         self._get_package(request.path[1], request.path[2])
 
-    @ad.volume_command(method='GET', mime_type='text/html')
-    def hello(self):
-        return _HELLO_HTML
-
     @ad.volume_command(method='GET', cmd='stat',
             mime_type='application/json')
     def stat(self):
@@ -185,7 +181,7 @@ class NodeCommands(VolumeCommands, Commands):
 
     def call(self, request, response=None):
         try:
-            return VolumeCommands.call(self, request, response)
+            result = VolumeCommands.call(self, request, response)
         except router.HTTPStatusPass:
             if self._stats is not None:
                 self._stats.log(request)
@@ -193,6 +189,7 @@ class NodeCommands(VolumeCommands, Commands):
         else:
             if self._stats is not None:
                 self._stats.log(request)
+        return result
 
     def resolve(self, request):
         cmd = VolumeCommands.resolve(self, request)
@@ -298,10 +295,3 @@ def _load_pubkey(pubkey):
             raise ad.Forbidden(message)
 
     return str(hashlib.sha1(pubkey.split()[1]).hexdigest()), pubkey_pkcs8
-
-
-_HELLO_HTML = """\
-<h2>Welcome to Sugar Network API!</h2>
-Consult <a href="http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/API">
-Sugar Labs Wiki</a> to learn how it can be used.
-"""

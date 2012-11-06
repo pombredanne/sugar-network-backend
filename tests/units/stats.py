@@ -14,7 +14,8 @@ from sugar_network.resources.review import Review
 from sugar_network.resources.feedback import Feedback
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.solution import Solution
-from sugar_network.resources.volume import Volume, Request
+from sugar_network.resources.volume import Volume
+from sugar_network.toolkit.router import Request
 
 
 class StatsTest(tests.Test):
@@ -197,11 +198,20 @@ class StatsTest(tests.Test):
         request.content = {'context': 'context', 'rating': 0}
         stats.log(request)
         self.assertEqual(1, stats._stats['context'].reviewed)
+        self.assertEqual(0, stats._stats['artifact'].reviewed)
+
+        request = Request(method='POST', document='review')
+        request.principal = 'user'
+        request.content = {'context': 'context', 'artifact': '', 'rating': 0}
+        stats.log(request)
+        self.assertEqual(2, stats._stats['context'].reviewed)
+        self.assertEqual(0, stats._stats['artifact'].reviewed)
 
         request = Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'artifact': 'artifact', 'rating': 0}
         stats.log(request)
+        self.assertEqual(2, stats._stats['context'].reviewed)
         self.assertEqual(1, stats._stats['artifact'].reviewed)
 
     def test_ContextDownloaded(self):

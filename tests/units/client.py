@@ -7,7 +7,8 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network.client.mounts import LocalMount
-from sugar_network.resources.volume import Volume, Request
+from sugar_network.toolkit.router import Request
+from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import sugar
 
 

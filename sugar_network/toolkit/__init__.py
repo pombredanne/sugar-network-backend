@@ -33,7 +33,7 @@ _logger = logging.getLogger('toolkit')
 
 
 def spawn(cmd_filename, *args):
-    _logger.debug('Spawn %s%r', cmd_filename, args)
+    _logger.trace('Spawn %s%r', cmd_filename, args)
 
     if os.fork():
         return
@@ -46,7 +46,7 @@ def symlink(src, dst):
         _logger.debug('Cannot link %r to %r, source file is absent', src, dst)
         return
 
-    _logger.debug('Link %r to %r', src, dst)
+    _logger.trace('Link %r to %r', src, dst)
 
     if lexists(dst):
         os.unlink(dst)
@@ -93,3 +93,44 @@ def NamedTemporaryFile(*args, **kwargs):
     if tmpdir.value:
         kwargs['dir'] = tmpdir.value
     return tempfile.NamedTemporaryFile(*args, **kwargs)
+
+
+def init_logging(debug_level):
+    # pylint: disable-msg=W0212
+
+    logging.addLevelName(9, 'TRACE')
+    logging.addLevelName(8, 'HEARTBEAT')
+
+    logging.Logger.trace = lambda self, message, *args, **kwargs: None
+    logging.Logger.heartbeat = lambda self, message, *args, **kwargs: None
+
+    if debug_level < 3:
+        _disable_logger([
+            'requests.packages.urllib3.connectionpool',
+            'requests.packages.urllib3.poolmanager',
+            'requests.packages.urllib3.response',
+            'requests.packages.urllib3',
+            'inotify',
+            'netlink',
+            'sugar_stats',
+            ])
+    elif debug_level < 4:
+        logging.Logger.trace = lambda self, message, *args, **kwargs: \
+                self._log(9, message, args, **kwargs)
+        _disable_logger(['sugar_stats'])
+    else:
+        logging.Logger.heartbeat = lambda self, message, *args, **kwargs: \
+                self._log(8, message, args, **kwargs)
+
+
+def _disable_logger(loggers):
+    for log_name in loggers:
+        logger = logging.getLogger(log_name)
+        logger.propagate = False
+        logger.addHandler(_NullHandler())
+
+
+class _NullHandler(logging.Handler):
+
+    def emit(self, record):
+        pass

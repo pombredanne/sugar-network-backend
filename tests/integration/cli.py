@@ -29,7 +29,7 @@ class SyncTest(tests.Test):
 
         self.node_pid = self.popen(['sugar-network-node', '-F', 'start',
             '--port=8100', '--data-root=node', '--tmpdir=tmp', '-DDD',
-            '--rundir=run',
+            '--rundir=run', '--stats-node-step=0',
             ])
         coroutine.sleep(3)
 

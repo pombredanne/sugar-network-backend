@@ -20,7 +20,8 @@ from gettext import gettext as _
 
 import active_document as ad
 from sugar_network.zerosugar import clones, injector
-from sugar_network.resources.volume import Request, VolumeCommands
+from sugar_network.toolkit.router import Request
+from sugar_network.resources.volume import VolumeCommands
 from sugar_network import client, Client
 from active_toolkit import util, coroutine, enforce
 

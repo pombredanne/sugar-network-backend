@@ -138,26 +138,3 @@ def ensure_path(*args):
 
 def db_path():
     return join(local_root.value, 'local')
-
-
-def set_logging_verbose(debug_level):
-    if debug_level < 3:
-        for log_name in (
-                'requests.packages.urllib3.connectionpool',
-                'requests.packages.urllib3.poolmanager',
-                'requests.packages.urllib3.response',
-                'requests.packages.urllib3',
-                'inotify',
-                'netlink',
-                'sneakernet',
-                'toolkit',
-                ):
-            logger = logging.getLogger(log_name)
-            logger.propagate = False
-            logger.addHandler(_NullHandler())
-
-
-class _NullHandler(logging.Handler):
-
-    def emit(self, record):
-        pass

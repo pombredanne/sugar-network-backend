@@ -127,7 +127,7 @@ class NodeStats(object):
             stats.log(request)
 
     def commit(self, timestamp=None):
-        _logger.debug('Commit node stats')
+        _logger.heartbeat('Commit node stats')
 
         for document, stats in self._stats.items():
             values = stats.commit()
@@ -351,7 +351,7 @@ class _ReviewStats(_ResourceStats):
         context = _ResourceStats.log(self, request)
 
         if request['method'] == 'POST':
-            if 'artifact' in request.content:
+            if request.content.get('artifact'):
                 artifact = self._stats['artifact']
                 stats = artifact.active_object(request.content['artifact'])
                 artifact.reviewed += 1
@@ -455,7 +455,7 @@ class _CommentStats(_Stats):
 
         if request['method'] == 'POST':
             for owner in ('solution', 'feedback', 'review'):
-                if owner in request.content:
+                if request.content.get(owner):
                     self._stats[owner].commented += 1
                     break
 

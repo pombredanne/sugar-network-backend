@@ -495,34 +495,6 @@ class RouterTest(tests.Test):
                     'If-Modified-Since': formatdate(mtime + 1, localtime=False, usegmt=True),
                     }).status_code)
 
-    def test_StaticFilesFromRoot(self):
-
-        class TestDocument(Resource):
-            pass
-
-        self.override(static, 'PATH', '.')
-        self.start_master([User, TestDocument])
-        client = Client('http://localhost:8800')
-
-        self.touch(('robots.txt', 'foo'))
-        response = client.request('GET', ['robots.txt'])
-        self.assertEqual(200, response.status_code)
-        self.assertEqual('foo', response.content)
-
-        self.touch(('foo/bar', 'probe'))
-        response = client.request('GET', ['foo', 'bar'])
-        self.assertEqual(200, response.status_code)
-        self.assertEqual('probe', response.content)
-
-        response = client.request('POST', ['robots.txt'], allowed=[500])
-        self.assertEqual(500, response.status_code)
-
-        response = client.request('PUT', ['robots.txt'], allowed=[500])
-        self.assertEqual(500, response.status_code)
-
-        response = client.request('GET', ['robots.txt'], params={'cmd': 'foo'}, allowed=[500])
-        self.assertEqual(500, response.status_code)
-
     def test_IfModifiedSinceForBlobs(self):
 
         class TestDocument(Resource):

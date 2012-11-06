@@ -17,6 +17,7 @@ from active_document.directory import Directory
 from sugar_network import node
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket, OutBufferPacket
 from sugar_network.toolkit.files_sync import Seeder
+from sugar_network.toolkit.router import Request
 from sugar_network.node import sync_master
 from sugar_network.resources.volume import Volume
 from active_toolkit import coroutine

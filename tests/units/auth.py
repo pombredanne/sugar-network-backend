@@ -9,7 +9,7 @@ from __init__ import tests
 import active_document as ad
 from sugar_network.node import auth
 from sugar_network import IPCClient, Client
-from sugar_network.resources.volume import Request
+from sugar_network.toolkit.router import Request
 from sugar_network.resources.user import User
 from active_toolkit import enforce
 

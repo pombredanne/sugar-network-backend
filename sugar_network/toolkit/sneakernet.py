@@ -97,7 +97,7 @@ class InPacket(object):
             util.exception()
             raise RuntimeError('Malformed %r packet: %s' % (self, error))
 
-        _logger.debug('Reading %r input packet', self)
+        _logger.trace('Reading %r input packet', self)
 
     @property
     def path(self):
@@ -110,7 +110,7 @@ class InPacket(object):
                 continue
 
             if info.name.endswith(_PACKET_SUFFIX):
-                _logger.debug('Reading %r sub packet from %r', info.name, self)
+                _logger.trace('Reading %r sub packet from %r', info.name, self)
                 with self._extract(info) as f:
                     with InPacket(stream=f) as sub_packet:
                         for sub_record in sub_packet.records(**filters):
@@ -132,14 +132,14 @@ class InPacket(object):
                 continue
 
             if meta.get('content_type') == 'records':
-                _logger.debug('Reading %r records from %r', info.name, self)
+                _logger.trace('Reading %r records from %r', info.name, self)
                 with self._extract(info.name[: - len(_RECORD_SUFFIX)]) as f:
                     for line in f:
                         item = json.loads(line)
                         item.update(meta)
                         yield item
             elif meta.get('content_type') == 'blob':
-                _logger.debug('Reading %r blob from %r', info.name, self)
+                _logger.trace('Reading %r blob from %r', info.name, self)
                 with self._extract(info.name[: - len(_RECORD_SUFFIX)]) as f:
                     meta['blob'] = f
                     yield meta
@@ -227,7 +227,7 @@ class OutPacket(object):
         else:
             self.content_type = 'application/x-tar'
 
-        _logger.debug('Writing %r output packet', self)
+        _logger.trace('Writing %r output packet', self)
 
     @property
     def basename(self):
@@ -289,7 +289,7 @@ class OutPacket(object):
 
     def push(self, data=None, arcname=None, force=False, **meta):
         if isinstance(data, OutPacket):
-            _logger.debug('Writing %r sub packet to %r', data.path, self)
+            _logger.trace('Writing %r sub packet to %r', data.path, self)
             if not arcname:
                 arcname = data.basename
             f = data.pop()
@@ -299,16 +299,16 @@ class OutPacket(object):
                 f.close()
             return
         elif data is None:
-            _logger.debug('Writing %r record to %r', meta, self)
+            _logger.trace('Writing %r record to %r', meta, self)
             self._add(arcname, None, meta)
             return
         elif hasattr(data, 'fileno'):
-            _logger.debug('Writing %r blob to %r', data.name, self)
+            _logger.trace('Writing %r blob to %r', data.name, self)
             meta['content_type'] = 'blob'
             self._add(arcname, data, meta)
             return
 
-        _logger.debug('Writing %r records to %r', data, self)
+        _logger.trace('Writing %r records to %r', data, self)
 
         if not hasattr(data, 'next'):
             data = iter(data)
@@ -339,7 +339,7 @@ class OutPacket(object):
 
                 if not arcfile.tell():
                     if chunk is not None:
-                        _logger.debug('Reach size limit for %r packet', self)
+                        _logger.trace('Reach size limit for %r packet', self)
                         raise DiskFull()
                     break
 
@@ -396,14 +396,14 @@ class OutPacket(object):
             free = self._limit - self._stream.tell()
         free -= _RESERVED_SIZE
         if free - size <= 0:
-            _logger.debug('Reach size limit for %r packet', self)
+            _logger.trace('Reach size limit for %r packet', self)
             raise DiskFull()
         return free
 
     def _commit(self, clear):
         if self._tarball is None:
             return
-        _logger.debug('Closing %r output packet, clear=%r', self, clear)
+        _logger.trace('Closing %r output packet, clear=%r', self, clear)
         if not clear:
             self._addfile('header', self.header, True)
         self._tarball.close()
