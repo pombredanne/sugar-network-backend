@@ -264,7 +264,8 @@ class VolumeCommands(CommandsProcessor):
         yield directory, doc
 
         for name, value in blobs:
-            directory.set_blob(doc.guid, name, value)
+            directory.set_blob(doc.guid, name, value,
+                    mime_type=request.content_type)
 
     def _preget(self, request):
         metadata = self.volume[request['document']].metadata

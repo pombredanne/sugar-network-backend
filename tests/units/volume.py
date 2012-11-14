@@ -152,6 +152,25 @@ class VolumeTest(tests.Test):
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
         self.assertRaises(NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
 
+    def test_SetBLOBsWithMimeType(self):
+
+        class TestDocument(Document):
+
+            @active_property(BlobProperty, mime_type='default')
+            def blob(self, value):
+                return value
+
+        self.volume = SingleVolume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob1')
+        self.assertEqual('default', self.call('GET', document='testdocument', guid=guid, prop='blob')['mime_type'])
+        self.assertEqual('default', self.response.content_type)
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob1', content_type='foo')
+        self.assertEqual('foo', self.call('GET', document='testdocument', guid=guid, prop='blob')['mime_type'])
+        self.assertEqual('foo', self.response.content_type)
+
     def test_GetBLOBs(self):
 
         class TestDocument(Document):
@@ -920,7 +939,7 @@ class VolumeTest(tests.Test):
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,
-            if_modified_since=None, **kwargs):
+            content_type=None, if_modified_since=None, **kwargs):
 
         class TestRequest(Request):
 
@@ -930,6 +949,7 @@ class VolumeTest(tests.Test):
         request = TestRequest(kwargs)
         request.content = content
         request.content_stream = content_stream
+        request.content_type = content_type
         request.accept_language = accept_language
         request.if_modified_since = if_modified_since
         request['method'] = method

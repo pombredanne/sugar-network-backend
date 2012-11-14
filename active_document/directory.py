@@ -189,7 +189,8 @@ class Directory(object):
 
         return iterate(), mset.get_matches_estimated()
 
-    def set_blob(self, guid, prop, data=None, size=None, **kwargs):
+    def set_blob(self, guid, prop, data=None, size=None, mime_type=None,
+            **kwargs):
         """Receive BLOB property.
 
         This function works in parallel to setting non-BLOB properties values
@@ -210,8 +211,10 @@ class Directory(object):
         _logger.debug('Received %r BLOB property from %s[%s]',
                 prop.name, self.metadata.name, guid)
 
+        if not mime_type:
+            mime_type = prop.mime_type
         record.set_blob(prop.name, data, size, seqno=seqno,
-                mime_type=prop.mime_type, **kwargs)
+                mime_type=mime_type, **kwargs)
 
         if record.consistent:
             self._post(guid, {'seqno': seqno}, False)

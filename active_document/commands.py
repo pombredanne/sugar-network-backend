@@ -16,6 +16,7 @@
 import logging
 
 from active_document import env
+from active_document.metadata import PropertyMeta
 from active_toolkit import enforce
 
 
@@ -88,6 +89,7 @@ class Request(dict):
     content = None
     content_stream = None
     content_length = None
+    content_type = None
     access_level = env.ACCESS_REMOTE
     accept_language = None
     commands = None
@@ -226,7 +228,10 @@ class CommandsProcessor(object):
                     response=response)
 
         if not response.content_type:
-            response.content_type = cmd.mime_type
+            if isinstance(result, PropertyMeta):
+                response.content_type = result.get('mime_type')
+            if not response.content_type:
+                response.content_type = cmd.mime_type
 
         return result
 
