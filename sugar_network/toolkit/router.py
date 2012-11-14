@@ -98,7 +98,6 @@ class Request(ad.Request):
 
     principal = None
     mountpoint = None
-    content_type = None
     if_modified_since = None
 
 
@@ -157,7 +156,8 @@ class Router(object):
 
         request.principal = self.authenticate(request)
         if request.path[:1] == ['static']:
-            result = ad.PropertyMeta(path=join(static.PATH, *request.path[1:]))
+            path = join(static.PATH, *request.path[1:])
+            result = ad.PropertyMeta(path=path, mime_type=_get_mime_type(path))
         else:
             rout = self._routes.get((
                 request['method'],
@@ -452,3 +452,12 @@ def _parse_accept_language(accept_language):
         langs.insert(len(langs) - index, lang)
 
     return langs
+
+
+def _get_mime_type(path):
+    if path.endswith('.png'):
+        return 'image/png'
+    elif path.endswith('.svg'):
+        return 'image/svg+xml'
+    elif path.endswith('.ico'):
+        return 'image/x-icon'
