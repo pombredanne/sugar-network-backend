@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
 import time
 import uuid
 import random
@@ -24,6 +25,7 @@ from tempfile import NamedTemporaryFile
 import active_document as ad
 from sugar_network import client
 from sugar_network.toolkit import sugar, router
+from sugar_network.toolkit.router import Request
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import enforce
 
@@ -45,12 +47,8 @@ def exists(guid):
     return os.path.exists(path)
 
 
-def ds_path(guid, prop):
-    return sugar.profile_path('datastore', guid[:2], guid, 'metadata', prop)
-
-
 def get(guid, prop):
-    path = ds_path(guid, prop)
+    path = _prop_path(guid, prop)
     if not os.path.exists(path):
         return None
     with file(path, 'rb') as f:
@@ -78,45 +76,42 @@ class Commands(object):
         enforce(self._ds is not None, 'Journal is inaccessible')
         enforce(len(request.path) <= 3, 'Invalid request')
 
-        def preview_url(guid):
-            return 'http://localhost:%s/journal/%s/preview' % \
-                    (client.ipc_port.value, guid)
-
         if len(request.path) == 1:
-            if 'order_by' in request:
-                request['order_by'] = [request['order_by']]
-            items, total = self._ds.find(request,
-                    ['uid', 'title', 'description'], byte_arrays=True)
-            result = []
-            for item in items:
-                guid = str(item['uid'])
-                result.append({
-                        'guid': guid,
-                        'title': str(item.get('title', '')),
-                        'description': str(item.get('description', '')),
-                        'preview': preview_url(guid),
-                        })
-            response.content_type = 'application/json'
-            return {'result': result, 'total': int(total)}
-
+            return self._find(request, response)
         elif len(request.path) == 2:
-            guid = request.path[1]
-            response.content_type = 'application/json'
-            return {'guid': guid,
-                    'title': get(guid, 'title'),
-                    'description': get(guid, 'description'),
-                    'preview': preview_url(guid),
-                    }
-
+            return self._get(request, response)
         elif len(request.path) == 3:
-            guid = request.path[1]
-            prop = request.path[2]
-            if prop == 'preview':
-                return ad.PropertyMeta(path=ds_path(guid, prop),
-                        mime_type='image/png')
-            else:
-                response.content_type = 'application/json'
-                return get(guid, prop)
+            return self._get_prop(request, response)
+
+    @router.route('PUT', '/journal')
+    def journal_share(self, request, response):
+        enforce(self._ds is not None, 'Journal is inaccessible')
+        enforce(len(request.path) == 2 and request.get('cmd') == 'share',
+                'Invalid request')
+
+        guid = request.path[1]
+        preview_path = _prop_path(guid, 'preview')
+        enforce(os.access(preview_path, os.R_OK), 'No preview')
+        data_path = _data_path(guid)
+        enforce(os.access(data_path, os.R_OK), 'No data')
+
+        subrequest = Request(method='POST', document='artifact')
+        subrequest.content = request.content
+        subrequest.content_type = 'application/json'
+        # pylint: disable-msg=E1101
+        subguid = self.call(subrequest, response)
+
+        subrequest = Request(method='PUT', document='artifact',
+                guid=subguid, prop='preview')
+        subrequest.content_type = 'image/png'
+        with file(preview_path, 'rb') as subrequest.content_stream:
+            self.call(subrequest, response)
+
+        subrequest = Request(method='PUT', document='artifact',
+                guid=subguid, prop='data')
+        subrequest.content_type = get(guid, 'mime_type') or 'application/octet'
+        with file(data_path, 'rb') as subrequest.content_stream:
+            self.call(subrequest, response)
 
     def journal_update(self, guid, title, description, preview, data):
         enforce(self._ds is not None, 'Journal is inaccessible')
@@ -155,3 +150,77 @@ class Commands(object):
             'description': description,
             'preview': preview,
             }, data, transfer_ownership)
+
+    def _find(self, request, response):
+        import dbus
+
+        if 'order_by' in request:
+            request['order_by'] = [request['order_by']]
+        for key in ('offset', 'limit'):
+            if key in request:
+                request[key] = int(request[key])
+        if 'reply' in request:
+            reply = ad.to_list(request.pop('reply'))
+        else:
+            reply = ['uid', 'title', 'description', 'preview']
+        if 'preview' in reply:
+            reply.remove('preview')
+            has_preview = True
+        else:
+            has_preview = False
+        for key in ('timestamp', 'filesize', 'creation_time'):
+            value = request.get(key)
+            if not value or '..' not in value:
+                continue
+            start, end = value.split('..', 1)
+            value = {'start': start or '0', 'end': end or str(sys.maxint)}
+            request[key] = dbus.Dictionary(value)
+        if 'uid' not in reply:
+            reply.append('uid')
+
+        result, total = self._ds.find(request, reply, byte_arrays=True)
+
+        for item in result:
+            # Do not break SN like API
+            guid = item['guid'] = item.pop('uid')
+            if has_preview:
+                item['preview'] = _preview_url(guid)
+
+        response.content_type = 'application/json'
+        return {'result': result, 'total': int(total)}
+
+    def _get(self, request, response):
+        guid = request.path[1]
+        response.content_type = 'application/json'
+        return {'guid': guid,
+                'title': get(guid, 'title'),
+                'description': get(guid, 'description'),
+                'preview': _preview_url(guid),
+                }
+
+    def _get_prop(self, request, response):
+        guid = request.path[1]
+        prop = request.path[2]
+
+        if prop == 'preview':
+            return ad.PropertyMeta(path=_prop_path(guid, prop),
+                    mime_type='image/png')
+        elif prop == 'data':
+            return ad.PropertyMeta(path=_data_path(guid),
+                    mime_type=get(guid, 'mime_type') or 'application/octet')
+        else:
+            response.content_type = 'application/json'
+            return get(guid, prop)
+
+
+def _data_path(guid):
+    return sugar.profile_path('datastore', guid[:2], guid, 'data')
+
+
+def _prop_path(guid, prop):
+    return sugar.profile_path('datastore', guid[:2], guid, 'metadata', prop)
+
+
+def _preview_url(guid):
+    return 'http://localhost:%s/journal/%s/preview' % \
+            (client.ipc_port.value, guid)
