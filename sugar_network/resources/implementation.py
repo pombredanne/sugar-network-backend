@@ -52,11 +52,6 @@ class Implementation(Resource):
     def version(self, value):
         return value
 
-    @ad.active_property(slot=2, prefix='D',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ, typecast=int)
-    def date(self, value):
-        return value
-
     @ad.active_property(prefix='S',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
             typecast=resources.STABILITIES)

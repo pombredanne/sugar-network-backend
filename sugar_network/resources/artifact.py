@@ -27,6 +27,10 @@ class Artifact(Resource):
     def context(self, value):
         return value
 
+    @ad.active_property(prefix='T', typecast=[resources.ARTIFACT_TYPES])
+    def type(self, value):
+        return value
+
     @ad.active_property(slot=1, prefix='S', full_text=True, localized=True,
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def title(self, value):
