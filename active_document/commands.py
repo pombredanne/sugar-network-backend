@@ -95,9 +95,7 @@ class Request(dict):
     commands = None
     response = None
 
-    def __init__(self, props_=None, **kwargs):
-        if props_ is not None:
-            kwargs = props_
+    def __init__(self, **kwargs):
         dict.__init__(self, kwargs)
         self._pos = 0
 

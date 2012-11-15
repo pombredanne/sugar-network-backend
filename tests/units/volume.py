@@ -946,7 +946,7 @@ class VolumeTest(tests.Test):
             content_stream = None
             content_length = 0
 
-        request = TestRequest(kwargs)
+        request = TestRequest(**kwargs)
         request.content = content
         request.content_stream = content_stream
         request.content_type = content_type

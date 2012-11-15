@@ -481,7 +481,7 @@ class CommandsTest(tests.Test):
             content_stream = None
             content_length = 0
 
-        request = TestRequest(kwargs)
+        request = TestRequest(**kwargs)
         request['method'] = method
         request.access_level = access_level
         if document:
