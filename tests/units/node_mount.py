@@ -183,7 +183,6 @@ class NodeMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {
@@ -330,6 +329,7 @@ class NodeMountTest(tests.Test):
 
         guid = client.post(['artifact'], {
             'context': 'context',
+            'type': 'instance',
             'title': 'title',
             'description': 'description',
             })
@@ -358,7 +358,6 @@ class NodeMountTest(tests.Test):
             'context': 'context',
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             })

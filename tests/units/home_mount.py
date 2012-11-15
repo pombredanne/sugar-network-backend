@@ -147,6 +147,7 @@ class HomeMountTest(tests.Test):
 
         guid = client.post(['artifact'], {
             'context': 'context',
+            'type': 'instance',
             'title': 'title',
             'description': 'description',
             })

@@ -210,8 +210,8 @@ class MountsetTest(tests.Test):
             self.events)
         del self.events[:]
 
-        self.override(journal, 'exists', lambda *args: False)
-        self.assertRaises(ad.NotFound, mounts.launch, '~', 'context', 'app', [], object_id='object_id')
+
+
 
     def test_launch_ResumeArtifact(self):
         updates = []
@@ -224,6 +224,7 @@ class MountsetTest(tests.Test):
         mounts.volume['artifact'].create({
             'guid': 'artifact',
             'context': 'context',
+            'type': 'instance',
             'title': 'title',
             'description': 'description',
             })
@@ -283,7 +284,6 @@ class MountsetTest(tests.Test):
             'context': 'context',
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             })
@@ -293,7 +293,6 @@ class MountsetTest(tests.Test):
             'context': 'context',
             'license': 'GPLv3+',
             'version': '2',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             })

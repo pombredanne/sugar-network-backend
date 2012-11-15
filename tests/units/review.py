@@ -23,6 +23,7 @@ class ReviewTest(tests.Test):
             'description': 'description',
             })
         artifact = client.post(['artifact'], {
+            'type': 'instance',
             'context': context,
             'title': 'title',
             'description': 'description',

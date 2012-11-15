@@ -47,7 +47,6 @@ class InjectorTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {
@@ -124,7 +123,6 @@ class InjectorTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {
@@ -171,7 +169,6 @@ class InjectorTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {
@@ -417,7 +414,6 @@ class InjectorTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {
@@ -484,7 +480,6 @@ class InjectorTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {

@@ -415,6 +415,7 @@ class RemoteMountTest(tests.Test):
 
         guid = remote.post(['artifact'], {
             'context': 'context',
+            'type': 'instance',
             'title': 'title',
             'description': 'description',
             })
@@ -443,7 +444,6 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {}},
@@ -452,7 +452,6 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {
@@ -501,12 +500,12 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {}},
             })
         artifact = remote.post(['artifact'], {
+            'type': 'instance',
             'context': 'context',
             'title': 'title',
             'description': 'description',
@@ -614,7 +613,6 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {}},
@@ -628,7 +626,6 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {
