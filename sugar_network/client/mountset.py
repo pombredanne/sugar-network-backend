@@ -195,11 +195,12 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
             def get_props():
                 props = mount(method='GET', document='artifact', guid=guid,
-                        reply=['title', 'description'])
+                        reply=['title', 'description', 'context'])
                 props['preview'] = mount(method='GET', document='artifact',
                         guid=guid, prop='preview')
                 props['data'] = mount(method='GET', document='artifact',
                         guid=guid, prop='data')
+                props['activity'] = props.pop('context')
                 return props
 
             self._clone_jobject(guid, request.content, get_props, force)

@@ -422,7 +422,7 @@ class MountsetTest(tests.Test):
         self.touch('datastore/%s/%s/metadata/uid' % (artifact[:2], artifact))
 
         self.assertEqual([
-            (artifact, {'data': 'data', 'description': 'description', 'title': 'title'}),
+            (artifact, {'data': 'data', 'description': 'description', 'title': 'title', 'activity': 'context'}),
             ],
             updates)
         self.assertEqual(
@@ -443,7 +443,7 @@ class MountsetTest(tests.Test):
         client.put(['artifact', artifact], 1, cmd='clone', force=1)
 
         self.assertEqual([
-            (artifact, {'data': 'data_2', 'description': 'description', 'title': 'title'}),
+            (artifact, {'data': 'data_2', 'description': 'description', 'title': 'title', 'activity': 'context'}),
             ],
             updates)
         self.assertEqual(
