@@ -19,18 +19,15 @@ from os.path import isabs, exists, join, basename
 from gettext import gettext as _
 
 import active_document as ad
-from sugar_network.zerosugar import clones, injector
+from sugar_network.zerosugar import injector
 from sugar_network.toolkit.router import Request
 from sugar_network.resources.volume import VolumeCommands
+from sugar_network.client import journal
 from sugar_network import client, Client
 from active_toolkit import util, coroutine, enforce
 
 
-_LOCAL_PROPS = {
-        'keep': False,
-        'keep_impl': 0,
-        'position': (-1, -1),
-        }
+_LOCAL_PROPS = frozenset(['favorite', 'clone'])
 
 _logger = logging.getLogger('client.mounts')
 
@@ -41,6 +38,11 @@ class _Mount(object):
         self.mountpoint = None
         self.publisher = None
         self.mounted = coroutine.Event()
+
+    def __call__(self, **kwargs):
+        request = Request(**kwargs)
+        # pylint: disable-msg=E1101
+        return self.call(request)
 
     @property
     def name(self):
@@ -114,21 +116,13 @@ class HomeMount(LocalMount):
             return directory.create(doc.props)
 
     def _events_cb(self, event):
-        found_commons = False
-        props = event.get('props')
-        if props:
-            for prop in _LOCAL_PROPS.keys():
-                if prop not in props:
-                    continue
-                if prop == 'keep_impl':
-                    if props[prop] == 0:
-                        clones.wipeout(event['guid'])
-                found_commons = True
-
-        if not found_commons:
-            # These local properties exposed from `_ProxyCommands` as well
-            event['mountpoint'] = self.mountpoint
-        self.publish(event)
+        if event.get('event') == 'update':
+            props = event.get('props')
+            if props and set(props.keys()) & _LOCAL_PROPS:
+                # _LOCAL_PROPS are common for `~` and `/` mountpoints
+                event['mountpoint'] = '/'
+                self.publish(event)
+        LocalMount._events_cb(self, event)
 
 
 class _ProxyCommands(object):
@@ -142,162 +136,59 @@ class _ProxyCommands(object):
 
     @ad.directory_command(method='GET',
             arguments={'reply': ad.to_list}, mime_type='application/json')
-    def find(self, request, response, document, reply):
-        if document != 'context' or 'reply' not in request:
-            return self.proxy_call(request, response)
-
-        # Do not modify original list
-        reply = request['reply'] = request['reply'][:]
-
-        mixin = {}
-        for prop, default in _LOCAL_PROPS.items():
-            if prop in reply:
-                mixin[prop] = default
-                reply.remove(prop)
-
-        if not mixin:
-            return self.proxy_call(request, response)
-
-        if 'guid' not in reply:
-            # GUID is needed to mixin local values
-            reply.append('guid')
-        result = self.proxy_call(request, response)
-
-        if mixin:
-            home = self._home_volume['context']
-            for props in result['result']:
-                if home.exists(props['guid']):
-                    patch = home.get(props['guid']).properties(mixin.keys())
-                else:
-                    patch = mixin
-                props.update(patch)
-
-        return result
+    def find(self, request, response, reply):
+        return self._proxy_get(request, response)
 
     @ad.document_command(method='GET',
             arguments={'reply': ad.to_list}, mime_type='application/json')
-    def get(self, request, response, document, guid, reply):
-        if document != 'context' or 'reply' not in request:
-            return self.proxy_call(request, response)
+    def get(self, request, response):
+        return self._proxy_get(request, response)
 
-        # Do not modify original list
-        reply = request['reply'] = request['reply'][:]
+    def _proxy_get(self, request, response):
+        document = request['document']
+        reply = request.get('reply')
+        mixin = set(reply or []) & _LOCAL_PROPS
+        if mixin:
+            # Otherwise there is no way to mixin _LOCAL_PROPS
+            if 'guid' not in request and 'guid' not in reply:
+                reply.append('guid')
+            if document == 'context' and 'type' not in reply:
+                reply.append('type')
 
-        mixin = {}
-        for prop, default in _LOCAL_PROPS.items():
-            if prop in reply:
-                mixin[prop] = default
-                reply.remove(prop)
-
+        result = self.proxy_call(request, response)
         if not mixin:
-            return self.proxy_call(request, response)
+            return result
 
-        if reply is None or reply:
-            result = self.proxy_call(request, response)
+        request_guid = request.get('guid')
+        if request_guid:
+            items = [result]
         else:
-            result = {}
+            items = result['result']
 
-        home = self._home_volume['context']
-        if home.exists(guid):
-            patch = home.get(guid).properties(mixin.keys())
-        else:
-            patch = mixin
-        result.update(patch)
+        def mixin_jobject(props, guid):
+            if 'clone' in mixin:
+                props['clone'] = 2 if journal.exists(guid) else 0
+            if 'favorite' in mixin:
+                props['favorite'] = bool(int(journal.get(guid, 'keep') or 0))
+
+        if document == 'context':
+            contexts = self._home_volume['context']
+            for props in items:
+                guid = request_guid or props['guid']
+                if 'activity' in props['type']:
+                    if contexts.exists(guid):
+                        patch = contexts.get(guid).properties(mixin)
+                    else:
+                        patch = dict([(i, contexts.metadata[i].default)
+                                for i in mixin])
+                    props.update(patch)
+                elif 'content' in props['type']:
+                    mixin_jobject(props, guid)
+        elif document == 'artifact':
+            for props in items:
+                mixin_jobject(props, request_guid or props['guid'])
 
         return result
-
-    @ad.property_command(method='GET', mime_type='application/json')
-    def get_prop(self, request, response, document, guid, prop):
-        if document == 'context' and prop in _LOCAL_PROPS:
-            home = self._home_volume['context']
-            if home.exists(guid):
-                return home.get(guid)[prop]
-            else:
-                return _LOCAL_PROPS[prop]
-        else:
-            return self.proxy_call(request, response)
-
-    @ad.directory_command(method='POST',
-            permissions=ad.ACCESS_AUTH, mime_type='application/json')
-    def create(self, request, response):
-        return self._proxy_update(request, response)
-
-    @ad.document_command(method='PUT',
-            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
-    def update(self, request, response):
-        self._proxy_update(request, response)
-
-    @ad.property_command(method='PUT',
-            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
-    def update_prop(self, request, response, prop):
-        if prop not in _LOCAL_PROPS:
-            self.proxy_call(request, response)
-        else:
-            request.content = {request.pop('prop'): request.content}
-            self._proxy_update(request, response)
-
-    def _proxy_update(self, request, response):
-        if 'prop' in request or request['document'] != 'context':
-            return self.proxy_call(request, response)
-
-        home = self._home_volume['context']
-        mixin = {}
-        to_clone = False
-
-        for prop in request.content.keys():
-            if prop in _LOCAL_PROPS:
-                mixin[prop] = request.content.pop(prop)
-
-        if request['method'] == 'POST':
-            guid = self.proxy_call(request, response)
-        else:
-            if request.content:
-                self.proxy_call(request, response)
-            guid = request['guid']
-
-        if 'keep_impl' in mixin and (not home.exists(guid) or
-                mixin['keep_impl'] != home.get(guid)['keep_impl']):
-            if mixin['keep_impl']:
-                to_clone = True
-                mixin['keep_impl'] = 1
-
-        if home.exists(guid):
-            home.update(guid, mixin)
-        elif [i for i in mixin.values() if i is not None]:
-            copy = Request(method='GET', document='context', guid=guid,
-                    reply=[
-                        'type', 'implement', 'title', 'summary', 'description',
-                        'homepage', 'mime_types', 'dependencies',
-                        ])
-            copy.accept_language = request.accept_language
-            props = self.proxy_call(copy, ad.Response())
-            props.update(mixin)
-            props['guid'] = guid
-            home.create(props)
-            for prop in ('icon', 'artifact_icon', 'preview'):
-                copy['prop'] = prop
-                blob = self.proxy_call(copy, ad.Response())
-                if blob:
-                    home.set_blob(guid, prop, blob)
-
-        if to_clone:
-            for event in injector.clone(self.mountpoint, guid):
-                # TODO Publish clone progress
-                if event['state'] == 'failure':
-                    self.publish({
-                        'event': 'alert',
-                        'mountpoint': self.mountpoint,
-                        'severity': 'error',
-                        'message': _('Cannot clone %s implementation') % guid,
-                        })
-            for __ in clones.walk(guid):
-                keep_impl = 2
-                break
-            else:
-                keep_impl = 0
-            self._home_volume['context'].update(guid, {'keep_impl': keep_impl})
-
-        return guid
 
 
 class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):

@@ -90,16 +90,16 @@
         <dia:point val="30,8"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="29.985,7.985;49.2275,46.415"/>
+        <dia:rectangle val="29.985,7.985;48.6675,44.415"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="30,8"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
-        <dia:real val="19.212499999999999"/>
+        <dia:real val="18.6525"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="38.400000000000006"/>
+        <dia:real val="36.400000000000006"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Context#</dia:string>
@@ -424,16 +424,16 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#keep#</dia:string>
+            <dia:string>#favorite#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#bool [R W L]#</dia:string>
+            <dia:string>#bool [R L]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>#False#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#Is Context kept local#</dia:string>
+            <dia:string>#Context is favorited by local user#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -447,39 +447,16 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#keep_impl#</dia:string>
+            <dia:string>#clone#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#int  [R W L]#</dia:string>
+            <dia:string>#int  [R L]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>#0#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#If there are implementations stored locally. 0 - no implementations; 1 - checking in in progress; 2 - there are local implementations.#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#position#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#list [R W L]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#[-1, -1]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#[X, Y] positoin for activitiy icon in Sugar Shell home view#</dia:string>
+            <dia:string>#If there are implementations stored locally. 0 - no implementations; 1 - cloning in progress; 2 - there are local implementations.#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -1247,15 +1224,15 @@
         <dia:point val="54,69.9"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="46.9824,67.24;54.2,70.7"/>
+        <dia:rectangle val="46.9824,67.9751;54.0176,70.74"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
       </dia:attribute>
       <dia:attribute name="orth_points">
         <dia:point val="54,69.9"/>
-        <dia:point val="54,69.9"/>
-        <dia:point val="54,68"/>
+        <dia:point val="47,69.9"/>
+        <dia:point val="47,68"/>
         <dia:point val="47,68"/>
       </dia:attribute>
       <dia:attribute name="orth_orient">
@@ -1324,17 +1301,17 @@
     </dia:object>
     <dia:object type="UML - Association" version="2" id="O5">
       <dia:attribute name="obj_pos">
-        <dia:point val="39.6063,46.4"/>
+        <dia:point val="39.3263,44.4"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="39.4824,45.64;40.1,49.84"/>
+        <dia:rectangle val="39.3086,43.64;40.1,49.84"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
       </dia:attribute>
       <dia:attribute name="orth_points">
-        <dia:point val="39.6063,46.4"/>
-        <dia:point val="40,46.4"/>
+        <dia:point val="39.3263,44.4"/>
+        <dia:point val="40,44.4"/>
         <dia:point val="40,49"/>
         <dia:point val="39.5,49"/>
       </dia:attribute>
@@ -2560,7 +2537,7 @@
         <dia:point val="54,58"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="53.985,57.985;69.145,83.215"/>
+        <dia:rectangle val="53.985,57.985;69.145,89.615"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="54,58"/>
@@ -2569,7 +2546,7 @@
         <dia:real val="15.130000000000001"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="25.200000000000003"/>
+        <dia:real val="31.600000000000005"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Artifact#</dia:string>
@@ -2696,7 +2673,7 @@
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#Feedback type; see Wiki for details#</dia:string>
+            <dia:string>#Artifact type; see Wiki for details#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -2789,6 +2766,52 @@
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Artifact's vague data#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
+            <dia:string>#favorite#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#bool [R L]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>#False#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#Artifact is favorited by local user#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
+            <dia:string>#clone#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#int [R L]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>#0#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#If Artifact stored in local Journal. 0 - not stored; 1 - cloning in progress; 2 - stored#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>

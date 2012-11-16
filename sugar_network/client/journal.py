@@ -31,7 +31,7 @@ from active_toolkit import enforce
 
 
 _logger = logging.getLogger('client.journal')
-_ds = None
+_ds_root = sugar.profile_path('datastore')
 
 
 def create_activity_id():
@@ -43,8 +43,7 @@ def create_activity_id():
 
 
 def exists(guid):
-    path = sugar.profile_path('datastore', guid[:2], guid)
-    return os.path.exists(path)
+    return os.path.exists(_ds_path(guid))
 
 
 def get(guid, prop):
@@ -92,7 +91,7 @@ class Commands(object):
         guid = request.path[1]
         preview_path = _prop_path(guid, 'preview')
         enforce(os.access(preview_path, os.R_OK), 'No preview')
-        data_path = _data_path(guid)
+        data_path = _ds_path(guid, 'data')
         enforce(os.access(data_path, os.R_OK), 'No data')
 
         subrequest = Request(method='POST', document='artifact')
@@ -113,19 +112,20 @@ class Commands(object):
         with file(data_path, 'rb') as subrequest.content_stream:
             self.call(subrequest, response)
 
-    def journal_update(self, guid, title, description, preview, data):
+    def journal_update(self, guid, data=None, **kwargs):
         enforce(self._ds is not None, 'Journal is inaccessible')
 
-        if hasattr(preview, 'read'):
-            preview = preview.read()
-            if hasattr(preview, 'close'):
-                preview.close()
-        elif isinstance(preview, dict):
-            with file(preview['path'], 'rb') as f:
-                preview = f.read()
-        else:
+        preview = kwargs.get('preview')
+        if preview:
+            if hasattr(preview, 'read'):
+                preview = preview.read()
+                if hasattr(preview, 'close'):
+                    preview.close()
+            elif isinstance(preview, dict):
+                with file(preview['path'], 'rb') as f:
+                    preview = f.read()
             import dbus
-            preview = dbus.ByteArray(preview)
+            kwargs['preview'] = dbus.ByteArray(preview)
 
         if hasattr(data, 'read'):
             with NamedTemporaryFile(delete=False) as f:
@@ -139,17 +139,17 @@ class Commands(object):
         elif isinstance(data, dict):
             data = data['path']
             transfer_ownership = False
-        else:
+        elif data is not None:
             with NamedTemporaryFile(delete=False) as f:
                 f.write(data)
                 data = f.name
                 transfer_ownership = True
 
-        self._ds.update(guid, {
-            'title': title,
-            'description': description,
-            'preview': preview,
-            }, data, transfer_ownership)
+        self._ds.update(guid, kwargs, data or '', transfer_ownership)
+
+    def journal_delete(self, guid):
+        enforce(self._ds is not None, 'Journal is inaccessible')
+        self._ds.delete(guid)
 
     def _find(self, request, response):
         import dbus
@@ -206,19 +206,19 @@ class Commands(object):
             return ad.PropertyMeta(path=_prop_path(guid, prop),
                     mime_type='image/png')
         elif prop == 'data':
-            return ad.PropertyMeta(path=_data_path(guid),
+            return ad.PropertyMeta(path=_ds_path(guid, 'data'),
                     mime_type=get(guid, 'mime_type') or 'application/octet')
         else:
             response.content_type = 'application/json'
             return get(guid, prop)
 
 
-def _data_path(guid):
-    return sugar.profile_path('datastore', guid[:2], guid, 'data')
+def _ds_path(guid, *args):
+    return os.path.join(_ds_root, guid[:2], guid, *args)
 
 
 def _prop_path(guid, prop):
-    return sugar.profile_path('datastore', guid[:2], guid, 'metadata', prop)
+    return _ds_path(guid, 'metadata', prop)
 
 
 def _preview_url(guid):

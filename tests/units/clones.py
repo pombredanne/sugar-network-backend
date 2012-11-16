@@ -206,8 +206,8 @@ class ImplementationsTest(tests.Test):
                 abspath('Activities/activity'),
                 os.readlink('clones/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 2},
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
         assert exists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         self.assertEqual(
                 tests.tmpdir + '/Activities/activity/activity/icon.svg',
@@ -246,8 +246,8 @@ class ImplementationsTest(tests.Test):
                 abspath('Activities/activity'),
                 os.readlink('clones/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 2},
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
 
     def test_Checkin_Hardlink(self):
         self.job = coroutine.spawn(clones.monitor,
@@ -279,8 +279,8 @@ class ImplementationsTest(tests.Test):
                 abspath('Activities/activity'),
                 os.readlink('clones/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 2},
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
 
     def test_OfflineCheckin(self):
         self.job = coroutine.spawn(clones.monitor,
@@ -305,8 +305,8 @@ class ImplementationsTest(tests.Test):
                 os.readlink('clones/context/org.sugarlabs.HelloWorld/' + hashed_path))
 
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'HelloWorld'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'HelloWorld'}, 'favorite': False, 'clone': 2},
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
 
     def test_Checkout(self):
         self.job = coroutine.spawn(clones.monitor,
@@ -343,8 +343,8 @@ class ImplementationsTest(tests.Test):
         assert exists('clones/checkin/' + hashed_path)
         assert exists('clones/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 2},
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
         assert exists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         assert exists('share/mime/packages/%s.xml' % hashed_path)
         assert exists('share/mime/application/x-foo-bar.xml')
@@ -355,8 +355,8 @@ class ImplementationsTest(tests.Test):
         assert not exists('clones/checkin/' + hashed_path)
         assert not exists('clones/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
-                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'keep': False, 'keep_impl': 0},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'keep', 'keep_impl']))
+                {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 0},
+                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
         assert not lexists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         assert not lexists('share/mime/packages/%s.xml' % hashed_path)
         assert not lexists('share/mime/application/x-foo-bar.xml')

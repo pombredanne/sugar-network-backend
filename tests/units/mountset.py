@@ -4,6 +4,7 @@
 import os
 import socket
 import shutil
+import zipfile
 from os.path import exists
 
 import requests
@@ -23,7 +24,7 @@ from sugar_network.resources.volume import Volume
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.toolkit.router import IPCRouter
 from sugar_network import IPCClient, Client
-from sugar_network.zerosugar import injector
+from sugar_network.zerosugar import injector, clones
 from sugar_network.client import journal
 
 
@@ -210,10 +211,462 @@ class MountsetTest(tests.Test):
             self.events)
         del self.events[:]
 
+    def test_Hub(self):
+        mounts = self.mountset()
+        client = IPCClient()
+        url = 'http://localhost:%s' % local.ipc_port.value
+
+        response = requests.request('GET', url + '/hub', allow_redirects=False)
+        self.assertEqual(303, response.status_code)
+        self.assertEqual('/hub/', response.headers['Location'])
+
+        local.hub_root.value = '.'
+        index_html = '<html><body>index</body></html>'
+        self.touch(('index.html', index_html))
+
+        response = requests.request('GET', url + '/hub', allow_redirects=True)
+        self.assertEqual(index_html, response.content)
+
+        response = requests.request('GET', url + '/hub/', allow_redirects=False)
+        self.assertEqual(index_html, response.content)
+
+    def test_clone_Activities(self):
+        self.start_ipc_and_restful_server()
+        client = IPCClient()
+        coroutine.spawn(clones.monitor, self.mounts.volume['context'], ['Activities'])
+
+        context = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'TestActivitry',
+                    },
+                },
+            })
+        bundle = zipfile.ZipFile('bundle', 'w')
+        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = %s' % context,
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license=Public Domain',
+            ]))
+        bundle.close()
+        client.request('PUT', ['implementation', impl, 'data'], file('bundle', 'rb').read())
+
+        assert not exists('Activities/TestActivitry/activity/activity.info')
+        assert not exists('Activities/TestActivitry_1/activity/activity.info')
+        self.assertEqual(
+                {'clone': 0, 'type': ['activity']},
+                client.get(['context', context], reply=['clone']))
+        self.assertRaises(RuntimeError, client.get, ['context', context], mountpoint='~')
+
+        client.put(['context', context], 2, cmd='clone')
+        coroutine.sleep(1)
+
+        assert exists('Activities/TestActivitry/activity/activity.info')
+        assert not exists('Activities/TestActivitry_1/activity/activity.info')
+        self.assertEqual(
+                {'clone': 2, 'type': ['activity']},
+                client.get(['context', context], reply=['clone']))
+        self.assertEqual(
+                {'clone': 2},
+                client.get(['context', context], reply=['clone'], mountpoint='~'))
+
+        client.put(['context', context], 2, cmd='clone')
+        coroutine.sleep(1)
+
+        assert exists('Activities/TestActivitry/activity/activity.info')
+        assert not exists('Activities/TestActivitry_1/activity/activity.info')
+        self.assertEqual(
+                {'clone': 2, 'type': ['activity']},
+                client.get(['context', context], reply=['clone']))
+        self.assertEqual(
+                {'clone': 2},
+                client.get(['context', context], reply=['clone'], mountpoint='~'))
+
+        client.put(['context', context], 1, cmd='clone', force=1)
+        coroutine.sleep(1)
+
+        assert exists('Activities/TestActivitry/activity/activity.info')
+        assert exists('Activities/TestActivitry_1/activity/activity.info')
+        self.assertEqual(
+                {'clone': 2, 'type': ['activity']},
+                client.get(['context', context], reply=['clone']))
+        self.assertEqual(
+                {'clone': 2},
+                client.get(['context', context], reply=['clone'], mountpoint='~'))
+
+        client.put(['context', context], 0, cmd='clone')
+        coroutine.sleep(1)
+
+        assert not exists('Activities/TestActivitry/activity/activity.info')
+        assert not exists('Activities/TestActivitry_1/activity/activity.info')
+        self.assertEqual(
+                {'clone': 0, 'type': ['activity']},
+                client.get(['context', context], reply=['clone']))
+        self.assertEqual(
+                {'clone': 0},
+                client.get(['context', context], reply=['clone'], mountpoint='~'))
+
+    def test_clone_Content(self):
+        updates = []
+        self.override(journal.Commands, '__init__', lambda *args: None)
+        self.override(journal.Commands, 'journal_update', lambda self, guid, preview=None, **kwargs: updates.append((guid, kwargs)))
+        self.override(journal.Commands, 'journal_delete', lambda self, guid: updates.append((guid,)))
+
+        self.start_ipc_and_restful_server()
+        client = IPCClient()
+
+        context = client.post(['context'], {
+            'type': 'content',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            })
+        client.request('PUT', ['implementation', impl, 'data'], 'version_1')
+
+        self.assertEqual({'clone': 0, 'type': ['content']}, client.get(['context', context], reply=['clone']))
+
+        client.put(['context', context], 2, cmd='clone')
+        self.touch('datastore/%s/%s/metadata/uid' % (context[:2], context))
+
+        self.assertEqual([
+            (context, {'activity_id': impl, 'data': 'version_1', 'description': 'description', 'title': 'title'}),
+            ],
+            updates)
+        self.assertEqual(
+                {'clone': 2, 'type': ['content']},
+                client.get(['context', context], reply=['clone']))
+        del updates[:]
+
+        client.request('PUT', ['implementation', impl, 'data'], 'version_2')
+        client.put(['context', context], 2, cmd='clone')
+
+        self.assertEqual(
+                [],
+                updates)
+        self.assertEqual(
+                {'clone': 2, 'type': ['content']},
+                client.get(['context', context], reply=['clone']))
+
+        client.put(['context', context], 1, cmd='clone', force=1)
+
+        self.assertEqual([
+            (context, {'activity_id': impl, 'data': 'version_2', 'description': 'description', 'title': 'title'}),
+            ],
+            updates)
+        self.assertEqual(
+                {'clone': 2, 'type': ['content']},
+                client.get(['context', context], reply=['clone']))
+        del updates[:]
+
+        client.put(['context', context], 0, cmd='clone')
+        shutil.rmtree('datastore/%s/%s' % (context[:2], context))
+
+        self.assertEqual([
+            (context,),
+            ],
+            updates)
+        self.assertEqual(
+                {'clone': 0, 'type': ['content']},
+                client.get(['context', context], reply=['clone']))
+        del updates[:]
+
+    def test_clone_Artifacts(self):
+        updates = []
+        self.override(journal.Commands, '__init__', lambda *args: None)
+        self.override(journal.Commands, 'journal_update', lambda self, guid, preview=None, **kwargs: updates.append((guid, kwargs)))
+        self.override(journal.Commands, 'journal_delete', lambda self, guid: updates.append((guid,)))
+
+        self.start_ipc_and_restful_server([User, Context, Implementation, Artifact])
+        client = IPCClient()
+
+        artifact = client.post(['artifact'], {
+            'context': 'context',
+            'type': 'instance',
+            'title': 'title',
+            'description': 'description',
+            })
+        client.request('PUT', ['artifact', artifact, 'data'], 'data')
+
+        self.assertEqual({'clone': 0}, client.get(['artifact', artifact], reply=['clone']))
+
+        client.put(['artifact', artifact], 2, cmd='clone')
+        self.touch('datastore/%s/%s/metadata/uid' % (artifact[:2], artifact))
+
+        self.assertEqual([
+            (artifact, {'data': 'data', 'description': 'description', 'title': 'title'}),
+            ],
+            updates)
+        self.assertEqual(
+                {'clone': 2},
+                client.get(['artifact', artifact], reply=['clone']))
+        del updates[:]
+
+        client.put(['artifact', artifact], 2, cmd='clone')
+
+        self.assertEqual(
+                [],
+                updates)
+        self.assertEqual(
+                {'clone': 2},
+                client.get(['artifact', artifact], reply=['clone']))
+
+        client.request('PUT', ['artifact', artifact, 'data'], 'data_2')
+        client.put(['artifact', artifact], 1, cmd='clone', force=1)
+
+        self.assertEqual([
+            (artifact, {'data': 'data_2', 'description': 'description', 'title': 'title'}),
+            ],
+            updates)
+        self.assertEqual(
+                {'clone': 2},
+                client.get(['artifact', artifact], reply=['clone']))
+        del updates[:]
+
+        client.put(['artifact', artifact], 0, cmd='clone')
+        shutil.rmtree('datastore/%s/%s' % (artifact[:2], artifact))
+
+        self.assertEqual([
+            (artifact,),
+            ],
+            updates)
+        self.assertEqual(
+                {'clone': 0},
+                client.get(['artifact', artifact], reply=['clone']))
+        del updates[:]
+
+    def test_favorite_Activities(self):
+        self.start_ipc_and_restful_server()
+        client = IPCClient()
+        coroutine.spawn(clones.monitor, self.mounts.volume['context'], ['Activities'])
+
+        context = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertEqual(
+                {'favorite': 0, 'type': ['activity']},
+                client.get(['context', context], reply=['favorite']))
+        self.assertRaises(RuntimeError, client.get, ['context', context], mountpoint='~')
+
+        client.put(['context', context], True, cmd='favorite')
+        coroutine.sleep(1)
+
+        self.assertEqual(
+                {'favorite': True, 'type': ['activity']},
+                client.get(['context', context], reply=['favorite']))
+        self.assertEqual(
+                {'favorite': True},
+                client.get(['context', context], reply=['favorite'], mountpoint='~'))
+
+        client.put(['context', context], False, cmd='favorite')
+
+        self.assertEqual(
+                {'favorite': False, 'type': ['activity']},
+                client.get(['context', context], reply=['favorite']))
+        self.assertEqual(
+                {'favorite': False},
+                client.get(['context', context], reply=['favorite'], mountpoint='~'))
 
 
 
-    def test_launch_ResumeArtifact(self):
+
+    def __test_SetMixins(self):
+        self.start_ipc_and_restful_server()
+        remote = IPCClient(mountpoint='/')
+        local = IPCClient(mountpoint='~')
+
+        guid_1 = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        guid_2 = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote-2',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertRaises(RuntimeError, local.get, ['context', guid_1])
+        self.assertRaises(RuntimeError, local.get, ['context', guid_2])
+
+        remote.put(['context', guid_1], {'keep': True})
+
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    ]),
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
+                    ]),
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+
+        remote.put(['context', guid_1], {'keep': False})
+
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
+                    ]),
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
+                    ]),
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+
+        local.put(['context', guid_1], {'title': 'local'})
+
+        self.assertEqual(
+                {'title': 'local'},
+                local.get(['context', guid_1], reply=['title']))
+
+        remote.put(['context', guid_1], {'keep': True})
+
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'local', 'keep': True, 'keep_impl': 0},
+                    ]),
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
+                    ]),
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+
+
+
+
+
+
+
+
+    def __test_SetKeep(self):
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        mounts['~'] = HomeMount(mounts.volume)
+        local = IPCClient(mountpoint='~')
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
+
+        guid_1 = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        guid_2 = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'remote-2',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertRaises(RuntimeError, local.get, ['context', guid_1])
+        self.assertRaises(RuntimeError, local.get, ['context', guid_2])
+
+        remote.put(['context', guid_1], {'keep': True})
+
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    ]),
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
+                    ]),
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+
+        remote.put(['context', guid_1], {'keep': False})
+
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
+                    ]),
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
+                    ]),
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+
+        local.put(['context', guid_1], {'title': 'local'})
+
+        self.assertEqual(
+                {'title': 'local'},
+                local.get(['context', guid_1], reply=['title']))
+
+        remote.put(['context', guid_1], {'keep': True})
+
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'local', 'keep': True, 'keep_impl': 0},
+                    ]),
+                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+        self.assertEqual(
+                sorted([
+                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
+                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
+                    ]),
+                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
+
+    def __test_SetKeepImpl(self):
+        Volume.RESOURCES = [
+                'sugar_network.resources.user',
+                'sugar_network.resources.context',
+                'sugar_network.resources.implementation',
+                ]
+
+        mounts = self.start_server()
+        mounts[tests.tmpdir + '/mnt'].mounted.wait()
+        mounts['~'] = HomeMount(mounts.volume)
+        local = IPCClient(mountpoint='~')
+        remote = IPCClient(mountpoint=tests.tmpdir + '/mnt')
+        coroutine.spawn(clones.monitor, mounts.volume['context'], ['Activities'])
+
+
+
+
+    def __test_launch_ResumeArtifact(self):
         updates = []
         self.override(journal.Commands, '__init__', lambda *args: None)
         self.override(journal.Commands, 'journal_update', lambda self, *args, **kwargs: updates.append((args, kwargs)))
@@ -263,7 +716,7 @@ class MountsetTest(tests.Test):
             self.events)
         del self.events[:]
 
-    def test_launch_ResumeContext(self):
+    def __test_launch_ResumeContext(self):
         updates = []
         self.override(journal.Commands, '__init__', lambda *args: None)
         self.override(journal.Commands, 'journal_update', lambda self, *args, **kwargs: updates.append((args, kwargs)))
@@ -359,24 +812,6 @@ class MountsetTest(tests.Test):
             self.events)
         del self.events[:]
 
-    def test_Hub(self):
-        mounts = self.mountset()
-        client = IPCClient()
-        url = 'http://localhost:%s' % local.ipc_port.value
-
-        response = requests.request('GET', url + '/hub', allow_redirects=False)
-        self.assertEqual(303, response.status_code)
-        self.assertEqual('/hub/', response.headers['Location'])
-
-        local.hub_root.value = '.'
-        index_html = '<html><body>index</body></html>'
-        self.touch(('index.html', index_html))
-
-        response = requests.request('GET', url + '/hub', allow_redirects=True)
-        self.assertEqual(index_html, response.content)
-
-        response = requests.request('GET', url + '/hub/', allow_redirects=False)
-        self.assertEqual(index_html, response.content)
 
 
 if __name__ == '__main__':

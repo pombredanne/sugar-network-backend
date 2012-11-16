@@ -19,6 +19,7 @@ class JournalTest(tests.Test):
 
     def setUp(self, fork_num=0):
         tests.Test.setUp(self, fork_num)
+        journal._ds_root = '.sugar/default/datastore'
 
         self.ds_pid = self.fork(os.execvp, 'datastore-service', ['datastore-service'])
         time.sleep(1)
@@ -78,7 +79,7 @@ class JournalTest(tests.Test):
     def test_Update(self):
         ds = journal.Commands()
         self.touch(('preview', 'preview1'))
-        ds.journal_update('guid', 'title1', 'description1', {'path': 'preview'}, StringIO('data1'))
+        ds.journal_update('guid', StringIO('data1'), title='title1', description='description1', preview={'path': 'preview'})
 
         assert journal.exists('guid')
         self.assertEqual('title1', journal.get('guid', 'title'))
@@ -87,7 +88,7 @@ class JournalTest(tests.Test):
         self.assertEqual('data1', file(self.ds.get_filename('guid')).read())
 
         self.touch(('data', 'data2'))
-        ds.journal_update('guid', 'title2', 'description2', StringIO('preview2'), {'path': 'data'})
+        ds.journal_update('guid', {'path': 'data'}, title='title2', description='description2', preview=StringIO('preview2'))
         assert journal.exists('guid')
         self.assertEqual('title2', journal.get('guid', 'title'))
         self.assertEqual('description2', journal.get('guid', 'description'))
@@ -96,9 +97,9 @@ class JournalTest(tests.Test):
 
     def test_FindRequest(self):
         ds = journal.Commands()
-        ds.journal_update('guid1', 'title1', 'description1', StringIO('preview1'), StringIO('data1'))
-        ds.journal_update('guid2', 'title2', 'description2', StringIO('preview2'), StringIO('data2'))
-        ds.journal_update('guid3', 'title3', 'description3', StringIO('preview3'), StringIO('data3'))
+        ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
+        ds.journal_update('guid2', StringIO('data2'), title='title2', description='description2', preview=StringIO('preview2'))
+        ds.journal_update('guid3', StringIO('data3'), title='title3', description='description3', preview=StringIO('preview3'))
 
         request = Request()
         request.path = ['journal']
@@ -136,7 +137,7 @@ class JournalTest(tests.Test):
 
     def test_GetRequest(self):
         ds = journal.Commands()
-        ds.journal_update('guid1', 'title1', 'description1', StringIO('preview1'), StringIO('data1'))
+        ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
 
         request = Request()
         request.path = ['journal', 'guid1']
@@ -148,7 +149,7 @@ class JournalTest(tests.Test):
 
     def test_GetPropRequest(self):
         ds = journal.Commands()
-        ds.journal_update('guid1', 'title1', 'description1', StringIO('preview1'), StringIO('data1'))
+        ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
 
         request = Request()
         request.path = ['journal', 'guid1', 'title']
@@ -161,7 +162,7 @@ class JournalTest(tests.Test):
         response = ad.Response()
         self.assertEqual({
             'mime_type': 'image/png',
-            'path': tests.tmpdir + '/.sugar/default/datastore/gu/guid1/metadata/preview',
+            'path': '.sugar/default/datastore/gu/guid1/metadata/preview',
             }, ds.journal(request, response))
         self.assertEqual(None, response.content_type)
 

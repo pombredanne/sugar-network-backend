@@ -148,7 +148,7 @@ class _Inotify(Inotify):
         os.symlink(relpath(context_path, dirname(checkin_path)), checkin_path)
 
         if self._contexts.exists(context):
-            self._contexts.update(context, {'keep_impl': 2})
+            self._contexts.update(context, {'clone': 2})
         else:
             _logger.debug('Register unknown local activity, %r', context)
 
@@ -157,7 +157,7 @@ class _Inotify(Inotify):
                     title={DEFAULT_LANG: spec['name']},
                     summary={DEFAULT_LANG: spec['summary']},
                     description={DEFAULT_LANG: spec['description']},
-                    keep_impl=2, user=[sugar.uid()], author=[sugar.nickname()],
+                    clone=2, user=[sugar.uid()], author=[sugar.nickname()],
                     ctime=mtime, mtime=mtime)
 
             icon_path = join(spec.root, spec['icon'])
@@ -196,7 +196,7 @@ class _Inotify(Inotify):
         if not impls:
             context = basename(context_dir)
             if self._contexts.exists(context):
-                self._contexts.update(context, {'keep_impl': 0})
+                self._contexts.update(context, {'clone': 0})
 
         if lexists(context_path):
             os.unlink(context_path)
