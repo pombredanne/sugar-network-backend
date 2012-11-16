@@ -177,7 +177,7 @@ class NodeCommands(VolumeCommands, Commands):
         roles = []
         if auth.try_validate(request, 'root'):
             roles.append('root')
-        return {'roles': roles, 'guid': request.principal}
+        return {'roles': roles, 'guid': request.principal, 'route': 'direct'}
 
     @ad.document_command(method='GET', cmd='clone',
             arguments={'requires': ad.to_list})

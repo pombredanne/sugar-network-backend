@@ -220,6 +220,13 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         else:
             raise RuntimeError('Command is not supported for %r' % document)
 
+    @ad.volume_command(method='GET', cmd='whoami',
+            mime_type='application/json')
+    def whoami(self, request):
+        result = self['/'].call(request)
+        result['route'] = 'proxy'
+        return result
+
     def super_call(self, request, response):
         mount = self[request.mountpoint]
         if request.mountpoint == '/':
