@@ -96,43 +96,53 @@ def _solve(requirement):
     _logger.debug('\n'.join(
         ['Solve results:'] +
         ['  %s: %s' % (k.uri, v) for k, v in driver.solver.details.items()]))
-    selections = driver.solver.selections
+    selections = driver.solver.selections.selections
 
     if not driver.solver.ready:
         # pylint: disable-msg=W0212
         reason = driver.solver._failure_reason
         if not reason:
-            missed = [iface.uri for iface, impl in
+            missed = [iface for iface, impl in
                     selections.items() if impl is None]
             reason = 'Cannot find implementations for %s' % ', '.join(missed)
         raise RuntimeError(reason)
 
     solution = []
-    for iface, sel in selections.selections.items():
-        feed = config.iface_cache.get_feed(iface)
-        impl = {'id': sel.id,
-                'context': iface,
-                'version': sel.version,
-                'name': feed.name,
-                }
-        if isabs(sel.id):
-            impl['spec'] = join(sel.id, 'activity', 'activity.info')
-        if not feed.packaged:
-            impl['mountpoint'] = feed.mountpoint
-        if sel.local_path:
-            impl['path'] = sel.local_path
-        if sel.impl.to_install:
-            impl['install'] = sel.impl.to_install
-        if sel.impl.download_sources:
-            prefix = sel.impl.download_sources[0].extract
-            if prefix:
-                impl['prefix'] = prefix
-        commands = sel.get_commands()
-        if commands:
-            impl['command'] = commands.values()[0].path.split()
-        solution.append(impl)
+    solution.append(_impl_new(
+        config,
+        requirement.interface_uri,
+        selections[requirement.interface_uri],
+        ))
+    for iface, sel in selections.items():
+        if sel is not None and iface != requirement.interface_uri:
+            solution.append(_impl_new(config, iface, sel))
 
     return solution
+
+
+def _impl_new(config, iface, sel):
+    feed = config.iface_cache.get_feed(iface)
+    impl = {'id': sel.id,
+            'context': iface,
+            'version': sel.version,
+            'name': feed.name,
+            }
+    if isabs(sel.id):
+        impl['spec'] = join(sel.id, 'activity', 'activity.info')
+    if not feed.packaged:
+        impl['mountpoint'] = feed.mountpoint
+    if sel.local_path:
+        impl['path'] = sel.local_path
+    if sel.impl.to_install:
+        impl['install'] = sel.impl.to_install
+    if sel.impl.download_sources:
+        prefix = sel.impl.download_sources[0].extract
+        if prefix:
+            impl['prefix'] = prefix
+    commands = sel.get_commands()
+    if commands:
+        impl['command'] = commands.values()[0].path.split()
+    return impl
 
 
 def _load_feed(context):
