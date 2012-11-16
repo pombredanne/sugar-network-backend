@@ -73,5 +73,15 @@ class Implementation(Resource):
         return value
 
     @ad.active_property(ad.BlobProperty)
-    def data(self, stat):
-        return stat
+    def data(self, value):
+        if value:
+            context = self.volume['context'].get(self['context'])
+            value['name'] = [context['title'], self['version']]
+        return value
+
+    @data.setter
+    def data(self, value):
+        context = self.volume['context'].get(self['context'])
+        if 'activity' in context['type']:
+            self.request.content_type = 'application/vnd.olpc-sugar'
+        return value

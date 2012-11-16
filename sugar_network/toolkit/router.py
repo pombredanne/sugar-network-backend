@@ -19,10 +19,11 @@ import json
 import time
 import types
 import logging
+import mimetypes
 from email.utils import parsedate, formatdate
 from urlparse import parse_qsl, urlsplit
 from bisect import bisect_left
-from os.path import join, isfile
+from os.path import join, isfile, split, splitext
 
 import active_document as ad
 from sugar_network import static
@@ -157,7 +158,8 @@ class Router(object):
         request.principal = self.authenticate(request)
         if request.path[:1] == ['static']:
             path = join(static.PATH, *request.path[1:])
-            result = ad.PropertyMeta(path=path, mime_type=_get_mime_type(path))
+            result = ad.PropertyMeta(path=path, mime_type=_get_mime_type(path),
+                    filename=split(path)[-1])
         else:
             rout = self._routes.get((
                 request['method'],
@@ -172,15 +174,25 @@ class Router(object):
                 raise Redirect(result['url'])
 
             path = result['path']
+            enforce(isfile(path), 'No such file')
+
             mtime = result.get('mtime') or os.stat(path).st_mtime
             if request.if_modified_since and mtime and \
                     mtime <= request.if_modified_since:
                 raise NotModified()
             response.last_modified = mtime
 
-            enforce(isfile(path), 'No such file')
             response.content_type = result.get('mime_type') or \
                     'application/octet-stream'
+
+            filename = result.get('filename')
+            if not filename:
+                filename = _filename(result.get('name') or
+                        splitext(split(path)[-1])[0],
+                    response.content_type)
+            response['Content-Disposition'] = \
+                    'attachment; filename="%s"' % filename
+
             result = file(path, 'rb')
 
         if hasattr(result, 'read'):
@@ -455,9 +467,21 @@ def _parse_accept_language(accept_language):
 
 
 def _get_mime_type(path):
-    if path.endswith('.png'):
-        return 'image/png'
-    elif path.endswith('.svg'):
-        return 'image/svg+xml'
-    elif path.endswith('.ico'):
-        return 'image/x-icon'
+    if not mimetypes.inited:
+        mimetypes.init()
+    suffix = '.' + path.rsplit('.', 1)[-1]
+    return mimetypes.types_map.get(suffix)
+
+
+def _filename(names, mime_type):
+    if isinstance(names, basestring):
+        names = [names]
+    parts = []
+    for name in names:
+        parts.append(''.join([i.capitalize() for i in str(name).split()]))
+    result = '-'.join(parts)
+    if mime_type:
+        if not mimetypes.inited:
+            mimetypes.init()
+        result += mimetypes.guess_extension(mime_type) or ''
+    return result.replace(os.sep, '')

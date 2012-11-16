@@ -70,6 +70,8 @@ class Artifact(Resource):
 
     @ad.active_property(ad.BlobProperty)
     def data(self, value):
+        if value:
+            value['name'] = self['title']
         return value
 
     @ad.active_property(prefix='K', typecast=bool, default=False,
