@@ -375,6 +375,28 @@ class NodeTest(tests.Test):
         self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Debian-6.0', 'package2'])
         self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Gentoo-2.1', 'package3'])
 
+    def test_Clone(self):
+        volume = self.start_master()
+        client = Client()
+
+        context = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'requires': ['foo', 'bar'],
+            })
+        client.request('PUT', ['implementation', impl, 'data'], 'bundle')
+
+        self.assertEqual('bundle', client.get(['context', context], cmd='clone', version='1', stability='stable', requires=['foo', 'bar']))
+
 
 def call(cp, principal=None, content=None, **kwargs):
     request = Request(**kwargs)
