@@ -182,9 +182,14 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                             reply=['title', 'description'])
                     props['preview'] = mount(method='GET', document='context',
                             guid=guid, prop='preview')
-                    props['data'] = mount(method='GET',
-                            document='implementation', guid=impl_id,
-                            prop='data')
+                    data_response = ad.Response()
+                    props['data'] = mount.call(
+                            router.Request(method='GET',
+                                document='implementation', guid=impl_id,
+                                prop='data'),
+                            data_response)
+                    props['mime_type'] = data_response.content_type or \
+                            'application/octet'
                     props['activity_id'] = impl_id
                     return props
 

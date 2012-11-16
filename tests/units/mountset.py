@@ -358,7 +358,7 @@ class MountsetTest(tests.Test):
         self.touch('datastore/%s/%s/metadata/uid' % (context[:2], context))
 
         self.assertEqual([
-            (context, {'activity_id': impl, 'data': 'version_1', 'description': 'description', 'title': 'title'}),
+            (context, {'activity_id': impl, 'data': 'version_1', 'description': 'description', 'title': 'title', 'mime_type': 'application/octet-stream'}),
             ],
             updates)
         self.assertEqual(
@@ -366,7 +366,8 @@ class MountsetTest(tests.Test):
                 client.get(['context', context], reply=['clone']))
         del updates[:]
 
-        client.request('PUT', ['implementation', impl, 'data'], 'version_2')
+        client.request('PUT', ['implementation', impl, 'data'], 'version_2',
+                headers={'Content-Type': 'foo/bar'})
         client.put(['context', context], 2, cmd='clone')
 
         self.assertEqual(
@@ -379,7 +380,7 @@ class MountsetTest(tests.Test):
         client.put(['context', context], 1, cmd='clone', force=1)
 
         self.assertEqual([
-            (context, {'activity_id': impl, 'data': 'version_2', 'description': 'description', 'title': 'title'}),
+            (context, {'activity_id': impl, 'data': 'version_2', 'description': 'description', 'title': 'title', 'mime_type': 'foo/bar'}),
             ],
             updates)
         self.assertEqual(
