@@ -474,10 +474,12 @@ def _get_mime_type(path):
 
 
 def _filename(names, mime_type):
-    if isinstance(names, basestring):
+    if type(names) not in (list, tuple):
         names = [names]
     parts = []
     for name in names:
+        if isinstance(name, dict):
+            name = ad.gettext(name)
         parts.append(''.join([i.capitalize() for i in str(name).split()]))
     result = '-'.join(parts)
     if mime_type:

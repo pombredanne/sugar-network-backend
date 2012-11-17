@@ -573,6 +573,10 @@ class RouterTest(tests.Test):
         self.assertEqual('Foo-Bar.gif', _filename(['foo', 'bar'], 'image/gif'))
         self.assertEqual('Fake', _filename('fake', 'foo/bar'))
 
+        self.assertEqual('Eng', _filename({ad.DEFAULT_LANG: 'eng'}, None))
+        self.assertEqual('Eng', _filename([{ad.DEFAULT_LANG: 'eng'}], None))
+        self.assertEqual('Bar-1', _filename([{'lang': 'foo', ad.DEFAULT_LANG: 'bar'}, 1], None))
+
     def test_ContentDisposition(self):
 
         class TestDocument(Resource):
