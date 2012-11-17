@@ -39,10 +39,11 @@ class _Mount(object):
         self.publisher = None
         self.mounted = coroutine.Event()
 
-    def __call__(self, **kwargs):
+    def __call__(self, response=None, **kwargs):
         request = Request(**kwargs)
+        request.allow_redirects = True
         # pylint: disable-msg=E1101
-        return self.call(request)
+        return self.call(request, response)
 
     @property
     def name(self):
@@ -266,9 +267,9 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
                 util.exception(_logger, 'Cannot connect to %r node', url)
                 continue
 
-            if 'documents' in info:
-                injector.invalidate_solutions(
-                        info['documents']['implementation']['mtime'])
+            impl_info = info['documents'].get('implementation')
+            if impl_info:
+                injector.invalidate_solutions(impl_info['mtime'])
             self._remote_volume_guid = info['guid']
 
             _logger.info('Connected to %r node', url)

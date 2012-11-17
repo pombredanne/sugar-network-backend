@@ -100,6 +100,7 @@ class Request(ad.Request):
     principal = None
     mountpoint = None
     if_modified_since = None
+    allow_redirects = False
 
 
 class Router(object):

@@ -8,12 +8,14 @@ import urllib2
 from cStringIO import StringIO
 from os.path import exists, abspath
 
+import requests
+
 from __init__ import tests
 
 import active_document as ad
 from active_toolkit import sockets, coroutine
 from sugar_network import client as local
-from sugar_network.toolkit.router import IPCRouter
+from sugar_network.toolkit.router import IPCRouter, Redirect
 from sugar_network.client.mounts import RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.toolkit import sugar, http
@@ -21,7 +23,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.resources.artifact import Artifact
-from sugar_network.resources.volume import Volume
+from sugar_network.resources.volume import Volume, Resource
 from sugar_network.zerosugar import injector
 from sugar_network import IPCClient
 
@@ -396,6 +398,40 @@ class RemoteMountTest(tests.Test):
                 }},
             })
         assert injector._mtime > mtime
+
+    def test_ContentDisposition(self):
+        self.start_ipc_and_restful_server([User, Context, Implementation, Artifact])
+        remote = IPCClient(mountpoint='/')
+
+        artifact = remote.post(['artifact'], {
+            'type': 'instance',
+            'context': 'context',
+            'title': 'title',
+            'description': 'description',
+            })
+        remote.request('PUT', ['artifact', artifact, 'data'], 'blob', headers={'Content-Type': 'image/png'})
+
+        response = remote.request('GET', ['artifact', artifact, 'data'])
+        self.assertEqual(
+                'attachment; filename="Title.png"',
+                response.headers.get('Content-Disposition'))
+
+    def test_Redirects(self):
+        URL = 'http://sugarlabs.org'
+
+        class Document(Resource):
+
+            @ad.active_property(ad.BlobProperty)
+            def blob(self, value):
+                raise Redirect(URL)
+
+        self.start_ipc_and_restful_server([User, Document])
+        remote = IPCClient(mountpoint='/')
+        guid = remote.post(['document'], {})
+
+        response = requests.request('GET', local.api_url.value + '/document/' + guid + '/blob', allow_redirects=False)
+        self.assertEqual(303, response.status_code)
+        self.assertEqual(URL, response.headers['Location'])
 
 
 if __name__ == '__main__':
