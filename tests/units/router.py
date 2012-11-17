@@ -304,6 +304,9 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 ['ru', 'en', 'es'],
                 _parse_accept_language('ru;q=1,en;q=1,es;q=0.5'))
+        self.assertEqual(
+                ['ru-ru', 'es-br'],
+                _parse_accept_language('ru-RU,es_BR'))
 
     def test_CustomRoutes(self):
         calls = []

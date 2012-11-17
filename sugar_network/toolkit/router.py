@@ -461,7 +461,7 @@ def _parse_accept_language(accept_language):
 
         index = bisect_left(qualities, quality)
         qualities.insert(index, quality)
-        langs.insert(len(langs) - index, lang)
+        langs.insert(len(langs) - index, lang.lower().replace('_', '-'))
 
     return langs
 
