@@ -181,7 +181,7 @@ class NodeCommands(VolumeCommands, Commands):
 
     @ad.document_command(method='GET', cmd='clone',
             arguments={'requires': ad.to_list})
-    def clone(self, document, guid, version, stability, requires):
+    def clone(self, document, guid, version, requires, stability='stable'):
         enforce(document == 'context', 'No way to clone')
         request = router.Request(method='GET', document='implementation',
                 context=guid, version=version, stability=stability,
