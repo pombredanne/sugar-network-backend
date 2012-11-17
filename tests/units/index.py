@@ -542,18 +542,18 @@ class IndexTest(tests.Test):
         db.store('3', {'prop': {current_lang: '3', 'foo': '7'}}, True)
 
         self.assertEqual([
-            {'guid': '0'},
             {'guid': '1'},
             {'guid': '2'},
             {'guid': '3'},
+            {'guid': '0'},
             ],
             db._find(order_by='prop')[0])
 
         self.assertEqual([
+            {'guid': '0'},
             {'guid': '3'},
             {'guid': '2'},
             {'guid': '1'},
-            {'guid': '0'},
             ],
             db._find(order_by='-prop')[0])
 

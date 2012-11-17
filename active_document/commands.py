@@ -170,6 +170,7 @@ class CommandsProcessor(object):
                 }
         self.volume = volume
         self.parent = parent
+        self._lang = env.default_lang()
 
         for scope, kwargs in _scan_class(self.__class__, False):
             cmd = _Command((self,), **kwargs)
@@ -195,6 +196,9 @@ class CommandsProcessor(object):
             response = Response()
         request.commands = self
         request.response = response
+
+        if not request.accept_language:
+            request.accept_language = [self._lang]
 
         for arg, cast in cmd.arguments.items():
             if arg not in request:

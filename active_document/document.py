@@ -80,7 +80,7 @@ class Document(object):
 
         if value is not None and accept_language:
             if isinstance(prop, StoredProperty) and prop.localized:
-                value = self._localize(value, accept_language)
+                value = env.gettext(value, accept_language)
 
         return value
 
@@ -98,23 +98,3 @@ class Document(object):
 
     def __setitem__(self, prop, value):
         self.props[prop] = value
-
-    def _localize(self, value, accept_language):
-        if not value:
-            return ''
-        if not isinstance(value, dict):
-            return value
-
-        for lang in accept_language + [env.DEFAULT_LANG]:
-            result = value.get(lang)
-            if result is not None:
-                return result
-            lang = lang.split('-')
-            if len(lang) == 1:
-                continue
-            result = value.get(lang[0])
-            if result is not None:
-                return result
-
-        # TODO
-        return value[sorted(value.keys())[0]]

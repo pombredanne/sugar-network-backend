@@ -336,8 +336,7 @@ class IndexWriter(IndexReader):
                     add_value = xapian.sortable_serialise(value)
                 else:
                     if prop.localized:
-                        value = value.get(self._lang) or \
-                                value.get(env.DEFAULT_LANG) or ''
+                        value = env.gettext(value, self._lang) or ''
                     add_value = prop.to_string(value)[0]
                 document.add_value(prop.slot, add_value)
 

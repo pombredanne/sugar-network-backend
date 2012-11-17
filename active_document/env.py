@@ -90,9 +90,42 @@ def uuid():
 def default_lang():
     lang = locale.getdefaultlocale()[0]
     if lang:
-        return lang.replace('_', '-')
+        return lang.replace('_', '-').lower()
     else:
         return DEFAULT_LANG
+
+
+def gettext(value, accept_language=None):
+    if not value:
+        return ''
+    if not isinstance(value, dict):
+        return value
+
+    if isinstance(accept_language, basestring):
+        accept_language = [accept_language]
+    stripped_value = None
+
+    for lang in (accept_language or []) + [DEFAULT_LANG]:
+        result = value.get(lang)
+        if result is not None:
+            return result
+
+        prime_lang = lang.split('-')[0]
+        if prime_lang != lang:
+            result = value.get(prime_lang)
+            if result is not None:
+                return result
+
+        if stripped_value is None:
+            stripped_value = {}
+            for k, v in value.items():
+                if '-' in k:
+                    stripped_value[k.split('-', 1)[0]] = v
+        result = stripped_value.get(prime_lang)
+        if result is not None:
+            return result
+
+    return value[min(value.keys())]
 
 
 class BadRequest(Exception):

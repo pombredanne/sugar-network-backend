@@ -128,7 +128,6 @@ class VolumeCommands(CommandsProcessor):
     def __init__(self, volume):
         CommandsProcessor.__init__(self, volume)
         self.volume = volume
-        self._lang = [env.default_lang()]
 
     @directory_command(method='POST',
             permissions=env.ACCESS_AUTH, mime_type='application/json')
@@ -205,7 +204,7 @@ class VolumeCommands(CommandsProcessor):
         prop.assert_access(env.ACCESS_READ)
 
         if isinstance(prop, StoredProperty):
-            value = doc.get(prop.name, request.accept_language or self._lang)
+            value = doc.get(prop.name, request.accept_language)
             value = prop.on_get(doc, value)
             if value is None:
                 value = prop.default
@@ -252,7 +251,7 @@ class VolumeCommands(CommandsProcessor):
                 blobs.append((name, value))
             else:
                 if prop.localized and isinstance(value, basestring):
-                    value = {(request.accept_language or self._lang)[0]: value}
+                    value = {request.accept_language[0]: value}
                 try:
                     doc.props[name] = prop.decode(value)
                 except Exception, error:
@@ -278,12 +277,11 @@ class VolumeCommands(CommandsProcessor):
 
     def _get_props(self, doc, request):
         result = {}
-        lang = request.accept_language or self._lang
         metadata = doc.metadata
         doc.request = request
         for name in request['reply']:
             prop = metadata[name]
-            value = prop.on_get(doc, doc.get(name, lang))
+            value = prop.on_get(doc, doc.get(name, request.accept_language))
             if value is None:
                 value = prop.default
             result[name] = value
