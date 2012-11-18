@@ -25,7 +25,7 @@ class SyncTest(tests.Test):
 
         os.makedirs('mnt')
         util.cptree('../../data/node', 'node')
-        self.service_pid = None
+        self.client_pid = None
 
         self.node_pid = self.popen(['sugar-network-node', '-F', 'start',
             '--port=8100', '--data-root=node', '--tmpdir=tmp', '-DDD',
@@ -35,11 +35,11 @@ class SyncTest(tests.Test):
 
     def tearDown(self):
         self.waitpid(self.node_pid, signal.SIGINT)
-        if not self.service_pid:
-            self.waitpid(self.service_pid, signal.SIGINT)
+        if not self.client_pid:
+            self.waitpid(self.client_pid, signal.SIGINT)
         tests.Test.tearDown(self)
 
-    def test_Clone(self):
+    def test_CloneContext(self):
         context = self.call(['POST', '/context'], stdin={
             'type': 'activity',
             'title': 'title1',
@@ -50,7 +50,6 @@ class SyncTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {
@@ -69,11 +68,11 @@ class SyncTest(tests.Test):
         bundle.close()
         self.call(['PUT', '/implementation/%s/data' % impl, '--post-file=bundle'])
 
-        self.call(['PUT', 'cmd=clone'], stdin=context)
-        assert exists('service/Activities/topdir/probe')
-        self.assertEqual('ok', file('service/Activities/topdir/probe').read())
+        self.call(['PUT', '/context/%s' % context, 'cmd=clone', '-jd1'])
+        assert exists('client/Activities/topdir/probe')
+        self.assertEqual('ok', file('client/Activities/topdir/probe').read())
 
-    def test_Keep(self):
+    def test_FavoriteContext(self):
         context = self.call(['POST', '/context'], stdin={
             'type': 'activity',
             'title': 'title1',
@@ -81,10 +80,10 @@ class SyncTest(tests.Test):
             'description': 'description',
             })
 
-        path = 'service/local/context/%s/%s/keep' % (context[:2], context)
+        path = 'client/local/context/%s/%s/favorite' % (context[:2], context)
         assert not exists(path)
 
-        self.call(['PUT', 'cmd=keep'], stdin=context)
+        self.call(['PUT', '/context/%s' % context, 'cmd=favorite', '-jdtrue'])
 
         assert exists(path)
         self.assertEqual(True, pickle.load(file(path))['value'])
@@ -93,70 +92,20 @@ class SyncTest(tests.Test):
         privkey_path = '.sugar/default/owner.key'
         os.unlink(privkey_path)
 
-        self.call(['PUT', 'cmd=clone', '--anonymous'], stdin='context')
-        self.call(['PUT', 'cmd=keep', '--anonymous'], stdin='context')
+        self.call(['PUT', '/context/context', '--anonymous', 'cmd=clone', '-jd', '1'])
+        self.call(['PUT', '/context/context', '--anonymous', 'cmd=favorite', '-jd', 'true'])
 
         assert not exists(privkey_path)
         assert exists('Activities/Chat.activity/activity/activity.info')
-        self.assertEqual(True, pickle.load(file('service/local/context/co/context/keep'))['value'])
-
-    def test_ResumeRemoteArtifact(self):
-        self.ds_pid = self.fork(os.execvp, 'datastore-service', ['datastore-service'])
-        coroutine.sleep(1)
-
-        context = self.call(['POST', '/context'], stdin={
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        impl = self.call(['POST', '/implementation'], stdin={
-            'context': context,
-            'license': 'GPLv3+',
-            'version': '1',
-            'date': 0,
-            'stability': 'stable',
-            'notes': '',
-            'spec': {
-                '*-*': {
-                    'commands': {
-                        'activity': {
-                            'exec': 'run_activity',
-                            },
-                        },
-                    'extract': 'topdir',
-                    },
-                },
-            })
-        bundle = zipfile.ZipFile('bundle', 'w')
-        bundle.writestr('/topdir/bin/run_activity', '#!/bin/sh\necho $@ > $HOME/result')
-        bundle.close()
-        self.call(['PUT', '/implementation/%s/data' % impl, '--post-file=bundle'])
-
-        artifact = self.call(['POST', '/artifact'], stdin={
-            'context': context,
-            'title': 'title',
-            'description': 'description',
-            })
-        self.call(['PUT', '/artifact/%s/data' % artifact, '--post-data=artifact'])
-        assert exists('node/artifact/%s/%s' % (artifact[:2], artifact))
-
-        jobject_path = '.sugar/default/datastore/%s/%s/data' % (artifact[:2], artifact)
-        assert not exists(jobject_path)
-
-        self.call(['GET', '/context/%s' % context, 'cmd=launch', 'object_id=%s' % artifact, 'activity_id=activity_id', 'no_spawn=1'])
-        assert exists(jobject_path)
-        self.assertEqual(
-                '-b %s -a activity_id -o %s\n' % (context, artifact),
-                file('result').read())
+        self.assertEqual(True, pickle.load(file('client/local/context/co/context/favorite'))['value'])
 
     def call(self, cmd, stdin=None):
-        cmd = ['sugar-network', '--local-root=service', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd
+        cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd
 
-        if '--anonymous' not in cmd and not self.service_pid:
-            self.service_pid = self.popen(['sugar-network-client',
+        if '--anonymous' not in cmd and not self.client_pid:
+            self.client_pid = self.popen(['sugar-network-client',
                 '-DDDF', 'start',
-                '--activity-dirs=service/Activities', '--local-root=service',
+                '--activity-dirs=client/Activities', '--local-root=client',
                 '--mounts-root=mnt', '--tmpdir=tmp', '--ipc-port=5101',
                 '--api-url=http://localhost:8100',
                 ])

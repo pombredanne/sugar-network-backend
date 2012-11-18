@@ -16,7 +16,7 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import node, sugar, static, Client
-from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route, Redirect, NotModified
+from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route, Redirect, NotModified, _filename
 from active_toolkit import util
 from sugar_network.resources.user import User
 from sugar_network.resources.volume import Volume, Resource
@@ -304,6 +304,9 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 ['ru', 'en', 'es'],
                 _parse_accept_language('ru;q=1,en;q=1,es;q=0.5'))
+        self.assertEqual(
+                ['ru-ru', 'es-br'],
+                _parse_accept_language('ru-RU,es_BR'))
 
     def test_CustomRoutes(self):
         calls = []
@@ -556,6 +559,79 @@ class RouterTest(tests.Test):
         self.assertEqual(
                 'bar({"total": 1, "result": [{"guid": "%s"}]});' % guid,
                 response.content)
+
+    def test_filename(self):
+        self.assertEqual('Foo', _filename('foo', None))
+        self.assertEqual('Foo-Bar', _filename(['foo', 'bar'], None))
+        self.assertEqual('FOO-BaR', _filename([' f o o', ' ba r   '], None))
+
+        self.assertEqual('Foo-3', _filename(['foo', 3], None))
+
+        self.assertEqual('12-3', _filename(['/1/2/', '/3/'], None))
+
+        self.assertEqual('Foo.png', _filename('foo', 'image/png'))
+        self.assertEqual('Foo-Bar.gif', _filename(['foo', 'bar'], 'image/gif'))
+        self.assertEqual('Fake', _filename('fake', 'foo/bar'))
+
+        self.assertEqual('Eng', _filename({ad.DEFAULT_LANG: 'eng'}, None))
+        self.assertEqual('Eng', _filename([{ad.DEFAULT_LANG: 'eng'}], None))
+        self.assertEqual('Bar-1', _filename([{'lang': 'foo', ad.DEFAULT_LANG: 'bar'}, 1], None))
+
+    def test_ContentDisposition(self):
+
+        class TestDocument(Resource):
+
+            @ad.active_property(ad.BlobProperty)
+            def blob1(self, value):
+                if value:
+                    value['name'] = 'foo'
+                return value
+
+            @ad.active_property(ad.BlobProperty)
+            def blob2(self, value):
+                return value
+
+            @ad.active_property(ad.BlobProperty)
+            def blob3(self, value):
+                if value:
+                    value['filename'] = 'foo.bar'
+                return value
+
+        self.start_master([User, TestDocument])
+        client = Client('http://localhost:8800', sugar_auth=True)
+        guid = client.post(['testdocument'], {})
+
+        response = client.request('GET', ['testdocument', guid])
+        assert 'Content-Disposition' not in response.headers
+
+        response = client.request('GET', ['static', 'images', 'missing.png'])
+        self.assertEqual(
+                'attachment; filename="missing.png"',
+                response.headers.get('Content-Disposition'))
+
+        client.request('PUT', ['testdocument', guid, 'blob1'], 'data')
+        response = client.request('GET', ['testdocument', guid, 'blob1'])
+        self.assertEqual(
+                'attachment; filename="Foo.obj"',
+                response.headers.get('Content-Disposition'))
+
+        client.request('PUT', ['testdocument', guid, 'blob1'], 'data', {'Content-Type': 'image/png'})
+        response = client.request('GET', ['testdocument', guid, 'blob1'])
+        self.assertEqual(
+                'attachment; filename="Foo.png"',
+                response.headers.get('Content-Disposition'))
+
+        client.request('PUT', ['testdocument', guid, 'blob2'], 'data', {'Content-Type': 'image/png'})
+        response = client.request('GET', ['testdocument', guid, 'blob2'])
+        self.assertEqual(
+                'attachment; filename="Blob2.png"',
+                response.headers.get('Content-Disposition'))
+
+        client.request('PUT', ['testdocument', guid, 'blob3'], 'data', {'Content-Type': 'image/png'})
+        response = client.request('GET', ['testdocument', guid, 'blob3'])
+        self.assertEqual(
+                'attachment; filename="foo.bar"',
+                response.headers.get('Content-Disposition'))
 
 
 if __name__ == '__main__':

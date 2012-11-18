@@ -278,6 +278,7 @@ class VolumeTest(tests.Test):
         volume['context'].set_blob(guid3, 'icon', url='/foo/bar')
         guid4 = call(cp, method='POST', document='artifact', principal='principal', content={
             'context': 'context',
+            'type': 'instance',
             'title': 'title',
             'description': 'description',
             })

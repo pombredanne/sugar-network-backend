@@ -15,6 +15,7 @@ from sync_node import *
 from sync_master import *
 from mountpoints import *
 from clones import *
+from proxy_commands import *
 from home_mount import *
 from remote_mount import *
 #from node_mount import *

@@ -52,11 +52,6 @@ class Implementation(Resource):
     def version(self, value):
         return value
 
-    @ad.active_property(slot=2, prefix='D',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ, typecast=int)
-    def date(self, value):
-        return value
-
     @ad.active_property(prefix='S',
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
             typecast=resources.STABILITIES)
@@ -78,5 +73,15 @@ class Implementation(Resource):
         return value
 
     @ad.active_property(ad.BlobProperty)
-    def data(self, stat):
-        return stat
+    def data(self, value):
+        if value:
+            context = self.volume['context'].get(self['context'])
+            value['name'] = [context['title'], self['version']]
+        return value
+
+    @data.setter
+    def data(self, value):
+        context = self.volume['context'].get(self['context'])
+        if 'activity' in context['type']:
+            self.request.content_type = 'application/vnd.olpc-sugar'
+        return value

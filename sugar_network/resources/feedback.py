@@ -26,8 +26,7 @@ class Feedback(Resource):
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='T', full_text=True,
-            typecast=[resources.FEEDBACK_TYPES])
+    @ad.active_property(prefix='T', typecast=[resources.FEEDBACK_TYPES])
     def type(self, value):
         return value
 

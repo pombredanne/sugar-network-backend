@@ -32,6 +32,7 @@ from sugar_network.resources.volume import Volume
 from sugar_network.client.mountset import Mountset
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from active_toolkit.options import Option
+from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import printf, application, coroutine, enforce
 
 
@@ -193,16 +194,20 @@ class Application(application.Application):
                         print i
                 else:
                     # TODO
-                    print i
+                    print result
             elif reply:
                 for key in reply:
                     key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
                     print eval('result%s' % key)
             else:
                 print dumps(result, indent=2)
+        elif hasattr(result, 'read'):
+            while True:
+                chunk = result.read(BUFFER_SIZE)
+                if not chunk:
+                    break
+                sys.stdout.write(chunk)
         else:
-            if hasattr(result, 'read'):
-                result = result.read()
             sys.stdout.write(result)
 
 # Let toolkit.http work in concurrence

@@ -27,6 +27,10 @@ class Artifact(Resource):
     def context(self, value):
         return value
 
+    @ad.active_property(prefix='T', typecast=[resources.ARTIFACT_TYPES])
+    def type(self, value):
+        return value
+
     @ad.active_property(slot=1, prefix='S', full_text=True, localized=True,
             permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def title(self, value):
@@ -66,4 +70,16 @@ class Artifact(Resource):
 
     @ad.active_property(ad.BlobProperty)
     def data(self, value):
+        if value:
+            value['name'] = self['title']
+        return value
+
+    @ad.active_property(prefix='K', typecast=bool, default=False,
+            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+    def favorite(self, value):
+        return value
+
+    @ad.active_property(prefix='L', typecast=[0, 1, 2], default=0,
+            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+    def clone(self, value):
         return value

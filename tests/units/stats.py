@@ -63,7 +63,7 @@ class StatsTest(tests.Test):
         volume['feedback'].create(guid='feedback', context='context', type='idea', title='', content='')
         volume['feedback'].create(guid='feedback2', context='context', type='idea', title='', content='', solution='solution')
         volume['solution'].create(guid='solution', context='context', feedback='feedback', content='')
-        volume['artifact'].create(guid='artifact', context='context', title='', description='')
+        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
         stats = NodeStats(volume)
         self.assertEqual(1, stats._stats['user'].total)
@@ -191,7 +191,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = NodeStats(volume)
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
-        volume['artifact'].create(guid='artifact', context='context', title='', description='')
+        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
         request = Request(method='POST', document='review')
         request.principal = 'user'
@@ -270,7 +270,7 @@ class StatsTest(tests.Test):
                 ['1', '2'],
                 stats._stats['context'].active.keys())
 
-        volume['artifact'].create(guid='artifact', context='3', title='', description='')
+        volume['artifact'].create(guid='artifact', type='instance', context='3', title='', description='')
         request = Request(method='GET', document='review', artifact='artifact')
         request.principal = 'user'
         stats.log(request)
@@ -337,7 +337,7 @@ class StatsTest(tests.Test):
     def test_ArtifactDownloaded(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = NodeStats(volume)
-        volume['artifact'].create(guid='artifact', context='context', title='', description='')
+        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
         request = Request(method='GET', document='artifact', guid='artifact', prop='fake')
         request.principal = 'user'
@@ -359,7 +359,7 @@ class StatsTest(tests.Test):
         volume['review'].create(guid='review', context='context', title='', content='', rating=5)
         volume['feedback'].create(guid='feedback', context='context', type='idea', title='', content='')
         volume['solution'].create(guid='solution', context='context', feedback='feedback', content='')
-        volume['artifact'].create(guid='artifact', context='context', title='', description='')
+        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
         stats = NodeStats(volume)
         request = Request(method='GET', document='user', guid='user')
@@ -483,7 +483,7 @@ class StatsTest(tests.Test):
 
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
         volume['implementation'].create(guid='implementation', context='context', license='GPLv3', version='1', date=0, stability='stable', notes='')
-        volume['artifact'].create(guid='artifact', context='context', title='', description='')
+        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
         self.assertEqual(0, volume['context'].get('context')['downloads'])
         self.assertEqual([0, 0], volume['context'].get('context')['reviews'])
@@ -532,7 +532,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
 
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
-        volume['artifact'].create(guid='artifact', context='context', title='', description='')
+        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
         self.assertEqual(0, volume['artifact'].get('artifact')['downloads'])
         self.assertEqual([0, 0], volume['artifact'].get('artifact')['reviews'])

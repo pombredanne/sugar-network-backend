@@ -3,7 +3,11 @@
 
 from __init__ import tests
 
-from sugar_network.resources.implementation import _encode_version
+from sugar_network.toolkit.router import Request
+from sugar_network.resources.volume import Volume
+from sugar_network.resources.implementation import _encode_version, Implementation
+from sugar_network.node.commands import NodeCommands
+from sugar_network import IPCClient
 
 
 class ImplementationTest(tests.Test):
@@ -45,6 +49,30 @@ class ImplementationTest(tests.Test):
         self.assertEqual(
                 '00000''00000''00001' '08' '00003''00004''00005' '10',
                 _encode_version('1-pre2.3.4.5'))
+
+    def test_SetMimeTypeForActivities(self):
+        self.start_server()
+        client = IPCClient(mountpoint='~')
+
+        context = client.post(['context'], {
+            'type': 'content',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            })
+        client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
+        self.assertEqual('image/png', self.mounts.volume['implementation'].get(impl).meta('data')['mime_type'])
+
+        client.put(['context', context, 'type'], 'activity')
+        client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
+        self.assertEqual('application/vnd.olpc-sugar', self.mounts.volume['implementation'].get(impl).meta('data')['mime_type'])
 
 
 if __name__ == '__main__':

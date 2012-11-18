@@ -109,13 +109,13 @@ class Context(Resource):
             return value[0]
 
     @ad.active_property(prefix='K', typecast=bool, default=False,
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
-    def keep(self, value):
+            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+    def favorite(self, value):
         return value
 
     @ad.active_property(prefix='L', typecast=[0, 1, 2], default=0,
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
-    def keep_impl(self, value):
+            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+    def clone(self, value):
         return value
 
     @ad.active_property(ad.StoredProperty, typecast=[int], default=(-1, -1),

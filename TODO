@@ -1,3 +1,5 @@
+- delete outdated impls on PUTing new one
+
 - (!) Editors' workflows:
   - (?) log all (including editros) posters of particular document to minimize conflicts about why somthing was changed
     or better, detailed log for every editor's change
@@ -12,3 +14,4 @@
 - more consistent launch; right now
   - zerosugar/pipe.py uses several mountpoints
   - what mountpoints for deps
+- handle DELETE while calculating per-object node stats

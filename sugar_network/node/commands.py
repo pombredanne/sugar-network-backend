@@ -177,7 +177,21 @@ class NodeCommands(VolumeCommands, Commands):
         roles = []
         if auth.try_validate(request, 'root'):
             roles.append('root')
-        return {'roles': roles, 'guid': request.principal}
+        return {'roles': roles, 'guid': request.principal, 'route': 'direct'}
+
+    @ad.document_command(method='GET', cmd='clone',
+            arguments={'requires': ad.to_list})
+    def clone(self, document, guid, version, requires, stability='stable'):
+        enforce(document == 'context', 'No way to clone')
+        request = router.Request(method='GET', document='implementation',
+                context=guid, version=version, stability=stability,
+                requires=requires, order_by='-version', limit=1,
+                reply=['guid'])
+        impls = self.call(request, ad.Response())['result']
+        enforce(impls, ad.NotFound, 'No implementations found')
+        request = router.Request(method='GET', document='implementation',
+                guid=impls[0]['guid'], prop='data')
+        return self.call(request, ad.Response())
 
     def call(self, request, response=None):
         try:

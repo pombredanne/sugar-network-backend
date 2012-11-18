@@ -8,12 +8,14 @@ import urllib2
 from cStringIO import StringIO
 from os.path import exists, abspath
 
+import requests
+
 from __init__ import tests
 
 import active_document as ad
 from active_toolkit import sockets, coroutine
 from sugar_network import client as local
-from sugar_network.toolkit.router import IPCRouter
+from sugar_network.toolkit.router import IPCRouter, Redirect
 from sugar_network.client.mounts import RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.toolkit import sugar, http
@@ -21,223 +23,12 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.resources.artifact import Artifact
-from sugar_network.resources.volume import Volume
+from sugar_network.resources.volume import Volume, Resource
 from sugar_network.zerosugar import injector
 from sugar_network import IPCClient
 
 
 class RemoteMountTest(tests.Test):
-
-    def test_GetMixins(self):
-        self.start_ipc_and_restful_server()
-        remote = IPCClient(mountpoint='/')
-        local = IPCClient(mountpoint='~')
-
-        guid = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'remote',
-            'summary': 'summary',
-            'description': 'description',
-            })
-
-        self.assertEqual(
-                [{'guid': guid, 'title': 'remote', 'keep': False, 'keep_impl': 0, 'position': [-1, -1]}],
-                remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl', 'position'])['result'])
-        self.assertEqual(
-                {'guid': guid, 'title': 'remote', 'keep': False, 'keep_impl': 0, 'position': [-1, -1]},
-                remote.get(['context', guid], reply=['guid', 'title', 'keep', 'keep_impl', 'position']))
-        self.assertEqual(
-                False,
-                remote.get(['context', guid, 'keep']))
-        self.assertEqual(
-                0,
-                remote.get(['context', guid, 'keep_impl']))
-        self.assertEqual(
-                [-1, -1],
-                remote.get(['context', guid, 'position']))
-
-        self.mounts['~'].volume['context'].create({
-            'guid': guid,
-            'type': 'activity',
-            'title': 'local',
-            'summary': 'summary',
-            'description': 'description',
-            'keep': True,
-            'keep_impl': 2,
-            'position': [1, 2],
-            })
-
-        self.assertEqual(
-                [{'guid': guid, 'title': 'remote', 'keep': True, 'keep_impl': 2, 'position': [1, 2]}],
-                remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl', 'position'])['result'])
-        self.assertEqual(
-                {'guid': guid, 'title': 'remote', 'keep': True, 'keep_impl': 2, 'position': [1, 2]},
-                remote.get(['context', guid], reply=['guid', 'title', 'keep', 'keep_impl', 'position']))
-        self.assertEqual(
-                True,
-                remote.get(['context', guid, 'keep']))
-        self.assertEqual(
-                2,
-                remote.get(['context', guid, 'keep_impl']))
-        self.assertEqual(
-                [1, 2],
-                remote.get(['context', guid, 'position']))
-
-    def test_GetMixins_NoProxyCalls(self):
-        self.start_ipc_and_restful_server()
-        remote = IPCClient(mountpoint='/')
-        local = IPCClient(mountpoint='~')
-
-        self.assertEqual(
-                [],
-                remote.get(['context'], reply=['keep', 'keep_impl', 'position'])['result'])
-        self.assertEqual(
-                {'keep': False, 'keep_impl': 0, 'position': [-1, -1]},
-                remote.get(['context', 'guid'], reply=['keep', 'keep_impl', 'position']))
-        self.assertEqual(
-                False,
-                remote.get(['context', 'guid', 'keep']))
-        self.assertEqual(
-                0,
-                remote.get(['context', 'guid', 'keep_impl']))
-        self.assertEqual(
-                [-1, -1],
-                remote.get(['context', 'guid', 'position']))
-
-        self.mounts['~'].volume['context'].create({
-            'guid': 'guid',
-            'type': 'activity',
-            'title': 'local',
-            'summary': 'summary',
-            'description': 'description',
-            'keep': True,
-            'keep_impl': 2,
-            'position': [1, 2],
-            })
-
-        self.assertEqual(
-                [],
-                remote.get(['context'], reply=['keep', 'keep_impl', 'position'])['result'])
-        self.assertEqual(
-                {'keep': True, 'keep_impl': 2, 'position': [1, 2]},
-                remote.get(['context', 'guid'], reply=['keep', 'keep_impl', 'position']))
-        self.assertEqual(
-                True,
-                remote.get(['context', 'guid', 'keep']))
-        self.assertEqual(
-                2,
-                remote.get(['context', 'guid', 'keep_impl']))
-        self.assertEqual(
-                [1, 2],
-                remote.get(['context', 'guid', 'position']))
-
-    def test_SetMixins(self):
-        self.start_ipc_and_restful_server()
-        remote = IPCClient(mountpoint='/')
-        local = IPCClient(mountpoint='~')
-
-        guid_1 = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'remote',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        guid_2 = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'remote-2',
-            'summary': 'summary',
-            'description': 'description',
-            })
-
-        self.assertRaises(RuntimeError, local.get, ['context', guid_1])
-        self.assertRaises(RuntimeError, local.get, ['context', guid_2])
-
-        remote.put(['context', guid_1], {'keep': True})
-
-        self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
-                    ]),
-                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
-        self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
-                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
-                    ]),
-                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
-
-        remote.put(['context', guid_1], {'keep': False})
-
-        self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
-                    ]),
-                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
-        self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'title': 'remote', 'keep': False, 'keep_impl': 0},
-                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
-                    ]),
-                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
-
-        local.put(['context', guid_1], {'title': 'local'})
-
-        self.assertEqual(
-                {'title': 'local'},
-                local.get(['context', guid_1], reply=['title']))
-
-        remote.put(['context', guid_1], {'keep': True})
-
-        self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'title': 'local', 'keep': True, 'keep_impl': 0},
-                    ]),
-                sorted(local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
-        self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'title': 'remote', 'keep': True, 'keep_impl': 0},
-                    {'guid': guid_2, 'title': 'remote-2', 'keep': False, 'keep_impl': 0},
-                    ]),
-                sorted(remote.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl'])['result']))
-
-    def test_SetMixins_NoProxyCalls(self):
-        self.start_ipc_and_restful_server()
-
-        remote = IPCClient(mountpoint='/')
-        guid = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'remote',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        remote.put(['context', guid], {'keep': True})
-        self.assertEqual(
-                [{'guid': guid, 'keep': True}],
-                remote.get(['context'], reply=['keep'])['result'])
-        self.assertEqual(
-                {'keep': True},
-                remote.get(['context', guid], reply=['keep']))
-        self.assertEqual(
-                True,
-                remote.get(['context', guid, 'keep']))
-
-        self.stop_servers()
-        os.unlink('.sugar/default/owner.key')
-        os.unlink('.sugar/default/owner.key.pub')
-        self.start_ipc_and_restful_server()
-
-        remote = IPCClient(mountpoint='/')
-        self.assertRaises(RuntimeError, remote.put, ['context', guid], {'title': 'probe'})
-        remote.put(['context', guid], {'keep': False})
-        self.assertEqual(
-                [{'guid': guid, 'keep': False}],
-                remote.get(['context'], reply=['keep'])['result'])
-        self.assertEqual(
-                {'keep': False},
-                remote.get(['context', guid], reply=['keep']))
-        self.assertEqual(
-                False,
-                remote.get(['context', guid, 'keep']))
 
     def test_Subscription(self):
         self.start_ipc_and_restful_server()
@@ -270,37 +61,6 @@ class RemoteMountTest(tests.Test):
             {'guid': guid, 'document': 'context', 'event': 'create', 'mountpoint': '/'},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '/'},
             {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '/'},
-            ],
-            events)
-
-    def test_Subscription_NotifyOnline(self):
-        self.start_ipc_and_restful_server()
-        remote = IPCClient(mountpoint='/')
-        local = IPCClient(mountpoint='~')
-        events = []
-
-        guid = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'keep': True,
-            })
-
-        def read_events():
-            for event in remote.subscribe():
-                if 'props' in event:
-                    event.pop('props')
-                events.append(event)
-
-        coroutine.sleep(1)
-        job = coroutine.spawn(read_events)
-        local.put(['context', guid], {'keep': False})
-        coroutine.sleep(1)
-        job.kill()
-
-        self.assertEqual([
-            {'document': 'context', 'event': 'update', 'guid': guid},
             ],
             events)
 
@@ -415,6 +175,7 @@ class RemoteMountTest(tests.Test):
 
         guid = remote.post(['artifact'], {
             'context': 'context',
+            'type': 'instance',
             'title': 'title',
             'description': 'description',
             })
@@ -443,7 +204,6 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {}},
@@ -452,7 +212,6 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {
@@ -501,12 +260,12 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {}},
             })
         artifact = remote.post(['artifact'], {
+            'type': 'instance',
             'context': 'context',
             'title': 'title',
             'description': 'description',
@@ -614,7 +373,6 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {}},
@@ -628,7 +386,6 @@ class RemoteMountTest(tests.Test):
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
-            'date': 0,
             'stability': 'stable',
             'notes': '',
             'spec': {'*-*': {
@@ -641,6 +398,40 @@ class RemoteMountTest(tests.Test):
                 }},
             })
         assert injector._mtime > mtime
+
+    def test_ContentDisposition(self):
+        self.start_ipc_and_restful_server([User, Context, Implementation, Artifact])
+        remote = IPCClient(mountpoint='/')
+
+        artifact = remote.post(['artifact'], {
+            'type': 'instance',
+            'context': 'context',
+            'title': 'title',
+            'description': 'description',
+            })
+        remote.request('PUT', ['artifact', artifact, 'data'], 'blob', headers={'Content-Type': 'image/png'})
+
+        response = remote.request('GET', ['artifact', artifact, 'data'])
+        self.assertEqual(
+                'attachment; filename="Title.png"',
+                response.headers.get('Content-Disposition'))
+
+    def test_Redirects(self):
+        URL = 'http://sugarlabs.org'
+
+        class Document(Resource):
+
+            @ad.active_property(ad.BlobProperty)
+            def blob(self, value):
+                raise Redirect(URL)
+
+        self.start_ipc_and_restful_server([User, Document])
+        remote = IPCClient(mountpoint='/')
+        guid = remote.post(['document'], {})
+
+        response = requests.request('GET', local.api_url.value + '/document/' + guid + '/blob', allow_redirects=False)
+        self.assertEqual(303, response.status_code)
+        self.assertEqual(URL, response.headers['Location'])
 
 
 if __name__ == '__main__':

@@ -31,11 +31,11 @@ class HomeMountTest(tests.Test):
             })
         self.assertNotEqual(None, guid)
 
-        res = local.get(['context', guid], reply=['guid', 'title', 'keep', 'keep_impl', 'position'])
+        res = local.get(['context', guid], reply=['guid', 'title', 'favorite', 'clone', 'position'])
         self.assertEqual(guid, res['guid'])
         self.assertEqual('title', res['title'])
-        self.assertEqual(False, res['keep'])
-        self.assertEqual(0, res['keep_impl'])
+        self.assertEqual(False, res['favorite'])
+        self.assertEqual(0, res['clone'])
         self.assertEqual([-1, -1], res['position'])
 
     def test_update(self):
@@ -51,14 +51,10 @@ class HomeMountTest(tests.Test):
 
         local.put(['context', guid], {
             'title': 'title_2',
-            'keep': True,
-            'position': (2, 3),
             })
 
-        context = local.get(['context', guid], reply=['title', 'keep', 'position'])
+        context = local.get(['context', guid], reply=['title'])
         self.assertEqual('title_2', context['title'])
-        self.assertEqual(True, context['keep'])
-        self.assertEqual([2, 3], context['position'])
 
     def test_find(self):
         self.start_server()
@@ -83,15 +79,15 @@ class HomeMountTest(tests.Test):
             'description': 'description',
             })
 
-        cursor = local.get(['context'], reply=['guid', 'title', 'keep', 'keep_impl', 'position'])
+        cursor = local.get(['context'], reply=['guid', 'title'])
         self.assertEqual(3, cursor['total'])
         self.assertEqual(
                 sorted([
-                    (guid_1, 'title_1', False, 0, [-1, -1]),
-                    (guid_2, 'title_2', False, 0, [-1, -1]),
-                    (guid_3, 'title_3', False, 0, [-1, -1]),
+                    (guid_1, 'title_1'),
+                    (guid_2, 'title_2'),
+                    (guid_3, 'title_3'),
                     ]),
-                sorted([(i['guid'], i['title'], i['keep'], i['keep_impl'], i['position']) for i in cursor['result']]))
+                sorted([(i['guid'], i['title']) for i in cursor['result']]))
 
     def test_upload_blob(self):
         self.start_server()
@@ -147,6 +143,7 @@ class HomeMountTest(tests.Test):
 
         guid = client.post(['artifact'], {
             'context': 'context',
+            'type': 'instance',
             'title': 'title',
             'description': 'description',
             })
@@ -189,9 +186,42 @@ class HomeMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'guid': guid, 'document': 'context', 'event': 'create'},
+            {'guid': guid, 'document': 'context', 'event': 'create', 'mountpoint': '~'},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~'},
             {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '~'},
+            ],
+            events)
+
+    def test_Subscription_NotifyOnlineMount(self):
+        self.start_server()
+        local = IPCClient(mountpoint='~')
+        events = []
+
+        guid = local.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        def read_events():
+            for event in local.subscribe():
+                events.append(event)
+        job = coroutine.spawn(read_events)
+        coroutine.sleep(.1)
+
+        self.mounts.volume['context'].update(guid, {'title': 'title_2'})
+        self.mounts.volume['context'].update(guid, {'favorite': True})
+        self.mounts.volume['context'].update(guid, {'clone': 2})
+        coroutine.sleep(.1)
+        job.kill()
+
+        self.assertEqual([
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~', 'props': {'title': 'title_2'}},
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '/', 'props': {'favorite': True}},
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~', 'props': {'favorite': True}},
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '/', 'props': {'clone': 2}},
+            {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~', 'props': {'clone': 2}},
             ],
             events)
 

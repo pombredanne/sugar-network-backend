@@ -17,17 +17,17 @@ import os
 import socket
 import logging
 from os.path import join, exists
+from gettext import gettext as _
 
 import active_document as ad
 
 from sugar_network import client, node
 from sugar_network.toolkit import netlink, network, mountpoints, router
-from sugar_network.toolkit.router import Request
 from sugar_network.client import journal, zeroconf
 from sugar_network.client.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.sync_node import SyncCommands
-from sugar_network.zerosugar import injector
+from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Volume, Commands
 from active_toolkit import util, coroutine, enforce
 
@@ -118,32 +118,6 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             mount.set_mounted(True)
         return mount.mounted.is_set()
 
-    @ad.volume_command(method='PUT', cmd='clone')
-    def clone(self, mountpoint, request):
-        mount = self.get(mountpoint)
-        enforce(mount is not None, 'No such mountpoint')
-        mount.mounted.wait()
-
-        for guid in (request.content or '').split():
-            _logger.info('Clone %r context', guid)
-            request = Request(method='PUT', document='context', guid=guid)
-            request.accept_language = [self._lang]
-            request.content = {'keep_impl': 2, 'keep': False}
-            mount.call(request)
-
-    @ad.volume_command(method='PUT', cmd='keep')
-    def keep(self, mountpoint, request):
-        mount = self.get(mountpoint)
-        enforce(mount is not None, 'No such mountpoint')
-        mount.mounted.wait()
-
-        for guid in (request.content or '').split():
-            _logger.info('Keep %r context', guid)
-            request = Request(method='PUT', document='context', guid=guid)
-            request.accept_language = [self._lang]
-            request.content = {'keep': True}
-            mount.call(request)
-
     @ad.volume_command(method='POST', cmd='publish')
     def publish(self, event, request=None):
         if request is not None:
@@ -169,49 +143,9 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
     @ad.document_command(method='GET', cmd='launch',
             arguments={'args': ad.to_list})
-    def launch(self, mountpoint, document, guid, args, context=None,
-            activity_id=None, object_id=None, uri=None, color=None,
-            no_spawn=None):
+    def launch(self, mountpoint, document, guid, args, activity_id=None,
+            object_id=None, uri=None, color=None, no_spawn=None):
         enforce(document == 'context', 'Only contexts can be launched')
-
-        mount = self[mountpoint]
-        if context and '/' in context:
-            jobject_mountpoint, context = context.rstrip('/', 1)
-            mount = self[jobject_mountpoint or '/']
-
-        if context and not object_id:
-            request = Request(method='GET', document='implementation',
-                    context=context, stability='stable', order_by='-version',
-                    limit=1, reply=['guid'])
-            impls = mount.call(request)['result']
-            enforce(impls, ad.NotFound, 'No implementations')
-            object_id = impls[0].pop('guid')
-
-        if object_id and not journal.exists(object_id):
-            if context:
-                props = mount.call(
-                        Request(method='GET',
-                            document='context', guid=context,
-                            reply=['title', 'description']))
-                props['preview'] = mount.call(
-                        Request(method='GET', document='context',
-                            guid=context, prop='preview'))
-                props['data'] = mount.call(
-                        Request(method='GET', document='implementation',
-                            guid=object_id, prop='data'))
-            else:
-                props = mount.call(
-                        Request(method='GET',
-                            document='artifact', guid=object_id,
-                            reply=['title', 'description']))
-                props['preview'] = mount.call(
-                        Request(method='GET', document='artifact',
-                            guid=object_id, prop='preview'))
-                props['data'] = mount.call(
-                        Request(method='GET', document='artifact',
-                            guid=object_id, prop='data'))
-
-            self.journal_update(object_id, **props)
 
         def do_launch():
             for event in injector.launch(mountpoint, guid, args,
@@ -224,6 +158,72 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             do_launch()
         else:
             self._jobs.spawn(do_launch)
+
+    @ad.document_command(method='PUT', cmd='clone',
+            arguments={'force': ad.to_int})
+    def clone(self, request, mountpoint, document, guid, force):
+        mount = self[mountpoint]
+
+        if document == 'context':
+            context_type = mount(method='GET', document='context', guid=guid,
+                    prop='type')
+            if 'activity' in context_type:
+                self._clone_activity(mountpoint, guid, request.content, force)
+            elif 'content' in context_type:
+
+                def get_props():
+                    impls = mount(method='GET', document='implementation',
+                            context=guid, stability='stable',
+                            order_by='-version', limit=1,
+                            reply=['guid'])['result']
+                    enforce(impls, ad.NotFound, 'No implementations')
+                    impl_id = impls[0]['guid']
+                    props = mount(method='GET', document='context', guid=guid,
+                            reply=['title', 'description'])
+                    props['preview'] = mount(method='GET', document='context',
+                            guid=guid, prop='preview')
+                    data_response = ad.Response()
+                    props['data'] = mount(data_response, method='GET',
+                            document='implementation', guid=impl_id,
+                            prop='data')
+                    props['mime_type'] = data_response.content_type or \
+                            'application/octet'
+                    props['activity_id'] = impl_id
+                    return props
+
+                self._clone_jobject(guid, request.content, get_props, force)
+            else:
+                raise RuntimeError('No way to clone')
+        elif document == 'artifact':
+
+            def get_props():
+                props = mount(method='GET', document='artifact', guid=guid,
+                        reply=['title', 'description', 'context'])
+                props['preview'] = mount(method='GET', document='artifact',
+                        guid=guid, prop='preview')
+                props['data'] = mount(method='GET', document='artifact',
+                        guid=guid, prop='data')
+                props['activity'] = props.pop('context')
+                return props
+
+            self._clone_jobject(guid, request.content, get_props, force)
+        else:
+            raise RuntimeError('Command is not supported for %r' % document)
+
+    @ad.document_command(method='PUT', cmd='favorite')
+    def favorite(self, request, mountpoint, document, guid):
+        if document == 'context':
+            if request.content or self.volume['context'].exists(guid):
+                self._checkin_context(guid, {'favorite': request.content})
+        else:
+            raise RuntimeError('Command is not supported for %r' % document)
+
+    @ad.volume_command(method='GET', cmd='whoami',
+            mime_type='application/json')
+    def whoami(self, request):
+        result = self['/'].call(request)
+        result['route'] = 'proxy'
+        return result
 
     def super_call(self, request, response):
         mount = self[request.mountpoint]
@@ -332,3 +332,65 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             coroutine.dispatch()
 
         return volume, server_mode
+
+    def _clone_jobject(self, uid, value, get_props, force):
+        if value:
+            if force or not journal.exists(uid):
+                self.journal_update(uid, **get_props())
+        else:
+            if journal.exists(uid):
+                self.journal_delete(uid)
+
+    def _checkin_context(self, guid, props):
+        contexts = self.volume['context']
+
+        if contexts.exists(guid):
+            contexts.update(guid, props)
+            return
+
+        if not [i for i in props.values() if i is not None]:
+            return
+
+        mount = self['/']
+        copy = mount(method='GET', document='context', guid=guid,
+                reply=[
+                    'type', 'implement', 'title', 'summary', 'description',
+                    'homepage', 'mime_types', 'dependencies',
+                    ])
+        props.update(copy)
+        props['guid'] = guid
+        contexts.create(props)
+
+        for prop in ('icon', 'artifact_icon', 'preview'):
+            blob = mount(method='GET',
+                    document='context', guid=guid, prop=prop)
+            if blob:
+                contexts.set_blob(guid, prop, blob)
+
+    def _clone_activity(self, mountpoint, guid, value, force):
+        if not value:
+            clones.wipeout(guid)
+            return
+
+        for __ in clones.walk(guid):
+            if not force:
+                return
+            break
+
+        self._checkin_context(guid, {'clone': 1})
+
+        for event in injector.clone(mountpoint, guid):
+            # TODO Publish clone progress
+            if event['state'] == 'failure':
+                self.publish({
+                    'event': 'alert',
+                    'mountpoint': mountpoint,
+                    'severity': 'error',
+                    'message': _('Fail to clone %s') % guid,
+                    })
+
+        for __ in clones.walk(guid):
+            break
+        else:
+            # Cloning was failed
+            self._checkin_context(guid, {'clone': 0})

@@ -26,6 +26,7 @@ from M2Crypto import DSA
 
 import active_document as ad
 from sugar_network.toolkit import sugar
+from sugar_network.toolkit.router import Redirect
 from sugar_network import client
 from active_toolkit import coroutine, util, enforce
 
@@ -170,10 +171,18 @@ class Client(object):
             headers['Content-Length'] = str(len(request.content))
 
         reply = self.request(method, path, data=request.content,
-                params=params, headers=headers)
+                params=params, headers=headers, allowed=[303],
+                allow_redirects=request.allow_redirects)
+
+        if reply.status_code == 303:
+            raise Redirect(reply.headers['Location'])
 
         if response is not None:
-            response.content_type = reply.headers['Content-Type']
+            if 'Content-Disposition' in reply.headers:
+                response['Content-Disposition'] = \
+                        reply.headers['Content-Disposition']
+            if 'Content-Type' in reply.headers:
+                response.content_type = reply.headers['Content-Type']
 
         result = self._decode_reply(reply)
         if result is None:
