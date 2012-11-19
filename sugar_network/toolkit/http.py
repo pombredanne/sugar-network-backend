@@ -223,7 +223,7 @@ class _Subscription(object):
 
     def fileno(self):
         # pylint: disable-msg=W0212
-        return self._handshake()._fp.fp
+        return self._handshake()._fp.fp.fileno()
 
     def pull(self):
         for a_try in (1, 0):

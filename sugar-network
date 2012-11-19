@@ -183,7 +183,7 @@ class Application(application.Application):
             if pid_path:
                 os.unlink(pid_path)
 
-        if not result:
+        if result is None:
             return
 
         if response.content_type == 'application/json':

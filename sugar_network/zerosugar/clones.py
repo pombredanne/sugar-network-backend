@@ -25,7 +25,6 @@ from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
         IN_MOVED_TO, IN_MOVED_FROM
 from active_document import DEFAULT_LANG
-from sugar_network.toolkit import sugar
 from sugar_network import toolkit, client
 from active_toolkit import coroutine, util
 
@@ -157,8 +156,7 @@ class _Inotify(Inotify):
                     title={DEFAULT_LANG: spec['name']},
                     summary={DEFAULT_LANG: spec['summary']},
                     description={DEFAULT_LANG: spec['description']},
-                    clone=2, user=[sugar.uid()], author=[sugar.nickname()],
-                    ctime=mtime, mtime=mtime)
+                    clone=2, ctime=mtime, mtime=mtime)
 
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):
