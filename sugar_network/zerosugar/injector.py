@@ -92,25 +92,34 @@ def invalidate_solutions(mtime):
 def _make(mountpoint, context):
     pipe.feedback('analyze')
     solution = _solve(mountpoint, context)
+    pipe.environ['solution'] = solution
 
     to_install = []
     for impl in solution:
         if 'install' in impl:
-            to_install.extend(impl.pop('install'))
+            to_install.extend(impl['install'])
     if to_install:
+        pipe.log('Install %s package(s)',
+                ', '.join([i['name'] for i in to_install]))
         from sugar_network.zerosugar import packagekit
         packagekit.install(to_install)
 
     for impl in solution:
-        if 'mountpoint' not in impl or 'path' in impl:
+        if 'install' in impl or 'mountpoint' not in impl or 'path' in impl:
             continue
+        pipe.log('Download %s implementation', impl['id'])
         # TODO Process different mountpoints
         impl_path = cache.get(impl['id'])
         if 'prefix' in impl:
             impl_path = join(impl_path, impl['prefix'])
         impl['path'] = impl_path
 
-    pipe.feedback('ready', session={'implementation': solution[0]['id']})
+    pipe.feedback('ready',
+            session={
+                'implementation': solution[0]['id'],
+                'version': solution[0]['version'],
+                },
+            )
     return solution
 
 
@@ -131,6 +140,8 @@ def _clone(mountpoint, context):
     cloned = []
     try:
         for impl in solution:
+            if 'path' not in impl:
+                continue
             dst_path = util.unique_filename(
                     client.activity_dirs.value[0], basename(impl['path']))
             cloned.append(dst_path)
@@ -143,11 +154,11 @@ def _clone(mountpoint, context):
 
 
 def _solve(mountpoint, context):
-    _logger.debug('Solve %r from %r', context, mountpoint)
+    pipe.log("Start solving '%s' from '%s' mountpoint", context, mountpoint)
 
     cached_path, solution, stale = _get_cached_solution(mountpoint, context)
     if stale is False:
-        _logger.debug('Reuse cached solution')
+        pipe.log('Reuse cached solution')
         return solution
 
     from sugar_network import zeroinstall

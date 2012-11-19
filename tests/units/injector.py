@@ -4,6 +4,7 @@
 import os
 import shutil
 import zipfile
+import logging
 import cPickle as pickle
 from cStringIO import StringIO
 from os.path import exists, dirname
@@ -13,7 +14,7 @@ from __init__ import tests
 from active_toolkit import coroutine, enforce
 from sugar_network import zeroinstall
 from sugar_network.client import journal
-from sugar_network.toolkit import pipe
+from sugar_network.toolkit import pipe as pipe_
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
@@ -22,6 +23,10 @@ from sugar_network import IPCClient, client as local
 
 
 class InjectorTest(tests.Test):
+
+    def setUp(self, fork_num=0):
+        tests.Test.setUp(self, fork_num)
+        self.override(pipe_, '_failure_environ', lambda: {})
 
     def test_clone_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
@@ -39,7 +44,7 @@ class InjectorTest(tests.Test):
         self.assertEqual([
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'failure', 'error': "Interface '%s' has no usable implementations" % context, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'failure', 'error': "Interface '%s' has no usable implementations" % context, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'environ': {}},
             ],
             [i for i in pipe])
 
@@ -69,7 +74,7 @@ class InjectorTest(tests.Test):
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'failure', 'error': 'BLOB does not exist', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'failure', 'error': 'BLOB does not exist', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'environ': {}},
             ],
             [i for i in pipe])
         assert not exists('cache/implementation/%s' % impl)
@@ -86,7 +91,8 @@ class InjectorTest(tests.Test):
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -102,7 +108,8 @@ class InjectorTest(tests.Test):
         self.assertEqual([
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -161,15 +168,16 @@ class InjectorTest(tests.Test):
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'exec', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'exec', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             ],
             [i for i in pipe])
 
         impl_2 = remote.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
-            'version': '1',
+            'version': '2',
             'stability': 'stable',
             'notes': '',
             'spec': {
@@ -207,8 +215,9 @@ class InjectorTest(tests.Test):
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'ready', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'exec', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'ready', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'exec', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'exit', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             ],
             [i for i in pipe])
 
@@ -236,8 +245,9 @@ class InjectorTest(tests.Test):
         self.assertEqual([
             {'state': 'fork', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
             {'state': 'analyze', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
-            {'state': 'ready', 'implementation': impl, 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
-            {'state': 'exec', 'implementation': impl, 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exec', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
             ],
             [i for i in pipe])
 
@@ -267,7 +277,7 @@ class InjectorTest(tests.Test):
             'description': 'description',
             'implement': 'dep1',
             'packages': {
-                lsb_release.distributor_id(): {
+                lsb_release.distributor_id() + '-' + lsb_release.release(): {
                     'binary': ['dep1.bin'],
                     },
                 },
@@ -280,7 +290,7 @@ class InjectorTest(tests.Test):
             'description': 'description',
             'implement': 'dep2',
             'packages': {
-                lsb_release.distributor_id(): {
+                lsb_release.distributor_id() + '-' + lsb_release.release(): {
                     'binary': ['dep2.bin'],
                     },
                 },
@@ -300,90 +310,99 @@ class InjectorTest(tests.Test):
 
         context = 'bundle_id'
         pipe = injector.launch('~', context)
-        self.assertEqual('exec', [i for i in pipe][-1].get('state'))
+        self.assertEqual('exit', [i for i in pipe][-1].get('state'))
         self.assertEqual(['dep1.bin', 'dep2.bin'], pickle.load(file('resolve')))
         self.assertEqual(['dep2.bin'], pickle.load(file('install')))
 
     def test_SolutionsCache_Set(self):
-        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(zeroinstall, 'solve', lambda *args: solution)
 
-        self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file('cache/solutions/~/co/context')))
+        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution], pickle.load(file('cache/solutions/~/co/context')))
 
-        self.assertEqual('solved', injector._solve('/', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file('cache/solutions/#/co/context')))
+        self.assertEqual(solution, injector._solve('/', 'context'))
+        self.assertEqual(['http://localhost:8800', solution], pickle.load(file('cache/solutions/#/co/context')))
 
-        self.assertEqual('solved', injector._solve('/foo/bar', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file('cache/solutions/#foo#bar/co/context')))
+        self.assertEqual(solution, injector._solve('/foo/bar', 'context'))
+        self.assertEqual(['http://localhost:8800', solution], pickle.load(file('cache/solutions/#foo#bar/co/context')))
 
     def test_SolutionsCache_InvalidateByAPIUrl(self):
-        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(zeroinstall, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/~/co/context'
 
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{}]])))
-        self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
+        solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
 
         local.api_url.value = 'fake'
-        self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['fake', 'solved'], pickle.load(file(cached_path)))
+        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(['fake', solution], pickle.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByMtime(self):
-        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(zeroinstall, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/~/co/context'
 
+        solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         injector.invalidate_solutions(1)
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{}]])))
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
         os.utime(cached_path, (1, 1))
-        self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
-        self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
-        self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file(cached_path)))
+        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution], pickle.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByPMSMtime(self):
-        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(zeroinstall, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/~/co/context'
 
         injector._pms_path = 'pms'
         self.touch('pms')
         os.utime('pms', (1, 1))
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{}]])))
+        solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
         os.utime(cached_path, (1, 1))
-        self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
-        self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{}]], pickle.load(file(cached_path)))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
 
         os.utime('pms', (3, 3))
-        self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file(cached_path)))
+        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution], pickle.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateBySpecMtime(self):
-        self.override(zeroinstall, 'solve', lambda *args: 'solved')
+        solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(zeroinstall, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/~/co/context'
 
+        solution2 = [{'spec': 'spec', 'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         self.touch('spec')
         os.utime('spec', (1, 1))
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{"spec": "spec"}]])))
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
         os.utime(cached_path, (1, 1))
-        self.assertEqual([{"spec": "spec"}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], pickle.load(file(cached_path)))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
-        self.assertEqual([{"spec": "spec"}], injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', [{"spec": "spec"}]], pickle.load(file(cached_path)))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
 
         os.utime('spec', (3, 3))
-        self.assertEqual('solved', injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', 'solved'], pickle.load(file(cached_path)))
+        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(['http://localhost:8800', solution], pickle.load(file(cached_path)))
 
     def test_CacheReuseOnSolveFails(self):
         self.override(zeroinstall, 'solve', lambda *args: enforce(False))
@@ -391,15 +410,16 @@ class InjectorTest(tests.Test):
 
         self.assertRaises(RuntimeError, injector._solve, '~', 'context')
 
+        solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         injector.invalidate_solutions(1)
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", [{}]])))
+        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
         os.utime(cached_path, (1, 1))
-        self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(["http://localhost:8800", [{}]], pickle.load(file(cached_path)))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(["http://localhost:8800", solution2], pickle.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
-        self.assertEqual([{}], injector._solve('~', 'context'))
-        self.assertEqual(["http://localhost:8800", [{}]], pickle.load(file(cached_path)))
+        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(["http://localhost:8800", solution2], pickle.load(file(cached_path)))
 
     def test_clone_SetExecPermissionsForActivities(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
@@ -442,7 +462,7 @@ class InjectorTest(tests.Test):
 
         pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
-        self.assertEqual('ready', [i for i in pipe][-1]['state'])
+        self.assertEqual('exit', [i for i in pipe][-1]['state'])
         assert os.access('Activities/topdir/activity/foo', os.X_OK)
         assert os.access('Activities/topdir/bin/bar', os.X_OK)
         assert os.access('Activities/topdir/bin/probe', os.X_OK)
@@ -451,7 +471,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_Arguments(self):
         forks = []
-        self.override(pipe, 'fork', lambda callback, logname, session, args, **kwargs: forks.append(args))
+        self.override(pipe_, 'fork', lambda callback, logname, session, args, **kwargs: forks.append(args))
         self.override(journal, 'create_activity_id', lambda: 'new_activity_id')
 
         injector.launch('/', 'app')
@@ -503,7 +523,7 @@ class InjectorTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'packages': {
-                lsb_release.distributor_id(): {
+                lsb_release.distributor_id() + '-' + lsb_release.release(): {
                     'binary': ['dep1.bin'],
                     },
                 },
@@ -515,7 +535,7 @@ class InjectorTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'packages': {
-                lsb_release.distributor_id(): {
+                lsb_release.distributor_id() + '-' + lsb_release.release(): {
                     'binary': ['dep2.bin'],
                     },
                 },
@@ -527,7 +547,7 @@ class InjectorTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'packages': {
-                lsb_release.distributor_id(): {
+                lsb_release.distributor_id() + '-' + lsb_release.release(): {
                     'binary': ['dep3.bin'],
                     },
                 },

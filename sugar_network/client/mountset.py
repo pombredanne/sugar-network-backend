@@ -48,10 +48,11 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         self._servers = coroutine.Pool()
 
         dict.__init__(self)
-        ad.CommandsProcessor.__init__(self, home_volume)
+        ad.CommandsProcessor.__init__(self)
         SyncCommands.__init__(self, client.path('sync'))
         Commands.__init__(self)
         journal.Commands.__init__(self)
+        self.volume = home_volume
 
     def __getitem__(self, mountpoint):
         enforce(mountpoint in self, 'Unknown mountpoint %r', mountpoint)

@@ -23,11 +23,15 @@ import cPickle as pickle
 from os.path import exists
 
 from sugar_network import sugar
+from sugar_network.zerosugar import lsb_release
 from active_toolkit import coroutine, util
 
 
+environ = None
+
 _logger = logging.getLogger('pipe')
 _pipe = None
+_log = None
 
 
 def feedback(state, **event):
@@ -37,6 +41,13 @@ def feedback(state, **event):
     event = pickle.dumps(event)
     os.write(_pipe, struct.pack('i', len(event)))
     os.write(_pipe, event)
+
+
+def log(message, *args):
+    if _log is not None:
+        if args:
+            message = message % args
+        _log.append(message)
 
 
 def fork(callback, logname=None, session=None, **kwargs):
@@ -49,8 +60,10 @@ def fork(callback, logname=None, session=None, **kwargs):
         return _Pipe(pid, fd_r)
 
     os.close(fd_r)
-    global _pipe
+    global _pipe, _log, environ
     _pipe = fd_w
+    _log = []
+    environ = {}
 
     def thread_func():
         if logname:
@@ -60,7 +73,7 @@ def fork(callback, logname=None, session=None, **kwargs):
             callback(**kwargs)
         except Exception, error:
             util.exception(_logger)
-            feedback('failure', error=str(error))
+            feedback('failure', error=str(error), environ=_failure_environ())
 
     if session is None:
         session = {}
@@ -82,6 +95,7 @@ class _Pipe(object):
         self._pid = pid
         self._file = os.fdopen(fd)
         self._session = {}
+        self._failed = False
 
     def fileno(self):
         return None if self._file is None else self._file.fileno()
@@ -96,6 +110,8 @@ class _Pipe(object):
             event = pickle.loads(self._file.read(event_length))
             if 'session' in event:
                 self._session.update(event.pop('session') or {})
+            if event['state'] == 'failure':
+                self._failed = True
             event.update(self._session)
             return event
 
@@ -104,24 +120,26 @@ class _Pipe(object):
             __, status = os.waitpid(self._pid, 0)
         except OSError:
             pass
+        self._file.close()
+        self._file = None
+        if self._failed:
+            return None
         failure = _decode_exit_failure(status)
         if failure:
             _logger.debug('Process %s failed: %s', self._pid, failure)
-            event = {'state': 'failure', 'error': failure}
-            event.update(self._session)
-            return event
+            event = {'state': 'failure',
+                     'error': failure,
+                     'environ': _failure_environ(),
+                     }
         else:
             _logger.debug('Process %s successfully exited', self._pid)
-            self._file.close()
-            self._file = None
-            return None
+            event = {'state': 'exit'}
+        event.update(self._session)
+        return event
 
     def __iter__(self):
-        if self._file is None:
-            return
-
         try:
-            while True:
+            while self._file is not None:
                 coroutine.select([self._file.fileno()], [], [])
                 event = self.read()
                 if event is None:
@@ -133,6 +151,29 @@ class _Pipe(object):
                 os.kill(self._pid, signal.SIGTERM)
                 while self.read() is not None:
                     pass
+
+
+def _failure_environ():
+    import platform
+
+    try:
+        # pylint: disable-msg=F0401
+        from jarabe import config
+        sugar_version = config.version
+    except ImportError:
+        sugar_version = None
+
+    result = {'lsb_distributor_id': lsb_release.distributor_id(),
+              'lsb_release': lsb_release.release(),
+              'os': platform.linux_distribution(),
+              'uname': platform.uname(),
+              'python': platform.python_version_tuple(),
+              'sugar': sugar_version,
+              }
+    result.update(environ)
+    if _log:
+        result['log'] = _log
+    return result
 
 
 def _decode_exit_failure(status):
