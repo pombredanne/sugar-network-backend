@@ -337,6 +337,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         if value:
             if force or not journal.exists(uid):
                 self.journal_update(uid, **get_props())
+                self.publish({'event': 'show_journal', 'uid': uid})
         else:
             if journal.exists(uid):
                 self.journal_delete(uid)

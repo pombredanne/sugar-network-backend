@@ -149,10 +149,10 @@ class Application(application.Daemon):
 
     def _sync(self, volume):
         contexts = volume['context']
-        docs, __ = contexts.find(limit=ad.MAX_LIMIT, keep_impl=[1, 2])
+        docs, __ = contexts.find(limit=ad.MAX_LIMIT, clone=[1, 2])
         for context in docs:
             if not clones.ensure_clones(context.guid):
-                contexts.update(context.guid, keep_impl=0)
+                contexts.update(context.guid, clone=0)
 
 
 # Let toolkit.http work in concurrence
