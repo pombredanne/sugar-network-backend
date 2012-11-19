@@ -157,32 +157,12 @@ def _setup_logging(context):
         os.makedirs(log_dir)
     path = util.unique_filename(log_dir, context + '.log')
 
-    def stdfd(stream):
-        # pylint: disable-msg=W0212
-
-        if hasattr(stream, 'fileno'):
-            return stream.fileno()
-        else:
-            # Sugar Shell wraps std streams
-            return stream._stream.fileno()
-
     logfile = file(path, 'a+')
-    os.dup2(logfile.fileno(), stdfd(sys.stdout))
-    os.dup2(logfile.fileno(), stdfd(sys.stderr))
+    os.dup2(logfile.fileno(), sys.stdout.fileno())
+    os.dup2(logfile.fileno(), sys.stderr.fileno())
     logfile.close()
 
-    debug = sugar.logger_level()
-    if not debug:
-        level = logging.WARNING
-    elif debug == 1:
-        level = logging.INFO
-    else:
-        level = logging.DEBUG
-
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers:
-        root_logger.removeHandler(handler)
-    logging.basicConfig(level=level,
+    logging.basicConfig(level=logging.getLogger().level,
             format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 
     return path
