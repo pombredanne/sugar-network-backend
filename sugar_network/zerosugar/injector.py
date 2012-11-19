@@ -53,11 +53,14 @@ def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
         if not color:
             color = journal.get(object_id, 'icon-color')
 
+    if not activity_id:
+        activity_id = journal.create_activity_id()
+
     if args is None:
         args = []
     args.extend([
         '-b', guid,
-        '-a', activity_id or journal.create_activity_id(),
+        '-a', activity_id,
         ])
     if object_id:
         args.extend(['-o', object_id])

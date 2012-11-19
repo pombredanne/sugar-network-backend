@@ -153,15 +153,16 @@ class InjectorTest(tests.Test):
             ]))
         bundle.close()
 
+        self.override(journal, 'create_activity_id', lambda: 'activity_id')
         pipe = injector.launch('/', context)
 
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
-            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
-            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
-            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
-            {'state': 'exec', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'ready', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'exec', 'implementation': impl, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             ],
             [i for i in pipe])
 
@@ -203,11 +204,11 @@ class InjectorTest(tests.Test):
         pipe = injector.launch('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
-            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
-            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
-            {'state': 'ready', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
-            {'state': 'exec', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': None, 'color': None},
+            {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'ready', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'exec', 'implementation': impl_2, 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             ],
             [i for i in pipe])
 
