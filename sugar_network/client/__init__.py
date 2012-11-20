@@ -143,4 +143,4 @@ def ensure_path(*args):
 
 
 def db_path():
-    return join(local_root.value, 'local')
+    return join(local_root.value, 'db')

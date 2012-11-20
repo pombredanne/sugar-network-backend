@@ -80,7 +80,7 @@ class CliTest(tests.Test):
             'description': 'description',
             })
 
-        path = 'client/local/context/%s/%s/favorite' % (context[:2], context)
+        path = 'client/db/context/%s/%s/favorite' % (context[:2], context)
         assert not exists(path)
 
         self.call(['PUT', '/context/%s' % context, 'cmd=favorite', '-jdtrue'])
@@ -97,7 +97,7 @@ class CliTest(tests.Test):
 
         assert not exists(privkey_path)
         assert exists('Activities/Chat.activity/activity/activity.info')
-        self.assertEqual(True, pickle.load(file('client/local/context/co/context/favorite'))['value'])
+        self.assertEqual(True, pickle.load(file('client/db/context/co/context/favorite'))['value'])
 
     def call(self, cmd, stdin=None):
         cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd
