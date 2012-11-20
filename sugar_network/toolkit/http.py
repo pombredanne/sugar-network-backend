@@ -31,6 +31,8 @@ from sugar_network import client
 from active_toolkit import coroutine, util, enforce
 
 
+ConnectionError = requests.ConnectionError
+
 _RECONNECTION_NUMBER = 1
 _RECONNECTION_TIMEOUT = 3
 

@@ -1304,7 +1304,7 @@
         <dia:point val="39.3263,44.4"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="39.3086,43.64;40.1,49.84"/>
+        <dia:rectangle val="39.3087,43.64;40.1,49.84"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
@@ -3156,7 +3156,7 @@
         <dia:point val="-8,48"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="-8.015,47.985;9.07,64.015"/>
+        <dia:rectangle val="-8.015,47.985;9.07,66.815"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="-8,48"/>
@@ -3165,7 +3165,7 @@
         <dia:real val="17.055"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="16.000000000000004"/>
+        <dia:real val="18.800000000000004"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Report#</dia:string>
@@ -3309,13 +3309,36 @@
             <dia:string>#description#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#wikitext [R WA F I]#</dia:string>
+            <dia:string>#wikitext [R WN F I]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Multilined description of the issue this report is about#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
+            <dia:string>#environ#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#dict [R WN]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>##</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#Dictionary with useful information about failure environment#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>

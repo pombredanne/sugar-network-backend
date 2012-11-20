@@ -75,6 +75,12 @@ hub_root = Option(
         'from file:// url',
         default='/usr/share/sugar-network/hub')
 
+connect_timeout = Option(
+        'number of seconds to wait for server connection while processing '
+        'remote requests; this is application level timeouts, '
+        'different to TCP ones',
+        default=10, type_cast=int, name='connect_timeout')
+
 layers = Option(
         'space separated list of layers to restrict Sugar Network content by',
         default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,

@@ -13,8 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from gettext import gettext as _
-
 import active_document as ad
 
 from sugar_network.resources.volume import Resource
@@ -34,7 +32,7 @@ class Report(Resource):
 
     @implementation.setter
     def implementation(self, value):
-        if value:
+        if value and 'version' not in self.props and 'implementation' in value:
             version = self.volume['implementation'].get(value)
             self['version'] = version['version']
         return value
@@ -44,9 +42,19 @@ class Report(Resource):
     def description(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty,
-            permissions=ad.ACCESS_READ, default=_('Unknown'))
+    @ad.active_property(ad.StoredProperty, default='',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
     def version(self, value):
+        return value
+
+    @ad.active_property(ad.StoredProperty, typecast=dict, default={},
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def environ(self, value):
+        return value
+
+    @ad.active_property(prefix='T',
+            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    def error(self, value):
         return value
 
     @ad.active_property(ad.BlobProperty)

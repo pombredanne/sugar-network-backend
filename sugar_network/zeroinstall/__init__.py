@@ -18,6 +18,7 @@ import logging
 from os.path import isabs, join, abspath, dirname
 
 from sugar_network import IPCClient
+from sugar_network.toolkit import pipe
 from sugar_network.zerosugar import packagekit, lsb_release
 from sugar_network.zerosugar.spec import parse_version
 from active_toolkit import util
@@ -93,12 +94,22 @@ def _solve(requirement):
         for feed in packaged_feeds:
             feed.resolve([resolved[i] for i in feed.to_resolve])
 
-    _logger.debug('\n'.join(
-        ['Solve results:'] +
-        ['  %s: %s' % (k.uri, v) for k, v in driver.solver.details.items()]))
     selections = driver.solver.selections.selections
 
-    if not driver.solver.ready:
+    if driver.solver.ready:
+        _logger.debug('Solving results: %r', driver.solver.details)
+    else:
+        summary = []
+        for iface, impls in driver.solver.details.items():
+            summary.append(iface.uri)
+            if impls:
+                for impl, reason in impls:
+                    summary.append('  v%s (%s)' %
+                            (impl.get_version(), reason or 'ok'))
+            else:
+                summary.append('  (no versions)')
+        pipe.log('\n  '.join(['Solving results:'] + summary))
+
         # pylint: disable-msg=W0212
         reason = driver.solver._failure_reason
         if not reason:
@@ -155,7 +166,7 @@ def _load_feed(context):
             feed_content = _client.get(['context', context],
                     reply=['title', 'packages', 'versions', 'dependencies'],
                     mountpoint=mountpoint)
-            _logger.debug('Found %r in %r mountpoint', context, mountpoint)
+            pipe.log("Found '%s' in '%s' mountpoint", context, mountpoint)
             break
         except Exception:
             util.exception(_logger,
@@ -163,15 +174,19 @@ def _load_feed(context):
                     context, mountpoint)
 
     if feed_content is None:
-        _logger.warning('No feed for %r context', context)
+        pipe.log("No feeds for '%s'", context)
         return None
 
     feed.mountpoint = mountpoint
     feed.name = feed_content['title']
 
-    distr = feed_content['packages'].get(lsb_release.distributor_id())
-    if distr:
-        feed.to_resolve = distr.get('binary')
+    packages = feed_content['packages']
+    distr = '-'.join([lsb_release.distributor_id(), lsb_release.release()])
+    if distr in packages:
+        feed.to_resolve = packages[distr].get('binary')
+    elif packages:
+        pipe.log("No compatible packages for '%s', only %s are available",
+                context, ', '.join(packages.keys()))
 
     for release in feed_content['versions']:
         impl_id = release['guid']
@@ -201,7 +216,7 @@ def _load_feed(context):
         feed.implementations[impl_id] = impl
 
     if not feed.to_resolve and not feed.implementations:
-        _logger.debug('No implementations for %r', context)
+        pipe.log("No implementations for '%s'", context)
 
     return feed
 
@@ -325,4 +340,5 @@ def _read_requires(data):
 if __name__ == '__main__':
     from pprint import pprint
     logging.basicConfig(level=logging.DEBUG)
+    pipe.log = logging.info
     pprint(solve(*sys.argv[1:]))

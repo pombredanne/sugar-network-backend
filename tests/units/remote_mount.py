@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import os
+import time
 import json
 import socket
 import urllib2
@@ -157,8 +158,7 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(
                 'preview-blob',
                 remote.request('GET', ['context', guid, 'preview']).content)
-        assert local.ipc_port.value != 8800
-        url_prefix = 'http://localhost:8800/context/' + guid
+        url_prefix = local.api_url.value + '/context/' + guid
         self.assertEqual(
                 [{'guid': guid, 'icon': url_prefix + '/icon', 'preview': url_prefix + '/preview'}],
                 remote.get(['context'], reply=['guid', 'icon', 'preview'])['result'])
@@ -181,7 +181,7 @@ class RemoteMountTest(tests.Test):
             })
 
         self.assertRaises(RuntimeError, remote.get, ['artifact', guid, 'data'])
-        blob_url = 'http://localhost:8800/artifact/%s/data' % guid
+        blob_url = local.api_url.value + '/artifact/%s/data' % guid
         self.assertEqual(
                 [{'guid': guid, 'data': blob_url}],
                 remote.get(['artifact'], reply=['guid', 'data'])['result'])
@@ -432,6 +432,28 @@ class RemoteMountTest(tests.Test):
         response = requests.request('GET', local.api_url.value + '/document/' + guid + '/blob', allow_redirects=False)
         self.assertEqual(303, response.status_code)
         self.assertEqual(URL, response.headers['Location'])
+
+    def test_ConnectOnDemand(self):
+        local.connect_timeout.value = 1
+        pid = self.fork(self.restful_server)
+        self.start_server()
+        client = IPCClient(mountpoint='/')
+
+        guid = client.post(['context'], {'type': 'activity', 'title': 'title', 'summary': 'summary', 'description': 'description'})
+        self.assertEqual(guid, client.get(['context', guid, 'guid']))
+
+        self.waitpid(pid)
+        ts = time.time()
+        self.assertRaises(RuntimeError, client.get, ['context', guid, 'guid'])
+        assert time.time() - ts >= 1
+
+        ts = time.time()
+        self.assertRaises(RuntimeError, client.get, ['context', guid, 'guid'])
+        assert time.time() - ts >= 1
+
+        pid = self.fork(self.restful_server)
+        self.assertEqual(guid, client.get(['context', guid, 'guid']))
+        self.assertEqual(guid, client.get(['context', guid, 'guid']))
 
 
 if __name__ == '__main__':
