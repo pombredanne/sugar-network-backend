@@ -85,10 +85,10 @@ class Test(unittest.TestCase):
         ad.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.activity_dirs.value = [tmpdir + '/Activities']
-        client.api_url.value = 'http://localhost:8800'
+        client.api_url.value = 'http://localhost:8888'
         client.server_mode.value = False
         client.mounts_root.value = None
-        client.ipc_port.value = 5101
+        client.ipc_port.value = 5555
         client.layers.value = None
         mountpoints._connects.clear()
         mountpoints._found.clear()
@@ -284,7 +284,7 @@ class Test(unittest.TestCase):
 
         volume = Volume('remote', classes or [User, Context, Implementation])
         cp = NodeCommands(volume)
-        httpd = coroutine.WSGIServer(('localhost', 8800), Router(cp))
+        httpd = coroutine.WSGIServer(('localhost', 8888), Router(cp))
         try:
             coroutine.joinall([
                 coroutine.spawn(httpd.serve_forever),
@@ -299,7 +299,7 @@ class Test(unittest.TestCase):
         self.touch('master/master')
         self.volume = Volume('master', classes)
         cp = NodeCommands(self.volume)
-        self.server = coroutine.WSGIServer(('localhost', 8800), Router(cp))
+        self.server = coroutine.WSGIServer(('localhost', 8888), Router(cp))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
         return self.volume

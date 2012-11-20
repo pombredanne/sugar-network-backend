@@ -157,8 +157,7 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(
                 'preview-blob',
                 remote.request('GET', ['context', guid, 'preview']).content)
-        assert local.ipc_port.value != 8800
-        url_prefix = 'http://localhost:8800/context/' + guid
+        url_prefix = local.api_url.value + '/context/' + guid
         self.assertEqual(
                 [{'guid': guid, 'icon': url_prefix + '/icon', 'preview': url_prefix + '/preview'}],
                 remote.get(['context'], reply=['guid', 'icon', 'preview'])['result'])
@@ -181,7 +180,7 @@ class RemoteMountTest(tests.Test):
             })
 
         self.assertRaises(RuntimeError, remote.get, ['artifact', guid, 'data'])
-        blob_url = 'http://localhost:8800/artifact/%s/data' % guid
+        blob_url = local.api_url.value + '/artifact/%s/data' % guid
         self.assertEqual(
                 [{'guid': guid, 'data': blob_url}],
                 remote.get(['artifact'], reply=['guid', 'data'])['result'])

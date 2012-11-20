@@ -20,6 +20,7 @@ from sugar_network.toolkit.router import Router, _Request, _parse_accept_languag
 from active_toolkit import util
 from sugar_network.resources.user import User
 from sugar_network.resources.volume import Volume, Resource
+from sugar_network import client as local
 
 
 class RouterTest(tests.Test):
@@ -41,7 +42,7 @@ class RouterTest(tests.Test):
                 return value
 
         self.fork(self.restful_server, [User, Document])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
 
         guid_1 = client.post(['document'], {'term': 'term', 'stored': 'stored'})
 
@@ -195,11 +196,11 @@ class RouterTest(tests.Test):
 
         self.fork(self.restful_server, [User, Document])
 
-        client = Client('http://localhost:8800', sugar_auth=False)
+        client = Client(local.api_url.value, sugar_auth=False)
         self.assertRaises(RuntimeError, client.post, ['document'], {'term': 'term', 'stored': 'stored'})
         self.assertRaises(RuntimeError, client.get, ['user', sugar.uid()])
 
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         client.post(['document'], {'term': 'term', 'stored': 'stored'})
         self.assertEqual(sugar.uid(), client.get(['user', sugar.uid(), 'guid']))
 
@@ -216,7 +217,7 @@ class RouterTest(tests.Test):
                 return value
 
         pid = self.fork(self.restful_server, [User, Document])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         client.post(['document'], {'term': 'term', 'stored': 'stored'})
         self.waitpid(pid)
 
@@ -251,7 +252,7 @@ class RouterTest(tests.Test):
                 return value
 
         self.fork(self.restful_server, [User, Document2])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         guid = client.post(['document2'], {'term': 'probe'})
         content = urllib2.urlopen(URL).read()
         assert content == client.request('GET', ['document2', guid, 'blob']).content
@@ -366,32 +367,32 @@ class RouterTest(tests.Test):
         self.fork(self.restful_server, [User, TestDocument])
 
         self.override(ad, 'default_lang', lambda: 'en')
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         guid = client.post(['testdocument'], {'prop': 'en'})
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
 
         self.override(ad, 'default_lang', lambda: 'ru')
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
         client.put(['testdocument', guid, 'prop'], 'ru')
         self.assertEqual('ru', client.get(['testdocument', guid, 'prop']))
 
         self.override(ad, 'default_lang', lambda: 'es')
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
         client.put(['testdocument', guid, 'prop'], 'es')
         self.assertEqual('es', client.get(['testdocument', guid, 'prop']))
 
         self.override(ad, 'default_lang', lambda: 'ru')
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('ru', client.get(['testdocument', guid, 'prop']))
 
         self.override(ad, 'default_lang', lambda: 'en')
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
 
         self.override(ad, 'default_lang', lambda: 'foo')
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
 
     def test_IfModifiedSince(self):
@@ -406,7 +407,7 @@ class RouterTest(tests.Test):
                     raise NotModified()
 
         self.start_master([User, TestDocument])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
 
         guid = client.post(['testdocument'], {'prop': 10})
         self.assertEqual(
@@ -441,7 +442,7 @@ class RouterTest(tests.Test):
                 return value
 
         self.start_master([User, TestDocument])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
 
         guid = client.post(['testdocument'], {'prop1': 10, 'prop2': 20, 'prop3': 'blob'})
         self.assertEqual(
@@ -461,7 +462,7 @@ class RouterTest(tests.Test):
             pass
 
         self.start_master([User, TestDocument])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         guid = client.post(['testdocument'], {})
 
         local_path = '../../../sugar_network/static/httpdocs/images/missing.png'
@@ -478,7 +479,7 @@ class RouterTest(tests.Test):
             pass
 
         self.start_master([User, TestDocument])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         guid = client.post(['testdocument'], {})
 
         mtime = os.stat('../../../sugar_network/static/httpdocs/images/missing.png').st_mtime
@@ -507,7 +508,7 @@ class RouterTest(tests.Test):
                 return value
 
         self.start_master([User, TestDocument])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
 
         guid = client.post(['testdocument'], {'blob': 'value'})
         blob_path = 'master/testdocument/%s/%s/blob' % (guid[:2], guid)
@@ -539,7 +540,7 @@ class RouterTest(tests.Test):
                 return value
 
         self.start_master([User, Document])
-        client = Client('http://localhost:8800')
+        client = Client(local.api_url.value)
 
         response = client.request(
                 'POST',
@@ -598,7 +599,7 @@ class RouterTest(tests.Test):
                 return value
 
         self.start_master([User, TestDocument])
-        client = Client('http://localhost:8800', sugar_auth=True)
+        client = Client(local.api_url.value, sugar_auth=True)
         guid = client.post(['testdocument'], {})
 
         response = client.request('GET', ['testdocument', guid])

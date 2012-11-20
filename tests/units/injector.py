@@ -319,13 +319,13 @@ class InjectorTest(tests.Test):
         self.override(zeroinstall, 'solve', lambda *args: solution)
 
         self.assertEqual(solution, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution], pickle.load(file('cache/solutions/~/co/context')))
+        self.assertEqual([local.api_url.value, solution], pickle.load(file('cache/solutions/~/co/context')))
 
         self.assertEqual(solution, injector._solve('/', 'context'))
-        self.assertEqual(['http://localhost:8800', solution], pickle.load(file('cache/solutions/#/co/context')))
+        self.assertEqual([local.api_url.value, solution], pickle.load(file('cache/solutions/#/co/context')))
 
         self.assertEqual(solution, injector._solve('/foo/bar', 'context'))
-        self.assertEqual(['http://localhost:8800', solution], pickle.load(file('cache/solutions/#foo#bar/co/context')))
+        self.assertEqual([local.api_url.value, solution], pickle.load(file('cache/solutions/#foo#bar/co/context')))
 
     def test_SolutionsCache_InvalidateByAPIUrl(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
@@ -333,9 +333,9 @@ class InjectorTest(tests.Test):
         cached_path = 'cache/solutions/~/co/context'
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
+        self.touch((cached_path, pickle.dumps([local.api_url.value, solution2])))
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
         local.api_url.value = 'fake'
         self.assertEqual(solution, injector._solve('~', 'context'))
@@ -348,18 +348,18 @@ class InjectorTest(tests.Test):
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         injector.invalidate_solutions(1)
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
+        self.touch((cached_path, pickle.dumps([local.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
         self.assertEqual(solution, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution], pickle.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByPMSMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
@@ -370,18 +370,18 @@ class InjectorTest(tests.Test):
         self.touch('pms')
         os.utime('pms', (1, 1))
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
+        self.touch((cached_path, pickle.dumps([local.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
         os.utime('pms', (3, 3))
         self.assertEqual(solution, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution], pickle.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateBySpecMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
@@ -391,18 +391,18 @@ class InjectorTest(tests.Test):
         solution2 = [{'spec': 'spec', 'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         self.touch('spec')
         os.utime('spec', (1, 1))
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
+        self.touch((cached_path, pickle.dumps([local.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
         os.utime('spec', (3, 3))
         self.assertEqual(solution, injector._solve('~', 'context'))
-        self.assertEqual(['http://localhost:8800', solution], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution], pickle.load(file(cached_path)))
 
     def test_CacheReuseOnSolveFails(self):
         self.override(zeroinstall, 'solve', lambda *args: enforce(False))
@@ -412,14 +412,14 @@ class InjectorTest(tests.Test):
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         injector.invalidate_solutions(1)
-        self.touch((cached_path, pickle.dumps(["http://localhost:8800", solution2])))
+        self.touch((cached_path, pickle.dumps([local.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(["http://localhost:8800", solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
         self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual(["http://localhost:8800", solution2], pickle.load(file(cached_path)))
+        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
 
     def test_clone_SetExecPermissionsForActivities(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
