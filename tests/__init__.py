@@ -90,6 +90,7 @@ class Test(unittest.TestCase):
         client.mounts_root.value = None
         client.ipc_port.value = 5555
         client.layers.value = None
+        client.connect_timeout.value = 0
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
@@ -158,10 +159,14 @@ class Test(unittest.TestCase):
     def waitpid(self, pid, sig=signal.SIGTERM, ignore_status=False):
         if pid in self.forks:
             self.forks.remove(pid)
+        import logging
+        logging.error('>>> %r %r', sig, pid)
         if sig:
             try:
+                logging.error('>> %r %r', sig, pid)
                 os.kill(pid, sig)
             except Exception, e:
+                logging.error('> %s', e)
                 pass
         try:
             __, status = os.waitpid(pid, 0)

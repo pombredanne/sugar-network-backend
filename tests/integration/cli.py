@@ -18,7 +18,7 @@ from sugar_network import IPCClient
 from active_toolkit import coroutine, util
 
 
-class SyncTest(tests.Test):
+class CliTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
@@ -109,13 +109,7 @@ class SyncTest(tests.Test):
                 '--mounts-root=mnt', '--tmpdir=tmp', '--ipc-port=5101',
                 '--api-url=http://localhost:8100',
                 ])
-            while True:
-                try:
-                    with IPCClient(mountpoint='/') as client:
-                        if client.get(cmd='mounted'):
-                            break
-                except requests.ConnectionError:
-                    coroutine.sleep(1)
+            coroutine.sleep(1)
 
         result = util.assert_call(cmd, stdin=json.dumps(stdin))
         if result:

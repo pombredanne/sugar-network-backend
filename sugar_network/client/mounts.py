@@ -20,6 +20,7 @@ from gettext import gettext as _
 
 import active_document as ad
 from sugar_network.zerosugar import injector
+from sugar_network.toolkit import http
 from sugar_network.toolkit.router import Request
 from sugar_network.resources.volume import VolumeCommands
 from sugar_network.client import journal
@@ -93,7 +94,7 @@ class LocalMount(VolumeCommands, _Mount):
                 os.unlink(path)
 
     def url(self, *path):
-        enforce(self.mounted.is_set(), 'Not mounter')
+        enforce(self.mounted.is_set(), 'Not mounted')
         api_url = 'http://localhost:%s' % client.ipc_port.value
         return '/'.join((api_url,) + path)
 
@@ -199,7 +200,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         return _('Network')
 
     def url(self, *path):
-        enforce(self.mounted.is_set(), 'Not mounter')
+        enforce(self.mounted.is_set(), 'Not mounted')
         return '/'.join((self._url,) + path)
 
     def __init__(self, home_volume, listen_events=True):
@@ -224,10 +225,22 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         return self._client.call(request, response)
 
     def call(self, request, response=None):
-        try:
-            return ad.CommandsProcessor.call(self, request, response)
-        except ad.CommandNotFound:
-            return self.proxy_call(request, response)
+        for a_try in range(2):
+            if not self.mounted.is_set():
+                self.set_mounted(True)
+                _logger.debug('Wait for %s second(s) for remote connection',
+                        client.connect_timeout.value)
+                self.mounted.wait(client.connect_timeout.value)
+            try:
+                try:
+                    return ad.CommandsProcessor.call(self, request, response)
+                except ad.CommandNotFound:
+                    return self.proxy_call(request, response)
+            except http.ConnectionError:
+                if a_try:
+                    raise
+                util.exception('Got connection error, try to reconnect')
+                continue
 
     def set_mounted(self, value):
         if value != self.mounted.is_set():

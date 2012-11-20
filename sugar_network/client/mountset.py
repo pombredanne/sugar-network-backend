@@ -228,9 +228,6 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
     def super_call(self, request, response):
         mount = self[request.mountpoint]
-        if request.mountpoint == '/':
-            mount.set_mounted(True)
-        enforce(mount.mounted.is_set(), '%r is unmounted', request.mountpoint)
         return mount.call(request, response)
 
     def call(self, request, response=None):
