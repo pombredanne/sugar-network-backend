@@ -170,7 +170,8 @@ def _failure_environ():
               'python': platform.python_version_tuple(),
               'sugar': sugar_version,
               }
-    result.update(environ)
+    if environ:
+        result.update(environ)
     if _log:
         result['log'] = _log
     return result
