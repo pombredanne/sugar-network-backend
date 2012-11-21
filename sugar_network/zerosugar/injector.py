@@ -118,6 +118,7 @@ def _make(mountpoint, context):
             session={
                 'implementation': solution[0]['id'],
                 'version': solution[0]['version'],
+                'name': solution[0]['name'],
                 },
             )
     return solution
