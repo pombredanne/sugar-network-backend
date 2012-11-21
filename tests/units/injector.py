@@ -91,8 +91,8 @@ class InjectorTest(tests.Test):
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'name': 'title'},
+            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'name': 'title'},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -108,8 +108,8 @@ class InjectorTest(tests.Test):
         self.assertEqual([
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
-            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path},
+            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'name': 'title'},
+            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'name': 'title'},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -168,9 +168,9 @@ class InjectorTest(tests.Test):
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'exec', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None, 'name': 'title'},
+            {'state': 'exec', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None, 'name': 'title'},
+            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None, 'name': 'title'},
             ],
             [i for i in pipe])
 
@@ -215,16 +215,16 @@ class InjectorTest(tests.Test):
             {'state': 'fork', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             {'state': 'analyze', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
             {'state': 'download', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'ready', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'exec', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
-            {'state': 'exit', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None},
+            {'state': 'ready', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None, 'name': 'title'},
+            {'state': 'exec', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None, 'name': 'title'},
+            {'state': 'exit', 'implementation': impl_2, 'version': '2', 'mountpoint': '/', 'context': context, 'log_path': log_path, 'activity_id': 'activity_id', 'color': None, 'name': 'title'},
             ],
             [i for i in pipe])
 
     def test_launch_Offline(self):
         self.touch(('Activities/activity/activity/activity.info', [
             '[Activity]',
-            'name = TestActivity',
+            'name = title',
             'bundle_id = bundle_id',
             'exec = true',
             'icon = icon',
@@ -245,9 +245,9 @@ class InjectorTest(tests.Test):
         self.assertEqual([
             {'state': 'fork', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
             {'state': 'analyze', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
-            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
-            {'state': 'exec', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
-            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'ready', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id', 'name': 'title'},
+            {'state': 'exec', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id', 'name': 'title'},
+            {'state': 'exit', 'implementation': impl, 'version': '1', 'mountpoint': '~', 'context': context, 'log_path': log_path, 'color': None, 'activity_id': 'activity_id', 'name': 'title'},
             ],
             [i for i in pipe])
 
