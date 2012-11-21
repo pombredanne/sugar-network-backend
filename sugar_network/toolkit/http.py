@@ -239,6 +239,7 @@ class _Subscription(object):
                     raise
                 util.exception('Failed to read from %r subscription, '
                         'will resubscribe', self._client.api_url)
+                self._response = None
 
         if line.startswith('data: '):
             try:
