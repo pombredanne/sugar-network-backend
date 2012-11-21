@@ -17,7 +17,7 @@
 
 $Repo: git://git.sugarlabs.org/alsroot/codelets.git$
 $File: src/rrd.py$
-$Date: 2012-10-31$
+$Date: 2012-11-21$
 
 """
 
@@ -29,8 +29,6 @@ import logging
 from datetime import datetime
 from os.path import exists, join
 
-import rrdtool
-
 
 _DB_FILENAME_RE = re.compile('(.*?)(-[0-9]+){0,1}\.rrd$')
 _INFO_RE = re.compile('([^[]+)\[([^]]+)\]\.(.*)$')
@@ -38,11 +36,17 @@ _INFO_RE = re.compile('([^[]+)\[([^]]+)\]\.(.*)$')
 _FETCH_PAGE = 256
 
 _logger = logging.getLogger('sugar_stats')
+_rrdtool = None
 
 
 class Rrd(object):
 
     def __init__(self, root, step, rras=None):
+        global _rrdtool
+
+        import rrdtool
+        _rrdtool = rrdtool
+
         self._root = root
         self._step = step
         # rrdtool knows nothing about `unicode`
@@ -161,7 +165,7 @@ class _DbSet(object):
             while start <= db_end:
                 until = max(start,
                         min(start + _FETCH_PAGE, db_end))
-                (row_start, start, row_step), __, rows = rrdtool.fetch(
+                (row_start, start, row_step), __, rows = _rrdtool.fetch(
                         str(db.path),
                         'AVERAGE',
                         '--start', str(start),
@@ -209,7 +213,7 @@ class _DbSet(object):
         for name in field_names:
             fields.append(str('DS:%s:GAUGE:%s:U:U' % (name, self._step * 2)))
 
-        rrdtool.create(
+        _rrdtool.create(
                 str(join(self._root, filename)),
                 '--start', str(timestamp - self._step),
                 '--step', str(self._step),
@@ -227,7 +231,7 @@ class _Db(object):
         self.field_names = []
         self.rras = []
 
-        info = rrdtool.info(self.path)
+        info = _rrdtool.info(self.path)
         self.step = info['step']
         self.last = info['last_update']
 
@@ -258,12 +262,12 @@ class _Db(object):
             self.field_names.append(name)
 
     def put(self, value):
-        rrdtool.update(self.path, str(value))
-        self.last = rrdtool.info(self.path)['last_update']
+        _rrdtool.update(self.path, str(value))
+        self.last = _rrdtool.info(self.path)['last_update']
 
     @property
     def first(self):
-        return rrdtool.first(self.path)
+        return _rrdtool.first(self.path)
 
     def __cmp__(self, other):
         return cmp(self.revision, other.revision)

@@ -82,6 +82,26 @@ class Application(application.Daemon):
             volume.close()
 
     @application.command(hidden=True)
+    def graceful_start(self):
+        """Restart existing process if it was started in different environment.
+
+        This command makes sense only for Sugar Network activity when it is
+        required avoid restarting existing sugar-network-client. But, restart
+        process if it was started in different Sugar session.
+        """
+        pid = self.check_for_instance()
+        if pid:
+            run_environ = _read_environ(pid)
+            if os.environ.get('DISPLAY') == run_environ.get('DISPLAY') and \
+                    os.environ.get('DBUS_SESSION_BUS_ADDRESS') == \
+                    run_environ.get('DBUS_SESSION_BUS_ADDRESS'):
+                printf.info('%s already started in current environment',
+                        self.name)
+                return
+            application.replace.value = True
+        self.cmd_start()
+
+    @application.command(hidden=True)
     def debug(self):
         printf.info('Use "start --foreground" command instead')
         application.foreground.value = True
@@ -153,6 +173,11 @@ class Application(application.Daemon):
         for context in docs:
             if not clones.ensure_clones(context.guid):
                 contexts.update(context.guid, clone=0)
+
+
+def _read_environ(pid):
+    with file('/proc/%s/environ' % pid, 'rb') as f:
+        return dict([i.split('=', 1) for i in f.read().split('\0') if i])
 
 
 # Let toolkit.http work in concurrence
