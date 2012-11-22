@@ -301,9 +301,8 @@ class Commands(object):
 
     def _pull_events(self, peer, only_commits):
         _logger.debug('Start pulling events to %s user', peer)
-        # Otherwise, gevent's WSGI server doesn't sent HTTP status
-        yield '\n'
 
+        yield 'data: %s\n\n' % json.dumps({'event': 'handshake'})
         try:
             while True:
                 event = self._notifier.get()

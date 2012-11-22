@@ -186,6 +186,7 @@ class HomeMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
+            {'event': 'handshake'},
             {'guid': guid, 'document': 'context', 'event': 'create', 'mountpoint': '~'},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~'},
             {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '~'},
@@ -217,6 +218,7 @@ class HomeMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
+            {'event': 'handshake'},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~', 'props': {'title': 'title_2'}},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '/', 'props': {'favorite': True}},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~', 'props': {'favorite': True}},

@@ -67,7 +67,8 @@ class NodeMountTest(tests.Test):
                 if 'props' in event:
                     event.pop('props')
                 events.append(event)
-                got_event.set()
+                if event['event'] != 'handshake':
+                    got_event.set()
         job = coroutine.spawn(read_events)
 
         guid = remote.post(['context'], {
@@ -79,6 +80,7 @@ class NodeMountTest(tests.Test):
         got_event.wait()
         got_event.clear()
         self.assertEqual([
+            {'event': 'handshake'},
             {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'create', 'guid': guid, 'seqno': 1},
             ],
             events)
