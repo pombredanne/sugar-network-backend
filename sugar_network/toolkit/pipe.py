@@ -23,15 +23,12 @@ import cPickle as pickle
 from os.path import exists
 
 from sugar_network import sugar
-from sugar_network.zerosugar import lsb_release
 from active_toolkit import coroutine, util
 
 
-environ = None
-
 _logger = logging.getLogger('pipe')
 _pipe = None
-_log = None
+_trace = None
 
 
 def feedback(state, **event):
@@ -43,11 +40,14 @@ def feedback(state, **event):
     os.write(_pipe, event)
 
 
-def log(message, *args):
-    if _log is not None:
-        if args:
-            message = message % args
-        _log.append(message)
+def trace(message, *args):
+    global _trace
+    if _trace is None:
+        _trace = []
+    if args:
+        message = message % args
+    _logger.info(message)
+    _trace.append(message)
 
 
 def fork(callback, logname=None, session=None, **kwargs):
@@ -60,10 +60,8 @@ def fork(callback, logname=None, session=None, **kwargs):
         return _Pipe(pid, fd_r)
 
     os.close(fd_r)
-    global _pipe, _log, environ
+    global _pipe
     _pipe = fd_w
-    _log = []
-    environ = {}
 
     def thread_func():
         if logname:
@@ -72,8 +70,8 @@ def fork(callback, logname=None, session=None, **kwargs):
         try:
             callback(**kwargs)
         except Exception, error:
-            util.exception(_logger)
-            feedback('failure', error=str(error), environ=_failure_environ())
+            _logger.exception('%r(%r) failed', callback, kwargs)
+            feedback('failure', error=str(error), session={'trace': _trace})
 
     if session is None:
         session = {}
@@ -95,7 +93,6 @@ class _Pipe(object):
         self._pid = pid
         self._fd = fd
         self._session = {}
-        self._failed = False
 
     def fileno(self):
         return self._fd
@@ -104,37 +101,38 @@ class _Pipe(object):
         if self._fd is None:
             return None
 
+        event = None
+        failed = False
+
         event_length = os.read(self._fd, struct.calcsize('i'))
         if event_length:
             event_length = struct.unpack('i', event_length)[0]
             event = pickle.loads(os.read(self._fd, event_length))
             if 'session' in event:
-                self._session.update(event.pop('session') or {})
-            if event['state'] == 'failure':
-                self._failed = True
-            event.update(self._session)
-            return event
+                self._session.update(event.pop('session'))
+            failed = (event['state'] == 'failure')
 
-        status = 0
-        try:
-            __, status = os.waitpid(self._pid, 0)
-        except OSError:
-            pass
-        os.close(self._fd)
-        self._fd = None
-        if self._failed:
-            return None
-        failure = _decode_exit_failure(status)
-        if failure:
-            _logger.debug('Process %s failed: %s', self._pid, failure)
-            event = {'state': 'failure',
-                     'error': failure,
-                     'environ': _failure_environ(),
-                     }
-        else:
-            _logger.debug('Process %s successfully exited', self._pid)
-            event = {'state': 'exit'}
-        event.update(self._session)
+        if event is None or failed:
+            status = 0
+            try:
+                __, status = os.waitpid(self._pid, 0)
+            except OSError:
+                pass
+            if event is None:
+                failure = _decode_exit_failure(status)
+                if failure:
+                    _logger.debug('Process %s failed: %s', self._pid, failure)
+                    event = {'state': 'failure', 'error': failure}
+                    failed = True
+                else:
+                    _logger.debug('Process %s successfully exited', self._pid)
+                    event = {'state': 'exit'}
+            os.close(self._fd)
+            self._fd = None
+
+        if failed:
+            event['session'] = self._session
+
         return event
 
     def __iter__(self):
@@ -151,30 +149,6 @@ class _Pipe(object):
                 os.kill(self._pid, signal.SIGTERM)
                 while self.read() is not None:
                     pass
-
-
-def _failure_environ():
-    import platform
-
-    try:
-        # pylint: disable-msg=F0401
-        from jarabe import config
-        sugar_version = config.version
-    except ImportError:
-        sugar_version = None
-
-    result = {'lsb_distributor_id': lsb_release.distributor_id(),
-              'lsb_release': lsb_release.release(),
-              'os': platform.linux_distribution(),
-              'uname': platform.uname(),
-              'python': platform.python_version_tuple(),
-              'sugar': sugar_version,
-              }
-    if environ:
-        result.update(environ)
-    if _log:
-        result['log'] = _log
-    return result
 
 
 def _decode_exit_failure(status):

@@ -108,7 +108,7 @@ def _solve(requirement):
                             (impl.get_version(), reason or 'ok'))
             else:
                 summary.append('  (no versions)')
-        pipe.log('\n  '.join(['Solving results:'] + summary))
+        pipe.trace('\n  '.join(['Solving results:'] + summary))
 
         # pylint: disable-msg=W0212
         reason = driver.solver._failure_reason
@@ -166,7 +166,7 @@ def _load_feed(context):
             feed_content = _client.get(['context', context],
                     reply=['title', 'packages', 'versions', 'dependencies'],
                     mountpoint=mountpoint)
-            pipe.log("Found '%s' in '%s' mountpoint", context, mountpoint)
+            pipe.trace("Found '%s' in '%s' mountpoint", context, mountpoint)
             break
         except Exception:
             util.exception(_logger,
@@ -174,7 +174,7 @@ def _load_feed(context):
                     context, mountpoint)
 
     if feed_content is None:
-        pipe.log("No feeds for '%s'", context)
+        pipe.trace("No feeds for '%s'", context)
         return None
 
     feed.mountpoint = mountpoint
@@ -185,7 +185,7 @@ def _load_feed(context):
     if distr in packages:
         feed.to_resolve = packages[distr].get('binary')
     elif packages:
-        pipe.log("No compatible packages for '%s', only %s are available",
+        pipe.trace("No compatible packages for '%s', only %s are available",
                 context, ', '.join(packages.keys()))
 
     for release in feed_content['versions']:
@@ -216,7 +216,7 @@ def _load_feed(context):
         feed.implementations[impl_id] = impl
 
     if not feed.to_resolve and not feed.implementations:
-        pipe.log("No implementations for '%s'", context)
+        pipe.trace("No implementations for '%s'", context)
 
     return feed
 
@@ -340,5 +340,5 @@ def _read_requires(data):
 if __name__ == '__main__':
     from pprint import pprint
     logging.basicConfig(level=logging.DEBUG)
-    pipe.log = logging.info
+    pipe.trace = logging.info
     pprint(solve(*sys.argv[1:]))
