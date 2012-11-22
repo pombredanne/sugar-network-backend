@@ -64,14 +64,15 @@ def fork(callback, logname=None, session=None, **kwargs):
     _pipe = fd_w
 
     def thread_func():
+        environ = {}
         if logname:
-            session['log_path'] = _setup_logging(logname)
-        feedback('fork', session=session)
+            environ['log_path'] = _setup_logging(logname)
+        feedback('fork', session=session, environ=environ)
         try:
             callback(**kwargs)
         except Exception, error:
             _logger.exception('%r(%r) failed', callback, kwargs)
-            feedback('failure', error=str(error), session={'trace': _trace})
+            feedback('failure', error=str(error), environ={'trace': _trace})
 
     if session is None:
         session = {}
@@ -93,6 +94,7 @@ class _Pipe(object):
         self._pid = pid
         self._fd = fd
         self._session = {}
+        self._environ = {}
 
     def fileno(self):
         return self._fd
@@ -110,6 +112,8 @@ class _Pipe(object):
             event = pickle.loads(os.read(self._fd, event_length))
             if 'session' in event:
                 self._session.update(event.pop('session'))
+            if 'environ' in event:
+                self._environ.update(event.pop('environ'))
             failed = (event['state'] == 'failure')
 
         if event is None or failed:
@@ -131,7 +135,8 @@ class _Pipe(object):
             self._fd = None
 
         if failed:
-            event['session'] = self._session
+            event.update(self._environ)
+        event.update(self._session)
 
         return event
 

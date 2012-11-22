@@ -42,9 +42,9 @@ class InjectorTest(tests.Test):
         pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork'},
-            {'state': 'analyze'},
-            {'state': 'failure', 'error': "Interface '%s' has no usable implementations" % context, 'session': {'log_path': log_path, 'mountpoint': '/', 'context': context, 'trace': None}},
+            {'state': 'fork', 'mountpoint': '/', 'context': context},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context},
+            {'state': 'failure', 'mountpoint': '/', 'context': context, 'error': "Interface '%s' has no usable implementations" % context, 'log_path': log_path, 'trace': None},
             ],
             [i for i in pipe])
 
@@ -71,14 +71,13 @@ class InjectorTest(tests.Test):
         pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
-            {'state': 'fork'},
-            {'state': 'analyze'},
-            {'state': 'solved'},
-            {'state': 'download'},
-            {'state': 'failure', 'error': 'BLOB does not exist', 'session': {
-                'mountpoint': '/', 'context': context, 'log_path': log_path, 'trace': None,
+            {'state': 'fork', 'mountpoint': '/', 'context': context},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context},
+            {'state': 'solved', 'mountpoint': '/', 'context': context},
+            {'state': 'download', 'mountpoint': '/', 'context': context},
+            {'state': 'failure', 'mountpoint': '/', 'context': context, 'error': 'BLOB does not exist', 'log_path': log_path, 'trace': None,
                 'solution': [{'name': 'title', 'prefix': 'topdir', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl}],
-                }},
+                },
             ],
             [i for i in pipe])
         assert not exists('cache/implementation/%s' % impl)
@@ -92,12 +91,12 @@ class InjectorTest(tests.Test):
         pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
         self.assertEqual([
-            {'state': 'fork'},
-            {'state': 'analyze'},
-            {'state': 'solved'},
-            {'state': 'download'},
-            {'state': 'ready'},
-            {'state': 'exit'},
+            {'state': 'fork', 'mountpoint': '/', 'context': context},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context},
+            {'state': 'solved', 'mountpoint': '/', 'context': context},
+            {'state': 'download', 'mountpoint': '/', 'context': context},
+            {'state': 'ready', 'mountpoint': '/', 'context': context},
+            {'state': 'exit', 'mountpoint': '/', 'context': context},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -111,11 +110,11 @@ class InjectorTest(tests.Test):
         pipe = injector.clone('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_3.log' % context
         self.assertEqual([
-            {'state': 'fork'},
-            {'state': 'analyze'},
-            {'state': 'solved'},
-            {'state': 'ready'},
-            {'state': 'exit'},
+            {'state': 'fork', 'mountpoint': '/', 'context': context},
+            {'state': 'analyze', 'mountpoint': '/', 'context': context},
+            {'state': 'solved', 'mountpoint': '/', 'context': context},
+            {'state': 'ready', 'mountpoint': '/', 'context': context},
+            {'state': 'exit', 'mountpoint': '/', 'context': context},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -171,13 +170,13 @@ class InjectorTest(tests.Test):
 
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork'},
-            {'state': 'analyze'},
-            {'state': 'solved'},
-            {'state': 'download'},
-            {'state': 'ready'},
-            {'state': 'exec'},
-            {'state': 'exit'},
+            {'state': 'fork', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'analyze', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'solved', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'download', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'ready', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'exec', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'exit', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
             ],
             [i for i in pipe])
 
@@ -219,13 +218,13 @@ class InjectorTest(tests.Test):
         pipe = injector.launch('/', context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
-            {'state': 'fork'},
-            {'state': 'analyze'},
-            {'state': 'solved'},
-            {'state': 'download'},
-            {'state': 'ready'},
-            {'state': 'exec'},
-            {'state': 'exit'},
+            {'state': 'fork', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'analyze', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'solved', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'download', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'ready', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'exec', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'exit', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
             ],
             [i for i in pipe])
 
@@ -251,12 +250,12 @@ class InjectorTest(tests.Test):
         pipe = injector.launch('~', context, activity_id='activity_id')
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork'},
-            {'state': 'analyze'},
-            {'state': 'solved'},
-            {'state': 'ready'},
-            {'state': 'exec'},
-            {'state': 'exit'},
+            {'state': 'fork', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
+            {'state': 'analyze', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
+            {'state': 'solved', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
+            {'state': 'ready', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
+            {'state': 'exec', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
+            {'state': 'exit', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
             ],
             [i for i in pipe])
 

@@ -92,7 +92,7 @@ def invalidate_solutions(mtime):
 def _make(mountpoint, context):
     pipe.feedback('analyze')
     solution = _solve(mountpoint, context)
-    pipe.feedback('solved', session={'solution': solution})
+    pipe.feedback('solved', environ={'solution': solution})
 
     to_install = []
     for impl in solution:
