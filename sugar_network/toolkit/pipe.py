@@ -93,21 +93,21 @@ class _Pipe(object):
 
     def __init__(self, pid, fd):
         self._pid = pid
-        self._file = os.fdopen(fd)
+        self._fd = fd
         self._session = {}
         self._failed = False
 
     def fileno(self):
-        return None if self._file is None else self._file.fileno()
+        return self._fd
 
     def read(self):
-        if self._file is None:
+        if self._fd is None:
             return None
 
-        event_length = self._file.read(struct.calcsize('i'))
+        event_length = os.read(self._fd, struct.calcsize('i'))
         if event_length:
             event_length = struct.unpack('i', event_length)[0]
-            event = pickle.loads(self._file.read(event_length))
+            event = pickle.loads(os.read(self._fd, event_length))
             if 'session' in event:
                 self._session.update(event.pop('session') or {})
             if event['state'] == 'failure':
@@ -120,8 +120,8 @@ class _Pipe(object):
             __, status = os.waitpid(self._pid, 0)
         except OSError:
             pass
-        self._file.close()
-        self._file = None
+        os.close(self._fd)
+        self._fd = None
         if self._failed:
             return None
         failure = _decode_exit_failure(status)
@@ -139,14 +139,14 @@ class _Pipe(object):
 
     def __iter__(self):
         try:
-            while self._file is not None:
-                coroutine.select([self._file.fileno()], [], [])
+            while self._fd is not None:
+                coroutine.select([self._fd], [], [])
                 event = self.read()
                 if event is None:
                     break
                 yield event
         finally:
-            if self._file is not None:
+            if self._fd is not None:
                 _logger.debug('Kill %s process', self._pid)
                 os.kill(self._pid, signal.SIGTERM)
                 while self.read() is not None:
@@ -170,7 +170,8 @@ def _failure_environ():
               'python': platform.python_version_tuple(),
               'sugar': sugar_version,
               }
-    result.update(environ)
+    if environ:
+        result.update(environ)
     if _log:
         result['log'] = _log
     return result

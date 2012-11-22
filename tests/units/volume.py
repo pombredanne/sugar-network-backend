@@ -204,6 +204,7 @@ class VolumeTest(tests.Test):
         job.kill()
 
         self.assertEqual([
+            {'event': 'handshake'},
             {'guid': 'guid', 'document': 'document', 'event': 'create'},
             {'guid': 'guid', 'document': 'document', 'event': 'update'},
             {'guid': 'guid', 'event': 'delete', 'document': u'document'},
@@ -246,6 +247,7 @@ class VolumeTest(tests.Test):
         job.kill()
 
         self.assertEqual([
+            {'event': 'handshake'},
             {'document': 'document', 'event': 'commit'},
             {'document': 'document', 'event': 'commit'},
             {'document': 'document', 'event': 'commit'},
