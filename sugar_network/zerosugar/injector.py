@@ -92,14 +92,14 @@ def invalidate_solutions(mtime):
 def _make(mountpoint, context):
     pipe.feedback('analyze')
     solution = _solve(mountpoint, context)
-    pipe.environ['solution'] = solution
+    pipe.feedback('solved', environ={'solution': solution})
 
     to_install = []
     for impl in solution:
         if 'install' in impl:
             to_install.extend(impl['install'])
     if to_install:
-        pipe.log('Install %s package(s)',
+        pipe.trace('Install %s package(s)',
                 ', '.join([i['name'] for i in to_install]))
         from sugar_network.zerosugar import packagekit
         packagekit.install(to_install)
@@ -107,20 +107,14 @@ def _make(mountpoint, context):
     for impl in solution:
         if 'install' in impl or 'mountpoint' not in impl or 'path' in impl:
             continue
-        pipe.log('Download %s implementation', impl['id'])
+        pipe.trace('Download %s implementation', impl['id'])
         # TODO Process different mountpoints
         impl_path = cache.get(impl['id'])
         if 'prefix' in impl:
             impl_path = join(impl_path, impl['prefix'])
         impl['path'] = impl_path
 
-    pipe.feedback('ready',
-            session={
-                'implementation': solution[0]['id'],
-                'version': solution[0]['version'],
-                'name': solution[0]['name'],
-                },
-            )
+    pipe.feedback('ready')
     return solution
 
 
@@ -155,11 +149,11 @@ def _clone(mountpoint, context):
 
 
 def _solve(mountpoint, context):
-    pipe.log("Start solving '%s' from '%s' mountpoint", context, mountpoint)
+    pipe.trace("Start solving '%s' from '%s' mountpoint", context, mountpoint)
 
     cached_path, solution, stale = _get_cached_solution(mountpoint, context)
     if stale is False:
-        pipe.log('Reuse cached solution')
+        pipe.trace('Reuse cached solution')
         return solution
 
     from sugar_network import zeroinstall
@@ -216,7 +210,7 @@ def _get_cached_solution(mountpoint, guid):
         return path, None, None
 
     stale = (api_url != client.api_url.value)
-    if _mtime is not None:
+    if not stale and _mtime is not None:
         stale = (_mtime > os.stat(path).st_mtime)
     if not stale and _pms_path is not None:
         stale = (os.stat(_pms_path).st_mtime > os.stat(path).st_mtime)
