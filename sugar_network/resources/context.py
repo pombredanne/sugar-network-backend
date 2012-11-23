@@ -198,6 +198,7 @@ class Context(Resource):
             alias = aliases.get(repo['distributor_id'])
             if not alias or '*' not in alias:
                 continue
+            packages[repo['distributor_id']] = alias['*']
             alias = alias['*'].copy()
             try:
                 to_resolve = alias.get('binary', []) + \

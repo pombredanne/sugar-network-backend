@@ -50,6 +50,8 @@ class ContextTest(tests.Test):
             })
         coroutine.dispatch()
         self.assertEqual({
+            'Gentoo': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
+            'Debian': {'binary': ['pkg4.bin'], 'devel': ['pkg5.devel', 'pkg6.devel']},
             'Gentoo-2.1': {'status': 'success', 'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
             'Debian-6.0': {'status': 'success', 'binary': ['pkg4.bin'], 'devel': ['pkg5.devel', 'pkg6.devel']},
             'Debian-7.0': {'status': 'success', 'binary': ['pkg4.bin'], 'devel': ['pkg5.devel', 'pkg6.devel']},
@@ -102,6 +104,8 @@ class ContextTest(tests.Test):
             })
         coroutine.dispatch()
         self.assertEqual({
+            'Gentoo': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
+            'Debian': {'binary': ['pkg4.bin'], 'devel': ['pkg5.devel', 'pkg6.devel']},
             'Gentoo-2.1': {'status': 'resolve failed'},
             'Debian-6.0': {'status': 'resolve failed'},
             'Debian-7.0': {'status': 'resolve failed'},
@@ -149,6 +153,7 @@ class ContextTest(tests.Test):
             })
         coroutine.dispatch()
         self.assertEqual({
+            'Gentoo': {'binary': ['bin'], 'devel': ['devel']},
             'Gentoo-2.1': {'status': 'success', 'binary': ['bin'], 'devel': ['devel']},
             },
             client.get(['context', guid, 'packages']))
