@@ -182,8 +182,10 @@ def _load_feed(context):
 
     packages = feed_content['packages']
     distr = '-'.join([lsb_release.distributor_id(), lsb_release.release()])
-    if distr in packages:
+    if distr in packages and packages[distr].get('status') == 'success':
         feed.to_resolve = packages[distr].get('binary')
+    elif lsb_release.distributor_id() in packages:
+        feed.to_resolve = packages[lsb_release.distributor_id()].get('binary')
     elif packages:
         pipe.trace("No compatible packages for '%s', only %s are available",
                 context, ', '.join(packages.keys()))
