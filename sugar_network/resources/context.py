@@ -134,6 +134,12 @@ class Context(Resource):
         """
         return value
 
+    @dependencies.setter
+    def dependencies(self, value):
+        # Shift mtime to invalidate solutions
+        self.volume['implementation'].mtime = int(time.time())
+        return value
+
     @ad.active_property(ad.StoredProperty, typecast=dict, default={},
             permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
     def aliases(self, value):

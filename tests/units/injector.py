@@ -286,6 +286,7 @@ class InjectorTest(tests.Test):
             'implement': 'dep1',
             'packages': {
                 lsb_release.distributor_id() + '-' + lsb_release.release(): {
+                    'status': 'success',
                     'binary': ['dep1.bin'],
                     },
                 },
@@ -299,6 +300,7 @@ class InjectorTest(tests.Test):
             'implement': 'dep2',
             'packages': {
                 lsb_release.distributor_id() + '-' + lsb_release.release(): {
+                    'status': 'success',
                     'binary': ['dep2.bin'],
                     },
                 },

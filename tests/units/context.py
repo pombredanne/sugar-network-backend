@@ -160,6 +160,33 @@ class ContextTest(tests.Test):
         self.assertEqual(1, len(events))
         assert 'mtime' in events[0]['props']
 
+    def test_InvalidateSolutionsOnDependenciesChanges(self):
+        self.start_server()
+        client = IPCClient(mountpoint='~')
+
+        events = []
+        def read_events():
+            for event in client.subscribe():
+                if event.get('document') == 'implementation':
+                    events.append(event)
+        job = coroutine.spawn(read_events)
+
+        guid = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'dependencies': [],
+            })
+        self.assertEqual(1, len(events))
+        assert 'mtime' in events[0]['props']
+        del events[:]
+
+        client.put(['context', guid, 'dependencies'], ['foo'])
+        self.assertEqual(1, len(events))
+        assert 'mtime' in events[0]['props']
+        del events[:]
+
 
 if __name__ == '__main__':
     tests.main()
