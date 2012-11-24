@@ -149,7 +149,7 @@ def _clone(mountpoint, context):
 
 
 def _solve(mountpoint, context):
-    pipe.trace("Start solving '%s' from '%s' mountpoint", context, mountpoint)
+    pipe.trace('Start solving %s from %s mountpoint', context, mountpoint)
 
     cached_path, solution, stale = _get_cached_solution(mountpoint, context)
     if stale is False:
