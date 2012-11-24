@@ -50,6 +50,8 @@ class ContextTest(tests.Test):
             })
         coroutine.dispatch()
         self.assertEqual({
+            'Gentoo': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
+            'Debian': {'binary': ['pkg4.bin'], 'devel': ['pkg5.devel', 'pkg6.devel']},
             'Gentoo-2.1': {'status': 'success', 'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
             'Debian-6.0': {'status': 'success', 'binary': ['pkg4.bin'], 'devel': ['pkg5.devel', 'pkg6.devel']},
             'Debian-7.0': {'status': 'success', 'binary': ['pkg4.bin'], 'devel': ['pkg5.devel', 'pkg6.devel']},
@@ -102,6 +104,8 @@ class ContextTest(tests.Test):
             })
         coroutine.dispatch()
         self.assertEqual({
+            'Gentoo': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
+            'Debian': {'binary': ['pkg4.bin'], 'devel': ['pkg5.devel', 'pkg6.devel']},
             'Gentoo-2.1': {'status': 'resolve failed'},
             'Debian-6.0': {'status': 'resolve failed'},
             'Debian-7.0': {'status': 'resolve failed'},
@@ -149,11 +153,39 @@ class ContextTest(tests.Test):
             })
         coroutine.dispatch()
         self.assertEqual({
+            'Gentoo': {'binary': ['bin'], 'devel': ['devel']},
             'Gentoo-2.1': {'status': 'success', 'binary': ['bin'], 'devel': ['devel']},
             },
             client.get(['context', guid, 'packages']))
         self.assertEqual(1, len(events))
         assert 'mtime' in events[0]['props']
+
+    def test_InvalidateSolutionsOnDependenciesChanges(self):
+        self.start_server()
+        client = IPCClient(mountpoint='~')
+
+        events = []
+        def read_events():
+            for event in client.subscribe():
+                if event.get('document') == 'implementation':
+                    events.append(event)
+        job = coroutine.spawn(read_events)
+
+        guid = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'dependencies': [],
+            })
+        self.assertEqual(1, len(events))
+        assert 'mtime' in events[0]['props']
+        del events[:]
+
+        client.put(['context', guid, 'dependencies'], ['foo'])
+        self.assertEqual(1, len(events))
+        assert 'mtime' in events[0]['props']
+        del events[:]
 
 
 if __name__ == '__main__':

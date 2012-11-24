@@ -286,6 +286,7 @@ class InjectorTest(tests.Test):
             'implement': 'dep1',
             'packages': {
                 lsb_release.distributor_id() + '-' + lsb_release.release(): {
+                    'status': 'success',
                     'binary': ['dep1.bin'],
                     },
                 },
@@ -299,6 +300,7 @@ class InjectorTest(tests.Test):
             'implement': 'dep2',
             'packages': {
                 lsb_release.distributor_id() + '-' + lsb_release.release(): {
+                    'status': 'success',
                     'binary': ['dep2.bin'],
                     },
                 },
@@ -532,6 +534,7 @@ class InjectorTest(tests.Test):
             'description': 'description',
             'packages': {
                 lsb_release.distributor_id() + '-' + lsb_release.release(): {
+                    'status': 'success',
                     'binary': ['dep1.bin'],
                     },
                 },
@@ -544,6 +547,7 @@ class InjectorTest(tests.Test):
             'description': 'description',
             'packages': {
                 lsb_release.distributor_id() + '-' + lsb_release.release(): {
+                    'status': 'success',
                     'binary': ['dep2.bin'],
                     },
                 },
@@ -556,6 +560,7 @@ class InjectorTest(tests.Test):
             'description': 'description',
             'packages': {
                 lsb_release.distributor_id() + '-' + lsb_release.release(): {
+                    'status': 'success',
                     'binary': ['dep3.bin'],
                     },
                 },
@@ -574,6 +579,72 @@ class InjectorTest(tests.Test):
                     {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl},
                     ]),
                 sorted(zeroinstall.solve('/', context)))
+
+    def test_LoadFeed_SetPapckages(self):
+        self.touch('remote/master')
+        self.start_ipc_and_restful_server([User, Context, Implementation])
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'requires': {
+                        'dep': {},
+                    },
+                },
+            }})
+        remote.post(['context'], {
+            'implement': 'dep',
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        def resolve(names):
+            return dict([(i, {'name': i, 'pk_id': i, 'version': '1', 'arch': '*', 'installed': True}) for i in names])
+        self.override(packagekit, 'resolve', resolve)
+
+        self.assertRaises(RuntimeError, zeroinstall.solve, '/', context)
+
+        remote.put(['context', 'dep', 'packages'], {
+            lsb_release.distributor_id() + '-' + lsb_release.release(): {
+                'status': 'success',
+                'binary': ['bin'],
+                },
+            })
+        self.assertEqual('dep', zeroinstall.solve('/', context)[-1]['context'])
+
+        remote.put(['context', 'dep', 'packages'], {
+            'foo': {
+                'status': 'success',
+                'binary': ['bin'],
+                },
+            })
+        self.assertRaises(RuntimeError, zeroinstall.solve, '/', context)
+
+        remote.put(['context', 'dep', 'packages'], {
+            lsb_release.distributor_id(): {
+                'binary': ['bin'],
+                },
+            })
+        self.assertEqual('dep', zeroinstall.solve('/', context)[-1]['context'])
 
 
 if __name__ == '__main__':

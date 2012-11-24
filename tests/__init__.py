@@ -159,14 +159,10 @@ class Test(unittest.TestCase):
     def waitpid(self, pid, sig=signal.SIGTERM, ignore_status=False):
         if pid in self.forks:
             self.forks.remove(pid)
-        import logging
-        logging.error('>>> %r %r', sig, pid)
         if sig:
             try:
-                logging.error('>> %r %r', sig, pid)
                 os.kill(pid, sig)
             except Exception, e:
-                logging.error('> %s', e)
                 pass
         try:
             __, status = os.waitpid(pid, 0)

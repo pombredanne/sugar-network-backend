@@ -81,6 +81,7 @@ IGNORE_ADDONS = frozenset([
         'net.gcompris.',    # Exclude per-activity GC addons
         'org.laptop.GmailActivity', # Licensing question
         'com.batovi.SuperVampireNinjaZero', # Licensing question
+        'org.sugarlabs.SugarNetworkActivity',
         ])
 
 IGNORE_VERSIONS = frozenset([
