@@ -26,7 +26,9 @@ from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import coroutine, enforce
 
 
-AUTHORITY_AUTHOR = 1
+AUTHOR_INSYSTEM = 1
+AUTHOR_ORIGINAL = 2
+AUTHOR_ALL = (AUTHOR_INSYSTEM | AUTHOR_ORIGINAL)
 
 _DIFF_CHUNK = 1024
 
@@ -34,69 +36,53 @@ _logger = logging.getLogger('resources.volume')
 
 
 def _reprcast_authors(value):
-    if not value:
-        return []
-    if isinstance(value, basestring):
-        return [value]
-    result = []
-    for i in value:
-        if isinstance(i, basestring):
-            result.append(i)
-        else:
-            result.append(i[0])
-    return result
+    for guid, props in value.items():
+        if 'name' in props:
+            yield props['name']
+        yield guid
 
 
 class Resource(ad.Document):
 
-    @ad.active_property(prefix='RU', typecast=dict, default={},
-            reprcast=lambda x: x.keys() if isinstance(x, dict) else x,
-            permissions=ad.ACCESS_READ)
-    def authority(self, value):
-        return value
+    @ad.active_property(prefix='RA', typecast=dict, full_text=True, default={},
+            reprcast=_reprcast_authors, permissions=ad.ACCESS_READ)
+    def author(self, value):
+        result = []
+        for guid, props in sorted(value.items(),
+                cmp=lambda x, y: cmp(x[1]['order'], y[1]['order'])):
+            if 'name' in props:
+                result.append({
+                    'guid': guid,
+                    'name': props['name'],
+                    'role': props['role'],
+                    })
+            else:
+                result.append({
+                    'name': guid,
+                    'role': props['role'],
+                    })
+        return result
 
-    @authority.setter
-    def authority(self, value):
+    @author.setter
+    def author(self, value):
         if not self.request.principal:
             return {}
-        value = {self.request.principal: AUTHORITY_AUTHOR}
-        self['author'] = self._populate_authors(value, None)
-        return value
+        return self._useradd(self.request.principal, AUTHOR_ORIGINAL)
 
     @ad.document_command(method='PUT', cmd='useradd',
             arguments={'role': ad.to_int},
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
-    def useradd(self, user, role=0):
-        authority = self['authority']
-        authority[user] = role
-        self.directory.update(self.guid, authority=authority,
-                author=self._populate_authors(authority, None))
+    def useradd(self, user, role):
+        self.directory.update(self.guid, author=self._useradd(user, role))
 
     @ad.document_command(method='PUT', cmd='userdel',
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
     def userdel(self, user):
         enforce(user != self.request.principal, 'Cannot remove yourself')
-        authority = self['authority']
-        if user not in authority:
-            return
-        del authority[user]
-        self.directory.update(self.guid, authority=authority,
-                author=self._populate_authors(authority, None))
-
-    @ad.active_property(prefix='RA', full_text=True, default=[],
-            reprcast=_reprcast_authors)
-    def author(self, value):
-        return _reprcast_authors(value)
-
-    @author.setter
-    def author(self, value):
-        if not value:
-            return []
-        if isinstance(value, basestring):
-            value = [(value, True)]
-        else:
-            value = [(i, True) for i in value]
-        return self._populate_authors(self['authority'], value)
+        author = self['author']
+        enforce(user in author, 'No such user')
+        del author[user]
+        self.directory.update(self.guid, author=author)
 
     @ad.active_property(prefix='RL', typecast=[], default=['public'])
     def layer(self, value):
@@ -106,23 +92,31 @@ class Resource(ad.Document):
     def tags(self, value):
         return value
 
-    def _populate_authors(self, authority, authors):
-        if authors is None:
-            authors = []
-            for user, orig in self['author'] or []:
-                if orig:
-                    authors.append((user, orig))
+    def _useradd(self, user, role):
+        props = {}
 
+        if role is None:
+            role = 0
         users = self.volume['user']
-        for user_guid in sorted(authority.keys()):
-            if not users.exists(user_guid):
-                _logger.warning('No %r user to set author property', user_guid)
-                continue
-            user = users.get(user_guid)
-            if user['name']:
-                authors.append((user['name'], False))
+        if users.exists(user):
+            props['name'] = users.get(user)['name']
+            role |= AUTHOR_INSYSTEM
+        else:
+            role &= ~AUTHOR_INSYSTEM
+        props['role'] = role & AUTHOR_ALL
 
-        return authors
+        author = self['author'] or {}
+        if user in author:
+            author[user].update(props)
+        else:
+            if author:
+                order = max(author.values(), key=lambda x: x['order'])['order']
+                props['order'] = order + 1
+            else:
+                props['order'] = 0
+            author[user] = props
+
+        return author
 
 
 class Volume(ad.SingleVolume):

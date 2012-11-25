@@ -166,7 +166,7 @@ def _load_feed(context):
             feed_content = _client.get(['context', context],
                     reply=['title', 'packages', 'versions', 'dependencies'],
                     mountpoint=mountpoint)
-            pipe.trace("Found '%s' in '%s' mountpoint", context, mountpoint)
+            pipe.trace('Found %s in %s mountpoint', context, mountpoint)
             break
         except Exception:
             util.exception(_logger,
@@ -174,7 +174,7 @@ def _load_feed(context):
                     context, mountpoint)
 
     if feed_content is None:
-        pipe.trace("No feeds for '%s'", context)
+        pipe.trace('No feeds for %s', context)
         return None
 
     feed.mountpoint = mountpoint
@@ -187,8 +187,7 @@ def _load_feed(context):
     elif lsb_release.distributor_id() in packages:
         feed.to_resolve = packages[lsb_release.distributor_id()].get('binary')
     elif packages:
-        pipe.trace("No compatible packages for '%s', only %s are available",
-                context, ', '.join(packages.keys()))
+        pipe.trace('No compatible packages for %s', context)
 
     for release in feed_content['versions']:
         impl_id = release['guid']
@@ -218,7 +217,7 @@ def _load_feed(context):
         feed.implementations[impl_id] = impl
 
     if not feed.to_resolve and not feed.implementations:
-        pipe.trace("No implementations for '%s'", context)
+        pipe.trace('No implementations for %s', context)
 
     return feed
 

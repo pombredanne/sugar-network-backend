@@ -219,7 +219,7 @@ class NodeCommands(VolumeCommands, Commands):
                 allowed = (request.principal == request['guid'])
             else:
                 doc = self.volume[request['document']].get(request['guid'])
-                allowed = (request.principal in doc['authority'])
+                allowed = (request.principal in doc['author'])
             enforce(allowed or auth.try_validate(request, 'root'),
                     ad.Forbidden, 'Operation is permitted only for authors')
 
