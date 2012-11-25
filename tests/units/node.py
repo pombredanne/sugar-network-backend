@@ -240,8 +240,8 @@ class NodeTest(tests.Test):
             'description': 'description',
             })
         self.assertEqual(
-                {'principal': 1},
-                call(cp, method='GET', document='context', guid=guid, prop='authority'))
+                [{'name': 'principal', 'role': 2}],
+                call(cp, method='GET', document='context', guid=guid, prop='author'))
 
     def test_find_MaxLimit(self):
         cp = NodeCommands(Volume('db'))

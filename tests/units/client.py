@@ -49,8 +49,8 @@ class LocalTest(tests.Test):
         guid = cp.call(request, ad.Response())
 
         self.assertEqual(
-                {'uid': 1},
-                cp.volume['context'].get(guid)['authority'])
+                {'uid': {'role': 2, 'order': 0}},
+                cp.volume['context'].get(guid)['author'])
 
 
 if __name__ == '__main__':

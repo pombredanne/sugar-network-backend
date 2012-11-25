@@ -54,8 +54,8 @@ class AuthTest(tests.Test):
         self.stop_servers()
 
         self.touch((
-            'master/context/gu/guid/authority',
-            pickle.dumps({"seqno": 1, "value": {"fake": 1}}),
+            'master/context/gu/guid/author',
+            pickle.dumps({"seqno": 1, "value": {"fake": {"role": 3}}}),
             ))
 
         self.start_master()
@@ -89,12 +89,12 @@ class AuthTest(tests.Test):
         auth.reset()
         client.post(['context'], props)
         self.assertEqual('title', client.get(['context', 'guid', 'title']))
-        self.assertEqual({}, client.get(['context', 'guid', 'authority']))
+        self.assertEqual([], client.get(['context', 'guid', 'author']))
 
         self.stop_servers()
         self.touch((
-            'master/context/gu/guid/authority',
-            pickle.dumps({"seqno": 1, "value": {"fake": 1}}),
+            'master/context/gu/guid/author',
+            pickle.dumps({"seqno": 1, "value": {"fake": {"role": 3}}}),
             ))
         self.start_master()
 
@@ -109,7 +109,7 @@ class AuthTest(tests.Test):
         auth.reset()
         client.put(['context', 'guid'], {'title': 'probe'})
         self.assertEqual('probe', client.get(['context', 'guid', 'title']))
-        self.assertEqual({'fake': 1}, client.get(['context', 'guid', 'authority']))
+        self.assertEqual([{'name': 'fake', 'role': 3}], client.get(['context', 'guid', 'author']))
 
     def test_LiveUpdate(self):
         client = Client(sugar_auth=False)
@@ -132,7 +132,7 @@ class AuthTest(tests.Test):
             ]))
         os.utime('authorization.conf', (2, 2))
         client.post(['context'], props)
-        self.assertEqual({}, client.get(['context', 'guid', 'authority']))
+        self.assertEqual([], client.get(['context', 'guid', 'author']))
 
         self.touch(('authorization.conf', ''))
         os.utime('authorization.conf', (3, 3))

@@ -360,7 +360,7 @@ class VolumeTest(tests.Test):
                 call(cp, method='GET', document='context')['result'])
         assert exists('db/context/index')
 
-    def test_Authors(self):
+    def test_DefaultAuthor(self):
 
         class Document(Resource):
             pass
@@ -370,51 +370,98 @@ class VolumeTest(tests.Test):
 
         guid = call(cp, method='POST', document='document', content={}, principal='user')
         self.assertEqual(
-                {'user': 1},
-                call(cp, method='GET', document='document', guid=guid, prop='authority'))
-        self.assertEqual(
-                {'user': 1},
-                volume['document'].get(guid)['authority'])
-        self.assertEqual(
-                [],
+                [{'name': 'user', 'role': 2}],
                 call(cp, method='GET', document='document', guid=guid, prop='author'))
         self.assertEqual(
-                [],
+                {'user': {'role': 2, 'order': 0}},
                 volume['document'].get(guid)['author'])
+
+        volume['user'].create(guid='user', color='', pubkey='', name='User')
+
+        guid = call(cp, method='POST', document='document', content={}, principal='user')
+        self.assertEqual(
+                [{'guid': 'user', 'name': 'User', 'role': 3}],
+                call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual(
+                {'user': {'name': 'User', 'role': 3, 'order': 0}},
+                volume['document'].get(guid)['author'])
+
+    def test_PreserveAuthorsOrder(self):
+
+        class Document(Resource):
+            pass
+
+        volume = Volume('db', [User, Document])
+        cp = TestCommands(volume)
 
         volume['user'].create(guid='user1', color='', pubkey='', name='User1')
         volume['user'].create(guid='user2', color='', pubkey='', name='User2')
         volume['user'].create(guid='user3', color='', pubkey='', name='User3')
 
         guid = call(cp, method='POST', document='document', content={}, principal='user1')
-        self.assertEqual(
-                {'user1': 1},
-                call(cp, method='GET', document='document', guid=guid, prop='authority'))
-        self.assertEqual(
-                {'user1': 1},
-                volume['document'].get(guid)['authority'])
-        self.assertEqual(
-                ['User1'],
-                call(cp, method='GET', document='document', guid=guid, prop='author'))
-        self.assertEqual(
-                [('User1', False)],
-                volume['document'].get(guid)['author'])
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2', role=0)
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user3', role=0)
 
-        call(cp, method='PUT', document='document', guid=guid, prop='author', content='User2')
-        self.assertEqual(
-                ['User2', 'User1'],
-                call(cp, method='GET', document='document', guid=guid, prop='author'))
-        self.assertEqual(
-                [('User2', True), ('User1', False)],
-                volume['document'].get(guid)['author'])
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'guid': 'user2', 'name': 'User2', 'role': 1},
+            {'guid': 'user3', 'name': 'User3', 'role': 1},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user2': {'name': 'User2', 'role': 1, 'order': 1},
+            'user3': {'name': 'User3', 'role': 1, 'order': 2},
+            },
+            volume['document'].get(guid)['author'])
 
-        call(cp, method='PUT', document='document', guid=guid, prop='author', content=['User2', 'User3'])
-        self.assertEqual(
-                ['User2', 'User3', 'User1'],
-                call(cp, method='GET', document='document', guid=guid, prop='author'))
-        self.assertEqual(
-                [('User2', True), ('User3', True), ('User1', False)],
-                volume['document'].get(guid)['author'])
+        call(cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user2', principal='user1')
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2', role=0)
+
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'guid': 'user3', 'name': 'User3', 'role': 1},
+            {'guid': 'user2', 'name': 'User2', 'role': 1},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user3': {'name': 'User3', 'role': 1, 'order': 2},
+            'user2': {'name': 'User2', 'role': 1, 'order': 3},
+            },
+            volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user2', principal='user1')
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2', role=0)
+
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'guid': 'user3', 'name': 'User3', 'role': 1},
+            {'guid': 'user2', 'name': 'User2', 'role': 1},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user3': {'name': 'User3', 'role': 1, 'order': 2},
+            'user2': {'name': 'User2', 'role': 1, 'order': 3},
+            },
+            volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user3', principal='user1')
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user3', role=0)
+
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'guid': 'user2', 'name': 'User2', 'role': 1},
+            {'guid': 'user3', 'name': 'User3', 'role': 1},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user2': {'name': 'User2', 'role': 1, 'order': 3},
+            'user3': {'name': 'User3', 'role': 1, 'order': 4},
+            },
+            volume['document'].get(guid)['author'])
 
     def test_AddUser(self):
 
@@ -426,52 +473,105 @@ class VolumeTest(tests.Test):
 
         volume['user'].create(guid='user1', color='', pubkey='', name='User1')
         volume['user'].create(guid='user2', color='', pubkey='', name='User2')
-        volume['user'].create(guid='user3', color='', pubkey='', name='User3')
 
         guid = call(cp, method='POST', document='document', content={}, principal='user1')
-        self.assertEqual(
-                {'user1': 1},
-                call(cp, method='GET', document='document', guid=guid, prop='authority'))
-        self.assertEqual(
-                {'user1': 1},
-                volume['document'].get(guid)['authority'])
-        self.assertEqual(
-                ['User1'],
-                call(cp, method='GET', document='document', guid=guid, prop='author'))
-        self.assertEqual(
-                [('User1', False)],
-                volume['document'].get(guid)['author'])
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            },
+            volume['document'].get(guid)['author'])
 
         call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2', role=2)
-        self.assertEqual(
-                {'user1': 1, 'user2': 2},
-                call(cp, method='GET', document='document', guid=guid, prop='authority'))
-        self.assertEqual(
-                {'user1': 1, 'user2': 2},
-                volume['document'].get(guid)['authority'])
-        self.assertEqual(
-                ['User1', 'User2'],
-                call(cp, method='GET', document='document', guid=guid, prop='author'))
-        self.assertEqual(
-                [('User1', False), ('User2', False)],
-                volume['document'].get(guid)['author'])
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'guid': 'user2', 'name': 'User2', 'role': 3},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user2': {'name': 'User2', 'role': 3, 'order': 1},
+            },
+            volume['document'].get(guid)['author'])
 
-        call(cp, method='PUT', document='document', guid=guid, prop='author', content='User#1')
-        self.assertEqual(
-                ['User#1', 'User1', 'User2'],
-                call(cp, method='GET', document='document', guid=guid, prop='author'))
-        self.assertEqual(
-                [('User#1', True), ('User1', False), ('User2', False)],
-                volume['document'].get(guid)['author'])
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='User3', role=3)
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'guid': 'user2', 'name': 'User2', 'role': 3},
+            {'name': 'User3', 'role': 2},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user2': {'name': 'User2', 'role': 3, 'order': 1},
+            'User3': {'role': 2, 'order': 2},
+            },
+            volume['document'].get(guid)['author'])
 
-        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user3', role=3)
-        call(cp, method='PUT', document='document', guid=guid, prop='author', content=['User#2', 'User#3'])
-        self.assertEqual(
-                ['User#2', 'User#3', 'User1', 'User2', 'User3'],
-                call(cp, method='GET', document='document', guid=guid, prop='author'))
-        self.assertEqual(
-                [('User#2', True), ('User#3', True), ('User1', False), ('User2', False), ('User3', False)],
-                volume['document'].get(guid)['author'])
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='User4', role=4)
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'guid': 'user2', 'name': 'User2', 'role': 3},
+            {'name': 'User3', 'role': 2},
+            {'name': 'User4', 'role': 0},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user2': {'name': 'User2', 'role': 3, 'order': 1},
+            'User3': {'role': 2, 'order': 2},
+            'User4': {'role': 0, 'order': 3},
+            },
+            volume['document'].get(guid)['author'])
+
+    def test_UpdateAuthor(self):
+
+        class Document(Resource):
+            pass
+
+        volume = Volume('db', [User, Document])
+        cp = TestCommands(volume)
+
+        volume['user'].create(guid='user1', color='', pubkey='', name='User1')
+        guid = call(cp, method='POST', document='document', content={}, principal='user1')
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='User2', role=0)
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'name': 'User2', 'role': 0},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'User2': {'role': 0, 'order': 1},
+            },
+            volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user1', role=0)
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 1},
+            {'name': 'User2', 'role': 0},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 1, 'order': 0},
+            'User2': {'role': 0, 'order': 1},
+            },
+            volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='User2', role=2)
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 1},
+            {'name': 'User2', 'role': 2},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 1, 'order': 0},
+            'User2': {'role': 2, 'order': 1},
+            },
+            volume['document'].get(guid)['author'])
 
     def test_DelUser(self):
 
@@ -483,21 +583,47 @@ class VolumeTest(tests.Test):
 
         volume['user'].create(guid='user1', color='', pubkey='', name='User1')
         volume['user'].create(guid='user2', color='', pubkey='', name='User2')
-        volume['user'].create(guid='user3', color='', pubkey='', name='User3')
-
         guid = call(cp, method='POST', document='document', content={}, principal='user1')
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2')
+        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='User3')
+        self.assertEqual([
+            {'guid': 'user1', 'name': 'User1', 'role': 3},
+            {'guid': 'user2', 'name': 'User2', 'role': 1},
+            {'name': 'User3', 'role': 0},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user2': {'name': 'User2', 'role': 1, 'order': 1},
+            'User3': {'role': 0, 'order': 2},
+            },
+            volume['document'].get(guid)['author'])
+
+        # Do not remove yourself
         self.assertRaises(RuntimeError, call, cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user1', principal='user1')
-
-        call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2', role=2)
-        self.assertEqual(
-                {'user1': 1, 'user2': 2},
-                volume['document'].get(guid)['authority'])
-
         self.assertRaises(RuntimeError, call, cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user2', principal='user2')
+
         call(cp, method='PUT', document='document', guid=guid, cmd='userdel', user='user1', principal='user2')
-        self.assertEqual(
-                {'user2': 2},
-                volume['document'].get(guid)['authority'])
+        self.assertEqual([
+            {'guid': 'user2', 'name': 'User2', 'role': 1},
+            {'name': 'User3', 'role': 0},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user2': {'name': 'User2', 'role': 1, 'order': 1},
+            'User3': {'role': 0, 'order': 2},
+            },
+            volume['document'].get(guid)['author'])
+
+        call(cp, method='PUT', document='document', guid=guid, cmd='userdel', user='User3', principal='user2')
+        self.assertEqual([
+            {'guid': 'user2', 'name': 'User2', 'role': 1},
+            ],
+            call(cp, method='GET', document='document', guid=guid, prop='author'))
+        self.assertEqual({
+            'user2': {'name': 'User2', 'role': 1, 'order': 1},
+            },
+            volume['document'].get(guid)['author'])
 
 
 class TestCommands(VolumeCommands, Commands):

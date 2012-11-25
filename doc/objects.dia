@@ -870,7 +870,7 @@
         <dia:point val="12,6"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="11.985,5.985;23.77,28.015"/>
+        <dia:rectangle val="11.985,5.985;23.77,26.015"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="12,6"/>
@@ -879,7 +879,7 @@
         <dia:real val="11.754999999999999"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="22"/>
+        <dia:real val="20"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Resource#</dia:string>
@@ -1043,39 +1043,16 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#authority#</dia:string>
+            <dia:string>#author#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#dict [R S]#</dia:string>
+            <dia:string>#list [R S F]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Users related to this object; see the Wiki for details#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#author#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#[str] [R WA S F]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>##</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#Authors' names#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
