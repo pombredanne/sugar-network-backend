@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import os
+import imp
 import shutil
 import zipfile
 import logging
@@ -580,7 +581,7 @@ class InjectorTest(tests.Test):
                     ]),
                 sorted(zeroinstall.solve('/', context)))
 
-    def test_LoadFeed_SetPapckages(self):
+    def test_LoadFeed_SetPackages(self):
         self.touch('remote/master')
         self.start_ipc_and_restful_server([User, Context, Implementation])
         remote = IPCClient(mountpoint='/')
@@ -645,6 +646,54 @@ class InjectorTest(tests.Test):
                 },
             })
         self.assertEqual('dep', zeroinstall.solve('/', context)[-1]['context'])
+
+    def test_SolveSugar(self):
+        self.touch(('__init__.py', ''))
+        self.touch(('jarabe.py', 'class config: version = "777"'))
+        file_, pathname_, description_ = imp.find_module('jarabe', ['.'])
+        imp.load_module('jarabe', file_, pathname_, description_)
+
+        self.touch('remote/master')
+        self.start_ipc_and_restful_server([User, Context, Implementation])
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'requires': {
+                        'sugar': {},
+                    },
+                },
+            }})
+        remote.post(['context'], {
+            'implement': 'sugar',
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertEqual([
+            {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl},
+            {'name': 'sugar', 'version': '777', 'context': 'sugar', 'path': '/', 'mountpoint': None, 'id': 'sugar'},
+            ],
+            zeroinstall.solve('/', context))
 
 
 if __name__ == '__main__':
