@@ -68,6 +68,24 @@ class IndexTest(tests.Test):
                 ([], 0),
                 db._find(reply=['key']))
 
+    def test_IndexByReprcast(self):
+        db = Index({'key': ActiveProperty('key', 1, 'K', reprcast=lambda x: "foo" + x)})
+
+        db.store('1', {'key': 'bar'}, True)
+
+        self.assertEqual(
+                [{'guid': '1', 'key': 'foobar'}],
+                db._find(reply=['key'])[0])
+        self.assertEqual(
+                [{'guid': '1', 'key': 'foobar'}],
+                db._find(key='bar', reply=['key'])[0])
+        self.assertEqual(
+                [],
+                db._find(key='foobar', reply=['key'])[0])
+        self.assertEqual(
+                [],
+                db._find(key='fake', reply=['key'])[0])
+
     def test_find(self):
         db = Index({
             'var_1': ActiveProperty('var_1', 1, 'A', full_text=True),
