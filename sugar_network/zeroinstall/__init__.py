@@ -159,6 +159,16 @@ def _impl_new(config, iface, sel):
 def _load_feed(context):
     feed = _Feed(context)
 
+    if context == 'sugar':
+        try:
+            # pylint: disable-msg=F0401
+            from jarabe import config
+            feed.implement_sugar(config.version)
+            feed.name = context
+            return feed
+        except ImportError:
+            pass
+
     mountpoint = None
     feed_content = None
     for mountpoint in _mountpoints:
@@ -190,31 +200,7 @@ def _load_feed(context):
         pipe.trace('No compatible packages for %s', context)
 
     for release in feed_content['versions']:
-        impl_id = release['guid']
-
-        impl = _Implementation(feed, impl_id, None)
-        impl.version = parse_version(release['version'])
-        impl.released = 0
-        impl.arch = release['arch']
-        impl.upstream_stability = model.stability_levels[release['stability']]
-        for i in feed_content['dependencies']:
-            impl.requires.append(_Dependency(i, {}))
-        impl.requires.extend(_read_requires(release.get('requires')))
-
-        if isabs(impl_id):
-            impl.local_path = impl_id
-        else:
-            impl.add_download_source(impl_id,
-                    release.get('size') or 0, release.get('extract'))
-
-        for name, command in release['commands'].items():
-            impl.commands[name] = _Command(name, command)
-
-        for name, insert, mode in release.get('bindings') or []:
-            binding = model.EnvironmentBinding(name, insert, mode=mode)
-            impl.bindings.append(binding)
-
-        feed.implementations[impl_id] = impl
+        feed.implement(release, feed_content['dependencies'])
 
     if not feed.to_resolve and not feed.implementations:
         pipe.trace('No implementations for %s', context)
@@ -261,6 +247,42 @@ class _Feed(model.ZeroInstallFeed):
 
         self.implementations[self.context] = impl
         self.to_resolve = None
+
+    def implement(self, release, common_deps):
+        impl_id = release['guid']
+
+        impl = _Implementation(self, impl_id, None)
+        impl.version = parse_version(release['version'])
+        impl.released = 0
+        impl.arch = release['arch']
+        impl.upstream_stability = model.stability_levels[release['stability']]
+        for i in common_deps:
+            impl.requires.append(_Dependency(i, {}))
+        impl.requires.extend(_read_requires(release.get('requires')))
+
+        if isabs(impl_id):
+            impl.local_path = impl_id
+        else:
+            impl.add_download_source(impl_id,
+                    release.get('size') or 0, release.get('extract'))
+
+        for name, command in release['commands'].items():
+            impl.commands[name] = _Command(name, command)
+
+        for name, insert, mode in release.get('bindings') or []:
+            binding = model.EnvironmentBinding(name, insert, mode=mode)
+            impl.bindings.append(binding)
+
+        self.implementations[impl_id] = impl
+
+    def implement_sugar(self, sugar_version):
+        impl = _Implementation(self, self.context, None)
+        impl.version = parse_version(sugar_version)
+        impl.released = 0
+        impl.arch = '*-*'
+        impl.upstream_stability = model.stability_levels['packaged']
+        impl.local_path = '/'
+        self.implementations[self.context] = impl
 
 
 class _Implementation(model.ZeroInstallImplementation):
