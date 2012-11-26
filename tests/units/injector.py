@@ -415,23 +415,6 @@ class InjectorTest(tests.Test):
         self.assertEqual(solution, injector._solve('~', 'context'))
         self.assertEqual([local.api_url.value, solution], pickle.load(file(cached_path)))
 
-    def test_CacheReuseOnSolveFails(self):
-        self.override(zeroinstall, 'solve', lambda *args: enforce(False))
-        cached_path = 'cache/solutions/~/co/context'
-
-        self.assertRaises(RuntimeError, injector._solve, '~', 'context')
-
-        solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
-        injector.invalidate_solutions(1)
-        self.touch((cached_path, pickle.dumps([local.api_url.value, solution2])))
-        os.utime(cached_path, (1, 1))
-        self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
-
-        injector.invalidate_solutions(3)
-        self.assertEqual(solution2, injector._solve('~', 'context'))
-        self.assertEqual([local.api_url.value, solution2], pickle.load(file(cached_path)))
-
     def test_clone_SetExecPermissionsForActivities(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
         remote = IPCClient(mountpoint='/')
