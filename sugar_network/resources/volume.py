@@ -73,11 +73,13 @@ class Resource(ad.Document):
             arguments={'role': ad.to_int},
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
     def useradd(self, user, role):
+        enforce(user, "Argument 'user' is not specified")
         self.directory.update(self.guid, author=self._useradd(user, role))
 
     @ad.document_command(method='PUT', cmd='userdel',
             permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
     def userdel(self, user):
+        enforce(user, "Argument 'user' is not specified")
         enforce(user != self.request.principal, 'Cannot remove yourself')
         author = self['author']
         enforce(user in author, 'No such user')
