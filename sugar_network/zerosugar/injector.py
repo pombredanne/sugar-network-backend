@@ -158,14 +158,8 @@ def _solve(mountpoint, context):
 
     from sugar_network import zeroinstall
 
-    try:
-        solution = zeroinstall.solve(mountpoint, context)
-    except Exception:
-        if solution is None:
-            raise
-        util.exception(_logger, 'Fallback to stale solution')
-    else:
-        _set_cached_solution(cached_path, solution)
+    solution = zeroinstall.solve(mountpoint, context)
+    _set_cached_solution(cached_path, solution)
 
     return solution
 

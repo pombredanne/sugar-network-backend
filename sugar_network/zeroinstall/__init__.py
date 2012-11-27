@@ -99,6 +99,7 @@ def _solve(requirement):
     if driver.solver.ready:
         _logger.debug('Solving results: %r', driver.solver.details)
     else:
+        missed = []
         summary = []
         for iface, impls in driver.solver.details.items():
             summary.append(iface.uri)
@@ -108,13 +109,12 @@ def _solve(requirement):
                             (impl.get_version(), reason or 'ok'))
             else:
                 summary.append('  (no versions)')
+                missed.append(iface.uri)
         pipe.trace('\n  '.join(['Solving results:'] + summary))
 
         # pylint: disable-msg=W0212
         reason = driver.solver._failure_reason
         if not reason:
-            missed = [iface for iface, impl in
-                    selections.items() if impl is None]
             reason = 'Cannot find implementations for %s' % ', '.join(missed)
         raise RuntimeError(reason)
 
