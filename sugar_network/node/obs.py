@@ -83,10 +83,7 @@ def presolve(names):
                     continue
                 deps_graph = []
                 for pkg in response.findall('binary'):
-                    deps_graph.append({
-                        'name': pkg.get('name'),
-                        'url': pkg.get('url'),
-                        })
+                    deps_graph.append(dict(pkg.items()))
                 with util.new_file(join(dirname, package)) as f:
                     json.dump(deps_graph, f)
 
