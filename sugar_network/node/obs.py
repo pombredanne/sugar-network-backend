@@ -13,12 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import json
 import logging
 from xml.etree import cElementTree as ElementTree
+from os.path import join, exists
 
 from sugar_network.toolkit import http
 from active_toolkit.options import Option
-from active_toolkit import enforce
+from active_toolkit import util, enforce
 
 
 obs_url = Option(
@@ -34,52 +37,18 @@ obs_presolve_project = Option(
         'OBS project to use with packagekit-backend-presolve',
         default='resolve')
 
+obs_presolve_path = Option(
+        'filesystem path to store presolved packages',
+        default='/var/lib/presolve')
+
 
 _logger = logging.getLogger('node.obs')
 _client = None
-_repos = None
-_presolve_repos = None
+_repos = {}
 
 
 def get_repos():
-    global _repos
-
-    if _repos is None:
-        _repos = []
-        repos = _request('GET', ['build', obs_project.value])
-        for repo in repos.findall('entry'):
-            repo = repo.get('name')
-            if '-' not in repo:
-                continue
-            arches = _request('GET', ['build', obs_project.value, repo])
-            _repos.append({
-                'distributor_id': repo.split('-', 1)[0],
-                'name': repo,
-                'arches': [i.get('name') for i in arches.findall('entry')],
-                })
-
-    return _repos
-
-
-def get_presolve_repos():
-    global _presolve_repos
-
-    if _presolve_repos is None:
-        _presolve_repos = []
-        repos = _request('GET', ['build', obs_presolve_project.value])
-        for repo in repos.findall('entry'):
-            repo = repo.get('name')
-            arches = _request('GET',
-                    ['build', obs_presolve_project.value, repo])
-            for arch in arches.findall('entry'):
-                _presolve_repos.append({
-                    # TODO more distros after supporting them PK backend
-                    'distributor_id': 'Fedora',
-                    'name': repo,
-                    'arch': arch.get('name'),
-                    })
-
-    return _presolve_repos
+    return _get_repos(obs_project.value)
 
 
 def resolve(repo, arch, names):
@@ -92,26 +61,34 @@ def resolve(repo, arch, names):
             })
 
 
-def presolve(repo, arch, names):
-    result = []
-
-    for package in names:
-        reply = _request('GET', ['resolve'], params={
-            'project': obs_presolve_project.value,
-            'repository': repo,
-            'arch': arch,
-            'package': package,
-            'withdeps': '1',
-            # TODO exclude package might be different on different platforms
-            'exclude': 'sugar',
-            })
-        for pkg in reply.findall('binary'):
-            result.append({
-                'name': pkg.get('name'),
-                'url': pkg.get('url'),
-                })
-
-    return result
+def presolve(names):
+    for repo in _get_repos(obs_presolve_project.value):
+        for arch in repo['arches']:
+            dirname = join(obs_presolve_path.value, repo['name'], arch)
+            if not exists(dirname):
+                os.makedirs(dirname)
+            for package in names:
+                try:
+                    response = _request('GET', ['resolve'], params={
+                        'project': obs_presolve_project.value,
+                        'repository': repo['name'],
+                        'arch': arch,
+                        'package': package,
+                        'withdeps': '1',
+                        'exclude': 'sugar',
+                        })
+                except Exception:
+                    util.exception('Failed to resolve %s:%s:%s for presolving',
+                            repo['name'], arch, package)
+                    continue
+                deps_graph = []
+                for pkg in response.findall('binary'):
+                    deps_graph.append({
+                        'name': pkg.get('name'),
+                        'url': pkg.get('url'),
+                        })
+                with util.new_file(join(dirname, package)) as f:
+                    json.dump(deps_graph, f)
 
 
 def _request(*args, **kwargs):
@@ -132,3 +109,22 @@ def _request(*args, **kwargs):
         raise RuntimeError(summary.text)
 
     return reply
+
+
+def _get_repos(project):
+    if project in _repos:
+        return _repos[project]
+
+    repos = _repos[project] = []
+    for repo in _request('GET', ['build', project]).findall('entry'):
+        repo = repo.get('name')
+        if '-' not in repo:
+            continue
+        arches = _request('GET', ['build', project, repo])
+        repos.append({
+            'distributor_id': repo.split('-', 1)[0],
+            'name': repo,
+            'arches': [i.get('name') for i in arches.findall('entry')],
+            })
+
+    return repos
