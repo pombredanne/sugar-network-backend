@@ -65,8 +65,9 @@ def resolve(names):
 
 
 def install(packages):
-    ids = [i['pk_id'] for i in packages]
+    enforce(_get_pk() is not None, 'Cannot connect to PackageKit')
 
+    ids = [i['pk_id'] for i in packages]
     pipe.feedback('install',
             message=_('Installing %s package(s)') % len(packages))
     _logger.debug('Ask PackageKit to install %r packages', ids)
