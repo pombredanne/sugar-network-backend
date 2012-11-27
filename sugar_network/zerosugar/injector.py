@@ -135,13 +135,15 @@ def _clone(mountpoint, context):
     cloned = []
     try:
         for impl in solution:
-            if 'path' not in impl:
+            path = impl.get('path')
+            if not path or \
+                    path == '/':  # Fake path set by "sugar" dependency
                 continue
             dst_path = util.unique_filename(
-                    client.activity_dirs.value[0], basename(impl['path']))
+                    client.activity_dirs.value[0], basename(path))
             cloned.append(dst_path)
             _logger.info('Clone implementation to %r', dst_path)
-            util.cptree(impl['path'], dst_path)
+            util.cptree(path, dst_path)
     except Exception:
         while cloned:
             shutil.rmtree(cloned.pop(), ignore_errors=True)
