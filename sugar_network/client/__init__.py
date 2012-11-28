@@ -86,6 +86,11 @@ layers = Option(
         default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
         name='layers')
 
+no_dbus = Option(
+        'disable any DBus usage',
+        default=False, type_cast=Option.bool_cast,
+        action='store_true', name='no-dbus')
+
 
 def path(*args):
     """Calculate a path from the root.

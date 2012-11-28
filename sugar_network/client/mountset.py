@@ -51,7 +51,8 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         ad.CommandsProcessor.__init__(self)
         SyncCommands.__init__(self, client.path('sync'))
         Commands.__init__(self)
-        journal.Commands.__init__(self)
+        if not client.no_dbus.value:
+            journal.Commands.__init__(self)
         self.volume = home_volume
 
     def __getitem__(self, mountpoint):
