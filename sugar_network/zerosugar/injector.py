@@ -76,11 +76,19 @@ def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
                 })
 
 
-def clone(mountpoint, guid, nodeps=False):
+def clone(mountpoint, guid):
     return pipe.fork(_clone, logname=guid, mountpoint=mountpoint, context=guid,
-            nodeps=nodeps, session={
+            session={
                 'mountpoint': mountpoint,
                 'context': guid,
+                })
+
+
+def clone_impl(mountpoint, context, guid, spec):
+    return pipe.fork(_clone_impl, logname=context, guid=guid, spec=spec,
+            session={
+                'mountpoint': mountpoint,
+                'context': context,
                 })
 
 
@@ -129,10 +137,7 @@ def _launch(mountpoint, context, args):
     os.execvpe(args[0], args, os.environ)
 
 
-def _clone(mountpoint, context, nodeps):
-    from sugar_network import zeroinstall
-    zeroinstall.nodeps = nodeps
-
+def _clone(mountpoint, context):
     solution = _make(mountpoint, context)
 
     cloned = []
@@ -151,6 +156,19 @@ def _clone(mountpoint, context, nodeps):
         while cloned:
             shutil.rmtree(cloned.pop(), ignore_errors=True)
         raise
+
+
+def _clone_impl(guid, spec):
+    spec = spec['*-*']
+
+    src_path = cache.get(guid)
+    if 'extract' in spec:
+        src_path = join(src_path, spec['extract'])
+    dst_path = util.unique_filename(
+            client.activity_dirs.value[0], basename(src_path))
+
+    _logger.info('Clone implementation to %r', dst_path)
+    util.cptree(src_path, dst_path)
 
 
 def _solve(mountpoint, context):
