@@ -109,7 +109,7 @@ class CliTest(tests.Test):
                 '--mounts-root=mnt', '--tmpdir=tmp', '--ipc-port=5101',
                 '--api-url=http://localhost:8100',
                 ])
-            coroutine.sleep(1)
+            coroutine.sleep(2)
 
         result = util.assert_call(cmd, stdin=json.dumps(stdin))
         if result:

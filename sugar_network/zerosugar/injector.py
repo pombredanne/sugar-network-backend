@@ -76,9 +76,9 @@ def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
                 })
 
 
-def clone(mountpoint, guid):
+def clone(mountpoint, guid, nodeps=False):
     return pipe.fork(_clone, logname=guid, mountpoint=mountpoint, context=guid,
-            session={
+            nodeps=nodeps, session={
                 'mountpoint': mountpoint,
                 'context': guid,
                 })
@@ -129,7 +129,10 @@ def _launch(mountpoint, context, args):
     os.execvpe(args[0], args, os.environ)
 
 
-def _clone(mountpoint, context):
+def _clone(mountpoint, context, nodeps):
+    from sugar_network import zeroinstall
+    zeroinstall.nodeps = nodeps
+
     solution = _make(mountpoint, context)
 
     cloned = []

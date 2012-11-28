@@ -564,6 +564,44 @@ class InjectorTest(tests.Test):
                     ]),
                 sorted(zeroinstall.solve('/', context)))
 
+    def test_NoDepsClonning(self):
+        self.touch('remote/master')
+        self.start_ipc_and_restful_server([User, Context, Implementation])
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'dependencies': ['dep1'],
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'requires': {
+                        'dep2': {},
+                    },
+                },
+            }})
+
+        self.assertRaises(RuntimeError, zeroinstall.solve, '/', context)
+
+        zeroinstall.nodeps = True
+        self.assertEqual(
+                [{'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl}],
+                zeroinstall.solve('/', context))
+
     def test_LoadFeed_SetPackages(self):
         self.touch('remote/master')
         self.start_ipc_and_restful_server([User, Context, Implementation])

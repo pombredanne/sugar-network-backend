@@ -161,15 +161,16 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             self._jobs.spawn(do_launch)
 
     @ad.document_command(method='PUT', cmd='clone',
-            arguments={'force': ad.to_int})
-    def clone(self, request, mountpoint, document, guid, force):
+            arguments={'force': ad.to_int, 'nodeps': ad.to_int})
+    def clone(self, request, mountpoint, document, guid, force, nodeps):
         mount = self[mountpoint]
 
         if document == 'context':
             context_type = mount(method='GET', document='context', guid=guid,
                     prop='type')
             if 'activity' in context_type:
-                self._clone_activity(mountpoint, guid, request.content, force)
+                self._clone_activity(mountpoint, guid, request.content,
+                        force, nodeps)
             elif 'content' in context_type:
 
                 def get_props():
@@ -366,7 +367,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             if blob:
                 contexts.set_blob(guid, prop, blob)
 
-    def _clone_activity(self, mountpoint, guid, value, force):
+    def _clone_activity(self, mountpoint, guid, value, force, nodeps):
         if not value:
             clones.wipeout(guid)
             return
@@ -378,7 +379,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
         self._checkin_context(guid, {'clone': 1})
 
-        for event in injector.clone(mountpoint, guid):
+        for event in injector.clone(mountpoint, guid, nodeps=nodeps):
             # TODO Publish clone progress
             if event['state'] == 'failure':
                 self.publish({
