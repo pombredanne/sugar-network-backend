@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import json
 from cStringIO import StringIO
 
 from __init__ import tests
@@ -38,34 +39,6 @@ class ObsTest(tests.Test):
             ],
             obs.get_repos())
 
-    def test_get_presolve_repos(self):
-        self.override(http, 'Client', Client(self, [
-            (('GET', ['build', 'resolve']), {'allowed': (400, 404)}, [
-                '<directory>',
-                '   <entry name="Debian-6.0" />',
-                '   <entry name="Fedora-11" />',
-                '</directory>',
-                ]),
-            (('GET', ['build', 'resolve', 'Debian-6.0']), {'allowed': (400, 404)}, [
-                '<directory>',
-                '   <entry name="i586" />',
-                '   <entry name="x86_64" />',
-                '</directory>',
-                ]),
-            (('GET', ['build', 'resolve', 'Fedora-11']), {'allowed': (400, 404)}, [
-                '<directory>',
-                '   <entry name="i586" />',
-                '</directory>',
-                ]),
-            ]))
-
-        self.assertEqual([
-            {'distributor_id': 'Fedora', 'name': 'Debian-6.0', 'arch': 'i586'},
-            {'distributor_id': 'Fedora', 'name': 'Debian-6.0', 'arch': 'x86_64'},
-            {'distributor_id': 'Fedora', 'name': 'Fedora-11', 'arch': 'i586'},
-            ],
-            obs.get_presolve_repos())
-
     def test_resolve(self):
         self.override(http, 'Client', Client(self, [
             (('GET', ['resolve']),
@@ -98,11 +71,21 @@ class ObsTest(tests.Test):
 
     def test_presolve(self):
         self.override(http, 'Client', Client(self, [
+            (('GET', ['build', 'resolve']), {'allowed': (400, 404)}, [
+                '<directory>',
+                '   <entry name="OLPC-11.3.1" />',
+                '</directory>',
+                ]),
+            (('GET', ['build', 'resolve', 'OLPC-11.3.1']), {'allowed': (400, 404)}, [
+                '<directory>',
+                '   <entry name="i586" />',
+                '</directory>',
+                ]),
             (('GET', ['resolve']),
                 {'allowed': (400, 404), 'params': {
                     'project': 'resolve',
-                    'repository': 'repo',
-                    'arch': 'arch',
+                    'repository': 'OLPC-11.3.1',
+                    'arch': 'i586',
                     'package': 'pkg1',
                     'withdeps': '1',
                     'exclude': 'sugar',
@@ -116,8 +99,8 @@ class ObsTest(tests.Test):
             (('GET', ['resolve']),
                 {'allowed': (400, 404), 'params': {
                     'project': 'resolve',
-                    'repository': 'repo',
-                    'arch': 'arch',
+                    'repository': 'OLPC-11.3.1',
+                    'arch': 'i586',
                     'package': 'pkg2',
                     'withdeps': '1',
                     'exclude': 'sugar',
@@ -130,13 +113,19 @@ class ObsTest(tests.Test):
                 ),
             ]))
 
+        obs.obs_presolve_path.value = 'packages'
+        obs.presolve(['pkg1', 'pkg2'])
+
         self.assertEqual([
             {'url': 'http://pkg1-1.prm', 'name': 'pkg1-1'},
             {'url': 'http://pkg1-2.prm', 'name': 'pkg1-2'},
+            ],
+            json.load(file('packages/OLPC-11.3.1/i586/pkg1')))
+        self.assertEqual([
             {'url': 'http://pkg2-1.prm', 'name': 'pkg2-1'},
             {'url': 'http://pkg2-2.prm', 'name': 'pkg2-2'},
             ],
-            obs.presolve('repo', 'arch', ['pkg1', 'pkg2']))
+            json.load(file('packages/OLPC-11.3.1/i586/pkg2')))
 
 
 class Response(object):

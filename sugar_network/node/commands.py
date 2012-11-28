@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import logging
 import hashlib
 from os.path import exists, join
@@ -65,19 +66,21 @@ class NodeCommands(VolumeCommands, Commands):
     @router.route('GET', '/packages')
     def packages(self, request, response):
         response.content_type = 'application/json'
-        if len(request.path) == 1:
-            return self._list_repos()
-        elif len(request.path) == 2:
-            return self._list_packages(request)
-        elif len(request.path) == 3:
-            return self._get_package(request.path[1], request.path[2])
+        if len(request.path) <= 3:
+            path = join(obs.obs_presolve_path.value, *request.path[1:])
+            return os.listdir(path)
+        elif len(request.path) == 4:
+            path = join(obs.obs_presolve_path.value, *request.path[1:])
+            return ad.PropertyMeta(path=path, filename=request.path[-1],
+                    mime_type='application/json')
         else:
             raise RuntimeError('Incorrect path')
 
     @router.route('HEADER', '/packages')
     def try_packages(self, request, response):
-        enforce(len(request.path) == 3, 'Incorrect path')
-        self._get_package(request.path[1], request.path[2])
+        enforce(len(request.path) == 4, 'Incorrect path')
+        path = join(obs.obs_presolve_path.value, *request.path[1:])
+        enforce(exists(path), ad.NotFound, 'No such package')
 
     @ad.volume_command(method='GET', cmd='stat',
             mime_type='application/json')
@@ -262,30 +265,6 @@ class NodeCommands(VolumeCommands, Commands):
         enforce('deleted' not in doc['layer'], ad.NotFound,
                 'Document deleted')
         return result
-
-    def _list_repos(self):
-        if self.is_master:
-            # Node should not depend on OBS
-            repos = obs.get_presolve_repos()
-        else:
-            repos = []
-        return {'total': len(repos), 'result': repos}
-
-    def _list_packages(self, request):
-        directory = self.volume['context']
-        documents, total = directory.find(type='package',
-                offset=request.get('offset'), limit=request.get('limit'))
-        return {'total': total, 'result': [i.guid for i in documents]}
-
-    def _get_package(self, repo, package):
-        directory = self.volume['context']
-        context = directory.get(package)
-        enforce('package' in context.get('type'), ad.NotFound,
-                'Is not a package')
-        presolve = context.get('presolve', {}).get(repo)
-        enforce(presolve and 'binary' in presolve, ad.NotFound,
-                'No presolve info')
-        return presolve['binary']
 
 
 def _load_pubkey(pubkey):

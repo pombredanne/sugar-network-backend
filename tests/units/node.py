@@ -318,62 +318,29 @@ class NodeTest(tests.Test):
                 call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'implement', 'title']))
 
     def test_PackagesRoute(self):
-        self.override(obs, 'get_presolve_repos', lambda: [
-            {'name': 'Gentoo-2.1', 'arch': 'x86'},
-            {'name': 'Debian-6.0', 'arch': 'x86_64'},
-            ])
-
+        obs.obs_presolve_path.value = 'packages'
         volume = self.start_master()
         client = Client()
 
-        client.post(['context'], {
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'implement': 'package1',
-            'presolve': {
-                'Gentoo-2.1': {'status': 'success', 'binary': ['package1-1', 'package1-2']},
-                'Debian-6.0': {'status': 'success', 'binary': ['package1-3']},
-                },
-            })
-        client.post(['context'], {
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'implement': 'package2',
-            'presolve': {
-                'Gentoo-2.1': {'status': 'success', 'devel': ['package2-1', 'package2-2']},
-                'Debian-6.0': {'status': 'success', 'devel': ['package2-3']},
-                },
-            })
-        client.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'implement': 'package3',
-            'presolve': {
-                'Gentoo-2.1': {'status': 'success', 'binary': ['package3-1', 'package3-2']},
-                'Debian-6.0': {'status': 'success', 'binary': ['package3-3']},
-                },
-            })
+        self.assertRaises(RuntimeError, client.get, ['packages'])
 
+        self.touch(('packages/repo/arch/package', '{"foo": -1}'))
         self.assertEqual(
-                {'total': 2, 'result': [{'arch': 'x86', 'name': 'Gentoo-2.1'}, {'arch': 'x86_64', 'name': 'Debian-6.0'}]},
+                ['repo'],
                 client.get(['packages']))
         self.assertEqual(
-                {'total': 2, 'result': ['package1', 'package2']},
-                client.get(['packages', 'Gentoo-2.1']))
+                ['arch'],
+                client.get(['packages', 'repo']))
         self.assertEqual(
-                ['package1-1', 'package1-2'],
-                client.get(['packages', 'Gentoo-2.1', 'package1']))
+                ['package'],
+                client.get(['packages', 'repo', 'arch']))
         self.assertEqual(
-                ['package1-3'],
-                client.get(['packages', 'Debian-6.0', 'package1']))
-        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Debian-6.0', 'package2'])
-        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'Gentoo-2.1', 'package3'])
+                {"foo": -1},
+                client.get(['packages', 'repo', 'arch', 'package']))
+
+        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'fake'])
+        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'repo', 'fake'])
+        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'repo', 'arch', 'fake'])
 
     def test_Clone(self):
         volume = self.start_master()

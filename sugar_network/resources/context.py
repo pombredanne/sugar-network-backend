@@ -155,11 +155,6 @@ class Context(Resource):
     def packages(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={},
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL | ad.ACCESS_SYSTEM)
-    def presolve(self, value):
-        return value
-
     @ad.active_property(ad.StoredProperty, typecast=[], default=[],
             permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL | ad.ACCESS_SYSTEM)
     def versions(self, value):
@@ -220,24 +215,10 @@ class Context(Resource):
                 alias = {'status': str(error)}
             packages[repo['name']] = alias
 
-        presolve = {}
-        for repo in obs.get_presolve_repos():
-            alias = aliases.get(repo['distributor_id'])
-            if not alias or '*' not in alias:
-                continue
-            alias = alias['*'].copy()
-            try:
-                for key, names in alias.items():
-                    alias[key] = \
-                            obs.presolve(repo['name'], repo['arch'], names)
-                alias['status'] = 'success'
-            except Exception, error:
-                util.exception('Failed to preresolve %r', alias)
-                alias = {'status': str(error)}
-            presolve[repo['name']] = alias
-
         self.request.call('PUT', document='context', guid=self.guid,
-                content={'packages': packages, 'presolve': presolve})
-
+                content={'packages': packages})
         # Shift mtime to invalidate solutions
         self.volume['implementation'].mtime = int(time.time())
+
+        if 'Fedora' in packages:
+            obs.presolve(packages['Fedora'].get('binary') or [])
