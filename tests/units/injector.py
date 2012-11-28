@@ -261,23 +261,44 @@ class InjectorTest(tests.Test):
             [i for i in pipe])
 
     def test_InstallDeps(self):
-        self.touch(('Activities/activity/activity/activity.info', [
-            '[Activity]',
-            'name = TestActivity',
-            'bundle_id = bundle_id',
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license = Public Domain',
-            'requires = dep1; dep2',
-            ]))
-
         self.touch('remote/master')
         self.start_ipc_and_restful_server([User, Context, Implementation])
         remote = IPCClient(mountpoint='/')
-        monitor = coroutine.spawn(clones.monitor,
-                self.mounts.volume['context'], ['Activities'])
-        coroutine.sleep()
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'topdir',
+                    'requires': {
+                        'dep1': {},
+                        'dep2': {},
+                        },
+                    },
+                },
+            })
+        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        self.touch((blob_path, pickle.dumps({})))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
+        bundle.writestr('topdir/probe', 'probe')
+        bundle.close()
 
         remote.post(['context'], {
             'type': 'package',
@@ -292,7 +313,6 @@ class InjectorTest(tests.Test):
                     },
                 },
             })
-
         remote.post(['context'], {
             'type': 'package',
             'title': 'title',
@@ -319,8 +339,7 @@ class InjectorTest(tests.Test):
         self.override(packagekit, 'resolve', resolve)
         self.override(packagekit, 'install', install)
 
-        context = 'bundle_id'
-        pipe = injector.launch('~', context)
+        pipe = injector.launch('/', context)
         self.assertEqual('exit', [i for i in pipe][-1].get('state'))
         self.assertEqual(['dep1.bin', 'dep2.bin'], pickle.load(file('resolve')))
         self.assertEqual(['dep2.bin'], pickle.load(file('install')))

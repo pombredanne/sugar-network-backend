@@ -163,6 +163,10 @@ def _solve(mountpoint, context):
 
     from sugar_network import zeroinstall
 
+    if mountpoint != '/':
+        _logger.info('Disable dependencies for local mountpoint')
+        zeroinstall.nodeps = True
+
     solution = zeroinstall.solve(mountpoint, context)
     _set_cached_solution(cached_path, solution)
 
