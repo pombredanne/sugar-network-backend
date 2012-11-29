@@ -334,6 +334,87 @@ class MountsetTest(tests.Test):
                 {'clone': 0},
                 client.get(['context', context], reply=['clone'], mountpoint='~'))
 
+    def test_clone_ActivityImpl(self):
+        self.start_ipc_and_restful_server()
+        client = IPCClient()
+        coroutine.spawn(clones.monitor, self.mounts.volume['context'], ['Activities'])
+
+        context = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        impl1 = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'requires': ['foo'],
+            })
+
+        impl2 = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '2',
+            'stability': 'stable',
+            'notes': '',
+            'requires': ['bar'],
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'TestActivitry',
+                    'requires': {'dep': {}},
+                    },
+                },
+            })
+        bundle = zipfile.ZipFile('bundle', 'w')
+        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = %s' % context,
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license=Public Domain',
+            ]))
+        bundle.close()
+        client.request('PUT', ['implementation', impl2, 'data'], file('bundle', 'rb').read())
+
+        impl3 = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '3',
+            'stability': 'developer',
+            'notes': '',
+            'requires': ['bar'],
+            })
+
+        assert not exists('Activities/TestActivitry/activity/activity.info')
+        self.assertEqual(
+                {'clone': 0, 'type': ['activity']},
+                client.get(['context', context], reply=['clone']))
+        self.assertRaises(RuntimeError, client.get, ['context', context], mountpoint='~')
+
+        client.put(['context', context], 2, cmd='clone', nodeps=1, stability='stable', requires='bar')
+        coroutine.sleep(1)
+
+        assert exists('Activities/TestActivitry/activity/activity.info')
+        self.assertEqual(
+                {'clone': 2, 'type': ['activity']},
+                client.get(['context', context], reply=['clone']))
+        self.assertEqual(
+                {'clone': 2},
+                client.get(['context', context], reply=['clone'], mountpoint='~'))
+
     def test_clone_Content(self):
         updates = []
         self.override(journal.Commands, '__init__', lambda *args: None)

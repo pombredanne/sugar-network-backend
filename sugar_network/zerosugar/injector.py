@@ -84,6 +84,14 @@ def clone(mountpoint, guid):
                 })
 
 
+def clone_impl(mountpoint, context, guid, spec):
+    return pipe.fork(_clone_impl, logname=context, guid=guid, spec=spec,
+            session={
+                'mountpoint': mountpoint,
+                'context': context,
+                })
+
+
 def invalidate_solutions(mtime):
     global _mtime
     _mtime = mtime
@@ -150,6 +158,19 @@ def _clone(mountpoint, context):
         raise
 
 
+def _clone_impl(guid, spec):
+    spec = spec['*-*']
+
+    src_path = cache.get(guid)
+    if 'extract' in spec:
+        src_path = join(src_path, spec['extract'])
+    dst_path = util.unique_filename(
+            client.activity_dirs.value[0], basename(src_path))
+
+    _logger.info('Clone implementation to %r', dst_path)
+    util.cptree(src_path, dst_path)
+
+
 def _solve(mountpoint, context):
     pipe.trace('Start solving %s from %s mountpoint', context, mountpoint)
 
@@ -159,6 +180,10 @@ def _solve(mountpoint, context):
         return solution
 
     from sugar_network import zeroinstall
+
+    if mountpoint != '/':
+        _logger.info('Disable dependencies for local mountpoint')
+        zeroinstall.nodeps = True
 
     solution = zeroinstall.solve(mountpoint, context)
     _set_cached_solution(cached_path, solution)

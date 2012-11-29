@@ -15,3 +15,4 @@
   - zerosugar/pipe.py uses several mountpoints
   - what mountpoints for deps
 - handle DELETE while calculating per-object node stats
+- process depencies for non-/ mountpoint launches

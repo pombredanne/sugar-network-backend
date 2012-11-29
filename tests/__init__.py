@@ -23,7 +23,7 @@ from sugar_network.toolkit.router import Router, IPCRouter
 from sugar_network.client import journal
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.client.mountset import Mountset
-from sugar_network import client, node, toolkit
+from sugar_network import client, node, toolkit, zeroinstall
 from sugar_network.zerosugar import injector
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
@@ -105,6 +105,7 @@ class Test(unittest.TestCase):
         injector.invalidate_solutions(None)
         injector._pms_path = None
         journal._ds_root = tmpdir + '/datastore'
+        zeroinstall.nodeps = False
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',

@@ -56,6 +56,8 @@ def get(guid, prop):
 
 class Commands(object):
 
+    _ds = None
+
     def __init__(self):
         import dbus
         try:
@@ -68,7 +70,6 @@ class Commands(object):
             _logger.info(
                     'Cannot connect to sugar-datastore, '
                     'Journal integration is disabled')
-            self._ds = None
 
     @router.route('GET', '/journal')
     def journal(self, request, response):

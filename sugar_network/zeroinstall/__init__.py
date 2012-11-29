@@ -43,6 +43,8 @@ reader.check_readable = lambda * args, ** kwargs: True
 try_cleanup_distro_version = distro.try_cleanup_distro_version
 canonical_machine = distro.canonical_machine
 
+nodeps = False
+
 _logger = logging.getLogger('zeroinstall')
 _mountpoints = None
 _client = None
@@ -256,9 +258,11 @@ class _Feed(model.ZeroInstallFeed):
         impl.released = 0
         impl.arch = release['arch']
         impl.upstream_stability = model.stability_levels[release['stability']]
-        for i in common_deps:
-            impl.requires.append(_Dependency(i, {}))
-        impl.requires.extend(_read_requires(release.get('requires')))
+
+        if not nodeps:
+            for i in common_deps:
+                impl.requires.append(_Dependency(i, {}))
+            impl.requires.extend(_read_requires(release.get('requires')))
 
         if isabs(impl_id):
             impl.local_path = impl_id

@@ -17,7 +17,6 @@ import os
 import socket
 import logging
 from os.path import join, exists
-from gettext import gettext as _
 
 import active_document as ad
 
@@ -51,7 +50,8 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         ad.CommandsProcessor.__init__(self)
         SyncCommands.__init__(self, client.path('sync'))
         Commands.__init__(self)
-        journal.Commands.__init__(self)
+        if not client.no_dbus.value:
+            journal.Commands.__init__(self)
         self.volume = home_volume
 
     def __getitem__(self, mountpoint):
@@ -161,7 +161,11 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             self._jobs.spawn(do_launch)
 
     @ad.document_command(method='PUT', cmd='clone',
-            arguments={'force': ad.to_int})
+            arguments={
+                'force': ad.to_int,
+                'nodeps': ad.to_int,
+                'requires': ad.to_list,
+                })
     def clone(self, request, mountpoint, document, guid, force):
         mount = self[mountpoint]
 
@@ -169,7 +173,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             context_type = mount(method='GET', document='context', guid=guid,
                     prop='type')
             if 'activity' in context_type:
-                self._clone_activity(mountpoint, guid, request.content, force)
+                self._clone_activity(mountpoint, guid, request)
             elif 'content' in context_type:
 
                 def get_props():
@@ -366,27 +370,32 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             if blob:
                 contexts.set_blob(guid, prop, blob)
 
-    def _clone_activity(self, mountpoint, guid, value, force):
-        if not value:
+    def _clone_activity(self, mountpoint, guid, request):
+        if not request.content:
             clones.wipeout(guid)
             return
 
         for __ in clones.walk(guid):
-            if not force:
+            if not request.get('force'):
                 return
             break
 
         self._checkin_context(guid, {'clone': 1})
 
-        for event in injector.clone(mountpoint, guid):
-            # TODO Publish clone progress
-            if event['state'] == 'failure':
-                self.publish({
-                    'event': 'alert',
-                    'mountpoint': mountpoint,
-                    'severity': 'error',
-                    'message': _('Fail to clone %s') % guid,
-                    })
+        if request.get('nodeps'):
+            impls = self[mountpoint](method='GET', document='implementation',
+                    context=guid, stability=request.get('stability'),
+                    requires=request.get('requires'),
+                    order_by='-version', limit=1,
+                    reply=['guid', 'spec'])['result']
+            enforce(impls, ad.NotFound, 'No implementations')
+            pipe = injector.clone_impl(mountpoint, guid, **impls[0])
+        else:
+            pipe = injector.clone(mountpoint, guid)
+
+        for event in pipe:
+            event['event'] = 'clone'
+            self.publish(event)
 
         for __ in clones.walk(guid):
             break

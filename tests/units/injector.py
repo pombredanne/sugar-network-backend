@@ -122,6 +122,53 @@ class InjectorTest(tests.Test):
         assert exists('Activities/topdir/probe')
         self.assertEqual('probe', file('Activities/topdir/probe').read())
 
+    def test_clone_impl(self):
+        self.start_ipc_and_restful_server([User, Context, Implementation])
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'topdir',
+                    },
+                },
+            })
+        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        self.touch((blob_path, pickle.dumps({})))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
+        bundle.writestr('topdir/probe', 'probe')
+        bundle.close()
+
+        pipe = injector.clone_impl('/', context, impl, {'*-*': {'extract': 'topdir'}})
+        log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
+        self.assertEqual([
+            {'state': 'fork', 'mountpoint': '/', 'context': context},
+            {'state': 'download', 'mountpoint': '/', 'context': context},
+            {'state': 'exit', 'mountpoint': '/', 'context': context},
+            ],
+            [i for i in pipe])
+        assert exists('cache/implementation/%s' % impl)
+        assert exists('Activities/topdir/probe')
+        self.assertEqual('probe', file('Activities/topdir/probe').read())
+
     def test_launch_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
         remote = IPCClient(mountpoint='/')
@@ -261,23 +308,44 @@ class InjectorTest(tests.Test):
             [i for i in pipe])
 
     def test_InstallDeps(self):
-        self.touch(('Activities/activity/activity/activity.info', [
-            '[Activity]',
-            'name = TestActivity',
-            'bundle_id = bundle_id',
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license = Public Domain',
-            'requires = dep1; dep2',
-            ]))
-
         self.touch('remote/master')
         self.start_ipc_and_restful_server([User, Context, Implementation])
         remote = IPCClient(mountpoint='/')
-        monitor = coroutine.spawn(clones.monitor,
-                self.mounts.volume['context'], ['Activities'])
-        coroutine.sleep()
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'topdir',
+                    'requires': {
+                        'dep1': {},
+                        'dep2': {},
+                        },
+                    },
+                },
+            })
+        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        self.touch((blob_path, pickle.dumps({})))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
+        bundle.writestr('topdir/probe', 'probe')
+        bundle.close()
 
         remote.post(['context'], {
             'type': 'package',
@@ -292,7 +360,6 @@ class InjectorTest(tests.Test):
                     },
                 },
             })
-
         remote.post(['context'], {
             'type': 'package',
             'title': 'title',
@@ -319,10 +386,11 @@ class InjectorTest(tests.Test):
         self.override(packagekit, 'resolve', resolve)
         self.override(packagekit, 'install', install)
 
-        context = 'bundle_id'
-        pipe = injector.launch('~', context)
+        pipe = injector.launch('/', context)
         self.assertEqual('exit', [i for i in pipe][-1].get('state'))
-        self.assertEqual(['dep1.bin', 'dep2.bin'], pickle.load(file('resolve')))
+        self.assertEqual(
+                sorted(['dep1.bin', 'dep2.bin']),
+                sorted(pickle.load(file('resolve'))))
         self.assertEqual(['dep2.bin'], pickle.load(file('install')))
 
     def test_SolutionsCache_Set(self):
@@ -563,6 +631,44 @@ class InjectorTest(tests.Test):
                     {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl},
                     ]),
                 sorted(zeroinstall.solve('/', context)))
+
+    def test_NoDepsClonning(self):
+        self.touch('remote/master')
+        self.start_ipc_and_restful_server([User, Context, Implementation])
+        remote = IPCClient(mountpoint='/')
+
+        context = remote.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'dependencies': ['dep1'],
+            })
+        impl = remote.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'requires': {
+                        'dep2': {},
+                    },
+                },
+            }})
+
+        self.assertRaises(RuntimeError, zeroinstall.solve, '/', context)
+
+        zeroinstall.nodeps = True
+        self.assertEqual(
+                [{'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl}],
+                zeroinstall.solve('/', context))
 
     def test_LoadFeed_SetPackages(self):
         self.touch('remote/master')
