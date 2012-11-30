@@ -15,24 +15,30 @@
 
 # pylint: disable-msg=E1101,E0102,E0202
 
+import xapian
+
 import active_document as ad
 from sugar_network.zerosugar.licenses import GOOD_LICENSES
-
 from sugar_network import resources
 from sugar_network.zerosugar.spec import parse_version
 from sugar_network.resources.volume import Resource
 
 
 def _encode_version(version):
-    result = ''
     version = parse_version(version)
-    while version:
-        unit, modificator = version[:2]
-        del version[:2]
-        unit = ([0, 0] + unit)[-3:]
-        result += ''.join(['%05d' % i for i in unit])
-        result += '%02d' % (10 + modificator)
-    return result
+    # Convert to [(`version`, `modifier`)]
+    version = zip(*([iter(version)] * 2))
+    major, modifier = version.pop(0)
+
+    result = sum([(rank % 10000) * pow(10000, 3 - i)
+            for i, rank in enumerate((major + [0, 0])[:3])])
+    result += (5 + modifier) * 1000
+    if modifier and version:
+        minor, __ = version.pop(0)
+        if minor:
+            result += (minor[0] % 1000)
+
+    return xapian.sortable_serialise(result)
 
 
 class Implementation(Resource):

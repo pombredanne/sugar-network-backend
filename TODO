@@ -16,3 +16,4 @@
   - what mountpoints for deps
 - handle DELETE while calculating per-object node stats
 - process depencies for non-/ mountpoint launches
+- unstall activities on checking out and on initial syncing

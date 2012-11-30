@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import xapian
+
 from __init__ import tests
 
 from sugar_network.toolkit.router import Request
@@ -14,41 +16,51 @@ class ImplementationTest(tests.Test):
 
     def test_encode_version(self):
         self.assertEqual(
-                '00000''00000''00001' '10',
+                xapian.sortable_serialise(eval('1''0000''0000''5''000')),
                 _encode_version('1'))
         self.assertEqual(
-                '00000''00001''00002' '10',
+                xapian.sortable_serialise(eval('1''0002''0000''5''000')),
                 _encode_version('1.2'))
         self.assertEqual(
-                '00001''00020''00300' '10',
+                xapian.sortable_serialise(eval('1''0020''0300''5''000')),
                 _encode_version('1.20.300'))
         self.assertEqual(
-                '00020''00300''04000' '10',
-                _encode_version('1.20.300.4000'))
+                xapian.sortable_serialise(eval('1''0020''0300''5''000')),
+                _encode_version('1.20.300.4444'))
 
         self.assertEqual(
-                '00000''00000''00001' '10' '00002''00003''00004' '10',
-                _encode_version('1-2.3.4'))
-        self.assertEqual(
-                '00000''00000''00001' '10' '00002''00003''00004' '10' '00006''00007''00008' '10',
-                _encode_version('1-2.3.4-5.6.7.8'))
+                xapian.sortable_serialise(eval('1''9999''0000''5''000')),
+                _encode_version('10001.99999.10000'))
 
         self.assertEqual(
-                '00000''00000''00001' '08',
+                xapian.sortable_serialise(eval('1''0000''0000''3''000')),
                 _encode_version('1-pre'))
         self.assertEqual(
-                '00000''00000''00001' '09',
+                xapian.sortable_serialise(eval('1''0000''0000''4''000')),
                 _encode_version('1-rc'))
         self.assertEqual(
-                '00000''00000''00001' '10',
+                xapian.sortable_serialise(eval('1''0000''0000''5''000')),
                 _encode_version('1-'))
         self.assertEqual(
-                '00000''00000''00001' '11',
+                xapian.sortable_serialise(eval('1''0000''0000''6''000')),
                 _encode_version('1-post'))
 
         self.assertEqual(
-                '00000''00000''00001' '08' '00003''00004''00005' '10',
-                _encode_version('1-pre2.3.4.5'))
+                xapian.sortable_serialise(eval('1''0000''0000''3''001')),
+                _encode_version('1-pre1'))
+        self.assertEqual(
+                xapian.sortable_serialise(eval('1''0000''0000''4''002')),
+                _encode_version('1-rc2'))
+        self.assertEqual(
+                xapian.sortable_serialise(eval('1''0000''0000''6''003')),
+                _encode_version('1-post3'))
+
+        self.assertEqual(
+                xapian.sortable_serialise(eval('1''0000''0000''6''000')),
+                _encode_version('1-post-2-3'))
+        self.assertEqual(
+                xapian.sortable_serialise(eval('1''0000''0000''6''001')),
+                _encode_version('1-post1.2-3'))
 
     def test_SetMimeTypeForActivities(self):
         self.start_server()
