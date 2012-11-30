@@ -49,6 +49,7 @@ _VERSION_MOD_TO_VALUE = {
         'rc': -1,
         '': 0,
         'post': 1,
+        'r': 1,
         }
 _VERSION_VALUE_TO_MOD = {}
 
