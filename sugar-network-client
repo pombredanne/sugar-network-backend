@@ -119,6 +119,8 @@ class Application(application.Daemon):
         server = coroutine.WSGIServer(('localhost', client.ipc_port.value),
                 IPCRouter(mountset))
         self.jobs.spawn(server.serve_forever)
+        coroutine.dispatch()
+
         self.accept()
 
         def delayed_start(event=None):

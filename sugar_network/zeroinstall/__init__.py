@@ -177,6 +177,7 @@ def _load_feed(context):
         try:
             feed_content = _client.get(['context', context],
                     reply=['title', 'packages', 'versions', 'dependencies'],
+                    # TODO stability='stable'
                     mountpoint=mountpoint)
             pipe.trace('Found %s in %s mountpoint', context, mountpoint)
             break

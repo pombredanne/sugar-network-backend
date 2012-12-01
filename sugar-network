@@ -93,6 +93,7 @@ class Application(application.Application):
 
     def _call(self, method, post):
         request = Request(method=method)
+        request.allow_redirects = True
         response = ad.Response()
         reply = []
 
