@@ -428,12 +428,14 @@ class _Response(ad.Response):
         self['Last-Modified'] = formatdate(value, localtime=False, usegmt=True)
 
     def items(self):
+        result = []
         for key, value in dict.items(self):
             if type(value) in (list, tuple):
                 for i in value:
-                    yield key, str(i)
+                    result.append((key, str(i)))
             else:
-                yield key, str(value)
+                result.append((key, str(value)))
+        return result
 
     def __repr__(self):
         args = ['status=%r' % self.status,
