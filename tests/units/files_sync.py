@@ -10,7 +10,6 @@ from os.path import exists
 from __init__ import tests
 
 import active_document as ad
-from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.files_sync import Seeder, Leecher
 from sugar_network.toolkit.sneakernet import OutBufferPacket, InPacket, DiskFull, OutFilePacket
 
@@ -35,9 +34,9 @@ class FilesSyncTest(tests.Test):
 
         os.utime('files', (1, 1))
 
-        assert not seeder.pending(Sequence([[1, None]]))
+        assert not seeder.pending(ad.Sequence([[1, None]]))
         packet = OutBufferPacket()
-        in_seq = Sequence([[1, None]])
+        in_seq = ad.Sequence([[1, None]])
         seeder.pull(in_seq, packet)
         self.assertEqual([[1, None]], in_seq)
         self.assertEqual(0, seqno.value)
@@ -50,8 +49,8 @@ class FilesSyncTest(tests.Test):
         self.utime('files', 1)
         os.utime('files', (1, 1))
 
-        assert not seeder.pending(Sequence([[1, None]]))
-        in_seq = Sequence([[1, None]])
+        assert not seeder.pending(ad.Sequence([[1, None]]))
+        in_seq = ad.Sequence([[1, None]])
         seeder.pull(in_seq, packet)
         self.assertEqual([[1, None]], in_seq)
         self.assertEqual(0, seqno.value)
@@ -61,8 +60,8 @@ class FilesSyncTest(tests.Test):
         self.utime('files', 2)
         os.utime('files', (2, 2))
 
-        assert seeder.pending(Sequence([[1, None]]))
-        in_seq = Sequence([[1, None]])
+        assert seeder.pending(ad.Sequence([[1, None]]))
+        in_seq = ad.Sequence([[1, None]])
         seeder.pull(in_seq, packet)
         self.assertEqual([[4, None]], in_seq)
         self.assertEqual(3, seqno.value)
@@ -85,9 +84,9 @@ class FilesSyncTest(tests.Test):
                     ]),
                 read_records(packet))
 
-        assert not seeder.pending(Sequence([[4, None]]))
+        assert not seeder.pending(ad.Sequence([[4, None]]))
         packet = OutBufferPacket()
-        in_seq = Sequence([[4, None]])
+        in_seq = ad.Sequence([[4, None]])
         seeder.pull(in_seq, packet)
         self.assertEqual([[4, None]], in_seq)
         self.assertEqual(3, seqno.value)
@@ -105,7 +104,7 @@ class FilesSyncTest(tests.Test):
         self.utime('files', 1)
 
         out_packet = OutBufferPacket()
-        in_seq = Sequence([[2, 2], [4, 10], [20, None]])
+        in_seq = ad.Sequence([[2, 2], [4, 10], [20, None]])
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[6, 10], [20,None]], in_seq)
         self.assertEqual(
@@ -127,7 +126,7 @@ class FilesSyncTest(tests.Test):
         self.utime('files', 1)
 
         out_packet = OutBufferPacket(limit=CHUNK * 2.5)
-        in_seq = Sequence([[1, None]])
+        in_seq = ad.Sequence([[1, None]])
         try:
             seeder.pull(in_seq, out_packet)
             assert False
@@ -153,19 +152,19 @@ class FilesSyncTest(tests.Test):
         os.utime('files', (1, 1))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[1, None]]), out_packet)
+        seeder.pull(ad.Sequence([[1, None]]), out_packet)
         self.assertEqual(3, seqno.value)
 
         os.utime('files/2', (2, 2))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[4, None]]), out_packet)
+        seeder.pull(ad.Sequence([[4, None]]), out_packet)
         self.assertEqual(3, seqno.value)
 
         os.utime('files', (3, 3))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[4, None]]), out_packet)
+        seeder.pull(ad.Sequence([[4, None]]), out_packet)
         self.assertEqual(4, seqno.value)
         self.assertEqual(
                 sorted([
@@ -179,7 +178,7 @@ class FilesSyncTest(tests.Test):
         os.utime('files', (4, 4))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[5, None]]), out_packet)
+        seeder.pull(ad.Sequence([[5, None]]), out_packet)
         self.assertEqual(6, seqno.value)
         self.assertEqual(
                 sorted([
@@ -190,7 +189,7 @@ class FilesSyncTest(tests.Test):
                 read_records(out_packet))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[1, None]]), out_packet)
+        seeder.pull(ad.Sequence([[1, None]]), out_packet)
         self.assertEqual(6, seqno.value)
         self.assertEqual(
                 sorted([
@@ -212,7 +211,7 @@ class FilesSyncTest(tests.Test):
         os.utime('files', (1, 1))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[1, None]]), out_packet)
+        seeder.pull(ad.Sequence([[1, None]]), out_packet)
         self.assertEqual(3, seqno.value)
 
         self.touch(('files/4', '4'))
@@ -220,14 +219,14 @@ class FilesSyncTest(tests.Test):
         os.utime('files', (1, 1))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[4, None]]), out_packet)
+        seeder.pull(ad.Sequence([[4, None]]), out_packet)
         self.assertEqual(3, seqno.value)
 
         os.utime('files/4', (2, 2))
         os.utime('files', (2, 2))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[4, None]]), out_packet)
+        seeder.pull(ad.Sequence([[4, None]]), out_packet)
         self.assertEqual(4, seqno.value)
         self.assertEqual(
                 sorted([
@@ -243,7 +242,7 @@ class FilesSyncTest(tests.Test):
         os.utime('files', (3, 3))
 
         out_packet = OutBufferPacket()
-        seeder.pull(Sequence([[5, None]]), out_packet)
+        seeder.pull(ad.Sequence([[5, None]]), out_packet)
         self.assertEqual(6, seqno.value)
         self.assertEqual(
                 sorted([
@@ -264,7 +263,7 @@ class FilesSyncTest(tests.Test):
         os.utime('files', (1, 1))
 
         out_packet = OutBufferPacket()
-        in_seq = Sequence([[1, None]])
+        in_seq = ad.Sequence([[1, None]])
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[4, None]], in_seq)
         self.assertEqual(3, seqno.value)
@@ -272,9 +271,9 @@ class FilesSyncTest(tests.Test):
         os.unlink('files/2')
         os.utime('files', (2, 2))
 
-        assert seeder.pending(Sequence([[4, None]]))
+        assert seeder.pending(ad.Sequence([[4, None]]))
         out_packet = OutBufferPacket()
-        in_seq = Sequence([[1, None]])
+        in_seq = ad.Sequence([[1, None]])
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[2, 2], [5, None]], in_seq)
         self.assertEqual(4, seqno.value)
@@ -291,9 +290,9 @@ class FilesSyncTest(tests.Test):
         os.unlink('files/3')
         os.utime('files', (3, 3))
 
-        assert seeder.pending(Sequence([[5, None]]))
+        assert seeder.pending(ad.Sequence([[5, None]]))
         out_packet = OutBufferPacket()
-        in_seq = Sequence([[1, None]])
+        in_seq = ad.Sequence([[1, None]])
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[1, 3], [7, None]], in_seq)
         self.assertEqual(6, seqno.value)
@@ -307,7 +306,7 @@ class FilesSyncTest(tests.Test):
                 read_records(out_packet))
 
         out_packet = OutBufferPacket()
-        in_seq = Sequence([[4, None]])
+        in_seq = ad.Sequence([[4, None]])
         seeder.pull(in_seq, out_packet)
         self.assertEqual([[7, None]], in_seq)
         self.assertEqual(6, seqno.value)
@@ -332,7 +331,7 @@ class FilesSyncTest(tests.Test):
         os.utime('src/files', (1, 1))
 
         with OutFilePacket('.') as packet:
-            seeder.pull(Sequence([[1, None]]), packet)
+            seeder.pull(ad.Sequence([[1, None]]), packet)
             self.assertEqual(3, seqno.value)
         for i in InPacket(packet.path):
             leecher.push(i)
@@ -354,7 +353,7 @@ class FilesSyncTest(tests.Test):
         os.utime('src/files', (2, 2))
 
         with OutFilePacket('.') as packet:
-            seeder.pull(Sequence([[4, None]]), packet)
+            seeder.pull(ad.Sequence([[4, None]]), packet)
             self.assertEqual(4, seqno.value)
         for i in InPacket(packet.path):
             leecher.push(i)
@@ -373,7 +372,7 @@ class FilesSyncTest(tests.Test):
         os.utime('src/files', (3, 3))
 
         with OutFilePacket('.') as packet:
-            seeder.pull(Sequence([[5, None]]), packet)
+            seeder.pull(ad.Sequence([[5, None]]), packet)
             self.assertEqual(7, seqno.value)
         for i in InPacket(packet.path):
             leecher.push(i)

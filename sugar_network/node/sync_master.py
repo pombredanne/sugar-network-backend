@@ -27,7 +27,6 @@ import active_document as ad
 from sugar_network import node, toolkit
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
         OutPacket, DiskFull
-from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.files_sync import Seeders
 from sugar_network.node import stats
 from active_toolkit import coroutine, util, enforce
@@ -62,8 +61,8 @@ class SyncCommands(object):
             out_packet = OutBufferPacket(src=self._guid,
                     dst=in_packet.header['src'],
                     filename='ack.' + in_packet.header.get('filename'))
-            pushed = Sequence()
-            merged = Sequence()
+            pushed = ad.Sequence()
+            merged = ad.Sequence()
             cookie = _Cookie()
             stats_pushed = {}
 
@@ -87,7 +86,7 @@ class SyncCommands(object):
                     rrd[db].put(record['values'], record['timestamp'])
 
                     user_seq = stats_pushed.setdefault(user, {})
-                    db_seq = user_seq.setdefault(db, Sequence())
+                    db_seq = user_seq.setdefault(db, ad.Sequence())
                     db_seq.include(record['sequence'])
 
             enforce(not merged or pushed,
@@ -238,7 +237,7 @@ class _Cookie(dict):
         if request is not None:
             value = self._get_cookie(request, 'sugar_network_sync')
             for key, seq in (value or {}).items():
-                self[key] = Sequence(seq)
+                self[key] = ad.Sequence(seq)
 
         self.delay = 0
 
@@ -264,7 +263,7 @@ class _Cookie(dict):
     def __getitem__(self, key):
         seq = self.get(key)
         if seq is None:
-            seq = self[key] = Sequence()
+            seq = self[key] = ad.Sequence()
         return seq
 
     def _get_cookie(self, request, name):

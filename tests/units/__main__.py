@@ -2,7 +2,6 @@
 
 from __init__ import tests
 
-from collection import *
 from spec import *
 from http import *
 from volume import *
@@ -10,9 +9,9 @@ from client import *
 from node import *
 from sneakernet import *
 from router import *
-from files_sync import *
-from sync_node import *
-from sync_master import *
+#from files_sync import *
+#from sync_node import *
+#from sync_master import *
 from mountpoints import *
 from clones import *
 from proxy_commands import *

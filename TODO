@@ -17,3 +17,5 @@
 - handle DELETE while calculating per-object node stats
 - process depencies for non-/ mountpoint launches
 - unstall activities on checking out and on initial syncing
+- "Cannot find implementation for" error if there is no required sugar
+  - trace says that current sugar version is (ok)

@@ -14,11 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import json
 import logging
 import hashlib
 import tempfile
+import collections
 from os.path import isfile, lexists, exists, dirname
 
+import active_document as ad
 from active_toolkit.options import Option
 from active_toolkit import util
 
@@ -121,6 +124,70 @@ def init_logging(debug_level):
     else:
         logging.Logger.heartbeat = lambda self, message, *args, **kwargs: \
                 self._log(8, message, args, **kwargs)
+
+
+class PersistentSequence(ad.Sequence):
+
+    def __init__(self, path, empty_value=None):
+        ad.Sequence.__init__(self, empty_value=empty_value)
+        self._path = path
+
+        if exists(self._path):
+            with file(self._path) as f:
+                self[:] = json.load(f)
+
+    def commit(self):
+        dir_path = dirname(self._path)
+        if dir_path and not exists(dir_path):
+            os.makedirs(dir_path)
+        with util.new_file(self._path) as f:
+            json.dump(self, f)
+            f.flush()
+            os.fsync(f.fileno())
+
+
+class MutableStack(object):
+    """Stack that keeps its iterators correct after changing content."""
+
+    def __init__(self):
+        self._queue = collections.deque()
+
+    def add(self, value):
+        self.remove(value)
+        self._queue.appendleft([False, value])
+
+    def remove(self, value):
+        for i, (__, existing) in enumerate(self._queue):
+            if existing == value:
+                del self._queue[i]
+                break
+
+    def rewind(self):
+        for i in self._queue:
+            i[0] = False
+
+    def __len__(self):
+        return len(self._queue)
+
+    def __iter__(self):
+        return _MutableStackIterator(self._queue)
+
+    def __repr__(self):
+        return str([i[1] for i in self._queue])
+
+
+class _MutableStackIterator(object):
+
+    def __init__(self, queue):
+        self._queue = queue
+
+    def next(self):
+        for i in self._queue:
+            processed, value = i
+            if not processed:
+                i[0] = True
+                return value
+        raise StopIteration()
 
 
 def _disable_logger(loggers):

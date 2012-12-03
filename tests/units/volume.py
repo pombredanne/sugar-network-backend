@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import json
+import time
 import cPickle as pickle
 from os.path import exists
 
@@ -9,7 +11,6 @@ from __init__ import tests
 
 import active_document as ad
 from sugar_network import node, sugar
-from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, DiskFull
 from sugar_network.resources.volume import Volume, Resource, Commands, VolumeCommands
 from sugar_network.resources.user import User
@@ -18,6 +19,54 @@ from active_toolkit import coroutine
 
 
 class VolumeTest(tests.Test):
+
+    def test_diff(self):
+
+        class Document(ad.Document):
+
+            @ad.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        volume = Volume('db', [Document])
+        volume['document'].create(guid='1', seqno=1, prop='a')
+        for i in os.listdir('db/document/1/1'):
+            os.utime('db/document/1/1/%s' % i, (1, 1))
+        volume['document'].create(guid='2', seqno=2, prop='b')
+        for i in os.listdir('db/document/2/2'):
+            os.utime('db/document/2/2/%s' % i, (2, 2))
+
+        class Packet(list):
+
+            def push(self, **kwargs):
+                self.append(kwargs)
+                return True
+
+        packet = Packet()
+        in_seq = ad.Sequence([[1, None]])
+        volume.diff(in_seq, packet)
+        self.assertEqual([
+            {'document': 'document'},
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1.0},
+                    'mtime': {'value': 0, 'mtime': 1.0},
+                    'ctime': {'value': 0, 'mtime': 1.0},
+                    'prop': {'value': 'a', 'mtime': 1.0},
+                    },
+                },
+            {'guid': '2',
+                'diff': {
+                    'guid': {'value': '2', 'mtime': 2.0},
+                    'mtime': {'value': 0, 'mtime': 2.0},
+                    'ctime': {'value': 0, 'mtime': 2.0},
+                    'prop': {'value': 'b', 'mtime': 2.0},
+                    },
+                },
+            {'commit': [[1, 2]]},
+            ],
+            packet)
+        self.assertEqual([[3, None]], in_seq)
 
     def test_diff_Partial(self):
 
@@ -28,50 +77,58 @@ class VolumeTest(tests.Test):
                 return value
 
         volume = Volume('db', [Document])
+        volume['document'].create(guid='1', seqno=1, prop='a')
+        for i in os.listdir('db/document/1/1'):
+            os.utime('db/document/1/1/%s' % i, (1, 1))
+        volume['document'].create(guid='2', seqno=2, prop='b')
+        for i in os.listdir('db/document/2/2'):
+            os.utime('db/document/2/2/%s' % i, (2, 2))
 
-        volume['document'].create(guid='1', seqno=1, prop='*' * 1024)
-        volume['document'].create(guid='2', seqno=2, prop='*' * 1024)
-        volume['document'].create(guid='3', seqno=3, prop='*' * 1024)
+        class Packet(list):
 
-        in_seq = Sequence([[1, None]])
-        try:
-            packet = OutBufferPacket(filename='packet', limit=1024 - 512)
-            volume.diff(in_seq, packet)
-            assert False
-        except DiskFull:
-            pass
-        self.assertEqual([
-            ],
-            read_packet(packet))
-        self.assertEqual([[1, None]], in_seq)
+            def push(self, **kwargs):
+                if kwargs.get('guid') == '1':
+                    return False
+                self.append(kwargs)
+                return True
 
-        in_seq = Sequence([[1, None]])
-        try:
-            packet = OutBufferPacket(filename='packet', limit=1024 + 512)
-            volume.diff(in_seq, packet)
-            assert False
-        except DiskFull:
-            pass
-        self.assertEqual([
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '1'},
-            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[1, 1]]},
-            ],
-            read_packet(packet))
-        self.assertEqual([[2, None]], in_seq)
-
-        in_seq = Sequence([[1, None]])
-        packet = OutBufferPacket(filename='packet', limit=None)
+        packet = Packet()
+        in_seq = ad.Sequence([[1, None]])
         volume.diff(in_seq, packet)
         self.assertEqual([
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '1'},
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '2'},
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '3'},
-            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[1, 3]]},
+            {'document': 'document'},
+            {'commit': []},
             ],
-            read_packet(packet))
-        self.assertEqual([[4, None]], in_seq)
+            packet)
+        self.assertEqual([[1, None]], in_seq)
 
-    def test_diff_CollapsedCommit(self):
+        class Packet(list):
+
+            def push(self, **kwargs):
+                if kwargs.get('guid') == '2':
+                    return False
+                self.append(kwargs)
+                return True
+
+        packet = Packet()
+        in_seq = ad.Sequence([[1, None]])
+        volume.diff(in_seq, packet)
+        self.assertEqual([
+            {'document': 'document'},
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1.0},
+                    'mtime': {'value': 0, 'mtime': 1.0},
+                    'ctime': {'value': 0, 'mtime': 1.0},
+                    'prop': {'value': 'a', 'mtime': 1.0},
+                    },
+                },
+            {'commit': [[1, 1]]},
+            ],
+            packet)
+        self.assertEqual([[2, None]], in_seq)
+
+    def test_diff_Collapsed(self):
 
         class Document(ad.Document):
 
@@ -80,47 +137,89 @@ class VolumeTest(tests.Test):
                 return value
 
         volume = Volume('db', [Document])
+        volume['document'].create(guid='1', seqno=1, prop='a')
+        for i in os.listdir('db/document/1/1'):
+            os.utime('db/document/1/1/%s' % i, (1, 1))
+        volume['document'].create(guid='3', seqno=3, prop='c')
+        for i in os.listdir('db/document/3/3'):
+            os.utime('db/document/3/3/%s' % i, (3, 3))
+        volume['document'].create(guid='5', seqno=5, prop='f')
+        for i in os.listdir('db/document/5/5'):
+            os.utime('db/document/5/5/%s' % i, (5, 5))
 
-        volume['document'].create(guid='2', seqno=2, prop='*' * 1024)
-        volume['document'].create(guid='4', seqno=4, prop='*' * 1024)
-        volume['document'].create(guid='6', seqno=6, prop='*' * 1024)
-        volume['document'].create(guid='8', seqno=8, prop='*' * 1024)
+        class Packet(list):
 
-        in_seq = Sequence([[1, None]])
-        try:
-            packet = OutBufferPacket(filename='packet', limit=1024 * 2)
-            volume.diff(in_seq, packet)
-            assert False
-        except DiskFull:
-            pass
-        self.assertEqual([
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '2'},
-            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[2, 2]]},
-            ],
-            read_packet(packet))
-        self.assertEqual([[1, 1], [3, None]], in_seq)
+            def push(self, **kwargs):
+                if kwargs.get('guid') == '5':
+                    return False
+                self.append(kwargs)
+                return True
 
-        try:
-            packet = OutBufferPacket(filename='packet', limit=1024 * 2)
-            volume.diff(in_seq, packet)
-            assert False
-        except DiskFull:
-            pass
-        self.assertEqual([
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '4'},
-            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[4, 4]]},
-            ],
-            read_packet(packet))
-        self.assertEqual([[1, 1], [3, 3], [5, None]], in_seq)
-
-        packet = OutBufferPacket(filename='packet')
+        packet = Packet()
+        in_seq = ad.Sequence([[1, None]])
         volume.diff(in_seq, packet)
         self.assertEqual([
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '6'},
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document', 'guid': '8'},
-            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[1, 1], [3, 3], [5, 8]]},
+            {'document': 'document'},
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1.0},
+                    'mtime': {'value': 0, 'mtime': 1.0},
+                    'ctime': {'value': 0, 'mtime': 1.0},
+                    'prop': {'value': 'a', 'mtime': 1.0},
+                    },
+                },
+            {'guid': '3',
+                'diff': {
+                    'guid': {'value': '3', 'mtime': 3.0},
+                    'mtime': {'value': 0, 'mtime': 3.0},
+                    'ctime': {'value': 0, 'mtime': 3.0},
+                    'prop': {'value': 'c', 'mtime': 3.0},
+                    },
+                },
+            {'commit': [[1, 1], [3, 3]]},
             ],
-            read_packet(packet))
+            packet)
+        self.assertEqual([[2, 2], [4, None]], in_seq)
+
+        class Packet(list):
+
+            def push(self, **kwargs):
+                self.append(kwargs)
+                return True
+
+        packet = Packet()
+        in_seq = ad.Sequence([[1, None]])
+        volume.diff(in_seq, packet)
+        self.assertEqual([
+            {'document': 'document'},
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1.0},
+                    'mtime': {'value': 0, 'mtime': 1.0},
+                    'ctime': {'value': 0, 'mtime': 1.0},
+                    'prop': {'value': 'a', 'mtime': 1.0},
+                    },
+                },
+            {'guid': '3',
+                'diff': {
+                    'guid': {'value': '3', 'mtime': 3.0},
+                    'mtime': {'value': 0, 'mtime': 3.0},
+                    'ctime': {'value': 0, 'mtime': 3.0},
+                    'prop': {'value': 'c', 'mtime': 3.0},
+                    },
+                },
+            {'guid': '5',
+                'diff': {
+                    'guid': {'value': '5', 'mtime': 5.0},
+                    'mtime': {'value': 0, 'mtime': 5.0},
+                    'ctime': {'value': 0, 'mtime': 5.0},
+                    'prop': {'value': 'f', 'mtime': 5.0},
+                    },
+                },
+            {'commit': [[1, 5]]},
+            ],
+            packet)
+        self.assertEqual([[6, None]], in_seq)
 
     def test_diff_TheSameInSeqForAllDocuments(self):
 
@@ -134,21 +233,191 @@ class VolumeTest(tests.Test):
             pass
 
         volume = Volume('db', [Document1, Document2, Document3])
-
         volume['document1'].create(guid='3', seqno=3)
+        for i in os.listdir('db/document1/3/3'):
+            os.utime('db/document1/3/3/%s' % i, (3, 3))
         volume['document2'].create(guid='2', seqno=2)
+        for i in os.listdir('db/document2/2/2'):
+            os.utime('db/document2/2/2/%s' % i, (2, 2))
         volume['document3'].create(guid='1', seqno=1)
+        for i in os.listdir('db/document3/1/1'):
+            os.utime('db/document3/1/1/%s' % i, (1, 1))
 
-        in_seq = Sequence([[1, None]])
-        packet = OutBufferPacket(filename='packet')
+        class Packet(list):
+
+            def push(self, **kwargs):
+                self.append(kwargs)
+                return True
+
+        packet = Packet()
+        in_seq = ad.Sequence([[1, None]])
         volume.diff(in_seq, packet)
         self.assertEqual([
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document1', 'guid': '3'},
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document2', 'guid': '2'},
-            {'filename': 'packet', 'content_type': 'records', 'cmd': 'sn_push', 'document': 'document3', 'guid': '1'},
-            {'filename': 'packet', 'cmd': 'sn_commit', 'sequence': [[1, 3]]},
+            {'document': 'document1'},
+            {'guid': '3',
+                'diff': {
+                    'guid': {'value': '3', 'mtime': 3.0},
+                    'mtime': {'value': 0, 'mtime': 3.0},
+                    'ctime': {'value': 0, 'mtime': 3.0},
+                    },
+                },
+            {'document': 'document2'},
+            {'guid': '2',
+                'diff': {
+                    'guid': {'value': '2', 'mtime': 2.0},
+                    'mtime': {'value': 0, 'mtime': 2.0},
+                    'ctime': {'value': 0, 'mtime': 2.0},
+                    },
+                },
+            {'document': 'document3'},
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1.0},
+                    'mtime': {'value': 0, 'mtime': 1.0},
+                    'ctime': {'value': 0, 'mtime': 1.0},
+                    },
+                },
+            {'commit': [[1, 3]]},
             ],
-            read_packet(packet))
+            packet)
+        self.assertEqual([[4, None]], in_seq)
+
+    def test_merge_Create(self):
+
+        class Document1(ad.Document):
+
+            @ad.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        class Document2(ad.Document):
+            pass
+
+        volume = Volume('db', [Document1, Document2])
+
+        self.assertEqual(
+                [[1, 2]],
+                volume.merge([
+                    {'document': 'document1'},
+                    {'guid': '1',
+                        'diff': {
+                            'guid': {'value': '1', 'mtime': 1.0},
+                            'ctime': {'value': 2, 'mtime': 2.0},
+                            'mtime': {'value': 3, 'mtime': 3.0},
+                            'prop': {'value': '4', 'mtime': 4.0},
+                            },
+                        },
+                    {'document': 'document2'},
+                    {'guid': '5',
+                        'diff': {
+                            'guid': {'value': '5', 'mtime': 5.0},
+                            'ctime': {'value': 6, 'mtime': 6.0},
+                            'mtime': {'value': 7, 'mtime': 7.0},
+                            },
+                        },
+                    {'commit': [[1, 2]]},
+                    ]))
+
+        self.assertEqual(
+                {'guid': '1', 'prop': '4', 'ctime': 2, 'mtime': 3},
+                volume['document1'].get('1').properties(['guid', 'ctime', 'mtime', 'prop']))
+        self.assertEqual(1, os.stat('db/document1/1/1/guid').st_mtime)
+        self.assertEqual(2, os.stat('db/document1/1/1/ctime').st_mtime)
+        self.assertEqual(3, os.stat('db/document1/1/1/mtime').st_mtime)
+        self.assertEqual(4, os.stat('db/document1/1/1/prop').st_mtime)
+
+        self.assertEqual(
+                {'guid': '5', 'ctime': 6, 'mtime': 7},
+                volume['document2'].get('5').properties(['guid', 'ctime', 'mtime']))
+        self.assertEqual(5, os.stat('db/document2/5/5/guid').st_mtime)
+        self.assertEqual(6, os.stat('db/document2/5/5/ctime').st_mtime)
+        self.assertEqual(7, os.stat('db/document2/5/5/mtime').st_mtime)
+
+    def test_merge_Update(self):
+
+        class Document(ad.Document):
+
+            @ad.active_property(slot=1)
+            def prop(self, value):
+                return value
+
+        volume = Volume('db', [Document])
+        volume['document'].create(guid='1', prop='1', ctime=1, mtime=1)
+        for i in os.listdir('db/document/1/1'):
+            os.utime('db/document/1/1/%s' % i, (2, 2))
+
+        self.assertEqual(
+                [],
+                volume.merge([
+                    {'document': 'document'},
+                    {'guid': '1',
+                        'diff': {
+                            'prop': {'value': '2', 'mtime': 1.0},
+                            },
+                        },
+                    {'commit': []},
+                    ]))
+        self.assertEqual(
+                {'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1},
+                volume['document'].get('1').properties(['guid', 'ctime', 'mtime', 'prop']))
+        self.assertEqual(2, os.stat('db/document/1/1/prop').st_mtime)
+
+        self.assertEqual(
+                [],
+                volume.merge([
+                    {'document': 'document'},
+                    {'guid': '1',
+                        'diff': {
+                            'prop': {'value': '3', 'mtime': 2.0},
+                            },
+                        },
+                    {'commit': []},
+                    ]))
+        self.assertEqual(
+                {'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1},
+                volume['document'].get('1').properties(['guid', 'ctime', 'mtime', 'prop']))
+        self.assertEqual(2, os.stat('db/document/1/1/prop').st_mtime)
+
+        self.assertEqual(
+                [],
+                volume.merge([
+                    {'document': 'document'},
+                    {'guid': '1',
+                        'diff': {
+                            'prop': {'value': '4', 'mtime': 3.0},
+                            },
+                        },
+                    {'commit': []},
+                    ]))
+        self.assertEqual(
+                {'guid': '1', 'prop': '4', 'ctime': 1, 'mtime': 1},
+                volume['document'].get('1').properties(['guid', 'ctime', 'mtime', 'prop']))
+        self.assertEqual(3, os.stat('db/document/1/1/prop').st_mtime)
+
+    def test_merge_StopOnCommit(self):
+
+        class Document(ad.Document):
+            pass
+
+        volume = Volume('db', [Document])
+
+        diff = iter([
+            {'document': 'document'},
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1.0},
+                    'ctime': {'value': 2, 'mtime': 2.0},
+                    'mtime': {'value': 3, 'mtime': 3.0},
+                    'prop': {'value': '4', 'mtime': 4.0},
+                    },
+                },
+            {'commit': [[1, 1]]},
+            {'tail': True},
+            ])
+
+        self.assertEqual([[1, 1]], volume.merge(diff))
+        assert volume['document'].exists('1')
+        self.assertEqual([{'tail': True}], [i for i in diff])
 
     def test_SimulateDeleteEvents(self):
 

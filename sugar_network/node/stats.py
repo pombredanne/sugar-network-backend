@@ -19,9 +19,10 @@ from os.path import join, exists, isdir
 
 from pylru import lrucache
 
+import active_document as ad
 from active_toolkit.options import Option
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit.collection import Sequence, PersistentSequence
+from sugar_network.toolkit import PersistentSequence
 
 
 stats_root = Option(
@@ -79,8 +80,8 @@ def pull(in_seq, packet):
                 seq = in_seq[user][db.name] = PersistentSequence(
                         join(rrd.root, db.name + '.push'), [1, None])
             elif seq is not dict:
-                seq = in_seq[user][db.name] = Sequence(seq)
-            out_seq = Sequence()
+                seq = in_seq[user][db.name] = ad.Sequence(seq)
+            out_seq = ad.Sequence()
 
             def dump():
                 for start, end in seq:
