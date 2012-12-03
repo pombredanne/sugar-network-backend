@@ -314,18 +314,25 @@ class IndexTest(tests.Test):
             'var_1': ActiveProperty('var_1', 1, 'A'),
             'var_2': ActiveProperty('var_2', 2, 'B'),
             'var_3': ActiveProperty('var_3', 3, 'C'),
+            'var_4': ActiveProperty('var_4', 4, 'D'),
             })
 
-        db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '3'}, True)
-        db.store('2', {'var_1': '2', 'var_2': '1', 'var_3': '4'}, True)
-        db.store('3', {'var_1': '3', 'var_2': '2', 'var_3': '4'}, True)
+        db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '3', 'var_4': 0}, True)
+        db.store('2', {'var_1': '2', 'var_2': '1', 'var_3': '4', 'var_4': 0}, True)
+        db.store('3', {'var_1': '3', 'var_2': '2', 'var_3': '4', 'var_4': 0}, True)
 
         self.assertEqual(
-                ([{'guid': '1', 'var_1': '1'}, {'guid': '3', 'var_1': '3'}], 2),
-                db._find(reply=['var_1'], group_by='var_2'))
+                [{'guid': '1', 'var_1': '1'}, {'guid': '3', 'var_1': '3'}],
+                db._find(reply=['var_1'], group_by='var_2')[0])
         self.assertEqual(
-                ([{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}], 2),
-                db._find(reply=['var_1'], group_by='var_3'))
+                [{'guid': '1', 'var_1': '1'}, {'guid': '2', 'var_1': '2'}],
+                db._find(reply=['var_1'], group_by='var_3')[0])
+        self.assertEqual(
+                [{'guid': '1'}],
+                db._find(reply=['guid'], group_by='var_4', order_by='var_1')[0])
+        self.assertEqual(
+                [{'guid': '3'}],
+                db._find(reply=['guid'], group_by='var_4', order_by='-var_1')[0])
 
     def test_MultipleValues(self):
         db = Index({

@@ -264,61 +264,41 @@ class Directory(object):
             self.commit()
             self._notify({'event': 'populate'})
 
-    def diff(self, accept_range, limit):
-        """Return documents' properties for specified times range.
-
-        :param accept_range:
-            seqno sequence to accept documents
-        :param limit:
-            number of documents to return at once
-        :returns:
-            a tuple of ((`left-seqno`, `right-seqno`), [(`guid`, `patch`)]),
-            where `patch` is a resulting dictionary from `Document.diff()`
-            for corresponding `guid`
-
-        """
-        if not accept_range:
-            return
-
-        # To make fetching more reliable, avoid using intermediate
-        # find's offsets (documents can be changed and offset will point
-        # to different document).
-        if hasattr(accept_range, 'first'):
-            seqno = accept_range.first
+    def diff(self, in_seq, out_seq, **kwargs):
+        if 'group_by' in kwargs:
+            # Pickup only most recent change
+            kwargs['order_by'] = '-seqno'
         else:
-            seqno = accept_range[0]
+            kwargs['order_by'] = 'seqno'
+        # TODO On big requests, xapian can raise an exception on edits
+        kwargs['limit'] = env.MAX_LIMIT
+        kwargs['no_cache'] = True
 
-        query = {'limit': limit,
-                 'no_cache': True,
-                 'reply': ['guid'],
-                 'order_by': 'seqno',
-                 }
-
-        while True:
-            documents, total = self.find(query='seqno:%s..' % seqno, **query)
-            if not total:
-                break
+        for start, end in in_seq:
+            query = 'seqno:%s..' % start
+            if end:
+                query += str(end)
+            documents, __ = self.find(query=query, **kwargs)
 
             for doc in documents:
-                seqno = doc.get('seqno')
-                if seqno not in accept_range:
-                    continue
-
                 diff = {}
+                diff_seq = env.Sequence()
                 for name in self.metadata.keys():
                     if name == 'seqno':
                         continue
                     meta = doc.meta(name)
-                    if meta is None or meta['seqno'] not in accept_range:
+                    if meta is None:
+                        continue
+                    seqno = meta.get('seqno')
+                    if seqno not in in_seq:
                         continue
                     prop = diff[name] = {'mtime': meta['mtime']}
                     for i in ('value', 'mime_type', 'digest', 'path', 'url'):
                         if i in meta:
                             prop[i] = meta[i]
-
-                yield doc.guid, seqno, diff
-
-            seqno += 1
+                    diff_seq.include(seqno, seqno)
+                yield doc.guid, diff
+                out_seq.include(diff_seq)
 
     def merge(self, guid, diff, increment_seqno=True):
         """Apply changes for documents."""

@@ -17,10 +17,9 @@ from active_document.document import Document
 
 from active_document.env import ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, \
         ACCESS_DELETE, ACCESS_AUTHOR, ACCESS_AUTH, ACCESS_PUBLIC, \
-        ACCESS_LEVELS, ACCESS_SYSTEM, ACCESS_LOCAL, ACCESS_REMOTE, \
-        index_flush_timeout, index_flush_threshold, \
-        index_write_queue, \
-        BadRequest, NotFound, Forbidden, Seqno, DEFAULT_LANG, \
+        ACCESS_LEVELS, ACCESS_SYSTEM, ACCESS_LOCAL, ACCESS_REMOTE, MAX_LIMIT, \
+        index_flush_timeout, index_flush_threshold, index_write_queue, \
+        BadRequest, NotFound, Forbidden, Seqno, Sequence, DEFAULT_LANG, \
         uuid, default_lang, gettext
 
 from active_document.metadata import Metadata, PropertyMeta, Property, \
@@ -35,6 +34,3 @@ from active_document.commands import to_int, to_list, \
         Request, Response, CommandsProcessor, CommandNotFound
 
 from active_document.volume import SingleVolume, VolumeCommands
-
-
-MAX_LIMIT = 2147483648
