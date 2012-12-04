@@ -19,8 +19,6 @@ from os.path import join
 
 import active_document as ad
 from sugar_network import client, node, toolkit, static
-from sugar_network.toolkit.sneakernet import DiskFull
-from sugar_network.toolkit.collection import Sequence
 from sugar_network.toolkit import http, router
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import coroutine, enforce
@@ -158,67 +156,44 @@ class Volume(ad.SingleVolume):
 
         ad.SingleVolume.notify(self, event)
 
-    def merge(self, record, increment_seqno=True):
-        coroutine.dispatch()
-        if record.get('content_type') == 'blob':
-            diff = record['blob']
-        else:
-            diff = record['diff']
-        return self[record['document']].merge(record['guid'], diff,
-                increment_seqno=increment_seqno)
+    def diff(self, in_seq, packet):
+        out_seq = ad.Sequence()
+        try:
+            for document, directory in self.items():
+                coroutine.dispatch()
+                directory.commit()
+                packet.push(document=document)
+                try:
+                    for guid, diff in directory.diff(in_seq, out_seq):
+                        coroutine.dispatch()
+                        if not packet.push(diff=diff, guid=guid):
+                            raise StopIteration()
+                finally:
+                    in_seq.exclude(out_seq)
+            if out_seq:
+                out_seq = [[out_seq.first, out_seq.last]]
+                in_seq.exclude(out_seq)
+        except StopIteration:
+            pass
+        finally:
+            packet.push(commit=out_seq)
 
-    def diff(self, in_seq, out_packet):
-        # Since `in_seq` will be changed in `patch()`, original sequence
-        # should be passed as-is to every document's `diff()` because
-        # seqno handling is common for all documents
-        orig_seq = Sequence(in_seq)
-        push_seq = Sequence()
-
-        for document, directory in self.items():
-            coroutine.dispatch()
-            directory.commit()
-
-            def patch():
-                for guid, seqno, diff in \
-                        directory.diff(orig_seq, limit=_DIFF_CHUNK):
-                    coroutine.dispatch()
-
-                    for prop, value in diff.items():
-                        if 'path' in value:
-                            data = file(value.pop('path'), 'rb')
-                        elif 'url' in value:
-                            data = self._download_blob(value.pop('url'))
-                        else:
-                            continue
-                        del diff[prop]
-                        arcname = join(document, 'blobs', guid, prop)
-                        out_packet.push(data, arcname=arcname, cmd='sn_push',
-                                document=document, guid=guid, **value)
-
-                    if not diff:
-                        continue
-
-                    yield {'guid': guid, 'diff': diff}
-
-                    # Update `in_seq`, it might be reused by caller
-                    in_seq.exclude(seqno, seqno)
-                    push_seq.include(seqno, seqno)
-
-            try:
-                out_packet.push(patch(), arcname=join(document, 'diff'),
-                        cmd='sn_push', document=document)
-            except DiskFull:
-                if push_seq:
-                    out_packet.push(force=True, cmd='sn_commit',
-                            sequence=push_seq)
-                raise
-
-        if push_seq:
-            # Only here we can collapse `push_seq` since seqno handling
-            # is common for all documents; if there was an exception before
-            # this place, `push_seq` should contain not-collapsed sequence
-            orig_seq.floor(push_seq.last)
-            out_packet.push(force=True, cmd='sn_commit', sequence=orig_seq)
+    def merge(self, packet, increment_seqno=True):
+        directory = None
+        for record in packet:
+            document = record.get('document')
+            if document is not None:
+                directory = self[document]
+                continue
+            diff = record.get('diff')
+            if diff is not None:
+                enforce(directory is not None,
+                        'Invalid merge packet, no document')
+                directory.merge(record['guid'], diff, increment_seqno)
+                continue
+            commit = record.get('commit')
+            if commit is not None:
+                return commit
 
     def _open(self, name, document):
         directory = ad.SingleVolume._open(self, name, document)

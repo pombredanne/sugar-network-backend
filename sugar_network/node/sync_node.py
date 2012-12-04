@@ -23,8 +23,7 @@ from gettext import gettext as _
 import active_document as ad
 from sugar_network import node, client
 from sugar_network.toolkit import mountpoints, sneakernet, files_sync
-from sugar_network.toolkit.collection import MutableStack
-from sugar_network.toolkit.collection import Sequence, PersistentSequence
+from sugar_network.toolkit import MutableStack, PersistentSequence
 from sugar_network.toolkit.sneakernet import OutFilePacket, DiskFull
 from sugar_network.node import stats
 from active_toolkit import coroutine, util, enforce
@@ -87,11 +86,11 @@ class SyncCommands(object):
             stats_sequence=None, session=None):
         enforce(self._mount is not None, 'No server to sync')
 
-        to_push_seq = Sequence(empty_value=[1, None])
+        to_push_seq = ad.Sequence(empty_value=[1, None])
         if diff_sequence is None:
             to_push_seq.include(self._push_seq)
         else:
-            to_push_seq = Sequence(diff_sequence)
+            to_push_seq = ad.Sequence(diff_sequence)
 
         if stats_sequence is None:
             stats_sequence = {}

@@ -19,8 +19,9 @@ import logging
 from bisect import bisect_left
 from os.path import join, exists, relpath, lexists, basename, dirname
 
+import active_document as ad
+from sugar_network.toolkit import PersistentSequence
 from sugar_network.toolkit.sneakernet import DiskFull
-from sugar_network.toolkit.collection import Sequence, PersistentSequence
 from active_toolkit.sockets import BUFFER_SIZE
 from active_toolkit import util, coroutine
 
@@ -51,8 +52,8 @@ class Seeder(object):
         # Thus, avoid changing `self._index` by different coroutines.
         with self._mutex:
             self._sync()
-            orig_seq = Sequence(in_seq)
-            out_seq = Sequence()
+            orig_seq = ad.Sequence(in_seq)
+            out_seq = ad.Sequence()
 
             try:
                 self._pull(in_seq, packet, out_seq, False)
