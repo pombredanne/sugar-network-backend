@@ -174,7 +174,7 @@ class Application(application.Application):
                 coroutine.spawn(server.serve_forever)
                 coroutine.dispatch()
 
-            result = IPCClient().call(request, response)
+            result = IPCClient(sync=True).call(request, response)
 
         finally:
             if server is not None:

@@ -386,6 +386,8 @@ class _Request(Request):
         elif scope == 1:
             self['document'], = self.path
 
+        self.sync = bool(environ.get('HTTP_SUGAR_SYNC'))
+
     def clone(self):
         request = Request.clone(self)
         request.environ = self.environ

@@ -227,6 +227,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
     def call(self, request, response=None):
         for a_try in range(2):
             if not self.mounted.is_set():
+                enforce(request.sync, 'Not mounted')
                 self.set_mounted(True)
                 _logger.debug('Wait for %s second(s) for remote connection',
                         client.connect_timeout.value)
