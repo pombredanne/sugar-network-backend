@@ -41,7 +41,7 @@ _logger = logging.getLogger('http')
 
 class Client(object):
 
-    def __init__(self, api_url='', sugar_auth=False, **kwargs):
+    def __init__(self, api_url='', sugar_auth=False, sync=False, **kwargs):
         self.api_url = api_url
         self.params = kwargs
         self._sugar_auth = sugar_auth
@@ -61,8 +61,10 @@ class Client(object):
                 self._sugar_auth = False
             else:
                 uid = sugar.uid()
-                headers['sugar_user'] = uid
-                headers['sugar_user_signature'] = _sign(privkey_path, uid)
+                headers['SUGAR_USER'] = uid
+                headers['SUGAR_USER_SIGNATURE'] = _sign(privkey_path, uid)
+        if sync:
+            headers['SUGAR_SYNC'] = '1'
 
         self._session = Session(headers=headers, verify=verify, prefetch=False)
 

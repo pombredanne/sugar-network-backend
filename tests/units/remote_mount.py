@@ -442,8 +442,11 @@ class RemoteMountTest(tests.Test):
         local.connect_timeout.value = 1
         pid = self.fork(self.restful_server)
         self.start_server()
-        client = IPCClient(mountpoint='/')
 
+        client = IPCClient(mountpoint='/')
+        self.assertRaises(RuntimeError, client.post, ['context'], {'type': 'activity', 'title': 'title', 'summary': 'summary', 'description': 'description'})
+
+        client = IPCClient(mountpoint='/', sync=True)
         guid = client.post(['context'], {'type': 'activity', 'title': 'title', 'summary': 'summary', 'description': 'description'})
         self.assertEqual(guid, client.get(['context', guid, 'guid']))
 
