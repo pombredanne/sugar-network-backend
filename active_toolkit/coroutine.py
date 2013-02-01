@@ -44,6 +44,7 @@ gevent.hub.Hub.resolver_class = ['gevent.socket.BlockingResolver']
 
 _group = gevent.pool.Group()
 _logger = logging.getLogger('coroutine')
+_wsgi_logger = logging.getLogger('wsgi')
 
 
 def spawn(callback, *args):
@@ -86,13 +87,15 @@ def WSGIServer(*args, **kwargs):
     class WSGIHandler(gevent.wsgi.WSGIHandler):
 
         def log_error(self, msg, *args):
-            _logger.error(msg, *args)
+            _wsgi_logger.error(msg, *args)
 
         def log_request(self):
-            pass
+            _wsgi_logger.debug('%s', self.format_request())
 
     kwargs['spawn'] = spawn
     if 'handler_class' not in kwargs:
+        if logging.getLogger().level >= logging.DEBUG:
+            WSGIHandler.log_request = lambda * args: None
         kwargs['handler_class'] = WSGIHandler
     return gevent.wsgi.WSGIServer(*args, **kwargs)
 
