@@ -134,8 +134,12 @@ class Client(object):
                 try:
                     error = json.loads(content)
                 except Exception:
-                    _logger.debug('Got %s HTTP error for %r request:\n%s',
-                            response.status_code, path, content)
+                    _logger.error('Request failed, '
+                            'method=%s path=%r params=%r headers=%r '
+                            'status_code=%s content=%s',
+                            method, path, params, headers,
+                            response.status_code,
+                            '\n' + content if content else None)
                     response.raise_for_status()
                 else:
                     raise RuntimeError(error['error'])
