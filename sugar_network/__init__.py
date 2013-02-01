@@ -23,14 +23,16 @@ def clones(*args, **kwargs):
     return sugar_network.zerosugar.clones.walk(*args, **kwargs)
 
 
-def Client(url=None, sugar_auth=True, **kwargs):
+def Client(url=None, sugar_auth=True, **session):
     from sugar_network.toolkit import http
     if url is None:
         url = api_url.value
-    return http.Client(url, sugar_auth=sugar_auth, **kwargs)
+    return http.Client(url, sugar_auth=sugar_auth, **session)
 
 
-def IPCClient(**kwargs):
+def IPCClient(**session):
     from sugar_network.toolkit import http
     from sugar_network.client import ipc_port
-    return http.Client('http://localhost:%s' % ipc_port.value, **kwargs)
+    # Since `IPCClient` uses only localhost, ignore `http_proxy` envar
+    session['config'] = {'trust_env': False}
+    return http.Client('http://localhost:%s' % ipc_port.value, **session)
