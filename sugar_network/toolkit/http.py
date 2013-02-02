@@ -41,9 +41,8 @@ _logger = logging.getLogger('http')
 
 class Client(object):
 
-    def __init__(self, api_url='', sugar_auth=False, sync=False, **kwargs):
+    def __init__(self, api_url='', sugar_auth=False, sync=False, **session):
         self.api_url = api_url
-        self.params = kwargs
         self._sugar_auth = sugar_auth
 
         verify = True
@@ -66,7 +65,10 @@ class Client(object):
         if sync:
             headers['SUGAR_SYNC'] = '1'
 
-        self._session = Session(headers=headers, verify=verify, prefetch=False)
+        session['headers'] = headers
+        session['verify'] = verify
+        session['prefetch'] = False
+        self._session = Session(**session)
 
     def __enter__(self):
         return self
@@ -106,11 +108,6 @@ class Client(object):
         if not isinstance(path, basestring):
             path = '/'.join([i.strip('/') for i in [self.api_url] + path])
 
-        if params is None:
-            params = self.params
-        else:
-            params.update(self.params)
-
         while True:
             try:
                 response = requests.request(method, path, data=data,
@@ -134,8 +131,12 @@ class Client(object):
                 try:
                     error = json.loads(content)
                 except Exception:
-                    _logger.debug('Got %s HTTP error for %r request:\n%s',
-                            response.status_code, path, content)
+                    _logger.error('Request failed, '
+                            'method=%s path=%r params=%r headers=%r '
+                            'status_code=%s content=%s',
+                            method, path, params, headers,
+                            response.status_code,
+                            '\n' + content if content else None)
                     response.raise_for_status()
                 else:
                     raise RuntimeError(error['error'])
