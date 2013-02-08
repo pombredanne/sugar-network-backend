@@ -72,18 +72,19 @@ def solve(mountpoint, context):
 def _solve(requirement):
     config = Config()
     driver = Driver(config, requirement)
-    driver.solver.record_details = True
+    solver = driver.solver
+    solver.record_details = True
 
     while True:
-        driver.solver.solve(requirement.interface_uri,
+        solver.solve(requirement.interface_uri,
                 driver.target_arch, command_name=requirement.command)
-        if driver.solver.ready:
+        if solver.ready:
             break
 
         packaged_feeds = []
         to_resolve = []
 
-        for url in driver.solver.feeds_used:
+        for url in solver.feeds_used:
             feed = config.iface_cache.get_feed(url)
             if feed is not None and feed.to_resolve:
                 packaged_feeds.append(feed)
@@ -96,17 +97,20 @@ def _solve(requirement):
         for feed in packaged_feeds:
             feed.resolve([resolved[i] for i in feed.to_resolve])
 
-    selections = driver.solver.selections.selections
+    selections = solver.selections.selections
 
-    if driver.solver.ready:
-        _logger.debug('Solving results: %r', driver.solver.details)
+    if solver.ready:
+        _logger.debug('Solving results: %r', solver.details)
     else:
         missed = []
         summary = []
-        for iface, impls in driver.solver.details.items():
+        for iface, impls in solver.details.items():
             summary.append(iface.uri)
             if impls:
                 for impl, reason in impls:
+                    if not reason and solver.selections[iface.uri] is None:
+                        reason = 'wrong version'
+                        missed.append(iface.uri)
                     summary.append('  v%s (%s)' %
                             (impl.get_version(), reason or 'ok'))
             else:
@@ -115,7 +119,7 @@ def _solve(requirement):
         pipe.trace('\n  '.join(['Solving results:'] + summary))
 
         # pylint: disable-msg=W0212
-        reason = driver.solver._failure_reason
+        reason = solver._failure_reason
         if not reason:
             reason = 'Cannot find implementations for %s' % ', '.join(missed)
         raise RuntimeError(reason)
