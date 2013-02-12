@@ -20,8 +20,7 @@ import random
 import hashlib
 from os.path import join, exists, dirname
 
-from active_toolkit.options import Option
-from active_toolkit import enforce
+from sugar_network.toolkit import Option, enforce
 
 
 _XO_SERIAL_PATH = '/ofw/mfg-data/SN'
@@ -133,4 +132,4 @@ def uuid_new():
 
 
 def _read_XO_value(path):
-    return file(path).read().rstrip('\0\n')
+    return file(path).read().rstrip('\x00\n')

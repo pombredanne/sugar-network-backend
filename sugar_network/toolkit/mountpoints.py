@@ -19,7 +19,7 @@ from os.path import join, exists
 
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_MOVED_TO, IN_MOVED_FROM
-from active_toolkit import coroutine, util
+from sugar_network.toolkit import coroutine, exception
 
 
 _COMPLETE_MOUNT_TIMEOUT = 3
@@ -95,4 +95,4 @@ def _call(path, filename, cb):
     try:
         cb(path)
     except Exception:
-        util.exception(_logger, 'Cannot call %r for %r mount', cb, path)
+        exception(_logger, 'Cannot call %r for %r mount', cb, path)

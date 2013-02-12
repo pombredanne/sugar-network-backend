@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,11 +17,9 @@ import json
 import logging
 from os.path import join
 
-import active_document as ad
-from sugar_network import client, node, toolkit, static
-from sugar_network.toolkit import http, router
-from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import coroutine, enforce
+from sugar_network import db, client, node, static
+from sugar_network.toolkit import http, router, coroutine, util, enforce
+from sugar_network.toolkit import BUFFER_SIZE
 
 
 AUTHOR_INSYSTEM = 1
@@ -40,10 +38,10 @@ def _reprcast_authors(value):
         yield guid
 
 
-class Resource(ad.Document):
+class Resource(db.Document):
 
-    @ad.active_property(prefix='RA', typecast=dict, full_text=True, default={},
-            reprcast=_reprcast_authors, permissions=ad.ACCESS_READ)
+    @db.indexed_property(prefix='RA', typecast=dict, full_text=True,
+            default={}, reprcast=_reprcast_authors, permissions=db.ACCESS_READ)
     def author(self, value):
         result = []
         for guid, props in sorted(value.items(),
@@ -67,15 +65,15 @@ class Resource(ad.Document):
             return {}
         return self._useradd(self.request.principal, AUTHOR_ORIGINAL)
 
-    @ad.document_command(method='PUT', cmd='useradd',
-            arguments={'role': ad.to_int},
-            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
+    @db.document_command(method='PUT', cmd='useradd',
+            arguments={'role': db.to_int},
+            permissions=db.ACCESS_AUTH | db.ACCESS_AUTHOR)
     def useradd(self, user, role):
         enforce(user, "Argument 'user' is not specified")
         self.directory.update(self.guid, author=self._useradd(user, role))
 
-    @ad.document_command(method='PUT', cmd='userdel',
-            permissions=ad.ACCESS_AUTH | ad.ACCESS_AUTHOR)
+    @db.document_command(method='PUT', cmd='userdel',
+            permissions=db.ACCESS_AUTH | db.ACCESS_AUTHOR)
     def userdel(self, user):
         enforce(user, "Argument 'user' is not specified")
         enforce(user != self.request.principal, 'Cannot remove yourself')
@@ -84,11 +82,11 @@ class Resource(ad.Document):
         del author[user]
         self.directory.update(self.guid, author=author)
 
-    @ad.active_property(prefix='RL', typecast=[], default=['public'])
+    @db.indexed_property(prefix='RL', typecast=[], default=['public'])
     def layer(self, value):
         return value
 
-    @ad.active_property(prefix='RT', full_text=True, default=[], typecast=[])
+    @db.indexed_property(prefix='RT', full_text=True, default=[], typecast=[])
     def tags(self, value):
         return value
 
@@ -119,7 +117,7 @@ class Resource(ad.Document):
         return author
 
 
-class Volume(ad.SingleVolume):
+class Volume(db.SingleVolume):
 
     RESOURCES = (
             'sugar_network.resources.artifact',
@@ -139,14 +137,14 @@ class Volume(ad.SingleVolume):
             document_classes = Volume.RESOURCES
         self._downloader = None
         self._populators = coroutine.Pool()
-        ad.SingleVolume.__init__(self, root, document_classes, lazy_open)
+        db.SingleVolume.__init__(self, root, document_classes, lazy_open)
 
     def close(self):
         if self._downloader is not None:
             self._downloader.close()
             self._downloader = None
         self._populators.kill()
-        ad.SingleVolume.close(self)
+        db.SingleVolume.close(self)
 
     def notify(self, event):
         if event['event'] == 'update' and 'props' in event and \
@@ -154,10 +152,10 @@ class Volume(ad.SingleVolume):
             event['event'] = 'delete'
             del event['props']
 
-        ad.SingleVolume.notify(self, event)
+        db.SingleVolume.notify(self, event)
 
     def diff(self, in_seq, packet):
-        out_seq = ad.Sequence()
+        out_seq = util.Sequence()
         try:
             for document, directory in self.items():
                 coroutine.dispatch()
@@ -196,7 +194,7 @@ class Volume(ad.SingleVolume):
                 return commit
 
     def _open(self, name, document):
-        directory = ad.SingleVolume._open(self, name, document)
+        directory = db.SingleVolume._open(self, name, document)
         self._populators.spawn(self._populate, directory)
         return directory
 
@@ -214,7 +212,7 @@ class Volume(ad.SingleVolume):
         content_length = response.headers.get('Content-Length')
         content_length = int(content_length) if content_length else 0
 
-        ostream = toolkit.NamedTemporaryFile()
+        ostream = util.NamedTemporaryFile()
         try:
             chunk_size = min(content_length, BUFFER_SIZE)
             # pylint: disable-msg=E1103
@@ -244,15 +242,15 @@ class Commands(object):
 
     @router.route('GET', '/favicon.ico')
     def favicon(self, request, response):
-        return ad.PropertyMeta(
+        return db.PropertyMetadata(
                 path=join(static.PATH, 'favicon.ico'),
                 mime_type='image/x-icon')
 
-    @ad.volume_command(method='GET', mime_type='text/html')
+    @db.volume_command(method='GET', mime_type='text/html')
     def hello(self):
         return _HELLO_HTML
 
-    @ad.volume_command(method='GET', cmd='subscribe',
+    @db.volume_command(method='GET', cmd='subscribe',
             mime_type='application/json')
     def subscribe(self, request=None, response=None, only_commits=False):
         """Subscribe to Server-Sent Events.
@@ -295,9 +293,9 @@ class Commands(object):
         coroutine.dispatch()
 
 
-class VolumeCommands(ad.VolumeCommands):
+class VolumeCommands(db.VolumeCommands):
 
-    @ad.document_command(method='GET', cmd='deplist',
+    @db.document_command(method='GET', cmd='deplist',
             mime_type='application/json')
     def deplist(self, document, guid, repo):
         """List of native packages context is dependening on.
@@ -326,21 +324,21 @@ class VolumeCommands(ad.VolumeCommands):
 
         return result
 
-    @ad.directory_command_post(method='GET')
+    @db.directory_command_post(method='GET')
     def _VolumeCommands_find_post(self, request, response, result):
         self._mixin_blobs(request, result['result'])
         return result
 
-    @ad.document_command_pre(method='GET', arguments={'reply': ad.to_list})
+    @db.document_command_pre(method='GET', arguments={'reply': db.to_list})
     def _VolumeCommands_get_pre(self, request):
         if 'reply' not in request:
             reply = request['reply'] = []
             for prop in self.volume[request['document']].metadata.values():
-                if prop.permissions & ad.ACCESS_READ and \
-                        not (prop.permissions & ad.ACCESS_LOCAL):
+                if prop.permissions & db.ACCESS_READ and \
+                        not (prop.permissions & db.ACCESS_LOCAL):
                     reply.append(prop.name)
 
-    @ad.document_command_post(method='GET')
+    @db.document_command_post(method='GET')
     def _VolumeCommands_get_post(self, request, response, result):
         self._mixin_blobs(request, [result])
         return result
@@ -349,7 +347,7 @@ class VolumeCommands(ad.VolumeCommands):
         blobs = []
         metadata = self.volume[request['document']].metadata
         for prop in request['reply']:
-            if isinstance(metadata[prop], ad.BlobProperty):
+            if isinstance(metadata[prop], db.BlobProperty):
                 blobs.append(prop)
         if not blobs:
             return

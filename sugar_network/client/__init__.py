@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,12 +14,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import errno
-import logging
-from os.path import join, exists, abspath, dirname, expanduser
+from os.path import join, expanduser
 
-from active_toolkit.options import Option
-from sugar_network.toolkit import sugar
+from sugar_network.toolkit import Option, sugar
 
 
 api_url = Option(
@@ -111,41 +108,20 @@ def path(*args):
     return str(result)
 
 
-def ensure_path(*args):
-    """Calculate a path from the root.
-
-    If resulting directory path doesn't exists, it will be created.
-
-    :param args:
-        path parts to add to the root path; if ends with empty string,
-        the resulting path will be treated as a path to a directory
-    :returns:
-        absolute path
-
-    """
-    if not args:
-        result = local_root.value
-    elif args[0].startswith(os.sep):
-        result = join(*args)
-    else:
-        result = join(local_root.value, *args)
-    result = str(result)
-
-    if result.endswith(os.sep):
-        result_dir = result = result.rstrip(os.sep)
-    else:
-        result_dir = dirname(result)
-
-    if not exists(result_dir):
-        try:
-            os.makedirs(result_dir)
-        except OSError, error:
-            # In case if another process already create directory
-            if error.errno != errno.EEXIST:
-                raise
-
-    return abspath(result)
+def clones(*args, **kwargs):
+    import sugar_network.zerosugar.clones
+    return sugar_network.zerosugar.clones.walk(*args, **kwargs)
 
 
-def db_path():
-    return join(local_root.value, 'db')
+def Client(url=None, sugar_auth=True, **session):
+    from sugar_network.toolkit import http
+    if url is None:
+        url = api_url.value
+    return http.Client(url, sugar_auth=sugar_auth, **session)
+
+
+def IPCClient(**session):
+    from sugar_network.toolkit import http
+    # Since `IPCClient` uses only localhost, ignore `http_proxy` envar
+    session['config'] = {'trust_env': False}
+    return http.Client('http://localhost:%s' % ipc_port.value, **session)

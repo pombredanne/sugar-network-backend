@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,11 +25,9 @@ from urlparse import parse_qsl, urlsplit
 from bisect import bisect_left
 from os.path import join, isfile, split, splitext
 
-import active_document as ad
-from sugar_network import static
-from sugar_network.toolkit import sugar
-from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import coroutine, util, enforce
+from sugar_network import db, static
+from sugar_network.toolkit import BUFFER_SIZE
+from sugar_network.toolkit import sugar, coroutine, exception, enforce
 
 
 _logger = logging.getLogger('router')
@@ -95,7 +93,7 @@ def stream_reader(stream):
             stream.close()
 
 
-class Request(ad.Request):
+class Request(db.Request):
 
     principal = None
     mountpoint = None
@@ -130,7 +128,7 @@ class Router(object):
             _logger.debug('Logging %r user', user)
             request = Request(method='GET', cmd='exists',
                     document='user', guid=user)
-            enforce(self.commands.call(request, ad.Response()), Unauthorized,
+            enforce(self.commands.call(request, db.Response()), Unauthorized,
                     'Principal user does not exist')
             self._authenticated.add(user)
 
@@ -138,7 +136,7 @@ class Router(object):
 
     def call(self, request, response):
         if 'HTTP_ORIGIN' in request.environ:
-            enforce(self._assert_origin(request.environ), ad.Forbidden,
+            enforce(self._assert_origin(request.environ), db.Forbidden,
                     'Cross-site is not allowed for %r origin',
                     request.environ['HTTP_ORIGIN'])
             response['Access-Control-Allow-Origin'] = \
@@ -159,8 +157,8 @@ class Router(object):
         request.principal = self.authenticate(request)
         if request.path[:1] == ['static']:
             path = join(static.PATH, *request.path[1:])
-            result = ad.PropertyMeta(path=path, mime_type=_get_mime_type(path),
-                    filename=split(path)[-1])
+            result = db.PropertyMetadata(path=path,
+                    mime_type=_get_mime_type(path), filename=split(path)[-1])
         else:
             rout = self._routes.get((
                 request['method'],
@@ -170,7 +168,7 @@ class Router(object):
             else:
                 result = self.commands.call(request, response)
 
-        if isinstance(result, ad.PropertyMeta):
+        if isinstance(result, db.PropertyMetadata):
             if 'url' in result:
                 raise Redirect(result['url'])
 
@@ -225,11 +223,11 @@ class Router(object):
                 response.update(error.headers)
             response.content_type = None
         except Exception, error:
-            util.exception('Error while processing %r request', request.url)
+            exception('Error while processing %r request', request.url)
 
-            if isinstance(error, ad.NotFound):
+            if isinstance(error, db.NotFound):
                 response.status = '404 Not Found'
-            elif isinstance(error, ad.Forbidden):
+            elif isinstance(error, db.Forbidden):
                 response.status = '403 Forbidden'
             elif isinstance(error, HTTPStatus):
                 response.status = error.status
@@ -311,7 +309,7 @@ class IPCRouter(Router):
         return sugar.uid()
 
     def call(self, request, response):
-        request.access_level = ad.ACCESS_LOCAL
+        request.access_level = db.ACCESS_LOCAL
         return Router.call(self, request, response)
 
 
@@ -327,7 +325,7 @@ class _Request(Request):
         if not environ:
             return
 
-        self.access_level = ad.ACCESS_REMOTE
+        self.access_level = db.ACCESS_REMOTE
         self.environ = environ
         self.url = '/' + environ['PATH_INFO'].strip('/')
         self.path = [i for i in self.url[1:].split('/') if i]
@@ -397,7 +395,7 @@ class _Request(Request):
         return request
 
 
-class _Response(ad.Response):
+class _Response(db.Response):
     # pylint: disable-msg=E0202
 
     status = '200 OK'
@@ -442,7 +440,7 @@ class _Response(ad.Response):
     def __repr__(self):
         args = ['status=%r' % self.status,
                 ] + ['%s=%r' % i for i in self.items()]
-        return '<active_document.Response %s>' % ' '.join(args)
+        return '<db.Response %s>' % ' '.join(args)
 
 
 def _parse_accept_language(accept_language):
@@ -484,7 +482,7 @@ def _filename(names, mime_type):
     parts = []
     for name in names:
         if isinstance(name, dict):
-            name = ad.gettext(name)
+            name = db.gettext(name)
         parts.append(''.join([i.capitalize() for i in str(name).split()]))
     result = '-'.join(parts)
     if mime_type:

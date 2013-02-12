@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,71 +15,70 @@
 
 from os.path import join
 
-import active_document as ad
-from sugar_network import resources, static
+from sugar_network import db, resources, static
 from sugar_network.resources.volume import Resource
 
 
 class Artifact(Resource):
 
-    @ad.active_property(prefix='C',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='C',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='T', typecast=[resources.ARTIFACT_TYPES])
+    @db.indexed_property(prefix='T', typecast=[resources.ARTIFACT_TYPES])
     def type(self, value):
         return value
 
-    @ad.active_property(slot=1, prefix='S', full_text=True, localized=True,
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(slot=1, prefix='S', full_text=True, localized=True,
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def title(self, value):
         return value
 
-    @ad.active_property(prefix='D', full_text=True, localized=True,
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='D', full_text=True, localized=True,
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def description(self, value):
         return value
 
-    @ad.active_property(slot=2, typecast=int, default=0,
-            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    @db.indexed_property(slot=2, typecast=int, default=0,
+            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
     def downloads(self, value):
         return value
 
-    @ad.active_property(slot=3, typecast=resources.RATINGS, default=0,
-            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    @db.indexed_property(slot=3, typecast=resources.RATINGS, default=0,
+            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
     def rating(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=[], default=[0, 0],
-            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    @db.stored_property(typecast=[], default=[0, 0],
+            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
     def reviews(self, value):
         if value is None:
             return 0
         else:
             return value[0]
 
-    @ad.active_property(ad.BlobProperty, mime_type='image/png')
+    @db.blob_property(mime_type='image/png')
     def preview(self, value):
         if value:
             return value
-        return ad.PropertyMeta(
+        return db.PropertyMetadata(
                 url='/static/images/missing.png',
                 path=join(static.PATH, 'images', 'missing.png'),
                 mime_type='image/png')
 
-    @ad.active_property(ad.BlobProperty)
+    @db.blob_property()
     def data(self, value):
         if value:
             value['name'] = self['title']
         return value
 
-    @ad.active_property(prefix='K', typecast=bool, default=False,
-            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+    @db.indexed_property(prefix='K', typecast=bool, default=False,
+            permissions=db.ACCESS_READ | db.ACCESS_LOCAL)
     def favorite(self, value):
         return value
 
-    @ad.active_property(prefix='L', typecast=[0, 1, 2], default=0,
-            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+    @db.indexed_property(prefix='L', typecast=[0, 1, 2], default=0,
+            permissions=db.ACCESS_READ | db.ACCESS_LOCAL)
     def clone(self, value):
         return value

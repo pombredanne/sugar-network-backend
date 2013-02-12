@@ -22,19 +22,16 @@ from os.path import exists
 
 from gevent import monkey
 
-import active_document as ad
 import sugar_network_webui as webui
-from active_toolkit import coroutine, application
-from active_toolkit.options import Option
-from sugar_network import node, client, toolkit
+from sugar_network import db, node, client, toolkit
 from sugar_network.client.mounts import LocalMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.client.mounts import LocalMount
 from sugar_network.node import stats, obs
 from sugar_network.node.commands import NodeCommands
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit import sugar, sneakernet
 from sugar_network.toolkit.router import Router
+from sugar_network.toolkit import sugar, coroutine, application, util, Option
 
 
 class Application(application.Daemon):
@@ -42,7 +39,7 @@ class Application(application.Daemon):
     jobs = coroutine.Pool()
 
     def run(self):
-        toolkit.init_logging(application.debug.value)
+        util.init_logging(application.debug.value)
 
         if toolkit.tmpdir.value and not exists(toolkit.tmpdir.value):
             os.makedirs(toolkit.tmpdir.value)
@@ -114,7 +111,7 @@ Option.seek('node', node)
 Option.seek('node', [toolkit.tmpdir])
 Option.seek('stats', stats)
 Option.seek('obs', obs)
-Option.seek('active-document', ad)
+Option.seek('db', db)
 
 app = Application(
         name='sugar-network-node',

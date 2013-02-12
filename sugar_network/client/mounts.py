@@ -18,14 +18,12 @@ import logging
 from os.path import isabs, exists, join, basename
 from gettext import gettext as _
 
-import active_document as ad
 from sugar_network.zerosugar import injector
-from sugar_network.toolkit import http
+from sugar_network.toolkit import http, coroutine, exception, enforce
 from sugar_network.toolkit.router import Request
 from sugar_network.resources.volume import VolumeCommands
 from sugar_network.client import journal
-from sugar_network import client, Client
-from active_toolkit import util, coroutine, enforce
+from sugar_network import db, client
 
 
 _LOCAL_PROPS = frozenset(['favorite', 'clone'])
@@ -82,10 +80,10 @@ class LocalMount(VolumeCommands, _Mount):
 
         volume.connect(self._events_cb)
 
-    @ad.property_command(method='PUT', cmd='upload_blob')
+    @db.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
         directory = self.volume[document]
-        directory.metadata[prop].assert_access(ad.ACCESS_WRITE)
+        directory.metadata[prop].assert_access(db.ACCESS_WRITE)
         enforce(isabs(path), 'Path is not absolute')
         try:
             directory.set_blob(guid, prop, path)
@@ -109,10 +107,10 @@ class HomeMount(LocalMount):
     def name(self):
         return _('Home')
 
-    @ad.directory_command(method='POST', cmd='create_with_guid',
-            permissions=ad.ACCESS_AUTH, mime_type='application/json')
+    @db.directory_command(method='POST', cmd='create_with_guid',
+            permissions=db.ACCESS_AUTH, mime_type='application/json')
     def create_with_guid(self, request):
-        with self._post(request, ad.ACCESS_CREATE) as (directory, doc):
+        with self._post(request, db.ACCESS_CREATE) as (directory, doc):
             enforce('guid' in doc.props, 'GUID should be specified')
             self.before_create(request, doc.props)
             return directory.create(doc.props)
@@ -134,15 +132,15 @@ class _ProxyCommands(object):
         self._home_volume = home_mount
 
     def proxy_call(self, request, response):
-        raise ad.CommandNotFound()
+        raise db.CommandNotFound()
 
-    @ad.directory_command(method='GET',
-            arguments={'reply': ad.to_list}, mime_type='application/json')
+    @db.directory_command(method='GET',
+            arguments={'reply': db.to_list}, mime_type='application/json')
     def find(self, request, response, reply):
         return self._proxy_get(request, response)
 
-    @ad.document_command(method='GET',
-            arguments={'reply': ad.to_list}, mime_type='application/json')
+    @db.document_command(method='GET',
+            arguments={'reply': db.to_list}, mime_type='application/json')
     def get(self, request, response):
         return self._proxy_get(request, response)
 
@@ -193,7 +191,7 @@ class _ProxyCommands(object):
         return result
 
 
-class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
+class RemoteMount(db.CommandsProcessor, _Mount, _ProxyCommands):
 
     @property
     def name(self):
@@ -204,7 +202,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         return '/'.join((self._url,) + path)
 
     def __init__(self, home_volume, listen_events=True):
-        ad.CommandsProcessor.__init__(self)
+        db.CommandsProcessor.__init__(self)
         _Mount.__init__(self)
         _ProxyCommands.__init__(self, home_volume)
 
@@ -234,13 +232,13 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
                 self.mounted.wait(client.connect_timeout.value)
             try:
                 try:
-                    return ad.CommandsProcessor.call(self, request, response)
-                except ad.CommandNotFound:
+                    return db.CommandsProcessor.call(self, request, response)
+                except db.CommandNotFound:
                     return self.proxy_call(request, response)
             except http.ConnectionError:
                 if a_try:
                     raise
-                util.exception('Got connection error, try to reconnect')
+                exception('Got connection error, try to reconnect')
                 continue
 
     def set_mounted(self, value):
@@ -250,7 +248,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
             else:
                 self._connections.kill()
 
-    @ad.property_command(method='PUT', cmd='upload_blob')
+    @db.property_command(method='PUT', cmd='upload_blob')
     def upload_blob(self, document, guid, prop, path, pass_ownership=False):
         enforce(isabs(path), 'Path is not absolute')
 
@@ -273,12 +271,12 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
         for url in self._api_urls:
             try:
                 _logger.debug('Connecting to %r node', url)
-                self._client = Client(url)
+                self._client = client.Client(url)
                 info = self._client.get(cmd='info')
                 if self._listen_events:
                     subscription = self._client.subscribe()
             except Exception:
-                util.exception(_logger, 'Cannot connect to %r node', url)
+                exception(_logger, 'Cannot connect to %r node', url)
                 continue
 
             impl_info = info['documents'].get('implementation')
@@ -302,7 +300,7 @@ class RemoteMount(ad.CommandsProcessor, _Mount, _ProxyCommands):
                     event['mountpoint'] = self.mountpoint
                     self.publish(event)
             except Exception:
-                util.exception(_logger, 'Failed to dispatch remote event')
+                exception(_logger, 'Failed to dispatch remote event')
             finally:
                 _logger.info('Got disconnected from %r node', url)
                 _Mount.set_mounted(self, False)

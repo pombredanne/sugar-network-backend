@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,10 +19,8 @@ from os.path import join, exists, isdir
 
 from pylru import lrucache
 
-import active_document as ad
-from active_toolkit.options import Option
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import PersistentSequence
+from sugar_network.toolkit import Option, util
 
 
 stats_root = Option(
@@ -77,11 +75,11 @@ def pull(in_seq, packet):
         for db in rrd:
             seq = in_seq[user].get(db.name)
             if seq is None:
-                seq = in_seq[user][db.name] = PersistentSequence(
+                seq = in_seq[user][db.name] = util.PersistentSequence(
                         join(rrd.root, db.name + '.push'), [1, None])
             elif seq is not dict:
-                seq = in_seq[user][db.name] = ad.Sequence(seq)
-            out_seq = ad.Sequence()
+                seq = in_seq[user][db.name] = util.Sequence(seq)
+            out_seq = util.Sequence()
 
             def dump():
                 for start, end in seq:
@@ -100,7 +98,8 @@ def pull(in_seq, packet):
 def commit(sequences):
     for user, dbs in sequences.items():
         for db, merged in dbs.items():
-            seq = PersistentSequence(_rrd_path(user, db + '.push'), [1, None])
+            seq = util.PersistentSequence(
+                    _rrd_path(user, db + '.push'), [1, None])
             seq.exclude(merged)
             seq.commit()
 

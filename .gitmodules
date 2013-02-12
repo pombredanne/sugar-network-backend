@@ -1,3 +1,3 @@
-[submodule "sugar_network/zeroinstall/zeroinstall-injector"]
-path = sugar_network/zeroinstall/zeroinstall-injector
+[submodule "sugar_network/lib/zeroinstall-injector"]
+path = sugar_network/lib/zeroinstall-injector
 url = git://git.sugarlabs.org/0sugar/zeroinstall-injector.git

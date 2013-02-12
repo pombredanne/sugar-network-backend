@@ -13,13 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Convenient access to RRD databases.
-
-$Repo: git://git.sugarlabs.org/alsroot/codelets.git$
-$File: src/rrd.py$
-$Date: 2012-11-21$
-
-"""
+"""Convenient access to RRD databases."""
 
 import re
 import os
@@ -30,8 +24,8 @@ from datetime import datetime
 from os.path import exists, join
 
 
-_DB_FILENAME_RE = re.compile('(.*?)(-[0-9]+){0,1}\.rrd$')
-_INFO_RE = re.compile('([^[]+)\[([^]]+)\]\.(.*)$')
+_DB_FILENAME_RE = re.compile('(.*?)(-[0-9]+){0,1}\\.rrd$')
+_INFO_RE = re.compile('([^[]+)\\[([^]]+)\\]\\.(.*)$')
 
 _FETCH_PAGE = 256
 

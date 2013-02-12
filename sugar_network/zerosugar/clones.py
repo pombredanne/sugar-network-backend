@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import errno
 import shutil
 import hashlib
 import logging
@@ -24,9 +25,8 @@ from sugar_network.zerosugar.spec import Spec
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
         IN_MOVED_TO, IN_MOVED_FROM
-from active_document import DEFAULT_LANG
-from sugar_network import toolkit, client
-from active_toolkit import coroutine, util
+from sugar_network import client
+from sugar_network.toolkit import coroutine, util, exception
 
 
 _logger = logging.getLogger('zerosugar.clones')
@@ -117,7 +117,7 @@ class _Inotify(Inotify):
                 try:
                     cb(filename, event)
                 except Exception:
-                    util.exception('Cannot dispatch 0x%X event for %r',
+                    exception('Cannot dispatch 0x%X event for %r',
                             event, filename)
                 coroutine.dispatch()
 
@@ -131,19 +131,16 @@ class _Inotify(Inotify):
         try:
             spec = Spec(root=clone_path)
         except Exception:
-            util.exception(_logger, 'Cannot read %r spec', clone_path)
+            exception(_logger, 'Cannot read %r spec', clone_path)
             return
 
         context = spec['Activity', 'bundle_id']
 
-        context_path = _ensure_context_path(context, hashed_path)
-        if lexists(context_path):
-            os.unlink(context_path)
+        context_path = _context_path(context, hashed_path)
+        _ensure_path(context_path)
         os.symlink(clone_path, context_path)
 
-        if lexists(checkin_path):
-            os.unlink(checkin_path)
-        client.ensure_path(checkin_path)
+        _ensure_path(checkin_path)
         os.symlink(relpath(context_path, dirname(checkin_path)), checkin_path)
 
         if self._contexts.exists(context):
@@ -153,16 +150,15 @@ class _Inotify(Inotify):
 
             mtime = os.stat(spec.root).st_mtime
             self._contexts.create(guid=context, type='activity',
-                    title={DEFAULT_LANG: spec['name']},
-                    summary={DEFAULT_LANG: spec['summary']},
-                    description={DEFAULT_LANG: spec['description']},
-                    clone=2, ctime=mtime, mtime=mtime)
+                    title=spec['name'], summary=spec['summary'],
+                    description=spec['description'], clone=2,
+                    ctime=mtime, mtime=mtime)
 
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):
                 self._contexts.set_blob(context, 'artifact_icon', icon_path)
-                with toolkit.NamedTemporaryFile() as f:
-                    toolkit.svg_to_png(icon_path, f.name, 32, 32)
+                with util.NamedTemporaryFile() as f:
+                    util.svg_to_png(icon_path, f.name, 32, 32)
                     self._contexts.set_blob(context, 'icon', f.name)
 
         self._checkin_activity(spec)
@@ -177,8 +173,8 @@ class _Inotify(Inotify):
 
         _logger.debug('Update MIME database to process found %r', src_path)
 
-        toolkit.symlink(src_path, dst_path)
-        toolkit.spawn('update-mime-database', self._mime_dir)
+        util.symlink(src_path, dst_path)
+        util.spawn('update-mime-database', self._mime_dir)
 
     def lost(self, clone_path):
         __, checkin_path = _checkin_path(clone_path)
@@ -212,7 +208,7 @@ class _Inotify(Inotify):
         _logger.debug('Update MIME database to process lost %r', impl_path)
 
         os.unlink(dst_path)
-        toolkit.spawn('update-mime-database', self._mime_dir)
+        util.spawn('update-mime-database', self._mime_dir)
 
     def _checkin_activity(self, spec):
         icon_path = join(spec.root, spec['icon'])
@@ -222,7 +218,7 @@ class _Inotify(Inotify):
             if not exists(self._icons_dir):
                 os.makedirs(self._icons_dir)
             for mime_type in spec['mime_types']:
-                toolkit.symlink(icon_path,
+                util.symlink(icon_path,
                         join(self._icons_dir,
                             mime_type.replace('/', '-') + '.svg'))
 
@@ -381,5 +377,18 @@ def _context_path(context, hashed_path):
     return client.path('clones', 'context', context, hashed_path)
 
 
-def _ensure_context_path(context, hashed_path):
-    return client.ensure_path('clones', 'context', context, hashed_path)
+def _ensure_path(path):
+    if lexists(path):
+        os.unlink(path)
+        return
+
+    dir_path = dirname(path)
+    if exists(dir_path):
+        return
+
+    try:
+        os.makedirs(dir_path)
+    except OSError, error:
+        # In case if another process already create directory
+        if error.errno != errno.EEXIST:
+            raise

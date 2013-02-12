@@ -22,8 +22,7 @@ import threading
 import cPickle as pickle
 from os.path import exists
 
-from sugar_network import sugar
-from active_toolkit import coroutine, util
+from sugar_network.toolkit import coroutine, util, sugar
 
 
 _logger = logging.getLogger('pipe')

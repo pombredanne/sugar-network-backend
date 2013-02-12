@@ -23,10 +23,8 @@ from cStringIO import StringIO
 from contextlib import contextmanager
 from os.path import join, exists
 
-import active_document as ad
-from sugar_network import toolkit
-from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import util, enforce
+from sugar_network import db
+from sugar_network.toolkit import BUFFER_SIZE, util, exception, enforce
 
 
 _RESERVED_SIZE = 1024 * 1024
@@ -64,7 +62,7 @@ class InPacket(object):
                 self._file = stream = file(path, 'rb')
             elif not hasattr(stream, 'seek'):
                 # tarfile/gzip/zip might require seeking
-                self._file = toolkit.NamedTemporaryFile()
+                self._file = util.NamedTemporaryFile()
 
                 if hasattr(stream, 'read'):
                     while True:
@@ -94,7 +92,7 @@ class InPacket(object):
 
         except Exception, error:
             self.close()
-            util.exception()
+            exception()
             raise RuntimeError('Malformed %r packet: %s' % (self, error))
 
         _logger.trace('Reading %r input packet', self)
@@ -200,7 +198,7 @@ class OutPacket(object):
                 if seqno is not None:
                     self._basename += '-%s' % seqno
             else:
-                self._basename = ad.uuid()
+                self._basename = db.uuid()
             self._basename += _PACKET_SUFFIX
         kwargs['filename'] = self._basename
 
@@ -323,7 +321,7 @@ class OutPacket(object):
             self._flush(0, True)
             limit = self._enforce_limit()
 
-            with toolkit.NamedTemporaryFile() as arcfile:
+            with util.NamedTemporaryFile() as arcfile:
                 while True:
                     limit -= len(chunk)
                     if limit <= 0:
@@ -416,7 +414,7 @@ class OutFilePacket(OutPacket):
     def __init__(self, root=None, **kwargs):
         stream = None
         if root is None:
-            stream = toolkit.NamedTemporaryFile()
+            stream = util.NamedTemporaryFile()
         OutPacket.__init__(self, root=root, stream=stream, **kwargs)
 
 

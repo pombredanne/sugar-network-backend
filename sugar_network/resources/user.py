@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,60 +13,60 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import active_document as ad
+from sugar_network import db
 from sugar_network.node import stats
-from active_toolkit import enforce
+from sugar_network.toolkit import enforce
 
 
-class User(ad.Document):
+class User(db.Document):
 
-    @ad.active_property(prefix='L', typecast=[], default=['public'])
+    @db.indexed_property(prefix='L', typecast=[], default=['public'])
     def layer(self, value):
         return value
 
-    @ad.active_property(slot=1, prefix='N', full_text=True)
+    @db.indexed_property(slot=1, prefix='N', full_text=True)
     def name(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty)
+    @db.stored_property()
     def color(self, value):
         return value
 
-    @ad.active_property(prefix='S', default='',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_WRITE)
+    @db.indexed_property(prefix='S', default='',
+            permissions=db.ACCESS_CREATE | db.ACCESS_WRITE)
     def machine_sn(self, value):
         return value
 
-    @ad.active_property(prefix='U', default='',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_WRITE)
+    @db.indexed_property(prefix='U', default='',
+            permissions=db.ACCESS_CREATE | db.ACCESS_WRITE)
     def machine_uuid(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, permissions=ad.ACCESS_CREATE)
+    @db.stored_property(permissions=db.ACCESS_CREATE)
     def pubkey(self, value):
         return value
 
-    @ad.active_property(prefix='T', full_text=True, default=[], typecast=[])
+    @db.indexed_property(prefix='T', full_text=True, default=[], typecast=[])
     def tags(self, value):
         return value
 
-    @ad.active_property(prefix='P', full_text=True, default='')
+    @db.indexed_property(prefix='P', full_text=True, default='')
     def location(self, value):
         return value
 
-    @ad.active_property(slot=2, prefix='B', default=0, typecast=int)
+    @db.indexed_property(slot=2, prefix='B', default=0, typecast=int)
     def birthday(self, value):
         return value
 
-    @ad.document_command(method='GET', cmd='stats-info',
+    @db.document_command(method='GET', cmd='stats-info',
             mime_type='application/json')
     def _stats_info(self, request):
-        enforce(request.principal == self['guid'], ad.Forbidden,
+        enforce(request.principal == self['guid'], db.Forbidden,
                 'Operation is permitted only for authors')
 
         status = {}
-        for db in stats.get_rrd(self.guid):
-            status[db.name] = db.last + stats.stats_user_step.value
+        for rdb in stats.get_rrd(self.guid):
+            status[rdb.name] = rdb.last + stats.stats_user_step.value
 
         # TODO Process client configuration in more general manner
         return {'enable': True,
@@ -75,9 +75,9 @@ class User(ad.Document):
                 'status': status,
                 }
 
-    @ad.document_command(method='POST', cmd='stats-upload')
+    @db.document_command(method='POST', cmd='stats-upload')
     def _stats_upload(self, request):
-        enforce(request.principal == self['guid'], ad.Forbidden,
+        enforce(request.principal == self['guid'], db.Forbidden,
                 'Operation is permitted only for authors')
 
         name = request.content['name']

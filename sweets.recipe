@@ -12,8 +12,8 @@ version   = 0.7
 stability = developer
 
 requires  = m2crypto; requests; rrdtool-python; openssh-client; pylru
-            active-document; sugar-network-webui; sugar-network-hub
-replaces  = sugar-network-server; sweets-recipe
+            gevent >= 1; sugar-network-webui; sugar-network-hub
+replaces  = sugar-network-server; sweets-recipe; active-document
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&

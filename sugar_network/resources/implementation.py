@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,9 +17,8 @@
 
 import xapian
 
-import active_document as ad
+from sugar_network import db, resources
 from sugar_network.zerosugar.licenses import GOOD_LICENSES
-from sugar_network import resources
 from sugar_network.zerosugar.spec import parse_version
 from sugar_network.resources.volume import Resource
 
@@ -43,42 +42,42 @@ def _encode_version(version):
 
 class Implementation(Resource):
 
-    @ad.active_property(prefix='C',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='C',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='L', full_text=True, typecast=[GOOD_LICENSES],
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='L', full_text=True, typecast=[GOOD_LICENSES],
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def license(self, value):
         return value
 
-    @ad.active_property(slot=1, prefix='V', reprcast=_encode_version,
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(slot=1, prefix='V', reprcast=_encode_version,
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def version(self, value):
         return value
 
-    @ad.active_property(prefix='S',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ,
+    @db.indexed_property(prefix='S',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ,
             typecast=resources.STABILITIES)
     def stability(self, value):
         return value
 
-    @ad.active_property(prefix='R', typecast=[], default=[],
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='R', typecast=[], default=[],
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def requires(self, value):
         return value
 
-    @ad.active_property(prefix='N', full_text=True, localized=True,
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='N', full_text=True, localized=True,
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def notes(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={})
+    @db.stored_property(typecast=dict, default={})
     def spec(self, value):
         return value
 
-    @ad.active_property(ad.BlobProperty)
+    @db.blob_property()
     def data(self, value):
         if value:
             context = self.volume['context'].get(self['context'])

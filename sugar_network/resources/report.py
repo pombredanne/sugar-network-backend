@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,20 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import active_document as ad
-
+from sugar_network import db
 from sugar_network.resources.volume import Resource
 
 
 class Report(Resource):
 
-    @ad.active_property(prefix='C',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='C',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='V',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ, default='')
+    @db.indexed_property(prefix='V',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ, default='')
     def implementation(self, value):
         return value
 
@@ -37,31 +36,31 @@ class Report(Resource):
             self['version'] = version['version']
         return value
 
-    @ad.active_property(prefix='D', full_text=True, localized=True,
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='D', full_text=True, localized=True,
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def description(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, default='',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.stored_property(default='',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def version(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={},
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.stored_property(typecast=dict, default={},
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def environ(self, value):
         return value
 
-    @ad.active_property(prefix='T',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='T',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def error(self, value):
         return value
 
-    @ad.active_property(ad.BlobProperty)
+    @db.blob_property()
     def data(self, value):
         return value
 
-    @ad.document_command(method='GET', cmd='log',
+    @db.document_command(method='GET', cmd='log',
             mime_type='text/html')
     def log(self, guid):
         # In further implementations, `data` might be a tarball

@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,17 +18,15 @@ import socket
 import logging
 from os.path import join, exists
 
-import active_document as ad
-
-from sugar_network import client, node
-from sugar_network.toolkit import netlink, network, mountpoints, router
+from sugar_network import db, client, node
+from sugar_network.toolkit import netlink, mountpoints, router
+from sugar_network.toolkit import coroutine, util, exception, enforce
 from sugar_network.client import journal, zeroconf
 from sugar_network.client.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.sync_node import SyncCommands
 from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Volume, Commands
-from active_toolkit import util, coroutine, enforce
 
 
 _DB_DIRNAME = '.sugar-network'
@@ -36,18 +34,17 @@ _DB_DIRNAME = '.sugar-network'
 _logger = logging.getLogger('client.mountset')
 
 
-class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
+class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
         SyncCommands):
 
     def __init__(self, home_volume):
         self.opened = coroutine.Event()
         self._subscriptions = {}
-        self._lang = ad.default_lang()
         self._jobs = coroutine.Pool()
         self._servers = coroutine.Pool()
 
         dict.__init__(self)
-        ad.CommandsProcessor.__init__(self)
+        db.CommandsProcessor.__init__(self)
         SyncCommands.__init__(self, client.path('sync'))
         Commands.__init__(self)
         if not client.no_dbus.value:
@@ -96,7 +93,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
 
         return router.stream_reader(file(path, 'rb'))
 
-    @ad.volume_command(method='GET', cmd='mounts',
+    @db.volume_command(method='GET', cmd='mounts',
             mime_type='application/json')
     def mounts(self):
         result = []
@@ -109,7 +106,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                     })
         return result
 
-    @ad.volume_command(method='GET', cmd='mounted',
+    @db.volume_command(method='GET', cmd='mounted',
             mime_type='application/json')
     def mounted(self, mountpoint):
         mount = self.get(mountpoint)
@@ -119,7 +116,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             mount.set_mounted(True)
         return mount.mounted.is_set()
 
-    @ad.volume_command(method='POST', cmd='publish')
+    @db.volume_command(method='POST', cmd='publish')
     def publish(self, event, request=None):
         if request is not None:
             event = request.content
@@ -132,9 +129,9 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                 try:
                     callback(event)
                 except Exception:
-                    util.exception(_logger, 'Failed to dispatch %r', event)
+                    exception(_logger, 'Failed to dispatch %r', event)
 
-    @ad.document_command(method='GET', cmd='make')
+    @db.document_command(method='GET', cmd='make')
     def make(self, mountpoint, document, guid):
         enforce(document == 'context', 'Only contexts can be launched')
 
@@ -142,8 +139,8 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
             event['event'] = 'make'
             self.publish(event)
 
-    @ad.document_command(method='GET', cmd='launch',
-            arguments={'args': ad.to_list})
+    @db.document_command(method='GET', cmd='launch',
+            arguments={'args': db.to_list})
     def launch(self, mountpoint, document, guid, args, activity_id=None,
             object_id=None, uri=None, color=None, no_spawn=None):
         enforce(document == 'context', 'Only contexts can be launched')
@@ -160,11 +157,11 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         else:
             self._jobs.spawn(do_launch)
 
-    @ad.document_command(method='PUT', cmd='clone',
+    @db.document_command(method='PUT', cmd='clone',
             arguments={
-                'force': ad.to_int,
-                'nodeps': ad.to_int,
-                'requires': ad.to_list,
+                'force': db.to_int,
+                'nodeps': db.to_int,
+                'requires': db.to_list,
                 })
     def clone(self, request, mountpoint, document, guid, force):
         mount = self[mountpoint]
@@ -181,13 +178,13 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                             context=guid, stability='stable',
                             order_by='-version', limit=1,
                             reply=['guid'])['result']
-                    enforce(impls, ad.NotFound, 'No implementations')
+                    enforce(impls, db.NotFound, 'No implementations')
                     impl_id = impls[0]['guid']
                     props = mount(method='GET', document='context', guid=guid,
                             reply=['title', 'description'])
                     props['preview'] = mount(method='GET', document='context',
                             guid=guid, prop='preview')
-                    data_response = ad.Response()
+                    data_response = db.Response()
                     props['data'] = mount(data_response, method='GET',
                             document='implementation', guid=impl_id,
                             prop='data')
@@ -215,7 +212,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         else:
             raise RuntimeError('Command is not supported for %r' % document)
 
-    @ad.document_command(method='PUT', cmd='favorite')
+    @db.document_command(method='PUT', cmd='favorite')
     def favorite(self, request, mountpoint, document, guid):
         if document == 'context':
             if request.content or self.volume['context'].exists(guid):
@@ -223,7 +220,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         else:
             raise RuntimeError('Command is not supported for %r' % document)
 
-    @ad.volume_command(method='GET', cmd='whoami',
+    @db.volume_command(method='GET', cmd='whoami',
             mime_type='application/json')
     def whoami(self, request):
         result = self['/'].call(request)
@@ -235,13 +232,13 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
         return mount.call(request, response)
 
     def call(self, request, response=None):
-        request.accept_language = [self._lang]
+        request.accept_language = [db.default_lang()]
         request.mountpoint = request.get('mountpoint')
         if not request.mountpoint:
             request.mountpoint = request['mountpoint'] = '/'
         try:
-            return ad.CommandsProcessor.call(self, request, response)
-        except ad.CommandNotFound:
+            return db.CommandsProcessor.call(self, request, response)
+        except db.CommandNotFound:
             return self.super_call(request, response)
 
     def connect(self, callback, condition=None, **kwargs):
@@ -288,7 +285,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                 if message is None:
                     break
                 # Otherwise, `socket.gethostbyname()` will return stale resolve
-                network.res_init()
+                util.res_init()
 
     def _found_mount(self, path):
         volume, server_mode = self._mount_volume(path)
@@ -388,7 +385,7 @@ class Mountset(dict, ad.CommandsProcessor, Commands, journal.Commands,
                     requires=request.get('requires'),
                     order_by='-version', limit=1,
                     reply=['guid', 'spec'])['result']
-            enforce(impls, ad.NotFound, 'No implementations')
+            enforce(impls, db.NotFound, 'No implementations')
             pipe = injector.clone_impl(mountpoint, guid, **impls[0])
         else:
             pipe = injector.clone(mountpoint, guid)

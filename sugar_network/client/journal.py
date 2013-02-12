@@ -22,12 +22,9 @@ import hashlib
 import logging
 from tempfile import NamedTemporaryFile
 
-import active_document as ad
-from sugar_network import client
-from sugar_network.toolkit import sugar, router
+from sugar_network import db, client
+from sugar_network.toolkit import BUFFER_SIZE, sugar, router, enforce
 from sugar_network.toolkit.router import Request
-from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import enforce
 
 
 _logger = logging.getLogger('client.journal')
@@ -161,7 +158,7 @@ class Commands(object):
             if key in request:
                 request[key] = int(request[key])
         if 'reply' in request:
-            reply = ad.to_list(request.pop('reply'))
+            reply = db.to_list(request.pop('reply'))
         else:
             reply = ['uid', 'title', 'description', 'preview']
         if 'preview' in reply:
@@ -204,10 +201,10 @@ class Commands(object):
         prop = request.path[2]
 
         if prop == 'preview':
-            return ad.PropertyMeta(path=_prop_path(guid, prop),
+            return db.PropertyMetadata(path=_prop_path(guid, prop),
                     mime_type='image/png')
         elif prop == 'data':
-            return ad.PropertyMeta(path=_ds_path(guid, 'data'),
+            return db.PropertyMetadata(path=_ds_path(guid, 'data'),
                     mime_type=get(guid, 'mime_type') or 'application/octet')
         else:
             response.content_type = 'application/json'
