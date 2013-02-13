@@ -21,9 +21,7 @@ import logging
 from Cookie import SimpleCookie
 from os.path import exists, join
 
-from pylru import lrucache
-
-from sugar_network import db, node
+from sugar_network import db, node, pylru
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
         OutPacket, DiskFull
 from sugar_network.toolkit.files_sync import Seeders
@@ -45,7 +43,7 @@ class SyncCommands(object):
     def __init__(self):
         self._file_syncs = Seeders(node.sync_dirs.value,
                 join(node.data_root.value, 'sync'), self.volume.seqno)
-        self._pull_queue = lrucache(_PULL_QUEUE_SIZE,
+        self._pull_queue = pylru.lrucache(_PULL_QUEUE_SIZE,
                 lambda key, pull: pull.unlink())
 
     @db.volume_command(method='POST', cmd='push')

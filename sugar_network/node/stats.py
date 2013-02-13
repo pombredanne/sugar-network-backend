@@ -17,8 +17,7 @@ import os
 import logging
 from os.path import join, exists, isdir
 
-from pylru import lrucache
-
+from sugar_network import pylru
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import Option, util
 
@@ -56,7 +55,7 @@ stats_user_rras = Option(
 
 
 _logger = logging.getLogger('node.stats')
-_user_cache = lrucache(32)
+_user_cache = pylru.lrucache(32)
 
 
 def get_rrd(user):
