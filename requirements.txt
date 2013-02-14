@@ -1,0 +1,4 @@
+gevent >= 1
+M2Crypto
+requests >= 0.14.2
+python-rrdtool
