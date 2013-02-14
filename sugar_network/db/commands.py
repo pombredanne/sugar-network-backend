@@ -82,9 +82,13 @@ def to_list(value):
 
 class Request(dict):
 
+    #: Request payload, e.g., content passed by a HTTP POST/PUT request
     content = None
+    #: If payload is a stream, :attr:`content` will be ``None`` in that case
     content_stream = None
+    #: Payload stream length, if :attr:`content_stream` is set
     content_length = None
+    #: Payload MIME type
     content_type = None
     access_level = env.ACCESS_REMOTE
     accept_language = None
@@ -92,6 +96,7 @@ class Request(dict):
     response = None
 
     def __init__(self, **kwargs):
+        """Initialize parameters dictionary using named arguments."""
         dict.__init__(self, kwargs)
         self._pos = 0
 
@@ -140,15 +145,16 @@ class Request(dict):
 
 class Response(dict):
 
+    #: Response payload length
     content_length = None
+    #: Payload MIME type
     content_type = None
     #: UNIX seconds of last modification
     last_modified = None
 
-    def __init__(self, *args, **props):
-        if args:
-            props = args[0]
-        dict.__init__(self, props)
+    def __init__(self, **kwargs):
+        """Initialize parameters dictionary using named arguments."""
+        dict.__init__(self, kwargs)
 
     def __repr__(self):
         args = ['%s=%r' % i for i in self.items()]
@@ -157,7 +163,7 @@ class Response(dict):
 
 class CommandsProcessor(object):
 
-    def __init__(self, volume=None, parent=None):
+    def __init__(self, volume=None):
         self._commands = {
                 'volume': _Commands(),
                 'directory': _Commands(),
@@ -165,7 +171,6 @@ class CommandsProcessor(object):
                 'property': _Commands(),
                 }
         self.volume = volume
-        self.parent = parent
 
         for scope, kwargs in _scan_class(self.__class__, False):
             cmd = _Command((self,), **kwargs)
@@ -178,9 +183,25 @@ class CommandsProcessor(object):
                     self._commands[scope].add(cmd)
 
     def super_call(self, request, response):
+        """Will be called if no commands were recognized.
+
+        This function needs to be overloaded in child classes to implement
+        proxy commands processor.
+
+        """
         raise env.CommandNotFound()
 
     def call(self, request, response=None):
+        """Make a command call.
+
+        :param request:
+            :class:`Request` object with call parameters
+        :param response:
+            optional :class:`Response` object to collect response details
+        :returns:
+            command call result
+
+        """
         cmd = self.resolve(request)
         enforce(cmd is not None, env.CommandNotFound, 'Unsupported command')
 
@@ -233,6 +254,15 @@ class CommandsProcessor(object):
         return result
 
     def resolve(self, request):
+        """Recognize particular command from a :class:`Request` object.
+
+        :param request:
+            request object to recognize command from, the process is based
+            on ``method`` and ``cmd`` parameters
+        :returns:
+            command object or ``None``
+
+        """
         key = (request.get('method', 'GET'), request.get('cmd'), None)
 
         if 'document' not in request:

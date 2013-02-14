@@ -63,7 +63,7 @@ blob_property = lambda ** kwargs: indexed_property(BlobProperty, **kwargs)
 class Metadata(dict):
     """Structure to describe the document.
 
-    Dictionary derived class that contains `_Property` objects.
+    Dictionary derived class that contains `Property` objects.
 
     """
 
@@ -133,8 +133,8 @@ class PropertyMetadata(dict):
                 hasattr(blob, 'read')
 
 
-class _Property(object):
-    """Bacis class to collect information about document property."""
+class Property(object):
+    """Basic class to collect information about document property."""
 
     def __init__(self, name, permissions=env.ACCESS_PUBLIC, typecast=None,
             reprcast=None, default=None):
@@ -167,6 +167,7 @@ class _Property(object):
         """Cast property value before storing in the system.
 
         Supported values are:
+
         * `None`, string values
         * `int`, interger values
         * `float`, float values
@@ -228,11 +229,16 @@ class _Property(object):
                 env.ACCESS_NAMES[mode], self.name)
 
 
-class StoredProperty(_Property):
-    """Property that can be saved in persistent storare."""
+class StoredProperty(Property):
+    """Property to save only in persistent storage, no index."""
 
     def __init__(self, name, localized=False, typecast=None, reprcast=None,
             **kwargs):
+        """
+        :param: **kwargs
+            :class:`.Property` arguments
+
+        """
         self._localized = localized
 
         if localized:
@@ -243,7 +249,7 @@ class StoredProperty(_Property):
             typecast = _localized_typecast
             reprcast = _localized_reprcast
 
-        _Property.__init__(self, name, typecast=typecast, reprcast=reprcast,
+        Property.__init__(self, name, typecast=typecast, reprcast=reprcast,
                 **kwargs)
 
     @property
@@ -253,10 +259,15 @@ class StoredProperty(_Property):
 
 
 class IndexedProperty(StoredProperty):
-    """Property that need to be indexed."""
+    """Property which needs to be indexed."""
 
     def __init__(self, name, slot=None, prefix=None, full_text=False,
             boolean=False, **kwargs):
+        """
+        :param: **kwargs
+            :class:`.StoredProperty` arguments
+
+        """
         enforce(name == 'guid' or slot != 0,
                 "For %r property, slot '0' is reserved for internal needs",
                 name)
@@ -298,17 +309,17 @@ class IndexedProperty(StoredProperty):
         return self._boolean
 
 
-class BlobProperty(_Property):
-    """Binary large objects that need to be fetched alone.
-
-    To get access to these properties, use `Document.send()` and
-    `Document.receive()` functions.
-
-    """
+class BlobProperty(Property):
+    """Binary large objects which needs to be fetched alone, no index."""
 
     def __init__(self, name, permissions=env.ACCESS_PUBLIC,
             mime_type='application/octet-stream', composite=False):
-        _Property.__init__(self, name, permissions=permissions)
+        """
+        :param: **kwargs
+            :class:`.Property` arguments
+
+        """
+        Property.__init__(self, name, permissions=permissions)
         self._mime_type = mime_type
         self._composite = composite
 

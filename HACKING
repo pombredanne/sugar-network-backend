@@ -3,21 +3,20 @@ How to contribute
 
 Useful notes how to contribute to the project.
 
-Before committing
------------------
-All source files need to be passed through `sugar-lint`_ command.
-Follow sugar-lint home page instructions and especially
-`"Lint files before committing"` section.
+**Before committing**
 
-Send patches
-------------
-Create your patches using ``git format`` command and send them to all
-maintainers from the :doc:`AUTHORS <AUTHORS>` file with CCing to
-sugar-network@googlegroups.com. The easiest way is using ``git send-email``
-command.
+All source files need to be passed through `sugar-lint`_ command
+(see the `"Lint files before committing"` section on sugar-lint home page),
+or, call `pylint`_ and `pep8.py`_ utilities with the same `configuration`_
+as sugar-lint uses.
 
-Gitorious forks
----------------
+**Send patches**
+
+Create your patches using ``git format`` command and send them to all maintainers
+from the :doc:`AUTHORS <AUTHORS>` file. The easiest way is just using ``git send-email`` command.
+
+**Gitorious forks**
+
 Another useful way to contribute, especially for big improvements, is creating
 Gitorious forks and request them for merge to the trunk.
 
@@ -27,3 +26,6 @@ Gitorious forks and request them for merge to the trunk.
 * http://blog.gitorious.org/2009/11/06/awesome-code-review/
 
 .. _sugar-lint: http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Lint
+.. _pylint: http://pypi.python.org/pypi/pylint
+.. _pep8.py: http://pypi.python.org/pypi/pep8
+.. _configuration: http://git.sugarlabs.org/sdk/sugar-lint/trees/master/sugar_lint

@@ -1,10 +1,30 @@
 Authors
 =======
 
-Contributors
-------------
+**Original idea**
+
+This work was initially started as an international research initiative
+in late 2012 within the `Sugar Labs Perú`_ in order to attend the needs
+identified during field work on Perú from 2007 to date.
+
+**Contributors**
+(In alphabetical order)
+
+* Aleksey Lim <alsroot@sugarlabs.org> `original idea and implementation`
+* Laura Vargas <laura@somosazucar.org> `original idea`
+* Sebastian Silva <sebastian@somosazucar.org> `original idea`
+
+**Maintainers**
+
 Aleksey Lim <alsroot@sugarlabs.org>
 
-Maintainers
------------
-Aleksey Lim <alsroot@sugarlabs.org>
+**Artwork**
+
+The project uses graphics from the following projects:
+
+* `sugar-artwork`_ images.
+* `Oxygen`_ icons.
+
+.. _Sugar Labs Perú: http://pe.sugarlabs.org/
+.. _sugar-artwork: http://git.sugarlabs.org/sugar-artwork
+.. _Oxygen: http://www.oxygen-icons.org/

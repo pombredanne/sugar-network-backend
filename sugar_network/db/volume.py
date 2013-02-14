@@ -33,9 +33,12 @@ from sugar_network.toolkit import coroutine, util, exception, enforce
 _logger = logging.getLogger('db.volume')
 
 
-class _Volume(dict):
+class Volume(dict):
 
-    def __init__(self, root, documents, index_class, lazy_open):
+    def __init__(self, root, documents, index_class=None, lazy_open=False):
+        if index_class is None:
+            index_class = IndexWriter
+
         self._root = abspath(root)
         _logger.info('Opening %r volume', self._root)
 
@@ -114,14 +117,6 @@ class _Volume(dict):
         directory = Directory(join(self._root, name), cls, self._index_class,
                 self.notify, self.seqno)
         return directory
-
-
-class SingleVolume(_Volume):
-
-    def __init__(self, root, document_classes, lazy_open=False):
-        enforce(env.index_write_queue.value > 0,
-                'The db.index_write_queue.value should be > 0')
-        _Volume.__init__(self, root, document_classes, IndexWriter, lazy_open)
 
 
 class VolumeCommands(CommandsProcessor):

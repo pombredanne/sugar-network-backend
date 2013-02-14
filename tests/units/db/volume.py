@@ -42,7 +42,7 @@ class VolumeTest(tests.Test):
         class Document(db.Document):
             pass
 
-        with db.SingleVolume(tests.tmpdir, [Document]) as volume:
+        with db.Volume(tests.tmpdir, [Document]) as volume:
             for cls in volume.values():
                 for __ in cls.populate():
                     pass
@@ -55,7 +55,7 @@ class VolumeTest(tests.Test):
         class Document(db.Document):
             pass
 
-        with db.SingleVolume(tests.tmpdir, [Document]) as volume:
+        with db.Volume(tests.tmpdir, [Document]) as volume:
             for cls in volume.values():
                 for __ in cls.populate():
                     pass
@@ -75,7 +75,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         self.volume['testdocument'].create(guid='guid')
 
         self.assertEqual({
@@ -136,7 +136,7 @@ class VolumeTest(tests.Test):
             def blob(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
         self.assertRaises(RuntimeError, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content={'path': '/'})
@@ -158,7 +158,7 @@ class VolumeTest(tests.Test):
             def blob(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob1')
@@ -177,7 +177,7 @@ class VolumeTest(tests.Test):
             def blob(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob')
 
@@ -213,7 +213,7 @@ class VolumeTest(tests.Test):
             def blob(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
         self.assertEqual('value', self.call('GET', document='testdocument', guid=guid, prop='prop'))
@@ -234,7 +234,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
 
         self.assertEqual(
@@ -261,7 +261,7 @@ class VolumeTest(tests.Test):
             def prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
         guid = self.call(method='POST', document='testdocument', content={'prop': '-1'})
         self.assertEqual(-1, self.call(method='GET', document='testdocument', guid=guid, prop='prop'))
@@ -279,7 +279,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         directory = self.volume['testdocument']
 
         guid = directory.create({'localized_prop': 'value_raw'})
@@ -321,7 +321,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         directory = self.volume['testdocument']
 
         guid = self.call('POST', document='testdocument', content={
@@ -398,7 +398,7 @@ class VolumeTest(tests.Test):
         class Document2(db.Document):
             pass
 
-        volume = db.SingleVolume('.', [Document1, Document2], lazy_open=True)
+        volume = db.Volume('.', [Document1, Document2], lazy_open=True)
         assert not exists('document1/index')
         assert not exists('document2/index')
         volume['document1'].find()
@@ -412,7 +412,7 @@ class VolumeTest(tests.Test):
         shutil.rmtree('document1')
         shutil.rmtree('document2')
 
-        volume = db.SingleVolume('.', [Document1, Document2], lazy_open=False)
+        volume = db.Volume('.', [Document1, Document2], lazy_open=False)
         assert exists('document1/index')
         assert exists('document2/index')
         volume.close()
@@ -427,7 +427,7 @@ class VolumeTest(tests.Test):
                 )
         sys.path.insert(0, '.')
 
-        volume = db.SingleVolume('.', ['foo.bar'])
+        volume = db.Volume('.', ['foo.bar'])
         assert exists('bar/index')
         volume['bar'].find()
         volume.close()
@@ -448,7 +448,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
         self.call('PUT', document='testdocument', guid=guid, prop='blob', url='http://sugarlabs.org')
 
@@ -468,7 +468,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
         ts = time.time()
         guid = self.call(method='POST', document='testdocument', content={})
@@ -493,7 +493,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        volume = db.Volume(tests.tmpdir, [TestDocument])
         cp = Commands(volume)
 
         request = db.Request(method='POST', document='testdocument')
@@ -518,7 +518,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call(method='POST', document='testdocument', content={})
         prev_mtime = self.volume['testdocument'].get(guid)['mtime']
 
@@ -545,7 +545,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        volume = db.Volume(tests.tmpdir, [TestDocument])
         cp = Commands(volume)
 
         request = db.Request(method='POST', document='testdocument')
@@ -570,7 +570,7 @@ class VolumeTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         self.assertRaises(env.Forbidden, self.call, method='POST', document='testdocument', content={'guid': 'foo'})
         guid = self.call(method='POST', document='testdocument', content={})
         assert guid
@@ -583,7 +583,7 @@ class VolumeTest(tests.Test):
         class Document2(db.Document):
             pass
 
-        volume = db.SingleVolume(tests.tmpdir, [Document1, Document2])
+        volume = db.Volume(tests.tmpdir, [Document1, Document2])
 
         assert not exists('seqno')
         self.assertEqual(0, volume.seqno.value)
@@ -601,7 +601,7 @@ class VolumeTest(tests.Test):
         assert not exists('seqno')
         volume.seqno.commit()
         assert exists('seqno')
-        volume = db.SingleVolume(tests.tmpdir, [Document1, Document2])
+        volume = db.Volume(tests.tmpdir, [Document1, Document2])
         self.assertEqual(4, volume.seqno.value)
 
     def test_Events(self):
@@ -633,7 +633,7 @@ class VolumeTest(tests.Test):
                 )
 
         events = []
-        volume = db.SingleVolume(tests.tmpdir, [Document1, Document2])
+        volume = db.Volume(tests.tmpdir, [Document1, Document2])
         volume.connect(lambda event: events.append(event))
 
         volume.populate()
@@ -715,7 +715,7 @@ class VolumeTest(tests.Test):
             def blob(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
         self.assertRaises(db.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 'value'})
@@ -736,7 +736,7 @@ class VolumeTest(tests.Test):
             def blob2(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
         guid = self.call('POST', document='testdocument', content={})
         self.call('PUT', document='testdocument', guid=guid, content={'blob1': 'value1', 'blob2': 'value2'})
@@ -766,7 +766,7 @@ class VolumeTest(tests.Test):
                 meta['path'] = 'new-blob'
                 return meta
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
         self.touch(('new-blob', 'new-blob'))
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='old-blob')
@@ -812,7 +812,7 @@ class VolumeTest(tests.Test):
             def blob2(self, value):
                 return ' %s ' % value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
         self.assertEqual('1', self.call('GET', document='testdocument', guid=guid, prop='prop'))
@@ -855,7 +855,7 @@ class VolumeTest(tests.Test):
             def post(self, value):
                 self.request.call('PUT', document='testdocument', guid=self.guid, prop='blob', content=value + '!')
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
         guid = self.call('POST', document='testdocument', content={'blob': '0'})
         coroutine.dispatch()
@@ -873,7 +873,7 @@ class VolumeTest(tests.Test):
             def prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
         self.call('POST', document='testdocument', content={'prop': 1})
         self.call('POST', document='testdocument', content={'prop': 2})
@@ -895,7 +895,7 @@ class VolumeTest(tests.Test):
             def prop(self, value):
                 return value + 1
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
         self.assertRaises(db.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 1})
 
@@ -910,7 +910,7 @@ class VolumeTest(tests.Test):
             def prop(self, value):
                 return value
 
-        self.volume = db.SingleVolume(tests.tmpdir, [TestDocument])
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={'prop': 'set'})
 
         self.assertEqual(
