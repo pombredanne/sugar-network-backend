@@ -21,15 +21,13 @@ import logging
 from Cookie import SimpleCookie
 from os.path import exists, join
 
-from pylru import lrucache
-
-import active_document as ad
-from sugar_network import node, toolkit
+from sugar_network import db, node, pylru
 from sugar_network.toolkit.sneakernet import InPacket, OutBufferPacket, \
         OutPacket, DiskFull
 from sugar_network.toolkit.files_sync import Seeders
+from sugar_network.toolkit.util import Sequence
 from sugar_network.node import stats
-from active_toolkit import coroutine, util, enforce
+from sugar_network.toolkit import tmpdir, coroutine, exception, enforce
 
 
 _PULL_QUEUE_SIZE = 256
@@ -45,10 +43,10 @@ class SyncCommands(object):
     def __init__(self):
         self._file_syncs = Seeders(node.sync_dirs.value,
                 join(node.data_root.value, 'sync'), self.volume.seqno)
-        self._pull_queue = lrucache(_PULL_QUEUE_SIZE,
+        self._pull_queue = pylru.lrucache(_PULL_QUEUE_SIZE,
                 lambda key, pull: pull.unlink())
 
-    @ad.volume_command(method='POST', cmd='push')
+    @db.volume_command(method='POST', cmd='push')
     def push(self, request, response):
         with InPacket(stream=request) as in_packet:
             enforce('src' in in_packet.header and
@@ -61,8 +59,8 @@ class SyncCommands(object):
             out_packet = OutBufferPacket(src=self._guid,
                     dst=in_packet.header['src'],
                     filename='ack.' + in_packet.header.get('filename'))
-            pushed = ad.Sequence()
-            merged = ad.Sequence()
+            pushed = Sequence()
+            merged = Sequence()
             cookie = _Cookie()
             stats_pushed = {}
 
@@ -79,14 +77,14 @@ class SyncCommands(object):
                 elif cmd == 'files_pull':
                     cookie[record['directory']].include(record['sequence'])
                 elif cmd == 'stats_push':
-                    db = record['db']
+                    db_name = record['db']
                     user = record['user']
 
                     rrd = stats.get_rrd(user)
-                    rrd[db].put(record['values'], record['timestamp'])
+                    rrd[db_name].put(record['values'], record['timestamp'])
 
                     user_seq = stats_pushed.setdefault(user, {})
-                    db_seq = user_seq.setdefault(db, ad.Sequence())
+                    db_seq = user_seq.setdefault(db_name, Sequence())
                     db_seq.include(record['sequence'])
 
             enforce(not merged or pushed,
@@ -107,9 +105,9 @@ class SyncCommands(object):
             if not out_packet.empty:
                 return out_packet.pop()
 
-    @ad.volume_command(method='GET', cmd='pull',
+    @db.volume_command(method='GET', cmd='pull',
             mime_type='application/octet-stream',
-            arguments={'accept_length': ad.to_int})
+            arguments={'accept_length': db.to_int})
     def pull(self, request, response, accept_length=None, **pulls):
         cookie = _Cookie(request)
         for key, seq in pulls.items():
@@ -171,7 +169,7 @@ class _Pull(object):
         self.exception = None
         self.seconds_remained = 0
         self.content_type = None
-        self._path = join(toolkit.tmpdir.value, pull_key + '.pull')
+        self._path = join(tmpdir.value, pull_key + '.pull')
         self._job = None
 
         if exists(self._path):
@@ -181,7 +179,7 @@ class _Pull(object):
                     self.cookie = _Cookie()
                     self.cookie.update(packet.header['cookie'])
             except Exception:
-                util.exception('Cannot open cached packet for %r, recreate',
+                exception('Cannot open cached packet for %r, recreate',
                         self._path)
                 os.unlink(self._path)
 
@@ -219,9 +217,9 @@ class _Pull(object):
             cb(self.cookie, packet)
         except DiskFull:
             pass
-        except Exception, exception:
-            util.exception('Error while making %r pull', self.cookie)
-            self.exception = exception
+        except Exception, error:
+            exception('Error while making %r pull', self.cookie)
+            self.exception = error
             self.unlink()
         else:
             self.cookie.clear()
@@ -237,7 +235,7 @@ class _Cookie(dict):
         if request is not None:
             value = self._get_cookie(request, 'sugar_network_sync')
             for key, seq in (value or {}).items():
-                self[key] = ad.Sequence(seq)
+                self[key] = Sequence(seq)
 
         self.delay = 0
 
@@ -263,7 +261,7 @@ class _Cookie(dict):
     def __getitem__(self, key):
         seq = self.get(key)
         if seq is None:
-            seq = self[key] = ad.Sequence()
+            seq = self[key] = Sequence()
         return seq
 
     def _get_cookie(self, request, name):

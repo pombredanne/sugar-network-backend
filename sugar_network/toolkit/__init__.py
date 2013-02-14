@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,17 +13,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import json
+import sys
 import logging
-import hashlib
-import tempfile
-import collections
-from os.path import isfile, lexists, exists, dirname
+from os.path import join
 
-import active_document as ad
-from active_toolkit.options import Option
-from active_toolkit import util
+from sugar_network.toolkit.options import Option
+
+
+BUFFER_SIZE = 1024 * 10
 
 
 tmpdir = Option(
@@ -32,172 +29,77 @@ tmpdir = Option(
         'synchronizing Sugar Network content',
         name='tmpdir')
 
-_logger = logging.getLogger('toolkit')
 
+def enforce(condition, error=None, *args):
+    """Make an assertion in runtime.
 
-def spawn(cmd_filename, *args):
-    _logger.trace('Spawn %s%r', cmd_filename, args)
+    In comparing with `assert`, it will all time present in the code.
+    Just a bit of syntax sugar.
 
-    if os.fork():
+    :param condition:
+        the condition to assert; if not False then return,
+        otherse raise an RuntimeError exception
+    :param error:
+        error message to pass to RuntimeError object
+        or Exception class to raise
+    :param args:
+        optional '%' arguments for the `error`
+
+    """
+    if condition:
         return
 
-    os.execvp(cmd_filename, (cmd_filename,) + args)
-
-
-def symlink(src, dst):
-    if not isfile(src):
-        _logger.debug('Cannot link %r to %r, source file is absent', src, dst)
-        return
-
-    _logger.trace('Link %r to %r', src, dst)
-
-    if lexists(dst):
-        os.unlink(dst)
-    elif not exists(dirname(dst)):
-        os.makedirs(dirname(dst))
-    os.symlink(src, dst)
-
-
-def ensure_dsa_pubkey(path):
-    if not exists(path):
-        _logger.info('Create DSA server key')
-        util.assert_call([
-            '/usr/bin/ssh-keygen', '-q', '-t', 'dsa', '-f', path,
-            '-C', '', '-N', ''])
-
-    with file(path + '.pub') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('ssh-'):
-                key = line.split()[1]
-                return str(hashlib.sha1(key).hexdigest())
-
-    raise RuntimeError('No valid DSA public key in %r' % path)
-
-
-def svg_to_png(src_path, dst_path, width, height):
-    import rsvg
-    import cairo
-
-    svg = rsvg.Handle(src_path)
-
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
-    context = cairo.Context(surface)
-    scale = min(
-            float(width) / svg.props.width,
-            float(height) / svg.props.height)
-    context.scale(scale, scale)
-    svg.render_cairo(context)
-
-    surface.write_to_png(dst_path)
-
-
-def NamedTemporaryFile(*args, **kwargs):
-    if tmpdir.value:
-        kwargs['dir'] = tmpdir.value
-    return tempfile.NamedTemporaryFile(*args, **kwargs)
-
-
-def init_logging(debug_level):
-    # pylint: disable-msg=W0212
-
-    logging.addLevelName(9, 'TRACE')
-    logging.addLevelName(8, 'HEARTBEAT')
-
-    logging.Logger.trace = lambda self, message, *args, **kwargs: None
-    logging.Logger.heartbeat = lambda self, message, *args, **kwargs: None
-
-    if debug_level < 3:
-        _disable_logger([
-            'requests.packages.urllib3.connectionpool',
-            'requests.packages.urllib3.poolmanager',
-            'requests.packages.urllib3.response',
-            'requests.packages.urllib3',
-            'inotify',
-            'netlink',
-            'sugar_stats',
-            ])
-    elif debug_level < 4:
-        logging.Logger.trace = lambda self, message, *args, **kwargs: \
-                self._log(9, message, args, **kwargs)
-        _disable_logger(['sugar_stats'])
+    if isinstance(error, type):
+        exception_class = error
+        if args:
+            error = args[0]
+            args = args[1:]
+        else:
+            error = None
     else:
-        logging.Logger.heartbeat = lambda self, message, *args, **kwargs: \
-                self._log(8, message, args, **kwargs)
+        exception_class = RuntimeError
+
+    if args:
+        error = error % args
+    elif not error:
+        # pylint: disable-msg=W0212
+        frame = sys._getframe(1)
+        error = 'Runtime assertion failed at %s:%s' % \
+                (frame.f_globals['__file__'], frame.f_lineno - 1)
+
+    raise exception_class(error)
 
 
-class PersistentSequence(ad.Sequence):
+def exception(*args):
+    """Log about exception on low log level.
 
-    def __init__(self, path, empty_value=None):
-        ad.Sequence.__init__(self, empty_value=empty_value)
-        self._path = path
+    That might be useful for non-critial exception. Input arguments are the
+    same as for `logging.exception` function.
 
-        if exists(self._path):
-            with file(self._path) as f:
-                self[:] = json.load(f)
+    :param args:
+        optional arguments to pass to logging function;
+        the first argument might be a `logging.Logger` to use instead of
+        using direct `logging` calls
 
-    def commit(self):
-        dir_path = dirname(self._path)
-        if dir_path and not exists(dir_path):
-            os.makedirs(dir_path)
-        with util.new_file(self._path) as f:
-            json.dump(self, f)
-            f.flush()
-            os.fsync(f.fileno())
+    """
+    if args and isinstance(args[0], logging.Logger):
+        logger = args[0]
+        args = args[1:]
+    else:
+        logger = logging
 
+    klass, error, tb = sys.exc_info()
 
-class MutableStack(object):
-    """Stack that keeps its iterators correct after changing content."""
+    import traceback
+    tb = [i.rstrip() for i in traceback.format_exception(klass, error, tb)]
 
-    def __init__(self):
-        self._queue = collections.deque()
+    error_message = str(error) or '%s exception' % type(error).__name__
+    if args:
+        if len(args) == 1:
+            message = args[0]
+        else:
+            message = args[0] % args[1:]
+        error_message = '%s: %s' % (message, error_message)
 
-    def add(self, value):
-        self.remove(value)
-        self._queue.appendleft([False, value])
-
-    def remove(self, value):
-        for i, (__, existing) in enumerate(self._queue):
-            if existing == value:
-                del self._queue[i]
-                break
-
-    def rewind(self):
-        for i in self._queue:
-            i[0] = False
-
-    def __len__(self):
-        return len(self._queue)
-
-    def __iter__(self):
-        return _MutableStackIterator(self._queue)
-
-    def __repr__(self):
-        return str([i[1] for i in self._queue])
-
-
-class _MutableStackIterator(object):
-
-    def __init__(self, queue):
-        self._queue = queue
-
-    def next(self):
-        for i in self._queue:
-            processed, value = i
-            if not processed:
-                i[0] = True
-                return value
-        raise StopIteration()
-
-
-def _disable_logger(loggers):
-    for log_name in loggers:
-        logger = logging.getLogger(log_name)
-        logger.propagate = False
-        logger.addHandler(_NullHandler())
-
-
-class _NullHandler(logging.Handler):
-
-    def emit(self, record):
-        pass
+    logger.error(error_message)
+    logger.debug('\n'.join(tb))

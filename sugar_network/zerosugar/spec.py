@@ -20,7 +20,7 @@ from os.path import join, exists, dirname
 from ConfigParser import ConfigParser
 
 from sugar_network.zerosugar.licenses import GOOD_LICENSES
-from active_toolkit import util, enforce
+from sugar_network.toolkit import exception, enforce
 
 
 _LIST_SEPARATOR = ';'
@@ -53,7 +53,7 @@ _VERSION_MOD_TO_VALUE = {
         }
 _VERSION_VALUE_TO_MOD = {}
 
-_RESTRICTION_RE = re.compile('(>=|<|=)\s*([0-9.]+)')
+_RESTRICTION_RE = re.compile('(>=|<|=)\\s*([0-9.]+)')
 
 _logger = logging.getLogger('sweets-recipe')
 
@@ -295,7 +295,7 @@ def parse_version(version_string):
             parts[x] = _VERSION_MOD_TO_VALUE[parts[x]]
         return parts
     except ValueError as error:
-        util.exception()
+        exception()
         raise RuntimeError('Invalid version format in "%s": %s' %
                 (version_string, error))
     except KeyError as error:

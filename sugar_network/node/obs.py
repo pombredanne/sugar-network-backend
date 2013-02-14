@@ -19,9 +19,7 @@ import logging
 from xml.etree import cElementTree as ElementTree
 from os.path import join, exists
 
-from sugar_network.toolkit import http
-from active_toolkit.options import Option
-from active_toolkit import util, enforce
+from sugar_network.toolkit import Option, http, util, exception, enforce
 
 
 obs_url = Option(
@@ -78,7 +76,7 @@ def presolve(names):
                         'exclude': 'sugar',
                         })
                 except Exception:
-                    util.exception('Failed to resolve %s:%s:%s for presolving',
+                    exception('Failed to resolve %s:%s:%s for presolving',
                             repo['name'], arch, package)
                     continue
                 deps_graph = []

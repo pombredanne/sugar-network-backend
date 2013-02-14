@@ -19,11 +19,10 @@ import logging
 import cPickle as pickle
 from os.path import join, exists, basename, dirname
 
-from sugar_network import client, sugar
+from sugar_network import client
 from sugar_network.client import journal
-from sugar_network.zerosugar import cache, lsb_release
-from sugar_network.toolkit import pipe
-from active_toolkit import util
+from sugar_network.zerosugar import cache
+from sugar_network.toolkit import pipe, lsb_release, util, sugar
 
 
 _PMS_PATHS = {

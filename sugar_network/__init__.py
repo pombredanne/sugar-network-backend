@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -12,27 +12,3 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-from sugar_network.toolkit import sugar
-from sugar_network.client import api_url, server_mode
-from sugar_network_webui import webui_port
-
-
-def clones(*args, **kwargs):
-    import sugar_network.zerosugar.clones
-    return sugar_network.zerosugar.clones.walk(*args, **kwargs)
-
-
-def Client(url=None, sugar_auth=True, **session):
-    from sugar_network.toolkit import http
-    if url is None:
-        url = api_url.value
-    return http.Client(url, sugar_auth=sugar_auth, **session)
-
-
-def IPCClient(**session):
-    from sugar_network.toolkit import http
-    from sugar_network.client import ipc_port
-    # Since `IPCClient` uses only localhost, ignore `http_proxy` envar
-    session['config'] = {'trust_env': False}
-    return http.Client('http://localhost:%s' % ipc_port.value, **session)

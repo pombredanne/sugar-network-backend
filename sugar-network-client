@@ -25,9 +25,8 @@ from os.path import join, abspath, exists
 
 from gevent import monkey
 
-import active_document as ad
 import sugar_network_webui as webui
-from sugar_network import toolkit, client, node
+from sugar_network import db, toolkit, client, node
 from sugar_network.toolkit import sugar, mountpoints
 from sugar_network.toolkit.router import IPCRouter
 from sugar_network.client.mounts import HomeMount, RemoteMount
@@ -35,8 +34,8 @@ from sugar_network.client.mountset import Mountset
 from sugar_network.zerosugar import clones
 from sugar_network.node import stats
 from sugar_network.resources.volume import Volume
-from active_toolkit.options import Option
-from active_toolkit import util, printf, application, coroutine, enforce
+from sugar_network.toolkit import Option
+from sugar_network.toolkit import util, printf, application, coroutine, enforce
 
 
 class Application(application.Daemon):
@@ -45,7 +44,7 @@ class Application(application.Daemon):
         application.Daemon.__init__(self, **kwargs)
 
         self.jobs = coroutine.Pool()
-        toolkit.init_logging(application.debug.value)
+        util.init_logging(application.debug.value)
 
         new_root = (client.local_root.value != client.local_root.default)
         client.local_root.value = abspath(client.local_root.value)
@@ -73,7 +72,7 @@ class Application(application.Daemon):
 
         printf.info('Index database in %r', client.local_root.value)
 
-        volume = Volume(client.db_path())
+        volume = Volume(client.path('db'))
         try:
             volume.populate()
             self._sync(volume)
@@ -108,8 +107,8 @@ class Application(application.Daemon):
         self.cmd_start()
 
     def run(self):
-        toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
-        volume = Volume(client.db_path(), lazy_open=client.lazy_open.value)
+        util.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+        volume = Volume(client.path('db'), lazy_open=client.lazy_open.value)
         mountset = Mountset(volume)
         mountset['~'] = HomeMount(volume)
         mountset['/'] = RemoteMount(volume)
@@ -171,7 +170,7 @@ class Application(application.Daemon):
 
     def _sync(self, volume):
         contexts = volume['context']
-        docs, __ = contexts.find(limit=ad.MAX_LIMIT, clone=[1, 2])
+        docs, __ = contexts.find(limit=db.MAX_LIMIT, clone=[1, 2])
         for context in docs:
             if not clones.ensure_clones(context.guid):
                 contexts.update(context.guid, clone=0)
@@ -205,7 +204,7 @@ Option.seek('client', client)
 Option.seek('client', [sugar.keyfile, toolkit.tmpdir])
 Option.seek('node', [node.port, node.sync_dirs])
 Option.seek('stats', stats)
-Option.seek('active-document', ad)
+Option.seek('db', db)
 
 app = Application(
         name='sugar-network-client',

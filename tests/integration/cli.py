@@ -11,11 +11,10 @@ from os.path import exists
 
 import requests
 
-from __init__ import tests
+from __init__ import tests, src_root
 
-import active_document as ad
-from sugar_network import IPCClient
-from active_toolkit import coroutine, util
+from sugar_network.client import IPCClient
+from sugar_network.toolkit import coroutine, util
 
 
 class CliTest(tests.Test):
@@ -24,7 +23,7 @@ class CliTest(tests.Test):
         tests.Test.setUp(self)
 
         os.makedirs('mnt')
-        util.cptree('../../data/node', 'node')
+        util.cptree(src_root + '/tests/data/node', 'node')
         self.client_pid = None
 
         self.node_pid = self.popen(['sugar-network-node', '-F', 'start',

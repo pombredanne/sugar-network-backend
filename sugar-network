@@ -25,15 +25,13 @@ from os.path import join
 
 from gevent import monkey
 
-import active_document as ad
-from sugar_network import client, sugar, toolkit, IPCClient
+from sugar_network import db, client
 from sugar_network.toolkit.router import IPCRouter, Request
 from sugar_network.resources.volume import Volume
 from sugar_network.client.mountset import Mountset
 from sugar_network.client.mounts import HomeMount, RemoteMount
-from active_toolkit.options import Option
-from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import printf, application, coroutine, enforce
+from sugar_network.toolkit import sugar, util, sugar, Option, BUFFER_SIZE
+from sugar_network.toolkit import printf, application, coroutine, enforce
 
 
 anonymous = Option(
@@ -69,7 +67,7 @@ class Application(application.Application):
     def __init__(self, **kwargs):
         application.Application.__init__(self, **kwargs)
         application.rundir.value = join(client.local_root.value, 'run')
-        toolkit.init_logging(application.debug.value)
+        util.init_logging(application.debug.value)
 
     @application.command(
             'send POST API request')
@@ -94,7 +92,7 @@ class Application(application.Application):
     def _call(self, method, post):
         request = Request(method=method)
         request.allow_redirects = True
-        response = ad.Response()
+        response = db.Response()
         reply = []
 
         if post:
@@ -161,8 +159,8 @@ class Application(application.Application):
                     sugar.color = lambda: '#000000,#000000'
                     sugar.privkey_path = lambda: '/fake/path'
                 else:
-                    toolkit.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
-                volume = Volume(client.db_path())
+                    util.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+                volume = Volume(client.path('db'))
                 mountset = Mountset(volume)
                 mountset['~'] = HomeMount(volume)
                 if not mountpoint or mountpoint == '/':
@@ -174,7 +172,7 @@ class Application(application.Application):
                 coroutine.spawn(server.serve_forever)
                 coroutine.dispatch()
 
-            result = IPCClient(sync=True).call(request, response)
+            result = client.IPCClient(sync=True).call(request, response)
 
         finally:
             if server is not None:

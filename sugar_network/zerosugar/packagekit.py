@@ -25,8 +25,7 @@ import dbus
 import gobject
 from dbus.mainloop.glib import threads_init, DBusGMainLoop
 
-from sugar_network.toolkit import pipe
-from active_toolkit import enforce
+from sugar_network.toolkit import pipe, enforce
 
 
 _PK_CONFILE = '/etc/PackageKit/PackageKit.conf'

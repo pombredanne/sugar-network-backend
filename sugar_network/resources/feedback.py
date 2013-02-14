@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,31 +13,29 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import active_document as ad
-
-from sugar_network import resources
+from sugar_network import db, resources
 from sugar_network.resources.volume import Resource
 
 
 class Feedback(Resource):
 
-    @ad.active_property(prefix='C',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='C',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='T', typecast=[resources.FEEDBACK_TYPES])
+    @db.indexed_property(prefix='T', typecast=[resources.FEEDBACK_TYPES])
     def type(self, value):
         return value
 
-    @ad.active_property(prefix='S', full_text=True, localized=True)
+    @db.indexed_property(prefix='S', full_text=True, localized=True)
     def title(self, value):
         return value
 
-    @ad.active_property(prefix='N', full_text=True, localized=True)
+    @db.indexed_property(prefix='N', full_text=True, localized=True)
     def content(self, value):
         return value
 
-    @ad.active_property(prefix='A', default='')
+    @db.indexed_property(prefix='A', default='')
     def solution(self, value):
         return value

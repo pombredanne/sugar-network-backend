@@ -20,13 +20,11 @@ import logging
 from os.path import join, dirname, exists, basename
 from gettext import gettext as _
 
-import active_document as ad
-from sugar_network import node, client
+from sugar_network import db, node, client
 from sugar_network.toolkit import mountpoints, sneakernet, files_sync
-from sugar_network.toolkit import MutableStack, PersistentSequence
+from sugar_network.toolkit import coroutine, util, exception, enforce
 from sugar_network.toolkit.sneakernet import OutFilePacket, DiskFull
 from sugar_network.node import stats
-from active_toolkit import coroutine, util, enforce
 
 
 _SYNC_DIRNAME = '.sugar-network-sync'
@@ -38,13 +36,13 @@ class SyncCommands(object):
 
     def __init__(self, sequences_path):
         self._sync = coroutine.Pool()
-        self._sync_mounts = MutableStack()
+        self._sync_mounts = util.MutableStack()
         self._file_syncs = \
                 files_sync.Leechers(node.sync_dirs.value, sequences_path)
         self._sync_session = None
-        self._push_seq = PersistentSequence(
+        self._push_seq = util.PersistentSequence(
                 join(sequences_path, 'push'), [1, None])
-        self._pull_seq = PersistentSequence(
+        self._pull_seq = util.PersistentSequence(
                 join(sequences_path, 'pull'), [1, None])
         self._sync_script = join(dirname(sys.argv[0]), 'sugar-network-sync')
         self._mount = None
@@ -64,7 +62,7 @@ class SyncCommands(object):
         if self._sync_mounts:
             self.start_sync()
 
-    @ad.volume_command(method='POST', cmd='start_sync')
+    @db.volume_command(method='POST', cmd='start_sync')
     def start_sync(self, rewind=False, path=None):
         enforce(self._mount is not None, 'No server to sync')
 
@@ -78,7 +76,7 @@ class SyncCommands(object):
             self._sync_mounts.rewind()
         self._sync.spawn(self.sync_session, path)
 
-    @ad.volume_command(method='POST', cmd='break_sync')
+    @db.volume_command(method='POST', cmd='break_sync')
     def break_sync(self):
         self._sync.kill()
 
@@ -86,18 +84,18 @@ class SyncCommands(object):
             stats_sequence=None, session=None):
         enforce(self._mount is not None, 'No server to sync')
 
-        to_push_seq = ad.Sequence(empty_value=[1, None])
+        to_push_seq = util.Sequence(empty_value=[1, None])
         if diff_sequence is None:
             to_push_seq.include(self._push_seq)
         else:
-            to_push_seq = ad.Sequence(diff_sequence)
+            to_push_seq = util.Sequence(diff_sequence)
 
         if stats_sequence is None:
             stats_sequence = {}
 
         if session is None:
             session_is_new = True
-            session = ad.uuid()
+            session = db.uuid()
         else:
             session_is_new = False
 
@@ -165,7 +163,7 @@ class SyncCommands(object):
                         break
                 break
         except Exception, error:
-            util.exception(_logger, 'Failed to complete synchronization')
+            exception(_logger, 'Failed to complete synchronization')
             self._mount.publish({'event': 'sync_error', 'error': str(error)})
             self._sync_session = None
 

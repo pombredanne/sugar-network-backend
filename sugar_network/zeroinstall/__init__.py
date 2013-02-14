@@ -17,13 +17,13 @@ import sys
 import logging
 from os.path import isabs, join, abspath, dirname
 
-from sugar_network import IPCClient
-from sugar_network.toolkit import pipe
-from sugar_network.zerosugar import packagekit, lsb_release
+from sugar_network.client import IPCClient
+from sugar_network.toolkit import lsb_release, pipe, exception
+from sugar_network.zerosugar import packagekit
 from sugar_network.zerosugar.spec import parse_version
-from active_toolkit import util
 
-sys.path.insert(0, join(abspath(dirname(__file__)), 'zeroinstall-injector'))
+sys.path.insert(0,
+        join(abspath(dirname(__file__)), '..', 'lib', 'zeroinstall-injector'))
 
 from zeroinstall.injector import reader, model, distro
 from zeroinstall.injector.config import Config
@@ -186,8 +186,7 @@ def _load_feed(context):
             pipe.trace('Found %s in %s mountpoint', context, mountpoint)
             break
         except Exception:
-            util.exception(_logger,
-                    'Failed to fetch %r feed from %r mountpoint',
+            exception(_logger, 'Failed to fetch %r feed from %r mountpoint',
                     context, mountpoint)
 
     if feed_content is None:

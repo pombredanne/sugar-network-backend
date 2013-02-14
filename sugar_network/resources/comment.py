@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,20 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import active_document as ad
-
+from sugar_network import db
 from sugar_network.resources.volume import Resource
 
 
 class Comment(Resource):
 
-    @ad.active_property(prefix='C',
-            permissions=ad.ACCESS_READ)
+    @db.indexed_property(prefix='C',
+            permissions=db.ACCESS_READ)
     def context(self, value):
         return value
 
-    @ad.active_property(prefix='R', default='',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='R', default='',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def review(self, value):
         return value
 
@@ -37,8 +36,8 @@ class Comment(Resource):
             self['context'] = review['context']
         return value
 
-    @ad.active_property(prefix='F', default='',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='F', default='',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def feedback(self, value):
         return value
 
@@ -49,8 +48,8 @@ class Comment(Resource):
             self['context'] = feedback['context']
         return value
 
-    @ad.active_property(prefix='S', default='',
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='S', default='',
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def solution(self, value):
         return value
 
@@ -61,7 +60,7 @@ class Comment(Resource):
             self['context'] = solution['context']
         return value
 
-    @ad.active_property(prefix='M', full_text=True, localized=True,
-            permissions=ad.ACCESS_CREATE | ad.ACCESS_READ)
+    @db.indexed_property(prefix='M', full_text=True, localized=True,
+            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def message(self, value):
         return value

@@ -19,11 +19,8 @@ import logging
 from bisect import bisect_left
 from os.path import join, exists, relpath, lexists, basename, dirname
 
-import active_document as ad
-from sugar_network.toolkit import PersistentSequence
 from sugar_network.toolkit.sneakernet import DiskFull
-from active_toolkit.sockets import BUFFER_SIZE
-from active_toolkit import util, coroutine
+from sugar_network.toolkit import BUFFER_SIZE, util, coroutine
 
 
 _logger = logging.getLogger('files_sync')
@@ -52,8 +49,8 @@ class Seeder(object):
         # Thus, avoid changing `self._index` by different coroutines.
         with self._mutex:
             self._sync()
-            orig_seq = ad.Sequence(in_seq)
-            out_seq = ad.Sequence()
+            orig_seq = util.Sequence(in_seq)
+            out_seq = util.Sequence()
 
             try:
                 self._pull(in_seq, packet, out_seq, False)
@@ -187,7 +184,7 @@ class Leecher(object):
 
     def __init__(self, files_path, sequence_path):
         self._files_path = files_path.rstrip(os.sep)
-        self.sequence = PersistentSequence(sequence_path, [1, None])
+        self.sequence = util.PersistentSequence(sequence_path, [1, None])
 
         if not exists(self._files_path):
             os.makedirs(self._files_path)

@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,11 +24,9 @@ import requests
 from requests.sessions import Session
 from M2Crypto import DSA
 
-import active_document as ad
-from sugar_network.toolkit import sugar
+from sugar_network.toolkit import sugar, coroutine, exception, enforce
 from sugar_network.toolkit.router import Redirect
-from sugar_network import client
-from active_toolkit import coroutine, util, enforce
+from sugar_network import db, client
 
 
 ConnectionError = requests.ConnectionError
@@ -51,7 +49,7 @@ class Client(object):
         elif client.certfile.value:
             verify = client.certfile.value
 
-        headers = {'Accept-Language': ad.default_lang()}
+        headers = {'Accept-Language': db.default_lang()}
         if self._sugar_auth:
             privkey_path = sugar.privkey_path()
             if not exists(privkey_path):
@@ -240,7 +238,7 @@ class _Subscription(object):
             except Exception:
                 if a_try == 0:
                     raise
-                util.exception('Failed to read from %r subscription, '
+                exception('Failed to read from %r subscription, '
                         'will resubscribe', self._client.api_url)
                 self._response = None
 
@@ -248,7 +246,7 @@ class _Subscription(object):
             try:
                 return json.loads(line.split(' ', 1)[1])
             except Exception:
-                util.exception('Failed to parse %r event from %r subscription',
+                exception('Failed to parse %r event from %r subscription',
                         line, self._client.api_url)
 
     def _handshake(self):
@@ -265,7 +263,7 @@ class _Subscription(object):
             except Exception:
                 if a_try == 0:
                     raise
-                util.exception(_logger,
+                exception(_logger,
                         'Cannot subscribe to %r, retry in %s second(s)',
                         self._client.api_url, _RECONNECTION_TIMEOUT)
                 coroutine.sleep(_RECONNECTION_TIMEOUT)

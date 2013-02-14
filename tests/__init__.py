@@ -16,14 +16,13 @@ import requests
 from M2Crypto import DSA
 from gevent import monkey
 
-import active_document as ad
-from active_toolkit import coroutine
-from sugar_network.toolkit import sugar, http, sneakernet, mountpoints
+from sugar_network.toolkit import coroutine, sugar, http, sneakernet, mountpoints, util
 from sugar_network.toolkit.router import Router, IPCRouter
 from sugar_network.client import journal
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.client.mountset import Mountset
-from sugar_network import client, node, toolkit, zeroinstall
+from sugar_network import db, client, node, toolkit, zeroinstall
+from sugar_network.db import env
 from sugar_network.zerosugar import injector
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
@@ -34,7 +33,9 @@ from sugar_network.resources.volume import Volume
 
 
 root = abspath(dirname(__file__))
-tmproot = join(root, '.tmp')
+# Assume that /tmp is tmpfs
+#tmproot = join(root, '.tmp')
+tmproot = '/tmp/sugar_network.tests'
 tmpdir = None
 
 monkey.patch_socket(dns=False)
@@ -54,6 +55,7 @@ class Test(unittest.TestCase):
         self._overriden = []
 
         os.environ['LANG'] = 'en_US'
+        env._default_lang = 'en-us'
 
         global tmpdir
         tmpdir = join(tmproot, '.'.join(self.id().split('.')[1:]))
@@ -76,13 +78,13 @@ class Test(unittest.TestCase):
         shutil.copy(join(root, 'data', 'owner.key'), profile_dir)
         shutil.copy(join(root, 'data', 'owner.key.pub'), profile_dir)
 
-        ad.index_flush_timeout.value = 0
-        ad.index_flush_threshold.value = 1
+        db.index_flush_timeout.value = 0
+        db.index_flush_threshold.value = 1
         node.find_limit.value = 1024
         node.data_root.value = tmpdir
         node.sync_dirs.value = []
         node.static_url.value = None
-        ad.index_write_queue.value = 10
+        db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.activity_dirs.value = [tmpdir + '/Activities']
         client.api_url.value = 'http://localhost:8888'
@@ -128,7 +130,7 @@ class Test(unittest.TestCase):
         for handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG, filename=self.logfile)
-        toolkit.init_logging(10)
+        util.init_logging(10)
 
         self.server = None
         self.mounts = None
@@ -279,10 +281,10 @@ class Test(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
         logging.basicConfig(level=logging.DEBUG)
 
-        ad.index_flush_timeout.value = 0
-        ad.index_flush_threshold.value = 1
+        db.index_flush_timeout.value = 0
+        db.index_flush_threshold.value = 1
         node.find_limit.value = 1024
-        ad.index_write_queue.value = 10
+        db.index_write_queue.value = 10
 
         volume = Volume('remote', classes or [User, Context, Implementation])
         cp = NodeCommands(volume)

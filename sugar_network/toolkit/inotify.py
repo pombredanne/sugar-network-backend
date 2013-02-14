@@ -16,13 +16,8 @@
 # Code is based on pyinotify sources
 # http://pypi.python.org/pypi/pyinotify
 
-"""Linux inotify integration.
+"""Linux inotify integration."""
 
-$Repo: git://git.sugarlabs.org/alsroot/codelets.git$
-$File: src/inotify.py$
-$Date: 2012-07-12$
-
-"""
 import os
 import errno
 import struct
@@ -180,7 +175,7 @@ class Inotify(object):
                     struct.unpack('iIII', buf[pos:pos + _EVENT_HEADER_SIZE])
             pos += _EVENT_HEADER_SIZE
 
-            filename_end = buf.find('\0', pos, pos + name_len)
+            filename_end = buf.find('\x00', pos, pos + name_len)
             if filename_end == -1:
                 filename = ''
             else:

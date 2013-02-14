@@ -18,11 +18,9 @@ import shutil
 import logging
 from os.path import exists, join
 
-from sugar_network import toolkit, Client
-from sugar_network.client import local_root
+from sugar_network.client import Client, local_root
 from sugar_network.zerosugar.bundle import Bundle
-from sugar_network.toolkit import pipe
-from active_toolkit.sockets import BUFFER_SIZE
+from sugar_network.toolkit import BUFFER_SIZE, pipe, util
 
 
 _logger = logging.getLogger('zerosugar.cache')
@@ -41,7 +39,7 @@ def get(guid):
             allow_redirects=True)
     content_length = int(response.headers.get('Content-Length', '0'))
 
-    with toolkit.NamedTemporaryFile() as tmp_file:
+    with util.NamedTemporaryFile() as tmp_file:
         chunk_size = min(content_length, BUFFER_SIZE)
         # pylint: disable-msg=E1103
         for chunk in response.iter_content(chunk_size=chunk_size):

@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,115 +16,114 @@
 import time
 from os.path import join
 
-import active_document as ad
-from sugar_network import resources, static
+from sugar_network import db, resources, static
 from sugar_network.resources.volume import Resource
 from sugar_network.zerosugar import clones
 from sugar_network.zerosugar.spec import Spec
 from sugar_network.node import obs
-from active_toolkit import coroutine, util
+from sugar_network.toolkit import coroutine, exception
 
 
 class Context(Resource):
 
-    @ad.active_property(prefix='T', full_text=True,
+    @db.indexed_property(prefix='T', full_text=True,
             typecast=[resources.CONTEXT_TYPES])
     def type(self, value):
         return value
 
-    @ad.active_property(prefix='M',
+    @db.indexed_property(prefix='M',
             full_text=True, default=[], typecast=[])
     def implement(self, value):
         return value
 
-    @ad.active_property(slot=1, prefix='S', full_text=True, localized=True)
+    @db.indexed_property(slot=1, prefix='S', full_text=True, localized=True)
     def title(self, value):
         return value
 
-    @ad.active_property(prefix='R', full_text=True, localized=True)
+    @db.indexed_property(prefix='R', full_text=True, localized=True)
     def summary(self, value):
         return value
 
-    @ad.active_property(prefix='D', full_text=True, localized=True)
+    @db.indexed_property(prefix='D', full_text=True, localized=True)
     def description(self, value):
         return value
 
-    @ad.active_property(prefix='H', default='', full_text=True)
+    @db.indexed_property(prefix='H', default='', full_text=True)
     def homepage(self, value):
         return value
 
-    @ad.active_property(prefix='Y', default=[], typecast=[], full_text=True)
+    @db.indexed_property(prefix='Y', default=[], typecast=[], full_text=True)
     def mime_types(self, value):
         return value
 
-    @ad.active_property(ad.BlobProperty, mime_type='image/png')
+    @db.blob_property(mime_type='image/png')
     def icon(self, value):
         if value:
             return value
         if 'package' in self['type']:
-            return ad.PropertyMeta(
+            return db.PropertyMetadata(
                     url='/static/images/package.png',
                     path=join(static.PATH, 'images', 'package.png'),
                     mime_type='image/png')
         else:
-            return ad.PropertyMeta(
+            return db.PropertyMetadata(
                     url='/static/images/missing.png',
                     path=join(static.PATH, 'images', 'missing.png'),
                     mime_type='image/png')
 
-    @ad.active_property(ad.BlobProperty, mime_type='image/svg+xml')
+    @db.blob_property(mime_type='image/svg+xml')
     def artifact_icon(self, value):
         if value:
             return value
-        return ad.PropertyMeta(
+        return db.PropertyMetadata(
                 url='/static/images/missing.svg',
                 path=join(static.PATH, 'images', 'missing.svg'),
                 mime_type='image/svg+xml')
 
-    @ad.active_property(ad.BlobProperty, mime_type='image/png')
+    @db.blob_property(mime_type='image/png')
     def preview(self, value):
         if value:
             return value
-        return ad.PropertyMeta(
+        return db.PropertyMetadata(
                 url='/static/images/missing.png',
                 path=join(static.PATH, 'images', 'missing.png'),
                 mime_type='image/png')
 
-    @ad.active_property(slot=2, typecast=int, default=0,
-            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    @db.indexed_property(slot=2, typecast=int, default=0,
+            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
     def downloads(self, value):
         return value
 
-    @ad.active_property(slot=3, typecast=resources.RATINGS, default=0,
-            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    @db.indexed_property(slot=3, typecast=resources.RATINGS, default=0,
+            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
     def rating(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=[], default=[0, 0],
-            permissions=ad.ACCESS_READ | ad.ACCESS_SYSTEM)
+    @db.stored_property(typecast=[], default=[0, 0],
+            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
     def reviews(self, value):
         if value is None:
             return 0
         else:
             return value[0]
 
-    @ad.active_property(prefix='K', typecast=bool, default=False,
-            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+    @db.indexed_property(prefix='K', typecast=bool, default=False,
+            permissions=db.ACCESS_READ | db.ACCESS_LOCAL)
     def favorite(self, value):
         return value
 
-    @ad.active_property(prefix='L', typecast=[0, 1, 2], default=0,
-            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL)
+    @db.indexed_property(prefix='L', typecast=[0, 1, 2], default=0,
+            permissions=db.ACCESS_READ | db.ACCESS_LOCAL)
     def clone(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=[int], default=(-1, -1),
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
+    @db.stored_property(typecast=[int], default=(-1, -1),
+            permissions=db.ACCESS_PUBLIC | db.ACCESS_LOCAL)
     def position(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=[], default=[],
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
+    @db.stored_property(typecast=[], default=[],
+            permissions=db.ACCESS_PUBLIC | db.ACCESS_LOCAL)
     def dependencies(self, value):
         """Software dependencies.
 
@@ -140,8 +139,8 @@ class Context(Resource):
         self.volume['implementation'].mtime = int(time.time())
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={},
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL)
+    @db.stored_property(typecast=dict, default={},
+            permissions=db.ACCESS_PUBLIC | db.ACCESS_LOCAL)
     def aliases(self, value):
         return value
 
@@ -150,13 +149,13 @@ class Context(Resource):
         coroutine.spawn(self._process_aliases, value)
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=dict, default={},
-            permissions=ad.ACCESS_PUBLIC | ad.ACCESS_LOCAL | ad.ACCESS_SYSTEM)
+    @db.stored_property(typecast=dict, default={},
+            permissions=db.ACCESS_PUBLIC | db.ACCESS_LOCAL | db.ACCESS_SYSTEM)
     def packages(self, value):
         return value
 
-    @ad.active_property(ad.StoredProperty, typecast=[], default=[],
-            permissions=ad.ACCESS_READ | ad.ACCESS_LOCAL | ad.ACCESS_SYSTEM)
+    @db.stored_property(typecast=[], default=[],
+            permissions=db.ACCESS_READ | db.ACCESS_LOCAL | db.ACCESS_SYSTEM)
     def versions(self, value):
         result = []
 
@@ -165,7 +164,7 @@ class Context(Resource):
                 try:
                     spec = Spec(root=path)
                 except Exception:
-                    util.exception('Failed to read %r spec file', path)
+                    exception('Failed to read %r spec file', path)
                     continue
                 result.append({
                     'guid': spec.root,
@@ -181,7 +180,7 @@ class Context(Resource):
                     })
         else:
             impls, __ = self.volume['implementation'].find(
-                    limit=ad.MAX_LIMIT, context=self.guid,
+                    limit=db.MAX_LIMIT, context=self.guid,
                     layer=self.request.get('layer'))
             for impl in impls:
                 for arch, spec in impl['spec'].items():
@@ -211,7 +210,7 @@ class Context(Resource):
                 else:
                     alias['status'] = 'no packages to resolve'
             except Exception, error:
-                util.exception('Failed to resolve %r', alias)
+                exception('Failed to resolve %r', alias)
                 alias = {'status': str(error)}
             packages[repo['name']] = alias
 

@@ -13,13 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Linux Netlink integration.
+"""Linux Netlink integration."""
 
-$Repo: git://git.sugarlabs.org/alsroot/codelets.git$
-$File: src/netlink.py$
-$Date: 2012-08-05$
-
-"""
 import os
 import socket
 import struct
