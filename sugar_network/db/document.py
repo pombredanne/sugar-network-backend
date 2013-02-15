@@ -24,6 +24,7 @@ _logger = logging.getLogger('db.document')
 
 
 class Document(object):
+    """Base class for all data classes."""
 
     #: `Metadata` object that describes the document
     metadata = None

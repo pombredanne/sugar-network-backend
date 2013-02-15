@@ -8,7 +8,7 @@ summary   = Sugar Network
 license   = GPLv3+
 homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network
 
-version   = 0.7
+version   = 0.8
 stability = developer
 
 requires  = m2crypto; requests; rrdtool-python; openssh-client

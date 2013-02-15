@@ -6,7 +6,7 @@ from cStringIO import StringIO
 from __init__ import tests
 
 from sugar_network import db
-from sugar_network.db import env, volume, SingleVolume, Document, \
+from sugar_network.db import env, volume, Volume, Document, \
         property_command, document_command, directory_command, volume_command, \
         Request, BlobProperty, Response, CommandsProcessor, \
         CommandNotFound, NotFound, to_int, to_list
@@ -85,7 +85,7 @@ class CommandsTest(tests.Test):
         class TestDocument(Document):
             pass
 
-        volume = SingleVolume(tests.tmpdir, [TestDocument])
+        volume = Volume(tests.tmpdir, [TestDocument])
         cp = TestCommandsProcessor(volume)
 
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
@@ -120,7 +120,7 @@ class CommandsTest(tests.Test):
         class TestDocument(Document):
             pass
 
-        volume = SingleVolume(tests.tmpdir, [TestDocument])
+        volume = Volume(tests.tmpdir, [TestDocument])
         cp = TestCommandsProcessor(volume)
 
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
@@ -153,7 +153,7 @@ class CommandsTest(tests.Test):
             def command_2(cls, **kwargs):
                 calls.append(('command_2', kwargs))
 
-        volume = SingleVolume(tests.tmpdir, [TestDocument])
+        volume = Volume(tests.tmpdir, [TestDocument])
         cp = CommandsProcessor(volume)
 
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')
@@ -185,7 +185,7 @@ class CommandsTest(tests.Test):
             def command_2(cls, **kwargs):
                 calls.append(('command_2', kwargs))
 
-        volume = SingleVolume(tests.tmpdir, [TestDocument])
+        volume = Volume(tests.tmpdir, [TestDocument])
         cp = CommandsProcessor(volume)
 
         self.assertRaises(CommandNotFound, self.call, cp, 'PROBE')

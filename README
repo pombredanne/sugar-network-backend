@@ -1,23 +1,43 @@
-Introduction
-============
+#################
+  Sugar Network
+#################
 
-Server and client code for Sugar Network.
-See `home page`_ for more details.
+Sugar Network is a `Sugar Labs`_ project. It is a content sharing and
+social activity system for `Sugar Learning Environment`_. The system
+is intended to be a share point for various content (like Sugar applications,
+content created by such applications, books and articles, etc.) created
+and/or supported within the Sugar community. The Sugar Network is being
+targeted not only to the Internet auditory but also to primary and secondary
+educational institutions including ones that have lack of Internet connectivity
+and/or skilled administrative personnel, e.g., rural schools.
+
+See the `home page`_ for more details.
+
+.. toctree::
+    :maxdepth: 2
+    :numbered:
+
+    api
+    requirements
+    HACKING
+    AUTHORS
+    COPYING
 
 Sources
-=======
+-------
 
-Clone source repository from `Gitorious`_ project:
+Clone sources from `Gitorious`_ project:
 
-    ``git clone git://git.sugarlabs.org/network/network.git``
+    ``git clone git://git.sugarlabs.org/network/network.git --recursive``
 
-Artwork
-=======
+Indices and tables
+------------------
 
-* `sugar-artwork`_ images.
-* `Oxygen`_ icons.
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
 
+.. _Sugar Labs: https://wiki.sugarlabs.org/
+.. _Sugar Learning Environment: http://wiki.sugarlabs.org/go/What_is_Sugar%3F
 .. _home page: http://wiki.sugarlabs.org/go/Sugar_Network
 .. _Gitorious: http://git.sugarlabs.org/network
-.. _sugar-artwork: http://git.sugarlabs.org/sugar-artwork
-.. _Oxygen: http://www.oxygen-icons.org/

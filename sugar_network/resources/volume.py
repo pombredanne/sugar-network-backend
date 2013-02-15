@@ -117,7 +117,7 @@ class Resource(db.Document):
         return author
 
 
-class Volume(db.SingleVolume):
+class Volume(db.Volume):
 
     RESOURCES = (
             'sugar_network.resources.artifact',
@@ -137,14 +137,14 @@ class Volume(db.SingleVolume):
             document_classes = Volume.RESOURCES
         self._downloader = None
         self._populators = coroutine.Pool()
-        db.SingleVolume.__init__(self, root, document_classes, lazy_open)
+        db.Volume.__init__(self, root, document_classes, lazy_open=lazy_open)
 
     def close(self):
         if self._downloader is not None:
             self._downloader.close()
             self._downloader = None
         self._populators.kill()
-        db.SingleVolume.close(self)
+        db.Volume.close(self)
 
     def notify(self, event):
         if event['event'] == 'update' and 'props' in event and \
@@ -152,7 +152,7 @@ class Volume(db.SingleVolume):
             event['event'] = 'delete'
             del event['props']
 
-        db.SingleVolume.notify(self, event)
+        db.Volume.notify(self, event)
 
     def diff(self, in_seq, packet):
         out_seq = util.Sequence()
@@ -194,7 +194,7 @@ class Volume(db.SingleVolume):
                 return commit
 
     def _open(self, name, document):
-        directory = db.SingleVolume._open(self, name, document)
+        directory = db.Volume._open(self, name, document)
         self._populators.spawn(self._populate, directory)
         return directory
 
