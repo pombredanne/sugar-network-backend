@@ -12,13 +12,12 @@ from os.path import exists, dirname
 
 from __init__ import tests
 
-from sugar_network import zeroinstall
 from sugar_network.client import journal
 from sugar_network.toolkit import coroutine, enforce, pipe as pipe_, lsb_release
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.zerosugar import packagekit, injector, clones
+from sugar_network.zerosugar import packagekit, injector, clones, solver
 from sugar_network.client import IPCClient
 from sugar_network import client as local
 
@@ -395,7 +394,7 @@ class InjectorTest(tests.Test):
 
     def test_SolutionsCache_Set(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(zeroinstall, 'solve', lambda *args: solution)
+        self.override(solver, 'solve', lambda *args: solution)
 
         self.assertEqual(solution, injector._solve('~', 'context'))
         self.assertEqual([local.api_url.value, solution], pickle.load(file('cache/solutions/~/co/context')))
@@ -408,7 +407,7 @@ class InjectorTest(tests.Test):
 
     def test_SolutionsCache_InvalidateByAPIUrl(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(zeroinstall, 'solve', lambda *args: solution)
+        self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/~/co/context'
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
@@ -422,7 +421,7 @@ class InjectorTest(tests.Test):
 
     def test_SolutionsCache_InvalidateByMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(zeroinstall, 'solve', lambda *args: solution)
+        self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/~/co/context'
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
@@ -442,7 +441,7 @@ class InjectorTest(tests.Test):
 
     def test_SolutionsCache_InvalidateByPMSMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(zeroinstall, 'solve', lambda *args: solution)
+        self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/~/co/context'
 
         injector._pms_path = 'pms'
@@ -464,7 +463,7 @@ class InjectorTest(tests.Test):
 
     def test_SolutionsCache_InvalidateBySpecMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(zeroinstall, 'solve', lambda *args: solution)
+        self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/~/co/context'
 
         solution2 = [{'spec': 'spec', 'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
@@ -630,7 +629,7 @@ class InjectorTest(tests.Test):
                     {'version': '1', 'id': 'dep3', 'context': 'dep3', 'name': 'title3'},
                     {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl},
                     ]),
-                sorted(zeroinstall.solve('/', context)))
+                sorted(solver.solve('/', context)))
 
     def test_NoDepsClonning(self):
         self.touch('remote/master')
@@ -663,12 +662,12 @@ class InjectorTest(tests.Test):
                 },
             }})
 
-        self.assertRaises(RuntimeError, zeroinstall.solve, '/', context)
+        self.assertRaises(RuntimeError, solver.solve, '/', context)
 
-        zeroinstall.nodeps = True
+        solver.nodeps = True
         self.assertEqual(
                 [{'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl}],
-                zeroinstall.solve('/', context))
+                solver.solve('/', context))
 
     def test_LoadFeed_SetPackages(self):
         self.touch('remote/master')
@@ -711,7 +710,7 @@ class InjectorTest(tests.Test):
             return dict([(i, {'name': i, 'pk_id': i, 'version': '1', 'arch': '*', 'installed': True}) for i in names])
         self.override(packagekit, 'resolve', resolve)
 
-        self.assertRaises(RuntimeError, zeroinstall.solve, '/', context)
+        self.assertRaises(RuntimeError, solver.solve, '/', context)
 
         remote.put(['context', 'dep', 'packages'], {
             lsb_release.distributor_id() + '-' + lsb_release.release(): {
@@ -719,7 +718,7 @@ class InjectorTest(tests.Test):
                 'binary': ['bin'],
                 },
             })
-        self.assertEqual('dep', zeroinstall.solve('/', context)[-1]['context'])
+        self.assertEqual('dep', solver.solve('/', context)[-1]['context'])
 
         remote.put(['context', 'dep', 'packages'], {
             'foo': {
@@ -727,14 +726,14 @@ class InjectorTest(tests.Test):
                 'binary': ['bin'],
                 },
             })
-        self.assertRaises(RuntimeError, zeroinstall.solve, '/', context)
+        self.assertRaises(RuntimeError, solver.solve, '/', context)
 
         remote.put(['context', 'dep', 'packages'], {
             lsb_release.distributor_id(): {
                 'binary': ['bin'],
                 },
             })
-        self.assertEqual('dep', zeroinstall.solve('/', context)[-1]['context'])
+        self.assertEqual('dep', solver.solve('/', context)[-1]['context'])
 
     def test_SolveSugar(self):
         self.touch(('__init__.py', ''))
@@ -782,7 +781,7 @@ class InjectorTest(tests.Test):
             {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl},
             {'name': 'sugar', 'version': '777', 'context': 'sugar', 'path': '/', 'mountpoint': None, 'id': 'sugar'},
             ],
-            zeroinstall.solve('/', context))
+            solver.solve('/', context))
 
 
 if __name__ == '__main__':

@@ -95,7 +95,6 @@ def _request(*args, **kwargs):
     response = _client.request(*args, allowed=(400, 404), **kwargs)
     enforce(response.headers.get('Content-Type') == 'text/xml',
             'Irregular OBS response')
-    # pylint: disable-msg=E1103
     reply = ElementTree.parse(response.raw).getroot()
 
     if response.status_code != 200:

@@ -19,7 +19,7 @@ import logging
 from bisect import bisect_left
 from os.path import join, exists, relpath, lexists, basename, dirname
 
-from sugar_network.toolkit.sneakernet import DiskFull
+from sugar_network.node.sneakernet import DiskFull
 from sugar_network.toolkit import BUFFER_SIZE, util, coroutine
 
 

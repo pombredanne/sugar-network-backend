@@ -24,7 +24,6 @@ from sugar_network.resources.volume import Commands, VolumeCommands
 from sugar_network.toolkit import router, util, exception, enforce
 
 
-_DEFAULT_MASTER_GUID = 'api-testing.network.sugarlabs.org'
 _MAX_STATS_LENGTH = 100
 
 _logger = logging.getLogger('node.commands')
@@ -32,30 +31,16 @@ _logger = logging.getLogger('node.commands')
 
 class NodeCommands(VolumeCommands, Commands):
 
-    def __init__(self, volume, stats=None):
+    def __init__(self, is_master, guid, volume, stats=None):
         VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
-        self._is_master = False
+        self._is_master = is_master
+        self._guid = guid
         self._stats = stats
 
-        node_path = join(volume.root, 'node')
-        master_path = join(volume.root, 'master')
-
-        if exists(node_path):
-            with file(node_path) as f:
-                self._guid = f.read().strip()
-        elif exists(master_path):
-            with file(master_path) as f:
-                self._guid = f.read().strip()
-            self._is_master = True
-        else:
-            self._guid = db.uuid()
-            with file(node_path, 'w') as f:
-                f.write(self._guid)
-
-        if not self._is_master and not exists(master_path):
-            with file(master_path, 'w') as f:
-                f.write(_DEFAULT_MASTER_GUID)
+    @property
+    def guid(self):
+        return self._guid
 
     @property
     def is_master(self):
@@ -141,7 +126,7 @@ class NodeCommands(VolumeCommands, Commands):
             permissions=db.ACCESS_AUTH | db.ACCESS_AUTHOR)
     def delete(self, document, guid):
         # Servers data should not be deleted immediately
-        # to let master-node synchronization possible
+        # to let master-slave synchronization possible
         directory = self.volume[document]
         directory.update(guid, {'layer': ['deleted']})
 
@@ -165,13 +150,6 @@ class NodeCommands(VolumeCommands, Commands):
         layer = list(set(doc['layer']) - set(request.content))
         directory.update(guid, {'layer': layer})
 
-    @db.document_command(method='PUT', cmd='merge',
-            permissions=db.ACCESS_AUTH)
-    def merge(self, document, guid, request):
-        auth.validate(request, 'root')
-        directory = self.volume[document]
-        directory.merge(guid, request.content)
-
     @db.volume_command(method='GET', cmd='whoami',
             mime_type='application/json')
     def whoami(self, request):
@@ -193,6 +171,10 @@ class NodeCommands(VolumeCommands, Commands):
         request = router.Request(method='GET', document='implementation',
                 guid=impls[0]['guid'], prop='data')
         return self.call(request, db.Response())
+
+    def broadcast(self, event):
+        # TODO Node level broadcast events?
+        _logger.info('Publish event: %r', event)
 
     def call(self, request, response=None):
         try:

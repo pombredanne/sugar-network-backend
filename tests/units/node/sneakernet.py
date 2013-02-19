@@ -9,8 +9,8 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network.toolkit import sneakernet
-from sugar_network.toolkit.sneakernet import InPacket, OutPacket, DiskFull, OutBufferPacket, OutFilePacket
+from sugar_network.node import sneakernet
+from sugar_network.node.sneakernet import InPacket, OutPacket, DiskFull, OutBufferPacket, OutFilePacket
 
 
 class SneakernetTest(tests.Test):

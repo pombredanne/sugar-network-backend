@@ -17,9 +17,8 @@ import os
 import logging
 from os.path import join, exists, isdir
 
-from sugar_network import pylru
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import Option, util
+from sugar_network.toolkit import Option, util, pylru
 
 
 stats_root = Option(

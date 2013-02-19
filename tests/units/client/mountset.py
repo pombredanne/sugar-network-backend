@@ -8,8 +8,6 @@ import shutil
 import zipfile
 from os.path import exists
 
-import requests
-
 from __init__ import tests
 
 from sugar_network.client.mountset import Mountset
@@ -24,6 +22,8 @@ from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.toolkit.router import IPCRouter
 from sugar_network.zerosugar import injector, clones
 from sugar_network.client import IPCClient, Client, journal
+
+import requests
 
 
 class MountsetTest(tests.Test):
@@ -158,7 +158,7 @@ class MountsetTest(tests.Test):
                     ]),
                 sorted(client.get(cmd='mounts')))
 
-    def test_MountNode(self):
+    def __test_MountNode(self):
         local.server_mode.value = True
         mounts = self.mountset()
 

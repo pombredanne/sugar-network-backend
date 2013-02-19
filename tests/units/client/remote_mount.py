@@ -9,8 +9,6 @@ import urllib2
 from cStringIO import StringIO
 from os.path import exists, abspath
 
-import requests
-
 from __init__ import tests
 
 from sugar_network import db, client as local
@@ -25,6 +23,8 @@ from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.volume import Volume, Resource
 from sugar_network.zerosugar import injector
 from sugar_network.client import IPCClient
+
+import requests
 
 
 class RemoteMountTest(tests.Test):

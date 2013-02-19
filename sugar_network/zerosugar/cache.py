@@ -41,7 +41,6 @@ def get(guid):
 
     with util.NamedTemporaryFile() as tmp_file:
         chunk_size = min(content_length, BUFFER_SIZE)
-        # pylint: disable-msg=E1103
         for chunk in response.iter_content(chunk_size=chunk_size):
             tmp_file.write(chunk)
         tmp_file.flush()

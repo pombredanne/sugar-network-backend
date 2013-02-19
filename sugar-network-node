@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 import os
 import locale
 import logging
-from os.path import exists
+from os.path import exists, join
 
 from gevent import monkey
 
@@ -28,7 +28,8 @@ from sugar_network.client.mounts import LocalMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.client.mounts import LocalMount
 from sugar_network.node import stats, obs
-from sugar_network.node.commands import NodeCommands
+from sugar_network.node.master import MasterCommands
+from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import sugar, coroutine, application, util, Option
@@ -57,7 +58,25 @@ class Application(application.Daemon):
         if stats.stats_node_step.value:
             node_stats = stats.NodeStats(volume)
             self.jobs.spawn(self._commit_stats, node_stats)
-        cp = NodeCommands(volume, node_stats)
+
+        node_path = join(node.data_root.value, 'node')
+        master_path = join(node.data_root.value, 'master')
+        if exists(node_path):
+            with file(node_path) as f:
+                guid = f.read().strip()
+            logging.info('Start %s node in slave mode', guid)
+            cp = SlaveCommands(guid, volume, node_stats)
+        elif exists(master_path):
+            with file(master_path) as f:
+                guid = f.read().strip()
+            logging.info('Start %s node in master mode', guid)
+            cp = MasterCommands(guid, volume, node_stats)
+        else:
+            guid = db.uuid()
+            with file(node_path, 'w') as f:
+                f.write(guid)
+            logging.info('Start new %s node in slave mode', guid)
+            cp = SlaveCommands(guid, volume, node_stats)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)

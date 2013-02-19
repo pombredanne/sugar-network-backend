@@ -15,15 +15,14 @@
 
 import sys
 import logging
-from os.path import isabs, join, abspath, dirname
+from os.path import isabs, join, dirname
 
 from sugar_network.client import IPCClient
 from sugar_network.toolkit import lsb_release, pipe, exception
 from sugar_network.zerosugar import packagekit
 from sugar_network.zerosugar.spec import parse_version
 
-sys.path.insert(0,
-        join(abspath(dirname(__file__)), '..', 'lib', 'zeroinstall-injector'))
+sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'zeroinstall'))
 
 from zeroinstall.injector import reader, model, distro
 from zeroinstall.injector.config import Config
@@ -31,12 +30,12 @@ from zeroinstall.injector.driver import Driver
 from zeroinstall.injector.requirements import Requirements
 
 
-def Interface_init(self, url):
+def _interface_init(self, url):
     self.uri = url
     self.reset()
 
 
-model.Interface.__init__ = Interface_init
+model.Interface.__init__ = _interface_init
 reader.load_feed_from_cache = lambda url, * args, ** kwargs: _load_feed(url)
 reader.check_readable = lambda * args, ** kwargs: True
 

@@ -12,23 +12,22 @@ import tempfile
 import subprocess
 from os.path import dirname, join, exists, abspath, isfile
 
-import requests
 from M2Crypto import DSA
 from gevent import monkey
 
-from sugar_network.toolkit import coroutine, sugar, http, sneakernet, mountpoints, util
+from sugar_network.toolkit import coroutine, sugar, http, mountpoints, util
 from sugar_network.toolkit.router import Router, IPCRouter
 from sugar_network.client import journal
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.client.mountset import Mountset
-from sugar_network import db, client, node, toolkit, zeroinstall
+from sugar_network import db, client, node, toolkit
 from sugar_network.db import env
-from sugar_network.zerosugar import injector
+from sugar_network.zerosugar import injector, solver
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.node.commands import NodeCommands
-from sugar_network.node import stats, obs, auth
+from sugar_network.node import stats, obs, auth, sneakernet, slave
 from sugar_network.resources.volume import Volume
 
 
@@ -82,8 +81,8 @@ class Test(unittest.TestCase):
         db.index_flush_threshold.value = 1
         node.find_limit.value = 1024
         node.data_root.value = tmpdir
-        node.sync_dirs.value = []
         node.static_url.value = None
+        slave.sync_dirs.value = []
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.activity_dirs.value = [tmpdir + '/Activities']
@@ -107,7 +106,7 @@ class Test(unittest.TestCase):
         injector.invalidate_solutions(None)
         injector._pms_path = None
         journal._ds_root = tmpdir + '/datastore'
-        zeroinstall.nodeps = False
+        solver.nodeps = False
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',
@@ -287,7 +286,7 @@ class Test(unittest.TestCase):
         db.index_write_queue.value = 10
 
         volume = Volume('remote', classes or [User, Context, Implementation])
-        cp = NodeCommands(volume)
+        cp = NodeCommands(True, 'guid', volume)
         httpd = coroutine.WSGIServer(('localhost', 8888), Router(cp))
         try:
             coroutine.joinall([
@@ -302,7 +301,7 @@ class Test(unittest.TestCase):
             classes = [User, Context, Implementation]
         self.touch('master/master')
         self.volume = Volume('master', classes)
-        cp = NodeCommands(self.volume)
+        cp = NodeCommands(True, 'guid', self.volume)
         self.server = coroutine.WSGIServer(('localhost', 8888), Router(cp))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()

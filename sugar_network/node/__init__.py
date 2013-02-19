@@ -47,17 +47,6 @@ find_limit = Option(
         'limit the resulting list for search requests',
         default=32, type_cast=int)
 
-sync_dirs = Option(
-        'colon separated list of paths to directories to synchronize with '
-                'master server',
-        type_cast=Option.paths_cast, type_repr=Option.paths_repr,
-        name='sync-dirs')
-
-pull_timeout = Option(
-        'delay in seconds to return to sync-pull requester to wait until '
-        'pull request will be ready',
-        default=30, type_cast=int)
-
 static_url = Option(
         'url prefix to use for static files that should be served via API '
         'server; if omited, HTTP_HOST request value will be used')

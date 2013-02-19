@@ -178,13 +178,13 @@ def _solve(mountpoint, context):
         pipe.trace('Reuse cached solution')
         return solution
 
-    from sugar_network import zeroinstall
+    from sugar_network.zerosugar import solver
 
     if mountpoint != '/':
         _logger.info('Disable dependencies for local mountpoint')
-        zeroinstall.nodeps = True
+        solver.nodeps = True
 
-    solution = zeroinstall.solve(mountpoint, context)
+    solution = solver.solve(mountpoint, context)
     _set_cached_solution(cached_path, solution)
 
     return solution

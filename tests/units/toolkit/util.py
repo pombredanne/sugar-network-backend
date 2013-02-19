@@ -3,9 +3,11 @@
 
 import copy
 from os.path import exists
+from cStringIO import StringIO
 
 from __init__ import tests
 
+from sugar_network.toolkit import util
 from sugar_network.toolkit.util import Seqno, Sequence
 
 
@@ -336,6 +338,25 @@ class UtilTest(tests.Test):
         seq.include(3, 5)
         seq.include(10, 11)
         self.assertEqual(11, seq.last)
+
+    def test_readline(self):
+
+        def readlines(string):
+            result = []
+            stream = StringIO(string)
+            while True:
+                line = util.readline(stream)
+                if not line:
+                    break
+                result.append(line)
+            return result
+
+        self.assertEqual([], readlines(''))
+        self.assertEqual([' '], readlines(' '))
+        self.assertEqual([' a '], readlines(' a '))
+        self.assertEqual(['\n'], readlines('\n'))
+        self.assertEqual(['\n', 'b'], readlines('\nb'))
+        self.assertEqual([' \n', ' b \n'], readlines(' \n b \n'))
 
 
 if __name__ == '__main__':
