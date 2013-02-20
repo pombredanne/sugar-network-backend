@@ -13,18 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# pylint: disable-msg=E1103
-
+import sys
 import json
 import logging
 import hashlib
-from os.path import exists
+from os.path import join, dirname, exists
+
+sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'requests'))
 
 import requests
 from requests.sessions import Session
 from M2Crypto import DSA
 
-from sugar_network.toolkit import sugar, coroutine, exception, enforce
+from sugar_network.toolkit import sugar, coroutine, util, exception, enforce
 from sugar_network.toolkit.router import Redirect
 from sugar_network import db, client
 
@@ -232,8 +233,8 @@ class _Subscription(object):
         for a_try in (1, 0):
             stream = self._handshake()
             try:
-                line = _readline(stream)
-                enforce(line is not None, 'Subscription aborted')
+                line = util.readline(stream)
+                enforce(line, 'Subscription aborted')
                 break
             except Exception:
                 if a_try == 0:
@@ -274,18 +275,3 @@ class _Subscription(object):
 def _sign(privkey_path, data):
     key = DSA.load_key(privkey_path)
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
-
-
-def _readline(stream):
-    line = None
-    while True:
-        char = stream.read(1)
-        if not char:
-            break
-        if line is None:
-            line = char
-        else:
-            line += char
-        if char == '\n':
-            break
-    return line

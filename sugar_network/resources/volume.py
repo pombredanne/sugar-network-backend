@@ -154,45 +154,6 @@ class Volume(db.Volume):
 
         db.Volume.notify(self, event)
 
-    def diff(self, in_seq, packet):
-        out_seq = util.Sequence()
-        try:
-            for document, directory in self.items():
-                coroutine.dispatch()
-                directory.commit()
-                packet.push(document=document)
-                try:
-                    for guid, diff in directory.diff(in_seq, out_seq):
-                        coroutine.dispatch()
-                        if not packet.push(diff=diff, guid=guid):
-                            raise StopIteration()
-                finally:
-                    in_seq.exclude(out_seq)
-            if out_seq:
-                out_seq = [[out_seq.first, out_seq.last]]
-                in_seq.exclude(out_seq)
-        except StopIteration:
-            pass
-        finally:
-            packet.push(commit=out_seq)
-
-    def merge(self, packet, increment_seqno=True):
-        directory = None
-        for record in packet:
-            document = record.get('document')
-            if document is not None:
-                directory = self[document]
-                continue
-            diff = record.get('diff')
-            if diff is not None:
-                enforce(directory is not None,
-                        'Invalid merge packet, no document')
-                directory.merge(record['guid'], diff, increment_seqno)
-                continue
-            commit = record.get('commit')
-            if commit is not None:
-                return commit
-
     def _open(self, name, document):
         directory = db.Volume._open(self, name, document)
         self._populators.spawn(self._populate, directory)
@@ -215,7 +176,6 @@ class Volume(db.Volume):
         ostream = util.NamedTemporaryFile()
         try:
             chunk_size = min(content_length, BUFFER_SIZE)
-            # pylint: disable-msg=E1103
             for chunk in response.iter_content(chunk_size=chunk_size):
                 ostream.write(chunk)
         except Exception:

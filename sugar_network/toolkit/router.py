@@ -357,17 +357,13 @@ class _Request(Request):
             self.content_type, __ = \
                     cgi.parse_header(environ.get('CONTENT_TYPE', ''))
             if self.content_type.lower() == 'application/json':
-                content = self.read()
-                if content:
-                    self.content = json.loads(content)
+                self.content = json.load(self.content_stream)
             elif self.content_type.lower() == 'multipart/form-data':
                 files = cgi.FieldStorage(fp=environ['wsgi.input'],
                         environ=environ)
                 enforce(len(files.list) == 1,
                         'Multipart request should contain only one file')
                 self.content_stream = files.list[0].file
-            else:
-                self.content_stream = environ.get('wsgi.input')
 
         if_modified_since = environ.get('HTTP_IF_MODIFIED_SINCE')
         if if_modified_since:

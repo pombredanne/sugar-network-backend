@@ -96,7 +96,6 @@ class _Transaction(object):
         self.packages = []
 
         self._object = dbus.SystemBus().get_object(
-                # pylint: disable-msg=E1103
                 'org.freedesktop.PackageKit', _get_pk().GetTid(), False)
         self._proxy = dbus.Interface(self._object,
                 'org.freedesktop.PackageKit.Transaction')
@@ -165,10 +164,10 @@ class _Transaction(object):
         self.error_details = details
 
     def __package_cb(self, status, pk_id, summary):
-        from sugar_network import zeroinstall
+        from sugar_network.zerosugar import solver
 
         package_name, version, arch, __ = pk_id.split(';')
-        clean_version = zeroinstall.try_cleanup_distro_version(version)
+        clean_version = solver.try_cleanup_distro_version(version)
         if not clean_version:
             _logger.warn('Cannot parse distribution version "%s" '
                     'for package "%s"', version, package_name)
@@ -176,7 +175,7 @@ class _Transaction(object):
                 'pk_id': str(pk_id),
                 'version': clean_version,
                 'name': package_name,
-                'arch': zeroinstall.canonical_machine(arch),
+                'arch': solver.canonical_machine(arch),
                 'installed': (status == 'installed'),
                 }
         _logger.debug('Resolved PackageKit name: %r', package)

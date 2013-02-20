@@ -9,8 +9,6 @@ import zipfile
 import cPickle as pickle
 from os.path import exists
 
-import requests
-
 from __init__ import tests, src_root
 
 from sugar_network.client import IPCClient

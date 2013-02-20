@@ -58,6 +58,18 @@ def init_logging(debug_level):
                 self._log(8, message, args, **kwargs)
 
 
+def readline(stream, limit=None):
+    line = bytearray()
+    while limit is None or len(line) < limit:
+        char = stream.read(1)
+        if not char:
+            break
+        line.append(char)
+        if char == '\n':
+            break
+    return bytes(line)
+
+
 def res_init():
     """Reset resolving cache.
 

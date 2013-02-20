@@ -32,7 +32,7 @@ from sugar_network.toolkit.router import IPCRouter
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.zerosugar import clones
-from sugar_network.node import stats
+from sugar_network.node import stats, slave
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import Option
 from sugar_network.toolkit import util, printf, application, coroutine, enforce
@@ -202,7 +202,7 @@ Option.seek('main', application)
 Option.seek('webui', webui)
 Option.seek('client', client)
 Option.seek('client', [sugar.keyfile, toolkit.tmpdir])
-Option.seek('node', [node.port, node.sync_dirs])
+Option.seek('node', [node.port, slave.sync_dirs])
 Option.seek('stats', stats)
 Option.seek('db', db)
 

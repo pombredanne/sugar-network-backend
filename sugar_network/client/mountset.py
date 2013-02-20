@@ -24,7 +24,6 @@ from sugar_network.toolkit import coroutine, util, exception, enforce
 from sugar_network.client import journal, zeroconf
 from sugar_network.client.mounts import LocalMount, NodeMount
 from sugar_network.node.commands import NodeCommands
-from sugar_network.node.sync_node import SyncCommands
 from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Volume, Commands
 
@@ -34,18 +33,17 @@ _DB_DIRNAME = '.sugar-network'
 _logger = logging.getLogger('client.mountset')
 
 
-class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
-        SyncCommands):
+class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
 
     def __init__(self, home_volume):
         self.opened = coroutine.Event()
         self._subscriptions = {}
         self._jobs = coroutine.Pool()
         self._servers = coroutine.Pool()
+        self.node_mount = None
 
         dict.__init__(self)
         db.CommandsProcessor.__init__(self)
-        SyncCommands.__init__(self, client.path('sync'))
         Commands.__init__(self)
         if not client.no_dbus.value:
             journal.Commands.__init__(self)
@@ -58,7 +56,7 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
     def __setitem__(self, mountpoint, mount):
         dict.__setitem__(self, mountpoint, mount)
         mount.mountpoint = mountpoint
-        mount.publisher = self.publish
+        mount.publisher = self.broadcast
         mount.set_mounted(True)
 
     def __delitem__(self, mountpoint):
@@ -116,8 +114,8 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
             mount.set_mounted(True)
         return mount.mounted.is_set()
 
-    @db.volume_command(method='POST', cmd='publish')
-    def publish(self, event, request=None):
+    @db.volume_command(method='POST', cmd='broadcast')
+    def broadcast(self, event, request=None):
         if request is not None:
             event = request.content
 
@@ -137,7 +135,7 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
 
         for event in injector.make(mountpoint, guid):
             event['event'] = 'make'
-            self.publish(event)
+            self.broadcast(event)
 
     @db.document_command(method='GET', cmd='launch',
             arguments={'args': db.to_list})
@@ -150,7 +148,7 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
                     activity_id=activity_id, object_id=object_id, uri=uri,
                     color=color):
                 event['event'] = 'launch'
-                self.publish(event)
+                self.broadcast(event)
 
         if no_spawn:
             do_launch()
@@ -262,7 +260,6 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
             self.opened.set()
 
     def close(self):
-        self.break_sync()
         self._servers.kill()
         self._jobs.kill()
         for mountpoint in self.keys():
@@ -336,7 +333,7 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
         if value:
             if force or not journal.exists(uid):
                 self.journal_update(uid, **get_props())
-                self.publish({'event': 'show_journal', 'uid': uid})
+                self.broadcast({'event': 'show_journal', 'uid': uid})
         else:
             if journal.exists(uid):
                 self.journal_delete(uid)
@@ -392,7 +389,7 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands,
 
         for event in pipe:
             event['event'] = 'clone'
-            self.publish(event)
+            self.broadcast(event)
 
         for __ in clones.walk(guid):
             break

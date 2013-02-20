@@ -59,14 +59,14 @@ class _Mount(object):
             self.mounted.set()
         else:
             self.mounted.clear()
-        self.publish({
+        self.broadcast({
             'event': 'mount' if value else 'unmount',
             'mountpoint': self.mountpoint,
             'name': self.name,
             'private': self.private,
             })
 
-    def publish(self, event):
+    def broadcast(self, event):
         if self.publisher is not None:
             # pylint: disable-msg=E1102
             self.publisher(event)
@@ -98,7 +98,7 @@ class LocalMount(VolumeCommands, _Mount):
 
     def _events_cb(self, event):
         event['mountpoint'] = self.mountpoint
-        self.publish(event)
+        self.broadcast(event)
 
 
 class HomeMount(LocalMount):
@@ -121,7 +121,7 @@ class HomeMount(LocalMount):
             if props and set(props.keys()) & _LOCAL_PROPS:
                 # _LOCAL_PROPS are common for `~` and `/` mountpoints
                 event['mountpoint'] = '/'
-                self.publish(event)
+                self.broadcast(event)
         LocalMount._events_cb(self, event)
 
 
@@ -298,7 +298,7 @@ class RemoteMount(db.CommandsProcessor, _Mount, _ProxyCommands):
                         if mtime:
                             injector.invalidate_solutions(mtime)
                     event['mountpoint'] = self.mountpoint
-                    self.publish(event)
+                    self.broadcast(event)
             except Exception:
                 exception(_logger, 'Failed to dispatch remote event')
             finally:

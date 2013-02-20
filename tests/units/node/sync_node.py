@@ -401,7 +401,7 @@ class SyncCommands(sync_node.SyncCommands):
         self.node_mount = self
         self.events = []
 
-    def publish(self, event):
+    def broadcast(self, event):
         self.events.append(event)
 
 
