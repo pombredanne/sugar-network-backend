@@ -11,10 +11,10 @@ homepage  = http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network
 version   = 0.9
 stability = developer
 
-requires  = xapian-bindings-python; m2crypto; requests; rrdtool-python
-            gevent >= 1; dbus-python; openssh-client
-            sugar-network-webui; sugar-network-hub
+requires  = xapian-bindings-python; m2crypto; rrdtool-python; gevent >= 1
+            dbus-python; openssh-client; sugar-network-webui; sugar-network-hub
 replaces  = sugar-network-server; sweets-recipe; active-document
+            pylru; requests
 
 [Build]
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
