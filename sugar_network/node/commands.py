@@ -19,9 +19,9 @@ import hashlib
 from os.path import exists, join
 
 from sugar_network import db, node
-from sugar_network.node import auth, obs
+from sugar_network.node import auth, obs, stats
 from sugar_network.resources.volume import Commands, VolumeCommands
-from sugar_network.toolkit import router, util, exception, enforce
+from sugar_network.toolkit import router, util, coroutine, exception, enforce
 
 
 _MAX_STATS_LENGTH = 100
@@ -31,12 +31,17 @@ _logger = logging.getLogger('node.commands')
 
 class NodeCommands(VolumeCommands, Commands):
 
-    def __init__(self, is_master, guid, volume, stats=None):
+    def __init__(self, is_master, guid, volume):
         VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
+
         self._is_master = is_master
         self._guid = guid
-        self._stats = stats
+        self._stats = None
+
+        if stats.stats_node_step.value:
+            self._stats = stats.NodeStats(volume)
+            coroutine.spawn(self._commit_stats)
 
     @property
     def guid(self):
@@ -105,7 +110,7 @@ class NodeCommands(VolumeCommands, Commands):
 
         dbs = {}
         for i in source:
-            enforce('.' in i, 'Misnamed source name')
+            enforce('.' in i, 'Misnamed source')
             db_name, ds_name = i.split('.', 1)
             dbs.setdefault(db_name, []).append(ds_name)
         result = {}
@@ -113,12 +118,12 @@ class NodeCommands(VolumeCommands, Commands):
         for rdb in self._stats.rrd:
             if rdb.name not in dbs:
                 continue
-            stats = result[rdb.name] = []
+            info = result[rdb.name] = []
             for ts, ds_values in rdb.get(start, end, resolution):
                 values = {}
                 for name in dbs[rdb.name]:
                     values[name] = ds_values.get(name)
-                stats.append((ts, values))
+                info.append((ts, values))
 
         return result
 
@@ -245,6 +250,11 @@ class NodeCommands(VolumeCommands, Commands):
         enforce('deleted' not in doc['layer'], db.NotFound,
                 'Document deleted')
         return result
+
+    def _commit_stats(self):
+        while True:
+            coroutine.sleep(stats.stats_node_step.value)
+            self._stats.commit()
 
 
 def _load_pubkey(pubkey):

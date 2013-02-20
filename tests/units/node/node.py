@@ -107,8 +107,7 @@ class NodeTest(tests.Test):
             rrd['user'].put({'total': i}, ts + i)
 
         volume = Volume('db', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
-        cp = NodeCommands(False, 'guid', volume, stats)
+        cp = NodeCommands(False, 'guid', volume)
 
         self.assertEqual({
             'user': [
