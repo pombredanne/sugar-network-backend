@@ -25,18 +25,23 @@ _logger = logging.getLogger('node.sync')
 
 
 def decode(stream):
-    if not hasattr(stream, 'readline'):
-        stream.readline = lambda: util.readline(stream)
-    record = {}
-    while 'commit' not in record:
-        record = pickle.load(stream)
-        yield record
+    packet = _PacketsIterator(stream)
+    while True:
+        packet.next()
+        if packet.name == 'last':
+            break
+        yield packet
 
 
 def encode(*args):
-    for sequence in args:
-        for record in sequence:
+    for packet, props, content in args:
+        if props is None:
+            props = {}
+        props['packet'] = packet
+        yield pickle.dumps(props)
+        for record in content or []:
             yield pickle.dumps(record)
+    yield pickle.dumps({'packet': 'last'})
 
 
 def chunked_encode(*args):
@@ -63,8 +68,9 @@ def diff(volume, in_seq):
         yield {'commit': out_seq}
 
 
-def merge(volume, records, increment_seqno=True):
+def merge(volume, records, shift_seqno=True):
     directory = None
+    commit_seq = util.Sequence()
     merged_seq = util.Sequence()
 
     for record in records:
@@ -77,14 +83,17 @@ def merge(volume, records, increment_seqno=True):
         if patch is not None:
             enforce(directory is not None,
                     'Invalid merge, no document')
-            seqno = directory.merge(record['guid'], patch, increment_seqno)
+            seqno = directory.merge(record['guid'], patch, shift_seqno)
             if seqno is not None:
                 merged_seq.include(seqno, seqno)
             continue
 
         commit = record.get('commit')
         if commit is not None:
-            return commit, merged_seq
+            commit_seq.include(commit)
+            continue
+
+    return commit_seq, merged_seq
 
 
 class _ContentOutput(object):
@@ -116,3 +125,50 @@ class _ContentOutput(object):
         self._buffer_start = 0
         self._buffer_end = len(self._buffer)
         return buffer_read()
+
+
+class _PacketsIterator(object):
+
+    def __init__(self, stream):
+        if not hasattr(stream, 'readline'):
+            stream.readline = lambda: util.readline(stream)
+        self._stream = stream
+        self._props = {}
+        self._name = None
+        self._shift = True
+
+    @property
+    def name(self):
+        return self._name
+
+    def next(self):
+        if self._shift:
+            for __ in self:
+                pass
+        if self._name is None:
+            raise EOFError()
+        self._shift = True
+
+    def __getitem__(self, key):
+        return self._props.get(key)
+
+    def __iter__(self):
+        while True:
+            try:
+                record = pickle.load(self._stream)
+            except EOFError:
+                self._name = None
+                raise
+            packet = record.get('packet')
+            if packet:
+                self._name = packet
+                self._props = record
+                self._shift = False
+                break
+            yield record
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass

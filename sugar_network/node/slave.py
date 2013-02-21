@@ -18,7 +18,7 @@ from os.path import join
 
 from sugar_network import db
 from sugar_network.client import Client
-from sugar_network.node import sync
+from sugar_network.node import sync, stats
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import Option, util
 
@@ -37,8 +37,8 @@ sync_dirs = Option(
 
 class SlaveCommands(NodeCommands):
 
-    def __init__(self, guid, volume, stats=None):
-        NodeCommands.__init__(self, False, guid, volume, stats)
+    def __init__(self, guid, volume):
+        NodeCommands.__init__(self, False, guid, volume)
 
         self._push_seq = util.PersistentSequence(
                 join(volume.root, 'push'), [1, None])
@@ -48,20 +48,27 @@ class SlaveCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='online_sync',
             permissions=db.ACCESS_LOCAL)
     def online_sync(self):
+        push = [('diff', None, sync.diff(self.volume, self._push_seq)),
+                ('pull', {'sequence': self._pull_seq}, None),
+                ]
+        if stats.stats_user.value:
+            push.append(('stats_diff', None, stats.diff()))
         response = Client().request('POST',
-                data=sync.chunked_encode(
-                    [{'pull': self._pull_seq}],
-                    sync.diff(self.volume, self._push_seq)),
-                params={'cmd': 'sync'},
+                data=sync.chunked_encode(*push), params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})
-        reply = sync.decode(response.raw)
-        ack = next(reply)
-        _logger.error('>>> %r', ack)
-        self._pull_seq.exclude(ack['ack'])
-        self._pull_seq.commit()
-        self._push_seq.exclude(ack['sequence'])
-        self._push_seq.commit()
-        sync.merge(self.volume, reply, increment_seqno=False)
+
+        for packet in sync.decode(response.raw):
+            if packet.name == 'diff':
+                seq, __ = sync.merge(self.volume, packet, shift_seqno=False)
+                self._pull_seq.exclude(seq)
+                self._pull_seq.commit()
+            elif packet.name == 'ack':
+                self._pull_seq.exclude(packet['ack'])
+                self._pull_seq.commit()
+                self._push_seq.exclude(packet['sequence'])
+                self._push_seq.commit()
+            elif packet.name == 'stats_ack':
+                stats.commit(packet['sequence'])
 
 
 """

@@ -17,7 +17,7 @@ import logging
 from urlparse import urlsplit
 
 from sugar_network import db, client
-from sugar_network.node import sync
+from sugar_network.node import sync, stats
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import util
 
@@ -34,9 +34,17 @@ class MasterCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='sync',
             permissions=db.ACCESS_AUTH)
     def sync(self, request):
-        content = sync.decode(request.content_stream)
-        pull_seq = util.Sequence(next(content)['pull'])
-        push_seq, merged_seq = sync.merge(self.volume, content)
-        return sync.encode(
-                [{'ack': merged_seq, 'sequence': push_seq}],
-                sync.diff(self.volume, pull_seq))
+        reply = []
+
+        for packet in sync.decode(request.content_stream):
+            if packet.name == 'pull':
+                pull_seq = util.Sequence(packet['sequence'])
+                reply.append(('diff', None, sync.diff(self.volume, pull_seq)))
+            elif packet.name == 'diff':
+                seq, ack_seq = sync.merge(self.volume, packet)
+                reply.append(('ack', {'ack': ack_seq, 'sequence': seq}, None))
+            elif packet.name == 'stats_diff':
+                seq = stats.merge(packet)
+                reply.append(('stats_ack', {'sequence': seq}, None))
+
+        return sync.encode(*reply)

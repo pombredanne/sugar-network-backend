@@ -96,7 +96,9 @@ class Test(unittest.TestCase):
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
         stats.stats_root.value = tmpdir + '/stats'
+        stats.stats_node.value = False
         stats.stats_node_step.value = 0
+        stats.stats_user.value = False
         stats.stats_user_step.value = 1
         stats._user_cache.clear()
         obs._client = None

@@ -39,7 +39,7 @@ class NodeCommands(VolumeCommands, Commands):
         self._guid = guid
         self._stats = None
 
-        if stats.stats_node_step.value:
+        if stats.stats_node.value:
             self._stats = stats.NodeStats(volume)
             coroutine.spawn(self._commit_stats)
 

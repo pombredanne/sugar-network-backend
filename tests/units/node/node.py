@@ -99,6 +99,7 @@ class NodeTest(tests.Test):
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
     def test_NodeStats(self):
+        stats.stats_node.value = True
         stats_node_step.value = 1
         rrd = Rrd('stats/node', stats_node_step.value, stats_node_rras.value)
 
