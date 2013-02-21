@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from sugar_network import db
-from sugar_network.node import stats
+from sugar_network.node import stats_user
 from sugar_network.toolkit import enforce
 
 
@@ -65,12 +65,12 @@ class User(db.Document):
                 'Operation is permitted only for authors')
 
         status = {}
-        for rdb in stats.get_rrd(self.guid):
-            status[rdb.name] = rdb.last + stats.stats_user_step.value
+        for rdb in stats_user.get_rrd(self.guid):
+            status[rdb.name] = rdb.last + stats_user.stats_user_step.value
 
         # TODO Process client configuration in more general manner
         return {'enable': True,
-                'step': stats.stats_user_step.value,
+                'step': stats_user.stats_user_step.value,
                 'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
                 'status': status,
                 }
@@ -82,6 +82,6 @@ class User(db.Document):
 
         name = request.content['name']
         values = request.content['values']
-        rrd = stats.get_rrd(self.guid)
+        rrd = stats_user.get_rrd(self.guid)
         for timestamp, values in values:
             rrd[name].put(values, timestamp)

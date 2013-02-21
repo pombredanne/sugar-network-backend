@@ -5,7 +5,7 @@ from __init__ import tests
 
 from sugar_network import db
 from sugar_network.client import Client, api_url
-from sugar_network.node import sync, stats
+from sugar_network.node import sync, stats_user
 from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
@@ -19,18 +19,18 @@ class SyncOnlineTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        stats.stats_user.value = True
+        stats_user.stats_user.value = True
 
         self.stats_commit = []
         self.stats_merge = []
         def stats_diff():
             yield {'stats': 'probe'}
-        self.override(stats, 'diff', stats_diff)
+        self.override(stats_user, 'diff', stats_diff)
         def stats_merge(packet):
             self.stats_merge.extend([i for i in packet])
             return 'ok'
-        self.override(stats, 'merge', stats_merge)
-        self.override(stats, 'commit', lambda seq: self.stats_commit.append(seq))
+        self.override(stats_user, 'merge', stats_merge)
+        self.override(stats_user, 'commit', lambda seq: self.stats_commit.append(seq))
 
         class Document(Feedback):
             pass

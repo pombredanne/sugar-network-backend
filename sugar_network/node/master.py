@@ -17,7 +17,7 @@ import logging
 from urlparse import urlsplit
 
 from sugar_network import db, client
-from sugar_network.node import sync, stats
+from sugar_network.node import sync, stats_user
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import util
 
@@ -44,7 +44,7 @@ class MasterCommands(NodeCommands):
                 seq, ack_seq = sync.merge(self.volume, packet)
                 reply.append(('ack', {'ack': ack_seq, 'sequence': seq}, None))
             elif packet.name == 'stats_diff':
-                seq = stats.merge(packet)
+                seq = stats_user.merge(packet)
                 reply.append(('stats_ack', {'sequence': seq}, None))
 
         return sync.encode(*reply)

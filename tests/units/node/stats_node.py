@@ -6,7 +6,7 @@ import time
 from __init__ import tests
 
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.node.stats import stats_node_step, NodeStats
+from sugar_network.node.stats_node import stats_node_step, Sniffer
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
@@ -22,7 +22,7 @@ class StatsTest(tests.Test):
 
     def test_DoNotLogAnonymouses(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='GET', document='context', guid='guid')
         stats.log(request)
@@ -34,7 +34,7 @@ class StatsTest(tests.Test):
 
     def test_DoNotLogCmds(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='GET', document='context', guid='guid', cmd='probe')
         request.principal = 'user'
@@ -48,7 +48,7 @@ class StatsTest(tests.Test):
     def test_InitializeTotals(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
 
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         self.assertEqual(0, stats._stats['user'].total)
         self.assertEqual(0, stats._stats['context'].total)
         self.assertEqual(0, stats._stats['review'].total)
@@ -65,7 +65,7 @@ class StatsTest(tests.Test):
         volume['solution'].create(guid='solution', context='context', feedback='feedback', content='')
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         self.assertEqual(1, stats._stats['user'].total)
         self.assertEqual(1, stats._stats['context'].total)
         self.assertEqual(1, stats._stats['review'].total)
@@ -76,7 +76,7 @@ class StatsTest(tests.Test):
 
     def test_POSTs(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='POST', document='context')
         request.principal = 'user'
@@ -90,7 +90,7 @@ class StatsTest(tests.Test):
 
     def test_PUTs(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='PUT', document='context', guid='guid')
         request.principal = 'user'
@@ -104,7 +104,7 @@ class StatsTest(tests.Test):
 
     def test_DELETEs(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='DELETE', document='context')
         request.principal = 'user'
@@ -118,7 +118,7 @@ class StatsTest(tests.Test):
 
     def test_GETs(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='GET', document='user')
         request.principal = 'user'
@@ -127,7 +127,7 @@ class StatsTest(tests.Test):
 
     def test_GETsDocument(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='GET', document='user', guid='user')
         request.principal = 'user'
@@ -136,7 +136,7 @@ class StatsTest(tests.Test):
 
     def test_FeedbackSolutions(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         volume['feedback'].create(guid='guid', context='context', type='idea', title='', content='')
 
         request = Request(method='PUT', document='feedback', guid='guid')
@@ -164,7 +164,7 @@ class StatsTest(tests.Test):
 
     def test_Comments(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         volume['solution'].create(guid='solution', context='context', feedback='feedback', content='')
         volume['feedback'].create(guid='feedback', context='context', type='idea', title='', content='')
         volume['review'].create(guid='review', context='context', title='', content='', rating=5)
@@ -189,7 +189,7 @@ class StatsTest(tests.Test):
 
     def test_Reviewes(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
@@ -216,7 +216,7 @@ class StatsTest(tests.Test):
 
     def test_ContextDownloaded(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
         volume['implementation'].create(guid='implementation', context='context', license='GPLv3', version='1', date=0, stability='stable', notes='')
 
@@ -232,7 +232,7 @@ class StatsTest(tests.Test):
 
     def test_ContextReleased(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
 
         request = Request(method='POST', document='implementation')
@@ -243,7 +243,7 @@ class StatsTest(tests.Test):
 
     def test_ContextFailed(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
 
         request = Request(method='POST', document='report')
@@ -254,7 +254,7 @@ class StatsTest(tests.Test):
 
     def test_ContextActive(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='PUT', document='context', guid='1')
         request.principal = 'user'
@@ -312,7 +312,7 @@ class StatsTest(tests.Test):
 
     def test_UserActive(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
 
         request = Request(method='GET', document='user')
         request.principal = '1'
@@ -336,7 +336,7 @@ class StatsTest(tests.Test):
 
     def test_ArtifactDownloaded(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
         request = Request(method='GET', document='artifact', guid='artifact', prop='fake')
@@ -361,7 +361,7 @@ class StatsTest(tests.Test):
         volume['solution'].create(guid='solution', context='context', feedback='feedback', content='')
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         request = Request(method='GET', document='user', guid='user')
         request.principal = 'user'
         stats.log(request)
@@ -489,7 +489,7 @@ class StatsTest(tests.Test):
         self.assertEqual([0, 0], volume['context'].get('context')['reviews'])
         self.assertEqual(0, volume['context'].get('context')['rating'])
 
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         request = Request(method='GET', document='implementation', guid='implementation', prop='data')
         request.principal = 'user'
         stats.log(request)
@@ -513,7 +513,7 @@ class StatsTest(tests.Test):
         self.assertEqual([1, 5], volume['context'].get('context')['reviews'])
         self.assertEqual(5, volume['context'].get('context')['rating'])
 
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         request = Request(method='GET', document='implementation', guid='implementation', prop='data')
         request.principal = 'user'
         stats.log(request)
@@ -538,7 +538,7 @@ class StatsTest(tests.Test):
         self.assertEqual([0, 0], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(0, volume['artifact'].get('artifact')['rating'])
 
-        stats = NodeStats(volume)
+        stats = Sniffer(volume)
         request = Request(method='GET', document='artifact', guid='artifact', prop='data')
         request.principal = 'user'
         stats.log(request)

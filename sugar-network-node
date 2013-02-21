@@ -27,7 +27,7 @@ from sugar_network import db, node, client, toolkit
 from sugar_network.client.mounts import LocalMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.client.mounts import LocalMount
-from sugar_network.node import stats, obs
+from sugar_network.node import stats_node, stats_user, obs
 from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
@@ -122,7 +122,8 @@ Option.seek('main', application)
 Option.seek('webui', webui)
 Option.seek('node', node)
 Option.seek('node', [toolkit.tmpdir])
-Option.seek('stats', stats)
+Option.seek('node-stats', stats_node)
+Option.seek('user-stats', stats_user)
 Option.seek('obs', obs)
 Option.seek('db', db)
 

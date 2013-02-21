@@ -10,9 +10,8 @@ from sugar_network import db, node
 from sugar_network.client import Client
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit.router import Unauthorized
-from sugar_network.node import stats, obs
+from sugar_network.node import stats_user, stats_node, obs
 from sugar_network.node.commands import NodeCommands
-from sugar_network.node.stats import stats_node_step, stats_node_rras, NodeStats
 from sugar_network.resources.volume import Volume, Resource
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
@@ -29,9 +28,9 @@ class NodeTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        stats.stats_root.value = 'stats'
-        stats.stats_user_step.value = 1
-        stats.stats_user_rras.value = ['RRA:AVERAGE:0.5:1:100']
+        node.stats_root.value = 'stats'
+        stats_user.stats_user_step.value = 1
+        stats_user.stats_user_rras.value = ['RRA:AVERAGE:0.5:1:100']
 
     def test_UserStats(self):
         volume = Volume('db')
@@ -51,7 +50,7 @@ class NodeTest(tests.Test):
             'enable': True,
             'status': {},
             'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats.stats_user_step.value,
+            'step': stats_user.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
@@ -65,7 +64,7 @@ class NodeTest(tests.Test):
                 'test': ts + 2,
                 },
             'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats.stats_user_step.value,
+            'step': stats_user.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
@@ -79,7 +78,7 @@ class NodeTest(tests.Test):
                 'test': ts + 3,
                 },
             'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats.stats_user_step.value,
+            'step': stats_user.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
@@ -94,14 +93,14 @@ class NodeTest(tests.Test):
                 'test2': ts + 4,
                 },
             'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats.stats_user_step.value,
+            'step': stats_user.stats_user_step.value,
             },
             call(cp, method='GET', cmd='stats-info', document='user', guid=tests.UID, principal=tests.UID))
 
     def test_NodeStats(self):
-        stats.stats_node.value = True
-        stats_node_step.value = 1
-        rrd = Rrd('stats/node', stats_node_step.value, stats_node_rras.value)
+        stats_node.stats_node.value = True
+        stats_node.stats_node_step.value = 1
+        rrd = Rrd('stats/node', stats_node.stats_node_step.value, stats_node.stats_node_rras.value)
 
         ts = int(time.time()) / 3 * 3
         for i in range(100):

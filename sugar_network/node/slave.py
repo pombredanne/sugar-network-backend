@@ -18,7 +18,7 @@ from os.path import join
 
 from sugar_network import db
 from sugar_network.client import Client
-from sugar_network.node import sync, stats
+from sugar_network.node import sync, stats_user
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import Option, util
 
@@ -51,8 +51,8 @@ class SlaveCommands(NodeCommands):
         push = [('diff', None, sync.diff(self.volume, self._push_seq)),
                 ('pull', {'sequence': self._pull_seq}, None),
                 ]
-        if stats.stats_user.value:
-            push.append(('stats_diff', None, stats.diff()))
+        if stats_user.stats_user.value:
+            push.append(('stats_diff', None, stats_user.diff()))
         response = Client().request('POST',
                 data=sync.chunked_encode(*push), params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})
@@ -68,7 +68,7 @@ class SlaveCommands(NodeCommands):
                 self._push_seq.exclude(packet['sequence'])
                 self._push_seq.commit()
             elif packet.name == 'stats_ack':
-                stats.commit(packet['sequence'])
+                stats_user.commit(packet['sequence'])
 
 
 """
