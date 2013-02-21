@@ -41,7 +41,7 @@ class SyncOnlineTest(tests.Test):
         self.slave_server.stop()
         tests.Test.tearDown(self)
 
-    def test_sync_Creaqte(self):
+    def test_Push(self):
         client = Client('http://localhost:9001')
 
         guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
@@ -63,37 +63,92 @@ class SyncOnlineTest(tests.Test):
             ],
             [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
 
-    def test_sync_Update(self):
-        client = Client('http://localhost:9001')
-
-        guid = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
-        client.post(cmd='online_sync')
         coroutine.sleep(1)
-
-        client.put(['document', guid], {'content': '2'})
+        client.put(['document', guid2], {'content': '22'})
         client.post(cmd='online_sync')
         self.assertEqual(
-                {'guid': guid, 'content': {'en-us': '2'}},
-                self.master_volume['document'].get(guid).properties(['guid', 'content']))
+                {'guid': guid2, 'content': {'en-us': '22'}},
+                self.master_volume['document'].get(guid2).properties(['guid', 'content']))
 
-    def test_sync_Delete(self):
-        client = Client('http://localhost:9001')
-
-        guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
-        guid2 = client.post(['document'], {'context': '', 'content': '2', 'title': '', 'type': 'idea'})
-        guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
-        client.post(cmd='online_sync')
         coroutine.sleep(1)
-
-        client.delete(['document', guid2])
+        client.delete(['document', guid1])
         client.post(cmd='online_sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['public']},
-            {'guid': guid2, 'content': {'en-us': '2'}, 'layer': ['deleted']},
+            {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['deleted']},
+            {'guid': guid2, 'content': {'en-us': '22'}, 'layer': ['public']},
             {'guid': guid3, 'content': {'en-us': '3'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
 
+        coroutine.sleep(1)
+        client.put(['document', guid1], {'content': 'a'})
+        client.put(['document', guid2], {'content': 'b'})
+        client.put(['document', guid3], {'content': 'c'})
+        guid4 = client.post(['document'], {'context': '', 'content': 'd', 'title': '', 'type': 'idea'})
+        client.delete(['document', guid2])
+        client.post(cmd='online_sync')
+        self.assertEqual([
+            {'guid': guid1, 'content': {'en-us': 'a'}, 'layer': ['deleted']},
+            {'guid': guid2, 'content': {'en-us': 'b'}, 'layer': ['deleted']},
+            {'guid': guid3, 'content': {'en-us': 'c'}, 'layer': ['public']},
+            {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
+            ],
+            [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
+
+    def test_Pull(self):
+        client = Client('http://localhost:9000')
+        slave_client = Client('http://localhost:9001')
+
+        guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
+        guid2 = client.post(['document'], {'context': '', 'content': '2', 'title': '', 'type': 'idea'})
+
+        slave_client.post(cmd='online_sync')
+        self.assertEqual([
+            {'guid': guid1, 'content': {'en-us': '1'}},
+            {'guid': guid2, 'content': {'en-us': '2'}},
+            ],
+            [i.properties(['guid', 'content']) for i in self.slave_volume['document'].find()[0]])
+
+        guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
+        slave_client.post(cmd='online_sync')
+        self.assertEqual([
+            {'guid': guid1, 'content': {'en-us': '1'}},
+            {'guid': guid2, 'content': {'en-us': '2'}},
+            {'guid': guid3, 'content': {'en-us': '3'}},
+            ],
+            [i.properties(['guid', 'content']) for i in self.slave_volume['document'].find()[0]])
+
+        coroutine.sleep(1)
+        client.put(['document', guid2], {'content': '22'})
+        slave_client.post(cmd='online_sync')
+        self.assertEqual(
+                {'guid': guid2, 'content': {'en-us': '22'}},
+                self.slave_volume['document'].get(guid2).properties(['guid', 'content']))
+
+        coroutine.sleep(1)
+        client.delete(['document', guid1])
+        slave_client.post(cmd='online_sync')
+        self.assertEqual([
+            {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['deleted']},
+            {'guid': guid2, 'content': {'en-us': '22'}, 'layer': ['public']},
+            {'guid': guid3, 'content': {'en-us': '3'}, 'layer': ['public']},
+            ],
+            [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
+
+        coroutine.sleep(1)
+        client.put(['document', guid1], {'content': 'a'})
+        client.put(['document', guid2], {'content': 'b'})
+        client.put(['document', guid3], {'content': 'c'})
+        guid4 = client.post(['document'], {'context': '', 'content': 'd', 'title': '', 'type': 'idea'})
+        client.delete(['document', guid2])
+        slave_client.post(cmd='online_sync')
+        self.assertEqual([
+            {'guid': guid1, 'content': {'en-us': 'a'}, 'layer': ['deleted']},
+            {'guid': guid2, 'content': {'en-us': 'b'}, 'layer': ['deleted']},
+            {'guid': guid3, 'content': {'en-us': 'c'}, 'layer': ['public']},
+            {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
+            ],
+            [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
 
 
 if __name__ == '__main__':

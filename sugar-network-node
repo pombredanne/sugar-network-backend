@@ -54,29 +54,24 @@ class Application(application.Daemon):
         volume = Volume(node.data_root.value)
         self.jobs.spawn(volume.populate)
 
-        node_stats = None
-        if stats.stats_node_step.value:
-            node_stats = stats.NodeStats(volume)
-            self.jobs.spawn(self._commit_stats, node_stats)
-
         node_path = join(node.data_root.value, 'node')
         master_path = join(node.data_root.value, 'master')
         if exists(node_path):
             with file(node_path) as f:
                 guid = f.read().strip()
             logging.info('Start %s node in slave mode', guid)
-            cp = SlaveCommands(guid, volume, node_stats)
+            cp = SlaveCommands(guid, volume)
         elif exists(master_path):
             with file(master_path) as f:
                 guid = f.read().strip()
             logging.info('Start %s node in master mode', guid)
-            cp = MasterCommands(guid, volume, node_stats)
+            cp = MasterCommands(guid, volume)
         else:
             guid = db.uuid()
             with file(node_path, 'w') as f:
                 f.write(guid)
             logging.info('Start new %s node in slave mode', guid)
-            cp = SlaveCommands(guid, volume, node_stats)
+            cp = SlaveCommands(guid, volume)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)
@@ -108,11 +103,6 @@ class Application(application.Daemon):
 
     def shutdown(self):
         self.jobs.kill()
-
-    def _commit_stats(self, node_stats):
-        while True:
-            coroutine.sleep(stats.stats_node_step.value)
-            node_stats.commit()
 
 
 # Let toolkit.http work in concurrence
