@@ -77,7 +77,7 @@ class Index(object):
         # avoid changing `self._index` by different coroutines.
         with self._mutex:
             self._sync()
-            out_seq = util.Sequence()
+            out_seq = util.Sequence([])
             try:
                 for record in self._diff(in_seq, out_seq):
                     if (yield record) is EOF:

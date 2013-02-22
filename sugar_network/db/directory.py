@@ -334,9 +334,6 @@ class Directory(object):
                 meta['seqno'] = seqno
             else:
                 meta['seqno'] = (orig_meta or {}).get('seqno') or 0
-
-            _logger.error('2> %r %r %r', prop, meta, orig_meta)
-
             record.set(prop, **meta)
             merged = True
 

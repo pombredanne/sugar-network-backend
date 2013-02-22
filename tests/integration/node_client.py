@@ -15,7 +15,7 @@ from sugar_network.client import IPCClient
 from sugar_network.toolkit import coroutine, util
 
 
-class CliTest(tests.Test):
+class NodeClientTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
@@ -28,7 +28,7 @@ class CliTest(tests.Test):
             '--port=8100', '--data-root=node', '--tmpdir=tmp', '-DDD',
             '--rundir=run', '--stats-node-step=0',
             ])
-        coroutine.sleep(3)
+        coroutine.sleep(1)
 
     def tearDown(self):
         self.waitpid(self.node_pid, signal.SIGINT)
@@ -36,14 +36,14 @@ class CliTest(tests.Test):
             self.waitpid(self.client_pid, signal.SIGINT)
         tests.Test.tearDown(self)
 
-    def test_CloneContext(self):
-        context = self.call(['POST', '/context'], stdin={
+    def test_CLI_CloneContext(self):
+        context = self.cli(['POST', '/context'], stdin={
             'type': 'activity',
             'title': 'title1',
             'summary': 'summary',
             'description': 'description',
             })
-        impl = self.call(['POST', '/implementation'], stdin={
+        impl = self.cli(['POST', '/implementation'], stdin={
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -63,14 +63,14 @@ class CliTest(tests.Test):
         bundle = zipfile.ZipFile('bundle', 'w')
         bundle.writestr('/topdir/probe', 'ok')
         bundle.close()
-        self.call(['PUT', '/implementation/%s/data' % impl, '--post-file=bundle'])
+        self.cli(['PUT', '/implementation/%s/data' % impl, '--post-file=bundle'])
 
-        self.call(['PUT', '/context/%s' % context, 'cmd=clone', '-jd1'])
+        self.cli(['PUT', '/context/%s' % context, 'cmd=clone', '-jd1'])
         assert exists('client/Activities/topdir/probe')
         self.assertEqual('ok', file('client/Activities/topdir/probe').read())
 
-    def test_FavoriteContext(self):
-        context = self.call(['POST', '/context'], stdin={
+    def test_CLI_FavoriteContext(self):
+        context = self.cli(['POST', '/context'], stdin={
             'type': 'activity',
             'title': 'title1',
             'summary': 'summary',
@@ -80,23 +80,23 @@ class CliTest(tests.Test):
         path = 'client/db/context/%s/%s/favorite' % (context[:2], context)
         assert not exists(path)
 
-        self.call(['PUT', '/context/%s' % context, 'cmd=favorite', '-jdtrue'])
+        self.cli(['PUT', '/context/%s' % context, 'cmd=favorite', '-jdtrue'])
 
         assert exists(path)
         self.assertEqual(True, pickle.load(file(path))['value'])
 
-    def test_UsecaseOOB(self):
+    def test_CLI_UsecaseOOB(self):
         privkey_path = '.sugar/default/owner.key'
         os.unlink(privkey_path)
 
-        self.call(['PUT', '/context/context', '--anonymous', 'cmd=clone', '-jd', '1'])
-        self.call(['PUT', '/context/context', '--anonymous', 'cmd=favorite', '-jd', 'true'])
+        self.cli(['PUT', '/context/context', '--anonymous', 'cmd=clone', '-jd', '1'])
+        self.cli(['PUT', '/context/context', '--anonymous', 'cmd=favorite', '-jd', 'true'])
 
         assert not exists(privkey_path)
         assert exists('Activities/Chat.activity/activity/activity.info')
         self.assertEqual(True, pickle.load(file('client/db/context/co/context/favorite'))['value'])
 
-    def call(self, cmd, stdin=None):
+    def cli(self, cmd, stdin=None):
         cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd
 
         if '--anonymous' not in cmd and not self.client_pid:

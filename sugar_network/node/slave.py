@@ -56,8 +56,9 @@ class SlaveCommands(NodeCommands):
         for packet in sync.decode(response.raw):
             if packet.name == 'diff':
                 seq, __ = sync.merge(self.volume, packet, shift_seqno=False)
-                self._pull_seq.exclude(seq)
-                self._pull_seq.commit()
+                if seq:
+                    self._pull_seq.exclude(seq)
+                    self._pull_seq.commit()
             elif packet.name == 'ack':
                 self._pull_seq.exclude(packet['ack'])
                 self._pull_seq.commit()
@@ -67,8 +68,9 @@ class SlaveCommands(NodeCommands):
                 stats_user.commit(packet['sequence'])
             elif packet.name == 'files_diff':
                 seq = files.merge(files_root.value, packet)
-                self._files_seq.exclude(seq)
-                self._files_seq.commit()
+                if seq:
+                    self._files_seq.exclude(seq)
+                    self._files_seq.commit()
 
 
 """
