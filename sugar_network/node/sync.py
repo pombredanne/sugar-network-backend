@@ -19,7 +19,7 @@ import cPickle as pickle
 from sugar_network.toolkit import util, coroutine, enforce
 
 
-_EOF = object()
+EOF = object()
 
 _logger = logging.getLogger('node.sync')
 
@@ -58,7 +58,7 @@ def diff(volume, in_seq):
 
             for guid, patch in directory.diff(in_seq, out_seq):
                 coroutine.dispatch()
-                if (yield {'diff': patch, 'guid': guid}) is _EOF:
+                if (yield {'diff': patch, 'guid': guid}) is EOF:
                     raise StopIteration()
         if out_seq:
             # We processed all documents till `out_seq.last`, thus,

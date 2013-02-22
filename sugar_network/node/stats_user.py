@@ -18,8 +18,9 @@ import logging
 from os.path import join, exists, isdir
 
 from sugar_network import node
+from sugar_network.node.sync import EOF
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import Option, util, pylru
+from sugar_network.toolkit import Option, util, pylru, enforce
 
 
 stats_user = Option(
@@ -51,42 +52,61 @@ def get_rrd(user):
         return rrd
 
 
-def diff(in_seq=None, packet=None):
-    for user, rrd in _walk_rrd(join(node.stats_root.value, 'user')):
-        in_seq.setdefault(user, {})
+def diff(in_info=None):
+    if in_info is None:
+        in_info = {}
+    out_info = {}
 
-        for db in rrd:
-            seq = in_seq[user].get(db.name)
-            if seq is None:
-                seq = in_seq[user][db.name] = util.PersistentSequence(
-                        join(rrd.root, db.name + '.push'), [1, None])
-            elif seq is not dict:
-                seq = in_seq[user][db.name] = util.Sequence(seq)
-            out_seq = util.Sequence()
+    try:
+        for user, rrd in _walk_rrd(join(node.stats_root.value, 'user')):
+            in_info.setdefault(user, {})
+            out_info.setdefault(user, {})
 
-            def dump():
-                for start, end in seq:
+            for db in rrd:
+                yield {'db': db.name, 'user': user}
+
+                in_seq = in_info[user].get(db.name)
+                if in_seq is None:
+                    in_seq = in_info[user][db.name] = util.PersistentSequence(
+                            join(rrd.root, db.name + '.push'), [1, None])
+                elif in_seq is not util.Sequence:
+                    in_seq = in_info[user][db.name] = util.Sequence(in_seq)
+                out_seq = out_info[user].setdefault(db.name, util.Sequence())
+
+                for start, end in in_seq:
                     for timestamp, values in \
                             db.get(max(start, db.first), end or db.last):
-                        yield {'timestamp': timestamp, 'values': values}
-                        seq.exclude(start, timestamp)
+                        record = {'timestamp': timestamp, 'values': values}
+                        if (yield record) is EOF:
+                            raise StopIteration()
+                        in_seq.exclude(start, timestamp)
                         out_seq.include(start, timestamp)
                         start = timestamp
-
-            packet.push(dump(), arcname=join('stats', user, db.name),
-                    cmd='stats_push', user=user, db=db.name,
-                    sequence=out_seq)
+    finally:
+        yield {'commit': out_info}
 
 
 def merge(packet):
-    return False
+    db = None
+    seq = None
+
+    for record in packet:
+        if 'db' in record:
+            db = get_rrd(record['user'])[record['db']]
+        elif 'commit' in record:
+            seq = record['commit']
+        else:
+            enforce(db is not None, 'Malformed user stats diff')
+            db.put(record['values'], record['timestamp'])
+
+    return seq
 
 
-def commit(sequences):
-    for user, dbs in sequences.items():
-        for db, merged in dbs.items():
+def commit(info):
+    for user, dbs in info.items():
+        for db_name, merged in dbs.items():
             seq = util.PersistentSequence(
-                    _rrd_path(user, db + '.push'), [1, None])
+                    _rrd_path(user, db_name + '.push'), [1, None])
             seq.exclude(merged)
             seq.commit()
 

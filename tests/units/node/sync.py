@@ -78,7 +78,7 @@ class SyncTest(tests.Test):
         diff = sync.diff(volume, in_seq)
         self.assertEqual({'document': 'document'}, diff.send(None))
         self.assertEqual('1', diff.send(None)['guid'])
-        self.assertEqual({'commit': []}, diff.send(sync._EOF))
+        self.assertEqual({'commit': []}, diff.send(sync.EOF))
         try:
             diff.send(None)
             assert False
@@ -89,7 +89,7 @@ class SyncTest(tests.Test):
         self.assertEqual({'document': 'document'}, diff.send(None))
         self.assertEqual('1', diff.send(None)['guid'])
         self.assertEqual('2', diff.send(None)['guid'])
-        self.assertEqual({'commit': [[1, 1]]}, diff.send(sync._EOF))
+        self.assertEqual({'commit': [[1, 1]]}, diff.send(sync.EOF))
         try:
             diff.send(None)
             assert False
@@ -121,7 +121,7 @@ class SyncTest(tests.Test):
         self.assertEqual('1', diff.send(None)['guid'])
         self.assertEqual('3', diff.send(None)['guid'])
         self.assertEqual('5', diff.send(None)['guid'])
-        self.assertEqual({'commit': [[1, 1], [3, 3]]}, diff.send(sync._EOF))
+        self.assertEqual({'commit': [[1, 1], [3, 3]]}, diff.send(sync.EOF))
         try:
             diff.send(None)
             assert False

@@ -8,6 +8,7 @@ from node import *
 from obs import *
 from sneakernet import *
 from stats_node import *
+from stats_user import *
 from sync import *
 from sync_online import *
 
