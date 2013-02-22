@@ -43,6 +43,8 @@ class Application(application.Daemon):
     def ensure_run(self):
         if toolkit.tmpdir.value and not exists(toolkit.tmpdir.value):
             os.makedirs(toolkit.tmpdir.value)
+        if not exists(node.data_root.value):
+            os.makedirs(node.data_root.value)
         enforce(os.access(node.data_root.value, os.W_OK),
                 'No write access to %r directory', node.data_root.value)
 
