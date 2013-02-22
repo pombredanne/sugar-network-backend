@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
+import json
+
 from __init__ import tests
 
 from sugar_network import db
 from sugar_network.client import Client, api_url
-from sugar_network.node import sync, stats_user
+from sugar_network.node import sync, stats_user, files_root
 from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
@@ -19,7 +22,6 @@ class SyncOnlineTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        stats_user.stats_user.value = True
 
         self.stats_commit = []
         self.stats_merge = []
@@ -35,6 +37,7 @@ class SyncOnlineTest(tests.Test):
         class Document(Feedback):
             pass
 
+        files_root.value = 'master/files'
         self.master_volume = Volume('master', [User, Document])
         self.master_server = coroutine.WSGIServer(('localhost', 9000), Router(MasterCommands(self.master_volume)))
         coroutine.spawn(self.master_server.serve_forever)
@@ -42,6 +45,7 @@ class SyncOnlineTest(tests.Test):
         client = Client('http://localhost:9000')
         client.get(cmd='whoami')
 
+        files_root.value = 'slave/files'
         api_url.value = 'http://localhost:9000'
         self.slave_volume = Volume('slave', [User, Document])
         self.slave_server = coroutine.WSGIServer(('localhost', 9001), Router(SlaveCommands('slave', self.slave_volume)))
@@ -65,8 +69,6 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid2, 'content': {'en-us': '2'}},
             ],
             [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
-        self.assertEqual(['ok'], self.stats_commit)
-        self.assertEqual([{'stats': 'probe'}], self.stats_merge)
 
         guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
         client.post(cmd='online_sync')
@@ -108,6 +110,13 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
+
+    def test_PushStats(self):
+        stats_user.stats_user.value = True
+        client = Client('http://localhost:9001')
+        client.post(cmd='online_sync')
+        self.assertEqual(['ok'], self.stats_commit)
+        self.assertEqual([{'stats': 'probe'}], self.stats_merge)
 
     def test_Pull(self):
         client = Client('http://localhost:9000')
@@ -163,6 +172,29 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
+
+    def test_PullFiles(self):
+        self.touch(('master/files/1', 'a', 1))
+        self.touch(('master/files/2/2', 'bb', 2))
+        self.touch(('master/files/3/3/3', 'ccc', 3))
+        os.utime('master/files', (1, 1))
+
+        client = Client('http://localhost:9001')
+        client.post(cmd='online_sync')
+
+        files, stamp = json.load(file('master/files.index'))
+        self.assertEqual(1, stamp)
+        self.assertEqual(sorted([
+            [2, '1', 1],
+            [3, '2/2', 2],
+            [4, '3/3/3', 3],
+            ]),
+            sorted(files))
+
+        self.assertEqual([[5, None]], json.load(file('slave/files.sequence')))
+        self.assertEqual('a', file('slave/files/1').read())
+        self.assertEqual('bb', file('slave/files/2/2').read())
+        self.assertEqual('ccc', file('slave/files/3/3/3').read())
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@
 from __init__ import tests
 
 from auth import *
-#from files_sync import *
+from files import *
 from node import *
 from obs import *
 from sneakernet import *

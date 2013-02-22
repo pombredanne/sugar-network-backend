@@ -202,7 +202,7 @@ Option.seek('main', application)
 Option.seek('webui', webui)
 Option.seek('client', client)
 Option.seek('client', [sugar.keyfile, toolkit.tmpdir])
-Option.seek('node', [node.port, slave.sync_dirs])
+Option.seek('node', [node.port, node.files_root])
 Option.seek('stats', stats_user)
 Option.seek('db', db)
 

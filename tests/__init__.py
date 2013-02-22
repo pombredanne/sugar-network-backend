@@ -82,7 +82,7 @@ class Test(unittest.TestCase):
         node.find_limit.value = 1024
         node.data_root.value = tmpdir
         node.static_url.value = None
-        slave.sync_dirs.value = []
+        node.files_root.value = None
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.activity_dirs.value = [tmpdir + '/Activities']
@@ -181,6 +181,7 @@ class Test(unittest.TestCase):
         setattr(mod, name, new_handler)
 
     def touch(self, *files):
+        utime = None
         for i in files:
             if isinstance(i, basestring):
                 if i.endswith(os.sep):
@@ -191,7 +192,10 @@ class Test(unittest.TestCase):
                 else:
                     content = i
             else:
-                path, content = i
+                if len(i) == 2:
+                    path, content = i
+                else:
+                    path, content, utime = i
                 if isinstance(content, list):
                     content = '\n'.join(content)
             path = join(tmpdir, path)
@@ -204,6 +208,9 @@ class Test(unittest.TestCase):
             f = file(path, 'w')
             f.write(str(content))
             f.close()
+
+            if utime:
+                os.utime(path, (utime, utime))
 
     def utime(self, path, ts):
         if isfile(path):

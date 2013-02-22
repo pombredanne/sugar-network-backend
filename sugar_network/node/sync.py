@@ -13,10 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import logging
 import cPickle as pickle
 
-from sugar_network.toolkit import util, coroutine, enforce
+from sugar_network.toolkit import BUFFER_SIZE, util, coroutine, enforce
 
 
 EOF = object()
@@ -39,8 +40,25 @@ def encode(*args):
             props = {}
         props['packet'] = packet
         yield pickle.dumps(props)
+
         for record in content or []:
+            blob = record.get('blob')
+            if blob:
+                del record['blob']
+                record['blob_size'] = os.stat(blob).st_size
             yield pickle.dumps(record)
+
+            if blob:
+                sent_bytes = 0
+                with file(blob, 'rb') as f:
+                    while True:
+                        chunk = f.read(BUFFER_SIZE)
+                        if not chunk:
+                            break
+                        yield chunk
+                        sent_bytes += len(chunk)
+                enforce(sent_bytes == record['blob_size'])
+
     yield pickle.dumps({'packet': 'last'})
 
 
@@ -165,6 +183,9 @@ class _PacketsIterator(object):
                 self._props = record
                 self._shift = False
                 break
+            blob_size = record.get('blob_size')
+            if blob_size:
+                record['blob'] = _Blob(self._stream, blob_size)
             yield record
 
     def __enter__(self):
@@ -172,3 +193,15 @@ class _PacketsIterator(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
+
+
+class _Blob(object):
+
+    def __init__(self, stream, size):
+        self._stream = stream
+        self._size_to_read = size
+
+    def read(self, size=BUFFER_SIZE):
+        chunk = self._stream.read(min(size, self._size_to_read))
+        self._size_to_read -= len(chunk)
+        return chunk

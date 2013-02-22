@@ -18,21 +18,14 @@ from os.path import join
 
 from sugar_network import db
 from sugar_network.client import Client
-from sugar_network.node import sync, stats_user
+from sugar_network.node import sync, stats_user, files, files_root
 from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import Option, util
+from sugar_network.toolkit import util
 
 
 _SYNC_DIRNAME = '.sugar-network-sync'
 
 _logger = logging.getLogger('node.slave')
-
-
-sync_dirs = Option(
-        'colon separated list of paths to directories to synchronize with '
-                'master server',
-        type_cast=Option.paths_cast, type_repr=Option.paths_repr,
-        name='sync_dirs')
 
 
 class SlaveCommands(NodeCommands):
@@ -41,15 +34,18 @@ class SlaveCommands(NodeCommands):
         NodeCommands.__init__(self, False, guid, volume)
 
         self._push_seq = util.PersistentSequence(
-                join(volume.root, 'push'), [1, None])
+                join(volume.root, 'push.sequence'), [1, None])
         self._pull_seq = util.PersistentSequence(
-                join(volume.root, 'pull'), [1, None])
+                join(volume.root, 'pull.sequence'), [1, None])
+        self._files_seq = util.PersistentSequence(
+                join(volume.root, 'files.sequence'), [1, None])
 
     @db.volume_command(method='POST', cmd='online_sync',
             permissions=db.ACCESS_LOCAL)
     def online_sync(self):
         push = [('diff', None, sync.diff(self.volume, self._push_seq)),
                 ('pull', {'sequence': self._pull_seq}, None),
+                ('files_pull', {'sequence': self._files_seq}, None),
                 ]
         if stats_user.stats_user.value:
             push.append(('stats_diff', None, stats_user.diff()))
@@ -69,6 +65,10 @@ class SlaveCommands(NodeCommands):
                 self._push_seq.commit()
             elif packet.name == 'stats_ack':
                 stats_user.commit(packet['sequence'])
+            elif packet.name == 'files_diff':
+                seq = files.merge(files_root.value, packet)
+                self._files_seq.exclude(seq)
+                self._files_seq.commit()
 
 
 """

@@ -441,27 +441,27 @@ class SyncTest(tests.Test):
 
         self.assertEqual([
             pickle.dumps({'packet': 1}),
-            pickle.dumps(1),
+            pickle.dumps({1: 1}),
             pickle.dumps({'packet': 2}),
-            pickle.dumps(2),
-            pickle.dumps(2),
+            pickle.dumps({2: 2}),
+            pickle.dumps({2: 2}),
             pickle.dumps({'packet': 3}),
-            pickle.dumps(3),
-            pickle.dumps(3),
-            pickle.dumps(3),
+            pickle.dumps({3: 3}),
+            pickle.dumps({3: 3}),
+            pickle.dumps({3: 3}),
             pickle.dumps({'packet': 'last'}),
             ],
             [i for i in sync.encode(
-                (1, None, [1]),
-                (2, None, [2, 2]),
-                (3, None, [3, 3, 3]),
+                (1, None, [{1: 1}]),
+                (2, None, [{2: 2}, {2: 2}]),
+                (3, None, [{3: 3}, {3: 3}, {3: 3}]),
                 )])
 
     def test_chunked_encode(self):
         output = sync.chunked_encode()
         self.assertEqual({'packet': 'last'}, pickle.loads(decode_chunked(output.read(100))))
 
-        data = [{'foo': 1}, {'bar': 2}, 3]
+        data = [{'foo': 1}, {'bar': 2}]
         data_stream = pickle.dumps({'packet': 'packet'})
         for record in data:
             data_stream += pickle.dumps(record)
@@ -493,6 +493,57 @@ class SyncTest(tests.Test):
                 break
             dump.write(chunk)
         self.assertEqual(data_stream, decode_chunked(dump.getvalue()))
+
+    def test_encode_Blobs(self):
+        self.touch(('1', 'a'))
+        self.touch(('2', 'bb'))
+        self.touch(('3', 'ccc'))
+
+        self.assertEqual([
+            pickle.dumps({'packet': 1}),
+            pickle.dumps({'num': 1, 'blob_size': 1}),
+            'a',
+            pickle.dumps({'num': 2, 'blob_size': 2}),
+            'bb',
+            pickle.dumps({'packet': 2}),
+            pickle.dumps({'num': 3, 'blob_size': 3}),
+            'ccc',
+            pickle.dumps({'packet': 'last'}),
+            ],
+            [i for i in sync.encode(
+                (1, None, [{'num': 1, 'blob': '1'}, {'num': 2, 'blob': '2'}]),
+                (2, None, [{'num': 3, 'blob': '3'}]),
+                )])
+
+    def test_decode_Blobs(self):
+        stream = StringIO()
+        pickle.dump({'packet': 1}, stream)
+        pickle.dump({'num': 1, 'blob_size': 1}, stream)
+        stream.write('a')
+        pickle.dump({'num': 2, 'blob_size': 2}, stream)
+        stream.write('bb')
+        pickle.dump({'packet': 2}, stream)
+        pickle.dump({'num': 3, 'blob_size': 3}, stream)
+        stream.write('ccc')
+        pickle.dump({'packet': 'last'}, stream)
+        stream.seek(0)
+
+        packets_iter = sync.decode(stream)
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            self.assertEqual([
+                (1, 1, 'a'),
+                (2, 2, 'bb'),
+                ],
+                [(i['num'], i['blob_size'], i['blob'].read()) for i in packet])
+        with next(packets_iter) as packet:
+            self.assertEqual(2, packet.name)
+            self.assertEqual([
+                (3, 3, 'ccc'),
+                ],
+                [(i['num'], i['blob_size'], i['blob'].read()) for i in packet])
+        self.assertRaises(StopIteration, packets_iter.next)
+        self.assertEqual(len(stream.getvalue()), stream.tell())
 
 
 def decode_chunked(encdata):
