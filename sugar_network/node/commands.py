@@ -19,7 +19,7 @@ import hashlib
 from os.path import exists, join
 
 from sugar_network import db, node
-from sugar_network.node import auth, obs, stats
+from sugar_network.node import auth, obs, stats_node
 from sugar_network.resources.volume import Commands, VolumeCommands
 from sugar_network.toolkit import router, util, coroutine, exception, enforce
 
@@ -39,8 +39,8 @@ class NodeCommands(VolumeCommands, Commands):
         self._guid = guid
         self._stats = None
 
-        if stats.stats_node_step.value:
-            self._stats = stats.NodeStats(volume)
+        if stats_node.stats_node.value:
+            self._stats = stats_node.Sniffer(volume)
             coroutine.spawn(self._commit_stats)
 
     @property
@@ -253,7 +253,7 @@ class NodeCommands(VolumeCommands, Commands):
 
     def _commit_stats(self):
         while True:
-            coroutine.sleep(stats.stats_node_step.value)
+            coroutine.sleep(stats_node.stats_node_step.value)
             self._stats.commit()
 
 

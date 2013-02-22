@@ -5,7 +5,7 @@ from __init__ import tests
 
 from sugar_network import db
 from sugar_network.client import Client, api_url
-from sugar_network.node import sync
+from sugar_network.node import sync, stats_user
 from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
@@ -19,6 +19,18 @@ class SyncOnlineTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+        stats_user.stats_user.value = True
+
+        self.stats_commit = []
+        self.stats_merge = []
+        def stats_diff():
+            yield {'stats': 'probe'}
+        self.override(stats_user, 'diff', stats_diff)
+        def stats_merge(packet):
+            self.stats_merge.extend([i for i in packet])
+            return 'ok'
+        self.override(stats_user, 'merge', stats_merge)
+        self.override(stats_user, 'commit', lambda seq: self.stats_commit.append(seq))
 
         class Document(Feedback):
             pass
@@ -53,6 +65,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid2, 'content': {'en-us': '2'}},
             ],
             [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
+        self.assertEqual(['ok'], self.stats_commit)
+        self.assertEqual([{'stats': 'probe'}], self.stats_merge)
 
         guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
         client.post(cmd='online_sync')

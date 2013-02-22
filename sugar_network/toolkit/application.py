@@ -219,18 +219,19 @@ class Application(object):
                 pid = None
         return pid
 
-    def ensure_pidfile_path(self):
+    def ensure_run(self):
+        pass
+
+    def ensure_pidfile(self):
         if not exists(self._rundir):
             os.makedirs(self._rundir)
-        enforce(os.access(self._rundir, os.W_OK),
-                'No write access to %r to store pidfile', self._rundir)
+        pidfile_path = join(self._rundir, '%s.pid' % self.name)
+        return file(pidfile_path, 'w')
 
     def new_instance(self):
-        self.ensure_pidfile_path()
-        pidfile_path = join(self._rundir, '%s.pid' % self.name)
-        with file(pidfile_path, 'w') as f:
+        with self.ensure_pidfile() as f:
             f.write(str(os.getpid()))
-        return pidfile_path
+            return f.name
 
     @command('output current configuration', name='config')
     def _cmd_config(self):
@@ -245,14 +246,14 @@ class Application(object):
         log_dir = abspath(logdir.value)
         if not exists(log_dir):
             os.makedirs(log_dir)
-        enforce(os.access(log_dir, os.W_OK), 'No write access to %s', log_dir)
+
+        log_path = join(log_dir, '%s.log' % self.name)
+        logfile = file(log_path, 'a+')
 
         # printf should still output to original streams
         printf.stdout = os.fdopen(os.dup(sys.stdout.fileno()), 'w')
         printf.stderr = os.fdopen(os.dup(sys.stderr.fileno()), 'w')
 
-        log_path = join(log_dir, '%s.log' % self.name)
-        logfile = file(log_path, 'a+')
         os.dup2(logfile.fileno(), sys.stdout.fileno())
         os.dup2(logfile.fileno(), sys.stderr.fileno())
         logfile.close()
@@ -284,10 +285,12 @@ class Daemon(Application):
                 pass
             time.sleep(.5)
 
+        self.ensure_run()
         if foreground.value:
             self._launch()
         else:
-            self.ensure_pidfile_path()
+            with self.ensure_pidfile():
+                pass
             self._daemonize()
 
         return 0

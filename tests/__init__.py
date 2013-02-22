@@ -27,7 +27,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.node.commands import NodeCommands
-from sugar_network.node import stats, obs, auth, sneakernet, slave
+from sugar_network.node import stats_user, stats_node, obs, auth, sneakernet, slave
 from sugar_network.resources.volume import Volume
 
 
@@ -95,10 +95,12 @@ class Test(unittest.TestCase):
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
-        stats.stats_root.value = tmpdir + '/stats'
-        stats.stats_node_step.value = 0
-        stats.stats_user_step.value = 1
-        stats._user_cache.clear()
+        node.stats_root.value = tmpdir + '/stats'
+        stats_node.stats_node.value = False
+        stats_node.stats_node_step.value = 0
+        stats_user.stats_user.value = False
+        stats_user.stats_user_step.value = 1
+        stats_user._user_cache.clear()
         obs._client = None
         http._RECONNECTION_NUMBER = 0
         auth.reset()

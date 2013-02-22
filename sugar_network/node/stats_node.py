@@ -13,17 +13,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import logging
-from os.path import join, exists, isdir
+from os.path import join
 
+from sugar_network import node
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import Option, util, pylru
+from sugar_network.toolkit import Option
 
 
-stats_root = Option(
-        'path to the root directory for placing stats',
-        default='/var/lib/sugar-network/stats')
+stats_node = Option(
+        'collect unpersonalized node statistics',
+        default=False, type_cast=Option.bool_cast, action='store_true')
 
 stats_node_step = Option(
         'step interval in seconds for node RRD databases',
@@ -40,72 +40,13 @@ stats_node_rras = Option(
             ],
         type_cast=Option.list_cast, type_repr=Option.list_repr)
 
-stats_user_step = Option(
-        'step interval in seconds for users\' RRD databases',
-        default=60, type_cast=int)
-
-stats_user_rras = Option(
-        'space separated list of RRAs for users\' RRD databases',
-        default=[
-            'RRA:AVERAGE:0.5:1:4320',   # one day with 60s step
-            'RRA:AVERAGE:0.5:5:2016',   # one week with 5min step
-            ],
-        type_cast=Option.list_cast, type_repr=Option.list_repr)
+_logger = logging.getLogger('node.stats_node')
 
 
-_logger = logging.getLogger('node.stats')
-_user_cache = pylru.lrucache(32)
-
-
-def get_rrd(user):
-    if user in _user_cache:
-        return _user_cache[user]
-    else:
-        rrd = _user_cache[user] = Rrd(_rrd_path(user),
-                stats_user_step.value, stats_user_rras.value)
-        return rrd
-
-
-def pull(in_seq, packet):
-    for user, rrd in _walk_rrd(join(stats_root.value, 'user')):
-        in_seq.setdefault(user, {})
-
-        for db in rrd:
-            seq = in_seq[user].get(db.name)
-            if seq is None:
-                seq = in_seq[user][db.name] = util.PersistentSequence(
-                        join(rrd.root, db.name + '.push'), [1, None])
-            elif seq is not dict:
-                seq = in_seq[user][db.name] = util.Sequence(seq)
-            out_seq = util.Sequence()
-
-            def dump():
-                for start, end in seq:
-                    for timestamp, values in \
-                            db.get(max(start, db.first), end or db.last):
-                        yield {'timestamp': timestamp, 'values': values}
-                        seq.exclude(start, timestamp)
-                        out_seq.include(start, timestamp)
-                        start = timestamp
-
-            packet.push(dump(), arcname=join('stats', user, db.name),
-                    cmd='stats_push', user=user, db=db.name,
-                    sequence=out_seq)
-
-
-def commit(sequences):
-    for user, dbs in sequences.items():
-        for db, merged in dbs.items():
-            seq = util.PersistentSequence(
-                    _rrd_path(user, db + '.push'), [1, None])
-            seq.exclude(merged)
-            seq.commit()
-
-
-class NodeStats(object):
+class Sniffer(object):
 
     def __init__(self, volume):
-        path = join(stats_root.value, 'node')
+        path = join(node.stats_root.value, 'node')
         _logger.info('Start collecting node stats in %r', path)
 
         self._volume = volume
@@ -456,18 +397,3 @@ class _CommentStats(_Stats):
                 if request.content.get(owner):
                     self._stats[owner].commented += 1
                     break
-
-
-def _rrd_path(user, *args):
-    return join(stats_root.value, 'user', user[:2], user, *args)
-
-
-def _walk_rrd(root):
-    if not exists(root):
-        return
-    for users_dirname in os.listdir(root):
-        users_dir = join(root, users_dirname)
-        if not isdir(users_dir):
-            continue
-        for user in os.listdir(users_dir):
-            yield user, Rrd(join(users_dir, user), stats_user_step.value)

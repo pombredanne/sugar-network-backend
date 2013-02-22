@@ -27,23 +27,27 @@ from sugar_network import db, node, client, toolkit
 from sugar_network.client.mounts import LocalMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.client.mounts import LocalMount
-from sugar_network.node import stats, obs
+from sugar_network.node import stats_node, stats_user, obs
 from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import sugar, coroutine, application, util, Option
+from sugar_network.toolkit import enforce
 
 
 class Application(application.Daemon):
 
     jobs = coroutine.Pool()
 
-    def run(self):
-        util.init_logging(application.debug.value)
-
+    def ensure_run(self):
         if toolkit.tmpdir.value and not exists(toolkit.tmpdir.value):
             os.makedirs(toolkit.tmpdir.value)
+        enforce(os.access(node.data_root.value, os.W_OK),
+                'No write access to %r directory', node.data_root.value)
+
+    def run(self):
+        util.init_logging(application.debug.value)
 
         ssl_args = {}
         if node.keyfile.value:
@@ -118,7 +122,8 @@ Option.seek('main', application)
 Option.seek('webui', webui)
 Option.seek('node', node)
 Option.seek('node', [toolkit.tmpdir])
-Option.seek('stats', stats)
+Option.seek('node-stats', stats_node)
+Option.seek('user-stats', stats_user)
 Option.seek('obs', obs)
 Option.seek('db', db)
 
