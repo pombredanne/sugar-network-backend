@@ -54,3 +54,7 @@ static_url = Option(
 stats_root = Option(
         'path to the root directory for placing stats',
         default='/var/lib/sugar-network/stats')
+
+files_root = Option(
+        'path to a directory to keep files synchronized between nodes',
+        default='/var/lib/sugar-network/files', name='files_root')

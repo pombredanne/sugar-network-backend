@@ -13,52 +13,141 @@ import rrdtool
 
 from __init__ import tests
 
-from sugar_network.client import local_root, Client
+from sugar_network.client import Client
 from sugar_network.toolkit.sneakernet import InPacket, OutPacket
+from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import sugar, util, coroutine
 
 
-class SyncTest(tests.Test):
+class MasterSlaveTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
 
-        local_root.value = 'node'
         self.touch(('master/db/master', 'master'))
-        os.makedirs('mnt')
 
-        self.master_pid = self.popen([
-            'sugar-network-server', '--port=8100', '--subscribe-port=8101',
-            '--data-root=master/db', '--index-flush-threshold=1024',
-            '--index-flush-timeout=3', '--only-commit-events',
-            '--tmpdir=tmp', '--sync-dirs=master/files/1:master/files/2',
-            '--pull-timeout=1',
-            '--stats', '--stats-root=master/stats', '--stats-step=1',
-            '--stats-rras=RRA:AVERAGE:0.5:1:100',
-            '-DDDF', 'start',
+        self.master_pid = self.popen(['sugar-network-node', '-F', 'start',
+            '--port=8100', '--data-root=master/db', '--tmpdir=master/tmp',
+            '-DDD', '--rundir=master/run', '--files-root=master/files',
+            '--stats-root=master/stats', '--stats-user', '--stats-user-step=1',
+            '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
+            '--index-flush-threshold=1',
             ])
-        self.node_pid = self.popen([
-            'sugar-network-service', '--port=8200', '--subscribe-port=8201',
-            '--activity-dirs=node/Activities', '--local-root=node',
-            '--mounts-root=mnt', '--server-mode', '--tmpdir=tmp',
+        self.slave_pid = self.popen(['sugar-network-node', '-F', 'start',
             '--api-url=http://localhost:8100',
-            '--sync-dirs=node/files/1:node/files/2',
-            '--stats', '--stats-root=node/stats', '--stats-step=1',
-            '--stats-rras=RRA:AVERAGE:0.5:1:100',
-            '-DDD', 'debug',
+            '--port=8101', '--data-root=slave/db', '--tmpdir=slave/tmp',
+            '-DDD', '--rundir=slave/run', '--files-root=slave/files',
+            '--stats-root=slave/stats', '--stats-user', '--stats-user-step=1',
+            '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
+            '--index-flush-threshold=1',
             ])
-
         coroutine.sleep(1)
-        with Client('/') as client:
-            if not client.connected:
-                self.wait_for_events({'event': 'mount', 'mountpoint': '/'})
 
     def tearDown(self):
         self.waitpid(self.master_pid, signal.SIGINT)
-        self.waitpid(self.node_pid, signal.SIGINT)
+        self.waitpid(self.slave_pid, signal.SIGINT)
         tests.Test.tearDown(self)
 
-    def test_Sneakernet(self):
+    def test_OnlineSync(self):
+        ts = int(time.time())
+        master = Client('http://localhost:8100')
+        slave = Client('http://localhost:8101')
+
+        # Initial data
+
+        context1 = master.post(['/context'], {
+            'type': 'activity',
+            'title': 'title1',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.touch(('master/files/file1', 'file1'))
+
+        context2 = slave.post(['/context'], {
+            'type': 'activity',
+            'title': 'title2',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        slave.post(['user', tests.UID], {
+            'name': 'db',
+            'values': [(ts, {'field': 1})],
+            }, cmd='stats-upload')
+
+        # 1st sync
+        slave.post(cmd='online_sync')
+
+        self.assertEqual('title1', master.get(['context', context1, 'title']))
+        self.assertEqual('title2', master.get(['context', context2, 'title']))
+        stats = Rrd('master/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
+        self.assertEqual([
+            [('db', ts, {'field': 1.0})]
+            ],
+            [[(db.name,) + i for i in db.get(db.first, db.last)] for db in stats])
+        self.assertEqual('file1', file('master/files/file1').read())
+
+        self.assertEqual('title1', slave.get(['context', context1, 'title']))
+        self.assertEqual('title2', slave.get(['context', context2, 'title']))
+        stats = Rrd('slave/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
+        self.assertEqual([
+            [('db', ts, {'field': 1.0})]
+            ],
+            [[(db.name,) + i for i in db.get(db.first, db.last)] for db in stats])
+        self.assertEqual('file1', file('slave/files/file1').read())
+
+        # More data
+        coroutine.sleep(1)
+
+        context3 = master.post(['/context'], {
+            'type': 'activity',
+            'title': 'title3',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        master.put(['context', context1, 'title'], 'title1_')
+        self.touch(('master/files/file1', 'file1_'))
+        self.touch(('master/files/file2', 'file2'))
+
+        context4 = slave.post(['/context'], {
+            'type': 'activity',
+            'title': 'title4',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        slave.put(['context', context2, 'title'], 'title2_')
+        slave.post(['user', tests.UID], {
+            'name': 'db',
+            'values': [(ts + 1, {'field': 2})],
+            }, cmd='stats-upload')
+
+        # 2nd sync
+        slave.post(cmd='online_sync')
+
+        self.assertEqual('title1_', master.get(['context', context1, 'title']))
+        self.assertEqual('title2_', master.get(['context', context2, 'title']))
+        self.assertEqual('title3', master.get(['context', context3, 'title']))
+        self.assertEqual('title4', master.get(['context', context4, 'title']))
+        stats = Rrd('master/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
+        self.assertEqual([
+            [('db', ts, {'field': 1.0}), ('db', ts + 1, {'field': 2.0})]
+            ],
+            [[(db.name,) + i for i in db.get(db.first, db.last)] for db in stats])
+        self.assertEqual('file1_', file('master/files/file1').read())
+        self.assertEqual('file2', file('master/files/file2').read())
+
+        self.assertEqual('title1_', slave.get(['context', context1, 'title']))
+        self.assertEqual('title2_', slave.get(['context', context2, 'title']))
+        self.assertEqual('title3', slave.get(['context', context3, 'title']))
+        self.assertEqual('title4', slave.get(['context', context4, 'title']))
+        stats = Rrd('slave/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
+        self.assertEqual([
+            [('db', ts, {'field': 1.0}), ('db', ts + 1, {'field': 2.0})]
+            ],
+            [[(db.name,) + i for i in db.get(db.first, db.last)] for db in stats])
+        self.assertEqual('file1_', file('slave/files/file1').read())
+        self.assertEqual('file2', file('slave/files/file2').read())
+
+    def __test_Sneakernet(self):
         # Create shared files on master
         self.touch(('master/files/1/1', '1'))
         self.touch(('master/files/2/2', '2'))

@@ -19,12 +19,13 @@ import time
 import gzip
 import tarfile
 import logging
+from shutil import copyfileobj
 from cStringIO import StringIO
 from contextlib import contextmanager
 from os.path import join, exists
 
 from sugar_network import db
-from sugar_network.toolkit import BUFFER_SIZE, util, exception, enforce
+from sugar_network.toolkit import util, exception, enforce
 
 
 _RESERVED_SIZE = 1024 * 1024
@@ -65,11 +66,7 @@ class InPacket(object):
                 self._file = util.NamedTemporaryFile()
 
                 if hasattr(stream, 'read'):
-                    while True:
-                        chunk = stream.read(BUFFER_SIZE)
-                        if not chunk:
-                            break
-                        self._file.write(chunk)
+                    copyfileobj(stream, self._file)
                 else:
                     for chunk in stream:
                         self._file.write(chunk)

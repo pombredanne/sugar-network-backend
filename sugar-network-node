@@ -43,6 +43,8 @@ class Application(application.Daemon):
     def ensure_run(self):
         if toolkit.tmpdir.value and not exists(toolkit.tmpdir.value):
             os.makedirs(toolkit.tmpdir.value)
+        if not exists(node.data_root.value):
+            os.makedirs(node.data_root.value)
         enforce(os.access(node.data_root.value, os.W_OK),
                 'No write access to %r directory', node.data_root.value)
 
@@ -69,7 +71,7 @@ class Application(application.Daemon):
             with file(master_path) as f:
                 guid = f.read().strip()
             logging.info('Start %s node in master mode', guid)
-            cp = MasterCommands(guid, volume)
+            cp = MasterCommands(volume)
         else:
             guid = db.uuid()
             with file(node_path, 'w') as f:
@@ -120,6 +122,7 @@ locale.setlocale(locale.LC_ALL, '')
 
 Option.seek('main', application)
 Option.seek('webui', webui)
+Option.seek('client', [client.api_url])
 Option.seek('node', node)
 Option.seek('node', [toolkit.tmpdir])
 Option.seek('node-stats', stats_node)

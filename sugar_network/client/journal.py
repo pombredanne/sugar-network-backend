@@ -20,10 +20,11 @@ import uuid
 import random
 import hashlib
 import logging
+from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
 
 from sugar_network import db, client
-from sugar_network.toolkit import BUFFER_SIZE, sugar, router, enforce
+from sugar_network.toolkit import sugar, router, enforce
 from sugar_network.toolkit.router import Request
 
 
@@ -127,11 +128,7 @@ class Commands(object):
 
         if hasattr(data, 'read'):
             with NamedTemporaryFile(delete=False) as f:
-                while True:
-                    chunk = data.read(BUFFER_SIZE)
-                    if not chunk:
-                        break
-                    f.write(chunk)
+                copyfileobj(data, f)
                 data = f.name
                 transfer_ownership = True
         elif isinstance(data, dict):

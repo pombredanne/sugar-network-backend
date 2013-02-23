@@ -15,9 +15,10 @@
 
 import logging
 from urlparse import urlsplit
+from os.path import join
 
 from sugar_network import db, client
-from sugar_network.node import sync, stats_user
+from sugar_network.node import sync, stats_user, files_root, files
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import util
 
@@ -30,6 +31,11 @@ class MasterCommands(NodeCommands):
     def __init__(self, volume):
         guid = urlsplit(client.api_url.value).netloc
         NodeCommands.__init__(self, True, guid, volume)
+        self._files = None
+
+        if files_root.value:
+            self._files = files.Index(files_root.value,
+                    join(volume.root, 'files.index'), volume.seqno)
 
     @db.volume_command(method='POST', cmd='sync',
             permissions=db.ACCESS_AUTH)
@@ -38,8 +44,12 @@ class MasterCommands(NodeCommands):
 
         for packet in sync.decode(request.content_stream):
             if packet.name == 'pull':
-                pull_seq = util.Sequence(packet['sequence'])
-                reply.append(('diff', None, sync.diff(self.volume, pull_seq)))
+                seq = util.Sequence(packet['sequence'])
+                reply.append(('diff', None, sync.diff(self.volume, seq)))
+            elif packet.name == 'files_pull':
+                if self._files is not None:
+                    seq = util.Sequence(packet['sequence'])
+                    reply.append(('files_diff', None, self._files.diff(seq)))
             elif packet.name == 'diff':
                 seq, ack_seq = sync.merge(self.volume, packet)
                 reply.append(('ack', {'ack': ack_seq, 'sequence': seq}, None))

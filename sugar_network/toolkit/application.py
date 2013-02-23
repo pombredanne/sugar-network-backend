@@ -49,11 +49,11 @@ no_hints = Option(
         name='no-hints')
 
 logdir = Option(
-        'path to the directory to place log files',
+        'path to a directory to place log files',
         name='logdir', default='/var/log')
 
 rundir = Option(
-        'path to the directory to place pid files',
+        'path to a directory to place pid files',
         name='rundir')
 
 

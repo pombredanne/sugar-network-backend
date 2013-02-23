@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,20 +17,44 @@ import os
 import json
 import logging
 from bisect import bisect_left
-from os.path import join, exists, relpath, lexists, basename, dirname
+from shutil import copyfileobj
+from os.path import join, exists, relpath, lexists, dirname
 
-from sugar_network.node.sneakernet import DiskFull
-from sugar_network.toolkit import BUFFER_SIZE, util, coroutine
-
-
-_logger = logging.getLogger('files_sync')
+from sugar_network.node.sync import EOF
+from sugar_network.toolkit import util, coroutine
 
 
-class Seeder(object):
+_logger = logging.getLogger('node.sync_files')
+
+
+def merge(files_path, packet):
+    files_path = files_path.rstrip(os.sep)
+    if not exists(files_path):
+        os.makedirs(files_path)
+    commit_seq = None
+
+    for record in packet:
+        op = record.get('op')
+        if op == 'update':
+            path = join(files_path, record['path'])
+            if not exists(dirname(path)):
+                os.makedirs(dirname(path))
+            with util.new_file(path) as f:
+                copyfileobj(record['blob'], f)
+        elif op == 'delete':
+            path = join(files_path, record['path'])
+            if lexists(path):
+                os.unlink(path)
+        elif op == 'commit':
+            commit_seq = record['sequence']
+
+    return commit_seq
+
+
+class Index(object):
 
     def __init__(self, files_path, index_path, seqno):
         self._files_path = files_path.rstrip(os.sep)
-        self._directory = basename(self._files_path)
         self._index_path = index_path
         self._seqno = seqno
         self._index = []
@@ -44,71 +68,56 @@ class Seeder(object):
         if not exists(self._files_path):
             os.makedirs(self._files_path)
 
-    def pull(self, in_seq, packet):
-        # Below calls will mutate `self._index` and trigger coroutine switches.
-        # Thus, avoid changing `self._index` by different coroutines.
+    def sync(self):
+        with self._mutex:
+            return self._sync()
+
+    def diff(self, in_seq):
+        # Below calls will trigger coroutine switches, thius,
+        # avoid changing `self._index` by different coroutines.
         with self._mutex:
             self._sync()
-            orig_seq = util.Sequence(in_seq)
-            out_seq = util.Sequence()
-
+            out_seq = util.Sequence([])
             try:
-                self._pull(in_seq, packet, out_seq, False)
-            except DiskFull:
+                for record in self._diff(in_seq, out_seq):
+                    if (yield record) is EOF:
+                        raise StopIteration()
+            finally:
                 if out_seq:
-                    packet.push(force=True, cmd='files_commit',
-                            directory=self._directory, sequence=out_seq)
-                raise
+                    # We processed all files till `out_seq.last`, thus,
+                    # collapse the sequence to avoid possible holes
+                    out_seq = [[out_seq.first, out_seq.last]]
+                    yield {'op': 'commit', 'sequence': out_seq}
 
-            if out_seq:
-                orig_seq.floor(out_seq.last)
-                packet.push(force=True, cmd='files_commit',
-                        directory=self._directory, sequence=orig_seq)
-
-    def pending(self, in_seq):
-        with self._mutex:
-            self._sync()
-            return self._pull(in_seq, None, None, True)
-
-    def _pull(self, in_seq, packet, out_seq, dry_run):
+    def _diff(self, in_seq, out_seq):
         _logger.debug('Start sync: in_seq=%r', in_seq)
 
         files = 0
         deleted = 0
         pos = 0
 
-        for start, end in in_seq[:]:
+        for start, end in in_seq:
             pos = bisect_left(self._index, [start, None, None], pos)
             for pos, (seqno, path, mtime) in enumerate(self._index[pos:]):
                 if end is not None and seqno > end:
                     break
-                if dry_run:
-                    return True
-
                 coroutine.dispatch()
                 if mtime < 0:
-                    packet.push(arcname=join('files', path),
-                            cmd='files_delete', directory=self._directory,
-                            path=path)
+                    yield {'op': 'delete', 'path': path}
                     deleted += 1
                 else:
-                    packet.push_file(join(self._files_path, path),
-                            arcname=join('files', path), cmd='files_push',
-                            directory=self._directory, path=path)
-                in_seq.exclude(seqno, seqno)
+                    yield {'op': 'update', 'path': path,
+                           'blob': join(self._files_path, path)}
                 out_seq.include(start, seqno)
                 start = seqno
                 files += 1
-
-        if dry_run:
-            return False
 
         _logger.debug('Stop sync: in_seq=%r out_seq=%r updates=%r deletes=%r',
                 in_seq, out_seq, files, deleted)
 
     def _sync(self):
         if os.stat(self._files_path).st_mtime <= self._stamp:
-            return
+            return False
 
         new_files = set()
         updates = 0
@@ -166,59 +175,4 @@ class Seeder(object):
             with util.new_file(self._index_path) as f:
                 json.dump((self._index, self._stamp), f)
 
-
-class Seeders(dict):
-
-    def __init__(self, sync_dirs, index_root, seqno):
-        dict.__init__(self)
-
-        if not exists(index_root):
-            os.makedirs(index_root)
-
-        for path in sync_dirs or []:
-            name = basename(path)
-            self[name] = Seeder(path, join(index_root, name + '.files'), seqno)
-
-
-class Leecher(object):
-
-    def __init__(self, files_path, sequence_path):
-        self._files_path = files_path.rstrip(os.sep)
-        self.sequence = util.PersistentSequence(sequence_path, [1, None])
-
-        if not exists(self._files_path):
-            os.makedirs(self._files_path)
-
-    def push(self, record):
-        cmd = record.get('cmd')
-        if cmd == 'files_push':
-            blob = record['blob']
-            path = join(self._files_path, record['path'])
-            if not exists(dirname(path)):
-                os.makedirs(dirname(path))
-            with util.new_file(path) as f:
-                while True:
-                    chunk = blob.read(BUFFER_SIZE)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-        elif cmd == 'files_delete':
-            path = join(self._files_path, record['path'])
-            if exists(path):
-                os.unlink(path)
-        elif cmd == 'files_commit':
-            self.sequence.exclude(record['sequence'])
-            self.sequence.commit()
-
-
-class Leechers(dict):
-
-    def __init__(self, sync_dirs, sequences_root):
-        dict.__init__(self)
-
-        if not exists(sequences_root):
-            os.makedirs(sequences_root)
-
-        for path in sync_dirs or []:
-            name = basename(path)
-            self[name] = Leecher(path, join(sequences_root, name + '.files'))
+        return True
