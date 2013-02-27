@@ -223,14 +223,26 @@ class UtilTest(tests.Test):
         assert 10 not in scale
         assert 11 in scale
 
-    def test_Sequence_first(self):
-        scale = Sequence()
-        self.assertEqual(0, scale.first)
+    def test_Sequence_stretch(self):
+        seq = Sequence()
+        seq.stretch()
+        self.assertEqual([], seq)
 
-        scale = Sequence(empty_value=[1, None])
-        self.assertEqual(1, scale.first)
-        scale.exclude(1, 3)
-        self.assertEqual(4, scale.first)
+        seq = Sequence([[1, None]])
+        seq.stretch()
+        self.assertEqual([[1, None]], seq)
+
+        seq = Sequence([[1, 10]])
+        seq.stretch()
+        self.assertEqual([[1, 10]], seq)
+
+        seq = Sequence([[1, 1], [3, 3], [5, None]])
+        seq.stretch()
+        self.assertEqual([[1, None]], seq)
+
+        seq = Sequence([[3, 3], [5, 10]])
+        seq.stretch()
+        self.assertEqual([[3, 10]], seq)
 
     def test_Sequence_include(self):
         rng = Sequence()
@@ -325,20 +337,6 @@ class UtilTest(tests.Test):
         seq.include(10, 11)
         seq.include(None)
         self.assertEqual([[10, 11]], seq)
-
-    def test_Sequence_last(self):
-        seq = Sequence()
-        self.assertEqual(None, seq.last)
-
-        seq = Sequence()
-        seq.include(10, None)
-        self.assertEqual(None, seq.last)
-
-        seq = Sequence()
-        seq.include(1, 1)
-        seq.include(3, 5)
-        seq.include(10, 11)
-        self.assertEqual(11, seq.last)
 
     def test_Sequence_pickle(self):
         seq = Sequence()

@@ -7,6 +7,7 @@ import json
 import base64
 import hashlib
 from os.path import join, exists
+from StringIO import StringIO
 
 import rrdtool
 
@@ -14,11 +15,10 @@ from __init__ import tests
 
 from sugar_network.db.directory import Directory
 from sugar_network import db, node
-from sugar_network.toolkit.sneakernet import InPacket, OutPacket, OutBufferPacket
-from sugar_network.toolkit.files_sync import Seeder
-from sugar_network.toolkit.router import Request
-from sugar_network.node import sync_master
+from sugar_network.node import sync
+from sugar_network.node.master import MasterCommands
 from sugar_network.resources.volume import Volume
+from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import coroutine, util
 
 
@@ -29,15 +29,88 @@ class SyncMasterTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
+
         self.uuid = 0
         self.override(db, 'uuid', self.next_uuid)
-        sync_master._PULL_QUEUE_SIZE = 256
+
+        class Document(db.Document):
+
+            @db.indexed_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+        self.volume = Volume('master', [Document])
+        self.master = MasterCommands(self.volume)
 
     def next_uuid(self):
         self.uuid += 1
         return str(self.uuid)
 
-    def test_push_MisaddressedPackets(self):
+    def test_ExcludeRecentlyMergedDiffFromPull(self):
+        request = Request()
+        for chunk in sync.encode(
+                ('diff', None, [
+                    {'document': 'document'},
+                    {'guid': '1', 'diff': {
+                        'guid': {'value': '1', 'mtime': 1},
+                        'ctime': {'value': 1, 'mtime': 1},
+                        'mtime': {'value': 1, 'mtime': 1},
+                        'prop': {'value': 'value', 'mtime': 1},
+                        }},
+                    {'commit': [[1, 1]]},
+                    ]),
+                ('pull', {'sequence': [[1, None]]}, None),
+                ):
+            request.content_stream.write(chunk)
+        request.content_stream.seek(0)
+
+        response = StringIO()
+        for chunk in self.master.sync(request):
+            response.write(chunk)
+        response.seek(0)
+        self.assertEqual([
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[1, 1]], 'dst': None}, []),
+            ({'packet': 'diff', 'src': 'localhost:8888'}, [{'document': 'document'}, {'commit': []}]),
+            ],
+            [(packet.props, [i for i in packet]) for packet in sync.decode(response)])
+
+        request = Request()
+        for chunk in sync.encode(
+                ('pull', {'sequence': [[1, None]]}, None),
+                ('diff', None, [
+                    {'document': 'document'},
+                    {'guid': '2', 'diff': {
+                        'guid': {'value': '2', 'mtime': 2},
+                        'ctime': {'value': 2, 'mtime': 2},
+                        'mtime': {'value': 2, 'mtime': 2},
+                        'prop': {'value': 'value', 'mtime': 2},
+                        }},
+                    {'commit': [[2, 2]]},
+                    ]),
+                ):
+            request.content_stream.write(chunk)
+        request.content_stream.seek(0)
+
+        response = StringIO()
+        for chunk in self.master.sync(request):
+            response.write(chunk)
+        response.seek(0)
+        self.assertEqual([
+            ({'packet': 'diff', 'src': 'localhost:8888'}, [
+                {'document': 'document'},
+                {'guid': '1', 'diff': {
+                    'guid': {'value': '1', 'mtime': 1},
+                    'ctime': {'value': 1, 'mtime': 1},
+                    'mtime': {'value': 1, 'mtime': 1},
+                    'prop': {'value': 'value', 'mtime': 1},
+                    }},
+                {'commit': [[1, 1]]},
+                ]),
+            ({'packet': 'ack', 'ack': [[2, 2]], 'src': 'localhost:8888', 'sequence': [[2, 2]], 'dst': None}, []),
+            ],
+            [(packet.props, [i for i in packet]) for packet in sync.decode(response)])
+
+    def __test_push_MisaddressedPackets(self):
         master = MasterCommands('master')
         response = db.Response()
 
@@ -77,7 +150,7 @@ class SyncMasterTest(tests.Test):
         request.content_length = len(request.content_stream.getvalue())
         master.push(request, response)
 
-    def test_push_ProcessPushes(self):
+    def __test_push_ProcessPushes(self):
         master = MasterCommands('master')
         request = Request()
         response = db.Response()
@@ -111,7 +184,7 @@ class SyncMasterTest(tests.Test):
             ],
             [i for i in packet])
 
-    def test_push_ProcessPulls(self):
+    def __test_push_ProcessPulls(self):
         master = MasterCommands('master')
 
         packet = OutBufferPacket(src='node', dst='master')
@@ -170,7 +243,7 @@ class SyncMasterTest(tests.Test):
             ],
             response.get('Set-Cookie'))
 
-    def test_push_TweakPullAccordingToPush(self):
+    def __test_push_TweakPullAccordingToPush(self):
         master = MasterCommands('master')
         request = Request()
         response = db.Response()
@@ -199,7 +272,7 @@ class SyncMasterTest(tests.Test):
             ],
             response.get('Set-Cookie'))
 
-    def test_push_DoNotTweakPullAccordingToPushIfCookieWasPassed(self):
+    def __test_push_DoNotTweakPullAccordingToPushIfCookieWasPassed(self):
         master = MasterCommands('master')
         request = Request()
         response = db.Response()
@@ -231,7 +304,7 @@ class SyncMasterTest(tests.Test):
             ],
             response.get('Set-Cookie'))
 
-    def test_push_ProcessStatsPushes(self):
+    def __test_push_ProcessStatsPushes(self):
         master = MasterCommands('master')
         request = Request()
         response = db.Response()
@@ -280,7 +353,7 @@ class SyncMasterTest(tests.Test):
         __, __, values = rrdtool.fetch('stats/user/us/user2/db3.rrd', 'AVERAGE', '-s', str(ts), '-e', str(ts + 4))
         self.assertEqual([(None,), (None,), (None,), (4,), (None,)], values)
 
-    def test_pull_ProcessPulls(self):
+    def __test_pull_ProcessPulls(self):
         master = MasterCommands('master')
         request = Request()
         response = db.Response()
@@ -344,7 +417,7 @@ class SyncMasterTest(tests.Test):
         self.assertEqual(None, packet.header.get('dst'))
         self.assertEqual(3, len([i for i in packet]))
 
-    def test_pull_AvoidEmptyPacketsOnPull(self):
+    def __test_pull_AvoidEmptyPacketsOnPull(self):
         master = MasterCommands('master')
         request = Request()
         response = db.Response()
@@ -371,7 +444,7 @@ class SyncMasterTest(tests.Test):
             ],
             response.get('Set-Cookie'))
 
-    def test_pull_LimittedPull(self):
+    def __test_pull_LimittedPull(self):
         master = MasterCommands('master')
 
         master.volume['document'].create(guid='1', prop='*' * CHUNK)
@@ -478,7 +551,7 @@ class SyncMasterTest(tests.Test):
             ],
             [i for i in packet])
 
-    def test_pull_ReusePullSeqFromCookies(self):
+    def __test_pull_ReusePullSeqFromCookies(self):
         master = MasterCommands('master')
         request = Request()
         response = db.Response()
@@ -524,7 +597,7 @@ class SyncMasterTest(tests.Test):
             ],
             [i for i in packet])
 
-    def test_pull_AskForNotYetReadyPull(self):
+    def __test_pull_AskForNotYetReadyPull(self):
         master = MasterCommands('master')
 
         def diff(*args, **kwargs):
@@ -558,7 +631,7 @@ class SyncMasterTest(tests.Test):
             ],
             response.get('Set-Cookie'))
 
-    def test_clone(self):
+    def __test_clone(self):
         master = MasterCommands('master')
         request = Request()
         response = db.Response()
@@ -608,7 +681,7 @@ class SyncMasterTest(tests.Test):
             ],
             [i for i in packet])
 
-    def test_pull_ProcessFilePulls(self):
+    def __test_pull_ProcessFilePulls(self):
         node.sync_dirs.value = ['files']
         seqno = util.Seqno('seqno')
         master = MasterCommands('master')
@@ -663,7 +736,7 @@ class SyncMasterTest(tests.Test):
                     ]),
                 read_records(reply))
 
-    def test_ReuseCachedPulls(self):
+    def __test_ReuseCachedPulls(self):
         master = MasterCommands('master')
 
         cached_pull = join('tmp', pull_hash({'sn_pull': [[1, None]]}) + '.pull')
@@ -704,7 +777,7 @@ class SyncMasterTest(tests.Test):
         packet = InPacket(stream=reply)
         self.assertEqual('test', packet.header['probe'])
 
-    def test_UnlinkCachedPullsOnEjectionFromQueue(self):
+    def __test_UnlinkCachedPullsOnEjectionFromQueue(self):
         sync_master._PULL_QUEUE_SIZE = 1
         master = MasterCommands('master')
 
@@ -731,46 +804,14 @@ class SyncMasterTest(tests.Test):
         assert exists(join('tmp', pull_hash({'sn_pull': [[2, None]]}) + '.pull'))
 
 
-class Request(db.Request):
-
-    def __init__(self, environ=None):
-        db.Request.__init__(self)
-        self.environ = environ or {}
-
-
-class MasterCommands(sync_master.SyncCommands):
-
-    def __init__(self, master, **kwargs):
-        os.makedirs('db')
-        with file('db/master', 'w') as f:
-            f.write(master)
-        sync_master.SyncCommands._guid = master
-        sync_master.SyncCommands.volume = new_volume('db')
-        sync_master.SyncCommands.__init__(self, **kwargs)
-
-
-def new_volume(root):
-
-    class Document(db.Document):
-
-        @db.indexed_property(slot=1, default='')
-        def prop(self, value):
-            return value
-
-    return Volume(root, [Document])
-
-
 def pull_hash(seq):
     return hashlib.sha1(json.dumps(seq)).hexdigest()
 
 
-def read_records(reply):
-    records = []
-    for i in InPacket(stream=reply):
-        if i.get('content_type') == 'blob':
-            i['blob'] = i['blob'].read()
-        records.append(i)
-    return sorted(records)
+class Request(object):
+
+    def __init__(self):
+        self.content_stream = StringIO()
 
 
 if __name__ == '__main__':

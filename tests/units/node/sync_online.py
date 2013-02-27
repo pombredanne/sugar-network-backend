@@ -3,6 +3,7 @@
 
 import os
 import json
+from os.path import exists
 
 from __init__ import tests
 
@@ -37,6 +38,8 @@ class SyncOnlineTest(tests.Test):
         class Document(Feedback):
             pass
 
+        api_url.value = 'http://localhost:9000'
+
         files_root.value = 'master/files'
         self.master_volume = Volume('master', [User, Document])
         self.master_server = coroutine.WSGIServer(('localhost', 9000), Router(MasterCommands(self.master_volume)))
@@ -46,7 +49,6 @@ class SyncOnlineTest(tests.Test):
         client.get(cmd='whoami')
 
         files_root.value = 'slave/files'
-        api_url.value = 'http://localhost:9000'
         self.slave_volume = Volume('slave', [User, Document])
         self.slave_server = coroutine.WSGIServer(('localhost', 9001), Router(SlaveCommands('slave', self.slave_volume)))
         coroutine.spawn(self.slave_server.serve_forever)
@@ -60,6 +62,11 @@ class SyncOnlineTest(tests.Test):
     def test_Push(self):
         client = Client('http://localhost:9001')
 
+        # Sync users
+        client.post(cmd='online_sync')
+        self.assertEqual([[2, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
+
         guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
         guid2 = client.post(['document'], {'context': '', 'content': '2', 'title': '', 'type': 'idea'})
 
@@ -69,6 +76,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid2, 'content': {'en-us': '2'}},
             ],
             [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
+        self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[4, None]], json.load(file('slave/push.sequence')))
 
         guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
         client.post(cmd='online_sync')
@@ -78,6 +87,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid3, 'content': {'en-us': '3'}},
             ],
             [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
+        self.assertEqual([[5, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[5, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
         client.put(['document', guid2], {'content': '22'})
@@ -85,6 +96,8 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual(
                 {'guid': guid2, 'content': {'en-us': '22'}},
                 self.master_volume['document'].get(guid2).properties(['guid', 'content']))
+        self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[6, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
         client.delete(['document', guid1])
@@ -95,6 +108,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid3, 'content': {'en-us': '3'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
+        self.assertEqual([[7, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[7, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
         client.put(['document', guid1], {'content': 'a'})
@@ -110,6 +125,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
+        self.assertEqual([[11, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[12, None]], json.load(file('slave/push.sequence')))
 
     def test_PushStats(self):
         stats_user.stats_user.value = True
@@ -122,6 +139,11 @@ class SyncOnlineTest(tests.Test):
         client = Client('http://localhost:9000')
         slave_client = Client('http://localhost:9001')
 
+        # Sync users
+        slave_client.post(cmd='online_sync')
+        self.assertEqual([[2, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
+
         guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
         guid2 = client.post(['document'], {'context': '', 'content': '2', 'title': '', 'type': 'idea'})
 
@@ -131,6 +153,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid2, 'content': {'en-us': '2'}},
             ],
             [i.properties(['guid', 'content']) for i in self.slave_volume['document'].find()[0]])
+        self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
         slave_client.post(cmd='online_sync')
@@ -140,6 +164,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid3, 'content': {'en-us': '3'}},
             ],
             [i.properties(['guid', 'content']) for i in self.slave_volume['document'].find()[0]])
+        self.assertEqual([[5, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
         client.put(['document', guid2], {'content': '22'})
@@ -147,6 +173,8 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual(
                 {'guid': guid2, 'content': {'en-us': '22'}},
                 self.slave_volume['document'].get(guid2).properties(['guid', 'content']))
+        self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
         client.delete(['document', guid1])
@@ -157,6 +185,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid3, 'content': {'en-us': '3'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
+        self.assertEqual([[7, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
         client.put(['document', guid1], {'content': 'a'})
@@ -172,6 +202,8 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
+        self.assertEqual([[12, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
     def test_PullFiles(self):
         self.touch(('master/files/1', 'a', 1))

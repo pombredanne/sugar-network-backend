@@ -18,7 +18,7 @@ from urlparse import urlsplit
 from os.path import join
 
 from sugar_network import db, client
-from sugar_network.node import sync, stats_user, files_root, files
+from sugar_network.node import sync, stats_user, files_root, files, volume
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import util
 
@@ -28,33 +28,46 @@ _logger = logging.getLogger('node.master')
 
 class MasterCommands(NodeCommands):
 
-    def __init__(self, volume):
+    def __init__(self, volume_):
         guid = urlsplit(client.api_url.value).netloc
-        NodeCommands.__init__(self, True, guid, volume)
+        NodeCommands.__init__(self, True, guid, volume_)
         self._files = None
 
         if files_root.value:
             self._files = files.Index(files_root.value,
-                    join(volume.root, 'files.index'), volume.seqno)
+                    join(volume_.root, 'files.index'), volume_.seqno)
 
     @db.volume_command(method='POST', cmd='sync',
             permissions=db.ACCESS_AUTH)
     def sync(self, request):
         reply = []
+        merged_seq = util.Sequence([])
+        pull_seq = None
 
         for packet in sync.decode(request.content_stream):
             if packet.name == 'pull':
-                seq = util.Sequence(packet['sequence'])
-                reply.append(('diff', None, sync.diff(self.volume, seq)))
+                pull_seq = util.Sequence(packet['sequence'])
+                reply.append(('diff', {}, volume.diff(self.volume, pull_seq)))
             elif packet.name == 'files_pull':
                 if self._files is not None:
                     seq = util.Sequence(packet['sequence'])
                     reply.append(('files_diff', None, self._files.diff(seq)))
             elif packet.name == 'diff':
-                seq, ack_seq = sync.merge(self.volume, packet)
-                reply.append(('ack', {'ack': ack_seq, 'sequence': seq}, None))
+                src = packet['src']
+                seq, ack_seq = volume.merge(self.volume, packet)
+                reply.append(('ack', {
+                    'ack': ack_seq,
+                    'sequence': seq,
+                    'dst': src,
+                    }, None))
+                merged_seq.include(ack_seq)
             elif packet.name == 'stats_diff':
+                src = packet['src']
                 seq = stats_user.merge(packet)
-                reply.append(('stats_ack', {'sequence': seq}, None))
+                reply.append(('stats_ack',
+                        {'sequence': seq, 'dst': src}, None))
 
-        return sync.encode(*reply)
+        if pull_seq:
+            pull_seq.exclude(merged_seq)
+
+        return sync.encode(src=self.guid, *reply)

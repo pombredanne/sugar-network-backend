@@ -20,7 +20,6 @@ from bisect import bisect_left
 from shutil import copyfileobj
 from os.path import join, exists, relpath, lexists, dirname
 
-from sugar_network.node.sync import EOF
 from sugar_network.toolkit import util, coroutine
 
 
@@ -72,45 +71,46 @@ class Index(object):
         with self._mutex:
             return self._sync()
 
-    def diff(self, in_seq):
+    def diff(self, in_seq, out_seq=None):
+        if out_seq is None:
+            out_seq = util.Sequence([])
+        is_initial_diff = not out_seq
+
         # Below calls will trigger coroutine switches, thius,
         # avoid changing `self._index` by different coroutines.
         with self._mutex:
             self._sync()
-            out_seq = util.Sequence([])
+
+            _logger.debug('Start sync: in_seq=%r', in_seq)
+
+            files = 0
+            deleted = 0
+            pos = 0
+
             try:
-                for record in self._diff(in_seq, out_seq):
-                    if (yield record) is EOF:
-                        raise StopIteration()
-            finally:
-                if out_seq:
-                    # We processed all files till `out_seq.last`, thus,
-                    # collapse the sequence to avoid possible holes
-                    out_seq = [[out_seq.first, out_seq.last]]
-                    yield {'op': 'commit', 'sequence': out_seq}
+                for start, end in in_seq:
+                    pos = bisect_left(self._index, [start, None, None], pos)
+                    for pos, (seqno, path, mtime) in \
+                            enumerate(self._index[pos:]):
+                        if end is not None and seqno > end:
+                            break
+                        coroutine.dispatch()
+                        if mtime < 0:
+                            yield {'op': 'delete', 'path': path}
+                            deleted += 1
+                        else:
+                            yield {'op': 'update', 'path': path,
+                                   'blob': join(self._files_path, path)}
+                        out_seq.include(start, seqno)
+                        start = seqno
+                        files += 1
+            except StopIteration:
+                pass
 
-    def _diff(self, in_seq, out_seq):
-        _logger.debug('Start sync: in_seq=%r', in_seq)
-
-        files = 0
-        deleted = 0
-        pos = 0
-
-        for start, end in in_seq:
-            pos = bisect_left(self._index, [start, None, None], pos)
-            for pos, (seqno, path, mtime) in enumerate(self._index[pos:]):
-                if end is not None and seqno > end:
-                    break
-                coroutine.dispatch()
-                if mtime < 0:
-                    yield {'op': 'delete', 'path': path}
-                    deleted += 1
-                else:
-                    yield {'op': 'update', 'path': path,
-                           'blob': join(self._files_path, path)}
-                out_seq.include(start, seqno)
-                start = seqno
-                files += 1
+            if is_initial_diff:
+                # There is only one diff, so, we can stretch it to remove holes
+                out_seq.stretch()
+            yield {'op': 'commit', 'sequence': out_seq}
 
         _logger.debug('Stop sync: in_seq=%r out_seq=%r updates=%r deletes=%r',
                 in_seq, out_seq, files, deleted)
