@@ -399,18 +399,6 @@ class Sequence(list):
             return False
 
     @property
-    def first(self):
-        if self:
-            return self[0][0]
-        else:
-            return 0
-
-    @property
-    def last(self):
-        if self:
-            return self[-1][-1]
-
-    @property
     def empty(self):
         """Is timeline in the initial state."""
         return self == self._empty_value
@@ -418,6 +406,11 @@ class Sequence(list):
     def clear(self):
         """Reset range to the initial value."""
         self[:] = self._empty_value
+
+    def stretch(self):
+        """Remove all holes between the first and the last items."""
+        if self:
+            self[:] = [[self[0][0], self[-1][-1]]]
 
     def include(self, start, end=None):
         """Include specified range.

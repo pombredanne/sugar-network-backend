@@ -18,7 +18,6 @@ import logging
 from os.path import join, exists, isdir
 
 from sugar_network import node
-from sugar_network.node.sync import EOF
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import Option, util, pylru, enforce
 
@@ -76,14 +75,14 @@ def diff(in_info=None):
                 for start, end in in_seq:
                     for timestamp, values in \
                             db.get(max(start, db.first), end or db.last):
-                        record = {'timestamp': timestamp, 'values': values}
-                        if (yield record) is EOF:
-                            raise StopIteration()
+                        yield {'timestamp': timestamp, 'values': values}
                         in_seq.exclude(start, timestamp)
                         out_seq.include(start, timestamp)
                         start = timestamp
-    finally:
-        yield {'commit': out_info}
+    except StopIteration:
+        pass
+
+    yield {'commit': out_info}
 
 
 def merge(packet):

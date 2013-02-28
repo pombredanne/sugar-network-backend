@@ -27,7 +27,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.node.commands import NodeCommands
-from sugar_network.node import stats_user, stats_node, obs, auth, sneakernet, slave
+from sugar_network.node import stats_user, stats_node, obs, auth, slave
 from sugar_network.resources.volume import Volume
 
 
@@ -121,8 +121,6 @@ class Test(unittest.TestCase):
         sugar.color = lambda: '#000000,#000000'
         self.override(sugar, 'uid', lambda: UID)
 
-        sneakernet._RESERVED_SIZE = 0
-        sneakernet._PACKET_COMPRESS_MODE = ''
         os.makedirs('tmp')
 
         self._logfile = file(self.logfile + '.out', 'a')

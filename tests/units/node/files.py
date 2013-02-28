@@ -13,8 +13,6 @@ from __init__ import tests
 from sugar_network import db
 from sugar_network.toolkit import util
 from sugar_network.node import files
-from sugar_network.node.sync import EOF
-from sugar_network.node.sneakernet import InPacket, DiskFull, OutFilePacket
 
 
 class FilesTest(tests.Test):
@@ -37,7 +35,9 @@ class FilesTest(tests.Test):
 
         assert not seeder.sync()
         in_seq = util.Sequence([[1, None]])
-        self.assertEqual([], [i for i in seeder.diff(in_seq)])
+        self.assertEqual(
+                [{'op': 'commit', 'sequence': []}],
+                [i for i in seeder.diff(in_seq)])
         self.assertEqual(0, seqno.value)
         assert not exists('index')
 
@@ -49,7 +49,9 @@ class FilesTest(tests.Test):
 
         assert not seeder.sync()
         in_seq = util.Sequence([[1, None]])
-        self.assertEqual([], [i for i in seeder.diff(in_seq)])
+        self.assertEqual(
+                [{'op': 'commit', 'sequence': []}],
+                [i for i in seeder.diff(in_seq)])
         self.assertEqual(0, seqno.value)
         assert not exists('index')
 
@@ -59,10 +61,10 @@ class FilesTest(tests.Test):
         assert seeder.sync()
         in_seq = util.Sequence([[1, None]])
         self.assertEqual(sorted([
+            {'op': 'commit', 'sequence': [[1, 3]]},
             {'op': 'update', 'blob': 'files/1', 'path': '1'},
             {'op': 'update', 'blob': 'files/2/3', 'path': '2/3'},
             {'op': 'update', 'blob': 'files/4/5/6', 'path': '4/5/6'},
-            {'op': 'commit', 'sequence': [[1, 3]]},
             ]),
             sorted([i for i in seeder.diff(in_seq)]))
         self.assertEqual(3, seqno.value)
@@ -78,7 +80,9 @@ class FilesTest(tests.Test):
 
         assert not seeder.sync()
         in_seq = util.Sequence([[4, None]])
-        self.assertEqual([], [i for i in seeder.diff(in_seq)])
+        self.assertEqual(
+                [{'op': 'commit', 'sequence': []}],
+                [i for i in seeder.diff(in_seq)])
         self.assertEqual(3, seqno.value)
 
     def test_Index_SelectiveDiff(self):
@@ -94,10 +98,10 @@ class FilesTest(tests.Test):
 
         in_seq = util.Sequence([[2, 2], [4, 10], [20, None]])
         self.assertEqual(sorted([
+            {'op': 'commit', 'sequence': [[2, 5]]},
             {'op': 'update', 'blob': 'files/2', 'path': '2'},
             {'op': 'update', 'blob': 'files/4', 'path': '4'},
             {'op': 'update', 'blob': 'files/5', 'path': '5'},
-            {'op': 'commit', 'sequence': [[2, 5]]},
             ]),
             sorted([i for i in seeder.diff(in_seq)]))
 
@@ -112,21 +116,46 @@ class FilesTest(tests.Test):
 
         in_seq = util.Sequence([[1, None]])
         diff = seeder.diff(in_seq)
-        self.assertEqual(
-                {'op': 'update', 'blob': 'files/1', 'path': '1'},
-                diff.send(None))
-        self.assertRaises(StopIteration, diff.send, EOF)
+        self.assertEqual({'op': 'update', 'blob': 'files/1', 'path': '1'}, next(diff))
+        self.assertEqual({'op': 'commit', 'sequence': []}, diff.throw(StopIteration))
+        self.assertRaises(StopIteration, diff.next)
 
         diff = seeder.diff(in_seq)
-        self.assertEqual(
-                {'op': 'update', 'blob': 'files/1', 'path': '1'},
-                diff.send(None))
-        self.assertEqual(
-                {'op': 'update', 'blob': 'files/2', 'path': '2'},
-                diff.send(None))
-        self.assertEqual(
-                {'op': 'commit', 'sequence': [[1, 1]]},
-                diff.send(EOF))
+        self.assertEqual({'op': 'update', 'blob': 'files/1', 'path': '1'}, next(diff))
+        self.assertEqual({'op': 'update', 'blob': 'files/2', 'path': '2'}, next(diff))
+        self.assertEqual({'op': 'commit', 'sequence': [[1, 1]]}, diff.throw(StopIteration))
+        self.assertRaises(StopIteration, diff.next)
+
+    def test_Index_diff_Stretch(self):
+        seqno = util.Seqno('seqno')
+        seeder = files.Index('files', 'index', seqno)
+
+        self.touch('files/1')
+        self.touch('files/2')
+        self.touch('files/3')
+        self.utime('files', 1)
+
+        in_seq = util.Sequence([[1, 1], [3, None]])
+        diff = seeder.diff(in_seq)
+        self.assertEqual({'op': 'update', 'blob': 'files/1', 'path': '1'}, next(diff))
+        self.assertEqual({'op': 'update', 'blob': 'files/3', 'path': '3'}, next(diff))
+        self.assertEqual({'op': 'commit', 'sequence': [[1, 3]]}, next(diff))
+        self.assertRaises(StopIteration, diff.next)
+
+    def test_Index_diff_DoNotStretchContinuesPacket(self):
+        seqno = util.Seqno('seqno')
+        seeder = files.Index('files', 'index', seqno)
+
+        self.touch('files/1')
+        self.touch('files/2')
+        self.touch('files/3')
+        self.utime('files', 1)
+
+        in_seq = util.Sequence([[1, 1], [3, None]])
+        diff = seeder.diff(in_seq, util.Sequence([[1, 1]]))
+        self.assertEqual({'op': 'update', 'blob': 'files/1', 'path': '1'}, next(diff))
+        self.assertEqual({'op': 'update', 'blob': 'files/3', 'path': '3'}, next(diff))
+        self.assertEqual({'op': 'commit', 'sequence': [[1, 1], [3, 3]]}, next(diff))
         self.assertRaises(StopIteration, diff.next)
 
     def test_Index_DiffUpdatedFiles(self):
@@ -145,7 +174,9 @@ class FilesTest(tests.Test):
 
         os.utime('files/2', (2, 2))
 
-        self.assertEqual([], [i for i in seeder.diff(util.Sequence([[4, None]]))])
+        self.assertEqual(
+                [{'op': 'commit', 'sequence': []}],
+                [i for i in seeder.diff(util.Sequence([[4, None]]))])
         self.assertEqual(3, seqno.value)
 
         os.utime('files', (3, 3))
@@ -196,7 +227,9 @@ class FilesTest(tests.Test):
         os.utime('files/4', (2, 2))
         os.utime('files', (1, 1))
 
-        self.assertEqual([], [i for i in seeder.diff(util.Sequence([[4, None]]))])
+        self.assertEqual(
+                [{'op': 'commit', 'sequence': []}],
+                [i for i in seeder.diff(util.Sequence([[4, None]]))])
         self.assertEqual(3, seqno.value)
 
         os.utime('files/4', (2, 2))
