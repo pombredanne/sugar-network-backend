@@ -3,8 +3,8 @@
 
 import os
 import uuid
+import json
 from StringIO import StringIO
-import cPickle as pickle
 from os.path import exists
 
 from __init__ import tests
@@ -17,13 +17,13 @@ class SyncTest(tests.Test):
 
     def test_decode(self):
         stream = StringIO()
-        pickle.dump({'foo': 'bar'}, stream)
+        dump({'foo': 'bar'}, stream)
         stream.seek(0)
         packets_iter = sync.decode(stream)
         self.assertRaises(EOFError, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
-        pickle.dump({'packet': 1, 'bar': 'foo'}, stream)
+        dump({'packet': 1, 'bar': 'foo'}, stream)
         stream.seek(0)
         packets_iter = sync.decode(stream)
         with next(packets_iter) as packet:
@@ -34,7 +34,7 @@ class SyncTest(tests.Test):
         self.assertRaises(EOFError, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
-        pickle.dump({'payload': 1}, stream)
+        dump({'payload': 1}, stream)
         stream.seek(0)
         packets_iter = sync.decode(stream)
         with next(packets_iter) as packet:
@@ -45,8 +45,8 @@ class SyncTest(tests.Test):
         self.assertRaises(EOFError, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
-        pickle.dump({'packet': 2}, stream)
-        pickle.dump({'payload': 2}, stream)
+        dump({'packet': 2}, stream)
+        dump({'payload': 2}, stream)
         stream.seek(0)
         packets_iter = sync.decode(stream)
         with next(packets_iter) as packet:
@@ -62,7 +62,7 @@ class SyncTest(tests.Test):
         self.assertRaises(EOFError, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
-        pickle.dump({'packet': 'last'}, stream)
+        dump({'packet': 'last'}, stream)
         stream.seek(0)
         packets_iter = sync.decode(stream)
         with next(packets_iter) as packet:
@@ -84,13 +84,13 @@ class SyncTest(tests.Test):
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
         stream = StringIO()
-        pickle.dump({'foo': 'bar'}, stream)
+        dump({'foo': 'bar'}, stream)
         stream.seek(0)
         packets_iter = sync.decode(stream)
         self.assertRaises(EOFError, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
-        pickle.dump({'packet': 'last'}, stream)
+        dump({'packet': 'last'}, stream)
         stream.seek(0)
         packets_iter = sync.decode(stream)
         self.assertRaises(StopIteration, packets_iter.next)
@@ -98,13 +98,13 @@ class SyncTest(tests.Test):
 
     def test_decode_SkipPackets(self):
         stream = StringIO()
-        pickle.dump({'packet': 1}, stream)
-        pickle.dump({'payload': 1}, stream)
-        pickle.dump({'payload': 11}, stream)
-        pickle.dump({'payload': 111}, stream)
-        pickle.dump({'packet': 2}, stream)
-        pickle.dump({'payload': 2}, stream)
-        pickle.dump({'packet': 'last'}, stream)
+        dump({'packet': 1}, stream)
+        dump({'payload': 1}, stream)
+        dump({'payload': 11}, stream)
+        dump({'payload': 111}, stream)
+        dump({'packet': 2}, stream)
+        dump({'payload': 2}, stream)
+        dump({'packet': 'last'}, stream)
 
         stream.seek(0)
         packets_iter = sync.decode(stream)
@@ -133,21 +133,21 @@ class SyncTest(tests.Test):
 
     def test_encode(self):
         self.assertEqual([
-            pickle.dumps({'packet': 'last'}),
+            dumps({'packet': 'last'}),
             ],
             [i for i in sync.encode()])
 
         self.assertEqual([
-            pickle.dumps({'packet': None, 'foo': 'bar'}),
-            pickle.dumps({'packet': 'last'}),
+            dumps({'packet': None, 'foo': 'bar'}),
+            dumps({'packet': 'last'}),
             ],
             [i for i in sync.encode((None, None, None), foo='bar')])
 
         self.assertEqual([
-            pickle.dumps({'packet': 1}),
-            pickle.dumps({'packet': '2', 'n': 2}),
-            pickle.dumps({'packet': '3', 'n': 3}),
-            pickle.dumps({'packet': 'last'}),
+            dumps({'packet': 1}),
+            dumps({'packet': '2', 'n': 2}),
+            dumps({'packet': '3', 'n': 3}),
+            dumps({'packet': 'last'}),
             ],
             [i for i in sync.encode(
                 (1, {}, None),
@@ -156,16 +156,16 @@ class SyncTest(tests.Test):
                 )])
 
         self.assertEqual([
-            pickle.dumps({'packet': 1}),
-            pickle.dumps({1: 1}),
-            pickle.dumps({'packet': 2}),
-            pickle.dumps({2: 2}),
-            pickle.dumps({2: 2}),
-            pickle.dumps({'packet': 3}),
-            pickle.dumps({3: 3}),
-            pickle.dumps({3: 3}),
-            pickle.dumps({3: 3}),
-            pickle.dumps({'packet': 'last'}),
+            dumps({'packet': 1}),
+            dumps({1: 1}),
+            dumps({'packet': 2}),
+            dumps({2: 2}),
+            dumps({2: 2}),
+            dumps({'packet': 3}),
+            dumps({3: 3}),
+            dumps({3: 3}),
+            dumps({3: 3}),
+            dumps({'packet': 'last'}),
             ],
             [i for i in sync.encode(
                 (1, None, [{1: 1}]),
@@ -174,8 +174,8 @@ class SyncTest(tests.Test):
                 )])
 
     def test_limited_encode(self):
-        header_size = len(pickle.dumps({'packet': 'first'}))
-        record_size = len(pickle.dumps({'record': 0}))
+        header_size = len(dumps({'packet': 'first'}))
+        record_size = len(dumps({'record': 0}))
 
         def content():
             yield {'record': 1}
@@ -183,32 +183,32 @@ class SyncTest(tests.Test):
             yield {'record': 3}
 
         i = sync.limited_encode(header_size + record_size, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'record': 1}, pickle.loads(i.send(header_size)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(header_size + record_size)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'record': 1}, json.loads(i.send(header_size)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + record_size)))
         self.assertRaises(StopIteration, i.next)
 
         i = sync.limited_encode(header_size + record_size, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(header_size + 1)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + 1)))
         self.assertRaises(StopIteration, i.next)
 
         i = sync.limited_encode(header_size + record_size * 2, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'record': 1}, pickle.loads(i.send(header_size)))
-        self.assertEqual({'record': 2}, pickle.loads(i.send(header_size + record_size)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(header_size + record_size * 2)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'record': 1}, json.loads(i.send(header_size)))
+        self.assertEqual({'record': 2}, json.loads(i.send(header_size + record_size)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + record_size * 2)))
         self.assertRaises(StopIteration, i.next)
 
         i = sync.limited_encode(header_size + record_size * 2, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'record': 1}, pickle.loads(i.send(header_size)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(header_size + record_size + 1)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'record': 1}, json.loads(i.send(header_size)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + record_size + 1)))
         self.assertRaises(StopIteration, i.next)
 
     def test_limited_encode_FinalRecords(self):
-        header_size = len(pickle.dumps({'packet': 'first'}))
-        record_size = len(pickle.dumps({'record': 0}))
+        header_size = len(dumps({'packet': 'first'}))
+        record_size = len(dumps({'record': 0}))
 
         def content():
             try:
@@ -221,24 +221,24 @@ class SyncTest(tests.Test):
             yield {'record': 5}
 
         i = sync.limited_encode(header_size + record_size, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'record': 4}, pickle.loads(i.send(header_size + 1)))
-        self.assertEqual({'record': 5}, pickle.loads(i.send(999999999)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(999999999)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'record': 4}, json.loads(i.send(header_size + 1)))
+        self.assertEqual({'record': 5}, json.loads(i.send(999999999)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(999999999)))
         self.assertRaises(StopIteration, i.next)
 
         i = sync.limited_encode(header_size + record_size, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'record': 1}, pickle.loads(i.send(header_size)))
-        self.assertEqual({'record': 4}, pickle.loads(i.send(header_size + record_size * 2 - 1)))
-        self.assertEqual({'record': 5}, pickle.loads(i.send(999999999)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(999999999)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'record': 1}, json.loads(i.send(header_size)))
+        self.assertEqual({'record': 4}, json.loads(i.send(header_size + record_size * 2 - 1)))
+        self.assertEqual({'record': 5}, json.loads(i.send(999999999)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(999999999)))
         self.assertRaises(StopIteration, i.next)
 
     def test_limited_encode_Blobs(self):
-        header_size = len(pickle.dumps({'packet': 'first'}))
-        blob_header_size = len(pickle.dumps({'blob_size': 100}))
-        record_size = len(pickle.dumps({'record': 2}))
+        header_size = len(dumps({'packet': 'first'}))
+        blob_header_size = len(dumps({'blob_size': 100}))
+        record_size = len(dumps({'record': 2}))
         self.touch(('blob', '*' * 100))
 
         def content():
@@ -247,36 +247,36 @@ class SyncTest(tests.Test):
             yield {'record': 3}
 
         i = sync.limited_encode(header_size + blob_header_size + 99, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(header_size)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size)))
         self.assertRaises(StopIteration, i.next)
 
         i = sync.limited_encode(header_size + blob_header_size + 100, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'blob_size': 100}, pickle.loads(i.send(header_size)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'blob_size': 100}, json.loads(i.send(header_size)))
         self.assertEqual('*' * 100, i.send(header_size + blob_header_size))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(header_size + blob_header_size + 100)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + blob_header_size + 100)))
         self.assertRaises(StopIteration, i.next)
 
         i = sync.limited_encode(header_size + blob_header_size + 100 + record_size - 1, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'blob_size': 100}, pickle.loads(i.send(header_size)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'blob_size': 100}, json.loads(i.send(header_size)))
         self.assertEqual('*' * 100, i.send(header_size + blob_header_size))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(header_size + blob_header_size + 100)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + blob_header_size + 100)))
         self.assertRaises(StopIteration, i.next)
 
         i = sync.limited_encode(header_size + blob_header_size + 100 + record_size, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'blob_size': 100}, pickle.loads(i.send(header_size)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'blob_size': 100}, json.loads(i.send(header_size)))
         self.assertEqual('*' * 100, i.send(header_size + blob_header_size))
-        self.assertEqual({'record': 2}, pickle.loads(i.send(header_size + blob_header_size + 100)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(header_size + blob_header_size + 100 + record_size)))
+        self.assertEqual({'record': 2}, json.loads(i.send(header_size + blob_header_size + 100)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + blob_header_size + 100 + record_size)))
         self.assertRaises(StopIteration, i.next)
 
     def test_limited_encode_FinalBlobs(self):
-        header_size = len(pickle.dumps({'packet': 'first'}))
-        blob_header_size = len(pickle.dumps({'blob_size': 100}))
-        record_size = len(pickle.dumps({'record': 2}))
+        header_size = len(dumps({'packet': 'first'}))
+        blob_header_size = len(dumps({'blob_size': 100}))
+        record_size = len(dumps({'record': 2}))
         self.touch(('blob', '*' * 100))
 
         def content():
@@ -288,49 +288,49 @@ class SyncTest(tests.Test):
             yield {'record': 3}
 
         i = sync.limited_encode(header_size, ('first', None, content()), ('second', None, content()))
-        self.assertEqual({'packet': 'first'}, pickle.loads(i.send(None)))
-        self.assertEqual({'blob_size': 100}, pickle.loads(i.send(header_size)))
+        self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
+        self.assertEqual({'blob_size': 100}, json.loads(i.send(header_size)))
         self.assertEqual('*' * 100, i.send(999999999))
-        self.assertEqual({'record': 3}, pickle.loads(i.send(999999999)))
-        self.assertEqual({'packet': 'last'}, pickle.loads(i.send(999999999)))
+        self.assertEqual({'record': 3}, json.loads(i.send(999999999)))
+        self.assertEqual({'packet': 'last'}, json.loads(i.send(999999999)))
         self.assertRaises(StopIteration, i.next)
 
     def test_chunked_encode(self):
         output = sync.chunked_encode()
-        self.assertEqual({'packet': 'last'}, pickle.loads(decode_chunked(output.read(100))))
+        self.assertEqual({'packet': 'last'}, json.loads(decode_chunked(output.read(100))))
 
         data = [{'foo': 1}, {'bar': 2}]
-        data_stream = pickle.dumps({'packet': 'packet'})
+        data_stream = dumps({'packet': 'packet'})
         for record in data:
-            data_stream += pickle.dumps(record)
-        data_stream += pickle.dumps({'packet': 'last'})
+            data_stream += dumps(record)
+        data_stream += dumps({'packet': 'last'})
 
         output = sync.chunked_encode(('packet', None, iter(data)))
-        dump = StringIO()
+        pauload = StringIO()
         while True:
             chunk = output.read(1)
             if not chunk:
                 break
-            dump.write(chunk)
-        self.assertEqual(data_stream, decode_chunked(dump.getvalue()))
+            pauload.write(chunk)
+        self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
 
         output = sync.chunked_encode(('packet', None, iter(data)))
-        dump = StringIO()
+        pauload = StringIO()
         while True:
             chunk = output.read(2)
             if not chunk:
                 break
-            dump.write(chunk)
-        self.assertEqual(data_stream, decode_chunked(dump.getvalue()))
+            pauload.write(chunk)
+        self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
 
         output = sync.chunked_encode(('packet', None, iter(data)))
-        dump = StringIO()
+        pauload = StringIO()
         while True:
             chunk = output.read(1000)
             if not chunk:
                 break
-            dump.write(chunk)
-        self.assertEqual(data_stream, decode_chunked(dump.getvalue()))
+            pauload.write(chunk)
+        self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
 
     def test_encode_Blobs(self):
         self.touch(('1', 'a'))
@@ -338,15 +338,15 @@ class SyncTest(tests.Test):
         self.touch(('3', 'ccc'))
 
         self.assertEqual([
-            pickle.dumps({'packet': 1}),
-            pickle.dumps({'num': 1, 'blob_size': 1}),
+            dumps({'packet': 1}),
+            dumps({'num': 1, 'blob_size': 1}),
             'a',
-            pickle.dumps({'num': 2, 'blob_size': 2}),
+            dumps({'num': 2, 'blob_size': 2}),
             'bb',
-            pickle.dumps({'packet': 2}),
-            pickle.dumps({'num': 3, 'blob_size': 3}),
+            dumps({'packet': 2}),
+            dumps({'num': 3, 'blob_size': 3}),
             'ccc',
-            pickle.dumps({'packet': 'last'}),
+            dumps({'packet': 'last'}),
             ],
             [i for i in sync.encode(
                 (1, None, [{'num': 1, 'blob': '1'}, {'num': 2, 'blob': '2'}]),
@@ -355,15 +355,15 @@ class SyncTest(tests.Test):
 
     def test_decode_Blobs(self):
         stream = StringIO()
-        pickle.dump({'packet': 1}, stream)
-        pickle.dump({'num': 1, 'blob_size': 1}, stream)
+        dump({'packet': 1}, stream)
+        dump({'num': 1, 'blob_size': 1}, stream)
         stream.write('a')
-        pickle.dump({'num': 2, 'blob_size': 2}, stream)
+        dump({'num': 2, 'blob_size': 2}, stream)
         stream.write('bb')
-        pickle.dump({'packet': 2}, stream)
-        pickle.dump({'num': 3, 'blob_size': 3}, stream)
+        dump({'packet': 2}, stream)
+        dump({'num': 3, 'blob_size': 3}, stream)
         stream.write('ccc')
-        pickle.dump({'packet': 'last'}, stream)
+        dump({'packet': 'last'}, stream)
         stream.seek(0)
 
         packets_iter = sync.decode(stream)
@@ -380,6 +380,29 @@ class SyncTest(tests.Test):
                 (3, 3, 'ccc'),
                 ],
                 [(i['num'], i['blob_size'], i['blob'].read()) for i in packet])
+        self.assertRaises(StopIteration, packets_iter.next)
+        self.assertEqual(len(stream.getvalue()), stream.tell())
+
+    def test_decode_SkipNotReadBlobs(self):
+        stream = StringIO()
+        dump({'packet': 1}, stream)
+        dump({'num': 1, 'blob_size': 1}, stream)
+        stream.write('a')
+        dump({'num': 2, 'blob_size': 2}, stream)
+        stream.write('bb')
+        dump({'packet': 2}, stream)
+        dump({'num': 3, 'blob_size': 3}, stream)
+        stream.write('ccc')
+        dump({'packet': 'last'}, stream)
+        stream.seek(0)
+
+        packets_iter = sync.decode(stream)
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            self.assertEqual([1, 2], [i['num'] for i in packet])
+        with next(packets_iter) as packet:
+            self.assertEqual(2, packet.name)
+            self.assertEqual([3], [i['num'] for i in packet])
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
@@ -467,6 +490,15 @@ def decode_chunked(encdata):
         newdata = "%s%s" % (newdata, encdata[:off])
         encdata = encdata[off+2:]
     return newdata
+
+
+def dump(value, stream):
+    stream.write(json.dumps(value))
+    stream.write('\n')
+
+
+def dumps(value):
+    return json.dumps(value) + '\n'
 
 
 if __name__ == '__main__':

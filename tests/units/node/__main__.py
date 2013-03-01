@@ -3,6 +3,7 @@
 from __init__ import tests
 
 from auth import *
+from downloads import *
 from files import *
 from node import *
 from obs import *

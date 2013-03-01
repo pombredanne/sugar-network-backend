@@ -24,7 +24,7 @@ import collections
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
 from os.path import lexists, isfile
 
-from sugar_network.toolkit import tmpdir, enforce
+from sugar_network.toolkit import cachedir, enforce
 
 
 _logger = logging.getLogger('toolkit.util')
@@ -306,8 +306,8 @@ def unique_filename(root, filename):
 
 
 def NamedTemporaryFile(*args, **kwargs):
-    if tmpdir.value:
-        kwargs['dir'] = tmpdir.value
+    if cachedir.value:
+        kwargs['dir'] = cachedir.value
     return tempfile.NamedTemporaryFile(*args, **kwargs)
 
 

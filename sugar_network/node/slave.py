@@ -47,15 +47,16 @@ class SlaveCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='online_sync',
             permissions=db.ACCESS_LOCAL)
     def online_sync(self):
-        push = [('diff', {'src': self.guid},
-                    volume.diff(self.volume, self._push_seq)),
+        push = [('diff', None, volume.diff(self.volume, self._push_seq)),
                 ('pull', {'sequence': self._pull_seq}, None),
                 ('files_pull', {'sequence': self._files_seq}, None),
                 ]
         if stats_user.stats_user.value:
-            push.append(('stats_diff', {'src': self.guid}, stats_user.diff()))
+            push.append(('stats_diff', None, stats_user.diff()))
         response = Client().request('POST',
-                data=sync.chunked_encode(*push), params={'cmd': 'sync'},
+                data=sync.chunked_encode(*push,
+                    src=self.guid, dst=self._master_guid),
+                params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})
         self._import(sync.decode(response.raw), None)
 

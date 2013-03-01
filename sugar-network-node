@@ -41,8 +41,8 @@ class Application(application.Daemon):
     jobs = coroutine.Pool()
 
     def ensure_run(self):
-        if toolkit.tmpdir.value and not exists(toolkit.tmpdir.value):
-            os.makedirs(toolkit.tmpdir.value)
+        if toolkit.cachedir.value and not exists(toolkit.cachedir.value):
+            os.makedirs(toolkit.cachedir.value)
         if not exists(node.data_root.value):
             os.makedirs(node.data_root.value)
         enforce(os.access(node.data_root.value, os.W_OK),
@@ -121,10 +121,10 @@ monkey.patch_time()
 locale.setlocale(locale.LC_ALL, '')
 
 Option.seek('main', application)
+Option.seek('main', [toolkit.cachedir])
 Option.seek('webui', webui)
 Option.seek('client', [client.api_url])
 Option.seek('node', node)
-Option.seek('node', [toolkit.tmpdir])
 Option.seek('node-stats', stats_node)
 Option.seek('user-stats', stats_user)
 Option.seek('obs', obs)

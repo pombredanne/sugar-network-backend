@@ -15,13 +15,13 @@
 
 import os
 import gzip
+import json
 import logging
-import cPickle as pickle
 from types import GeneratorType
 from os.path import exists, join, dirname
 
 from sugar_network import db
-from sugar_network.toolkit import BUFFER_SIZE, util, enforce
+from sugar_network.toolkit import BUFFER_SIZE, coroutine, util, enforce
 
 
 # Leave at leat n bytes in fs whle calling `encode_to_file()`
@@ -48,8 +48,8 @@ def limited_encode(limit, *packets, **header):
     return _encode(limit, packets, header, _EncodingStatus())
 
 
-def chunked_encode(*packets):
-    return _ChunkedEncoder(encode(*packets))
+def chunked_encode(*packets, **header):
+    return _ChunkedEncoder(encode(*packets, **header))
 
 
 def sneakernet_decode(root, node=None, session=None):
@@ -59,7 +59,7 @@ def sneakernet_decode(root, node=None, session=None):
                 continue
             zipfile = gzip.open(join(root, filename), 'rb')
             try:
-                package_props = pickle.load(zipfile)
+                package_props = json.loads(zipfile.readline())
 
                 if node is not None and package_props.get('src') == node:
                     if package_props.get('session') == session:
@@ -95,7 +95,8 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
     with file(path, 'wb') as package:
         zipfile = gzip.GzipFile(fileobj=package)
         try:
-            pickle.dump(header, zipfile)
+            json.dump(header, zipfile)
+            zipfile.write('\n')
 
             pos = None
             encoder = _encode(limit, packets, None, status)
@@ -104,6 +105,7 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
                     chunk = encoder.send(pos)
                     zipfile.write(chunk)
                     pos = zipfile.fileobj.tell()
+                    coroutine.dispatch()
                 except StopIteration:
                     break
 
@@ -135,7 +137,7 @@ def _encode(limit, packets, header, status):
         if header:
             props.update(header)
         props['packet'] = packet
-        pos = (yield pickle.dumps(props)) or 0
+        pos = (yield json.dumps(props) + '\n') or 0
 
         if content is None:
             continue
@@ -150,7 +152,7 @@ def _encode(limit, packets, header, status):
                     blob = record.pop('blob')
                     blob_size = record['blob_size'] = os.stat(blob).st_size
 
-                dump = pickle.dumps(record)
+                dump = json.dumps(record) + '\n'
                 if not status.aborted and limit is not None and \
                         pos + len(dump) + blob_size > limit:
                     status.aborted = True
@@ -158,7 +160,7 @@ def _encode(limit, packets, header, status):
                         raise StopIteration()
                     record = content.throw(StopIteration())
                     continue
-                pos = (yield pickle.dumps(record)) or 0
+                pos = (yield dump) or 0
 
                 if blob is not None:
                     with file(blob, 'rb') as f:
@@ -172,7 +174,7 @@ def _encode(limit, packets, header, status):
         except StopIteration:
             pass
 
-    yield pickle.dumps({'packet': 'last'})
+    yield json.dumps({'packet': 'last'}) + '\n'
 
 
 class _ChunkedEncoder(object):
@@ -235,12 +237,16 @@ class _PacketsIterator(object):
         return self.props.get(key)
 
     def __iter__(self):
+        blob = None
         while True:
-            try:
-                record = pickle.load(self._stream)
-            except EOFError:
+            if blob is not None and blob.size_to_read:
+                self._stream.seek(blob.size_to_read, 1)
+                blob = None
+            record = self._stream.readline()
+            if not record:
                 self._name = None
-                raise
+                raise EOFError()
+            record = json.loads(record)
             packet = record.get('packet')
             if packet:
                 self._name = packet
@@ -249,7 +255,7 @@ class _PacketsIterator(object):
                 break
             blob_size = record.get('blob_size')
             if blob_size:
-                record['blob'] = _Blob(self._stream, blob_size)
+                blob = record['blob'] = _Blob(self._stream, blob_size)
             yield record
 
     def __enter__(self):
@@ -263,9 +269,9 @@ class _Blob(object):
 
     def __init__(self, stream, size):
         self._stream = stream
-        self._size_to_read = size
+        self.size_to_read = size
 
     def read(self, size=BUFFER_SIZE):
-        chunk = self._stream.read(min(size, self._size_to_read))
-        self._size_to_read -= len(chunk)
+        chunk = self._stream.read(min(size, self.size_to_read))
+        self.size_to_read -= len(chunk)
         return chunk
