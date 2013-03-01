@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ warning() {
 abort() {
     rm -f *.sync
     echo "-- $@"
-    echo "   run \"V=1 $0 ${cmdline}\" to get full debugging output"
+    [ "${V}" ] || echo "   run \"V=1 $0 ${cmdline}\" to get full debugging output"
     exit 1
 }
 
@@ -44,9 +44,9 @@ Usage: $(basename $0) [PATH] [URL]
 Sugar Network sneakernet synchronization utility.
 
 Command arguments:
-  PATH      if specified, utility will try to recursive search for
-            synchronization packet files (files with ".packet" suffix);
-            using wget or curl utility, each packet will be uploaded
+  PATH      if specified, utility will try to recursively search for
+            synchronization packet files (files with ".sneakernet" suffix);
+            using wget or curl utility, each file will be uploaded
             to the targeting Sugar Network server with downloading resulting
             packets; on success, uploaded packets will be removed and resulting
             packets will be placed to PATH instead
@@ -67,10 +67,10 @@ get_hostname() {
 }
 
 get_header_key() {
-    local packet="$1"
+    local package="$1"
     local key="$2"
 
-    tar -xf "${packet}" header --to-stdout | \
+    zcat "${package}" | head -n1 | \
         grep -o "\"${key}\":[^,}]\+" | \
         sed 's/^[^:]*://; s/^[ "]*//; s/"$//'
 }
@@ -173,17 +173,18 @@ if [ "${clone_url}" ]; then
     exit 0
 fi
 
-# Push packet and collect "continue.packet" to pull afterwards
-for packet in $(find -type f -name '*.packet'); do
-    api_url="$(get_header_key "${packet}" api_url)"
+# Upload push packets at first
+for package in $(find -type f -name '*.sneakernet'); do
+    api_url="$(get_header_key "${package}" api_url)"
     if [ -z "${api_url}" ]; then
-        info "Skip ${packet}, it is not intended for uploading"
+        info "Skip ${package}, it is not intended for uploading"
     else
-        info "Push ${packet} to ${api_url}"
-        upload "${api_url}?cmd=push" "$(get_hostname ${api_url}).cookie" "${packet}"
+        info "Push ${package} to ${api_url}"
+        upload "${api_url}?cmd=push" "$(get_hostname ${api_url}).cookie" "${package}"
     fi
 done
 
+# Using cookies from uploaded packets, download master data
 while true; do
     found=
     for cookie in $(find -type f -name '*.cookie'); do

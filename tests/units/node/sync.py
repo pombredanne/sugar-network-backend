@@ -434,19 +434,19 @@ class SyncTest(tests.Test):
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('.')]))
 
     def test_sneakernet_decode_CleanupOutdatedFiles(self):
-        sync.sneakernet_encode([('first', None, None)], path='.package', src='node', session='session', limit=999999999)
+        sync.sneakernet_encode([('first', None, None)], path='.sneakernet', src='node', session='session', limit=999999999)
 
         self.assertEqual(1, len([i for i in sync.sneakernet_decode('.')]))
-        assert exists('.package')
+        assert exists('.sneakernet')
 
         self.assertEqual(1, len([i for i in sync.sneakernet_decode('.', node='foo')]))
-        assert exists('.package')
+        assert exists('.sneakernet')
 
         self.assertEqual(0, len([i for i in sync.sneakernet_decode('.', node='node', session='session')]))
-        assert exists('.package')
+        assert exists('.sneakernet')
 
         self.assertEqual(0, len([i for i in sync.sneakernet_decode('.', node='node', session='session2')]))
-        assert not exists('.package')
+        assert not exists('.sneakernet')
 
     def test_sneakernet_encode(self):
         payload = ''.join([str(uuid.uuid4()) for i in xrange(5000)])

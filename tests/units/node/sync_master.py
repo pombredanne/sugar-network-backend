@@ -55,7 +55,7 @@ class SyncMasterTest(tests.Test):
         self.uuid += 1
         return str(self.uuid)
 
-    def test_ExcludeRecentlyMergedDiffFromPull(self):
+    def test_sync_ExcludeRecentlyMergedDiffFromPull(self):
         request = Request()
         for chunk in sync.encode(
                 ('diff', None, [
@@ -119,7 +119,7 @@ class SyncMasterTest(tests.Test):
             ],
             [(packet.props, [i for i in packet]) for packet in sync.decode(response)])
 
-    def test_MisaddressedPackets(self):
+    def test_sync_MisaddressedPackets(self):
         request = Request()
         for chunk in sync.encode(('pull', {'sequence': [[1, None]]}, None)):
             request.content_stream.write(chunk)
@@ -142,7 +142,7 @@ class SyncMasterTest(tests.Test):
         ts = int(time.time())
 
         request = Request()
-        for chunk in sync.encode(
+        for chunk in sync.package_encode(
                 ('diff', None, [
                     {'document': 'document'},
                     {'guid': '1', 'diff': {
@@ -168,10 +168,10 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[1, 1]], 'dst': None}, []),
-            ({'packet': 'stats_ack', 'sequence': {'user': {'db': [[1, ts]]}}, 'src': 'localhost:8888', 'dst': None}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[1, 1]], 'dst': None, 'filename': '2.sneakernet'}, []),
+            ({'packet': 'stats_ack', 'sequence': {'user': {'db': [[1, ts]]}}, 'src': 'localhost:8888', 'dst': None, 'filename': '2.sneakernet'}, []),
             ],
-            [(packet.props, [i for i in packet]) for packet in sync.decode(reply)])
+            [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
             'sugar_network_sync=unset_sugar_network_sync; Max-Age=0; HttpOnly',
             'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
@@ -182,7 +182,7 @@ class SyncMasterTest(tests.Test):
         ts = int(time.time())
 
         request = Request()
-        for chunk in sync.encode(
+        for chunk in sync.package_encode(
                 ('pull', {'sequence': [[1, None]]}, None),
                 ('files_pull', {'sequence': [[1, None]]}, None),
                 ('diff', None, [
@@ -210,10 +210,10 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[2, 2]], 'dst': None}, []),
-            ({'packet': 'stats_ack', 'sequence': {'user': {'db': [[2, ts]]}}, 'src': 'localhost:8888', 'dst': None}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[2, 2]], 'dst': None, 'filename': '2.sneakernet'}, []),
+            ({'packet': 'stats_ack', 'sequence': {'user': {'db': [[2, ts]]}}, 'src': 'localhost:8888', 'dst': None, 'filename': '2.sneakernet'}, []),
             ],
-            [(packet.props, [i for i in packet]) for packet in sync.decode(reply)])
+            [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
             'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % \
                     base64.b64encode(json.dumps([('pull', None, [[2, None]]), ('files_pull', None, [[1, None]])])),
@@ -225,7 +225,7 @@ class SyncMasterTest(tests.Test):
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_sync=%s' % \
                 base64.b64encode(json.dumps([('pull', None, [[10, None]]), ('files_pull', None, [[10, None]])]))
-        for chunk in sync.encode(
+        for chunk in sync.package_encode(
                 ('pull', {'sequence': [[11, None]]}, None),
                 ('files_pull', {'sequence': [[11, None]]}, None),
                 dst='localhost:8888'):
@@ -236,7 +236,7 @@ class SyncMasterTest(tests.Test):
         for chunk in self.master.push(request, response):
             reply.write(chunk)
         reply.seek(0)
-        self.assertEqual([], [(packet.props, [i for i in packet]) for packet in sync.decode(reply)])
+        self.assertEqual([], [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
             'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % \
                     base64.b64encode(json.dumps([('pull', None, [[10, None]]), ('files_pull', None, [[10, None]])])),
@@ -247,7 +247,7 @@ class SyncMasterTest(tests.Test):
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_sync=%s' % \
                 base64.b64encode(json.dumps([('pull', None, [[10, None]]), ('files_pull', None, [[10, None]])]))
-        for chunk in sync.encode(
+        for chunk in sync.package_encode(
                 ('pull', {'sequence': [[1, 5]]}, None),
                 ('files_pull', {'sequence': [[1, 5]]}, None),
                 dst='localhost:8888'):
@@ -258,7 +258,7 @@ class SyncMasterTest(tests.Test):
         for chunk in self.master.push(request, response):
             reply.write(chunk)
         reply.seek(0)
-        self.assertEqual([], [(packet.props, [i for i in packet]) for packet in sync.decode(reply)])
+        self.assertEqual([], [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
             'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % \
                     base64.b64encode(json.dumps([('pull', None, [[1, 5], [10, None]]), ('files_pull', None, [[1, 5], [10, None]])])),
@@ -270,7 +270,7 @@ class SyncMasterTest(tests.Test):
         ts = int(time.time())
 
         request = Request()
-        for chunk in sync.encode(
+        for chunk in sync.package_encode(
                 ('pull', {'sequence': [[1, None]]}, None),
                 ('diff', None, [
                     {'document': 'document'},
@@ -292,9 +292,9 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[10, 10]], 'dst': None}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[10, 10]], 'dst': None, 'filename': '2.sneakernet'}, []),
             ],
-            [(packet.props, [i for i in packet]) for packet in sync.decode(reply)])
+            [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
             'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % \
                     base64.b64encode(json.dumps([('pull', None, [[2, None]])])),
@@ -308,7 +308,7 @@ class SyncMasterTest(tests.Test):
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_sync=%s' % \
                 base64.b64encode(json.dumps([('pull', None, [[1, None]])]))
-        for chunk in sync.encode(
+        for chunk in sync.package_encode(
                 ('diff', None, [
                     {'document': 'document'},
                     {'guid': '1', 'diff': {
@@ -329,9 +329,9 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[10, 10]], 'dst': None}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[10, 10]], 'dst': None, 'filename': '2.sneakernet'}, []),
             ],
-            [(packet.props, [i for i in packet]) for packet in sync.decode(reply)])
+            [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
             'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % \
                     base64.b64encode(json.dumps([('pull', None, [[1, None]])])),
@@ -345,7 +345,7 @@ class SyncMasterTest(tests.Test):
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_sync=%s' % \
                 base64.b64encode(json.dumps([('pull', None, [[1, None]])]))
-        for chunk in sync.encode(
+        for chunk in sync.package_encode(
                 ('pull', {'sequence': [[1, None]], 'layer': 'hidden'}, None),
                 ('diff', None, [
                     {'document': 'document'},
@@ -367,9 +367,9 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[10, 10]], 'dst': None}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[10, 10]], 'dst': None, 'filename': '2.sneakernet'}, []),
             ],
-            [(packet.props, [i for i in packet]) for packet in sync.decode(reply)])
+            [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
             'sugar_network_sync=%s; Max-Age=3600; HttpOnly' % \
                     base64.b64encode(json.dumps([('pull', 'hidden', [[2, None]]), ('pull', None, [[1, None]])])),
@@ -554,10 +554,6 @@ class SyncMasterTest(tests.Test):
 
     def __test_ReuseCachedPulls(self):
         pass
-
-
-def pull_hash(seq):
-    return hashlib.sha1(json.dumps(seq)).hexdigest()
 
 
 class Request(object):

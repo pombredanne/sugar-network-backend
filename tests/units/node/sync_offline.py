@@ -58,10 +58,11 @@ class SyncOfflineTest(tests.Test):
         rrd = Rrd('stats/user/dir/user', stats_user.stats_user_step.value, stats_user.stats_user_rras.value)
         rrd['db'].put({'field': 1}, ts)
 
-        self.assertEqual(True, cp.offline_sync('mnt'))
+        cp.offline_sync(tests.tmpdir + '/mnt')
+        assert cp._offline_session is None
 
         self.assertEqual([
-            ({'packet': 'diff', 'src': 'node', 'dst': 'localhost:8888', 'session': '1'}, [
+            ({'packet': 'diff', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'filename': '2.sneakernet'}, [
                 {'document': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 0},
@@ -75,13 +76,13 @@ class SyncOfflineTest(tests.Test):
                     }},
                 {'commit': [[1, 2]]},
                 ]),
-            ({'packet': 'stats_diff', 'src': 'node', 'dst': 'localhost:8888', 'session': '1'}, [
+            ({'packet': 'stats_diff', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'filename': '2.sneakernet'}, [
                 {'db': 'db', 'user': 'user'},
                 {'timestamp': ts, 'values': {'field': 1.0}},
                 {'commit': {'user': {'db': [[1, ts]]}}},
                 ]),
-            ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'session': '1', 'sequence': [[1, None]]}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'session': '1', 'sequence': [[1, None]]}, []),
+            ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('mnt')]))
         assert not exists('node/pull.sequence')
@@ -109,10 +110,11 @@ class SyncOfflineTest(tests.Test):
         rrd['db'].put({'field': 1}, ts)
 
         statvfs.f_bfree = len(payload) * 1.5 + sync._SNEAKERNET_RESERVED_SIZE
-        self.assertEqual(False, cp.offline_sync('1'))
+        cp.offline_sync(tests.tmpdir + '/1')
+        assert cp._offline_session is not None
 
         self.assertEqual([
-            ({'packet': 'diff', 'src': 'node', 'dst': 'localhost:8888', 'session': '1'}, [
+            ({'packet': 'diff', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'filename': '2.sneakernet'}, [
                 {'document': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 0},
@@ -122,16 +124,17 @@ class SyncOfflineTest(tests.Test):
                     }},
                 {'commit': [[1, 1]]},
                 ]),
-            ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'session': '1', 'sequence': [[1, None]]}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'session': '1', 'sequence': [[1, None]]}, []),
+            ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('1')]))
 
         statvfs.f_bfree = 999999999
-        self.assertEqual(True, cp.offline_sync('2'))
+        cp.offline_sync(tests.tmpdir + '/2')
+        assert cp._offline_session is None
 
         self.assertEqual([
-            ({'packet': 'diff', 'src': 'node', 'dst': 'localhost:8888', 'session': '1'}, [
+            ({'packet': 'diff', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'filename': '3.sneakernet'}, [
                 {'document': 'document'},
                 {'guid': '2', 'diff': {
                     'guid': {'value': '2', 'mtime': 0},
@@ -141,7 +144,7 @@ class SyncOfflineTest(tests.Test):
                     }},
                 {'commit': [[2, 2]]},
                 ]),
-            ({'packet': 'stats_diff', 'src': 'node', 'dst': 'localhost:8888', 'session': '1'}, [
+            ({'packet': 'stats_diff', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'filename': '3.sneakernet'}, [
                 {'db': 'db', 'user': 'user'},
                 {'timestamp': ts, 'values': {'field': 1.0}},
                 {'commit': {'user': {'db': [[1, ts]]}}},
@@ -150,10 +153,11 @@ class SyncOfflineTest(tests.Test):
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('2')]))
 
         statvfs.f_bfree = 999999999
-        self.assertEqual(True, cp.offline_sync('3'))
+        cp.offline_sync(tests.tmpdir + '/3')
+        assert cp._offline_session is None
 
         self.assertEqual([
-            ({'packet': 'diff', 'src': 'node', 'dst': 'localhost:8888', 'session': '4'}, [
+            ({'packet': 'diff', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'filename': '5.sneakernet'}, [
                 {'document': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 0},
@@ -169,13 +173,13 @@ class SyncOfflineTest(tests.Test):
                     }},
                 {'commit': [[1, 2]]},
                 ]),
-            ({'packet': 'stats_diff', 'src': 'node', 'dst': 'localhost:8888', 'session': '4'}, [
+            ({'packet': 'stats_diff', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'filename': '5.sneakernet'}, [
                 {'db': 'db', 'user': 'user'},
                 {'timestamp': ts, 'values': {'field': 1.0}},
                 {'commit': {'user': {'db': [[1, ts]]}}},
                 ]),
-            ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'session': '4', 'sequence': [[1, None]]}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'session': '4', 'sequence': [[1, None]]}, []),
+            ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'sequence': [[1, None]], 'filename': '5.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'sequence': [[1, None]], 'filename': '5.sneakernet'}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('3')]))
 
@@ -216,7 +220,8 @@ class SyncOfflineTest(tests.Test):
         stats_user.stats_user.value = True
         files_root.value = 'files'
 
-        self.assertEqual(True, cp.offline_sync('mnt'))
+        cp.offline_sync(tests.tmpdir + '/mnt')
+        assert cp._offline_session is None
 
         self.assertEqual(
                 ['1', '2'],

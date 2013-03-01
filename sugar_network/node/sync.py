@@ -15,18 +15,25 @@
 
 import os
 import gzip
+import zlib
 import json
 import logging
+from cStringIO import StringIO
 from types import GeneratorType
-from os.path import exists, join, dirname
+from os.path import exists, join, dirname, basename, splitext
 
 from sugar_network import db
 from sugar_network.toolkit import BUFFER_SIZE, coroutine, util, enforce
 
 
+# Filename suffix to use for sneakernet synchronization files
+_SNEAKERNET_SUFFIX = '.sneakernet'
+
 # Leave at leat n bytes in fs whle calling `encode_to_file()`
 _SNEAKERNET_RESERVED_SIZE = 1024 * 1024
-_SNEAKERNET_SUFFIX = '.package'
+
+# Indication file to place to sneakernet synchronization directory
+_SNEAKERNET_FLAG_FILE = '.sugar-network-sync'
 
 _logger = logging.getLogger('node.sync')
 
@@ -50,6 +57,32 @@ def limited_encode(limit, *packets, **header):
 
 def chunked_encode(*packets, **header):
     return _ChunkedEncoder(encode(*packets, **header))
+
+
+def package_decode(stream):
+    stream = _GzipStream(stream)
+    package_props = json.loads(stream.readline())
+
+    for packet in decode(stream):
+        packet.props.update(package_props)
+        yield packet
+
+
+def package_encode(*packets, **header):
+    # XXX Only for small amount of data
+    # TODO Support real streaming
+    buf = StringIO()
+    zipfile = gzip.GzipFile(mode='wb', fileobj=buf)
+
+    header['filename'] = db.uuid() + _SNEAKERNET_SUFFIX
+    json.dump(header, zipfile)
+    zipfile.write('\n')
+
+    for chunk in _encode(None, packets, None, _EncodingStatus()):
+        zipfile.write(chunk)
+    zipfile.close()
+
+    yield buf.getvalue()
 
 
 def sneakernet_decode(root, node=None, session=None):
@@ -82,7 +115,14 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
     if path is None:
         if not exists(root):
             os.makedirs(root)
-        path = util.unique_filename(root, db.uuid() + _SNEAKERNET_SUFFIX)
+        with file(join(root, _SNEAKERNET_FLAG_FILE), 'w'):
+            pass
+        filename = db.uuid() + _SNEAKERNET_SUFFIX
+        path = util.unique_filename(root, filename)
+    else:
+        filename = splitext(basename(path))[0] + _SNEAKERNET_SUFFIX
+    if 'filename' not in header:
+        header['filename'] = filename
 
     if limit <= 0:
         stat = os.statvfs(dirname(path))
@@ -275,3 +315,26 @@ class _Blob(object):
         chunk = self._stream.read(min(size, self.size_to_read))
         self.size_to_read -= len(chunk)
         return chunk
+
+
+class _GzipStream(object):
+
+    def __init__(self, stream):
+        self._stream = stream
+        self._zip = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        self._buffer = bytearray()
+
+    def read(self, size):
+        while True:
+            if size <= len(self._buffer):
+                result = self._buffer[:size]
+                self._buffer = self._buffer[size:]
+                return bytes(result)
+            chunk = self._stream.read(size)
+            if not chunk:
+                result, self._buffer = self._buffer, bytearray()
+                return result
+            self._buffer += self._zip.decompress(chunk)
+
+    def readline(self):
+        return util.readline(self)

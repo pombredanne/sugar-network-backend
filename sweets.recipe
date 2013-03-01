@@ -24,6 +24,6 @@ install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
             ln -s sugar-network-node %(DESTDIR)s/%(BINDIR)s/sugar-network-server &&
             install -m 0755 -D sugar-network-client %(DESTDIR)s/%(BINDIR)s/sugar-network-client &&
             ln -s sugar-network-client %(DESTDIR)s/%(BINDIR)s/sugar-network-service &&
-            install -m 0755 -D misc/offline-sync %(DESTDIR)s/%(BINDIR)s/sugar-network-sync &&
+            install -m 0755 -D misc/sugar-network-sync %(DESTDIR)s/%(BINDIR)s/sugar-network-sync &&
             install -m 0755 -D misc/aslo-sync %(DESTDIR)s/%(DATADIR)s/%(name)s/aslo-sync &&
             true

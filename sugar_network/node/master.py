@@ -31,8 +31,9 @@ _logger = logging.getLogger('node.master')
 
 class MasterCommands(NodeCommands):
 
-    def __init__(self, volume_):
-        guid = urlsplit(client.api_url.value).netloc
+    def __init__(self, volume_, guid=None):
+        if not guid:
+            guid = urlsplit(client.api_url.value).netloc
         NodeCommands.__init__(self, True, guid, volume_)
 
         self._pulls = {
@@ -52,20 +53,20 @@ class MasterCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='sync',
             permissions=db.ACCESS_AUTH)
     def sync(self, request):
-        reply, cookie = self._push(request)
+        reply, cookie = self._push(sync.decode(request.content_stream))
         for op, layer, seq in cookie:
             reply.append(self._pulls[op](layer, seq))
         return sync.encode(src=self.guid, *reply)
 
     @db.volume_command(method='POST', cmd='push')
     def push(self, request, response):
-        reply, cookie = self._push(request)
+        reply, cookie = self._push(sync.package_decode(request.content_stream))
         # Read passed cookie only after excluding `merged_seq`.
         # If there is `pull` out of currently pushed packet, excluding
         # `merged_seq` should not affect it.
         cookie.update(_Cookie(request))
         cookie.store(response)
-        return sync.encode(src=self.guid, *reply)
+        return sync.package_encode(src=self.guid, *reply)
 
     @db.volume_command(method='GET', cmd='pull',
             mime_type='application/octet-stream',
@@ -74,8 +75,8 @@ class MasterCommands(NodeCommands):
         cookie = _Cookie(request)
         if not cookie:
             _logger.warning('Requested full dump in pull command')
-            cookie.append(('pull', None, [[1, None]]))
-            cookie.append(('files_pull', None, [[1, None]]))
+            cookie.append(('pull', None, util.Sequence([[1, None]])))
+            cookie.append(('files_pull', None, util.Sequence([[1, None]])))
 
         reply = None
         for pull_key in cookie:
@@ -118,13 +119,13 @@ class MasterCommands(NodeCommands):
         cookie.store(response)
         return reply
 
-    def _push(self, request):
+    def _push(self, stream):
         reply = []
         cookie = _Cookie()
         pull_seq = None
         merged_seq = util.Sequence([])
 
-        for packet in sync.decode(request.content_stream):
+        for packet in stream:
             src = packet['src']
             enforce(packet['dst'] == self.guid, 'Misaddressed packet')
 

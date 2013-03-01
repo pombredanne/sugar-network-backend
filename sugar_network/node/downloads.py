@@ -61,7 +61,7 @@ class Pool(object):
 
     def set(self, key, tag, fetcher, *args, **kwargs):
         pool_key = json.dumps(key)
-        path = join(self._root, hashlib.sha1(pool_key).hexdigest())
+        path = join(self._root, hashlib.md5(pool_key).hexdigest())
 
         def do_fetch():
             try:
@@ -116,7 +116,7 @@ class _Download(dict):
             return file(self._path, 'rb')
 
     def pop(self):
-        if self._job is not None:
+        if self._job is not None and not self._job.dead:
             _logger.debug('Abort fetching %r', self)
             self._job.kill()
 

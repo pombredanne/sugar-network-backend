@@ -71,7 +71,7 @@ class Application(application.Daemon):
             with file(master_path) as f:
                 guid = f.read().strip()
             logging.info('Start %s node in master mode', guid)
-            cp = MasterCommands(volume)
+            cp = MasterCommands(volume, guid)
         else:
             guid = db.uuid()
             with file(node_path, 'w') as f:
