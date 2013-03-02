@@ -71,7 +71,7 @@ class Index(object):
         with self._mutex:
             return self._sync()
 
-    def diff(self, in_seq, out_seq=None):
+    def diff(self, in_seq, out_seq=None, **kwargs):
         if out_seq is None:
             out_seq = util.Sequence([])
         is_initial_diff = not out_seq

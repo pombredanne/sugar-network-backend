@@ -106,9 +106,9 @@ upload() {
     fi
 
     if [ -e "${cookie}" ]; then
-        if grep unset_sugar_network_sync "${cookie}" >/dev/null; then
+        if grep unset_sugar_network_pull "${cookie}" >/dev/null; then
             rm "${cookie}"
-        elif grep sugar_network_sync "${cookie}" >/dev/null; then
+        elif grep sugar_network_pull "${cookie}" >/dev/null; then
             phase "Postpone pull with ${cookie}"
         else
             rm "${cookie}"

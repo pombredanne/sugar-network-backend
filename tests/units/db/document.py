@@ -506,6 +506,38 @@ class DocumentTest(tests.Test):
             [i for i in directory.diff(Sequence([[6, 100]]), out_seq)])
         self.assertEqual([[6, 6]], out_seq)
 
+    def test_diff_Exclude(self):
+
+        class Document(document.Document):
+
+            @db.indexed_property(slot=1)
+            def prop(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        directory.create(guid='1', prop='1', ctime=1, mtime=1)
+        directory.create(guid='2', prop='2', ctime=2, mtime=2)
+        directory.create(guid='3', prop='3', ctime=3, mtime=3)
+        directory.update(guid='2', prop='2_')
+        self.utime('.', 0)
+
+        out_seq = Sequence()
+        self.assertEqual([
+            ('1', {
+                'guid': {'value': '1', 'mtime': 0},
+                'ctime': {'value': 1, 'mtime': 0},
+                'prop': {'value': '1', 'mtime': 0},
+                'mtime': {'value': 1, 'mtime': 0},
+                }),
+            ('2', {
+                'prop': {'value': '2_', 'mtime': 0},
+                }),
+            ],
+            [i for i in directory.diff(Sequence([[0, None]]), out_seq, Sequence([[2, 3]]))])
+
+        self.assertEqual([[1, 1], [4, 4]], out_seq)
+
     def test_diff_Partial(self):
 
         class Document(document.Document):

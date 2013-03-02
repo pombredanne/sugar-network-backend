@@ -198,14 +198,7 @@ class MasterSlaveTest(tests.Test):
             'preview': 'preview2',
             })
 
-        # Clone initial dump from master
-        pid = self.popen('V=1 sugar-network-sync sync1 http://localhost:8100', shell=True)
-        self.waitpid(pid, 0)
-
-        # Import cloned data on slave
-        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync1')
-
-        # Create data on slave
+        # Create initial data on slave
         guid_3 = slave.post(['context'], {
             'type': 'activity',
             'title': 'title_3',
@@ -226,41 +219,78 @@ class MasterSlaveTest(tests.Test):
             'values': [(stats_timestamp, {'f': 1}), (stats_timestamp + 1, {'f': 2})],
             }, cmd='stats-upload')
 
-        # Create slave push packets with newly create data
-        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2')
-
-        # Upload slave data to master
-        pid = self.popen('V=1 sync2/sugar-network-sync', shell=True)
+        # Clone initial dump from master
+        pid = self.popen('V=1 sugar-network-sync sync1 http://localhost:8100', shell=True)
+        self.waitpid(pid, 0)
+        # Import cloned data on slave
+        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync1')
+        # Upload slave initial data to master
+        pid = self.popen('V=1 sync1/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
 
+        # Update data on master
+        guid_5 = master.post(['context'], {
+            'type': 'activity',
+            'title': 'title_5',
+            'summary': 'summary',
+            'description': 'description',
+            'preview': 'preview5',
+            })
+        master.put(['context', guid_1, 'title'], 'title_1_')
+        master.put(['context', guid_3, 'preview'], 'preview3_')
+
+        # Update data on slave
+        guid_6 = master.post(['context'], {
+            'type': 'activity',
+            'title': 'title_6',
+            'summary': 'summary',
+            'description': 'description',
+            'preview': 'preview6',
+            })
+        master.put(['context', guid_3, 'title'], 'title_3_')
+        master.put(['context', guid_1, 'preview'], 'preview1_')
+
+        # Export slave changes
+        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2')
+        # Sync them with master
+        pid = self.popen('V=1 sync2/sugar-network-sync', shell=True)
+        self.waitpid(pid, 0)
         # Process master's reply
         slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2')
 
         self.assertEqual(
-                {'total': 4, 'result': [
-                    {'guid': guid_1, 'title': 'title_1'},
+                {'total': 6, 'result': [
+                    {'guid': guid_1, 'title': 'title_1_'},
                     {'guid': guid_2, 'title': 'title_2'},
-                    {'guid': guid_3, 'title': 'title_3'},
+                    {'guid': guid_3, 'title': 'title_3_'},
                     {'guid': guid_4, 'title': 'title_4'},
+                    {'guid': guid_5, 'title': 'title_5'},
+                    {'guid': guid_6, 'title': 'title_6'},
                     ]},
                 master.get(['context'], reply=['guid', 'title']))
         self.assertEqual(
-                {'total': 4, 'result': [
-                    {'guid': guid_1, 'title': 'title_1'},
+                {'total': 6, 'result': [
+                    {'guid': guid_1, 'title': 'title_1_'},
                     {'guid': guid_2, 'title': 'title_2'},
-                    {'guid': guid_3, 'title': 'title_3'},
+                    {'guid': guid_3, 'title': 'title_3_'},
                     {'guid': guid_4, 'title': 'title_4'},
+                    {'guid': guid_5, 'title': 'title_5'},
+                    {'guid': guid_6, 'title': 'title_6'},
                     ]},
                 slave.get(['context'], reply=['guid', 'title']))
 
-        self.assertEqual('preview1', master.request('GET', ['context', guid_1, 'preview']).content)
+        self.assertEqual('preview1_', master.request('GET', ['context', guid_1, 'preview']).content)
         self.assertEqual('preview2', master.request('GET', ['context', guid_2, 'preview']).content)
-        self.assertEqual('preview3', master.request('GET', ['context', guid_3, 'preview']).content)
+        self.assertEqual('preview3_', master.request('GET', ['context', guid_3, 'preview']).content)
         self.assertEqual('preview4', master.request('GET', ['context', guid_4, 'preview']).content)
-        self.assertEqual('preview1', slave.request('GET', ['context', guid_1, 'preview']).content)
+        self.assertEqual('preview5', master.request('GET', ['context', guid_5, 'preview']).content)
+        self.assertEqual('preview6', master.request('GET', ['context', guid_6, 'preview']).content)
+        self.assertEqual('preview1_', slave.request('GET', ['context', guid_1, 'preview']).content)
         self.assertEqual('preview2', slave.request('GET', ['context', guid_2, 'preview']).content)
-        self.assertEqual('preview3', slave.request('GET', ['context', guid_3, 'preview']).content)
+        self.assertEqual('preview3_', slave.request('GET', ['context', guid_3, 'preview']).content)
         self.assertEqual('preview4', slave.request('GET', ['context', guid_4, 'preview']).content)
+        self.assertEqual('preview5', slave.request('GET', ['context', guid_5, 'preview']).content)
+        self.assertEqual('preview6', slave.request('GET', ['context', guid_6, 'preview']).content)
 
         self.assertEqual('1', file('master/files/1/1').read())
         self.assertEqual('2', file('master/files/2/2').read())
