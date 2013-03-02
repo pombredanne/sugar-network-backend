@@ -315,8 +315,9 @@ class Directory(object):
                         if i in meta:
                             prop[i] = meta[i]
                     diff_seq.include(seqno, seqno)
-                yield doc.guid, diff
-                out_seq.include(diff_seq)
+                if diff:
+                    yield doc.guid, diff
+                    out_seq.include(diff_seq)
 
     def merge(self, guid, diff, increment_seqno=True):
         """Apply changes for documents."""
@@ -347,7 +348,7 @@ class Directory(object):
                     # is enough to avoid events flow on nodes synchronization
                     None, False)
 
-        return seqno
+        return seqno, merged
 
     def _pre_store(self, guid, changes, event, increment_seqno):
         seqno = changes.get('seqno')

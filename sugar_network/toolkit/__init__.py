@@ -23,11 +23,10 @@ from sugar_network.toolkit.options import Option
 BUFFER_SIZE = 1024 * 10
 
 
-tmpdir = Option(
-        'if specified, use this directory for temporary files; such files '
-        'might take considerable number of bytes while downloading of '
-        'synchronizing Sugar Network content',
-        name='tmpdir')
+cachedir = Option(
+        'path to a directory to keep cached files; such files '
+        'might take considerable number of bytes',
+        default='/var/cache/sugar-network', name='cachedir')
 
 
 def enforce(condition, error=None, *args):

@@ -63,14 +63,14 @@ class SyncOnlineTest(tests.Test):
         client = Client('http://localhost:9001')
 
         # Sync users
-        client.post(cmd='online_sync')
+        client.post(cmd='online-sync')
         self.assertEqual([[2, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
         guid2 = client.post(['document'], {'context': '', 'content': '2', 'title': '', 'type': 'idea'})
 
-        client.post(cmd='online_sync')
+        client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': '1'}},
             {'guid': guid2, 'content': {'en-us': '2'}},
@@ -80,7 +80,7 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[4, None]], json.load(file('slave/push.sequence')))
 
         guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
-        client.post(cmd='online_sync')
+        client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': '1'}},
             {'guid': guid2, 'content': {'en-us': '2'}},
@@ -92,7 +92,7 @@ class SyncOnlineTest(tests.Test):
 
         coroutine.sleep(1)
         client.put(['document', guid2], {'content': '22'})
-        client.post(cmd='online_sync')
+        client.post(cmd='online-sync')
         self.assertEqual(
                 {'guid': guid2, 'content': {'en-us': '22'}},
                 self.master_volume['document'].get(guid2).properties(['guid', 'content']))
@@ -101,7 +101,7 @@ class SyncOnlineTest(tests.Test):
 
         coroutine.sleep(1)
         client.delete(['document', guid1])
-        client.post(cmd='online_sync')
+        client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['deleted']},
             {'guid': guid2, 'content': {'en-us': '22'}, 'layer': ['public']},
@@ -117,7 +117,7 @@ class SyncOnlineTest(tests.Test):
         client.put(['document', guid3], {'content': 'c'})
         guid4 = client.post(['document'], {'context': '', 'content': 'd', 'title': '', 'type': 'idea'})
         client.delete(['document', guid2])
-        client.post(cmd='online_sync')
+        client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': 'a'}, 'layer': ['deleted']},
             {'guid': guid2, 'content': {'en-us': 'b'}, 'layer': ['deleted']},
@@ -131,7 +131,7 @@ class SyncOnlineTest(tests.Test):
     def test_PushStats(self):
         stats_user.stats_user.value = True
         client = Client('http://localhost:9001')
-        client.post(cmd='online_sync')
+        client.post(cmd='online-sync')
         self.assertEqual(['ok'], self.stats_commit)
         self.assertEqual([{'stats': 'probe'}], self.stats_merge)
 
@@ -140,14 +140,14 @@ class SyncOnlineTest(tests.Test):
         slave_client = Client('http://localhost:9001')
 
         # Sync users
-        slave_client.post(cmd='online_sync')
+        slave_client.post(cmd='online-sync')
         self.assertEqual([[2, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
         guid2 = client.post(['document'], {'context': '', 'content': '2', 'title': '', 'type': 'idea'})
 
-        slave_client.post(cmd='online_sync')
+        slave_client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': '1'}},
             {'guid': guid2, 'content': {'en-us': '2'}},
@@ -157,7 +157,7 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
-        slave_client.post(cmd='online_sync')
+        slave_client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': '1'}},
             {'guid': guid2, 'content': {'en-us': '2'}},
@@ -169,7 +169,7 @@ class SyncOnlineTest(tests.Test):
 
         coroutine.sleep(1)
         client.put(['document', guid2], {'content': '22'})
-        slave_client.post(cmd='online_sync')
+        slave_client.post(cmd='online-sync')
         self.assertEqual(
                 {'guid': guid2, 'content': {'en-us': '22'}},
                 self.slave_volume['document'].get(guid2).properties(['guid', 'content']))
@@ -178,7 +178,7 @@ class SyncOnlineTest(tests.Test):
 
         coroutine.sleep(1)
         client.delete(['document', guid1])
-        slave_client.post(cmd='online_sync')
+        slave_client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['deleted']},
             {'guid': guid2, 'content': {'en-us': '22'}, 'layer': ['public']},
@@ -194,7 +194,7 @@ class SyncOnlineTest(tests.Test):
         client.put(['document', guid3], {'content': 'c'})
         guid4 = client.post(['document'], {'context': '', 'content': 'd', 'title': '', 'type': 'idea'})
         client.delete(['document', guid2])
-        slave_client.post(cmd='online_sync')
+        slave_client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': 'a'}, 'layer': ['deleted']},
             {'guid': guid2, 'content': {'en-us': 'b'}, 'layer': ['deleted']},
@@ -212,7 +212,7 @@ class SyncOnlineTest(tests.Test):
         os.utime('master/files', (1, 1))
 
         client = Client('http://localhost:9001')
-        client.post(cmd='online_sync')
+        client.post(cmd='online-sync')
 
         files, stamp = json.load(file('master/files.index'))
         self.assertEqual(1, stamp)

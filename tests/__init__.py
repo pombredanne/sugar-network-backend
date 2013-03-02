@@ -27,7 +27,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.node.commands import NodeCommands
-from sugar_network.node import stats_user, stats_node, obs, auth, slave
+from sugar_network.node import stats_user, stats_node, obs, auth, slave, downloads
 from sugar_network.resources.volume import Volume
 
 
@@ -104,11 +104,12 @@ class Test(unittest.TestCase):
         obs._client = None
         http._RECONNECTION_NUMBER = 0
         auth.reset()
-        toolkit.tmpdir.value = tmpdir + '/tmp'
+        toolkit.cachedir.value = tmpdir + '/tmp'
         injector.invalidate_solutions(None)
         injector._pms_path = None
         journal._ds_root = tmpdir + '/datastore'
         solver.nodeps = False
+        downloads._POOL_SIZE = 256
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',

@@ -15,18 +15,25 @@
 
 import os
 import gzip
+import zlib
+import json
 import logging
-import cPickle as pickle
+from cStringIO import StringIO
 from types import GeneratorType
-from os.path import exists, join, dirname
+from os.path import exists, join, dirname, basename, splitext
 
 from sugar_network import db
-from sugar_network.toolkit import BUFFER_SIZE, util, enforce
+from sugar_network.toolkit import BUFFER_SIZE, coroutine, util, enforce
 
+
+# Filename suffix to use for sneakernet synchronization files
+_SNEAKERNET_SUFFIX = '.sneakernet'
 
 # Leave at leat n bytes in fs whle calling `encode_to_file()`
 _SNEAKERNET_RESERVED_SIZE = 1024 * 1024
-_SNEAKERNET_SUFFIX = '.package'
+
+# Indication file to place to sneakernet synchronization directory
+_SNEAKERNET_FLAG_FILE = '.sugar-network-sync'
 
 _logger = logging.getLogger('node.sync')
 
@@ -48,8 +55,34 @@ def limited_encode(limit, *packets, **header):
     return _encode(limit, packets, header, _EncodingStatus())
 
 
-def chunked_encode(*packets):
-    return _ChunkedEncoder(encode(*packets))
+def chunked_encode(*packets, **header):
+    return _ChunkedEncoder(encode(*packets, **header))
+
+
+def package_decode(stream):
+    stream = _GzipStream(stream)
+    package_props = json.loads(stream.readline())
+
+    for packet in decode(stream):
+        packet.props.update(package_props)
+        yield packet
+
+
+def package_encode(*packets, **header):
+    # XXX Only for small amount of data
+    # TODO Support real streaming
+    buf = StringIO()
+    zipfile = gzip.GzipFile(mode='wb', fileobj=buf)
+
+    header['filename'] = db.uuid() + _SNEAKERNET_SUFFIX
+    json.dump(header, zipfile)
+    zipfile.write('\n')
+
+    for chunk in _encode(None, packets, None, _EncodingStatus()):
+        zipfile.write(chunk)
+    zipfile.close()
+
+    yield buf.getvalue()
 
 
 def sneakernet_decode(root, node=None, session=None):
@@ -59,7 +92,7 @@ def sneakernet_decode(root, node=None, session=None):
                 continue
             zipfile = gzip.open(join(root, filename), 'rb')
             try:
-                package_props = pickle.load(zipfile)
+                package_props = json.loads(zipfile.readline())
 
                 if node is not None and package_props.get('src') == node:
                     if package_props.get('session') == session:
@@ -82,7 +115,14 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
     if path is None:
         if not exists(root):
             os.makedirs(root)
-        path = util.unique_filename(root, db.uuid() + _SNEAKERNET_SUFFIX)
+        with file(join(root, _SNEAKERNET_FLAG_FILE), 'w'):
+            pass
+        filename = db.uuid() + _SNEAKERNET_SUFFIX
+        path = util.unique_filename(root, filename)
+    else:
+        filename = splitext(basename(path))[0] + _SNEAKERNET_SUFFIX
+    if 'filename' not in header:
+        header['filename'] = filename
 
     if limit <= 0:
         stat = os.statvfs(dirname(path))
@@ -95,7 +135,8 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
     with file(path, 'wb') as package:
         zipfile = gzip.GzipFile(fileobj=package)
         try:
-            pickle.dump(header, zipfile)
+            json.dump(header, zipfile)
+            zipfile.write('\n')
 
             pos = None
             encoder = _encode(limit, packets, None, status)
@@ -104,6 +145,7 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
                     chunk = encoder.send(pos)
                     zipfile.write(chunk)
                     pos = zipfile.fileobj.tell()
+                    coroutine.dispatch()
                 except StopIteration:
                     break
 
@@ -135,7 +177,7 @@ def _encode(limit, packets, header, status):
         if header:
             props.update(header)
         props['packet'] = packet
-        pos = (yield pickle.dumps(props)) or 0
+        pos = (yield json.dumps(props) + '\n') or 0
 
         if content is None:
             continue
@@ -150,7 +192,7 @@ def _encode(limit, packets, header, status):
                     blob = record.pop('blob')
                     blob_size = record['blob_size'] = os.stat(blob).st_size
 
-                dump = pickle.dumps(record)
+                dump = json.dumps(record) + '\n'
                 if not status.aborted and limit is not None and \
                         pos + len(dump) + blob_size > limit:
                     status.aborted = True
@@ -158,7 +200,7 @@ def _encode(limit, packets, header, status):
                         raise StopIteration()
                     record = content.throw(StopIteration())
                     continue
-                pos = (yield pickle.dumps(record)) or 0
+                pos = (yield dump) or 0
 
                 if blob is not None:
                     with file(blob, 'rb') as f:
@@ -172,7 +214,7 @@ def _encode(limit, packets, header, status):
         except StopIteration:
             pass
 
-    yield pickle.dumps({'packet': 'last'})
+    yield json.dumps({'packet': 'last'}) + '\n'
 
 
 class _ChunkedEncoder(object):
@@ -235,12 +277,16 @@ class _PacketsIterator(object):
         return self.props.get(key)
 
     def __iter__(self):
+        blob = None
         while True:
-            try:
-                record = pickle.load(self._stream)
-            except EOFError:
+            if blob is not None and blob.size_to_read:
+                self._stream.seek(blob.size_to_read, 1)
+                blob = None
+            record = self._stream.readline()
+            if not record:
                 self._name = None
-                raise
+                raise EOFError()
+            record = json.loads(record)
             packet = record.get('packet')
             if packet:
                 self._name = packet
@@ -249,7 +295,7 @@ class _PacketsIterator(object):
                 break
             blob_size = record.get('blob_size')
             if blob_size:
-                record['blob'] = _Blob(self._stream, blob_size)
+                blob = record['blob'] = _Blob(self._stream, blob_size)
             yield record
 
     def __enter__(self):
@@ -263,9 +309,32 @@ class _Blob(object):
 
     def __init__(self, stream, size):
         self._stream = stream
-        self._size_to_read = size
+        self.size_to_read = size
 
     def read(self, size=BUFFER_SIZE):
-        chunk = self._stream.read(min(size, self._size_to_read))
-        self._size_to_read -= len(chunk)
+        chunk = self._stream.read(min(size, self.size_to_read))
+        self.size_to_read -= len(chunk)
         return chunk
+
+
+class _GzipStream(object):
+
+    def __init__(self, stream):
+        self._stream = stream
+        self._zip = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        self._buffer = bytearray()
+
+    def read(self, size):
+        while True:
+            if size <= len(self._buffer):
+                result = self._buffer[:size]
+                self._buffer = self._buffer[size:]
+                return bytes(result)
+            chunk = self._stream.read(size)
+            if not chunk:
+                result, self._buffer = self._buffer, bytearray()
+                return result
+            self._buffer += self._zip.decompress(chunk)
+
+    def readline(self):
+        return util.readline(self)

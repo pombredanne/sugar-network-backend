@@ -21,7 +21,7 @@ from sugar_network.toolkit import util, coroutine, enforce
 _logger = logging.getLogger('node.sync')
 
 
-def diff(volume, in_seq, out_seq=None):
+def diff(volume, in_seq, out_seq=None, layer=None):
     if out_seq is None:
         out_seq = util.Sequence([])
     is_initial_diff = not out_seq
@@ -48,6 +48,7 @@ def merge(volume, records, shift_seqno=True):
     directory = None
     commit_seq = util.Sequence()
     merged_seq = util.Sequence()
+    synced = False
 
     for record in records:
         document = record.get('document')
@@ -59,7 +60,8 @@ def merge(volume, records, shift_seqno=True):
         if patch is not None:
             enforce(directory is not None,
                     'Invalid merge, no document')
-            seqno = directory.merge(record['guid'], patch, shift_seqno)
+            seqno, merged = directory.merge(record['guid'], patch, shift_seqno)
+            synced = synced or merged
             if seqno is not None:
                 merged_seq.include(seqno, seqno)
             continue
@@ -68,5 +70,8 @@ def merge(volume, records, shift_seqno=True):
         if commit is not None:
             commit_seq.include(commit)
             continue
+
+    if synced:
+        volume.notify({'event': 'sync'})
 
     return commit_seq, merged_seq

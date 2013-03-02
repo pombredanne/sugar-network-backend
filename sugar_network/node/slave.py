@@ -13,18 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import sys
 import shutil
 import logging
 from urlparse import urlsplit
-from os.path import join, dirname, exists
+from os.path import join, dirname, exists, isabs
 from gettext import gettext as _
 
 from sugar_network import db
 from sugar_network.client import Client, api_url
 from sugar_network.node import sync, stats_user, files, files_root, volume
 from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import util, exception
+from sugar_network.toolkit import util, exception, enforce
 
 
 _logger = logging.getLogger('node.slave')
@@ -44,26 +45,32 @@ class SlaveCommands(NodeCommands):
         self._master_guid = urlsplit(api_url.value).netloc
         self._offline_session = None
 
-    @db.volume_command(method='POST', cmd='online_sync',
+    @db.volume_command(method='POST', cmd='online-sync',
             permissions=db.ACCESS_LOCAL)
     def online_sync(self):
-        push = [('diff', {'src': self.guid},
-                    volume.diff(self.volume, self._push_seq)),
+        push = [('diff', None, volume.diff(self.volume, self._push_seq)),
                 ('pull', {'sequence': self._pull_seq}, None),
                 ('files_pull', {'sequence': self._files_seq}, None),
                 ]
         if stats_user.stats_user.value:
-            push.append(('stats_diff', {'src': self.guid}, stats_user.diff()))
+            push.append(('stats_diff', None, stats_user.diff()))
         response = Client().request('POST',
-                data=sync.chunked_encode(*push), params={'cmd': 'sync'},
+                data=sync.chunked_encode(*push,
+                    src=self.guid, dst=self._master_guid),
+                params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})
         self._import(sync.decode(response.raw), None)
 
-    @db.volume_command(method='POST', cmd='offline_sync',
+    @db.volume_command(method='POST', cmd='offline-sync',
             permissions=db.ACCESS_LOCAL)
     def offline_sync(self, path):
+        enforce(isabs(path), 'Argument \'path\' should be an absolute path')
+
         _logger.debug('Start %r synchronization session in %r',
                 self._offline_session, path)
+
+        if not exists(path):
+            os.makedirs(path)
 
         try:
             self.broadcast({'event': 'sync_start', 'path': path})
@@ -78,12 +85,10 @@ class SlaveCommands(NodeCommands):
         if self._offline_session is None:
             _logger.debug('Synchronization completed')
             self.broadcast({'event': 'sync_complete'})
-            return True
         else:
             _logger.debug('Postpone synchronization with %r session',
                     self._offline_session)
             self.broadcast({'event': 'sync_continue'})
-            return False
 
     def _offline_sync(self, path, push_seq=None, stats_seq=None, session=None):
         push = []
@@ -118,7 +123,8 @@ class SlaveCommands(NodeCommands):
         if stats_user.stats_user.value:
             push.append(('stats_diff', None, stats_user.diff(stats_seq)))
         complete = sync.sneakernet_encode(push, root=path,
-                src=self.guid, dst=self._master_guid, session=session)
+                src=self.guid, dst=self._master_guid, api_url=api_url.value,
+                session=session)
         if not complete:
             push_seq.exclude(diff_seq)
             return {'push_seq': push_seq,

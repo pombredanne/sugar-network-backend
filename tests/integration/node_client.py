@@ -25,7 +25,7 @@ class NodeClientTest(tests.Test):
         self.client_pid = None
 
         self.node_pid = self.popen(['sugar-network-node', '-F', 'start',
-            '--port=8100', '--data-root=node', '--tmpdir=tmp', '-DDD',
+            '--port=8100', '--data-root=node', '--cachedir=tmp', '-DDD',
             '--rundir=run', '--stats-node-step=0',
             ])
         coroutine.sleep(1)
@@ -103,7 +103,7 @@ class NodeClientTest(tests.Test):
             self.client_pid = self.popen(['sugar-network-client',
                 '-DDDF', 'start',
                 '--activity-dirs=client/Activities', '--local-root=client',
-                '--mounts-root=mnt', '--tmpdir=tmp', '--ipc-port=5101',
+                '--mounts-root=mnt', '--cachedir=tmp', '--ipc-port=5101',
                 '--api-url=http://localhost:8100',
                 ])
             coroutine.sleep(2)

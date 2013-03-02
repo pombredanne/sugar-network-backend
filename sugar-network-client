@@ -52,8 +52,8 @@ class Application(application.Daemon):
             application.logdir.value = join(client.local_root.value, 'log')
         else:
             application.logdir.value = sugar.profile_path('logs')
-        if not exists(toolkit.tmpdir.value):
-            os.makedirs(toolkit.tmpdir.value)
+        if not exists(toolkit.cachedir.value):
+            os.makedirs(toolkit.cachedir.value)
         application.rundir.value = join(client.local_root.value, 'run')
 
         coroutine.signal(signal.SIGCHLD, self.__SIGCHLD_cb)
@@ -196,12 +196,13 @@ application.debug.value = sugar.logger_level()
 node.trust_users.value = True
 # If tmpfs is mounted to /tmp, `os.fstat()` will return 0 free space
 # and will brake offline synchronization logic
-toolkit.tmpdir.value = sugar.profile_path('tmp')
+toolkit.cachedir.value = sugar.profile_path('tmp')
 
 Option.seek('main', application)
+Option.seek('main', [toolkit.cachedir])
 Option.seek('webui', webui)
 Option.seek('client', client)
-Option.seek('client', [sugar.keyfile, toolkit.tmpdir])
+Option.seek('client', [sugar.keyfile])
 Option.seek('node', [node.port, node.files_root])
 Option.seek('stats', stats_user)
 Option.seek('db', db)

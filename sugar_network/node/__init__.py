@@ -58,3 +58,8 @@ stats_root = Option(
 files_root = Option(
         'path to a directory to keep files synchronized between nodes',
         default='/var/lib/sugar-network/files', name='files_root')
+
+pull_timeout = Option(
+        'delay in seconds to return to sync-pull requester to wait until '
+        'pull request will be ready',
+        default=30, type_cast=int)

@@ -213,6 +213,10 @@ class UtilTest(tests.Test):
 
     def test_Sequence_contains(self):
         scale = Sequence(empty_value=[1, None])
+
+        assert 1 in scale
+        assert 4 in scale
+
         scale.exclude(2, 2)
         scale.exclude(5, 10)
 
@@ -222,6 +226,7 @@ class UtilTest(tests.Test):
         assert 5 not in scale
         assert 10 not in scale
         assert 11 in scale
+        assert 12 in scale
 
     def test_Sequence_stretch(self):
         seq = Sequence()
