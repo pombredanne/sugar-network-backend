@@ -179,7 +179,7 @@ class DocumentTest(tests.Test):
             'seqno': 2,
             'mtime': int(os.stat(blob_path).st_mtime),
             'digest': hashlib.sha1(data).hexdigest(),
-            'path': join(tests.tmpdir, guid[:2], guid, 'blob.blob'),
+            'blob': join(tests.tmpdir, guid[:2], guid, 'blob.blob'),
             'mime_type': 'application/json',
             },
             directory.get(guid).meta('blob'))
@@ -454,14 +454,14 @@ class DocumentTest(tests.Test):
                 'ctime': {'value': 1, 'mtime': 1},
                 'prop': {'value': '1', 'mtime': 1},
                 'mtime': {'value': 1, 'mtime': 1},
-                'blob': {'mtime': 1, 'digest': hashlib.sha1('1').hexdigest(), 'mime_type': 'application/octet-stream', 'path': tests.tmpdir + '/1/1/blob.blob'},
+                'blob': {'mtime': 1, 'digest': hashlib.sha1('1').hexdigest(), 'mime_type': 'application/octet-stream', 'blob': tests.tmpdir + '/1/1/blob.blob'},
                 }),
             ('2', {
                 'guid': {'value': '2', 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
-                'blob': {'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream', 'path': tests.tmpdir + '/2/2/blob.blob'},
+                'blob': {'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream', 'blob': tests.tmpdir + '/2/2/blob.blob'},
                 }),
             ('3', {
                 'guid': {'value': '3', 'mtime': 3},
@@ -480,7 +480,7 @@ class DocumentTest(tests.Test):
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
-                'blob': {'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream', 'path': tests.tmpdir + '/2/2/blob.blob'},
+                'blob': {'mtime': 2, 'digest': hashlib.sha1('2').hexdigest(), 'mime_type': 'application/octet-stream', 'blob': tests.tmpdir + '/2/2/blob.blob'},
                 }),
             ],
             [i for i in directory.diff(Sequence([[3, 4]]), out_seq)])
@@ -852,12 +852,11 @@ class DocumentTest(tests.Test):
                 return value
 
         directory = Directory('document', Document, IndexWriter)
-        self.touch(('file', 'blob-1'))
         directory.merge('1', {
             'guid': {'mtime': 1, 'value': '1'},
             'ctime': {'mtime': 2, 'value': 2},
             'mtime': {'mtime': 3, 'value': 3},
-            'blob': {'mtime': 4, 'path': 'file'},
+            'blob': {'mtime': 4, 'blob': StringIO('blob-1')},
             })
 
         self.assertEqual(
@@ -873,7 +872,7 @@ class DocumentTest(tests.Test):
         self.assertEqual('blob-1', file('document/1/1/blob.blob').read())
 
         directory.merge('1', {
-            'blob': {'mtime': 5, 'content': b64encode('blob-2')},
+            'blob': {'mtime': 5, 'blob': StringIO('blob-2')},
             })
 
         self.assertEqual(5, doc.meta('blob')['mtime'])

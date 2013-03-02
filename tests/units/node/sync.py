@@ -9,6 +9,7 @@ from os.path import exists
 
 from __init__ import tests
 
+from sugar_network import db
 from sugar_network.node import sync
 from sugar_network.toolkit import BUFFER_SIZE
 
@@ -407,6 +408,8 @@ class SyncTest(tests.Test):
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
     def test_sneakernet_decode(self):
+        self.override(db, 'uuid', lambda: 'uuid')
+
         sync.sneakernet_encode([
             ('first', {'packet_prop': 1}, [
                 {'record': 1},
@@ -427,9 +430,9 @@ class SyncTest(tests.Test):
             root='.', package_prop=2, limit=999999999)
 
         self.assertEqual([
-            ({'packet_prop': 1, 'package_prop': 1, 'packet': 'first'}, [{'record': 1}, {'record': 2}]),
-            ({'packet_prop': 2, 'package_prop': 1, 'packet': 'second'}, [{'record': 3}, {'record': 4}]),
-            ({'packet_prop': 3, 'package_prop': 2, 'packet': 'third'}, [{'record': 5}, {'record': 6}]),
+            ({'packet_prop': 1, 'package_prop': 1, 'packet': 'first', 'filename': 'uuid.sneakernet'}, [{'record': 1}, {'record': 2}]),
+            ({'packet_prop': 2, 'package_prop': 1, 'packet': 'second', 'filename': 'uuid.sneakernet'}, [{'record': 3}, {'record': 4}]),
+            ({'packet_prop': 3, 'package_prop': 2, 'packet': 'third', 'filename': 'uuid.sneakernet'}, [{'record': 5}, {'record': 6}]),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('.')]))
 
@@ -449,6 +452,7 @@ class SyncTest(tests.Test):
         assert not exists('.sneakernet')
 
     def test_sneakernet_encode(self):
+        self.override(db, 'uuid', lambda: 'uuid')
         payload = ''.join([str(uuid.uuid4()) for i in xrange(5000)])
 
         def content():
@@ -463,19 +467,19 @@ class SyncTest(tests.Test):
         statvfs.f_bfree = sync._SNEAKERNET_RESERVED_SIZE
         self.assertEqual(False, sync.sneakernet_encode([('first', None, content())], root='1'))
         self.assertEqual(
-                [({'packet': 'first'}, [])],
+                [({'packet': 'first', 'filename': 'uuid.sneakernet'}, [])],
                 [(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('1')])
 
         statvfs.f_bfree += len(payload) + len(payload) / 2
         self.assertEqual(False, sync.sneakernet_encode([('first', None, content())], root='2'))
         self.assertEqual(
-                [({'packet': 'first'}, [{'record': payload}])],
+                [({'packet': 'first', 'filename': 'uuid.sneakernet'}, [{'record': payload}])],
                 [(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('2')])
 
         statvfs.f_bfree += len(payload)
         self.assertEqual(True, sync.sneakernet_encode([('first', None, content())], root='3'))
         self.assertEqual(
-                [({'packet': 'first'}, [{'record': payload}, {'record': payload}])],
+                [({'packet': 'first', 'filename': 'uuid.sneakernet'}, [{'record': payload}, {'record': payload}])],
                 [(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('3')])
 
 

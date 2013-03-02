@@ -203,7 +203,7 @@ class Commands(object):
     @router.route('GET', '/favicon.ico')
     def favicon(self, request, response):
         return db.PropertyMetadata(
-                path=join(static.PATH, 'favicon.ico'),
+                blob=join(static.PATH, 'favicon.ico'),
                 mime_type='image/x-icon')
 
     @db.volume_command(method='GET', mime_type='text/html')

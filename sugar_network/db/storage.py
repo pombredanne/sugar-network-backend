@@ -20,7 +20,6 @@ import json
 import shutil
 import hashlib
 import cPickle as pickle
-from base64 import b64decode
 from os.path import exists, join, isdir, basename, relpath, lexists, isabs
 
 from sugar_network.db import env
@@ -189,15 +188,19 @@ class Record(object):
         if exists(path):
             return PropertyMetadata(path)
 
-    def set(self, prop, mtime=None, path=None, content=None, **meta):
+    def set(self, prop, mtime=None, path=None, blob=None, blob_size=None,
+            **meta):
         if not exists(self._root):
             os.makedirs(self._root)
         meta_path = join(self._root, prop)
 
+        if isinstance(blob, basestring):
+            path = blob
+            blob = None
         blob_path = join(self._root, prop + PropertyMetadata.BLOB_SUFFIX)
-        if content is not None:
+        if blob is not None:
             with util.new_file(blob_path) as f:
-                f.write(b64decode(content))
+                shutil.copyfileobj(blob, f)
         elif path and exists(path):
             util.cptree(path, blob_path)
 

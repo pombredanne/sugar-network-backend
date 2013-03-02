@@ -311,7 +311,7 @@ class Directory(object):
                     if seqno not in in_seq:
                         continue
                     prop = diff[name] = {'mtime': meta['mtime']}
-                    for i in ('value', 'mime_type', 'digest', 'path', 'url'):
+                    for i in ('value', 'mime_type', 'digest', 'blob', 'url'):
                         if i in meta:
                             prop[i] = meta[i]
                     diff_seq.include(seqno, seqno)

@@ -121,7 +121,7 @@ class Commands(object):
                 if hasattr(preview, 'close'):
                     preview.close()
             elif isinstance(preview, dict):
-                with file(preview['path'], 'rb') as f:
+                with file(preview['blob'], 'rb') as f:
                     preview = f.read()
             import dbus
             kwargs['preview'] = dbus.ByteArray(preview)
@@ -132,7 +132,7 @@ class Commands(object):
                 data = f.name
                 transfer_ownership = True
         elif isinstance(data, dict):
-            data = data['path']
+            data = data['blob']
             transfer_ownership = False
         elif data is not None:
             with NamedTemporaryFile(delete=False) as f:
@@ -198,10 +198,10 @@ class Commands(object):
         prop = request.path[2]
 
         if prop == 'preview':
-            return db.PropertyMetadata(path=_prop_path(guid, prop),
+            return db.PropertyMetadata(blob=_prop_path(guid, prop),
                     mime_type='image/png')
         elif prop == 'data':
-            return db.PropertyMetadata(path=_ds_path(guid, 'data'),
+            return db.PropertyMetadata(blob=_ds_path(guid, 'data'),
                     mime_type=get(guid, 'mime_type') or 'application/octet')
         else:
             response.content_type = 'application/json'

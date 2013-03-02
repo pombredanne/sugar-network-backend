@@ -207,7 +207,7 @@ class VolumeCommands(CommandsProcessor):
             return value
         else:
             meta = prop.on_get(doc, doc.meta(prop.name))
-            enforce(meta is not None and ('path' in meta or 'url' in meta),
+            enforce(meta is not None and ('blob' in meta or 'url' in meta),
                     env.NotFound, 'BLOB does not exist')
             return meta
 

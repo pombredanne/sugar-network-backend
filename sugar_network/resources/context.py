@@ -63,12 +63,12 @@ class Context(Resource):
         if 'package' in self['type']:
             return db.PropertyMetadata(
                     url='/static/images/package.png',
-                    path=join(static.PATH, 'images', 'package.png'),
+                    blob=join(static.PATH, 'images', 'package.png'),
                     mime_type='image/png')
         else:
             return db.PropertyMetadata(
                     url='/static/images/missing.png',
-                    path=join(static.PATH, 'images', 'missing.png'),
+                    blob=join(static.PATH, 'images', 'missing.png'),
                     mime_type='image/png')
 
     @db.blob_property(mime_type='image/svg+xml')
@@ -77,7 +77,7 @@ class Context(Resource):
             return value
         return db.PropertyMetadata(
                 url='/static/images/missing.svg',
-                path=join(static.PATH, 'images', 'missing.svg'),
+                blob=join(static.PATH, 'images', 'missing.svg'),
                 mime_type='image/svg+xml')
 
     @db.blob_property(mime_type='image/png')
@@ -86,7 +86,7 @@ class Context(Resource):
             return value
         return db.PropertyMetadata(
                 url='/static/images/missing.png',
-                path=join(static.PATH, 'images', 'missing.png'),
+                blob=join(static.PATH, 'images', 'missing.png'),
                 mime_type='image/png')
 
     @db.indexed_property(slot=2, typecast=int, default=0,

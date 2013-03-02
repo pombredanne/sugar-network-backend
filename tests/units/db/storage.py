@@ -63,7 +63,7 @@ class StorageTest(tests.Test):
         data = '!' * BUFFER_SIZE * 2
         record.set_blob('prop', StringIO(data))
         self.assertEqual({
-            'path': tests.tmpdir + '/gu/guid1/prop.blob',
+            'blob': tests.tmpdir + '/gu/guid1/prop.blob',
             'mtime': int(os.stat('gu/guid1/prop').st_mtime),
             'digest': hashlib.sha1(data).hexdigest(),
             },
@@ -73,7 +73,7 @@ class StorageTest(tests.Test):
         record = storage.get('guid2')
         record.set_blob('prop', StringIO('12345'), 1)
         self.assertEqual({
-            'path': tests.tmpdir + '/gu/guid2/prop.blob',
+            'blob': tests.tmpdir + '/gu/guid2/prop.blob',
             'mtime': int(os.stat('gu/guid2/prop').st_mtime),
             'digest': hashlib.sha1('1').hexdigest(),
             },
@@ -87,7 +87,7 @@ class StorageTest(tests.Test):
         self.touch(('file', 'data'))
         record.set_blob('prop', tests.tmpdir + '/file')
         self.assertEqual({
-            'path': tests.tmpdir + '/gu/guid1/prop.blob',
+            'blob': tests.tmpdir + '/gu/guid1/prop.blob',
             'mtime': int(os.stat('gu/guid1/prop').st_mtime),
             'digest': hashlib.sha1('data').hexdigest(),
             },
@@ -100,7 +100,7 @@ class StorageTest(tests.Test):
         self.touch(('directory/2/4/5', '5'))
         record.set_blob('prop', tests.tmpdir + '/directory')
         self.assertEqual({
-            'path': tests.tmpdir + '/gu/guid2/prop.blob',
+            'blob': tests.tmpdir + '/gu/guid2/prop.blob',
             'mtime': int(os.stat('gu/guid2/prop').st_mtime),
             'digest': hashlib.sha1(
                 '1' '1'
@@ -129,7 +129,7 @@ class StorageTest(tests.Test):
 
         record.set_blob('prop', '/foo/bar')
         self.assertEqual({
-            'path': tests.tmpdir + '/gu/guid/prop.blob',
+            'blob': tests.tmpdir + '/gu/guid/prop.blob',
             'mtime': int(os.stat('gu/guid/prop').st_mtime),
             'digest': hashlib.sha1('/foo/bar').hexdigest(),
             },
