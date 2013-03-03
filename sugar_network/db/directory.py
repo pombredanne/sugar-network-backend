@@ -21,7 +21,7 @@ from os.path import exists, join
 
 from sugar_network.db import env
 from sugar_network.db.storage import Storage
-from sugar_network.db.metadata import Metadata, GUID_PREFIX
+from sugar_network.db.metadata import BlobProperty, Metadata, GUID_PREFIX
 from sugar_network.db.metadata import IndexedProperty, StoredProperty
 from sugar_network.toolkit import util, exception, enforce
 
@@ -197,6 +197,10 @@ class Directory(object):
             i.e., not only documents that are included to the resulting list
 
         """
+        # XXX Hardcode SN layers switch; Remove in 0.9
+        if kwargs.get('layer') in ('peruvian-pilot', ['peruvian-pilot']):
+            kwargs['layer'] = 'pilot'
+
         mset = self._index.find(_Query(*args, **kwargs))
 
         def iterate():
@@ -301,27 +305,42 @@ class Directory(object):
             for doc in documents:
                 diff = {}
                 diff_seq = util.Sequence()
-                for name in self.metadata.keys():
+                for name, prop in self.metadata.items():
                     if name == 'seqno':
                         continue
                     meta = doc.meta(name)
                     if meta is None:
                         continue
                     seqno = meta.get('seqno')
-                    if seqno not in in_seq:
+                    if seqno not in in_seq or \
+                            exclude_seq is not None and seqno in exclude_seq:
                         continue
-                    if exclude_seq is not None and seqno in exclude_seq:
-                        continue
-                    prop = diff[name] = {'mtime': meta['mtime']}
-                    for i in ('value', 'mime_type', 'digest', 'blob', 'url'):
-                        if i in meta:
-                            prop[i] = meta[i]
+                    if isinstance(prop, BlobProperty):
+                        patch = {'guid': doc.guid,
+                                 'diff': {
+                                     name: {
+                                         'mtime': meta['mtime'],
+                                         'mime_type': meta.get('mime_type'),
+                                         'digest': meta.get('digest'),
+                                         },
+                                     },
+                                 }
+                        if 'url' in meta:
+                            patch['url'] = meta['url']
+                        else:
+                            patch['blob'] = meta['blob']
+                        yield patch
+                    else:
+                        diff[name] = {
+                                'mtime': meta['mtime'],
+                                'value': meta['value'],
+                                }
                     diff_seq.include(seqno, seqno)
                 if diff:
-                    yield doc.guid, diff
-                    out_seq.include(diff_seq)
+                    yield {'guid': doc.guid, 'diff': diff}
+                out_seq.include(diff_seq)
 
-    def merge(self, guid, diff, increment_seqno=True):
+    def merge(self, guid, diff, shift_seqno=True, **kwargs):
         """Apply changes for documents."""
         record = self._storage.get(guid)
         seqno = None
@@ -331,13 +350,15 @@ class Directory(object):
             orig_meta = record.get(prop)
             if orig_meta is not None and orig_meta['mtime'] >= meta['mtime']:
                 continue
-            if increment_seqno:
+            if shift_seqno:
                 if not seqno:
                     seqno = self._seqno.next()
                 meta['seqno'] = seqno
             else:
                 meta['seqno'] = (orig_meta or {}).get('seqno') or 0
+            meta.update(kwargs)
             record.set(prop, **meta)
+
             merged = True
 
         if merged and record.consistent:
@@ -352,9 +373,9 @@ class Directory(object):
 
         return seqno, merged
 
-    def _pre_store(self, guid, changes, event, increment_seqno):
+    def _pre_store(self, guid, changes, event, shift_seqno):
         seqno = changes.get('seqno')
-        if increment_seqno and not seqno:
+        if shift_seqno and not seqno:
             seqno = changes['seqno'] = self._seqno.next()
 
         record = self._storage.get(guid)
@@ -382,7 +403,7 @@ class Directory(object):
                     changes[name] = value
                 record.set(name, value=value, seqno=seqno)
 
-    def _post_store(self, guid, changes, event, increment_seqno):
+    def _post_store(self, guid, changes, event, shift_seqno):
         if event:
             self._notify(event)
 

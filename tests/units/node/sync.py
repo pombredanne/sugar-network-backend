@@ -408,6 +408,38 @@ class SyncTest(tests.Test):
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
+    def test_decode_SkipNotReadBlobsForNotSeekableStreams(self):
+
+        class Stream(object):
+
+            def __init__(self):
+                self.value = StringIO()
+
+            def read(self, size):
+                return self.value.read(size)
+
+        stream = Stream()
+        dump({'packet': 1}, stream.value)
+        dump({'num': 1, 'blob_size': 1}, stream.value)
+        stream.value.write('a')
+        dump({'num': 2, 'blob_size': 2}, stream.value)
+        stream.value.write('bb')
+        dump({'packet': 2}, stream.value)
+        dump({'num': 3, 'blob_size': 3}, stream.value)
+        stream.value.write('ccc')
+        dump({'packet': 'last'}, stream.value)
+        stream.value.seek(0)
+
+        packets_iter = sync.decode(stream)
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            self.assertEqual([1, 2], [i['num'] for i in packet])
+        with next(packets_iter) as packet:
+            self.assertEqual(2, packet.name)
+            self.assertEqual([3], [i['num'] for i in packet])
+        self.assertRaises(StopIteration, packets_iter.next)
+        self.assertEqual(len(stream.value.getvalue()), stream.value.tell())
+
     def test_sneakernet_decode(self):
         self.override(db, 'uuid', lambda: 'uuid')
 

@@ -131,8 +131,7 @@ class Record(object):
         if exists(path):
             return PropertyMetadata(path)
 
-    def set(self, prop, mtime=None, path=None, blob=None, blob_size=None,
-            **meta):
+    def set(self, prop, mtime=None, path=None, blob=None, **meta):
         if not exists(self._root):
             os.makedirs(self._root)
         meta_path = join(self._root, prop)

@@ -338,16 +338,17 @@ class VolumeTest(tests.Test):
         in_seq = util.Sequence([[1, None]])
         self.assertEqual([
             {'document': 'document'},
-            {'guid': '1', 'diff': {
-                'guid': {'value': '1', 'mtime': 0},
-                'mtime': {'value': 0, 'mtime': 0},
-                'ctime': {'value': 0, 'mtime': 0},
+            {'guid': '1', 'blob': tests.tmpdir + '/db/document/1/1/prop.blob', 'diff': {
                 'prop': {
-                    'blob': tests.tmpdir + '/db/document/1/1/prop.blob',
                     'digest': hashlib.sha1('payload').hexdigest(),
                     'mime_type': 'application/octet-stream',
                     'mtime': 0,
                     },
+                }},
+            {'guid': '1', 'diff': {
+                'guid': {'value': '1', 'mtime': 0},
+                'mtime': {'value': 0, 'mtime': 0},
+                'ctime': {'value': 0, 'mtime': 0},
                 }},
             {'commit': [[1, 1]]},
             ],

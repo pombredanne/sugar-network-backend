@@ -265,6 +265,8 @@ class _PacketsIterator(object):
     def __init__(self, stream):
         if not hasattr(stream, 'readline'):
             stream.readline = lambda: util.readline(stream)
+        if hasattr(stream, 'seek'):
+            self._seek = stream.seek
         self._stream = stream
         self.props = {}
         self._name = None
@@ -292,7 +294,7 @@ class _PacketsIterator(object):
         blob = None
         while True:
             if blob is not None and blob.size_to_read:
-                self._stream.seek(blob.size_to_read, 1)
+                self._seek(blob.size_to_read, 1)
                 blob = None
             record = self._stream.readline()
             if not record:
@@ -314,6 +316,12 @@ class _PacketsIterator(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
+
+    # pylint: disable-msg=E0202
+    def _seek(self, distance, where):
+        while distance:
+            chunk = self._stream.read(min(distance, BUFFER_SIZE))
+            distance -= len(chunk)
 
 
 class _Blob(object):
