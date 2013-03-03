@@ -82,7 +82,7 @@ class SyncOfflineTest(tests.Test):
                 {'commit': {'user': {'db': [[1, ts]]}}},
                 ]),
             ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet', 'layer':  None}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('mnt')]))
         assert not exists('node/pull.sequence')
@@ -125,7 +125,7 @@ class SyncOfflineTest(tests.Test):
                 {'commit': [[1, 1]]},
                 ]),
             ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet', 'layer': None}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('1')]))
 
@@ -179,7 +179,7 @@ class SyncOfflineTest(tests.Test):
                 {'commit': {'user': {'db': [[1, ts]]}}},
                 ]),
             ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'sequence': [[1, None]], 'filename': '5.sneakernet'}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'sequence': [[1, None]], 'filename': '5.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'sequence': [[1, None]], 'filename': '5.sneakernet', 'layer': None}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('3')]))
 

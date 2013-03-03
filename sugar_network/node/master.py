@@ -137,7 +137,7 @@ class MasterCommands(NodeCommands):
             enforce(packet['dst'] == self.guid, 'Misaddressed packet')
 
             if packet.name == 'pull':
-                pull_seq = cookie['pull', packet['layer']]
+                pull_seq = cookie['pull', packet['layer'] or None]
                 pull_seq.include(packet['sequence'])
                 cookie.sent.setdefault(src, util.Sequence())
             elif packet.name == 'files_pull':

@@ -21,7 +21,7 @@ from sugar_network.toolkit import util, coroutine, enforce
 _logger = logging.getLogger('node.sync')
 
 
-def diff(volume, in_seq, out_seq=None, exclude_seq=None, **kwargs):
+def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None, **kwargs):
     if out_seq is None:
         out_seq = util.Sequence([])
     is_initial_diff = not out_seq
@@ -32,6 +32,9 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, **kwargs):
             directory.commit()
             yield {'document': document}
             for guid, patch in directory.diff(in_seq, out_seq, exclude_seq,
+                    layer=layer
+                            if document in ('context', 'implementation')
+                            else None,
                     **kwargs):
                 coroutine.dispatch()
                 yield {'diff': patch, 'guid': guid}

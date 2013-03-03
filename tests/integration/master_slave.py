@@ -45,7 +45,7 @@ class MasterSlaveTest(tests.Test):
             '-DDD', '--rundir=slave/run', '--files-root=slave/files',
             '--stats-root=slave/stats', '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
-            '--index-flush-threshold=1',
+            '--index-flush-threshold=1', '--layers=',
             ])
 
         coroutine.sleep(2)
