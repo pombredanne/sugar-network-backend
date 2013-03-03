@@ -52,37 +52,39 @@ class UtilTest(tests.Test):
         self.assertEqual(
                 [[11, None]],
                 scale)
-
         scale = Sequence(empty_value=[1, None])
         scale.exclude(5, 10)
         self.assertEqual(
                 [[1, 4], [11, None]],
                 scale)
-
         scale.exclude(2, 2)
         self.assertEqual(
                 [[1, 1], [3, 4], [11, None]],
                 scale)
-
         scale.exclude(1, 1)
         self.assertEqual(
                 [[3, 4], [11, None]],
                 scale)
-
         scale.exclude(3, 3)
         self.assertEqual(
                 [[4, 4], [11, None]],
                 scale)
-
         scale.exclude(1, 20)
         self.assertEqual(
                 [[21, None]],
                 scale)
-
         scale.exclude(21, 21)
         self.assertEqual(
                 [[22, None]],
                 scale)
+
+        seq = Sequence([[100, None]])
+        seq.exclude([[1, 98]])
+        self.assertEqual([[100, None]], seq)
+
+        seq = Sequence([[1, 100]])
+        seq.exclude([[200, 300]])
+        self.assertEqual([[1, 100]], seq)
 
     def test_Sequence_include_JoinExistingItems(self):
         scale = Sequence()

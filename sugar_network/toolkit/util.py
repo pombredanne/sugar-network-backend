@@ -486,8 +486,13 @@ class Sequence(list):
 
         for i, interval in enumerate(self):
             start, end = interval
+
             if end is not None and end < range_start:
-                # Current `interval` is below than new one
+                # Current `interval` is below new one
+                continue
+
+            if range_end is not None and range_end < start:
+                # Current `interval` is above new one
                 continue
 
             if end is None or end > range_end:

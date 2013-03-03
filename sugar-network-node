@@ -112,14 +112,16 @@ class Application(application.Daemon):
     def shutdown(self):
         self.jobs.kill()
 
-    @application.command('direct synchronization with master node')
+    @application.command(
+            'direct synchronization with master node',
+            name='online-sync')
     def online_sync(self):
         self._ensure_instance().post(cmd='online-sync')
 
     @application.command(
             'sneakernet synchronization with other nodes using files '
             'placed to the specified directory',
-            args='PATH')
+            args='PATH', name='offline-sync')
     def offline_sync(self):
         enforce(self.args, 'PATH was not specified')
         path = self.args.pop(0)
