@@ -15,7 +15,7 @@
 
 import os
 import types
-import cPickle as pickle
+import json
 from os.path import exists
 
 from sugar_network.db import env
@@ -121,7 +121,7 @@ class PropertyMetadata(dict):
     def __init__(self, path_=None, **meta):
         if path_:
             with file(path_) as f:
-                meta.update(pickle.load(f))
+                meta.update(json.load(f))
             if exists(path_ + PropertyMetadata.BLOB_SUFFIX):
                 meta['blob'] = path_ + PropertyMetadata.BLOB_SUFFIX
             meta['mtime'] = int(os.stat(path_).st_mtime)

@@ -3,12 +3,12 @@
 # sugar-lint: disable
 
 import os
+import json
 import sys
 import stat
 import time
 import urllib2
 import hashlib
-import cPickle as pickle
 from base64 import b64encode
 from cStringIO import StringIO
 from os.path import join, exists
@@ -331,12 +331,12 @@ class DocumentTest(tests.Test):
         populated = 0
         for i in directory.populate():
             populated += 1
-        self.assertEqual(2, populated)
+        self.assertEqual(1, populated)
         self.assertEqual(
-                sorted(['1', '2']),
+                sorted(['1']),
                 sorted([i.guid for i in directory.find(0, 10)[0]]))
         assert exists('1/1/guid')
-        assert exists('2/2/guid')
+        assert not exists('2/2/guid')
         assert not exists('3/3/guid')
 
     def test_create_with_guid(self):
@@ -377,46 +377,46 @@ class DocumentTest(tests.Test):
         seqno = directory.get(guid_1).get('seqno')
         self.assertEqual(1, seqno)
         self.assertEqual(
-                pickle.load(file('%s/%s/guid' % (guid_1[:2], guid_1)))['seqno'],
+                json.load(file('%s/%s/guid' % (guid_1[:2], guid_1)))['seqno'],
                 seqno)
         self.assertEqual(
-                pickle.load(file('%s/%s/prop' % (guid_1[:2], guid_1)))['seqno'],
+                json.load(file('%s/%s/prop' % (guid_1[:2], guid_1)))['seqno'],
                 seqno)
 
         guid_2 = directory.create({})
         seqno = directory.get(guid_2).get('seqno')
         self.assertEqual(2, seqno)
         self.assertEqual(
-                pickle.load(file('%s/%s/guid' % (guid_2[:2], guid_2)))['seqno'],
+                json.load(file('%s/%s/guid' % (guid_2[:2], guid_2)))['seqno'],
                 seqno)
         self.assertEqual(
-                pickle.load(file('%s/%s/prop' % (guid_2[:2], guid_2)))['seqno'],
+                json.load(file('%s/%s/prop' % (guid_2[:2], guid_2)))['seqno'],
                 seqno)
 
         directory.set_blob(guid_1, 'blob', StringIO('blob'))
         seqno = directory.get(guid_1).get('seqno')
         self.assertEqual(3, seqno)
         self.assertEqual(
-                pickle.load(file('%s/%s/guid' % (guid_1[:2], guid_1)))['seqno'],
+                json.load(file('%s/%s/guid' % (guid_1[:2], guid_1)))['seqno'],
                 1)
         self.assertEqual(
-                pickle.load(file('%s/%s/prop' % (guid_1[:2], guid_1)))['seqno'],
+                json.load(file('%s/%s/prop' % (guid_1[:2], guid_1)))['seqno'],
                 1)
         self.assertEqual(
-                pickle.load(file('%s/%s/blob' % (guid_1[:2], guid_1)))['seqno'],
+                json.load(file('%s/%s/blob' % (guid_1[:2], guid_1)))['seqno'],
                 seqno)
 
         directory.update(guid_1, {'prop': 'new'})
         seqno = directory.get(guid_1).get('seqno')
         self.assertEqual(4, seqno)
         self.assertEqual(
-                pickle.load(file('%s/%s/guid' % (guid_1[:2], guid_1)))['seqno'],
+                json.load(file('%s/%s/guid' % (guid_1[:2], guid_1)))['seqno'],
                 1)
         self.assertEqual(
-                pickle.load(file('%s/%s/prop' % (guid_1[:2], guid_1)))['seqno'],
+                json.load(file('%s/%s/prop' % (guid_1[:2], guid_1)))['seqno'],
                 seqno)
         self.assertEqual(
-                pickle.load(file('%s/%s/blob' % (guid_1[:2], guid_1)))['seqno'],
+                json.load(file('%s/%s/blob' % (guid_1[:2], guid_1)))['seqno'],
                 3)
 
     def test_diff(self):

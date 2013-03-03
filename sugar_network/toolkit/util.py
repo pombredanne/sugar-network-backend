@@ -387,10 +387,6 @@ class Sequence(list):
         else:
             self.clear()
 
-    def __reduce__(self):
-        # Pickle as a list
-        return list, (list(self),)
-
     def __contains__(self, value):
         for start, end in self:
             if value >= start and (end is None or value <= end):

@@ -2,10 +2,10 @@
 # sugar-lint: disable
 
 import os
+import json
 import time
 import hashlib
 import threading
-import cPickle as pickle
 from cStringIO import StringIO
 from os.path import exists
 
@@ -34,7 +34,7 @@ class StorageTest(tests.Test):
         storage = self.storage([StoredProperty('prop')])
 
         self.assertEqual(None, storage.get('guid').get('prop'))
-        self.touch(('gu/guid/prop', pickle.dumps({
+        self.touch(('gu/guid/prop', json.dumps({
             'value': 'value',
             'foo': 'bar',
             })))

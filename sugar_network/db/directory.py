@@ -27,7 +27,7 @@ from sugar_network.toolkit import util, exception, enforce
 
 
 # To invalidate existed index on stcuture changes
-_LAYOUT_VERSION = 3
+_LAYOUT_VERSION = 4
 
 _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
