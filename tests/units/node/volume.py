@@ -2,6 +2,8 @@
 # sugar-lint: disable
 
 import os
+import hashlib
+from cStringIO import StringIO
 
 from __init__ import tests
 
@@ -11,7 +13,7 @@ from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import util
 
 
-class SyncTest(tests.Test):
+class VolumeTest(tests.Test):
 
     def test_diff(self):
 
@@ -319,6 +321,72 @@ class SyncTest(tests.Test):
         records = generator()
         self.assertEqual(([[1, 3]], [[101, 101]]), merge(volume, records))
         assert volume['document'].exists('1')
+
+    def test_diff_Blobs(self):
+
+        class Document(db.Document):
+
+            @db.blob_property()
+            def prop(self, value):
+                return value
+
+        volume = Volume('db', [Document])
+        volume['document'].create(guid='1', seqno=1)
+        volume['document'].set_blob('1', 'prop', 'payload')
+        self.utime('db', 0)
+
+        in_seq = util.Sequence([[1, None]])
+        self.assertEqual([
+            {'document': 'document'},
+            {'guid': '1', 'diff': {
+                'guid': {'value': '1', 'mtime': 0},
+                'mtime': {'value': 0, 'mtime': 0},
+                'ctime': {'value': 0, 'mtime': 0},
+                'prop': {
+                    'blob': tests.tmpdir + '/db/document/1/1/prop.blob',
+                    'digest': hashlib.sha1('payload').hexdigest(),
+                    'mime_type': 'application/octet-stream',
+                    'mtime': 0,
+                    },
+                }},
+            {'commit': [[1, 1]]},
+            ],
+            [i for i in diff(volume, in_seq)])
+
+    def test_merge_Blobs(self):
+
+        class Document(db.Document):
+
+            @db.blob_property()
+            def prop(self, value):
+                return value
+
+        volume = Volume('db', [Document])
+
+        merge(volume, [
+            {'document': 'document'},
+            {'guid': '1', 'diff': {
+                'guid': {'value': '1', 'mtime': 1.0},
+                'ctime': {'value': 2, 'mtime': 2.0},
+                'mtime': {'value': 3, 'mtime': 3.0},
+                'prop': {
+                    'blob': StringIO('payload'),
+                    'blob_size': len('payload'),
+                    'digest': hashlib.sha1('payload').hexdigest(),
+                    'mime_type': 'foo/bar',
+                    'mtime': 1,
+                    },
+                }},
+            {'commit': [[1, 1]]},
+            ])
+
+        assert volume['document'].exists('1')
+        blob = volume['document'].get('1')['prop']
+        self.assertEqual(1, blob['mtime'])
+        self.assertEqual('foo/bar', blob['mime_type'])
+        self.assertEqual(hashlib.sha1('payload').hexdigest(), blob['digest'])
+        self.assertEqual(tests.tmpdir + '/db/document/1/1/prop.blob', blob['blob'])
+        self.assertEqual('payload', file(blob['blob']).read())
 
 
 if __name__ == '__main__':

@@ -228,6 +228,30 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual('bb', file('slave/files/2/2').read())
         self.assertEqual('ccc', file('slave/files/3/3/3').read())
 
+    def test_PullFromPreviouslyMergedRecord(self):
+        master = Client('http://localhost:9000')
+        slave = Client('http://localhost:9001')
+
+        # Sync users
+        slave.post(cmd='online-sync')
+        self.assertEqual([[2, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
+
+        guid = slave.post(['document'], {'context': '', 'content': '1', 'title': '1', 'type': 'idea'})
+        slave.post(cmd='online-sync')
+
+        coroutine.sleep(1)
+        master.put(['document', guid], {'content': '1_'})
+        slave.put(['document', guid], {'title': '1_'})
+        slave.post(cmd='online-sync')
+
+        self.assertEqual(
+                {'content': {'en-us': '1_'}, 'title': {'en-us': '1_'}},
+                self.master_volume['document'].get(guid).properties(['content', 'title']))
+        self.assertEqual(
+                {'content': {'en-us': '1_'}, 'title': {'en-us': '1_'}},
+                self.slave_volume['document'].get(guid).properties(['content', 'title']))
+
 
 if __name__ == '__main__':
     tests.main()

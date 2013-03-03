@@ -59,7 +59,7 @@ class NodeCommands(VolumeCommands, Commands):
             return os.listdir(path)
         elif len(request.path) == 4:
             path = join(obs.obs_presolve_path.value, *request.path[1:])
-            return db.PropertyMetadata(path=path, filename=request.path[-1],
+            return db.PropertyMetadata(blob=path, filename=request.path[-1],
                     mime_type='application/json')
         else:
             raise RuntimeError('Incorrect path')

@@ -79,7 +79,7 @@ class JournalTest(tests.Test):
     def test_Update(self):
         ds = journal.Commands()
         self.touch(('preview', 'preview1'))
-        ds.journal_update('guid', StringIO('data1'), title='title1', description='description1', preview={'path': 'preview'})
+        ds.journal_update('guid', StringIO('data1'), title='title1', description='description1', preview={'blob': 'preview'})
 
         assert journal.exists('guid')
         self.assertEqual('title1', journal.get('guid', 'title'))
@@ -88,7 +88,7 @@ class JournalTest(tests.Test):
         self.assertEqual('data1', file(self.ds.get_filename('guid')).read())
 
         self.touch(('data', 'data2'))
-        ds.journal_update('guid', {'path': 'data'}, title='title2', description='description2', preview=StringIO('preview2'))
+        ds.journal_update('guid', {'blob': 'data'}, title='title2', description='description2', preview=StringIO('preview2'))
         assert journal.exists('guid')
         self.assertEqual('title2', journal.get('guid', 'title'))
         self.assertEqual('description2', journal.get('guid', 'description'))
@@ -166,7 +166,7 @@ class JournalTest(tests.Test):
         response = db.Response()
         self.assertEqual({
             'mime_type': 'image/png',
-            'path': '.sugar/default/datastore/gu/guid1/metadata/preview',
+            'blob': '.sugar/default/datastore/gu/guid1/metadata/preview',
             }, ds.journal(request, response))
         self.assertEqual(None, response.content_type)
 

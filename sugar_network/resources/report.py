@@ -65,7 +65,7 @@ class Report(Resource):
     def log(self, guid):
         # In further implementations, `data` might be a tarball
         data = self.meta('data')
-        if data and 'path' in data:
-            return file(data['path'], 'rb')
+        if data and 'blob' in data:
+            return file(data['blob'], 'rb')
         else:
             return ''

@@ -282,7 +282,7 @@ class Directory(object):
             self.commit()
             self._notify({'event': 'populate'})
 
-    def diff(self, in_seq, out_seq, **kwargs):
+    def diff(self, in_seq, out_seq, exclude_seq=None, **kwargs):
         if 'group_by' in kwargs:
             # Pickup only most recent change
             kwargs['order_by'] = '-seqno'
@@ -310,8 +310,10 @@ class Directory(object):
                     seqno = meta.get('seqno')
                     if seqno not in in_seq:
                         continue
+                    if exclude_seq is not None and seqno in exclude_seq:
+                        continue
                     prop = diff[name] = {'mtime': meta['mtime']}
-                    for i in ('value', 'mime_type', 'digest', 'path', 'url'):
+                    for i in ('value', 'mime_type', 'digest', 'blob', 'url'):
                         if i in meta:
                             prop[i] = meta[i]
                     diff_seq.include(seqno, seqno)

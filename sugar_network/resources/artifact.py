@@ -64,7 +64,7 @@ class Artifact(Resource):
             return value
         return db.PropertyMetadata(
                 url='/static/images/missing.png',
-                path=join(static.PATH, 'images', 'missing.png'),
+                blob=join(static.PATH, 'images', 'missing.png'),
                 mime_type='image/png')
 
     @db.blob_property()

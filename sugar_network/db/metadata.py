@@ -123,7 +123,7 @@ class PropertyMetadata(dict):
             with file(path_) as f:
                 meta.update(pickle.load(f))
             if exists(path_ + PropertyMetadata.BLOB_SUFFIX):
-                meta['path'] = path_ + PropertyMetadata.BLOB_SUFFIX
+                meta['blob'] = path_ + PropertyMetadata.BLOB_SUFFIX
             meta['mtime'] = int(os.stat(path_).st_mtime)
         dict.__init__(self, meta)
 

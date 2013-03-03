@@ -37,10 +37,10 @@ class MasterCommands(NodeCommands):
         NodeCommands.__init__(self, True, guid, volume_)
 
         self._pulls = {
-            'pull': lambda layer, seq, out_seq=None:
-                ('diff', None, volume.diff(self.volume, seq, out_seq, layer)),
-            'files_pull': lambda layer, seq, out_seq=None:
-                ('files_diff', None, self._files.diff(seq, out_seq)),
+            'pull': lambda **kwargs:
+                ('diff', None, volume.diff(self.volume, **kwargs)),
+            'files_pull': lambda **kwargs:
+                ('files_diff', None, self._files.diff(**kwargs)),
             }
 
         self._pull_queue = downloads.Pool(join(cachedir.value, 'pulls'))
@@ -54,8 +54,12 @@ class MasterCommands(NodeCommands):
             permissions=db.ACCESS_AUTH)
     def sync(self, request):
         reply, cookie = self._push(sync.decode(request.content_stream))
+        exclude_seq = None
+        if len(cookie.sent) == 1:
+            exclude_seq = cookie.sent.values()[0]
         for op, layer, seq in cookie:
-            reply.append(self._pulls[op](layer, seq))
+            reply.append(self._pulls[op](in_seq=seq,
+                exclude_seq=exclude_seq, layer=layer))
         return sync.encode(src=self.guid, *reply)
 
     @db.volume_command(method='POST', cmd='push')
@@ -77,6 +81,10 @@ class MasterCommands(NodeCommands):
             _logger.warning('Requested full dump in pull command')
             cookie.append(('pull', None, util.Sequence([[1, None]])))
             cookie.append(('files_pull', None, util.Sequence([[1, None]])))
+
+        exclude_seq = None
+        if len(cookie.sent) == 1:
+            exclude_seq = util.Sequence(cookie.sent.values()[0])
 
         reply = None
         for pull_key in cookie:
@@ -104,7 +112,8 @@ class MasterCommands(NodeCommands):
             out_seq = util.Sequence()
             pull = self._pull_queue.set(pull_key, out_seq,
                     sync.sneakernet_encode,
-                    [self._pulls[op](layer, seq, out_seq)],
+                    [self._pulls[op](in_seq=seq, out_seq=out_seq,
+                        exclude_seq=exclude_seq, layer=layer)],
                     limit=accept_length, src=self.guid)
             _logger.debug('Start new %r', pull)
 
@@ -122,8 +131,6 @@ class MasterCommands(NodeCommands):
     def _push(self, stream):
         reply = []
         cookie = _Cookie()
-        pull_seq = None
-        merged_seq = util.Sequence([])
 
         for packet in stream:
             src = packet['src']
@@ -132,6 +139,7 @@ class MasterCommands(NodeCommands):
             if packet.name == 'pull':
                 pull_seq = cookie['pull', packet['layer']]
                 pull_seq.include(packet['sequence'])
+                cookie.sent.setdefault(src, util.Sequence())
             elif packet.name == 'files_pull':
                 if self._files is not None:
                     cookie['files_pull'].include(packet['sequence'])
@@ -142,15 +150,13 @@ class MasterCommands(NodeCommands):
                     'sequence': seq,
                     'dst': src,
                     }, None))
-                merged_seq.include(ack_seq)
+                sent_seq = cookie.sent.setdefault(src, util.Sequence())
+                sent_seq.include(ack_seq)
             elif packet.name == 'stats_diff':
                 reply.append(('stats_ack', {
                     'sequence': stats_user.merge(packet),
                     'dst': src,
                     }, None))
-
-        if pull_seq is not None:
-            pull_seq.exclude(merged_seq)
 
         return reply, cookie
 
@@ -159,22 +165,33 @@ class _Cookie(list):
 
     def __init__(self, request=None):
         list.__init__(self)
-        if request is not None:
-            self.update(self._get_cookie(request, 'sugar_network_sync') or [])
+
+        self.sent = {}
         self.delay = 0
+
+        if request is not None:
+            self.update(self._get_cookie(request, 'sugar_network_pull') or [])
+            self.sent = self._get_cookie(request, 'sugar_network_sent') or {}
+
+    def __repr__(self):
+        return '<Cookie pull=%s sent=%r>' % (list.__repr__(self), self.sent)
 
     def update(self, that):
         for op, layer, seq in that:
             self[op, layer].include(seq)
 
     def store(self, response):
+        response['Set-Cookie'] = []
         if self:
             _logger.debug('Postpone %r in cookie', self)
-            to_store = base64.b64encode(json.dumps(self))
-            self._set_cookie(response, 'sugar_network_sync', to_store)
+            self._set_cookie(response, 'sugar_network_pull',
+                    base64.b64encode(json.dumps(self)))
+            self._set_cookie(response, 'sugar_network_sent',
+                    base64.b64encode(json.dumps(self.sent)))
             self._set_cookie(response, 'sugar_network_delay', self.delay)
         else:
-            self._unset_cookie(response, 'sugar_network_sync')
+            self._unset_cookie(response, 'sugar_network_pull')
+            self._unset_cookie(response, 'sugar_network_sent')
             self._unset_cookie(response, 'sugar_network_delay')
 
     def __getitem__(self, key):
@@ -200,7 +217,6 @@ class _Cookie(list):
             return json.loads(base64.b64decode(value))
 
     def _set_cookie(self, response, name, value, age=3600):
-        response.setdefault('Set-Cookie', [])
         cookie = '%s=%s; Max-Age=%s; HttpOnly' % (name, value, age)
         response['Set-Cookie'].append(cookie)
 

@@ -142,10 +142,10 @@ class VolumeTest(tests.Test):
         self.assertRaises(RuntimeError, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content={'path': '/'})
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob1')
-        self.assertEqual('blob1', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
+        self.assertEqual('blob1', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content_stream=StringIO('blob2'))
-        self.assertEqual('blob2', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
+        self.assertEqual('blob2', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
         self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
@@ -184,13 +184,13 @@ class VolumeTest(tests.Test):
         blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
         blob_meta = {
                 'seqno': 2,
-                'path': blob_path + '.blob',
+                'blob': blob_path + '.blob',
                 'digest': hashlib.sha1('blob').hexdigest(),
                 'mime_type': 'application/octet-stream',
                 'mtime': int(os.stat(blob_path).st_mtime),
                 }
 
-        self.assertEqual('blob', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
+        self.assertEqual('blob', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
 
         self.assertEqual(
                 {'guid': guid, 'blob': blob_meta},
@@ -763,7 +763,7 @@ class VolumeTest(tests.Test):
 
             @db.blob_property()
             def blob(self, meta):
-                meta['path'] = 'new-blob'
+                meta['blob'] = 'new-blob'
                 return meta
 
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
@@ -773,7 +773,7 @@ class VolumeTest(tests.Test):
 
         self.assertEqual(
                 'new-blob',
-                self.call('GET', document='testdocument', guid=guid, prop='blob')['path'])
+                self.call('GET', document='testdocument', guid=guid, prop='blob')['blob'])
         self.assertEqual(
                 '1',
                 self.call('GET', document='testdocument', guid=guid, prop='prop1'))
@@ -830,10 +830,10 @@ class VolumeTest(tests.Test):
         self.assertEqual('blob2', self.call('GET', document='testdocument', guid=guid, prop='blob1')['url'])
 
         guid = self.call('POST', document='testdocument', content={'blob2': 'foo'})
-        self.assertEqual(' foo ', file(self.call('GET', document='testdocument', guid=guid, prop='blob2')['path']).read())
+        self.assertEqual(' foo ', file(self.call('GET', document='testdocument', guid=guid, prop='blob2')['blob']).read())
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob2', content='bar')
-        self.assertEqual(' bar ', file(self.call('GET', document='testdocument', guid=guid, prop='blob2')['path']).read())
+        self.assertEqual(' bar ', file(self.call('GET', document='testdocument', guid=guid, prop='blob2')['blob']).read())
 
     def test_SubCall(self):
 
@@ -848,7 +848,7 @@ class VolumeTest(tests.Test):
                 if '!' not in value:
                     meta = self.meta('blob')
                     if meta:
-                        value = file(meta['path']).read() + value
+                        value = file(meta['blob']).read() + value
                     coroutine.spawn(self.post, value)
                 return value
 
@@ -859,11 +859,11 @@ class VolumeTest(tests.Test):
 
         guid = self.call('POST', document='testdocument', content={'blob': '0'})
         coroutine.dispatch()
-        self.assertEqual('0!', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
+        self.assertEqual('0!', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='1')
         coroutine.dispatch()
-        self.assertEqual('0!1!', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['path']).read())
+        self.assertEqual('0!1!', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
 
     def test_Group(self):
 

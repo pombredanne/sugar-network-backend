@@ -157,7 +157,7 @@ class Router(object):
         request.principal = self.authenticate(request)
         if request.path[:1] == ['static']:
             path = join(static.PATH, *request.path[1:])
-            result = db.PropertyMetadata(path=path,
+            result = db.PropertyMetadata(blob=path,
                     mime_type=_get_mime_type(path), filename=split(path)[-1])
         else:
             rout = self._routes.get((
@@ -172,7 +172,7 @@ class Router(object):
             if 'url' in result:
                 raise Redirect(result['url'])
 
-            path = result['path']
+            path = result['blob']
             enforce(isfile(path), 'No such file')
 
             mtime = result.get('mtime') or os.stat(path).st_mtime

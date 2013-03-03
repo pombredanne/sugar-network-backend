@@ -74,7 +74,7 @@ class MigrateTest(tests.Test):
                     {'value': {env.default_lang(): 'prop'}, 'mtime': 1, 'seqno': 1},
                     doc.meta('prop'))
             self.assertEqual(
-                    {'digest': 'digest', 'mtime': 1, 'seqno': 1, 'mime_type': 'application/octet-stream', 'path': tests.tmpdir + '/gu/guid/blob.blob'},
+                    {'digest': 'digest', 'mtime': 1, 'seqno': 1, 'mime_type': 'application/octet-stream', 'blob': tests.tmpdir + '/gu/guid/blob.blob'},
                     doc.meta('blob'))
             self.assertEqual('blob', file('gu/guid/blob.blob').read())
 
@@ -176,7 +176,7 @@ class MigrateTest(tests.Test):
         self.assertEqual(None, directory.get('2').meta('blob'))
         self.assertEqual(None, directory.get('3').meta('blob'))
         self.assertEqual(
-                    {'digest': '', 'mtime': 4, 'seqno': 4, 'mime_type': 'application/octet-stream', 'path': tests.tmpdir + '/4/4/blob.blob'},
+                    {'digest': '', 'mtime': 4, 'seqno': 4, 'mime_type': 'application/octet-stream', 'blob': tests.tmpdir + '/4/4/blob.blob'},
                     directory.get('4').meta('blob'))
         self.assertEqual('blob', file('4/4/blob.blob').read())
 
