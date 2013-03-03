@@ -92,7 +92,7 @@ class Storage(object):
             if exists(path):
                 with file(path) as f:
                     meta = f.read()
-                if meta.startswith('(dp1'):
+                if meta.startswith('(dp'):
                     with file(path, 'w') as f:
                         json.dump(pickle.loads(meta), f)
             elif not isinstance(prop, BlobProperty) and \
