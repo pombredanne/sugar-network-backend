@@ -67,6 +67,9 @@ class SlaveCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='offline-sync',
             permissions=db.ACCESS_LOCAL)
     def offline_sync(self, path):
+        enforce(node.layers.value and 'public' not in node.layers.value,
+                '--layers is not specified, the full master dump might be '
+                'too big and should be limited')
         enforce(isabs(path), 'Argument \'path\' should be an absolute path')
 
         _logger.debug('Start %r synchronization session in %r',

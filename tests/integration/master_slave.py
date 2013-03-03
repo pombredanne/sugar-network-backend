@@ -45,7 +45,7 @@ class MasterSlaveTest(tests.Test):
             '-DDD', '--rundir=slave/run', '--files-root=slave/files',
             '--stats-root=slave/stats', '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
-            '--index-flush-threshold=1', '--layers=',
+            '--index-flush-threshold=1', '--layers=pilot',
             ])
 
         coroutine.sleep(2)
@@ -189,6 +189,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview1',
+            'layer': 'pilot',
             })
         guid_2 = master.post(['context'], {
             'type': 'activity',
@@ -196,6 +197,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview2',
+            'layer': 'pilot',
             })
 
         # Create initial data on slave
@@ -205,6 +207,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview3',
+            'layer': 'pilot',
             })
         guid_4 = slave.post(['context'], {
             'type': 'activity',
@@ -212,6 +215,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview4',
+            'layer': 'pilot',
             })
         stats_timestamp = int(time.time())
         slave.post(['user', sugar.uid()], {
@@ -235,20 +239,22 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview5',
+            'layer': 'pilot',
             })
         master.put(['context', guid_1, 'title'], 'title_1_')
         master.put(['context', guid_3, 'preview'], 'preview3_')
 
         # Update data on slave
-        guid_6 = master.post(['context'], {
+        guid_6 = slave.post(['context'], {
             'type': 'activity',
             'title': 'title_6',
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview6',
+            'layer': 'pilot',
             })
-        master.put(['context', guid_3, 'title'], 'title_3_')
-        master.put(['context', guid_1, 'preview'], 'preview1_')
+        slave.put(['context', guid_3, 'title'], 'title_3_')
+        slave.put(['context', guid_1, 'preview'], 'preview1_')
 
         # Export slave changes
         slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2')
@@ -267,7 +273,7 @@ class MasterSlaveTest(tests.Test):
                     {'guid': guid_5, 'title': 'title_5'},
                     {'guid': guid_6, 'title': 'title_6'},
                     ]},
-                master.get(['context'], reply=['guid', 'title']))
+                master.get(['context'], reply=['guid', 'title'], layer='pilot'))
         self.assertEqual(
                 {'total': 6, 'result': [
                     {'guid': guid_1, 'title': 'title_1_'},
@@ -277,7 +283,7 @@ class MasterSlaveTest(tests.Test):
                     {'guid': guid_5, 'title': 'title_5'},
                     {'guid': guid_6, 'title': 'title_6'},
                     ]},
-                slave.get(['context'], reply=['guid', 'title']))
+                slave.get(['context'], reply=['guid', 'title'], layer='pilot'))
 
         self.assertEqual('preview1_', master.request('GET', ['context', guid_1, 'preview']).content)
         self.assertEqual('preview2', master.request('GET', ['context', guid_2, 'preview']).content)
