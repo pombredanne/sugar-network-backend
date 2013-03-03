@@ -312,7 +312,7 @@ class NodeTest(tests.Test):
             'implement': 'foo',
             })
         self.assertEqual(
-                {'guid': 'foo', 'implement': ('foo',), 'title': 'title'},
+                {'guid': 'foo', 'implement': ['foo'], 'title': 'title'},
                 call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'implement', 'title']))
 
     def test_PackagesRoute(self):

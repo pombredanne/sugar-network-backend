@@ -60,7 +60,7 @@ class MasterCommands(NodeCommands):
         for op, layer, seq in cookie:
             reply.append(self._pulls[op](in_seq=seq,
                 exclude_seq=exclude_seq, layer=layer))
-        return sync.encode(src=self.guid, *reply)
+        return sync.encode(reply, src=self.guid)
 
     @db.volume_command(method='POST', cmd='push')
     def push(self, request, response):
@@ -70,7 +70,7 @@ class MasterCommands(NodeCommands):
         # `merged_seq` should not affect it.
         cookie.update(_Cookie(request))
         cookie.store(response)
-        return sync.package_encode(src=self.guid, *reply)
+        return sync.package_encode(reply, src=self.guid)
 
     @db.volume_command(method='GET', cmd='pull',
             mime_type='application/octet-stream',

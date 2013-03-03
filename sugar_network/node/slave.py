@@ -58,7 +58,7 @@ class SlaveCommands(NodeCommands):
         if stats_user.stats_user.value:
             push.append(('stats_diff', None, stats_user.diff()))
         response = Client().request('POST',
-                data=sync.chunked_encode(*push,
+                data=sync.chunked_encode(push,
                     src=self.guid, dst=self._master_guid),
                 params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})

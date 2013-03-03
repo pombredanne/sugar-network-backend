@@ -23,7 +23,7 @@ from types import GeneratorType
 from os.path import exists, join, dirname, basename, splitext
 
 from sugar_network import db
-from sugar_network.toolkit import BUFFER_SIZE, coroutine, util, enforce
+from sugar_network.toolkit import BUFFER_SIZE, coroutine, util, http, enforce
 
 
 # Filename suffix to use for sneakernet synchronization files
@@ -47,16 +47,16 @@ def decode(stream):
         yield packet
 
 
-def encode(*packets, **header):
-    return _encode(None, packets, header, _EncodingStatus())
+def encode(packets, **header):
+    return _encode(None, packets, False, header, _EncodingStatus())
 
 
-def limited_encode(limit, *packets, **header):
-    return _encode(limit, packets, header, _EncodingStatus())
+def limited_encode(limit, packets, **header):
+    return _encode(limit, packets, False, header, _EncodingStatus())
 
 
-def chunked_encode(*packets, **header):
-    return _ChunkedEncoder(encode(*packets, **header))
+def chunked_encode(packets, **header):
+    return _ChunkedEncoder(encode(packets, **header))
 
 
 def package_decode(stream):
@@ -68,7 +68,7 @@ def package_decode(stream):
         yield packet
 
 
-def package_encode(*packets, **header):
+def package_encode(packets, **header):
     # XXX Only for small amount of data
     # TODO Support real streaming
     buf = StringIO()
@@ -78,7 +78,7 @@ def package_encode(*packets, **header):
     json.dump(header, zipfile)
     zipfile.write('\n')
 
-    for chunk in _encode(None, packets, None, _EncodingStatus()):
+    for chunk in _encode(None, packets, False, None, _EncodingStatus()):
         zipfile.write(chunk)
     zipfile.close()
 
@@ -139,7 +139,7 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
             zipfile.write('\n')
 
             pos = None
-            encoder = _encode(limit, packets, None, status)
+            encoder = _encode(limit, packets, True, None, status)
             while True:
                 try:
                     chunk = encoder.send(pos)
@@ -167,7 +167,9 @@ class _EncodingStatus(object):
     aborted = False
 
 
-def _encode(limit, packets, header, status):
+def _encode(limit, packets, download_blobs, header, status):
+    downloader = http.Client()
+
     for packet, props, content in packets:
         if status.aborted:
             break
@@ -185,12 +187,23 @@ def _encode(limit, packets, header, status):
         content = iter(content)
         try:
             record = next(content)
+
             while True:
                 blob = None
                 blob_size = 0
-                if 'blob' in record:
-                    blob = record.pop('blob')
-                    blob_size = record['blob_size'] = os.stat(blob).st_size
+                if download_blobs and 'url' in record:
+                    response = downloader.request('GET',
+                            record.pop('url'), allow_redirects=True,
+                            # No content encoding, we need uncompressed size
+                            headers={'Accept-Encoding': ''})
+                    blob_size = int(response.headers.get('Content-Length'))
+                    blob = _url_fetcher(response)
+                elif 'blob' in record:
+                    path = record.pop('blob')
+                    blob_size = os.stat(path).st_size
+                    blob = _file_fetcher(path)
+                if blob is not None:
+                    record['blob_size'] = blob_size
 
                 dump = json.dumps(record) + '\n'
                 if not status.aborted and limit is not None and \
@@ -203,12 +216,11 @@ def _encode(limit, packets, header, status):
                 pos = (yield dump) or 0
 
                 if blob is not None:
-                    with file(blob, 'rb') as f:
-                        while blob_size:
-                            chunk = f.read(min(BUFFER_SIZE, blob_size))
-                            enforce(chunk, EOFError)
-                            pos = (yield chunk) or 0
-                            blob_size -= len(chunk)
+                    for chunk in blob:
+                        pos = (yield chunk) or 0
+                        blob_size -= len(chunk)
+                    enforce(blob_size == 0, EOFError,
+                            'Blob size is not the same as declared')
 
                 record = next(content)
         except StopIteration:
@@ -287,9 +299,8 @@ class _PacketsIterator(object):
                 self._name = None
                 raise EOFError()
             record = json.loads(record)
-            packet = record.get('packet')
-            if packet:
-                self._name = packet
+            if 'packet' in record:
+                self._name = record['packet'] or ''
                 self.props = record
                 self._shift = False
                 break
@@ -338,3 +349,17 @@ class _GzipStream(object):
 
     def readline(self):
         return util.readline(self)
+
+
+def _file_fetcher(path):
+    with file(path, 'rb') as f:
+        while True:
+            chunk = f.read(BUFFER_SIZE)
+            if not chunk:
+                return
+            yield chunk
+
+
+def _url_fetcher(response):
+    for chunk in response.iter_content(BUFFER_SIZE):
+        yield chunk

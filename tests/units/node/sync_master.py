@@ -57,7 +57,7 @@ class SyncMasterTest(tests.Test):
 
     def test_sync_ExcludeRecentlyMergedDiffFromPull(self):
         request = Request()
-        for chunk in sync.encode(
+        for chunk in sync.encode([
                 ('diff', None, [
                     {'document': 'document'},
                     {'guid': '1', 'diff': {
@@ -69,7 +69,7 @@ class SyncMasterTest(tests.Test):
                     {'commit': [[1, 1]]},
                     ]),
                 ('pull', {'sequence': [[1, None]]}, None),
-                dst='localhost:8888'):
+                ], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -84,7 +84,7 @@ class SyncMasterTest(tests.Test):
             [(packet.props, [i for i in packet]) for packet in sync.decode(response)])
 
         request = Request()
-        for chunk in sync.encode(
+        for chunk in sync.encode([
                 ('pull', {'sequence': [[1, None]]}, None),
                 ('diff', None, [
                     {'document': 'document'},
@@ -96,7 +96,7 @@ class SyncMasterTest(tests.Test):
                         }},
                     {'commit': [[2, 2]]},
                     ]),
-                dst='localhost:8888'):
+                ], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -121,19 +121,19 @@ class SyncMasterTest(tests.Test):
 
     def test_sync_MisaddressedPackets(self):
         request = Request()
-        for chunk in sync.encode(('pull', {'sequence': [[1, None]]}, None)):
+        for chunk in sync.encode([('pull', {'sequence': [[1, None]]}, None)]):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
         self.assertRaises(RuntimeError, lambda: next(self.master.sync(request)))
 
         request = Request()
-        for chunk in sync.encode(('pull', {'sequence': [[1, None]]}, None), dst='fake'):
+        for chunk in sync.encode([('pull', {'sequence': [[1, None]]}, None)], dst='fake'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
         self.assertRaises(RuntimeError, lambda: next(self.master.sync(request)))
 
         request = Request()
-        for chunk in sync.encode(('pull', {'sequence': [[1, None]]}, None), dst='localhost:8888'):
+        for chunk in sync.encode([('pull', {'sequence': [[1, None]]}, None)], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
         next(self.master.sync(request))
@@ -142,7 +142,7 @@ class SyncMasterTest(tests.Test):
         ts = int(time.time())
 
         request = Request()
-        for chunk in sync.package_encode(
+        for chunk in sync.package_encode([
                 ('diff', None, [
                     {'document': 'document'},
                     {'guid': '1', 'diff': {
@@ -158,7 +158,7 @@ class SyncMasterTest(tests.Test):
                     {'timestamp': ts, 'values': {'field': 1.0}},
                     {'commit': {'user': {'db': [[1, ts]]}}},
                     ]),
-                dst='localhost:8888'):
+                ], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -183,7 +183,7 @@ class SyncMasterTest(tests.Test):
         ts = int(time.time())
 
         request = Request()
-        for chunk in sync.package_encode(
+        for chunk in sync.package_encode([
                 ('pull', {'sequence': [[1, None]]}, None),
                 ('files_pull', {'sequence': [[1, None]]}, None),
                 ('diff', None, [
@@ -201,7 +201,7 @@ class SyncMasterTest(tests.Test):
                     {'timestamp': ts + 1, 'values': {'field': 2.0}},
                     {'commit': {'user': {'db': [[2, ts]]}}},
                     ]),
-                dst='localhost:8888'):
+                ], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -228,12 +228,12 @@ class SyncMasterTest(tests.Test):
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_pull=%s' % \
                 base64.b64encode(json.dumps([('pull', None, [[10, None]]), ('files_pull', None, [[10, None]])]))
-        for chunk in sync.package_encode(
+        for chunk in sync.package_encode([
                 ('pull', {'sequence': [[11, None]]}, None),
                 ('pull', {'sequence': [[1, 2]]}, None),
                 ('files_pull', {'sequence': [[11, None]]}, None),
                 ('files_pull', {'sequence': [[3, 4]]}, None),
-                dst='localhost:8888'):
+                ], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
         response = db.Response()
@@ -254,10 +254,10 @@ class SyncMasterTest(tests.Test):
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_pull=%s' % \
                 base64.b64encode(json.dumps([('pull', None, [[10, None]]), ('files_pull', None, [[10, None]])]))
-        for chunk in sync.package_encode(
+        for chunk in sync.package_encode([
                 ('pull', {'sequence': [[1, 5]]}, None),
                 ('files_pull', {'sequence': [[1, 5]]}, None),
-                dst='localhost:8888'):
+                ], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
         response = db.Response()
@@ -279,7 +279,7 @@ class SyncMasterTest(tests.Test):
         ts = int(time.time())
 
         request = Request()
-        for chunk in sync.package_encode(
+        for chunk in sync.package_encode([
                 ('pull', {'sequence': [[1, None]]}, None),
                 ('diff', None, [
                     {'document': 'document'},
@@ -291,7 +291,7 @@ class SyncMasterTest(tests.Test):
                         }},
                     {'commit': [[10, 10]]},
                     ]),
-                dst='localhost:8888'):
+                ], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -491,7 +491,7 @@ class SyncMasterTest(tests.Test):
 
     def test_push_SetSentCookies(self):
         request = Request()
-        for chunk in sync.package_encode(
+        for chunk in sync.package_encode([
                 ('pull', {'src': '1', 'sequence': [[1, None]], 'layer': '1'}, None),
                 ('pull', {'src': '1', 'sequence': [[11, None]], 'layer': '1'}, None),
                 ('pull', {'src': '2', 'sequence': [[2, None]], 'layer': '2'}, None),
@@ -516,7 +516,7 @@ class SyncMasterTest(tests.Test):
                         }},
                     {'commit': [[2, 2]]},
                     ]),
-                dst='localhost:8888'):
+                ], dst='localhost:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
