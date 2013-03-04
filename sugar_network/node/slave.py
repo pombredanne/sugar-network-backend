@@ -21,9 +21,9 @@ from urlparse import urlsplit
 from os.path import join, dirname, exists, isabs
 from gettext import gettext as _
 
-from sugar_network import db
+from sugar_network import db, node
 from sugar_network.client import Client, api_url
-from sugar_network.node import sync, stats_user, files, files_root, volume
+from sugar_network.node import sync, stats_user, files, volume
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import util, exception, enforce
 
@@ -49,13 +49,16 @@ class SlaveCommands(NodeCommands):
             permissions=db.ACCESS_LOCAL)
     def online_sync(self):
         push = [('diff', None, volume.diff(self.volume, self._push_seq)),
-                ('pull', {'sequence': self._pull_seq}, None),
+                ('pull', {
+                    'sequence': self._pull_seq,
+                    'layer': node.layers.value,
+                    }, None),
                 ('files_pull', {'sequence': self._files_seq}, None),
                 ]
         if stats_user.stats_user.value:
             push.append(('stats_diff', None, stats_user.diff()))
         response = Client().request('POST',
-                data=sync.chunked_encode(*push,
+                data=sync.chunked_encode(push,
                     src=self.guid, dst=self._master_guid),
                 params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})
@@ -64,6 +67,9 @@ class SlaveCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='offline-sync',
             permissions=db.ACCESS_LOCAL)
     def offline_sync(self, path):
+        enforce(node.layers.value and 'public' not in node.layers.value,
+                '--layers is not specified, the full master dump might be '
+                'too big and should be limited')
         enforce(isabs(path), 'Argument \'path\' should be an absolute path')
 
         _logger.debug('Start %r synchronization session in %r',
@@ -99,7 +105,10 @@ class SlaveCommands(NodeCommands):
             stats_seq = {}
         if session is None:
             session = db.uuid()
-            push.append(('pull', {'sequence': self._pull_seq}, None))
+            push.append(('pull', {
+                'sequence': self._pull_seq,
+                'layer': node.layers.value,
+                }, None))
             push.append(('files_pull', {'sequence': self._files_seq}, None))
 
         self.broadcast({
@@ -158,7 +167,7 @@ class SlaveCommands(NodeCommands):
                     stats_user.commit(packet['sequence'])
                 elif packet.name == 'files_diff':
                     _logger.debug('Processing %r', packet)
-                    seq = files.merge(files_root.value, packet)
+                    seq = files.merge(node.files_root.value, packet)
                     if seq:
                         self._files_seq.exclude(seq)
                         self._files_seq.commit()

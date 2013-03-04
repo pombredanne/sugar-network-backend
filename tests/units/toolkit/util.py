@@ -4,7 +4,6 @@
 import copy
 from os.path import exists
 from cStringIO import StringIO
-import cPickle as pickle
 
 from __init__ import tests
 
@@ -342,11 +341,6 @@ class UtilTest(tests.Test):
         seq.include(10, 11)
         seq.include(None)
         self.assertEqual([[10, 11]], seq)
-
-    def test_Sequence_pickle(self):
-        seq = Sequence()
-        seq.include(1, 2)
-        assert 'Sequence' not in pickle.dumps(seq)
 
     def test_readline(self):
 

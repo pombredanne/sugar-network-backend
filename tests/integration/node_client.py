@@ -6,7 +6,6 @@ import json
 import signal
 import shutil
 import zipfile
-import cPickle as pickle
 from os.path import exists
 
 from __init__ import tests, src_root
@@ -83,7 +82,7 @@ class NodeClientTest(tests.Test):
         self.cli(['PUT', '/context/%s' % context, 'cmd=favorite', '-jdtrue'])
 
         assert exists(path)
-        self.assertEqual(True, pickle.load(file(path))['value'])
+        self.assertEqual(True, json.load(file(path))['value'])
 
     def test_CLI_UsecaseOOB(self):
         privkey_path = '.sugar/default/owner.key'
@@ -94,7 +93,7 @@ class NodeClientTest(tests.Test):
 
         assert not exists(privkey_path)
         assert exists('Activities/Chat.activity/activity/activity.info')
-        self.assertEqual(True, pickle.load(file('client/db/context/co/context/favorite'))['value'])
+        self.assertEqual(True, json.load(file('client/db/context/co/context/favorite'))['value'])
 
     def cli(self, cmd, stdin=None):
         cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd

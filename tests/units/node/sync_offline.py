@@ -11,7 +11,7 @@ import rrdtool
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, node
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.client import api_url
 from sugar_network.node import sync, stats_user, files_root
@@ -36,10 +36,28 @@ class SyncOfflineTest(tests.Test):
         statvfs.f_bfree = 999999999
         stats_user.stats_user_step.value = 1
         stats_user.stats_user_rras.value = ['RRA:AVERAGE:0.5:1:100']
+        node.layers.value = 'pilot'
 
     def next_uuid(self):
         self.uuid += 1
         return str(self.uuid)
+
+    def test_FailOnFullDump(self):
+
+        class Document(db.Document):
+            pass
+
+        volume = Volume('node', [Document])
+        cp = SlaveCommands('node', volume)
+
+        node.layers.value = None
+        self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
+        node.layers.value = 'public'
+        self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
+        node.layers.value = ['public']
+        self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
+        node.layers.value = ['public', 'foo']
+        self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
 
     def test_Export(self):
 
@@ -82,7 +100,7 @@ class SyncOfflineTest(tests.Test):
                 {'commit': {'user': {'db': [[1, ts]]}}},
                 ]),
             ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet', 'layer':  ['pilot']}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('mnt')]))
         assert not exists('node/pull.sequence')
@@ -125,7 +143,7 @@ class SyncOfflineTest(tests.Test):
                 {'commit': [[1, 1]]},
                 ]),
             ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '1', 'sequence': [[1, None]], 'filename': '2.sneakernet', 'layer': ['pilot']}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('1')]))
 
@@ -179,7 +197,7 @@ class SyncOfflineTest(tests.Test):
                 {'commit': {'user': {'db': [[1, ts]]}}},
                 ]),
             ({'packet': 'files_pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'sequence': [[1, None]], 'filename': '5.sneakernet'}, []),
-            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'sequence': [[1, None]], 'filename': '5.sneakernet'}, []),
+            ({'packet': 'pull', 'src': 'node', 'dst': 'localhost:8888', 'api_url': 'http://localhost:8888', 'session': '4', 'sequence': [[1, None]], 'filename': '5.sneakernet', 'layer': ['pilot']}, []),
             ],
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('3')]))
 

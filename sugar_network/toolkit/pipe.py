@@ -15,11 +15,11 @@
 
 import os
 import sys
+import json
 import struct
 import signal
 import logging
 import threading
-import cPickle as pickle
 from os.path import exists
 
 from sugar_network.toolkit import coroutine, util, sugar
@@ -34,7 +34,7 @@ def feedback(state, **event):
     if _pipe is None:
         return
     event['state'] = state
-    event = pickle.dumps(event)
+    event = json.dumps(event)
     os.write(_pipe, struct.pack('i', len(event)))
     os.write(_pipe, event)
 
@@ -108,7 +108,7 @@ class _Pipe(object):
         event_length = os.read(self._fd, struct.calcsize('i'))
         if event_length:
             event_length = struct.unpack('i', event_length)[0]
-            event = pickle.loads(os.read(self._fd, event_length))
+            event = json.loads(os.read(self._fd, event_length))
             if 'session' in event:
                 self._session.update(event.pop('session'))
             if 'environ' in event:

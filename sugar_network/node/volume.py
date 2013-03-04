@@ -21,7 +21,7 @@ from sugar_network.toolkit import util, coroutine, enforce
 _logger = logging.getLogger('node.sync')
 
 
-def diff(volume, in_seq, out_seq=None, exclude_seq=None, **kwargs):
+def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None, **kwargs):
     if out_seq is None:
         out_seq = util.Sequence([])
     is_initial_diff = not out_seq
@@ -31,10 +31,13 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, **kwargs):
             coroutine.dispatch()
             directory.commit()
             yield {'document': document}
-            for guid, patch in directory.diff(in_seq, out_seq, exclude_seq,
+            for patch in directory.diff(in_seq, out_seq, exclude_seq,
+                    layer=layer
+                            if document in ('context', 'implementation')
+                            else None,
                     **kwargs):
                 coroutine.dispatch()
-                yield {'diff': patch, 'guid': guid}
+                yield patch
 
         if is_initial_diff:
             # There is only one diff, so, we can stretch it to remove all holes
@@ -57,11 +60,10 @@ def merge(volume, records, shift_seqno=True):
             directory = volume[document]
             continue
 
-        patch = record.get('diff')
-        if patch is not None:
+        if 'guid' in record:
             enforce(directory is not None,
                     'Invalid merge, no document')
-            seqno, merged = directory.merge(record['guid'], patch, shift_seqno)
+            seqno, merged = directory.merge(shift_seqno=shift_seqno, **record)
             synced = synced or merged
             if seqno is not None:
                 merged_seq.include(seqno, seqno)

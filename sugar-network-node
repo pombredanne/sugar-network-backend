@@ -32,6 +32,7 @@ from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit.router import Router
+from sugar_network.toolkit.http import Client
 from sugar_network.toolkit import sugar, coroutine, application, util, Option
 from sugar_network.toolkit import enforce
 
@@ -39,6 +40,7 @@ from sugar_network.toolkit import enforce
 class Application(application.Daemon):
 
     jobs = coroutine.Pool()
+    node = None
 
     def ensure_run(self):
         if toolkit.cachedir.value and not exists(toolkit.cachedir.value):
@@ -109,6 +111,23 @@ class Application(application.Daemon):
 
     def shutdown(self):
         self.jobs.kill()
+
+    @application.command('direct synchronization with master node')
+    def online_sync(self):
+        self._ensure_instance().post(cmd='online-sync')
+
+    @application.command(
+            'sneakernet synchronization with other nodes using files '
+            'placed to the specified directory',
+            args='PATH')
+    def offline_sync(self):
+        enforce(self.args, 'PATH was not specified')
+        path = self.args.pop(0)
+        self._ensure_instance().post(cmd='offline-sync', path=path)
+
+    def _ensure_instance(self):
+        enforce(self.check_for_instance(), 'Node is not started')
+        return Client('http://localhost:%s' % node.port.value)
 
 
 # Let toolkit.http work in concurrence

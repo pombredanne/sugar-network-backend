@@ -4,7 +4,6 @@
 import os
 import json
 import time
-import cPickle as pickle
 from os.path import exists
 
 from __init__ import tests
@@ -205,14 +204,14 @@ class VolumeTest(tests.Test):
 
     def test_Populate(self):
         self.touch(
-                ('db/context/1/1/guid', pickle.dumps({"value": "1"})),
-                ('db/context/1/1/ctime', pickle.dumps({"value": 1})),
-                ('db/context/1/1/mtime', pickle.dumps({"value": 1})),
-                ('db/context/1/1/seqno', pickle.dumps({"value": 0})),
-                ('db/context/1/1/type', pickle.dumps({"value": "activity"})),
-                ('db/context/1/1/title', pickle.dumps({"value": {}})),
-                ('db/context/1/1/summary', pickle.dumps({"value": {}})),
-                ('db/context/1/1/description', pickle.dumps({"value": {}})),
+                ('db/context/1/1/guid', json.dumps({"value": "1"})),
+                ('db/context/1/1/ctime', json.dumps({"value": 1})),
+                ('db/context/1/1/mtime', json.dumps({"value": 1})),
+                ('db/context/1/1/seqno', json.dumps({"value": 0})),
+                ('db/context/1/1/type', json.dumps({"value": "activity"})),
+                ('db/context/1/1/title', json.dumps({"value": {}})),
+                ('db/context/1/1/summary', json.dumps({"value": {}})),
+                ('db/context/1/1/description', json.dumps({"value": {}})),
                 )
 
         volume = Volume('db', lazy_open=True)

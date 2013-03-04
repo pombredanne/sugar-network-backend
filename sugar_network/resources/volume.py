@@ -18,8 +18,7 @@ import logging
 from os.path import join
 
 from sugar_network import db, client, node, static
-from sugar_network.toolkit import http, router, coroutine, util, enforce
-from sugar_network.toolkit import BUFFER_SIZE
+from sugar_network.toolkit import router, coroutine, enforce
 
 
 AUTHOR_INSYSTEM = 1
@@ -135,14 +134,10 @@ class Volume(db.Volume):
     def __init__(self, root, document_classes=None, lazy_open=False):
         if document_classes is None:
             document_classes = Volume.RESOURCES
-        self._downloader = None
         self._populators = coroutine.Pool()
         db.Volume.__init__(self, root, document_classes, lazy_open=lazy_open)
 
     def close(self):
-        if self._downloader is not None:
-            self._downloader.close()
-            self._downloader = None
         self._populators.kill()
         db.Volume.close(self)
 
@@ -162,28 +157,6 @@ class Volume(db.Volume):
     def _populate(self, directory):
         for __ in directory.populate():
             coroutine.dispatch()
-
-    def _download_blob(self, url):
-        _logger.debug('Download %r blob', url)
-
-        if self._downloader is None:
-            self._downloader = http.Client()
-
-        response = self._downloader.request('GET', url, allow_redirects=True)
-        content_length = response.headers.get('Content-Length')
-        content_length = int(content_length) if content_length else 0
-
-        ostream = util.NamedTemporaryFile()
-        try:
-            chunk_size = min(content_length, BUFFER_SIZE)
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                ostream.write(chunk)
-        except Exception:
-            ostream.close()
-            raise
-
-        ostream.seek(0)
-        return ostream
 
 
 class Commands(object):

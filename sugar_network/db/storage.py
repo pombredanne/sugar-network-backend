@@ -20,9 +20,8 @@ import json
 import shutil
 import hashlib
 import cPickle as pickle
-from os.path import exists, join, isdir, basename, relpath, lexists, isabs
+from os.path import exists, join, isdir, basename, relpath, isabs
 
-from sugar_network.db import env
 from sugar_network.db.metadata import PropertyMetadata, BlobProperty
 from sugar_network.toolkit import BUFFER_SIZE, util, exception
 
@@ -87,74 +86,18 @@ class Storage(object):
                     yield guid
 
     def migrate(self, guid):
-        root = self._path(guid)
         record = self.get(guid)
-
-        path = join(root, '.seqno')
-        if exists(path):
-            seqno = int(os.stat(path).st_mtime)
-            with file(join(root, 'seqno'), 'w') as f:
-                pickle.dump({'seqno': seqno, 'value': seqno}, f)
-            os.unlink(path)
-
         for name, prop in self.metadata.items():
-            path = join(root, name)
-            if exists(path + '.seqno'):
-                self._migrate_to_1(path, prop)
-                continue
+            path = self._path(guid, name)
             if exists(path):
                 with file(path) as f:
                     meta = f.read()
-                if meta:
-                    if meta[0] == '{':
-                        with file(path, 'w') as f:
-                            pickle.dump(json.loads(meta), f)
-                    continue
-            if not isinstance(prop, BlobProperty) and prop.default is not None:
+                if meta.startswith('(dp'):
+                    with file(path, 'w') as f:
+                        json.dump(pickle.loads(meta), f)
+            elif not isinstance(prop, BlobProperty) and \
+                    prop.default is not None:
                 record.set(name, seqno=0, value=prop.default)
-
-    def _migrate_to_1(self, path, prop):
-        meta = {'seqno': int(os.stat(path + '.seqno').st_mtime)}
-
-        mtime = None
-        if lexists(path):
-            if exists(path):
-                mtime = os.stat(path).st_mtime
-            else:
-                os.unlink(path)
-
-        if isinstance(prop, BlobProperty):
-            if mtime is not None:
-                if exists(path + '.sha1'):
-                    with file(path + '.sha1') as f:
-                        meta['digest'] = f.read().strip()
-                    os.unlink(path + '.sha1')
-                else:
-                    # TODO calculate new digest
-                    meta['digest'] = ''
-                shutil.move(path, path + PropertyMetadata.BLOB_SUFFIX)
-                meta['mime_type'] = prop.mime_type
-            else:
-                if exists(path + '.sha1'):
-                    os.unlink(path + '.sha1')
-                meta = None
-        else:
-            if mtime is not None:
-                with file(path) as f:
-                    value = json.load(f)
-                if prop.localized and type(value) is not dict:
-                    value = {env.default_lang(): value}
-            else:
-                value = prop.default
-            meta['value'] = value
-
-        if meta is not None:
-            with file(path, 'w') as f:
-                pickle.dump(meta, f)
-            if mtime is not None:
-                os.utime(path, (mtime, mtime))
-
-        os.unlink(path + '.seqno')
 
     def _path(self, guid, *args):
         return join(self._root, guid[:2], guid, *args)
@@ -188,8 +131,7 @@ class Record(object):
         if exists(path):
             return PropertyMetadata(path)
 
-    def set(self, prop, mtime=None, path=None, blob=None, blob_size=None,
-            **meta):
+    def set(self, prop, mtime=None, path=None, blob=None, **meta):
         if not exists(self._root):
             os.makedirs(self._root)
         meta_path = join(self._root, prop)
@@ -205,7 +147,7 @@ class Record(object):
             util.cptree(path, blob_path)
 
         with util.new_file(meta_path) as f:
-            pickle.dump(meta, f)
+            json.dump(meta, f)
         if mtime:
             os.utime(meta_path, (mtime, mtime))
 

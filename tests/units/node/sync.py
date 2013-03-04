@@ -4,6 +4,7 @@
 import os
 import uuid
 import json
+import urllib2
 from StringIO import StringIO
 from os.path import exists
 
@@ -136,13 +137,13 @@ class SyncTest(tests.Test):
         self.assertEqual([
             dumps({'packet': 'last'}),
             ],
-            [i for i in sync.encode()])
+            [i for i in sync.encode([])])
 
         self.assertEqual([
             dumps({'packet': None, 'foo': 'bar'}),
             dumps({'packet': 'last'}),
             ],
-            [i for i in sync.encode((None, None, None), foo='bar')])
+            [i for i in sync.encode([(None, None, None)], foo='bar')])
 
         self.assertEqual([
             dumps({'packet': 1}),
@@ -150,11 +151,11 @@ class SyncTest(tests.Test):
             dumps({'packet': '3', 'n': 3}),
             dumps({'packet': 'last'}),
             ],
-            [i for i in sync.encode(
+            [i for i in sync.encode([
                 (1, {}, None),
                 ('2', {'n': 2}, []),
                 ('3', {'n': 3}, iter([])),
-                )])
+                ])])
 
         self.assertEqual([
             dumps({'packet': 1}),
@@ -168,11 +169,11 @@ class SyncTest(tests.Test):
             dumps({3: 3}),
             dumps({'packet': 'last'}),
             ],
-            [i for i in sync.encode(
+            [i for i in sync.encode([
                 (1, None, [{1: 1}]),
                 (2, None, [{2: 2}, {2: 2}]),
                 (3, None, [{3: 3}, {3: 3}, {3: 3}]),
-                )])
+                ])])
 
     def test_limited_encode(self):
         header_size = len(dumps({'packet': 'first'}))
@@ -183,25 +184,25 @@ class SyncTest(tests.Test):
             yield {'record': 2}
             yield {'record': 3}
 
-        i = sync.limited_encode(header_size + record_size, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + record_size, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'record': 1}, json.loads(i.send(header_size)))
         self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + record_size)))
         self.assertRaises(StopIteration, i.next)
 
-        i = sync.limited_encode(header_size + record_size, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + record_size, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + 1)))
         self.assertRaises(StopIteration, i.next)
 
-        i = sync.limited_encode(header_size + record_size * 2, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + record_size * 2, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'record': 1}, json.loads(i.send(header_size)))
         self.assertEqual({'record': 2}, json.loads(i.send(header_size + record_size)))
         self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + record_size * 2)))
         self.assertRaises(StopIteration, i.next)
 
-        i = sync.limited_encode(header_size + record_size * 2, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + record_size * 2, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'record': 1}, json.loads(i.send(header_size)))
         self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + record_size + 1)))
@@ -221,14 +222,14 @@ class SyncTest(tests.Test):
             yield {'record': 4}
             yield {'record': 5}
 
-        i = sync.limited_encode(header_size + record_size, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + record_size, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'record': 4}, json.loads(i.send(header_size + 1)))
         self.assertEqual({'record': 5}, json.loads(i.send(999999999)))
         self.assertEqual({'packet': 'last'}, json.loads(i.send(999999999)))
         self.assertRaises(StopIteration, i.next)
 
-        i = sync.limited_encode(header_size + record_size, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + record_size, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'record': 1}, json.loads(i.send(header_size)))
         self.assertEqual({'record': 4}, json.loads(i.send(header_size + record_size * 2 - 1)))
@@ -247,26 +248,26 @@ class SyncTest(tests.Test):
             yield {'record': 2}
             yield {'record': 3}
 
-        i = sync.limited_encode(header_size + blob_header_size + 99, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + blob_header_size + 99, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size)))
         self.assertRaises(StopIteration, i.next)
 
-        i = sync.limited_encode(header_size + blob_header_size + 100, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + blob_header_size + 100, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'blob_size': 100}, json.loads(i.send(header_size)))
         self.assertEqual('*' * 100, i.send(header_size + blob_header_size))
         self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + blob_header_size + 100)))
         self.assertRaises(StopIteration, i.next)
 
-        i = sync.limited_encode(header_size + blob_header_size + 100 + record_size - 1, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + blob_header_size + 100 + record_size - 1, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'blob_size': 100}, json.loads(i.send(header_size)))
         self.assertEqual('*' * 100, i.send(header_size + blob_header_size))
         self.assertEqual({'packet': 'last'}, json.loads(i.send(header_size + blob_header_size + 100)))
         self.assertRaises(StopIteration, i.next)
 
-        i = sync.limited_encode(header_size + blob_header_size + 100 + record_size, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size + blob_header_size + 100 + record_size, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'blob_size': 100}, json.loads(i.send(header_size)))
         self.assertEqual('*' * 100, i.send(header_size + blob_header_size))
@@ -288,7 +289,7 @@ class SyncTest(tests.Test):
             yield {'blob': 'blob'}
             yield {'record': 3}
 
-        i = sync.limited_encode(header_size, ('first', None, content()), ('second', None, content()))
+        i = sync.limited_encode(header_size, [('first', None, content()), ('second', None, content())])
         self.assertEqual({'packet': 'first'}, json.loads(i.send(None)))
         self.assertEqual({'blob_size': 100}, json.loads(i.send(header_size)))
         self.assertEqual('*' * 100, i.send(999999999))
@@ -297,7 +298,7 @@ class SyncTest(tests.Test):
         self.assertRaises(StopIteration, i.next)
 
     def test_chunked_encode(self):
-        output = sync.chunked_encode()
+        output = sync.chunked_encode([])
         self.assertEqual({'packet': 'last'}, json.loads(decode_chunked(output.read(100))))
 
         data = [{'foo': 1}, {'bar': 2}]
@@ -306,7 +307,7 @@ class SyncTest(tests.Test):
             data_stream += dumps(record)
         data_stream += dumps({'packet': 'last'})
 
-        output = sync.chunked_encode(('packet', None, iter(data)))
+        output = sync.chunked_encode([('packet', None, iter(data))])
         pauload = StringIO()
         while True:
             chunk = output.read(1)
@@ -315,7 +316,7 @@ class SyncTest(tests.Test):
             pauload.write(chunk)
         self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
 
-        output = sync.chunked_encode(('packet', None, iter(data)))
+        output = sync.chunked_encode([('packet', None, iter(data))])
         pauload = StringIO()
         while True:
             chunk = output.read(2)
@@ -324,7 +325,7 @@ class SyncTest(tests.Test):
             pauload.write(chunk)
         self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
 
-        output = sync.chunked_encode(('packet', None, iter(data)))
+        output = sync.chunked_encode([('packet', None, iter(data))])
         pauload = StringIO()
         while True:
             chunk = output.read(1000)
@@ -349,10 +350,10 @@ class SyncTest(tests.Test):
             'ccc',
             dumps({'packet': 'last'}),
             ],
-            [i for i in sync.encode(
+            [i for i in sync.encode([
                 (1, None, [{'num': 1, 'blob': '1'}, {'num': 2, 'blob': '2'}]),
                 (2, None, [{'num': 3, 'blob': '3'}]),
-                )])
+                ])])
 
     def test_decode_Blobs(self):
         stream = StringIO()
@@ -406,6 +407,38 @@ class SyncTest(tests.Test):
             self.assertEqual([3], [i['num'] for i in packet])
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
+
+    def test_decode_SkipNotReadBlobsForNotSeekableStreams(self):
+
+        class Stream(object):
+
+            def __init__(self):
+                self.value = StringIO()
+
+            def read(self, size):
+                return self.value.read(size)
+
+        stream = Stream()
+        dump({'packet': 1}, stream.value)
+        dump({'num': 1, 'blob_size': 1}, stream.value)
+        stream.value.write('a')
+        dump({'num': 2, 'blob_size': 2}, stream.value)
+        stream.value.write('bb')
+        dump({'packet': 2}, stream.value)
+        dump({'num': 3, 'blob_size': 3}, stream.value)
+        stream.value.write('ccc')
+        dump({'packet': 'last'}, stream.value)
+        stream.value.seek(0)
+
+        packets_iter = sync.decode(stream)
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            self.assertEqual([1, 2], [i['num'] for i in packet])
+        with next(packets_iter) as packet:
+            self.assertEqual(2, packet.name)
+            self.assertEqual([3], [i['num'] for i in packet])
+        self.assertRaises(StopIteration, packets_iter.next)
+        self.assertEqual(len(stream.value.getvalue()), stream.value.tell())
 
     def test_sneakernet_decode(self):
         self.override(db, 'uuid', lambda: 'uuid')
@@ -481,6 +514,20 @@ class SyncTest(tests.Test):
         self.assertEqual(
                 [({'packet': 'first', 'filename': 'uuid.sneakernet'}, [{'record': payload}, {'record': payload}])],
                 [(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('3')])
+
+    def test_sneakernet_encode_BlobUrls(self):
+        self.override(db, 'uuid', lambda: 'uuid')
+        url = 'http://download.sugarlabs.org/timestamp.txt'
+        blob = urllib2.urlopen(url).read()
+
+        self.assertEqual(True,
+                sync.sneakernet_encode([(None, None, [{'url': url}])], root='.', limit=999999999))
+        for packet in sync.sneakernet_decode('.'):
+            break
+        for record in packet:
+            break
+        self.assertEqual(len(blob), record['blob_size'])
+        self.assertEqual(blob, record['blob'].read())
 
 
 def decode_chunked(encdata):

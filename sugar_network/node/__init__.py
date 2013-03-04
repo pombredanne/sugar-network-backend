@@ -63,3 +63,9 @@ pull_timeout = Option(
         'delay in seconds to return to sync-pull requester to wait until '
         'pull request will be ready',
         default=30, type_cast=int)
+
+layers = Option(
+        'space separated list of layers to restrict Sugar Network '
+        'synchronization content',
+        default=['pilot'], type_cast=Option.list_cast,
+        type_repr=Option.list_repr, name='layers')

@@ -83,6 +83,7 @@ class Test(unittest.TestCase):
         node.data_root.value = tmpdir
         node.static_url.value = None
         node.files_root.value = None
+        node.layers.value = None
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.activity_dirs.value = [tmpdir + '/Activities']
