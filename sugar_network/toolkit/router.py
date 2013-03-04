@@ -336,18 +336,22 @@ class _Request(Request):
         self.accept_language = _parse_accept_language(
                 environ.get('HTTP_ACCEPT_LANGUAGE'))
         self.principal = None
+        self.query = {}
 
         enforce('..' not in self.path, 'Relative url path')
 
         query = environ.get('QUERY_STRING') or ''
         for attr, value in parse_qsl(query):
+            attr = str(attr)
             param = self.get(attr)
             if type(param) is list:
                 param.append(value)
-            elif param is not None:
-                self[str(attr)] = [param, value]
             else:
-                self[str(attr)] = value
+                if param is not None:
+                    value = [param, value]
+                self[attr] = value
+                if attr != 'cmd':
+                    self.query[attr] = value
         if query:
             self.url += '?' + query
 

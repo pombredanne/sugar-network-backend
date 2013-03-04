@@ -162,11 +162,12 @@ class Volume(db.Volume):
 class Commands(object):
 
     def __init__(self):
-        self._notifier = coroutine.AsyncResult()
-        self.connect(lambda event: self._notify(event))
+        self._pooler = _Pooler()
 
-    def connect(self, callback, condition=None, **kwargs):
-        raise NotImplementedError()
+    def broadcast(self, event):
+        _logger.debug('Publish event: %r', event)
+        self._pooler.notify_all(event)
+        coroutine.dispatch()
 
     @router.route('GET', '/robots.txt')
     def robots(self, request, response):
@@ -185,45 +186,33 @@ class Commands(object):
 
     @db.volume_command(method='GET', cmd='subscribe',
             mime_type='application/json')
-    def subscribe(self, request=None, response=None, only_commits=False):
-        """Subscribe to Server-Sent Events.
-
-        :param only_commits:
-            subscribers can be notified only with "commit" events;
-            that is useful to minimize interactions between server and clients
-
-        """
+    def subscribe(self, request=None, response=None, **condition):
+        """Subscribe to Server-Sent Events."""
+        if request is not None and not condition:
+            condition = request.query
         if response is not None:
             response.content_type = 'text/event-stream'
             response['Cache-Control'] = 'no-cache'
         peer = 'anonymous'
         if hasattr(request, 'environ'):
             peer = request.environ.get('HTTP_SUGAR_USER') or peer
-        return self._pull_events(peer, only_commits)
+        return self._pull_events(peer, condition)
 
-    def _pull_events(self, peer, only_commits):
+    def _pull_events(self, peer, condition):
         _logger.debug('Start pulling events to %s user', peer)
-
-        yield 'data: %s\n\n' % json.dumps({'event': 'handshake'})
         try:
             while True:
-                event = self._notifier.get()
-                if only_commits:
-                    if event['event'] != 'commit':
-                        continue
+                event = self._pooler.wait()
+                for key, value in condition.items():
+                    if value.startswith('!'):
+                        if event.get(key) == value[1:]:
+                            break
+                    elif event.get(key) != value:
+                        break
                 else:
-                    if event['event'] == 'commit':
-                        # Subscribers already got update notifications enough
-                        continue
-                yield 'data: %s\n\n' % json.dumps(event)
+                    yield 'data: %s\n\n' % json.dumps(event)
         finally:
             _logger.debug('Stop pulling events to %s user', peer)
-
-    def _notify(self, event):
-        _logger.debug('Publish event: %r', event)
-        self._notifier.set(event)
-        self._notifier = coroutine.AsyncResult()
-        coroutine.dispatch()
 
 
 class VolumeCommands(db.VolumeCommands):
@@ -313,6 +302,37 @@ class VolumeCommands(db.VolumeCommands):
                 if url.startswith('/'):
                     url = prefix + url
                 props[name] = url
+
+
+class _Pooler(object):
+    """One-producer-to-many-consumers events delivery."""
+
+    def __init__(self):
+        self._value = None
+        self._waiters = 0
+        self._ready = coroutine.Event()
+        self._open = coroutine.Event()
+        self._open.set()
+
+    def wait(self):
+        self._open.wait()
+        self._waiters += 1
+        try:
+            self._ready.wait()
+        finally:
+            self._waiters -= 1
+            if self._waiters == 0:
+                self._ready.clear()
+                self._open.set()
+        return self._value
+
+    def notify_all(self, value=None):
+        self._open.wait()
+        if not self._waiters:
+            return
+        self._open.clear()
+        self._value = value
+        self._ready.set()
 
 
 _HELLO_HTML = """\

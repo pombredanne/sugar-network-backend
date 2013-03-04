@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# pylint: disable-msg=E1102
+
 import os
 import logging
 from os.path import isabs, exists, join, basename
@@ -35,7 +37,7 @@ class _Mount(object):
 
     def __init__(self):
         self.mountpoint = None
-        self.publisher = None
+        self.broadcast = None
         self.mounted = coroutine.Event()
 
     def __call__(self, response=None, **kwargs):
@@ -65,11 +67,6 @@ class _Mount(object):
             'name': self.name,
             'private': self.private,
             })
-
-    def broadcast(self, event):
-        if self.publisher is not None:
-            # pylint: disable-msg=E1102
-            self.publisher(event)
 
 
 class LocalMount(VolumeCommands, _Mount):

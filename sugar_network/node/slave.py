@@ -25,8 +25,12 @@ from sugar_network import db, node
 from sugar_network.client import Client, api_url
 from sugar_network.node import sync, stats_user, files, volume
 from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import util, exception, enforce
+from sugar_network.toolkit import mountpoints
+from sugar_network.toolkit import sugar, coroutine, util, exception, enforce
 
+
+# Flag file to recognize a directory as a synchronization directory
+_SYNC_DIRNAME = '.sugar-network-sync'
 
 _logger = logging.getLogger('node.slave')
 
@@ -51,7 +55,7 @@ class SlaveCommands(NodeCommands):
         push = [('diff', None, volume.diff(self.volume, self._push_seq)),
                 ('pull', {
                     'sequence': self._pull_seq,
-                    'layer': node.layers.value,
+                    'layer': node.sync_layers.value,
                     }, None),
                 ('files_pull', {'sequence': self._files_seq}, None),
                 ]
@@ -67,7 +71,8 @@ class SlaveCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='offline-sync',
             permissions=db.ACCESS_LOCAL)
     def offline_sync(self, path):
-        enforce(node.layers.value and 'public' not in node.layers.value,
+        enforce(node.sync_layers.value and
+                'public' not in node.sync_layers.value,
                 '--layers is not specified, the full master dump might be '
                 'too big and should be limited')
         enforce(isabs(path), 'Argument \'path\' should be an absolute path')
@@ -79,22 +84,18 @@ class SlaveCommands(NodeCommands):
             os.makedirs(path)
 
         try:
-            self.broadcast({'event': 'sync_start', 'path': path})
             self._offline_session = self._offline_sync(path,
                     **(self._offline_session or {}))
-        except Exception, error:
+        except Exception:
             exception(_logger, 'Failed to complete synchronization')
-            self.broadcast({'event': 'sync_error', 'error': str(error)})
             self._offline_session = None
             raise
 
         if self._offline_session is None:
             _logger.debug('Synchronization completed')
-            self.broadcast({'event': 'sync_complete'})
         else:
             _logger.debug('Postpone synchronization with %r session',
                     self._offline_session)
-            self.broadcast({'event': 'sync_continue'})
 
     def _offline_sync(self, path, push_seq=None, stats_seq=None, session=None):
         push = []
@@ -107,7 +108,7 @@ class SlaveCommands(NodeCommands):
             session = db.uuid()
             push.append(('pull', {
                 'sequence': self._pull_seq,
-                'layer': node.layers.value,
+                'layer': node.sync_layers.value,
                 }, None))
             push.append(('files_pull', {'sequence': self._files_seq}, None))
 
@@ -171,3 +172,57 @@ class SlaveCommands(NodeCommands):
                     if seq:
                         self._files_seq.exclude(seq)
                         self._files_seq.commit()
+
+
+class PersonalCommands(SlaveCommands):
+
+    def __init__(self, mountset):
+        SlaveCommands.__init__(self, sugar.uid(), mountset.volume)
+
+        self._mountset = mountset
+        self._mounts = util.Pool()
+        self._jobs = coroutine.Pool()
+
+        mountpoints.connect(_SYNC_DIRNAME,
+                self.__found_mountcb, self.__lost_mount_cb)
+
+    def broadcast(self, event):
+        self._mountset.broadcast(event)
+
+    def subscribe(self, *args, **kwargs):
+        return self._mountset.subscribe(*args, **kwargs)
+
+    def _sync_mounts(self):
+        self.broadcast({'event': 'sync_start'})
+
+        for mountpoint in self._mounts:
+            self.broadcast({'event': 'sync_next', 'path': mountpoint})
+            try:
+                self._offline_session = self._offline_sync(mountpoint,
+                        **(self._offline_session or {}))
+            except Exception, error:
+                exception(_logger, 'Failed to complete synchronization')
+                self.broadcast({'event': 'sync_abort', 'error': str(error)})
+                self._offline_session = None
+                raise
+
+        if self._offline_session is None:
+            _logger.debug('Synchronization completed')
+            self.broadcast({'event': 'sync_complete'})
+        else:
+            _logger.debug('Postpone synchronization with %r session',
+                    self._offline_session)
+            self.broadcast({'event': 'sync_paused'})
+
+    def __found_mountcb(self, path):
+        self._mounts.add(path)
+        if self._jobs:
+            _logger.debug('Found %r sync mount, pool it', path)
+        else:
+            _logger.debug('Found %r sync mount, start synchronization', path)
+            self._jobs.spawn(self._sync_mounts)
+
+    def __lost_mount_cb(self, path):
+        if self._mounts.remove(path) == util.Pool.ACTIVE:
+            _logger.warning('%r was unmounted, break synchronization', path)
+            self._jobs.kill()

@@ -36,7 +36,7 @@ class SyncOfflineTest(tests.Test):
         statvfs.f_bfree = 999999999
         stats_user.stats_user_step.value = 1
         stats_user.stats_user_rras.value = ['RRA:AVERAGE:0.5:1:100']
-        node.layers.value = 'pilot'
+        node.sync_layers.value = 'pilot'
 
     def next_uuid(self):
         self.uuid += 1
@@ -50,13 +50,13 @@ class SyncOfflineTest(tests.Test):
         volume = Volume('node', [Document])
         cp = SlaveCommands('node', volume)
 
-        node.layers.value = None
+        node.sync_layers.value = None
         self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
-        node.layers.value = 'public'
+        node.sync_layers.value = 'public'
         self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
-        node.layers.value = ['public']
+        node.sync_layers.value = ['public']
         self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
-        node.layers.value = ['public', 'foo']
+        node.sync_layers.value = ['public', 'foo']
         self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
 
     def test_Export(self):

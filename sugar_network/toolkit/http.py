@@ -193,8 +193,8 @@ class Client(object):
             result = reply.raw
         return result
 
-    def subscribe(self):
-        return _Subscription(self, _RECONNECTION_NUMBER)
+    def subscribe(self, **condition):
+        return _Subscription(self, condition, _RECONNECTION_NUMBER)
 
     def _register(self):
         self.post(['user'], {
@@ -214,10 +214,12 @@ class Client(object):
 
 class _Subscription(object):
 
-    def __init__(self, aclient, tries):
+    def __init__(self, aclient, condition, tries):
         self._tries = tries or 1
         self._client = aclient
-        self._response = None
+        self._content = None
+        self._params = condition
+        self._params['cmd'] = 'subscribe'
 
     def __iter__(self):
         while True:
@@ -241,7 +243,7 @@ class _Subscription(object):
                     raise
                 exception('Failed to read from %r subscription, '
                         'will resubscribe', self._client.api_url)
-                self._response = None
+                self._content = None
 
         if line.startswith('data: '):
             try:
@@ -251,15 +253,14 @@ class _Subscription(object):
                         line, self._client.api_url)
 
     def _handshake(self):
-        if self._response is not None:
-            return self._response.raw
+        if self._content is not None:
+            return self._content
 
         _logger.debug('Subscribe to %r', self._client.api_url)
 
         for a_try in reversed(xrange(self._tries)):
             try:
-                self._response = self._client.request('GET',
-                        params={'cmd': 'subscribe'})
+                response = self._client.request('GET', params=self._params)
                 break
             except Exception:
                 if a_try == 0:
@@ -269,7 +270,8 @@ class _Subscription(object):
                         self._client.api_url, _RECONNECTION_TIMEOUT)
                 coroutine.sleep(_RECONNECTION_TIMEOUT)
 
-        return self._response.raw
+        self._content = response.raw
+        return self._content
 
 
 def _sign(privkey_path, data):

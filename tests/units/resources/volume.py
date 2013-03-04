@@ -48,7 +48,7 @@ class VolumeTest(tests.Test):
         events = []
 
         def read_events():
-            for event in cp.subscribe(Request(), db.Response()):
+            for event in cp.subscribe(event='!commit'):
                 if not event.strip():
                     continue
                 assert event.startswith('data: ')
@@ -71,14 +71,13 @@ class VolumeTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'event': 'handshake'},
             {'guid': 'guid', 'document': 'document', 'event': 'create'},
             {'guid': 'guid', 'document': 'document', 'event': 'update'},
             {'guid': 'guid', 'event': 'delete', 'document': u'document'},
             ],
             events)
 
-    def test_SubscribeToOnlyCommits(self):
+    def __test_SubscribeCondition(self):
 
         class Document(Resource):
 
@@ -114,7 +113,6 @@ class VolumeTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'event': 'handshake'},
             {'document': 'document', 'event': 'commit'},
             {'document': 'document', 'event': 'commit'},
             {'document': 'document', 'event': 'commit'},
@@ -498,9 +496,7 @@ class TestCommands(VolumeCommands, Commands):
     def __init__(self, volume):
         VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
-
-    def connect(self, callback, condition=None, **kwargs):
-        self.volume.connect(callback, condition)
+        self.volume.connect(self.broadcast)
 
 
 def call(cp, principal=None, content=None, **kwargs):

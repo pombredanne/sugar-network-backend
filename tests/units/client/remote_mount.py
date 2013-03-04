@@ -35,7 +35,7 @@ class RemoteMountTest(tests.Test):
         events = []
 
         def read_events():
-            for event in remote.subscribe():
+            for event in remote.subscribe(event='!commit'):
                 if 'props' in event:
                     event.pop('props')
                 events.append(event)
@@ -57,8 +57,6 @@ class RemoteMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'event': 'handshake'},
-            {'event': 'handshake', 'mountpoint': '/'},
             {'guid': guid, 'document': 'context', 'event': 'create', 'mountpoint': '/'},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '/'},
             {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '/'},
@@ -92,9 +90,7 @@ class RemoteMountTest(tests.Test):
 
         self.assertEqual(True, remote.get(cmd='mounted'))
         self.assertEqual([
-            {'event': 'handshake'},
             {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
-            {'event': 'handshake', 'mountpoint': '/'},
             ],
             events)
         del events[:]
@@ -117,7 +113,6 @@ class RemoteMountTest(tests.Test):
         self.assertEqual(True, remote.get(cmd='mounted'))
         self.assertEqual([
             {'mountpoint': '/', 'event': 'mount', 'name': 'Network', 'private': False},
-            {'event': 'handshake', 'mountpoint': '/'},
             ],
             events)
         del events[:]

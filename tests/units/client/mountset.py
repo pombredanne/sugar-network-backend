@@ -55,8 +55,7 @@ class MountsetTest(tests.Test):
                 if 'props' in event:
                     event.pop('props')
                 self.events.append(event)
-                if event['event'] != 'handshake':
-                    self.mounted.set()
+                self.mounted.set()
 
         coroutine.dispatch()
         self.events_job = coroutine.spawn(read_events)
@@ -77,7 +76,6 @@ class MountsetTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    {'event': 'handshake'},
                     {'mountpoint': tests.tmpdir + '/1', 'event': 'mount', 'private': True, 'name': '1'},
                     {'mountpoint': tests.tmpdir + '/2', 'event': 'mount', 'private': True, 'name': '2'},
                     ]),
@@ -100,7 +98,6 @@ class MountsetTest(tests.Test):
         coroutine.sleep(.5)
 
         self.assertEqual([
-            {'event': 'handshake'},
             {'mountpoint': tests.tmpdir + '/1', 'event': 'mount', 'private': True, 'name': '1'},
             ],
             self.events)
@@ -116,7 +113,6 @@ class MountsetTest(tests.Test):
         self.mounted.clear()
 
         self.assertEqual([
-            {'event': 'handshake'},
             {'mountpoint': tests.tmpdir + '/1', 'event': 'mount', 'private': True, 'name': '1'},
             {'mountpoint': tests.tmpdir + '/2', 'event': 'mount', 'private': True, 'name': '2'},
             ],
@@ -169,7 +165,6 @@ class MountsetTest(tests.Test):
         self.mounted.clear()
 
         self.assertEqual([
-            {'event': 'handshake'},
             {'mountpoint': tests.tmpdir + '/mnt', 'event': 'mount', 'private': False, 'name': 'mnt'},
             ],
             self.events)

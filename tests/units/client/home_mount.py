@@ -164,7 +164,7 @@ class HomeMountTest(tests.Test):
         events = []
 
         def read_events():
-            for event in local.subscribe():
+            for event in local.subscribe(event='!commit'):
                 if 'props' in event:
                     event.pop('props')
                 events.append(event)
@@ -186,7 +186,6 @@ class HomeMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'event': 'handshake'},
             {'guid': guid, 'document': 'context', 'event': 'create', 'mountpoint': '~'},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~'},
             {'guid': guid, 'event': 'delete', 'document': 'context', 'mountpoint': '~'},
@@ -206,7 +205,7 @@ class HomeMountTest(tests.Test):
             })
 
         def read_events():
-            for event in local.subscribe():
+            for event in IPCClient().subscribe(event='!commit'):
                 events.append(event)
         job = coroutine.spawn(read_events)
         coroutine.sleep(.1)
@@ -218,7 +217,6 @@ class HomeMountTest(tests.Test):
         job.kill()
 
         self.assertEqual([
-            {'event': 'handshake'},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~', 'props': {'title': 'title_2'}},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '/', 'props': {'favorite': True}},
             {'guid': guid, 'document': 'context', 'event': 'update', 'mountpoint': '~', 'props': {'favorite': True}},

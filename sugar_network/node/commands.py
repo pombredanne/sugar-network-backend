@@ -43,6 +43,8 @@ class NodeCommands(VolumeCommands, Commands):
             self._stats = stats_node.Sniffer(volume)
             coroutine.spawn(self._commit_stats)
 
+        self.volume.connect(self.broadcast)
+
     @property
     def guid(self):
         return self._guid
@@ -177,10 +179,6 @@ class NodeCommands(VolumeCommands, Commands):
                 guid=impls[0]['guid'], prop='data')
         return self.call(request, db.Response())
 
-    def broadcast(self, event):
-        # TODO Node level broadcast events?
-        _logger.info('Publish event: %r', event)
-
     def call(self, request, response=None):
         try:
             result = VolumeCommands.call(self, request, response)
@@ -212,9 +210,6 @@ class NodeCommands(VolumeCommands, Commands):
                     db.Forbidden, 'Operation is permitted only for authors')
 
         return cmd
-
-    def connect(self, callback, condition=None, **kwargs):
-        self.volume.connect(callback, condition)
 
     def before_create(self, request, props):
         if request['document'] == 'user':
