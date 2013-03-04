@@ -144,7 +144,8 @@ class Application(application.Daemon):
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
-                server = coroutine.WSGIServer(host, webui.get_app(mountset))
+                server = coroutine.WSGIServer(host, webui.get_app(mountset,
+                        'http://localhost:%s' % client.ipc_port.value))
                 self.jobs.spawn(server.serve_forever)
 
             if client.mounts_root.value:
