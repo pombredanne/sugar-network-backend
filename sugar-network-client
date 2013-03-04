@@ -29,11 +29,14 @@ import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
 from sugar_network.toolkit import sugar, mountpoints
 from sugar_network.toolkit.router import IPCRouter
-from sugar_network.client.mounts import HomeMount, RemoteMount
+from sugar_network.client.mounts import HomeMount, LocalNetworkMount
+from sugar_network.client.mounts import RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.zerosugar import clones
 from sugar_network.node import stats_user, slave
+from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
+from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import Option
 from sugar_network.toolkit import util, printf, application, coroutine, enforce
 
@@ -111,7 +114,16 @@ class Application(application.Daemon):
         volume = Volume(client.path('db'), lazy_open=client.lazy_open.value)
         mountset = Mountset(volume)
         mountset['~'] = HomeMount(volume)
-        mountset['/'] = RemoteMount(volume)
+
+        if client.server_mode.value:
+            mountset['/'] = LocalNetworkMount(volume)
+            logging.info('Start %r server on %s port',
+                    volume.root, node.port.value)
+            server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
+                    Router(SlaveCommands(sugar.uid(), volume)))
+            self.jobs.spawn(server.serve_forever)
+        else:
+            mountset['/'] = RemoteMount(volume)
 
         logging.info('Listening for IPC requests on %s port',
                 client.ipc_port.value)

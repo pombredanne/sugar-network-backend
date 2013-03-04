@@ -23,7 +23,7 @@ from sugar_network.toolkit import http, coroutine, exception, enforce
 from sugar_network.toolkit.router import Request
 from sugar_network.resources.volume import VolumeCommands
 from sugar_network.client import journal
-from sugar_network import db, client
+from sugar_network import db, client, node
 
 
 _LOCAL_PROPS = frozenset(['favorite', 'clone'])
@@ -101,19 +101,28 @@ class LocalMount(VolumeCommands, _Mount):
         self.broadcast(event)
 
 
+class LocalNetworkMount(LocalMount):
+
+    def __init__(self, volume):
+        LocalMount.__init__(self, volume)
+        self._client = client.Client('http://localhost:%s' % node.port.value)
+
+    @property
+    def name(self):
+        return _('Local Network')
+
+    def call(self, request, response=None):
+        try:
+            return db.CommandsProcessor.call(self, request, response)
+        except db.CommandNotFound:
+            return self._client.call(request, response)
+
+
 class HomeMount(LocalMount):
 
     @property
     def name(self):
         return _('Home')
-
-    @db.directory_command(method='POST', cmd='create_with_guid',
-            permissions=db.ACCESS_AUTH, mime_type='application/json')
-    def create_with_guid(self, request):
-        with self._post(request, db.ACCESS_CREATE) as (directory, doc):
-            enforce('guid' in doc.props, 'GUID should be specified')
-            self.before_create(request, doc.props)
-            return directory.create(doc.props)
 
     def _events_cb(self, event):
         if event.get('event') == 'update':
