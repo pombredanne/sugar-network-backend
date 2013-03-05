@@ -206,6 +206,9 @@ class Commands(object):
         _logger.debug('Start pulling events to %s user', peer)
 
         if ping:
+            # XXX The whole commands' kwargs handling should be redesigned
+            if 'ping' in condition:
+                condition.pop('ping')
             # If non-greenlet application needs only to initiate
             # a subscription and do not stuck in waiting for the first event,
             # it should pass `ping` argument to return fake event to unblock
