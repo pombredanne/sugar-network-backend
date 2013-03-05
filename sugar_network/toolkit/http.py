@@ -188,7 +188,10 @@ class Client(object):
             if 'Content-Type' in reply.headers:
                 response.content_type = reply.headers['Content-Type']
 
-        return self._decode_reply(reply)
+        if reply.headers.get('Content-Type') == 'application/json':
+            return json.loads(reply.content)
+        else:
+            return reply.raw
 
     def subscribe(self, **condition):
         return _Subscription(self, condition, _RECONNECTION_NUMBER)

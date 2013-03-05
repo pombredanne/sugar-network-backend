@@ -180,7 +180,7 @@ class Commands(object):
         return _HELLO_HTML
 
     @db.volume_command(method='GET', cmd='subscribe',
-            mime_type='application/json')
+            mime_type='text/event-stream')
     def subscribe(self, request=None, response=None, ping=False, **condition):
         """Subscribe to Server-Sent Events."""
         if request is not None and not condition:
