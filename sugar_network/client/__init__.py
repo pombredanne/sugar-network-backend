@@ -88,6 +88,11 @@ no_dbus = Option(
         default=False, type_cast=Option.bool_cast,
         action='store_true', name='no-dbus')
 
+discover_server = Option(
+        'discover servers in local network instead of using --api-url',
+        default=False, type_cast=Option.bool_cast,
+        action='store_true', name='discover_server')
+
 
 def path(*args):
     """Calculate a path from the root.
