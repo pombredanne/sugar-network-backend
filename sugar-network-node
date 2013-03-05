@@ -101,8 +101,8 @@ class Application(application.Daemon):
 
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)
-            server = coroutine.WSGIServer(host, webui.get_app(mountset,
-                    'http://localhost:%s' % node.port.value))
+            server = coroutine.WSGIServer(host,
+                    webui.get_app(mountset, client.api_url.value))
             self.jobs.spawn(server.serve_forever)
 
         try:

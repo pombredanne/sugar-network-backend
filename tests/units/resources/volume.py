@@ -77,6 +77,14 @@ class VolumeTest(tests.Test):
             ],
             events)
 
+    def test_SubscribeWithPong(self):
+        volume = Volume('db', [])
+        cp = TestCommands(volume)
+
+        for event in cp.subscribe(ping=True):
+            break
+        self.assertEqual('data: {"event": "pong"}\n\n', event)
+
     def __test_SubscribeCondition(self):
 
         class Document(Resource):
