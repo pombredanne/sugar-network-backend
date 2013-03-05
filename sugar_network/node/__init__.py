@@ -53,7 +53,7 @@ static_url = Option(
 
 stats_root = Option(
         'path to the root directory for placing stats',
-        default='/var/lib/sugar-network/stats')
+        default='/var/lib/sugar-network/stats', name='stats_root')
 
 files_root = Option(
         'path to a directory to keep files synchronized between nodes',
@@ -64,7 +64,7 @@ pull_timeout = Option(
         'pull request will be ready',
         default=30, type_cast=int)
 
-layers = Option(
+sync_layers = Option(
         'space separated list of layers to restrict Sugar Network '
         'synchronization content',
         default=['pilot'], type_cast=Option.list_cast,

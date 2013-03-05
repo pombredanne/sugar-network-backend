@@ -45,7 +45,7 @@ class MasterSlaveTest(tests.Test):
             '-DDD', '--rundir=slave/run', '--files-root=slave/files',
             '--stats-root=slave/stats', '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
-            '--index-flush-threshold=1', '--layers=pilot',
+            '--index-flush-threshold=1', '--sync-layers=pilot',
             ])
 
         coroutine.sleep(2)
@@ -71,6 +71,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview1',
+            'layer': 'pilot',
             })
         self.touch(('master/files/file1', 'file1'))
 
@@ -80,6 +81,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview2',
+            'layer': 'pilot',
             })
         slave.post(['user', tests.UID], {
             'name': 'db',
@@ -119,6 +121,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview3',
+            'layer': 'pilot',
             })
         master.put(['context', context1, 'title'], 'title1_')
         master.put(['context', context2, 'preview'], 'preview2_')
@@ -131,6 +134,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'preview': 'preview4',
+            'layer': 'pilot',
             })
         slave.put(['context', context2, 'title'], 'title2_')
         slave.put(['context', context1, 'preview'], 'preview1_')

@@ -29,11 +29,14 @@ import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
 from sugar_network.toolkit import sugar, mountpoints
 from sugar_network.toolkit.router import IPCRouter
-from sugar_network.client.mounts import HomeMount, RemoteMount
+from sugar_network.client.mounts import HomeMount, LocalNetworkMount
+from sugar_network.client.mounts import RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.zerosugar import clones
 from sugar_network.node import stats_user, slave
+from sugar_network.node.slave import PersonalCommands
 from sugar_network.resources.volume import Volume
+from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import Option
 from sugar_network.toolkit import util, printf, application, coroutine, enforce
 
@@ -42,6 +45,8 @@ class Application(application.Daemon):
 
     def __init__(self, **kwargs):
         application.Daemon.__init__(self, **kwargs)
+
+        node.sync_layers.value = client.layers.value
 
         self.jobs = coroutine.Pool()
         util.init_logging(application.debug.value)
@@ -111,7 +116,16 @@ class Application(application.Daemon):
         volume = Volume(client.path('db'), lazy_open=client.lazy_open.value)
         mountset = Mountset(volume)
         mountset['~'] = HomeMount(volume)
-        mountset['/'] = RemoteMount(volume)
+
+        if client.server_mode.value:
+            mountset['/'] = LocalNetworkMount(volume)
+            logging.info('Start %r server on %s port',
+                    volume.root, node.port.value)
+            server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
+                    Router(PersonalCommands(mountset)))
+            self.jobs.spawn(server.serve_forever)
+        else:
+            mountset['/'] = RemoteMount(volume)
 
         logging.info('Listening for IPC requests on %s port',
                 client.ipc_port.value)
@@ -122,10 +136,7 @@ class Application(application.Daemon):
 
         self.accept()
 
-        def delayed_start(event=None):
-            logging.info('Proceed delayed start')
-            mountset.disconnect(delayed_start)
-
+        def final_start():
             self._sync(mountset.volume)
             self.jobs.spawn(clones.monitor, mountset.volume['context'],
                     client.activity_dirs.value)
@@ -133,17 +144,26 @@ class Application(application.Daemon):
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
-                server = coroutine.WSGIServer(host, webui.get_app(mountset))
+                server = coroutine.WSGIServer(host, webui.get_app(mountset,
+                        'http://localhost:%s' % client.ipc_port.value))
                 self.jobs.spawn(server.serve_forever)
 
             if client.mounts_root.value:
-                self.jobs.spawn(mountpoints.monitor,
-                        abspath(client.mounts_root.value))
+                mounts_root = abspath(client.mounts_root.value)
+                if not exists(mounts_root):
+                    os.makedirs(mounts_root)
+                self.jobs.spawn(mountpoints.monitor, mounts_root)
+
+        def delayed_start(event=None):
+            for __ in mountset.subscribe(event='delayed-start'):
+                break
+            logging.info('Proceed delayed start')
+            final_start()
 
         if client.delayed_start.value:
-            mountset.connect(delayed_start, event='delayed-start')
+            self.jobs.spawn(delayed_start)
         else:
-            delayed_start()
+            final_start()
 
         try:
             mountset.open()
@@ -203,7 +223,7 @@ Option.seek('main', [toolkit.cachedir])
 Option.seek('webui', webui)
 Option.seek('client', client)
 Option.seek('client', [sugar.keyfile])
-Option.seek('node', [node.port, node.files_root])
+Option.seek('node', [node.port, node.files_root, node.stats_root])
 Option.seek('stats', stats_user)
 Option.seek('db', db)
 

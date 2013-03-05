@@ -486,8 +486,13 @@ class Sequence(list):
 
         for i, interval in enumerate(self):
             start, end = interval
+
             if end is not None and end < range_start:
-                # Current `interval` is below than new one
+                # Current `interval` is below new one
+                continue
+
+            if range_end is not None and range_end < start:
+                # Current `interval` is above new one
                 continue
 
             if end is None or end > range_end:
@@ -528,48 +533,51 @@ class PersistentSequence(Sequence):
             os.fsync(f.fileno())
 
 
-class MutableStack(object):
+class Pool(object):
     """Stack that keeps its iterators correct after changing content."""
+
+    QUEUED = 0
+    ACTIVE = 1
+    PASSED = 2
 
     def __init__(self):
         self._queue = collections.deque()
 
     def add(self, value):
         self.remove(value)
-        self._queue.appendleft([False, value])
+        self._queue.appendleft([Pool.QUEUED, value])
 
     def remove(self, value):
-        for i, (__, existing) in enumerate(self._queue):
+        for i, (state, existing) in enumerate(self._queue):
             if existing == value:
                 del self._queue[i]
-                break
+                return state
+
+    def get_state(self, value):
+        for state, existing in self._queue:
+            if existing == value:
+                return state
 
     def rewind(self):
         for i in self._queue:
-            i[0] = False
+            i[0] = Pool.QUEUED
 
     def __len__(self):
         return len(self._queue)
 
     def __iter__(self):
-        return _MutableStackIterator(self._queue)
+        for i in self._queue:
+            state, value = i
+            if state == Pool.PASSED:
+                continue
+            try:
+                i[0] = Pool.ACTIVE
+                yield value
+            finally:
+                i[0] = Pool.PASSED
 
     def __repr__(self):
         return str([i[1] for i in self._queue])
-
-
-class _MutableStackIterator(object):
-
-    def __init__(self, queue):
-        self._queue = queue
-
-    def next(self):
-        for i in self._queue:
-            processed, value = i
-            if not processed:
-                i[0] = True
-                return value
-        raise StopIteration()
 
 
 class _NullHandler(logging.Handler):

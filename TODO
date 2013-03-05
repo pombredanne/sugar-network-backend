@@ -20,3 +20,4 @@
 - "Cannot find implementation for" error if there is no required sugar
   - trace says that current sugar version is (ok)
 - increase granularity for sync.chunked_encode()
+- slave._Pooler might leak events if pullers are not in time to call wait()

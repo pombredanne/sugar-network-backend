@@ -52,37 +52,39 @@ class UtilTest(tests.Test):
         self.assertEqual(
                 [[11, None]],
                 scale)
-
         scale = Sequence(empty_value=[1, None])
         scale.exclude(5, 10)
         self.assertEqual(
                 [[1, 4], [11, None]],
                 scale)
-
         scale.exclude(2, 2)
         self.assertEqual(
                 [[1, 1], [3, 4], [11, None]],
                 scale)
-
         scale.exclude(1, 1)
         self.assertEqual(
                 [[3, 4], [11, None]],
                 scale)
-
         scale.exclude(3, 3)
         self.assertEqual(
                 [[4, 4], [11, None]],
                 scale)
-
         scale.exclude(1, 20)
         self.assertEqual(
                 [[21, None]],
                 scale)
-
         scale.exclude(21, 21)
         self.assertEqual(
                 [[22, None]],
                 scale)
+
+        seq = Sequence([[100, None]])
+        seq.exclude([[1, 98]])
+        self.assertEqual([[100, None]], seq)
+
+        seq = Sequence([[1, 100]])
+        seq.exclude([[200, 300]])
+        self.assertEqual([[1, 100]], seq)
 
     def test_Sequence_include_JoinExistingItems(self):
         scale = Sequence()
@@ -360,6 +362,64 @@ class UtilTest(tests.Test):
         self.assertEqual(['\n'], readlines('\n'))
         self.assertEqual(['\n', 'b'], readlines('\nb'))
         self.assertEqual([' \n', ' b \n'], readlines(' \n b \n'))
+
+    def test_Pool(self):
+        stack = util.Pool()
+
+        stack.add('a')
+        stack.add('b')
+        stack.add('c')
+
+        self.assertEqual(util.Pool.QUEUED, stack.get_state('a'))
+        self.assertEqual(util.Pool.QUEUED, stack.get_state('b'))
+        self.assertEqual(util.Pool.QUEUED, stack.get_state('c'))
+        self.assertEqual(
+                [('c', util.Pool.ACTIVE), ('b', util.Pool.ACTIVE), ('a', util.Pool.ACTIVE)],
+                [(i, stack.get_state(i)) for i in stack])
+        self.assertEqual(
+                [],
+                [i for i in stack])
+        self.assertEqual(util.Pool.PASSED, stack.get_state('a'))
+        self.assertEqual(util.Pool.PASSED, stack.get_state('b'))
+        self.assertEqual(util.Pool.PASSED, stack.get_state('c'))
+
+        stack.rewind()
+        self.assertEqual(util.Pool.QUEUED, stack.get_state('a'))
+        self.assertEqual(util.Pool.QUEUED, stack.get_state('b'))
+        self.assertEqual(util.Pool.QUEUED, stack.get_state('c'))
+        self.assertEqual(
+                ['c', 'b', 'a'],
+                [i for i in stack])
+
+        stack.add('c')
+        self.assertEqual(util.Pool.QUEUED, stack.get_state('c'))
+        self.assertEqual(
+                [('c', util.Pool.ACTIVE)],
+                [(i, stack.get_state(i)) for i in stack])
+        self.assertEqual(util.Pool.PASSED, stack.get_state('c'))
+
+        stack.add('b')
+        stack.add('a')
+        self.assertEqual(
+                ['a', 'b'],
+                [i for i in stack])
+
+        stack.rewind()
+        self.assertEqual(
+                ['a', 'b', 'c'],
+                [i for i in stack])
+
+        stack.add('d')
+        self.assertEqual(util.Pool.QUEUED, stack.get_state('d'))
+        self.assertEqual(
+                [('d', util.Pool.ACTIVE)],
+                [(i, stack.get_state(i)) for i in stack])
+        self.assertEqual(util.Pool.PASSED, stack.get_state('d'))
+
+        stack.rewind()
+        self.assertEqual(
+                ['d', 'a', 'b', 'c'],
+                [i for i in stack])
 
 
 if __name__ == '__main__':

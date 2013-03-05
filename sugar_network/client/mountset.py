@@ -16,14 +16,13 @@
 import os
 import socket
 import logging
-from os.path import join, exists
+from os.path import join
 
 from sugar_network import db, client, node
 from sugar_network.toolkit import netlink, mountpoints, router
-from sugar_network.toolkit import coroutine, util, exception, enforce
+from sugar_network.toolkit import coroutine, util, enforce
 from sugar_network.client import journal, zeroconf
 from sugar_network.client.mounts import LocalMount, NodeMount
-from sugar_network.node.commands import NodeCommands
 from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Volume, Commands
 
@@ -37,9 +36,7 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
 
     def __init__(self, home_volume):
         self.opened = coroutine.Event()
-        self._subscriptions = {}
         self._jobs = coroutine.Pool()
-        self._servers = coroutine.Pool()
         self.node_mount = None
 
         dict.__init__(self)
@@ -56,7 +53,7 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
     def __setitem__(self, mountpoint, mount):
         dict.__setitem__(self, mountpoint, mount)
         mount.mountpoint = mountpoint
-        mount.publisher = self.broadcast
+        mount.broadcast = self.broadcast
         mount.set_mounted(True)
 
     def __delitem__(self, mountpoint):
@@ -113,21 +110,6 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
         if mountpoint == '/':
             mount.set_mounted(True)
         return mount.mounted.is_set()
-
-    @db.volume_command(method='POST', cmd='broadcast')
-    def broadcast(self, event, request=None):
-        if request is not None:
-            event = request.content
-
-        for callback, condition in self._subscriptions.items():
-            for key, value in condition.items():
-                if event.get(key) != value:
-                    break
-            else:
-                try:
-                    callback(event)
-                except Exception:
-                    exception(_logger, 'Failed to dispatch %r', event)
 
     @db.document_command(method='GET', cmd='make')
     def make(self, mountpoint, document, guid):
@@ -239,18 +221,11 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
         except db.CommandNotFound:
             return self.super_call(request, response)
 
-    def connect(self, callback, condition=None, **kwargs):
-        self._subscriptions[callback] = condition or kwargs
-
-    def disconnect(self, callback):
-        if callback in self._subscriptions:
-            del self._subscriptions[callback]
-
     def open(self):
         try:
             mountpoints.connect(_DB_DIRNAME,
                     self._found_mount, self._lost_mount)
-            if '/' in self:
+            if '/' in self and not client.server_mode.value:
                 if client.api_url.value:
                     crawler = self._wait_for_server
                 else:
@@ -260,7 +235,6 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
             self.opened.set()
 
     def close(self):
-        self._servers.kill()
         self._jobs.kill()
         for mountpoint in self.keys():
             del self[mountpoint]
@@ -285,13 +259,10 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
                 util.res_init()
 
     def _found_mount(self, path):
-        volume, server_mode = self._mount_volume(path)
-        if server_mode:
-            _logger.debug('Mount %r in node mode', path)
-            self[path] = self.node_mount = NodeMount(volume, self.volume)
-        else:
-            _logger.debug('Mount %r in node-less mode', path)
-            self[path] = LocalMount(volume)
+        volume = Volume(path, lazy_open=client.lazy_open.value)
+        self._jobs.spawn(volume.populate)
+        _logger.debug('Mount %r in node-less mode', path)
+        self[path] = LocalMount(volume)
 
     def _lost_mount(self, path):
         mount = self.get(path)
@@ -301,33 +272,6 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
         if isinstance(mount, NodeMount):
             self.node_mount = None
         del self[path]
-
-    def _mount_volume(self, path):
-        lazy_open = client.lazy_open.value
-        server_mode = client.server_mode.value and exists(join(path, 'node'))
-
-        if server_mode:
-            if self._servers:
-                _logger.warning('Do not start server for %r, '
-                        'server already started', path)
-                server_mode = False
-            else:
-                lazy_open = False
-
-        volume = Volume(path, lazy_open=lazy_open)
-        self._jobs.spawn(volume.populate)
-
-        if server_mode:
-            _logger.info('Start %r server on %s port',
-                    volume.root, node.port.value)
-            server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
-                    router.Router(NodeCommands(volume)))
-            self._servers.spawn(server.serve_forever)
-
-            # Let servers start before publishing mount event
-            coroutine.dispatch()
-
-        return volume, server_mode
 
     def _clone_jobject(self, uid, value, get_props, force):
         if value:
