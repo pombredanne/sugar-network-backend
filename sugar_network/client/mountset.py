@@ -226,10 +226,10 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
             mountpoints.connect(_DB_DIRNAME,
                     self._found_mount, self._lost_mount)
             if '/' in self and not client.server_mode.value:
-                if client.api_url.value:
-                    crawler = self._wait_for_server
-                else:
+                if client.discover_server.value:
                     crawler = self._discover_server
+                else:
+                    crawler = self._wait_for_server
                 self._jobs.spawn(crawler)
         finally:
             self.opened.set()

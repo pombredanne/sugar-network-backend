@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import json
 import select
 
 from __init__ import tests
@@ -52,6 +53,33 @@ class HTTPTest(tests.Test):
         self.assertEqual(
                 [None, None, None, None, -1, {'foo': 'bar'}],
                 events)
+
+    def test_call_ReturnStream(self):
+
+        class Commands(db.CommandsProcessor):
+
+            @db.volume_command(method='GET', cmd='f1', mime_type='application/json')
+            def f1(self):
+                yield json.dumps('result')
+
+            @db.volume_command(method='GET', cmd='f2', mime_type='foo/bar')
+            def f2(self):
+                yield json.dumps('result')
+
+        self.server = coroutine.WSGIServer(('localhost', local.ipc_port.value), router.Router(Commands()))
+        coroutine.spawn(self.server.serve_forever)
+        coroutine.dispatch()
+        client = http.Client('http://localhost:%s' % local.ipc_port.value, sugar_auth=False)
+
+        request = router.Request()
+        request['method'] = 'GET'
+        request['cmd'] = 'f1'
+        self.assertEqual('result', client.call(request))
+
+        request = router.Request()
+        request['method'] = 'GET'
+        request['cmd'] = 'f2'
+        self.assertEqual('result', json.load(client.call(request)))
 
 
 if __name__ == '__main__':

@@ -188,10 +188,10 @@ class Client(object):
             if 'Content-Type' in reply.headers:
                 response.content_type = reply.headers['Content-Type']
 
-        result = self._decode_reply(reply)
-        if result is None:
-            result = reply.raw
-        return result
+        if reply.headers.get('Content-Type') == 'application/json':
+            return json.loads(reply.content)
+        else:
+            return reply.raw
 
     def subscribe(self, **condition):
         return _Subscription(self, condition, _RECONNECTION_NUMBER)
@@ -218,8 +218,7 @@ class _Subscription(object):
         self._tries = tries or 1
         self._client = aclient
         self._content = None
-        self._params = condition
-        self._params['cmd'] = 'subscribe'
+        self._condition = condition
 
     def __iter__(self):
         while True:
@@ -229,7 +228,7 @@ class _Subscription(object):
 
     def fileno(self):
         # pylint: disable-msg=W0212
-        return self._handshake()._fp.fp.fileno()
+        return self._handshake(ping=True)._fp.fp.fileno()
 
     def pull(self):
         for a_try in (1, 0):
@@ -252,15 +251,17 @@ class _Subscription(object):
                 exception('Failed to parse %r event from %r subscription',
                         line, self._client.api_url)
 
-    def _handshake(self):
+    def _handshake(self, **params):
         if self._content is not None:
             return self._content
+        params.update(self._condition)
+        params['cmd'] = 'subscribe'
 
-        _logger.debug('Subscribe to %r', self._client.api_url)
+        _logger.debug('Subscribe to %r, %r', self._client.api_url, params)
 
         for a_try in reversed(xrange(self._tries)):
             try:
-                response = self._client.request('GET', params=self._params)
+                response = self._client.request('GET', params=params)
                 break
             except Exception:
                 if a_try == 0:

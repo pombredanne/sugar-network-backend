@@ -164,11 +164,6 @@ class Commands(object):
     def __init__(self):
         self._pooler = _Pooler()
 
-    def broadcast(self, event):
-        _logger.debug('Publish event: %r', event)
-        self._pooler.notify_all(event)
-        coroutine.dispatch()
-
     @router.route('GET', '/robots.txt')
     def robots(self, request, response):
         response.content_type = 'text/plain'
@@ -185,8 +180,8 @@ class Commands(object):
         return _HELLO_HTML
 
     @db.volume_command(method='GET', cmd='subscribe',
-            mime_type='application/json')
-    def subscribe(self, request=None, response=None, **condition):
+            mime_type='text/event-stream')
+    def subscribe(self, request=None, response=None, ping=False, **condition):
         """Subscribe to Server-Sent Events."""
         if request is not None and not condition:
             condition = request.query
@@ -196,10 +191,30 @@ class Commands(object):
         peer = 'anonymous'
         if hasattr(request, 'environ'):
             peer = request.environ.get('HTTP_SUGAR_USER') or peer
-        return self._pull_events(peer, condition)
+        return self._pull_events(peer, ping, condition)
 
-    def _pull_events(self, peer, condition):
+    @db.volume_command(method='POST', cmd='broadcast',
+            mime_type='application/json', permissions=db.ACCESS_LOCAL)
+    def broadcast(self, event=None, request=None):
+        if request is not None:
+            event = request.content
+        _logger.debug('Publish event: %r', event)
+        self._pooler.notify_all(event)
+        coroutine.dispatch()
+
+    def _pull_events(self, peer, ping, condition):
         _logger.debug('Start pulling events to %s user', peer)
+
+        if ping:
+            # XXX The whole commands' kwargs handling should be redesigned
+            if 'ping' in condition:
+                condition.pop('ping')
+            # If non-greenlet application needs only to initiate
+            # a subscription and do not stuck in waiting for the first event,
+            # it should pass `ping` argument to return fake event to unblock
+            # `GET /?cmd=subscribe` call.
+            yield 'data: %s\n\n' % json.dumps({'event': 'pong'})
+
         try:
             while True:
                 event = self._pooler.wait()

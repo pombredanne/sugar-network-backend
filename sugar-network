@@ -204,6 +204,12 @@ class Application(application.Application):
                     print eval('result%s' % key)
             else:
                 print dumps(result, indent=2)
+        elif response.content_type == 'text/event-stream':
+            while True:
+                chunk = util.readline(result)
+                if not chunk:
+                    break
+                sys.stdout.write(chunk)
         elif hasattr(result, 'read'):
             while True:
                 chunk = result.read(BUFFER_SIZE)
