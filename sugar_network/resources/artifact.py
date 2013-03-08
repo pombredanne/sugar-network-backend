@@ -40,18 +40,13 @@ class Artifact(Resource):
     def description(self, value):
         return value
 
-    @db.indexed_property(slot=2, typecast=int, default=0,
-            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
-    def downloads(self, value):
-        return value
-
     @db.indexed_property(slot=3, typecast=resources.RATINGS, default=0,
-            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
+            permissions=db.ACCESS_READ | db.ACCESS_CALC)
     def rating(self, value):
         return value
 
     @db.stored_property(typecast=[], default=[0, 0],
-            permissions=db.ACCESS_READ | db.ACCESS_SYSTEM)
+            permissions=db.ACCESS_READ | db.ACCESS_CALC)
     def reviews(self, value):
         if value is None:
             return 0

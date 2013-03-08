@@ -25,7 +25,6 @@ AUTHOR_INSYSTEM = 1
 AUTHOR_ORIGINAL = 2
 AUTHOR_ALL = (AUTHOR_INSYSTEM | AUTHOR_ORIGINAL)
 
-_DIFF_CHUNK = 1024
 
 _logger = logging.getLogger('resources.volume')
 

@@ -76,7 +76,6 @@ class Sniffer(object):
 
 class _ObjectStats(object):
 
-    downloaded = 0
     reviews = 0
     rating = 0
 
@@ -178,19 +177,15 @@ class _ResourceStats(_Stats):
         if type(self.active) is dict:
             directory = self._volume[self.DOCUMENT]
             for guid, stats in self.active.items():
-                if not stats.downloaded and not stats.reviews:
+                if not stats.reviews:
                     continue
-                props = {}
-                doc = directory.get(guid)
-                if stats.downloaded:
-                    props['downloads'] = doc['downloads'] + stats.downloaded
-                if stats.reviews:
-                    reviews, rating = doc['reviews']
-                    reviews += stats.reviews
-                    rating += stats.rating
-                    props['reviews'] = [reviews, rating]
-                    props['rating'] = int(round(float(rating) / reviews))
-                directory.update(guid, props)
+                reviews, rating = directory.get(guid)['reviews']
+                reviews += stats.reviews
+                rating += stats.rating
+                directory.update(guid, {
+                    'reviews': [reviews, rating],
+                    'rating': int(round(float(rating) / reviews)),
+                    })
 
         result = {}
         for attr in dir(self):
@@ -230,11 +225,10 @@ class _ContextStats(_ResourceStats):
 
     DOCUMENT = 'context'
 
-    downloaded = 0
-
     released = 0
     failed = 0
     reviewed = 0
+    downloaded = 0
 
     def __init__(self, stats, volume):
         _ResourceStats.__init__(self, stats, volume)
@@ -242,10 +236,10 @@ class _ContextStats(_ResourceStats):
 
     def commit(self):
         result = _ResourceStats.commit(self)
-        self.downloaded = 0
         self.released = 0
         self.failed = 0
         self.reviewed = 0
+        self.downloaded = 0
         self.active.clear()
         return result
 
@@ -256,13 +250,12 @@ class _ImplementationStats(_Stats):
     OWNERS = ['context']
 
     def log(self, request):
-        context = _Stats.log(self, request)
+        _Stats.log(self, request)
 
         method = request['method']
         if method == 'GET':
             if request.get('prop') == 'data':
                 self._stats['context'].downloaded += 1
-                context.downloaded += 1
         elif method == 'POST':
             self._stats['context'].released += 1
 
@@ -361,8 +354,8 @@ class _ArtifactStats(_ResourceStats):
     DOCUMENT = 'artifact'
     OWNERS = ['context']
 
-    downloaded = 0
     reviewed = 0
+    downloaded = 0
 
     def __init__(self, stats, volume):
         _ResourceStats.__init__(self, stats, volume)
@@ -373,13 +366,12 @@ class _ArtifactStats(_ResourceStats):
 
         if request['method'] == 'GET':
             if request.get('prop') == 'data':
-                self.active_object(request['guid']).downloaded += 1
                 self.downloaded += 1
 
     def commit(self):
         result = _ResourceStats.commit(self)
-        self.downloaded = 0
         self.reviewed = 0
+        self.downloaded = 0
         self.active.clear()
         return result
 

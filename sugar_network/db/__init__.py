@@ -352,7 +352,8 @@ Volume
 from sugar_network.db.env import \
         ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, ACCESS_DELETE, \
         ACCESS_AUTHOR, ACCESS_AUTH, ACCESS_PUBLIC, ACCESS_LEVELS, \
-        ACCESS_SYSTEM, ACCESS_LOCAL, ACCESS_REMOTE, MAX_LIMIT, \
+        ACCESS_SYSTEM, ACCESS_LOCAL, ACCESS_REMOTE, ACCESS_CALC, \
+        MAX_LIMIT, \
         index_flush_timeout, index_flush_threshold, index_write_queue, \
         BadRequest, NotFound, Forbidden, CommandNotFound, \
         uuid, default_lang, gettext

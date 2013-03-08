@@ -21,3 +21,4 @@
   - trace says that current sugar version is (ok)
 - increase granularity for sync.chunked_encode()
 - slave._Pooler might leak events if pullers are not in time to call wait()
+- revert per-document "downloads" property as "launches", a part of unpersonizalied user_stats

@@ -485,7 +485,6 @@ class StatsTest(tests.Test):
         volume['implementation'].create(guid='implementation', context='context', license='GPLv3', version='1', date=0, stability='stable', notes='')
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
-        self.assertEqual(0, volume['context'].get('context')['downloads'])
         self.assertEqual([0, 0], volume['context'].get('context')['reviews'])
         self.assertEqual(0, volume['context'].get('context')['rating'])
 
@@ -503,13 +502,11 @@ class StatsTest(tests.Test):
         stats.log(request)
         stats.commit()
 
-        self.assertEqual(1, volume['context'].get('context')['downloads'])
         self.assertEqual([1, 5], volume['context'].get('context')['reviews'])
         self.assertEqual(5, volume['context'].get('context')['rating'])
 
         stats.commit()
 
-        self.assertEqual(1, volume['context'].get('context')['downloads'])
         self.assertEqual([1, 5], volume['context'].get('context')['reviews'])
         self.assertEqual(5, volume['context'].get('context')['rating'])
 
@@ -523,7 +520,6 @@ class StatsTest(tests.Test):
         stats.log(request)
         stats.commit()
 
-        self.assertEqual(2, volume['context'].get('context')['downloads'])
         self.assertEqual([2, 6], volume['context'].get('context')['reviews'])
         self.assertEqual(3, volume['context'].get('context')['rating'])
 
@@ -534,7 +530,6 @@ class StatsTest(tests.Test):
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
-        self.assertEqual(0, volume['artifact'].get('artifact')['downloads'])
         self.assertEqual([0, 0], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(0, volume['artifact'].get('artifact')['rating'])
 
@@ -548,13 +543,11 @@ class StatsTest(tests.Test):
         stats.log(request)
         stats.commit()
 
-        self.assertEqual(1, volume['artifact'].get('artifact')['downloads'])
         self.assertEqual([1, 5], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(5, volume['artifact'].get('artifact')['rating'])
 
         stats.commit()
 
-        self.assertEqual(1, volume['artifact'].get('artifact')['downloads'])
         self.assertEqual([1, 5], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(5, volume['artifact'].get('artifact')['rating'])
 
@@ -567,7 +560,6 @@ class StatsTest(tests.Test):
         stats.log(request)
         stats.commit()
 
-        self.assertEqual(2, volume['artifact'].get('artifact')['downloads'])
         self.assertEqual([2, 6], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(3, volume['artifact'].get('artifact')['rating'])
 

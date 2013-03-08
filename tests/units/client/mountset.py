@@ -411,8 +411,14 @@ class MountsetTest(tests.Test):
 
     def test_clone_Content(self):
         updates = []
+
+        def journal_update(self, guid, data=None, preview=None, **kwargs):
+            if data is not None:
+                kwargs['data'] = data.read()
+            updates.append((guid, kwargs))
+
         self.override(journal.Commands, '__init__', lambda *args: None)
-        self.override(journal.Commands, 'journal_update', lambda self, guid, preview=None, **kwargs: updates.append((guid, kwargs)))
+        self.override(journal.Commands, 'journal_update', journal_update)
         self.override(journal.Commands, 'journal_delete', lambda self, guid: updates.append((guid,)))
 
         self.start_ipc_and_restful_server()
@@ -483,8 +489,14 @@ class MountsetTest(tests.Test):
 
     def test_clone_Artifacts(self):
         updates = []
+
+        def journal_update(self, guid, data=None, preview=None, **kwargs):
+            if data is not None:
+                kwargs['data'] = data.read()
+            updates.append((guid, kwargs))
+
         self.override(journal.Commands, '__init__', lambda *args: None)
-        self.override(journal.Commands, 'journal_update', lambda self, guid, preview=None, **kwargs: updates.append((guid, kwargs)))
+        self.override(journal.Commands, 'journal_update', journal_update)
         self.override(journal.Commands, 'journal_delete', lambda self, guid: updates.append((guid,)))
 
         self.start_ipc_and_restful_server([User, Context, Implementation, Artifact])
