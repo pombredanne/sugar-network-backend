@@ -306,7 +306,7 @@ class Directory(object):
                 diff = {}
                 diff_seq = util.Sequence()
                 for name, prop in self.metadata.items():
-                    if name == 'seqno':
+                    if name == 'seqno' or prop.permissions & env.ACCESS_CALC:
                         continue
                     meta = doc.meta(name)
                     if meta is None:

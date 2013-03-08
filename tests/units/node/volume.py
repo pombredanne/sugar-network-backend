@@ -9,7 +9,14 @@ from __init__ import tests
 
 from sugar_network import db
 from sugar_network.node.volume import diff, merge
+from sugar_network.node.stats_node import stats_node_step, Sniffer
+from sugar_network.resources.user import User
 from sugar_network.resources.volume import Volume, Resource
+from sugar_network.resources.review import Review
+from sugar_network.resources.context import Context
+from sugar_network.resources.artifact import Artifact
+from sugar_network.resources.feedback import Feedback
+from sugar_network.resources.solution import Solution
 from sugar_network.toolkit import util
 
 
@@ -321,6 +328,52 @@ class VolumeTest(tests.Test):
         records = generator()
         self.assertEqual(([[1, 3]], [[101, 101]]), merge(volume, records))
         assert volume['document'].exists('1')
+
+    def test_merge_UpdateReviewStats(self):
+        stats_node_step.value = 1
+        volume = Volume('db', [User, Context, Review, Feedback, Solution, Artifact])
+        stats = Sniffer(volume)
+
+        volume['context'].create(
+                guid='context',
+                implement='guid',
+                type='package',
+                title='title',
+                summary='summary',
+                description='description')
+        volume['artifact'].create(
+                guid='artifact',
+                type='instance',
+                context='context',
+                title='',
+                description='')
+
+        records = [
+                {'document': 'review'},
+                {'guid': '1', 'diff': {
+                    'guid': {'value': '1', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'artifact': {'value': 'artifact', 'mtime': 4.0},
+                    'rating': {'value': 1, 'mtime': 1.0},
+                    }},
+                {'guid': '2', 'diff': {
+                    'guid': {'value': '2', 'mtime': 2.0},
+                    'ctime': {'value': 2, 'mtime': 2.0},
+                    'mtime': {'value': 2, 'mtime': 2.0},
+                    'context': {'value': 'context', 'mtime': 2.0},
+                    'rating': {'value': 2, 'mtime': 2.0},
+                    }},
+                {'commit': [[1, 2]]},
+                ]
+        merge(volume, records, node_stats=stats)
+
+        stats.commit()
+        self.assertEqual(1, volume['artifact'].get('artifact')['rating'])
+        self.assertEqual([1, 1], volume['artifact'].get('artifact')['reviews'])
+        self.assertEqual(2, volume['context'].get('context')['rating'])
+        self.assertEqual([1, 2], volume['context'].get('context')['reviews'])
 
     def test_diff_Blobs(self):
 

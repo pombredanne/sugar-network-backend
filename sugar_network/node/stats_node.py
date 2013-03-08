@@ -59,7 +59,7 @@ class Sniffer(object):
             self._stats[cls.DOCUMENT] = cls(self._stats, volume)
 
     def log(self, request):
-        if request.principal is None or 'cmd' in request:
+        if 'cmd' in request:
             return
         stats = self._stats.get(request.get('document'))
         if stats is not None:
@@ -125,10 +125,11 @@ class _Stats(object):
         elif method == 'POST':
             context = parse_context(request.content)
 
-        stats = self._stats['user']
-        if method in ('POST', 'PUT', 'DELETE'):
-            stats.effective.add(request.principal)
-        stats.active.add(request.principal)
+        if request.principal:
+            stats = self._stats['user']
+            if method in ('POST', 'PUT', 'DELETE'):
+                stats.effective.add(request.principal)
+            stats.active.add(request.principal)
 
         if context:
             return self._stats['context'].active_object(context)

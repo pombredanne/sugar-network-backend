@@ -48,25 +48,40 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None, **kwargs):
     yield {'commit': out_seq}
 
 
-def merge(volume, records, shift_seqno=True):
+def merge(volume, records, shift_seqno=True, node_stats=None):
+    document = None
     directory = None
     commit_seq = util.Sequence()
     merged_seq = util.Sequence()
     synced = False
 
     for record in records:
-        document = record.get('document')
-        if document is not None:
-            directory = volume[document]
+        document_ = record.get('document')
+        if document_:
+            document = document_
+            directory = volume[document_]
             continue
 
         if 'guid' in record:
-            enforce(directory is not None,
-                    'Invalid merge, no document')
+            enforce(document, 'Invalid merge, no document')
+
             seqno, merged = directory.merge(shift_seqno=shift_seqno, **record)
             synced = synced or merged
             if seqno is not None:
                 merged_seq.include(seqno, seqno)
+
+            if node_stats is not None and document == 'review':
+                request = _Request()
+                request['document'] = document
+                request['method'] = 'POST'
+                patch = record['diff']
+                request.content = {
+                        'context': patch['context']['value'],
+                        'rating': patch['rating']['value'],
+                        }
+                if 'artifact' in patch:
+                    request.content['artifact'] = patch['artifact']['value']
+                node_stats.log(request)
             continue
 
         commit = record.get('commit')
@@ -78,3 +93,9 @@ def merge(volume, records, shift_seqno=True):
         volume.notify({'event': 'sync'})
 
     return commit_seq, merged_seq
+
+
+class _Request(dict):
+
+    principal = None
+    content = None

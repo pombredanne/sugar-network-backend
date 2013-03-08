@@ -524,6 +524,37 @@ class DocumentTest(tests.Test):
             [i for i in directory.diff(Sequence([[6, 100]]), out_seq)])
         self.assertEqual([[6, 6]], out_seq)
 
+    def test_diff_IgnoreCalcProps(self):
+
+        class Document(document.Document):
+
+            @db.indexed_property(slot=1, permissions=db.ACCESS_PUBLIC | db.ACCESS_CALC)
+            def prop(self, value):
+                return value
+
+        directory = Directory('.', Document, IndexWriter)
+
+        directory.create(guid='guid', prop='1', ctime=1, mtime=1)
+        self.utime('.', 1)
+
+        out_seq = Sequence()
+        self.assertEqual([
+            {'guid': 'guid', 'diff': {
+                'guid': {'value': 'guid', 'mtime': 1},
+                'ctime': {'value': 1, 'mtime': 1},
+                'mtime': {'value': 1, 'mtime': 1},
+                }},
+            ],
+            [i for i in directory.diff(Sequence([[0, None]]), out_seq)])
+        self.assertEqual([[1, 1]], out_seq)
+
+        directory.update(guid='guid', prop='2')
+        out_seq = Sequence()
+        self.assertEqual([
+            ],
+            [i for i in directory.diff(Sequence([[6, 100]]), out_seq)])
+        self.assertEqual([], out_seq)
+
     def test_diff_Exclude(self):
 
         class Document(document.Document):
