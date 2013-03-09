@@ -79,22 +79,23 @@ def _solve(requirement):
                 driver.target_arch, command_name=requirement.command)
         if solver.ready:
             break
-
-        packaged_feeds = []
-        to_resolve = []
-
+        resolved = False
         for url in solver.feeds_used:
             feed = config.iface_cache.get_feed(url)
-            if feed is not None and feed.to_resolve:
-                packaged_feeds.append(feed)
-                to_resolve.extend(feed.to_resolve)
-
-        if not to_resolve:
+            if feed is None:
+                continue
+            while feed.to_resolve:
+                try:
+                    resolved = packagekit.resolve(feed.to_resolve.pop(0))
+                    feed.resolve(resolved.values())
+                except Exception:
+                    if not feed.to_resolve:
+                        raise
+                else:
+                    resolved = True
+                    break
+        if not resolved:
             break
-
-        resolved = packagekit.resolve(to_resolve)
-        for feed in packaged_feeds:
-            feed.resolve([resolved[i] for i in feed.to_resolve])
 
     selections = solver.selections.selections
 
@@ -179,7 +180,7 @@ def _load_feed(context):
     for mountpoint in _mountpoints:
         try:
             feed_content = _client.get(['context', context],
-                    reply=['title', 'packages', 'versions', 'dependencies'],
+                    reply=['title', 'aliases', 'versions', 'dependencies'],
                     # TODO stability='stable'
                     mountpoint=mountpoint)
             pipe.trace('Found %s in %s mountpoint', context, mountpoint)
@@ -195,13 +196,10 @@ def _load_feed(context):
     feed.mountpoint = mountpoint
     feed.name = feed_content['title']
 
-    packages = feed_content['packages']
-    distr = '-'.join([lsb_release.distributor_id(), lsb_release.release()])
-    if distr in packages and packages[distr].get('status') == 'success':
-        feed.to_resolve = packages[distr].get('binary')
-    elif lsb_release.distributor_id() in packages:
-        feed.to_resolve = packages[lsb_release.distributor_id()].get('binary')
-    elif packages:
+    aliases = feed_content['aliases'].get(lsb_release.distributor_id())
+    if aliases:
+        feed.to_resolve = aliases.get('binary')
+    else:
         pipe.trace('No compatible packages for %s', context)
 
     for release in feed_content['versions']:

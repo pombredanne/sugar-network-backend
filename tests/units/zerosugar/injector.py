@@ -4,6 +4,7 @@
 import os
 import imp
 import json
+import pickle
 import shutil
 import zipfile
 import logging
@@ -14,6 +15,7 @@ from __init__ import tests
 
 from sugar_network.client import journal
 from sugar_network.toolkit import coroutine, enforce, pipe as pipe_, lsb_release
+from sugar_network.node import obs
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
@@ -27,6 +29,7 @@ class InjectorTest(tests.Test):
     def setUp(self, fork_num=0):
         tests.Test.setUp(self, fork_num)
         self.override(pipe_, 'trace', lambda *args: None)
+        self.override(obs, 'get_repos', lambda: [])
 
     def test_clone_Online(self):
         self.start_ipc_and_restful_server([User, Context, Implementation])
@@ -352,10 +355,10 @@ class InjectorTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'implement': 'dep1',
-            'packages': {
-                lsb_release.distributor_id() + '-' + lsb_release.release(): {
+            'aliases': {
+                lsb_release.distributor_id(): {
                     'status': 'success',
-                    'binary': ['dep1.bin'],
+                    'binary': [['dep1.bin']],
                     },
                 },
             })
@@ -365,32 +368,35 @@ class InjectorTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'implement': 'dep2',
-            'packages': {
-                lsb_release.distributor_id() + '-' + lsb_release.release(): {
+            'aliases': {
+                lsb_release.distributor_id(): {
                     'status': 'success',
-                    'binary': ['dep2.bin'],
+                    'binary': [['dep2.bin']],
                     },
                 },
             })
 
         def resolve(names):
-            with file('resolve', 'w') as f:
-                json.dump(names, f)
+            with file('resolve', 'a') as f:
+                pickle.dump(names, f)
             return dict([(i, {'name': i, 'pk_id': i, 'version': '0', 'arch': '*', 'installed': i == 'dep1.bin'}) for i in names])
 
         def install(packages):
-            with file('install', 'w') as f:
-                json.dump([i['name'] for i in packages], f)
+            with file('install', 'a') as f:
+                pickle.dump([i['name'] for i in packages], f)
 
         self.override(packagekit, 'resolve', resolve)
         self.override(packagekit, 'install', install)
 
         pipe = injector.launch('/', context)
         self.assertEqual('exit', [i for i in pipe][-1].get('state'))
-        self.assertEqual(
-                sorted(['dep1.bin', 'dep2.bin']),
-                sorted(json.load(file('resolve'))))
-        self.assertEqual(['dep2.bin'], json.load(file('install')))
+        with file('resolve') as f:
+            self.assertEqual(['dep1.bin'], pickle.load(f))
+            self.assertEqual(['dep2.bin'], pickle.load(f))
+            self.assertRaises(EOFError, pickle.load, f)
+        with file('install') as f:
+            self.assertEqual(['dep2.bin'], pickle.load(f))
+            self.assertRaises(EOFError, pickle.load, f)
 
     def test_SolutionsCache_Set(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
@@ -583,10 +589,10 @@ class InjectorTest(tests.Test):
             'title': 'title1',
             'summary': 'summary',
             'description': 'description',
-            'packages': {
-                lsb_release.distributor_id() + '-' + lsb_release.release(): {
+            'aliases': {
+                lsb_release.distributor_id(): {
                     'status': 'success',
-                    'binary': ['dep1.bin'],
+                    'binary': [['dep1.bin']],
                     },
                 },
             })
@@ -596,10 +602,10 @@ class InjectorTest(tests.Test):
             'title': 'title2',
             'summary': 'summary',
             'description': 'description',
-            'packages': {
-                lsb_release.distributor_id() + '-' + lsb_release.release(): {
+            'aliases': {
+                lsb_release.distributor_id(): {
                     'status': 'success',
-                    'binary': ['dep2.bin'],
+                    'binary': [['dep2.bin']],
                     },
                 },
             })
@@ -609,10 +615,10 @@ class InjectorTest(tests.Test):
             'title': 'title3',
             'summary': 'summary',
             'description': 'description',
-            'packages': {
-                lsb_release.distributor_id() + '-' + lsb_release.release(): {
+            'aliases': {
+                lsb_release.distributor_id(): {
                     'status': 'success',
-                    'binary': ['dep3.bin'],
+                    'binary': [['dep3.bin']],
                     },
                 },
             })
@@ -712,25 +718,25 @@ class InjectorTest(tests.Test):
 
         self.assertRaises(RuntimeError, solver.solve, '/', context)
 
-        remote.put(['context', 'dep', 'packages'], {
-            lsb_release.distributor_id() + '-' + lsb_release.release(): {
+        remote.put(['context', 'dep', 'aliases'], {
+            lsb_release.distributor_id(): {
                 'status': 'success',
-                'binary': ['bin'],
+                'binary': [['bin']],
                 },
             })
         self.assertEqual('dep', solver.solve('/', context)[-1]['context'])
 
-        remote.put(['context', 'dep', 'packages'], {
+        remote.put(['context', 'dep', 'aliases'], {
             'foo': {
                 'status': 'success',
-                'binary': ['bin'],
+                'binary': [['bin']],
                 },
             })
         self.assertRaises(RuntimeError, solver.solve, '/', context)
 
-        remote.put(['context', 'dep', 'packages'], {
+        remote.put(['context', 'dep', 'aliases'], {
             lsb_release.distributor_id(): {
-                'binary': ['bin'],
+                'binary': [['bin']],
                 },
             })
         self.assertEqual('dep', solver.solve('/', context)[-1]['context'])
