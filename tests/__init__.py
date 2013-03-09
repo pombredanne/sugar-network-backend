@@ -268,6 +268,7 @@ class Test(unittest.TestCase):
         self.mounts.open()
         self.mounts.opened.wait()
         coroutine.dispatch()
+        return volume
 
     def create_mountset(self, classes=None):
         self.start_server(classes, root=False)

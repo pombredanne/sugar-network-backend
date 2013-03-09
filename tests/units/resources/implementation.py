@@ -5,6 +5,7 @@ import xapian
 
 from __init__ import tests
 
+from sugar_network.toolkit import sugar
 from sugar_network.toolkit.router import Request
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.implementation import _encode_version, Implementation
@@ -85,6 +86,32 @@ class ImplementationTest(tests.Test):
         client.put(['context', context, 'type'], 'activity')
         client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
         self.assertEqual('application/vnd.olpc-sugar', self.mounts.volume['implementation'].get(impl).meta('data')['mime_type'])
+
+    def test_WrongAuthor(self):
+        volume = self.start_server()
+        client = IPCClient(params={'mountpoint': '~'})
+
+        volume['context'].create(
+                guid='context',
+                type='content',
+                title='title',
+                summary='summary',
+                description='description',
+                author={'fake': None}
+                )
+
+        impl = {'context': 'context',
+                'license': 'GPLv3+',
+                'version': '1',
+                'stability': 'stable',
+                'notes': '',
+                }
+        self.assertRaises(RuntimeError, client.post, ['implementation'], impl)
+        self.assertEqual(0, volume['implementation'].find()[1])
+
+        volume['context'].update('context', author={sugar.uid(): None})
+        guid = client.post(['implementation'], impl)
+        assert volume['implementation'].exists(guid)
 
 
 if __name__ == '__main__':

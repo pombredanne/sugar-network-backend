@@ -21,6 +21,7 @@ from sugar_network import db, resources
 from sugar_network.zerosugar.licenses import GOOD_LICENSES
 from sugar_network.zerosugar.spec import parse_version
 from sugar_network.resources.volume import Resource
+from sugar_network.toolkit import enforce
 
 
 def _encode_version(version):
@@ -45,6 +46,13 @@ class Implementation(Resource):
     @db.indexed_property(prefix='C',
             permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def context(self, value):
+        return value
+
+    @context.setter
+    def context(self, value):
+        context = self.volume['context'].get(value)
+        enforce(self.request.principal in context['author'], db.Forbidden,
+                'Only Context authors can submit new Implementations')
         return value
 
     @db.indexed_property(prefix='L', full_text=True, typecast=[GOOD_LICENSES],
