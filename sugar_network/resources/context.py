@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
+import logging
 from os.path import join
 
 from sugar_network import db, resources, static
@@ -22,6 +23,9 @@ from sugar_network.zerosugar import clones
 from sugar_network.zerosugar.spec import Spec
 from sugar_network.node import obs
 from sugar_network.toolkit import coroutine, exception
+
+
+_logger = logging.getLogger('resources.context')
 
 
 class Context(Resource):
@@ -191,23 +195,32 @@ class Context(Resource):
         packages = {}
         for repo in obs.get_repos():
             alias = aliases.get(repo['distributor_id'])
-            if not alias or '*' not in alias:
+            if not alias:
                 continue
-            packages[repo['distributor_id']] = alias['*']
-            alias = alias['*'].copy()
-            try:
-                to_resolve = alias.get('binary', []) + \
-                        alias.get('devel', [])
-                if to_resolve:
-                    for arch in repo['arches']:
-                        obs.resolve(repo['name'], arch, to_resolve)
-                    alias['status'] = 'success'
+            package = packages[repo['name']] = {}
+            for kind in ('binary', 'devel'):
+                obs_fails = []
+                for to_resolve in alias.get(kind) or []:
+                    if not to_resolve:
+                        continue
+                    try:
+                        for arch in repo['arches']:
+                            obs.resolve(repo['name'], arch, to_resolve)
+                    except Exception, error:
+                        _logger.warning('Failed to resolve %r on %s',
+                                to_resolve, repo['name'])
+                        obs_fails.append(str(error))
+                        continue
+                    package[kind] = to_resolve
+                    break
                 else:
-                    alias['status'] = 'no packages to resolve'
-            except Exception, error:
-                exception('Failed to resolve %r', alias)
-                alias = {'status': str(error)}
-            packages[repo['name']] = alias
+                    package['status'] = '; '.join(obs_fails)
+                    break
+            else:
+                if 'binary' in package:
+                    package['status'] = 'success'
+                else:
+                    package['status'] = 'no packages to resolve'
 
         self.request.call('PUT', document='context', guid=self.guid,
                 content={'packages': packages})
