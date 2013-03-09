@@ -35,7 +35,7 @@ class NodeClientTest(tests.Test):
             self.waitpid(self.client_pid, signal.SIGINT)
         tests.Test.tearDown(self)
 
-    def test_CLI_CloneContext(self):
+    def test_CloneContext(self):
         context = self.cli(['POST', '/context'], stdin={
             'type': 'activity',
             'title': 'title1',
@@ -68,7 +68,7 @@ class NodeClientTest(tests.Test):
         assert exists('client/Activities/topdir/probe')
         self.assertEqual('ok', file('client/Activities/topdir/probe').read())
 
-    def test_CLI_FavoriteContext(self):
+    def test_FavoriteContext(self):
         context = self.cli(['POST', '/context'], stdin={
             'type': 'activity',
             'title': 'title1',
@@ -84,16 +84,20 @@ class NodeClientTest(tests.Test):
         assert exists(path)
         self.assertEqual(True, json.load(file(path))['value'])
 
-    def test_CLI_UsecaseOOB(self):
+    def test_UsecaseOOB(self):
         privkey_path = '.sugar/default/owner.key'
         os.unlink(privkey_path)
 
+        self.assertEqual(
+                '\n'.join(['dep1.rpm', 'dep2.rpm', 'dep3.rpm']),
+                self.cli(['GET', '/context/package', 'cmd=deplist', 'repo=Fedora-14', '--anonymous', '--no-dbus', '--porcelain']))
+
         self.cli(['PUT', '/context/context', '--anonymous', 'cmd=clone', '-jd', '1'])
         self.cli(['PUT', '/context/context', '--anonymous', 'cmd=favorite', '-jd', 'true'])
-
-        assert not exists(privkey_path)
         assert exists('Activities/Chat.activity/activity/activity.info')
         self.assertEqual(True, json.load(file('client/db/context/co/context/favorite'))['value'])
+
+        assert not exists(privkey_path)
 
     def cli(self, cmd, stdin=None):
         cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd
@@ -108,8 +112,9 @@ class NodeClientTest(tests.Test):
             coroutine.sleep(2)
 
         result = util.assert_call(cmd, stdin=json.dumps(stdin))
-        if result:
-            return json.loads(result)
+        if result and '--porcelain' not in cmd:
+            result = json.loads(result)
+        return result
 
 
 if __name__ == '__main__':
