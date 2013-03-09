@@ -163,7 +163,7 @@ class Context(Resource):
                 try:
                     spec = Spec(root=path)
                 except Exception:
-                    exception('Failed to read %r spec file', path)
+                    exception(_logger, 'Failed to read %r spec file', path)
                     continue
                 result.append({
                     'guid': spec.root,
@@ -227,5 +227,4 @@ class Context(Resource):
         # Shift mtime to invalidate solutions
         self.volume['implementation'].mtime = int(time.time())
 
-        if 'Fedora' in packages:
-            obs.presolve(packages['Fedora'].get('binary') or [])
+        obs.presolve(aliases)

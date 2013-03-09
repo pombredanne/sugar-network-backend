@@ -39,6 +39,9 @@ obs_presolve_path = Option(
         'filesystem path to store presolved packages',
         default='/var/lib/presolve')
 
+_PRESOLVE_REPO_MAP = {
+        'OLPC': 'Fedora',
+        }
 
 _logger = logging.getLogger('node.obs')
 _client = None
@@ -59,31 +62,45 @@ def resolve(repo, arch, names):
             })
 
 
-def presolve(names):
+def presolve(aliases):
     for repo in _get_repos(obs_presolve_project.value):
-        for arch in repo['arches']:
-            dirname = join(obs_presolve_path.value, repo['name'], arch)
-            if not exists(dirname):
-                os.makedirs(dirname)
-            for package in names:
-                try:
-                    response = _request('GET', ['resolve'], params={
-                        'project': obs_presolve_project.value,
-                        'repository': repo['name'],
-                        'arch': arch,
-                        'package': package,
-                        'withdeps': '1',
-                        'exclude': 'sugar',
-                        })
-                except Exception:
-                    exception('Failed to resolve %s:%s:%s for presolving',
-                            repo['name'], arch, package)
-                    continue
+        alias = aliases.get(_PRESOLVE_REPO_MAP[repo['distributor_id']])
+        if not alias:
+            continue
+
+        binaries = alias['binary']
+        while binaries:
+            names = binaries.pop()
+            presolves = []
+            try:
+                for arch in repo['arches']:
+                    for package in names:
+                        response = _request('GET', ['resolve'], params={
+                            'project': obs_presolve_project.value,
+                            'repository': repo['name'],
+                            'arch': arch,
+                            'package': package,
+                            'withdeps': '1',
+                            'exclude': 'sugar',
+                            })
+                        presolves.append((package, arch, response))
+            except Exception:
+                exception(_logger, 'Failed to presolve %r on %s',
+                        names, repo['name'])
+                continue
+
+            _logger.debug('Presolve %r on %s', names, repo['name'])
+
+            for package, arch, response in presolves:
+                dirname = join(obs_presolve_path.value, repo['name'], arch)
+                if not exists(dirname):
+                    os.makedirs(dirname)
                 deps_graph = []
                 for pkg in response.findall('binary'):
                     deps_graph.append(dict(pkg.items()))
                 with util.new_file(join(dirname, package)) as f:
                     json.dump(deps_graph, f)
+            break
 
 
 def _request(*args, **kwargs):

@@ -3,7 +3,6 @@
 - (!) Editors' workflows:
   - (?) log all (including editros) posters of particular document to minimize conflicts about why somthing was changed
     or better, detailed log for every editor's change
-  - restrict sync content, especially for actiivity versions
 
 - after reconnection to subscription (eg, when HTTP proxy closed the connection), recall cmd=stat
 - GC implementations cache
@@ -17,8 +16,6 @@
 - handle DELETE while calculating per-object node stats
 - process depencies for non-/ mountpoint launches
 - unstall activities on checking out and on initial syncing
-- "Cannot find implementation for" error if there is no required sugar
-  - trace says that current sugar version is (ok)
 - increase granularity for sync.chunked_encode()
 - slave._Pooler might leak events if pullers are not in time to call wait()
 - revert per-document "downloads" property as "launches", a part of unpersonizalied user_stats

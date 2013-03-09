@@ -114,7 +114,10 @@ class ObsTest(tests.Test):
             ]))
 
         obs.obs_presolve_path.value = 'packages'
-        obs.presolve(['pkg1', 'pkg2'])
+        obs.presolve({
+            'Debian': {'binary': [['deb']]},
+            'Fedora': {'binary': [['pkg1', 'pkg2']], 'devel': [['pkg3']]},
+            })
 
         self.assertEqual([
             {'url': 'http://pkg1-1.prm', 'name': 'pkg1-1'},
