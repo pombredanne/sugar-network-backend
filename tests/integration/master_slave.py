@@ -21,14 +21,12 @@ from sugar_network.toolkit import sugar, util, coroutine
 
 # /tmp might be on tmpfs wich returns 0 bytes for free mem all time
 local_tmproot = join(abspath(dirname(__file__)), '.tmp')
-orig_tmproot = tests.tmproot
 
 
 class MasterSlaveTest(tests.Test):
 
     def setUp(self):
-        tests.tmproot = local_tmproot
-        tests.Test.setUp(self)
+        tests.Test.setUp(self, tmp_root=local_tmproot)
 
         self.touch(('master/db/master', 'localhost:8100'))
 
@@ -56,7 +54,6 @@ class MasterSlaveTest(tests.Test):
         self.waitpid(self.master_pid, signal.SIGINT)
         self.waitpid(self.slave_pid, signal.SIGINT)
         tests.Test.tearDown(self)
-        tests.tmproot = orig_tmproot
 
     def test_OnlineSync(self):
         ts = int(time.time())

@@ -16,18 +16,25 @@
 import os
 import socket
 import logging
-from os.path import join
+from os.path import join, exists
+from gettext import gettext as _
 
 from sugar_network import db, client, node
 from sugar_network.toolkit import netlink, mountpoints, router
-from sugar_network.toolkit import coroutine, util, enforce
 from sugar_network.client import journal, zeroconf
-from sugar_network.client.mounts import LocalMount, NodeMount
+from sugar_network.client.mounts import LocalMount, NetworkMount
 from sugar_network.zerosugar import clones, injector
 from sugar_network.resources.volume import Volume, Commands
+from sugar_network.toolkit import Option, coroutine, util, enforce
 
 
-_DB_DIRNAME = '.sugar-network'
+no_dbus = Option(
+        'disable any DBus usage',
+        default=False, type_cast=Option.bool_cast,
+        action='store_true', name='no-dbus')
+
+# Top-level directory name to keep SN data on mounted devices
+_SN_DIRNAME = 'sugar-network'
 
 _logger = logging.getLogger('client.mountset')
 
@@ -37,12 +44,11 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
     def __init__(self, home_volume):
         self.opened = coroutine.Event()
         self._jobs = coroutine.Pool()
-        self.node_mount = None
 
         dict.__init__(self)
         db.CommandsProcessor.__init__(self)
         Commands.__init__(self)
-        if not client.no_dbus.value:
+        if not no_dbus.value:
             journal.Commands.__init__(self)
         self.volume = home_volume
 
@@ -223,7 +229,7 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
 
     def open(self):
         try:
-            mountpoints.connect(_DB_DIRNAME,
+            mountpoints.connect(_SN_DIRNAME,
                     self._found_mount, self._lost_mount)
             if '/' in self and not client.server_mode.value:
                 if client.discover_server.value:
@@ -258,20 +264,41 @@ class Mountset(dict, db.CommandsProcessor, Commands, journal.Commands):
                 # Otherwise, `socket.gethostbyname()` will return stale resolve
                 util.res_init()
 
-    def _found_mount(self, path):
-        volume = Volume(path, lazy_open=client.lazy_open.value)
+    def _found_mount(self, root):
+        db_path = join(root, _SN_DIRNAME, 'db')
+        volume = Volume(db_path, lazy_open=client.lazy_open.value)
         self._jobs.spawn(volume.populate)
-        _logger.debug('Mount %r in node-less mode', path)
-        self[path] = LocalMount(volume)
 
-    def _lost_mount(self, path):
-        mount = self.get(path)
-        if mount is None:
+        node_guid_path = join(db_path, 'node')
+        if client.server_mode.value and exists(node_guid_path):
+            _logger.debug('Found %r node mount', root)
+            if '/' in self:
+                self.broadcast({'event': 'alert', 'message':
+                        _('Sugar Network volume was already mounted, '
+                          'ignore newly mounted device.')})
+            else:
+                with file(node_guid_path) as f:
+                    node_guid = f.read().strip()
+                self['/'] = NetworkMount(node_guid, volume, self.volume)
+                self.broadcast({'event': 'alert', 'message':
+                        _('Sugar Network volume was mounted, '
+                          'start behaving as a server.')})
+        else:
+            _logger.debug('Found %r mount', root)
+            self[root] = LocalMount(volume)
+
+    def _lost_mount(self, root):
+        if '/' in self and self['/'].volume.root.startswith(root):
+            self.broadcast({'event': 'alert', 'message':
+                    _('Sugar Network volume was unmounted, '
+                      'stop behaving as a server.')})
+            mount_path = '/'
+        elif root in self:
+            mount_path = root
+        else:
             return
-        _logger.debug('Lost %r mount', path)
-        if isinstance(mount, NodeMount):
-            self.node_mount = None
-        del self[path]
+        _logger.debug('Lost %r mount', root)
+        del self[mount_path]
 
     def _clone_jobject(self, uid, value, get_props, force):
         if value:

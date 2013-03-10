@@ -50,14 +50,14 @@ def main():
 
 class Test(unittest.TestCase):
 
-    def setUp(self, fork_num=0):
+    def setUp(self, fork_num=0, tmp_root=None):
         self._overriden = []
 
         os.environ['LANG'] = 'en_US'
         env._default_lang = 'en-us'
 
         global tmpdir
-        tmpdir = join(tmproot, '.'.join(self.id().split('.')[1:]))
+        tmpdir = join(tmp_root or tmproot, '.'.join(self.id().split('.')[1:]))
         shutil.rmtree(tmpdir, ignore_errors=True)
         os.makedirs(tmpdir)
         os.chdir(tmpdir)

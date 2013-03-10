@@ -26,7 +26,7 @@ from sugar_network.client import Client, api_url
 from sugar_network.node import sync, stats_user, files, volume
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import mountpoints
-from sugar_network.toolkit import sugar, coroutine, util, exception, enforce
+from sugar_network.toolkit import coroutine, util, exception, enforce
 
 
 # Flag file to recognize a directory as a synchronization directory
@@ -176,43 +176,37 @@ class SlaveCommands(NodeCommands):
 
 class PersonalCommands(SlaveCommands):
 
-    def __init__(self, mountset):
-        SlaveCommands.__init__(self, sugar.uid(), mountset.volume)
+    def __init__(self, guid, volume_, localcast):
+        SlaveCommands.__init__(self, guid, volume_)
 
-        self._mountset = mountset
+        self._localcast = localcast
         self._mounts = util.Pool()
         self._jobs = coroutine.Pool()
 
         mountpoints.connect(_SYNC_DIRNAME,
                 self.__found_mountcb, self.__lost_mount_cb)
 
-    def broadcast(self, event):
-        self._mountset.broadcast(event)
-
-    def subscribe(self, *args, **kwargs):
-        return self._mountset.subscribe(*args, **kwargs)
-
     def _sync_mounts(self):
-        self.broadcast({'event': 'sync_start'})
+        self._localcast({'event': 'sync_start'})
 
         for mountpoint in self._mounts:
-            self.broadcast({'event': 'sync_next', 'path': mountpoint})
+            self._localcast({'event': 'sync_next', 'path': mountpoint})
             try:
                 self._offline_session = self._offline_sync(mountpoint,
                         **(self._offline_session or {}))
             except Exception, error:
                 exception(_logger, 'Failed to complete synchronization')
-                self.broadcast({'event': 'sync_abort', 'error': str(error)})
+                self._localcast({'event': 'sync_abort', 'error': str(error)})
                 self._offline_session = None
                 raise
 
         if self._offline_session is None:
             _logger.debug('Synchronization completed')
-            self.broadcast({'event': 'sync_complete'})
+            self._localcast({'event': 'sync_complete'})
         else:
             _logger.debug('Postpone synchronization with %r session',
                     self._offline_session)
-            self.broadcast({'event': 'sync_paused'})
+            self._localcast({'event': 'sync_paused'})
 
     def __found_mountcb(self, path):
         self._mounts.add(path)

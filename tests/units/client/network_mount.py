@@ -15,20 +15,19 @@ from sugar_network.client.mountset import Mountset
 from sugar_network.toolkit import coroutine, mountpoints
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network import client as local, sugar
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.artifact import Artifact
 from sugar_network.zerosugar import clones
 from sugar_network.toolkit.router import IPCRouter
-from sugar_network import IPCClient
+from sugar_network.client import IPCClient, server_mode, mounts_root, ipc_port
 
 
-class NodeMountTest(tests.Test):
+class NetworkMountTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
         self.events_job = None
-        local.server_mode.value = True
+        server_mode.value = True
 
     def tearDown(self):
         if self.events_job is not None:
@@ -36,14 +35,13 @@ class NodeMountTest(tests.Test):
         tests.Test.tearDown(self)
 
     def start_server(self):
-        self.touch('mnt/.sugar-network')
-        self.touch(('mnt/node', 'node'))
-        local.mounts_root.value = tests.tmpdir
+        self.touch(('mnt/sugar-network/node', 'node'))
+        mounts_root.value = tests.tmpdir
 
         volume = Volume('local', [User, Context, Artifact])
         self.mounts = Mountset(volume)
         self.server = coroutine.WSGIServer(
-                ('localhost', local.ipc_port.value), IPCRouter(self.mounts))
+                ('localhost', ipc_port.value), IPCRouter(self.mounts))
         coroutine.spawn(self.server.serve_forever)
         self.mounts.open()
         mountpoints.populate(tests.tmpdir)
@@ -61,7 +59,7 @@ class NodeMountTest(tests.Test):
         got_event = coroutine.Event()
 
         def read_events():
-            for event in remote.subscribe():
+            for event in remote.subscribe(event='!commit'):
                 if 'props' in event:
                     event.pop('props')
                 events.append(event)
@@ -77,7 +75,7 @@ class NodeMountTest(tests.Test):
         got_event.wait()
         got_event.clear()
         self.assertEqual([
-            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'create', 'guid': guid, 'seqno': 1},
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'create', 'guid': guid},
             ],
             events)
         del events[:]
@@ -86,12 +84,12 @@ class NodeMountTest(tests.Test):
         got_event.wait()
         got_event.clear()
         self.assertEqual([
-            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'update', 'guid': guid, 'seqno': 2},
+            {'mountpoint': tests.tmpdir + '/mnt', 'document': 'context', 'event': 'update', 'guid': guid},
             ],
             events)
         del events[:]
 
-        guid_path = 'mnt/context/%s/%s' % (guid[:2], guid)
+        guid_path = 'mnt/sugar-network/db/context/%s/%s' % (guid[:2], guid)
         assert exists(guid_path)
         remote.delete(['context', guid])
         assert not exists(guid_path)
@@ -142,7 +140,7 @@ class NodeMountTest(tests.Test):
         self.assertEqual(
                 'icon-blob',
                 client.request('GEt', ['context', guid, 'icon']).content)
-        blob_url = 'http://localhost:%s/context/%s/icon?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')
+        blob_url = 'http://localhost:%s/context/%s/icon?mountpoint=%s' % (ipc_port.value, guid, tests.tmpdir + '/mnt')
         self.assertEqual(
                 [{'guid': guid, 'icon': blob_url}],
                 client.get(['context'], reply=['guid', 'icon'])['result'])
@@ -166,7 +164,7 @@ class NodeMountTest(tests.Test):
             })
 
         self.assertRaises(RuntimeError, client.get, ['artifact', guid, 'data'])
-        blob_url = 'http://localhost:%s/artifact/%s/data?mountpoint=%s' % (local.ipc_port.value, guid, tests.tmpdir + '/mnt')
+        blob_url = 'http://localhost:%s/artifact/%s/data?mountpoint=%s' % (ipc_port.value, guid, tests.tmpdir + '/mnt')
         self.assertEqual(
                 [{'guid': guid, 'data': blob_url}],
                 client.get(['artifact'], reply=['guid', 'data'])['result'])
@@ -174,33 +172,6 @@ class NodeMountTest(tests.Test):
                 {'data': blob_url},
                 client.get(['artifact', guid], reply=['data']))
         self.assertRaises(urllib2.HTTPError, urllib2.urlopen, blob_url)
-
-    def test_get_blob_ExtractImplementations(self):
-        Volume.RESOURCES = [
-                'sugar_network.resources.user',
-                'sugar_network.resources.implementation',
-                ]
-
-        mounts = self.start_server()
-        mounts[tests.tmpdir + '/mnt'].mounted.wait()
-        remote = IPCClient(params={'mountpoint': tests.tmpdir + '/mnt'})
-
-        guid = remote.post(['implementation'], {
-            'context': 'context',
-            'license': 'GPLv3+',
-            'version': '1',
-            'stability': 'stable',
-            'notes': '',
-            })
-
-        bundle = zipfile.ZipFile('bundle', 'w')
-        bundle.writestr('probe', 'probe')
-        bundle.close()
-        remote.put(['implementation', guid, 'data'], cmd='upload_blob', path=abspath('bundle'))
-
-        blob = remote.get(['implementation', guid, 'data'], cmd='get_blob')
-        self.assertEqual(abspath('cache/implementation/%s/%s/data' % (guid[:2], guid)), blob['path'])
-        self.assertEqual('probe', file(join(blob['path'], 'probe')).read())
 
 
 if __name__ == '__main__':

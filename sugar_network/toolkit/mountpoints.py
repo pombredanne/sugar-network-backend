@@ -71,11 +71,12 @@ def connect(filename, found_cb, lost_cb):
 
 
 def _found_mount(path):
-    _found.setdefault(path, set())
-    found = _found[path]
+    found = _found.setdefault(path, set())
+    new_found = []
     for filename in _connects:
-        if filename in found or not exists(join(path, filename)):
-            continue
+        if filename not in found and exists(join(path, filename)):
+            new_found.append(filename)
+    for filename in new_found:
         found.add(filename)
         _call(path, filename, 0)
 

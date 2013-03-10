@@ -2,6 +2,7 @@
 
 from __init__ import tests
 
+from master_personal import *
 from master_slave import *
 from node_client import *
 

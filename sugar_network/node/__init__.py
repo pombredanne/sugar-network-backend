@@ -37,7 +37,7 @@ trust_users = Option(
         'switch off user credentials check; disabling this option will '
         'require OpenSSH-5.6 or later',
         default=False, type_cast=Option.bool_cast,
-        action='store_true', name='trust_users')
+        action='store_true', name='trust-users')
 
 data_root = Option(
         'path to a directory to place server data',
@@ -45,7 +45,7 @@ data_root = Option(
 
 find_limit = Option(
         'limit the resulting list for search requests',
-        default=32, type_cast=int)
+        default=32, type_cast=int, name='find-limit')
 
 static_url = Option(
         'url prefix to use for static files that should be served via API '
@@ -68,4 +68,4 @@ sync_layers = Option(
         'space separated list of layers to restrict Sugar Network '
         'synchronization content',
         default=['pilot'], type_cast=Option.list_cast,
-        type_repr=Option.list_repr, name='layers')
+        type_repr=Option.list_repr, name='sync-layers')

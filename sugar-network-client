@@ -29,14 +29,12 @@ import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
 from sugar_network.toolkit import sugar, mountpoints
 from sugar_network.toolkit.router import IPCRouter
-from sugar_network.client.mounts import HomeMount, LocalNetworkMount
+from sugar_network.client.mounts import HomeMount, NetworkMount
 from sugar_network.client.mounts import RemoteMount
 from sugar_network.client.mountset import Mountset
 from sugar_network.zerosugar import clones
-from sugar_network.node import stats_user, slave
-from sugar_network.node.slave import PersonalCommands
+from sugar_network.node import stats_node, stats_user, slave
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import Option
 from sugar_network.toolkit import util, printf, application, coroutine, enforce
 
@@ -117,14 +115,7 @@ class Application(application.Daemon):
         mountset = Mountset(volume)
         mountset['~'] = HomeMount(volume)
 
-        if client.server_mode.value:
-            mountset['/'] = LocalNetworkMount(volume)
-            logging.info('Start %r server on %s port',
-                    volume.root, node.port.value)
-            server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
-                    Router(PersonalCommands(mountset)))
-            self.jobs.spawn(server.serve_forever)
-        else:
+        if not client.server_mode.value:
             mountset['/'] = RemoteMount(volume)
 
         logging.info('Listening for IPC requests on %s port',
@@ -223,9 +214,11 @@ Option.seek('main', [toolkit.cachedir])
 Option.seek('webui', webui)
 Option.seek('client', client)
 Option.seek('client', [sugar.keyfile])
-Option.seek('node', [node.port, node.files_root, node.stats_root])
-Option.seek('stats', stats_user)
 Option.seek('db', db)
+Option.seek('node', [node.port, node.find_limit, node.sync_layers,
+    node.trust_users])
+Option.seek('node-stats', stats_node)
+Option.seek('user-stats', stats_user)
 
 app = Application(
         name='sugar-network-client',

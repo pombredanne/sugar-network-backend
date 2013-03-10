@@ -83,11 +83,6 @@ layers = Option(
         default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
         name='layers')
 
-no_dbus = Option(
-        'disable any DBus usage',
-        default=False, type_cast=Option.bool_cast,
-        action='store_true', name='no-dbus')
-
 discover_server = Option(
         'discover servers in local network instead of using --api-url',
         default=False, type_cast=Option.bool_cast,

@@ -28,7 +28,7 @@ from gevent import monkey
 from sugar_network import db, client, toolkit
 from sugar_network.toolkit.router import IPCRouter, Request
 from sugar_network.resources.volume import Volume
-from sugar_network.client.mountset import Mountset
+from sugar_network.client.mountset import Mountset, no_dbus
 from sugar_network.client.mounts import HomeMount, RemoteMount
 from sugar_network.toolkit import sugar, util, sugar, Option, BUFFER_SIZE
 from sugar_network.toolkit import printf, application, coroutine, enforce
@@ -236,8 +236,7 @@ Option.seek('main', [
     application.debug, anonymous, porcelain, post_data, post_file, json,
     ])
 Option.seek('client', [
-    client.api_url, client.layers, client.ipc_port, client.local_root,
-    client.no_dbus,
+    client.api_url, client.layers, client.ipc_port, client.local_root, no_dbus,
     ])
 
 locale.setlocale(locale.LC_ALL, '')

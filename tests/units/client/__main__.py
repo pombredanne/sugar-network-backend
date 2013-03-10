@@ -6,7 +6,7 @@ from client import *
 from home_mount import *
 from journal import *
 from mountset import *
-#from node_mount import *
+from network_mount import *
 from proxy_commands import *
 from remote_mount import *
 

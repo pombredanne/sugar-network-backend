@@ -67,8 +67,8 @@ class MountsetTest(tests.Test):
         return mounts
 
     def test_Populate(self):
-        os.makedirs('1/.sugar-network')
-        os.makedirs('2/.sugar-network')
+        os.makedirs('1/sugar-network')
+        os.makedirs('2/sugar-network')
 
         mounts = self.mountset()
         mounts[tests.tmpdir + '/1'].mounted.wait()
@@ -91,7 +91,7 @@ class MountsetTest(tests.Test):
     def test_Mount(self):
         mounts = self.mountset()
 
-        os.makedirs('tmp/1/.sugar-network')
+        os.makedirs('tmp/1/sugar-network')
         shutil.move('tmp/1', '.')
         self.mounted.wait()
         self.mounted.clear()
@@ -107,7 +107,7 @@ class MountsetTest(tests.Test):
                     ]),
                 sorted(IPCClient().get(cmd='mounts')))
 
-        os.makedirs('tmp/2/.sugar-network')
+        os.makedirs('tmp/2/sugar-network')
         shutil.move('tmp/2', '.')
         self.mounted.wait()
         self.mounted.clear()
@@ -125,8 +125,8 @@ class MountsetTest(tests.Test):
                 sorted(IPCClient().get(cmd='mounts')))
 
     def test_Unmount(self):
-        os.makedirs('1/.sugar-network')
-        os.makedirs('2/.sugar-network')
+        os.makedirs('1/sugar-network')
+        os.makedirs('2/sugar-network')
 
         mounts = self.mountset()
         client = IPCClient()
@@ -158,7 +158,7 @@ class MountsetTest(tests.Test):
         local.server_mode.value = True
         mounts = self.mountset()
 
-        self.touch('tmp/mnt/.sugar-network')
+        self.touch('tmp/mnt/sugar-network')
         self.touch(('tmp/mnt/node', 'node'))
         shutil.move('tmp/mnt', '.')
         self.mounted.wait()

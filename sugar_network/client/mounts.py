@@ -22,8 +22,9 @@ from gettext import gettext as _
 
 from sugar_network.zerosugar import injector
 from sugar_network.toolkit import http, coroutine, exception, enforce
-from sugar_network.toolkit.router import Request
+from sugar_network.toolkit.router import Request, Router
 from sugar_network.resources.volume import VolumeCommands
+from sugar_network.node.slave import PersonalCommands
 from sugar_network.client import journal
 from sugar_network import db, client, node
 
@@ -56,7 +57,7 @@ class _Mount(object):
 
     def set_mounted(self, value):
         if self.mounted.is_set() == value:
-            return
+            return False
         if value:
             self.mounted.set()
         else:
@@ -67,6 +68,7 @@ class _Mount(object):
             'name': self.name,
             'private': self.private,
             })
+        return True
 
 
 class LocalMount(VolumeCommands, _Mount):
@@ -96,23 +98,6 @@ class LocalMount(VolumeCommands, _Mount):
     def _events_cb(self, event):
         event['mountpoint'] = self.mountpoint
         self.broadcast(event)
-
-
-class LocalNetworkMount(LocalMount):
-
-    def __init__(self, volume):
-        LocalMount.__init__(self, volume)
-        self._client = client.Client('http://localhost:%s' % node.port.value)
-
-    @property
-    def name(self):
-        return _('Local Network')
-
-    def call(self, request, response=None):
-        try:
-            return db.CommandsProcessor.call(self, request, response)
-        except db.CommandNotFound:
-            return self._client.call(request, response)
 
 
 class HomeMount(LocalMount):
@@ -201,7 +186,10 @@ class RemoteMount(db.CommandsProcessor, _Mount, _ProxyCommands):
 
     @property
     def name(self):
-        return _('Network')
+        if client.discover_server.value:
+            return _('Local Network')
+        else:
+            return _('Network')
 
     def url(self, *path):
         enforce(self.mounted.is_set(), 'Not mounted')
@@ -314,24 +302,37 @@ class RemoteMount(db.CommandsProcessor, _Mount, _ProxyCommands):
                 self._client = None
 
 
-class NodeMount(LocalMount, _ProxyCommands):
+class NetworkMount(LocalMount, _ProxyCommands):
 
-    def __init__(self, volume, home_volume):
+    def __init__(self, node_guid, volume, home_volume):
         LocalMount.__init__(self, volume)
         _ProxyCommands.__init__(self, home_volume)
 
-        with file(join(volume.root, 'node')) as f:
-            self._node_guid = f.read().strip()
-        with file(join(volume.root, 'master')) as f:
-            self._master_guid = f.read().strip()
+        node.data_root.value = volume.root
+        node.stats_root.value = join(volume.root, '..', 'stats')
+        node.files_root.value = join(volume.root, '..', 'files')
 
-    @property
-    def node_guid(self):
-        return self._node_guid
-
-    @property
-    def master_guid(self):
-        return self._master_guid
+        self._node_cp = PersonalCommands(node_guid, volume,
+                lambda event: self.broadcast(event))
+        self._node_job = None
 
     def proxy_call(self, request, response):
-        return LocalMount.call(self, request, response)
+        try:
+            return LocalMount.call(self, request, response)
+        except db.CommandNotFound:
+            return self._node_cp.call(request, response)
+
+    def call(self, request, response=None):
+        return self.proxy_call(request, response)
+
+    def set_mounted(self, value):
+        if not LocalMount.set_mounted(self, value):
+            return
+        if value:
+            logging.info('Start %r server on %s port',
+                    self.volume.root, node.port.value)
+            server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
+                    Router(self._node_cp))
+            self._node_job = coroutine.spawn(server.serve_forever)
+        else:
+            self._node_job.kill()
