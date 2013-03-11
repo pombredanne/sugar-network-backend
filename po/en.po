@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-10-19 00:33-0400\n"
-"PO-Revision-Date: 2012-10-19 08:22+0200\n"
+"POT-Creation-Date: 2013-03-11 00:33-0400\n"
+"PO-Revision-Date: 2013-03-11 21:54+0200\n"
 "Last-Translator: Chris <cjl@laptop.org>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: en\n"
@@ -17,43 +17,108 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Generator: Pootle 2.0.5\n"
 
-#: sugar_network/local/mounts.py:110
+#: sugar_network/client/mounts.py:109
+msgid "Local Network"
+msgstr "Local Network"
+
+#: sugar_network/client/mounts.py:122
 msgid "Home"
 msgstr "Home"
 
-#: sugar_network/local/mounts.py:302
-#, python-format, 
-msgid "Cannot clone %s implementation"
-msgstr "Cannot clone %s implementation"
-
-#: sugar_network/local/mounts.py:318
+#: sugar_network/client/mounts.py:204
 msgid "Network"
 msgstr "Network"
 
-#: sugar_network/node/sync_node.py:135
-#, python-format
-msgid "Generating %r packet"
-msgstr "Generating %r packet"
+#: sugar_network/node/slave.py:117
+msgid "Reading sneakernet packages"
+msgstr "Reading sneakernet packages"
 
-#: sugar_network/node/sync_node.py:184
-#, python-format
-msgid "Reading %r packet"
-msgstr "Reading %r packet"
+#: sugar_network/node/slave.py:127
+msgid "Generating new sneakernet package"
+msgstr "Generating new sneakernet package"
 
-#: sugar_network/resources/artifact.py:41
-msgid "Unnamed"
-msgstr "Unnamed"
+#: sugar_network/toolkit/application.py:32
+msgid "debug logging level; multiple argument"
+msgstr "debug logging level; multiple argument"
 
-#: sugar_network/resources/report.py:48
-msgid "Unknown"
-msgstr "Unknown"
+#: sugar_network/toolkit/application.py:37
+msgid "do not send the application into the background"
+msgstr "do not send the application into the background"
 
-#: sugar_network/zerosugar/packagekit.py:47
+#: sugar_network/toolkit/application.py:47
+msgid "suppress suggesting hints"
+msgstr "suppress suggesting hints"
+
+#: sugar_network/toolkit/application.py:98
+msgid "show version number and exit"
+msgstr "show version number and exit"
+
+#: sugar_network/toolkit/application.py:103
+msgid "show this help message and exit"
+msgstr "show this help message and exit"
+
+#: sugar_network/toolkit/application.py:130
+msgid "Commands"
+msgstr "Commands"
+
+#: sugar_network/toolkit/application.py:141
+msgid "Usage"
+msgstr "Usage"
+
+#: sugar_network/toolkit/application.py:156
+msgid "Where"
+msgstr "Where"
+
+#: sugar_network/toolkit/application.py:200
+msgid "Aborted"
+msgstr "Aborted"
+
+#: sugar_network/zerosugar/packagekit.py:44
 #, python-format
 msgid "Resolving %s package name(s)"
 msgstr "Resolving %s package name(s)"
 
-#: sugar_network/zerosugar/packagekit.py:73
+#: sugar_network/zerosugar/packagekit.py:71
 #, python-format
 msgid "Installing %s package(s)"
 msgstr "Installing %s package(s)"
+
+#: tests/units/db/env.py:17 tests/units/db/env.py:18 tests/units/db/env.py:23
+#: tests/units/db/env.py:24 tests/units/db/env.py:25
+msgid "lang"
+msgstr "lang"
+
+#: tests/units/db/env.py:22
+msgid "foo"
+msgstr "foo"
+
+#: tests/units/db/env.py:28 tests/units/db/env.py:31
+msgid "1"
+msgstr "1"
+
+#: tests/units/db/env.py:34 tests/units/db/env.py:35
+msgid "1-a"
+msgstr "1-a"
+
+#, python-format
+#~ msgid "Generating %r packet"
+#~ msgstr "Generating %r packet"
+
+#, python-format
+#~ msgid "Reading %r packet"
+#~ msgstr "Reading %r packet"
+
+#, python-format
+#~ msgid "Fail to clone %s"
+#~ msgstr "Fail to clone %s"
+
+#~ msgid "Unknown"
+#~ msgstr "Unknown"
+
+#, python-format
+#, python-format,
+#~ msgid "Cannot clone %s implementation"
+#~ msgstr "Cannot clone %s implementation"
+
+#~ msgid "Unnamed"
+#~ msgstr "Unnamed"
