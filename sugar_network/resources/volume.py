@@ -17,7 +17,7 @@ import json
 import logging
 from os.path import join
 
-from sugar_network import db, client, node, static
+from sugar_network import db, static
 from sugar_network.toolkit import router, coroutine, enforce
 
 
@@ -227,95 +227,6 @@ class Commands(object):
                     yield 'data: %s\n\n' % json.dumps(event)
         finally:
             _logger.debug('Stop pulling events to %s user', peer)
-
-
-class VolumeCommands(db.VolumeCommands):
-
-    @db.document_command(method='GET', cmd='deplist',
-            mime_type='application/json')
-    def deplist(self, document, guid, repo):
-        """List of native packages context is dependening on.
-
-        Command return only GNU/Linux package names and ignores
-        Sugar Network dependencies.
-
-        :param repo:
-            OBS repository name to get package names for, e.g.,
-            Fedora-14
-        :returns:
-            list of package names
-
-        """
-        enforce(document == 'context')
-        enforce(repo, 'Argument %r should be set', 'repo')
-        context = self.volume['context'].get(guid)
-
-        result = []
-
-        for package in context['dependencies']:
-            dep = self.volume['context'].get(package)
-            enforce(repo in dep['packages'],
-                    'No packages for %r on %r', package, repo)
-            result.extend(dep['packages'][repo].get('binary') or [])
-
-        return result
-
-    @db.directory_command_post(method='GET')
-    def _VolumeCommands_find_post(self, request, response, result):
-        self._mixin_blobs(request, result['result'])
-        return result
-
-    @db.document_command_pre(method='GET', arguments={'reply': db.to_list})
-    def _VolumeCommands_get_pre(self, request):
-        if 'reply' not in request:
-            reply = request['reply'] = []
-            for prop in self.volume[request['document']].metadata.values():
-                if prop.permissions & db.ACCESS_READ and \
-                        not (prop.permissions & db.ACCESS_LOCAL):
-                    reply.append(prop.name)
-
-    @db.document_command_post(method='GET')
-    def _VolumeCommands_get_post(self, request, response, result):
-        self._mixin_blobs(request, [result])
-        return result
-
-    def _mixin_blobs(self, request, result):
-        blobs = []
-        metadata = self.volume[request['document']].metadata
-        for prop in request['reply']:
-            if isinstance(metadata[prop], db.BlobProperty):
-                blobs.append(prop)
-        if not blobs:
-            return
-
-        requested_guid = request.get('guid')
-        enforce(requested_guid or 'guid' in request['reply'],
-                'No way to get BLOB urls if GUID was not specified')
-
-        if node.static_url.value:
-            prefix = node.static_url.value
-        elif hasattr(request, 'environ'):
-            prefix = 'http://' + request.environ['HTTP_HOST']
-        else:
-            prefix = 'http://localhost:%s' % client.ipc_port.value
-        if request.mountpoint in (None, '/'):
-            postfix = ''
-        else:
-            postfix = '?mountpoint=' + request.mountpoint
-
-        for props in result:
-            for name in blobs:
-                url = props[name].get('url')
-                if url is None:
-                    url = '/'.join([
-                        '',
-                        request['document'],
-                        props.get('guid') or requested_guid,
-                        name,
-                        ]) + postfix
-                if url.startswith('/'):
-                    url = prefix + url
-                props[name] = url
 
 
 class _Pooler(object):

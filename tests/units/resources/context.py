@@ -19,8 +19,8 @@ class ContextTest(tests.Test):
         self.override(obs, 'resolve', lambda repo, arch, names: ['fake'])
         self.override(obs, 'presolve', lambda: None)
 
-        self.start_server()
-        client = IPCClient(params={'mountpoint': '~'})
+        self.start_offline_client()
+        client = IPCClient()
 
         guid = client.post(['context'], {
             'type': 'activity',
@@ -56,8 +56,8 @@ class ContextTest(tests.Test):
         self.override(obs, 'resolve', lambda repo, arch, names: enforce(False, 'resolve failed'))
         self.override(obs, 'presolve', lambda: None)
 
-        self.start_server()
-        client = IPCClient(params={'mountpoint': '~'})
+        self.start_offline_client()
+        client = IPCClient()
 
         guid = client.post(['context'], {
             'type': 'activity',
@@ -96,8 +96,8 @@ class ContextTest(tests.Test):
         self.override(obs, 'resolve', resolve)
         self.override(obs, 'presolve', lambda: None)
 
-        self.start_server()
-        client = IPCClient(params={'mountpoint': '~'})
+        self.start_offline_client()
+        client = IPCClient()
 
         guid = client.post(['context'], {
             'type': 'activity',
@@ -149,8 +149,8 @@ class ContextTest(tests.Test):
         self.override(obs, 'resolve', lambda repo, arch, names: ['fake'])
         self.override(obs, 'presolve', lambda: None)
 
-        self.start_server()
-        client = IPCClient(params={'mountpoint': '~'})
+        self.start_offline_client()
+        client = IPCClient()
 
         events = []
         def read_events():
@@ -180,8 +180,8 @@ class ContextTest(tests.Test):
         assert 'mtime' in events[0]['props']
 
     def test_InvalidateSolutionsOnDependenciesChanges(self):
-        self.start_server()
-        client = IPCClient(params={'mountpoint': '~'})
+        self.start_offline_client()
+        client = IPCClient()
 
         events = []
         def read_events():

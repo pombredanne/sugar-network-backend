@@ -158,7 +158,7 @@ class Context(Resource):
     def versions(self, value):
         result = []
 
-        if self.request.mountpoint == '~':
+        if self.clone == 2:
             for path in clones.walk(self.guid):
                 try:
                     spec = Spec(root=path)

@@ -30,9 +30,10 @@ class InjectorTest(tests.Test):
         tests.Test.setUp(self, fork_num)
         self.override(pipe_, 'trace', lambda *args: None)
         self.override(obs, 'get_repos', lambda: [])
+        self.override(obs, 'presolve', lambda *args: None)
 
     def test_clone_Online(self):
-        self.start_ipc_and_restful_server([User, Context, Implementation])
+        self.start_online_client([User, Context, Implementation])
         remote = IPCClient()
 
         context = remote.post(['context'], {
@@ -42,12 +43,12 @@ class InjectorTest(tests.Test):
             'description': 'description',
             })
 
-        pipe = injector.clone('/', context)
+        pipe = injector.clone(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context},
-            {'state': 'analyze', 'mountpoint': '/', 'context': context},
-            {'state': 'failure', 'mountpoint': '/', 'context': context, 'error': "Interface '%s' has no usable implementations" % context, 'log_path': log_path, 'trace': None},
+            {'state': 'fork', 'context': context},
+            {'state': 'analyze', 'context': context},
+            {'state': 'failure', 'context': context, 'error': "Interface '%s' has no usable implementations" % context, 'log_path': log_path, 'trace': None},
             ],
             [i for i in pipe])
 
@@ -71,35 +72,35 @@ class InjectorTest(tests.Test):
                 },
             })
 
-        pipe = injector.clone('/', context)
+        pipe = injector.clone(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context},
-            {'state': 'analyze', 'mountpoint': '/', 'context': context},
-            {'state': 'solved', 'mountpoint': '/', 'context': context},
-            {'state': 'download', 'mountpoint': '/', 'context': context},
-            {'state': 'failure', 'mountpoint': '/', 'context': context, 'error': 'BLOB does not exist', 'log_path': log_path, 'trace': None,
-                'solution': [{'name': 'title', 'prefix': 'topdir', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl}],
+            {'state': 'fork', 'context': context},
+            {'state': 'analyze', 'context': context},
+            {'state': 'solved', 'context': context},
+            {'state': 'download', 'context': context},
+            {'state': 'failure', 'context': context, 'error': 'BLOB does not exist', 'log_path': log_path, 'trace': None,
+                'solution': [{'name': 'title', 'prefix': 'topdir', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'}],
                 },
             ],
             [i for i in pipe])
         assert not exists('cache/implementation/%s' % impl)
 
-        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, json.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('topdir/probe', 'probe')
         bundle.close()
 
-        pipe = injector.clone('/', context)
+        pipe = injector.clone(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context},
-            {'state': 'analyze', 'mountpoint': '/', 'context': context},
-            {'state': 'solved', 'mountpoint': '/', 'context': context},
-            {'state': 'download', 'mountpoint': '/', 'context': context},
-            {'state': 'ready', 'mountpoint': '/', 'context': context},
-            {'state': 'exit', 'mountpoint': '/', 'context': context},
+            {'state': 'fork', 'context': context},
+            {'state': 'analyze', 'context': context},
+            {'state': 'solved', 'context': context},
+            {'state': 'download', 'context': context},
+            {'state': 'ready', 'context': context},
+            {'state': 'exit', 'context': context},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -110,14 +111,14 @@ class InjectorTest(tests.Test):
         os.unlink(blob_path + '.blob')
         shutil.rmtree('Activities')
 
-        pipe = injector.clone('/', context)
+        pipe = injector.clone(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_3.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context},
-            {'state': 'analyze', 'mountpoint': '/', 'context': context},
-            {'state': 'solved', 'mountpoint': '/', 'context': context},
-            {'state': 'ready', 'mountpoint': '/', 'context': context},
-            {'state': 'exit', 'mountpoint': '/', 'context': context},
+            {'state': 'fork', 'context': context},
+            {'state': 'analyze', 'context': context},
+            {'state': 'solved', 'context': context},
+            {'state': 'ready', 'context': context},
+            {'state': 'exit', 'context': context},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -125,7 +126,7 @@ class InjectorTest(tests.Test):
         self.assertEqual('probe', file('Activities/topdir/probe').read())
 
     def test_clone_impl(self):
-        self.start_ipc_and_restful_server([User, Context, Implementation])
+        self.start_online_client([User, Context, Implementation])
         remote = IPCClient()
 
         context = remote.post(['context'], {
@@ -153,18 +154,18 @@ class InjectorTest(tests.Test):
                     },
                 },
             })
-        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, json.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('topdir/probe', 'probe')
         bundle.close()
 
-        pipe = injector.clone_impl('/', context, impl, {'*-*': {'extract': 'topdir'}})
+        pipe = injector.clone_impl(context, impl, {'*-*': {'extract': 'topdir'}})
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork', 'mountpoint': '/', 'context': context},
-            {'state': 'download', 'mountpoint': '/', 'context': context},
-            {'state': 'exit', 'mountpoint': '/', 'context': context},
+            {'state': 'fork', 'context': context},
+            {'state': 'download', 'context': context},
+            {'state': 'exit', 'context': context},
             ],
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
@@ -172,7 +173,7 @@ class InjectorTest(tests.Test):
         self.assertEqual('probe', file('Activities/topdir/probe').read())
 
     def test_launch_Online(self):
-        self.start_ipc_and_restful_server([User, Context, Implementation])
+        self.start_online_client([User, Context, Implementation])
         remote = IPCClient()
 
         context = remote.post(['context'], {
@@ -201,7 +202,7 @@ class InjectorTest(tests.Test):
                 },
             })
 
-        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, json.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
@@ -216,17 +217,17 @@ class InjectorTest(tests.Test):
         bundle.close()
 
         self.override(journal, 'create_activity_id', lambda: 'activity_id')
-        pipe = injector.launch('/', context)
+        pipe = injector.launch(context)
 
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'analyze', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'solved', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'download', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'ready', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'exec', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'exit', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'fork', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'analyze', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'solved', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'download', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'ready', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exec', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exit', 'context': context, 'color': None, 'activity_id': 'activity_id'},
             ],
             [i for i in pipe])
 
@@ -250,7 +251,7 @@ class InjectorTest(tests.Test):
                 },
             })
 
-        blob_path = 'remote/implementation/%s/%s/data' % (impl_2[:2], impl_2)
+        blob_path = 'master/implementation/%s/%s/data' % (impl_2[:2], impl_2)
         self.touch((blob_path, json.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
@@ -265,16 +266,16 @@ class InjectorTest(tests.Test):
         bundle.close()
 
         shutil.rmtree('cache', ignore_errors=True)
-        pipe = injector.launch('/', context)
+        pipe = injector.launch(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
         self.assertEqual([
-            {'state': 'fork', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'analyze', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'solved', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'download', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'ready', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'exec', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
-            {'state': 'exit', 'context': context, 'color': None, 'mountpoint': '/', 'activity_id': 'activity_id'},
+            {'state': 'fork', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'analyze', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'solved', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'download', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'ready', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exec', 'context': context, 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exit', 'context': context, 'color': None, 'activity_id': 'activity_id'},
             ],
             [i for i in pipe])
 
@@ -289,29 +290,27 @@ class InjectorTest(tests.Test):
             'license = Public Domain',
             ]))
 
-        self.start_server()
-        monitor = coroutine.spawn(clones.monitor,
-                self.mounts.volume['context'], ['Activities'])
+        home_volume = self.start_offline_client()
+        monitor = coroutine.spawn(clones.monitor, home_volume['context'], ['Activities'])
         coroutine.sleep()
 
         context = 'bundle_id'
         impl = tests.tmpdir + '/Activities/activity'
 
-        pipe = injector.launch('~', context, activity_id='activity_id')
+        pipe = injector.launch(context, activity_id='activity_id')
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
-            {'state': 'fork', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
-            {'state': 'analyze', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
-            {'state': 'solved', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
-            {'state': 'ready', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
-            {'state': 'exec', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
-            {'state': 'exit', 'context': 'bundle_id', 'color': None, 'mountpoint': '~', 'activity_id': 'activity_id'},
+            {'state': 'fork', 'context': 'bundle_id', 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'analyze', 'context': 'bundle_id', 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'solved', 'context': 'bundle_id', 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'ready', 'context': 'bundle_id', 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exec', 'context': 'bundle_id', 'color': None, 'activity_id': 'activity_id'},
+            {'state': 'exit', 'context': 'bundle_id', 'color': None, 'activity_id': 'activity_id'},
             ],
             [i for i in pipe])
 
     def test_InstallDeps(self):
-        self.touch('remote/master')
-        self.start_ipc_and_restful_server([User, Context, Implementation])
+        self.start_online_client([User, Context, Implementation])
         remote = IPCClient()
 
         context = remote.post(['context'], {
@@ -343,7 +342,7 @@ class InjectorTest(tests.Test):
                     },
                 },
             })
-        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, json.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('topdir/probe', 'probe')
@@ -388,7 +387,7 @@ class InjectorTest(tests.Test):
         self.override(packagekit, 'resolve', resolve)
         self.override(packagekit, 'install', install)
 
-        pipe = injector.launch('/', context)
+        pipe = injector.launch(context)
         self.assertEqual('exit', [i for i in pipe][-1].get('state'))
         with file('resolve') as f:
             self.assertEqual(['dep1.bin'], pickle.load(f))
@@ -402,53 +401,47 @@ class InjectorTest(tests.Test):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
         self.override(solver, 'solve', lambda *args: solution)
 
-        self.assertEqual(solution, injector._solve('~', 'context'))
-        self.assertEqual([local.api_url.value, solution], json.load(file('cache/solutions/~/co/context')))
-
-        self.assertEqual(solution, injector._solve('/', 'context'))
-        self.assertEqual([local.api_url.value, solution], json.load(file('cache/solutions/#/co/context')))
-
-        self.assertEqual(solution, injector._solve('/foo/bar', 'context'))
-        self.assertEqual([local.api_url.value, solution], json.load(file('cache/solutions/#foo#bar/co/context')))
+        self.assertEqual(solution, injector._solve('context'))
+        self.assertEqual([local.api_url.value, solution], json.load(file('cache/solutions/co/context')))
 
     def test_SolutionsCache_InvalidateByAPIUrl(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
         self.override(solver, 'solve', lambda *args: solution)
-        cached_path = 'cache/solutions/~/co/context'
+        cached_path = 'cache/solutions/co/context'
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         self.touch((cached_path, json.dumps([local.api_url.value, solution2])))
-        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(solution2, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
 
         local.api_url.value = 'fake'
-        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(solution, injector._solve('context'))
         self.assertEqual(['fake', solution], json.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
         self.override(solver, 'solve', lambda *args: solution)
-        cached_path = 'cache/solutions/~/co/context'
+        cached_path = 'cache/solutions/co/context'
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         injector.invalidate_solutions(1)
         self.touch((cached_path, json.dumps([local.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
-        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(solution2, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
-        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(solution2, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
-        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(solution, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution], json.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByPMSMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
         self.override(solver, 'solve', lambda *args: solution)
-        cached_path = 'cache/solutions/~/co/context'
+        cached_path = 'cache/solutions/co/context'
 
         injector._pms_path = 'pms'
         self.touch('pms')
@@ -456,40 +449,40 @@ class InjectorTest(tests.Test):
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         self.touch((cached_path, json.dumps([local.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
-        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(solution2, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
-        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(solution2, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime('pms', (3, 3))
-        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(solution, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution], json.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateBySpecMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
         self.override(solver, 'solve', lambda *args: solution)
-        cached_path = 'cache/solutions/~/co/context'
+        cached_path = 'cache/solutions/co/context'
 
         solution2 = [{'spec': 'spec', 'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         self.touch('spec')
         os.utime('spec', (1, 1))
         self.touch((cached_path, json.dumps([local.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
-        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(solution2, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
-        self.assertEqual(solution2, injector._solve('~', 'context'))
+        self.assertEqual(solution2, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime('spec', (3, 3))
-        self.assertEqual(solution, injector._solve('~', 'context'))
+        self.assertEqual(solution, injector._solve('context'))
         self.assertEqual([local.api_url.value, solution], json.load(file(cached_path)))
 
     def test_clone_SetExecPermissionsForActivities(self):
-        self.start_ipc_and_restful_server([User, Context, Implementation])
+        self.start_online_client([User, Context, Implementation])
         remote = IPCClient()
 
         context = remote.post(['context'], {
@@ -517,7 +510,7 @@ class InjectorTest(tests.Test):
                     },
                 },
             })
-        blob_path = 'remote/implementation/%s/%s/data' % (impl[:2], impl)
+        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
         self.touch((blob_path, json.dumps({})))
         bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
         bundle.writestr('topdir/activity/foo', '')
@@ -527,7 +520,7 @@ class InjectorTest(tests.Test):
         bundle.writestr('topdir/test/file2', '')
         bundle.close()
 
-        pipe = injector.clone('/', context)
+        pipe = injector.clone(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
         self.assertEqual('exit', [i for i in pipe][-1]['state'])
         assert os.access('Activities/topdir/activity/foo', os.X_OK)
@@ -541,9 +534,9 @@ class InjectorTest(tests.Test):
         self.override(pipe_, 'fork', lambda callback, logname, session, args, **kwargs: forks.append(args))
         self.override(journal, 'create_activity_id', lambda: 'new_activity_id')
 
-        injector.launch('/', 'app')
-        injector.launch('/', 'app', ['foo'])
-        injector.launch('/', 'app', ['foo'], activity_id='activity_id', object_id='object_id', uri='uri')
+        injector.launch('app')
+        injector.launch('app', ['foo'])
+        injector.launch('app', ['foo'], activity_id='activity_id', object_id='object_id', uri='uri')
 
         self.assertEqual([
             ['-b', 'app', '-a', 'new_activity_id'],
@@ -553,8 +546,7 @@ class InjectorTest(tests.Test):
             forks)
 
     def test_ProcessCommonDependencies(self):
-        self.touch('remote/master')
-        self.start_ipc_and_restful_server([User, Context, Implementation])
+        self.start_online_client([User, Context, Implementation])
         remote = IPCClient()
 
         context = remote.post(['context'], {
@@ -630,54 +622,15 @@ class InjectorTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    {'version': '1', 'id': 'dep1', 'context': 'dep1', 'name': 'title1'},
-                    {'version': '1', 'id': 'dep2', 'context': 'dep2', 'name': 'title2'},
-                    {'version': '1', 'id': 'dep3', 'context': 'dep3', 'name': 'title3'},
-                    {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl},
+                    {'version': '1', 'id': 'dep1', 'context': 'dep1', 'name': 'title1', 'stability': 'packaged'},
+                    {'version': '1', 'id': 'dep2', 'context': 'dep2', 'name': 'title2', 'stability': 'packaged'},
+                    {'version': '1', 'id': 'dep3', 'context': 'dep3', 'name': 'title3', 'stability': 'packaged'},
+                    {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
                     ]),
-                sorted(solver.solve('/', context)))
-
-    def test_NoDepsClonning(self):
-        self.touch('remote/master')
-        self.start_ipc_and_restful_server([User, Context, Implementation])
-        remote = IPCClient()
-
-        context = remote.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'dependencies': ['dep1'],
-            })
-        impl = remote.post(['implementation'], {
-            'context': context,
-            'license': 'GPLv3+',
-            'version': '1',
-            'stability': 'stable',
-            'notes': '',
-            'spec': {
-                '*-*': {
-                    'commands': {
-                        'activity': {
-                            'exec': 'echo',
-                            },
-                        },
-                    'requires': {
-                        'dep2': {},
-                    },
-                },
-            }})
-
-        self.assertRaises(RuntimeError, solver.solve, '/', context)
-
-        solver.nodeps = True
-        self.assertEqual(
-                [{'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl}],
-                solver.solve('/', context))
+                sorted(solver.solve(context)))
 
     def test_LoadFeed_SetPackages(self):
-        self.touch('remote/master')
-        self.start_ipc_and_restful_server([User, Context, Implementation])
+        self.start_online_client([User, Context, Implementation])
         remote = IPCClient()
 
         context = remote.post(['context'], {
@@ -716,7 +669,7 @@ class InjectorTest(tests.Test):
             return dict([(i, {'name': i, 'pk_id': i, 'version': '1', 'arch': '*', 'installed': True}) for i in names])
         self.override(packagekit, 'resolve', resolve)
 
-        self.assertRaises(RuntimeError, solver.solve, '/', context)
+        self.assertRaises(RuntimeError, solver.solve, context)
 
         remote.put(['context', 'dep', 'aliases'], {
             lsb_release.distributor_id(): {
@@ -724,7 +677,7 @@ class InjectorTest(tests.Test):
                 'binary': [['bin']],
                 },
             })
-        self.assertEqual('dep', solver.solve('/', context)[-1]['context'])
+        self.assertEqual('dep', solver.solve(context)[-1]['context'])
 
         remote.put(['context', 'dep', 'aliases'], {
             'foo': {
@@ -732,14 +685,14 @@ class InjectorTest(tests.Test):
                 'binary': [['bin']],
                 },
             })
-        self.assertRaises(RuntimeError, solver.solve, '/', context)
+        self.assertRaises(RuntimeError, solver.solve, context)
 
         remote.put(['context', 'dep', 'aliases'], {
             lsb_release.distributor_id(): {
                 'binary': [['bin']],
                 },
             })
-        self.assertEqual('dep', solver.solve('/', context)[-1]['context'])
+        self.assertEqual('dep', solver.solve(context)[-1]['context'])
 
     def test_SolveSugar(self):
         self.touch(('__init__.py', ''))
@@ -747,8 +700,7 @@ class InjectorTest(tests.Test):
         file_, pathname_, description_ = imp.find_module('jarabe', ['.'])
         imp.load_module('jarabe', file_, pathname_, description_)
 
-        self.touch('remote/master')
-        self.start_ipc_and_restful_server([User, Context, Implementation])
+        self.start_online_client([User, Context, Implementation])
         remote = IPCClient()
 
         context = remote.post(['context'], {
@@ -784,10 +736,10 @@ class InjectorTest(tests.Test):
             })
 
         self.assertEqual([
-            {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'mountpoint': '/', 'id': impl},
-            {'name': 'sugar', 'version': '777', 'context': 'sugar', 'path': '/', 'mountpoint': None, 'id': 'sugar'},
+            {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
+            {'name': 'sugar', 'version': '777', 'context': 'sugar', 'path': '/', 'id': 'sugar', 'stability': 'packaged'},
             ],
-            solver.solve('/', context))
+            solver.solve(context))
 
 
 if __name__ == '__main__':

@@ -315,6 +315,35 @@ class NodeTest(tests.Test):
                 {'guid': 'foo', 'implement': ['foo'], 'title': 'title'},
                 call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'implement', 'title']))
 
+    def test_SetGuidOnMaster_MalformedGUID(self):
+        cp = NodeCommands(True, 'guid', Volume('db2'))
+
+        self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'implement': '!?',
+            })
+
+    def test_SetGuidOnMaster_FailOnExisted(self):
+        cp = NodeCommands(True, 'guid', Volume('db2'))
+
+        guid = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'implement': guid,
+            })
+
     def test_PackagesRoute(self):
         obs.obs_presolve_path.value = 'packages'
         volume = self.start_master()

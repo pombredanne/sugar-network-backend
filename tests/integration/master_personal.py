@@ -14,7 +14,6 @@ import rrdtool
 from __init__ import tests
 
 from sugar_network.client import Client
-from sugar_network.toolkit.sneakernet import InPacket, OutPacket
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import sugar, util, coroutine
 
@@ -49,9 +48,7 @@ class MasterPersonalTest(tests.Test):
         self.touch(('client/mnt/disk/sugar-network/db/node', 'node'))
 
         coroutine.sleep(2)
-        trigger = wait_for_events(event='mount', mountpoint='/')
-        while not trigger.is_set():
-            coroutine.sleep(1)
+        self.wait_for_events(Client('http://localhost:8102'), event='inline', state='online').wait()
         Client('http://localhost:8100').get(cmd='whoami')
         Client('http://localhost:8101').get(cmd='whoami')
 
@@ -113,7 +110,7 @@ class MasterPersonalTest(tests.Test):
         pid = self.popen('V=1 sugar-network-sync mnt http://localhost:8100', shell=True)
         self.waitpid(pid, 0)
         # Import cloned data on client
-        trigger = wait_for_events(event='sync_complete')
+        trigger = self.wait_for_events(client, event='sync_complete')
         os.rename('mnt', 'client/mnt/1')
         trigger.wait()
         # Upload client initial data to master
@@ -145,14 +142,14 @@ class MasterPersonalTest(tests.Test):
         client.put(['context', guid_1, 'preview'], 'preview1_')
 
         # Export client changes
-        trigger = wait_for_events(event='sync_complete')
+        trigger = self.wait_for_events(client, event='sync_complete')
         os.rename('client/mnt/1', 'client/mnt/2')
         trigger.wait()
         # Sync them with master
         pid = self.popen('V=1 client/mnt/2/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
         # Process master's reply
-        trigger = wait_for_events(event='sync_complete')
+        trigger = self.wait_for_events(client, event='sync_complete')
         os.rename('client/mnt/2', 'client/mnt/3')
         trigger.wait()
 
@@ -205,19 +202,6 @@ class MasterPersonalTest(tests.Test):
             [('db', stats_timestamp, {'f': 1.0}), ('db', stats_timestamp + 1, {'f': 2.0})],
             ],
             [[(db.name,) + i for i in db.get(db.first, db.last)] for db in rrd])
-
-
-def wait_for_events(**condition):
-    trigger = coroutine.Event()
-
-    def waiter(trigger):
-        for event in Client('http://localhost:8102').subscribe(**condition):
-            break
-        trigger.set()
-
-    coroutine.spawn(waiter, trigger)
-    coroutine.dispatch()
-    return trigger
 
 
 if __name__ == '__main__':

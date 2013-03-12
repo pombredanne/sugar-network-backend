@@ -36,16 +36,13 @@ _pms_path = _PMS_PATHS.get(lsb_release.distributor_id())
 _mtime = None
 
 
-def make(mountpoint, guid):
-    return pipe.fork(_make, logname=guid, mountpoint=mountpoint, context=guid,
-            session={
-                'mountpoint': mountpoint,
-                'context': guid,
-                })
+def make(guid):
+    return pipe.fork(_make, logname=guid, context=guid,
+            session={'context': guid})
 
 
-def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
-        uri=None, color=None):
+def launch(guid, args=None, activity_id=None, object_id=None, uri=None,
+        color=None):
     if object_id:
         if not activity_id:
             activity_id = journal.get(object_id, 'activity_id')
@@ -66,29 +63,22 @@ def launch(mountpoint, guid, args=None, activity_id=None, object_id=None,
     if uri:
         args.extend(['-u', uri])
 
-    return pipe.fork(_launch, logname=guid, mountpoint=mountpoint,
-            context=guid, args=args, session={
-                'mountpoint': mountpoint,
+    return pipe.fork(_launch, logname=guid, context=guid, args=args,
+            session={
                 'context': guid,
                 'activity_id': activity_id,
                 'color': color,
                 })
 
 
-def clone(mountpoint, guid):
-    return pipe.fork(_clone, logname=guid, mountpoint=mountpoint, context=guid,
-            session={
-                'mountpoint': mountpoint,
-                'context': guid,
-                })
+def clone(guid):
+    return pipe.fork(_clone, logname=guid, context=guid,
+            session={'context': guid})
 
 
-def clone_impl(mountpoint, context, guid, spec):
+def clone_impl(context, guid, spec):
     return pipe.fork(_clone_impl, logname=context, guid=guid, spec=spec,
-            session={
-                'mountpoint': mountpoint,
-                'context': context,
-                })
+            session={'context': context})
 
 
 def invalidate_solutions(mtime):
@@ -96,9 +86,9 @@ def invalidate_solutions(mtime):
     _mtime = mtime
 
 
-def _make(mountpoint, context):
+def _make(context):
     pipe.feedback('analyze')
-    solution = _solve(mountpoint, context)
+    solution = _solve(context)
     pipe.feedback('solved', environ={'solution': solution})
 
     to_install = []
@@ -112,8 +102,9 @@ def _make(mountpoint, context):
         packagekit.install(to_install)
 
     for impl in solution:
-        if 'install' in impl or 'mountpoint' not in impl or 'path' in impl:
+        if 'path' in impl or impl['stability'] == 'packaged':
             continue
+
         pipe.trace('Download %s implementation', impl['id'])
         # TODO Process different mountpoints
         impl_path = cache.get(impl['id'])
@@ -125,19 +116,19 @@ def _make(mountpoint, context):
     return solution
 
 
-def _launch(mountpoint, context, args):
-    solution = _make(mountpoint, context)
+def _launch(context, args):
+    solution = _make(context)
 
     args = solution[0]['command'] + (args or [])
-    _logger.info('Executing %r from %r: %s', context, mountpoint, args)
+    _logger.info('Executing %r feed: %s', context, args)
     pipe.feedback('exec')
 
     _activity_env(solution[0], os.environ)
     os.execvpe(args[0], args, os.environ)
 
 
-def _clone(mountpoint, context):
-    solution = _make(mountpoint, context)
+def _clone(context):
+    solution = _make(context)
 
     cloned = []
     try:
@@ -170,21 +161,17 @@ def _clone_impl(guid, spec):
     util.cptree(src_path, dst_path)
 
 
-def _solve(mountpoint, context):
-    pipe.trace('Start solving %s from %s mountpoint', context, mountpoint)
+def _solve(context):
+    pipe.trace('Start solving %s feed', context)
 
-    cached_path, solution, stale = _get_cached_solution(mountpoint, context)
+    cached_path, solution, stale = _get_cached_solution(context)
     if stale is False:
         pipe.trace('Reuse cached solution')
         return solution
 
     from sugar_network.zerosugar import solver
 
-    if mountpoint != '/':
-        _logger.info('Disable dependencies for local mountpoint')
-        solver.nodeps = True
-
-    solution = solver.solve(mountpoint, context)
+    solution = solver.solve(context)
     _set_cached_solution(cached_path, solution)
 
     return solution
@@ -215,9 +202,8 @@ def _activity_env(impl, environ):
     os.chdir(impl_path)
 
 
-def _get_cached_solution(mountpoint, guid):
-    path = client.path('cache', 'solutions', mountpoint.replace('/', '#'),
-            guid[:2], guid)
+def _get_cached_solution(guid):
+    path = client.path('cache', 'solutions', guid[:2], guid)
 
     solution = None
     if exists(path):

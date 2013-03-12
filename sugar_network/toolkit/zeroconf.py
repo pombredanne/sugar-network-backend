@@ -32,6 +32,7 @@ _logger = logging.getLogger('zeroconf')
 def browse_workstations():
     _logger.info('Start browsing hosts using Avahi')
 
+    # Run zeroconf loop in a subprocess to avoid dbus loop collisions
     for event in pipe.fork(_browser):
         if event['state'] == 'resolve':
             yield event['address']

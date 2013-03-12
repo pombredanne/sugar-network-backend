@@ -28,8 +28,7 @@ from gevent import monkey
 from sugar_network import db, client, toolkit
 from sugar_network.toolkit.router import IPCRouter, Request
 from sugar_network.resources.volume import Volume
-from sugar_network.client.mountset import Mountset, no_dbus
-from sugar_network.client.mounts import HomeMount, RemoteMount
+from sugar_network.client.commands import ClientCommands
 from sugar_network.toolkit import sugar, util, sugar, Option, BUFFER_SIZE
 from sugar_network.toolkit import printf, application, coroutine, enforce
 
@@ -57,6 +56,11 @@ json = Option(
         'treat POST or PUT command content as a JSON data',
         name='json', short_option='-j', default=False,
         type_cast=Option.bool_cast, action='store_true')
+
+offline = Option(
+        'do not connect to Sugar Network server',
+        default=False, type_cast=Option.bool_cast, action='store_true',
+        name='offline')
 
 
 _ESCAPE_VALUE_RE = re.compile('([^\[\]\{\}0-9][^\]\[\{\}]+)')
@@ -146,14 +150,9 @@ class Application(application.Application):
             else:
                 request[arg] = value
 
-        mountpoint = request.get('mountpoint')
-        if mountpoint and mountpoint == os.environ['HOME']:
-            # Convert back shell replacement for '~' symbol
-            request['mountpoint'] = '~'
-
         pid_path = None
         server = None
-        mountset = None
+        cli = None
         try:
             if not self.check_for_instance():
                 pid_path = self.new_instance()
@@ -164,15 +163,13 @@ class Application(application.Application):
                     sugar.privkey_path = lambda: '/fake/path'
                 else:
                     util.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
-                volume = Volume(client.path('db'))
-                mountset = Mountset(volume)
-                mountset['~'] = HomeMount(volume)
-                if not mountpoint or mountpoint == '/':
-                    mountset['/'] = RemoteMount(volume, listen_events=False)
-                    mountset['/'].mounted.wait()
+                home = Volume(client.path('db'))
+                cli = ClientCommands(home, offline=offline.value)
+                if not offline.value:
+                    for __ in cli.subscribe(event='inline', state='online'):
+                        break
                 server = coroutine.WSGIServer(
-                        ('localhost', client.ipc_port.value),
-                        IPCRouter(mountset))
+                        ('localhost', client.ipc_port.value), IPCRouter(cli))
                 coroutine.spawn(server.serve_forever)
                 coroutine.dispatch()
 
@@ -181,8 +178,8 @@ class Application(application.Application):
         finally:
             if server is not None:
                 server.close()
-            if mountset is not None:
-                mountset.close()
+            if cli is not None:
+                cli.close()
             if pid_path:
                 os.unlink(pid_path)
 
@@ -234,9 +231,11 @@ toolkit.cachedir.value = sugar.profile_path('tmp')
 
 Option.seek('main', [
     application.debug, anonymous, porcelain, post_data, post_file, json,
+    offline,
     ])
 Option.seek('client', [
-    client.api_url, client.layers, client.ipc_port, client.local_root, no_dbus,
+    client.api_url, client.layers, client.ipc_port, client.local_root,
+    client.no_dbus,
     ])
 
 locale.setlocale(locale.LC_ALL, '')

@@ -14,7 +14,6 @@ import rrdtool
 from __init__ import tests
 
 from sugar_network.client import Client
-from sugar_network.toolkit.sneakernet import InPacket, OutPacket
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import sugar, util, coroutine
 

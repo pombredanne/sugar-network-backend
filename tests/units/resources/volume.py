@@ -9,7 +9,7 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network import db, node
-from sugar_network.resources.volume import Volume, Resource, Commands, VolumeCommands
+from sugar_network.resources.volume import Volume, Resource, Commands
 from sugar_network.resources.user import User
 from sugar_network.toolkit.router import Request
 from sugar_network.toolkit import coroutine, sugar, util
@@ -126,87 +126,6 @@ class VolumeTest(tests.Test):
             {'document': 'document', 'event': 'commit'},
             ],
             events)
-
-    def test_MixinBlobUrls(self):
-        volume = Volume('db')
-        cp = TestCommands(volume)
-
-        guid1 = call(cp, method='POST', document='context', principal='principal', content={
-            'type': 'activity',
-            'title': 'title1',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        guid2 = call(cp, method='POST', document='context', principal='principal', content={
-            'type': 'activity',
-            'title': 'title2',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        volume['context'].set_blob(guid2, 'icon', url='http://foo/bar')
-        guid3 = call(cp, method='POST', document='context', principal='principal', content={
-            'type': 'activity',
-            'title': 'title3',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        volume['context'].set_blob(guid3, 'icon', url='/foo/bar')
-        guid4 = call(cp, method='POST', document='artifact', principal='principal', content={
-            'context': 'context',
-            'type': 'instance',
-            'title': 'title',
-            'description': 'description',
-            })
-
-        # No GUID in reply
-        self.assertEqual(
-                {'icon': 'http://localhost/static/images/missing.png'},
-                call(cp, method='GET', document='context', guid=guid1, reply=['icon']))
-        self.assertEqual(
-                {'icon': 'http://foo/bar'},
-                call(cp, method='GET', document='context', guid=guid2, reply=['icon']))
-        self.assertEqual(
-                {'icon': 'http://localhost/foo/bar'},
-                call(cp, method='GET', document='context', guid=guid3, reply=['icon']))
-        self.assertEqual(
-                {'data': 'http://localhost/artifact/%s/data' % guid4},
-                call(cp, method='GET', document='artifact', guid=guid4, reply=['data']))
-        self.assertRaises(RuntimeError, call, cp, method='GET', document='context', reply=['icon'])
-
-        # GUID in reply
-        self.assertEqual(
-                {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
-                call(cp, method='GET', document='context', guid=guid1, reply=['guid', 'icon', 'layer']))
-        self.assertEqual(
-                {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
-                call(cp, method='GET', document='context', guid=guid2, reply=['guid', 'icon', 'layer']))
-        self.assertEqual(
-                {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
-                call(cp, method='GET', document='context', guid=guid3, reply=['guid', 'icon', 'layer']))
-        self.assertEqual(
-                {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ['public']},
-                call(cp, method='GET', document='artifact', guid=guid4, reply=['guid', 'data', 'layer']))
-        self.assertEqual(
-                sorted([
-                    {'guid': guid1, 'icon': 'http://localhost/static/images/missing.png', 'layer': ['public']},
-                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
-                    {'guid': guid3, 'icon': 'http://localhost/foo/bar', 'layer': ['public']},
-                    ]),
-                sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
-
-        self.assertEqual([
-            {'guid': guid4, 'data': 'http://localhost/artifact/%s/data' % guid4, 'layer': ['public']},
-            ],
-            call(cp, method='GET', document='artifact', reply=['guid', 'data', 'layer'])['result'])
-
-        node.static_url.value = 'static_url'
-        self.assertEqual(
-                sorted([
-                    {'guid': guid1, 'icon': 'static_url/static/images/missing.png', 'layer': ['public']},
-                    {'guid': guid2, 'icon': 'http://foo/bar', 'layer': ['public']},
-                    {'guid': guid3, 'icon': 'static_url/foo/bar', 'layer': ['public']},
-                    ]),
-                sorted(call(cp, method='GET', document='context', reply=['guid', 'icon', 'layer'])['result']))
 
     def test_Populate(self):
         self.touch(
@@ -499,10 +418,10 @@ class VolumeTest(tests.Test):
             volume['document'].get(guid)['author'])
 
 
-class TestCommands(VolumeCommands, Commands):
+class TestCommands(db.VolumeCommands, Commands):
 
     def __init__(self, volume):
-        VolumeCommands.__init__(self, volume)
+        db.VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
         self.volume.connect(self.broadcast)
 

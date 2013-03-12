@@ -10,8 +10,6 @@ from __init__ import tests
 
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network.client.mounts import HomeMount
-from sugar_network.client.mountset import Mountset
 from sugar_network.zerosugar import clones
 from sugar_network.toolkit import coroutine, util, sugar
 from sugar_network.resources.volume import Volume
@@ -21,21 +19,18 @@ class ImplementationsTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        volume = Volume('local', [User, Context])
-        self.mounts = Mountset(volume)
-        self.mounts['~'] = HomeMount(volume)
-        self.mounts.open()
+        self.volume = Volume('local', [User, Context])
         self.job = None
 
     def tearDown(self):
         if self.job is not None:
             self.job.kill()
-        self.mounts.close()
+        self.volume.close()
         tests.Test.tearDown(self)
 
     def test_Inotify_NoPermissions(self):
         assert not exists('/foo/bar')
-        inotify = clones._Inotify(self.mounts.volume['context'])
+        inotify = clones._Inotify(self.volume['context'])
         inotify.setup(['/foo/bar'])
         assert not exists('/foo/bar')
 
@@ -50,7 +45,7 @@ class ImplementationsTest(tests.Test):
         found = []
         lost = []
 
-        inotify = clones._Inotify(self.mounts.volume['context'])
+        inotify = clones._Inotify(self.volume['context'])
         inotify.found = found.append
         inotify.lost = lost.append
         inotify.setup(['.'])
@@ -116,7 +111,7 @@ class ImplementationsTest(tests.Test):
         found = []
         lost = []
 
-        inotify = clones._Inotify(self.mounts.volume['context'])
+        inotify = clones._Inotify(self.volume['context'])
         inotify.found = found.append
         inotify.lost = lost.append
         inotify.setup(['Activities'])
@@ -164,10 +159,10 @@ class ImplementationsTest(tests.Test):
 
     def test_Checkin_Create(self):
         self.job = coroutine.spawn(clones.monitor,
-                self.mounts.volume['context'], ['Activities'])
+                self.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.mounts.volume['context'].create(
+        self.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
@@ -205,7 +200,7 @@ class ImplementationsTest(tests.Test):
                 os.readlink('clones/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
+                self.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
         assert exists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         self.assertEqual(
                 tests.tmpdir + '/Activities/activity/activity/icon.svg',
@@ -218,10 +213,10 @@ class ImplementationsTest(tests.Test):
 
     def test_Checkin_Copy(self):
         self.job = coroutine.spawn(clones.monitor,
-                self.mounts.volume['context'], ['Activities'])
+                self.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.mounts.volume['context'].create(
+        self.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
@@ -245,14 +240,14 @@ class ImplementationsTest(tests.Test):
                 os.readlink('clones/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
+                self.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
 
     def test_Checkin_Hardlink(self):
         self.job = coroutine.spawn(clones.monitor,
-                self.mounts.volume['context'], ['Activities'])
+                self.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.mounts.volume['context'].create(
+        self.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
@@ -278,11 +273,11 @@ class ImplementationsTest(tests.Test):
                 os.readlink('clones/context/org.sugarlabs.HelloWorld/' + hashed_path))
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
+                self.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
 
     def test_OfflineCheckin(self):
         self.job = coroutine.spawn(clones.monitor,
-                self.mounts.volume['context'], ['Activities'])
+                self.volume['context'], ['Activities'])
         coroutine.sleep()
 
         self.touch(('Activities/activity/activity/activity.info', [
@@ -304,13 +299,13 @@ class ImplementationsTest(tests.Test):
 
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en-us': 'HelloWorld'}, 'favorite': False, 'clone': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
+                self.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
 
     def test_Checkout(self):
         self.job = coroutine.spawn(clones.monitor,
-                self.mounts.volume['context'], ['Activities'])
+                self.volume['context'], ['Activities'])
 
-        self.mounts.volume['context'].create(
+        self.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
                 description={'en': 'description'}, user=[sugar.uid()])
@@ -342,7 +337,7 @@ class ImplementationsTest(tests.Test):
         assert exists('clones/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 2},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
+                self.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
         assert exists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         assert exists('share/mime/packages/%s.xml' % hashed_path)
         assert exists('share/mime/application/x-foo-bar.xml')
@@ -354,7 +349,7 @@ class ImplementationsTest(tests.Test):
         assert not exists('clones/context/org.sugarlabs.HelloWorld/' + hashed_path)
         self.assertEqual(
                 {'guid': 'org.sugarlabs.HelloWorld', 'title': {'en': 'title'}, 'favorite': False, 'clone': 0},
-                self.mounts.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
+                self.volume['context'].get('org.sugarlabs.HelloWorld').properties(['guid', 'title', 'favorite', 'clone']))
         assert not lexists('share/icons/sugar/scalable/mimetypes/foo-bar.svg')
         assert not lexists('share/mime/packages/%s.xml' % hashed_path)
         assert not lexists('share/mime/application/x-foo-bar.xml')

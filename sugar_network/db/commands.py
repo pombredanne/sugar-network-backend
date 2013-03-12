@@ -94,6 +94,7 @@ class Request(dict):
     accept_language = None
     commands = None
     response = None
+    static_prefix = None
 
     def __init__(self, **kwargs):
         """Initialize parameters dictionary using named arguments."""

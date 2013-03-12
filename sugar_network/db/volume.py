@@ -35,7 +35,11 @@ _logger = logging.getLogger('db.volume')
 
 class Volume(dict):
 
+    _flush_pool = []
+
     def __init__(self, root, documents, index_class=None, lazy_open=False):
+        Volume._flush_pool.append(self)
+
         if index_class is None:
             index_class = IndexWriter
 
@@ -132,11 +136,14 @@ class VolumeCommands(CommandsProcessor):
             enforce('guid' not in doc.props, env.Forbidden,
                     "Property 'guid' cannot be set manually")
             self.before_create(request, doc.props)
+            if 'guid' not in doc.props:
+                doc.props['guid'] = env.uuid()
+            doc.guid = doc.props['guid']
             for prop in directory.metadata.values():
                 if prop.on_set is not None and \
                         not prop.permissions & env.ACCESS_CREATE:
                     doc[prop.name] = prop.on_set(doc, prop.default)
-            doc.guid = directory.create(doc.props)
+            directory.create(doc.props)
             return doc.guid
 
     @directory_command(method='GET',
@@ -144,10 +151,10 @@ class VolumeCommands(CommandsProcessor):
             mime_type='application/json')
     def find(self, document, reply, request):
         if not reply:
-            request['reply'] = ['guid']
+            reply = ['guid']
         self._preget(request)
         documents, total = self.volume[document].find(**request)
-        result = [self._get_props(i, request) for i in documents]
+        result = [self._get_props(i, request, reply) for i in documents]
         return {'total': total, 'result': result}
 
     @document_command(method='GET', cmd='exists',
@@ -185,10 +192,16 @@ class VolumeCommands(CommandsProcessor):
 
     @document_command(method='GET', arguments={'reply': to_list},
             mime_type='application/json')
-    def get(self, document, guid, request):
+    def get(self, document, guid, reply, request):
+        if not reply:
+            reply = []
+            for prop in self.volume[document].metadata.values():
+                if prop.permissions & env.ACCESS_READ and \
+                        not (prop.permissions & env.ACCESS_LOCAL):
+                    reply.append(prop.name)
         self._preget(request)
         doc = self.volume[document].get(guid)
-        return self._get_props(doc, request)
+        return self._get_props(doc, request, reply)
 
     @property_command(method='GET', mime_type='application/json')
     def get_prop(self, document, guid, prop, request, response, part=None):
@@ -271,14 +284,20 @@ class VolumeCommands(CommandsProcessor):
         else:
             reply.append('guid')
 
-    def _get_props(self, doc, request):
+    def _get_props(self, doc, request, props):
         result = {}
         metadata = doc.metadata
         doc.request = request
-        for name in request['reply']:
+        for name in props:
             prop = metadata[name]
             value = prop.on_get(doc, doc.get(name, request.accept_language))
             if value is None:
                 value = prop.default
+            elif request.static_prefix and isinstance(value, PropertyMetadata):
+                value = value.get('url')
+                if value is None:
+                    value = '/'.join(['', metadata.name, doc.guid, name])
+                if value.startswith('/'):
+                    value = request.static_prefix + value
             result[name] = value
         return result

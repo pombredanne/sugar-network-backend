@@ -89,6 +89,18 @@ def res_init():
         _logger.exception('Failed to call res_init()')
 
 
+def default_route_exists():
+    with file('/proc/self/net/route') as f:
+        # Skip header
+        f.readline()
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            if int(line.split('\t', 2)[1], 16) == 0:
+                return True
+
+
 def spawn(cmd_filename, *args):
     _logger.trace('Spawn %s%r', cmd_filename, args)
 

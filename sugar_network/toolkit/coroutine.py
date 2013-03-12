@@ -82,12 +82,14 @@ def WSGIServer(*args, **kwargs):
     class WSGIHandler(gevent.wsgi.WSGIHandler):
 
         def log_error(self, msg, *args):
-            _wsgi_logger.error(msg, *args)
+            if args:
+                msg = msg % args
+            _wsgi_logger.error('%s %s', self.format_request(), msg)
 
         def log_request(self):
             _wsgi_logger.debug('%s', self.format_request())
 
-    kwargs['spawn'] = spawn
+    kwargs['spawn'] = Pool()
     if 'handler_class' not in kwargs:
         if logging.getLogger().level >= logging.DEBUG:
             WSGIHandler.log_request = lambda * args: None

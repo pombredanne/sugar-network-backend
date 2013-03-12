@@ -24,9 +24,7 @@ from gevent import monkey
 
 import sugar_network_webui as webui
 from sugar_network import db, node, client, toolkit
-from sugar_network.client.mounts import LocalMount
-from sugar_network.client.mountset import Mountset
-from sugar_network.client.mounts import LocalMount
+from sugar_network.client.commands import ClientCommands
 from sugar_network.node import stats_node, stats_user, obs
 from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
@@ -96,13 +94,12 @@ class Application(application.Daemon):
 
             # Point client API to volume directly
             client.mounts_root.value = None
-            mountset = Mountset(None)
-            mountset['/'] = LocalMount(volume)
+            client_commands = ClientCommands(volume, offline=True)
 
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)
             server = coroutine.WSGIServer(host,
-                    webui.get_app(mountset, client.api_url.value))
+                    webui.get_app(client_commands, client.api_url.value))
             self.jobs.spawn(server.serve_forever)
 
         try:

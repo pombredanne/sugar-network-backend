@@ -42,21 +42,12 @@ reader.check_readable = lambda * args, ** kwargs: True
 try_cleanup_distro_version = distro.try_cleanup_distro_version
 canonical_machine = distro.canonical_machine
 
-nodeps = False
-
 _logger = logging.getLogger('zeroinstall')
-_mountpoints = None
 _client = None
 
 
-def solve(mountpoint, context):
-    global _mountpoints, _client
-
-    _mountpoints = [mountpoint]
-    if mountpoint != '~':
-        _mountpoints.append('~')
-    if mountpoint != '/':
-        _mountpoints.append('/')
+def solve(context):
+    global _client
 
     _client = IPCClient()
     try:
@@ -143,11 +134,10 @@ def _impl_new(config, iface, sel):
             'context': iface,
             'version': sel.version,
             'name': feed.name,
+            'stability': sel.impl.upstream_stability.name,
             }
     if isabs(sel.id):
         impl['spec'] = join(sel.id, 'activity', 'activity.info')
-    if not feed.packaged:
-        impl['mountpoint'] = feed.mountpoint
     if sel.local_path:
         impl['path'] = sel.local_path
     if sel.impl.to_install:
@@ -175,25 +165,17 @@ def _load_feed(context):
         except ImportError:
             pass
 
-    mountpoint = None
     feed_content = None
-    for mountpoint in _mountpoints:
-        try:
-            feed_content = _client.get(['context', context],
-                    reply=['title', 'aliases', 'versions', 'dependencies'],
-                    # TODO stability='stable'
-                    mountpoint=mountpoint)
-            pipe.trace('Found %s in %s mountpoint', context, mountpoint)
-            break
-        except Exception:
-            exception(_logger, 'Failed to fetch %r feed from %r mountpoint',
-                    context, mountpoint)
-
-    if feed_content is None:
+    try:
+        feed_content = _client.get(['context', context],
+                # TODO stability='stable'
+                reply=['title', 'aliases', 'versions', 'dependencies'])
+        pipe.trace('Found %s feed', context)
+    except Exception:
+        exception(_logger, 'Failed to fetch %r feed', context)
         pipe.trace('No feeds for %s', context)
         return None
 
-    feed.mountpoint = mountpoint
     feed.name = feed_content['title']
 
     aliases = feed_content['aliases'].get(lsb_release.distributor_id())
@@ -225,9 +207,6 @@ class _Feed(model.ZeroInstallFeed):
         self.to_resolve = None
         self._package_implementations = []
 
-        self.packaged = False
-        self.mountpoint = None
-
     @property
     def url(self):
         return self.context
@@ -237,7 +216,6 @@ class _Feed(model.ZeroInstallFeed):
         return set([self.context])
 
     def resolve(self, packages):
-        self.packaged = True
         top_package = packages[0]
 
         impl = _Implementation(self, self.context, None)
@@ -260,10 +238,9 @@ class _Feed(model.ZeroInstallFeed):
         impl.arch = release['arch']
         impl.upstream_stability = model.stability_levels[release['stability']]
 
-        if not nodeps:
-            for i in common_deps:
-                impl.requires.append(_Dependency(i, {}))
-            impl.requires.extend(_read_requires(release.get('requires')))
+        for i in common_deps:
+            impl.requires.append(_Dependency(i, {}))
+        impl.requires.extend(_read_requires(release.get('requires')))
 
         if isabs(impl_id):
             impl.local_path = impl_id

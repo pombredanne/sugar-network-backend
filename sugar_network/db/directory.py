@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import re
 import shutil
 import logging
 from os.path import exists, join
@@ -28,8 +27,6 @@ from sugar_network.toolkit import util, exception, enforce
 
 # To invalidate existed index on stcuture changes
 _LAYOUT_VERSION = 4
-
-_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 _logger = logging.getLogger('db.directory')
 
@@ -107,11 +104,8 @@ class Directory(object):
         if props is None:
             props = kwargs
 
-        if 'guid' in props:
-            guid = props['guid']
-            enforce(_GUID_RE.match(guid) is not None, 'Malformed GUID')
-            enforce(not self.exists(guid), 'Document already exists')
-        else:
+        guid = props.get('guid')
+        if not guid:
             guid = props['guid'] = env.uuid()
 
         for prop_name, prop in self.metadata.items():

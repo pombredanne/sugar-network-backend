@@ -201,6 +201,46 @@ class VolumeTest(tests.Test):
             ],
             self.call('GET', document='testdocument', reply=['guid', 'blob'])['result'])
 
+    def test_GetBLOBsByUrls(self):
+
+        class TestDocument(db.Document):
+
+            @db.blob_property()
+            def blob(self, value):
+                return value
+
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+
+        self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+        self.assertEqual(
+                {'blob': 'http://localhost/testdocument/%s/blob' % guid},
+                self.call('GET', document='testdocument', guid=guid, reply=['blob'], static_prefix='http://localhost'))
+        self.assertEqual([
+            {'blob': 'http://localhost/testdocument/%s/blob' % guid},
+            ],
+            self.call('GET', document='testdocument', reply=['blob'], static_prefix='http://localhost')['result'])
+
+        self.volume['testdocument'].set_blob(guid, 'blob', 'file')
+        self.assertEqual('file', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
+        self.assertEqual(
+                {'blob': 'http://localhost/testdocument/%s/blob' % guid},
+                self.call('GET', document='testdocument', guid=guid, reply=['blob'], static_prefix='http://localhost'))
+        self.assertEqual([
+            {'blob': 'http://localhost/testdocument/%s/blob' % guid},
+            ],
+            self.call('GET', document='testdocument', reply=['blob'], static_prefix='http://localhost')['result'])
+
+        self.volume['testdocument'].set_blob(guid, 'blob', db.PropertyMetadata(url='http://foo'))
+        self.assertEqual('http://foo', self.call('GET', document='testdocument', guid=guid, prop='blob')['url'])
+        self.assertEqual(
+                {'blob': 'http://foo'},
+                self.call('GET', document='testdocument', guid=guid, reply=['blob'], static_prefix='http://localhost'))
+        self.assertEqual([
+            {'blob': 'http://foo'},
+            ],
+            self.call('GET', document='testdocument', reply=['blob'], static_prefix='http://localhost')['result'])
+
     def test_CommandsGetAbsentBlobs(self):
 
         class TestDocument(db.Document):
@@ -937,7 +977,8 @@ class VolumeTest(tests.Test):
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,
-            content_type=None, if_modified_since=None, **kwargs):
+            content_type=None, if_modified_since=None, static_prefix=None,
+            **kwargs):
 
         class TestRequest(db.Request):
 
@@ -945,6 +986,7 @@ class VolumeTest(tests.Test):
             content_length = 0
 
         request = TestRequest(**kwargs)
+        request.static_prefix = static_prefix
         request.content = content
         request.content_stream = content_stream
         request.content_type = content_type

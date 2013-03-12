@@ -18,8 +18,7 @@ from gevent import monkey
 from sugar_network.toolkit import coroutine, sugar, http, mountpoints, util
 from sugar_network.toolkit.router import Router, IPCRouter
 from sugar_network.client import journal
-from sugar_network.client.mounts import HomeMount, RemoteMount
-from sugar_network.client.mountset import Mountset
+from sugar_network.client.commands import ClientCommands
 from sugar_network import db, client, node, toolkit
 from sugar_network.db import env
 from sugar_network.zerosugar import injector, solver
@@ -88,11 +87,9 @@ class Test(unittest.TestCase):
         client.local_root.value = tmpdir
         client.activity_dirs.value = [tmpdir + '/Activities']
         client.api_url.value = 'http://localhost:8888'
-        client.server_mode.value = False
         client.mounts_root.value = None
         client.ipc_port.value = 5555
         client.layers.value = None
-        client.connect_timeout.value = 0
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
@@ -133,32 +130,30 @@ class Test(unittest.TestCase):
         logging.basicConfig(level=logging.DEBUG, filename=self.logfile)
         util.init_logging(10)
 
-        self.server = None
-        self.mounts = None
-        self.volume = None
+        self.node = None
+        self.client = None
 
         self.forks = []
         self.fork_num = fork_num
 
     def tearDown(self):
-        self.stop_servers()
+        self.stop_nodes()
+        while Volume._flush_pool:
+            Volume._flush_pool.pop().close()
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
         sys.stdout.flush()
 
-    def stop_servers(self):
-        if self.mounts is not None:
-            self.mounts.close()
-        if self.server is not None:
-            self.server.stop()
+    def stop_nodes(self):
+        if self.client is not None:
+            self.client.close()
+        if self.node is not None:
+            self.node.stop()
         while self.forks:
             pid = self.forks.pop()
             self.assertEqual(0, self.waitpid(pid))
         coroutine.shutdown()
-        if self.volume is not None:
-            self.volume.close()
-            self.volume = None
 
     def waitpid(self, pid, sig=signal.SIGTERM, ignore_status=False):
         if pid in self.forks:
@@ -254,30 +249,42 @@ class Test(unittest.TestCase):
         coroutine.sleep(1)
         return child.pid
 
-    def start_server(self, classes=None, root=True):
-        if classes is None:
-            classes = [User, Context, Implementation]
-        volume = Volume('local', classes)
-        self.mounts = Mountset(volume)
-        self.mounts['~'] = HomeMount(volume)
-        if root:
-            self.mounts['/'] = RemoteMount(volume)
-        self.server = coroutine.WSGIServer(
-                ('localhost', client.ipc_port.value), IPCRouter(self.mounts))
-        coroutine.spawn(self.server.serve_forever)
-        self.mounts.open()
-        self.mounts.opened.wait()
-        coroutine.dispatch()
-        return volume
-
     def create_mountset(self, classes=None):
         self.start_server(classes, root=False)
 
-    def start_ipc_and_restful_server(self, classes=None, **kwargs):
-        pid = self.fork(self.restful_server, classes)
-        self.start_server(classes)
-        self.mounts['/'].mounted.wait()
-        return pid
+    def start_master(self, classes=None):
+        if classes is None:
+            classes = [User, Context, Implementation]
+        self.node_volume = Volume('master', classes)
+        cp = NodeCommands(True, 'guid', self.node_volume)
+        self.node = coroutine.WSGIServer(('localhost', 8888), Router(cp))
+        coroutine.spawn(self.node.serve_forever)
+        coroutine.dispatch()
+        return self.node_volume
+
+    def start_online_client(self, classes=None):
+        if classes is None:
+            classes = [User, Context, Implementation]
+        self.start_master(classes)
+        volume = Volume('client', classes)
+        commands = ClientCommands(volume)
+        self.wait_for_events(commands, event='inline', state='online').wait()
+        self.client = coroutine.WSGIServer(
+                ('localhost', client.ipc_port.value), IPCRouter(commands))
+        coroutine.spawn(self.client.serve_forever)
+        coroutine.dispatch()
+        return volume
+
+    def start_offline_client(self, classes=None):
+        if classes is None:
+            classes = [User, Context, Implementation]
+        volume = Volume('client', classes)
+        commands = ClientCommands(volume, server_mode=True)
+        self.client = coroutine.WSGIServer(
+                ('localhost', client.ipc_port.value), IPCRouter(commands))
+        coroutine.spawn(self.client.serve_forever)
+        coroutine.dispatch()
+        return volume
 
     def restful_server(self, classes=None):
         if not exists('remote'):
@@ -306,16 +313,19 @@ class Test(unittest.TestCase):
             httpd.stop()
             volume.close()
 
-    def start_master(self, classes=None):
-        if classes is None:
-            classes = [User, Context, Implementation]
-        self.touch('master/master')
-        self.volume = Volume('master', classes)
-        cp = NodeCommands(True, 'guid', self.volume)
-        self.server = coroutine.WSGIServer(('localhost', 8888), Router(cp))
-        coroutine.spawn(self.server.serve_forever)
+    def wait_for_events(self, cp, **condition):
+        trigger = coroutine.AsyncResult()
+
+        def waiter(trigger):
+            for event in cp.subscribe(**condition):
+                if isinstance(event, basestring) and event.startswith('data: '):
+                    event = json.loads(event[6:])
+                trigger.set(event)
+                break
+
+        coroutine.spawn(waiter, trigger)
         coroutine.dispatch()
-        return self.volume
+        return trigger
 
 
 def sign(privkey, data):

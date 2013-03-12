@@ -29,9 +29,7 @@ import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
 from sugar_network.toolkit import sugar, mountpoints
 from sugar_network.toolkit.router import IPCRouter
-from sugar_network.client.mounts import HomeMount, NetworkMount
-from sugar_network.client.mounts import RemoteMount
-from sugar_network.client.mountset import Mountset
+from sugar_network.client.commands import ClientCommands
 from sugar_network.zerosugar import clones
 from sugar_network.node import stats_node, stats_user, slave
 from sugar_network.resources.volume import Volume
@@ -112,30 +110,26 @@ class Application(application.Daemon):
     def run(self):
         util.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
         volume = Volume(client.path('db'), lazy_open=client.lazy_open.value)
-        mountset = Mountset(volume)
-        mountset['~'] = HomeMount(volume)
-
-        if not client.server_mode.value:
-            mountset['/'] = RemoteMount(volume)
+        commands = ClientCommands(volume, server_mode=client.server_mode.value)
 
         logging.info('Listening for IPC requests on %s port',
                 client.ipc_port.value)
         server = coroutine.WSGIServer(('localhost', client.ipc_port.value),
-                IPCRouter(mountset))
+                IPCRouter(commands))
         self.jobs.spawn(server.serve_forever)
         coroutine.dispatch()
 
         self.accept()
 
         def final_start():
-            self._sync(mountset.volume)
-            self.jobs.spawn(clones.monitor, mountset.volume['context'],
+            self._sync(volume)
+            self.jobs.spawn(clones.monitor, volume['context'],
                     client.activity_dirs.value)
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
-                server = coroutine.WSGIServer(host, webui.get_app(mountset,
+                server = coroutine.WSGIServer(host, webui.get_app(commands,
                         'http://localhost:%s' % client.ipc_port.value))
                 self.jobs.spawn(server.serve_forever)
 
@@ -146,7 +140,7 @@ class Application(application.Daemon):
                 self.jobs.spawn(mountpoints.monitor, mounts_root)
 
         def delayed_start(event=None):
-            for __ in mountset.subscribe(event='delayed-start'):
+            for __ in commands.subscribe(event='delayed-start'):
                 break
             logging.info('Proceed delayed start')
             final_start()
@@ -157,13 +151,12 @@ class Application(application.Daemon):
             final_start()
 
         try:
-            mountset.open()
             self.jobs.join()
         except KeyboardInterrupt:
             util.exception('%s interrupted', self.name)
         finally:
             self.jobs.kill()
-            mountset.close()
+            commands.close()
 
     def shutdown(self):
         self.jobs.kill()

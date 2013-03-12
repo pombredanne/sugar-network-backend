@@ -51,7 +51,7 @@ class AuthTest(tests.Test):
             'description': 'description',
             })
         self.assertNotEqual('probe', client.get(['context', 'guid', 'title']))
-        self.stop_servers()
+        self.stop_nodes()
 
         self.touch((
             'master/context/gu/guid/author',
@@ -91,7 +91,7 @@ class AuthTest(tests.Test):
         self.assertEqual('title', client.get(['context', 'guid', 'title']))
         self.assertEqual([], client.get(['context', 'guid', 'author']))
 
-        self.stop_servers()
+        self.stop_nodes()
         self.touch((
             'master/context/gu/guid/author',
             json.dumps({"seqno": 1, "value": {"fake": {"role": 3}}}),

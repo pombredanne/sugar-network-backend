@@ -96,7 +96,6 @@ def stream_reader(stream):
 class Request(db.Request):
 
     principal = None
-    mountpoint = None
     if_modified_since = None
     allow_redirects = False
 
@@ -128,7 +127,7 @@ class Router(object):
             _logger.debug('Logging %r user', user)
             request = Request(method='GET', cmd='exists',
                     document='user', guid=user)
-            enforce(self.commands.call(request, db.Response()), Unauthorized,
+            enforce(self.commands.call(request), Unauthorized,
                     'Principal user does not exist')
             self._authenticated.add(user)
 
@@ -325,6 +324,9 @@ class _Request(Request):
         if not environ:
             return
 
+        http_host = environ.get('HTTP_HOST')
+        if http_host:
+            self.static_prefix = 'http://' + http_host
         self.access_level = db.ACCESS_REMOTE
         self.environ = environ
         self.url = '/' + environ['PATH_INFO'].strip('/')

@@ -14,25 +14,27 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import re
 import logging
 import hashlib
 from os.path import exists, join
 
 from sugar_network import db, node
 from sugar_network.node import auth, obs, stats_node
-from sugar_network.resources.volume import Commands, VolumeCommands
+from sugar_network.resources.volume import Commands
 from sugar_network.toolkit import router, util, coroutine, exception, enforce
 
 
 _MAX_STATS_LENGTH = 100
+_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 _logger = logging.getLogger('node.commands')
 
 
-class NodeCommands(VolumeCommands, Commands):
+class NodeCommands(db.VolumeCommands, Commands):
 
     def __init__(self, is_master, guid, volume):
-        VolumeCommands.__init__(self, volume)
+        db.VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
 
         self._is_master = is_master
@@ -179,9 +181,40 @@ class NodeCommands(VolumeCommands, Commands):
                 guid=impls[0]['guid'], prop='data')
         return self.call(request, db.Response())
 
+    @db.document_command(method='GET', cmd='deplist',
+            mime_type='application/json')
+    def deplist(self, document, guid, repo):
+        """List of native packages context is dependening on.
+
+        Command return only GNU/Linux package names and ignores
+        Sugar Network dependencies.
+
+        :param repo:
+            OBS repository name to get package names for, e.g.,
+            Fedora-14
+        :returns:
+            list of package names
+
+        """
+        enforce(document == 'context')
+        enforce(repo, 'Argument %r should be set', 'repo')
+        context = self.volume['context'].get(guid)
+
+        result = []
+
+        for package in context['dependencies']:
+            dep = self.volume['context'].get(package)
+            enforce(repo in dep['packages'],
+                    'No packages for %r on %r', package, repo)
+            result.extend(dep['packages'][repo].get('binary') or [])
+
+        return result
+
     def call(self, request, response=None):
+        if node.static_url.value:
+            request.static_prefix = node.static_url.value
         try:
-            result = VolumeCommands.call(self, request, response)
+            result = db.VolumeCommands.call(self, request, response)
         except router.HTTPStatusPass:
             if self._stats is not None:
                 self._stats.log(request)
@@ -192,7 +225,7 @@ class NodeCommands(VolumeCommands, Commands):
         return result
 
     def resolve(self, request):
-        cmd = VolumeCommands.resolve(self, request)
+        cmd = db.VolumeCommands.resolve(self, request)
         if cmd is None:
             return
 
@@ -212,16 +245,20 @@ class NodeCommands(VolumeCommands, Commands):
         return cmd
 
     def before_create(self, request, props):
-        if request['document'] == 'user':
+        document = request['document']
+        if document == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
 
         if self._is_master and 'implement' in props:
             implement = props['implement']
             if not isinstance(implement, basestring):
                 implement = implement[0]
+            enforce(not self.volume[document].exists(implement),
+                    'Document already exists')
+            enforce(_GUID_RE.match(implement) is not None, 'Malformed GUID')
             props['guid'] = implement
 
-        VolumeCommands.before_create(self, request, props)
+        db.VolumeCommands.before_create(self, request, props)
 
     @db.directory_command_pre(method='GET')
     def _NodeCommands_find_pre(self, request):

@@ -2,13 +2,11 @@
 
 from __init__ import tests
 
-from client import *
-from home_mount import *
+from commands import *
 from journal import *
-from mountset import *
-from network_mount import *
-from proxy_commands import *
-from remote_mount import *
+from offline_commands import *
+from online_commands import *
+from server_commands import *
 
 if __name__ == '__main__':
     tests.main()

@@ -64,8 +64,8 @@ class ImplementationTest(tests.Test):
                 _encode_version('1-post1.2-3'))
 
     def test_SetMimeTypeForActivities(self):
-        self.start_server()
-        client = IPCClient(params={'mountpoint': '~'})
+        home_volume = self.start_offline_client()
+        client = IPCClient()
 
         context = client.post(['context'], {
             'type': 'content',
@@ -81,17 +81,17 @@ class ImplementationTest(tests.Test):
             'notes': '',
             })
         client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
-        self.assertEqual('image/png', self.mounts.volume['implementation'].get(impl).meta('data')['mime_type'])
+        self.assertEqual('image/png', home_volume['implementation'].get(impl).meta('data')['mime_type'])
 
         client.put(['context', context, 'type'], 'activity')
         client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
-        self.assertEqual('application/vnd.olpc-sugar', self.mounts.volume['implementation'].get(impl).meta('data')['mime_type'])
+        self.assertEqual('application/vnd.olpc-sugar', home_volume['implementation'].get(impl).meta('data')['mime_type'])
 
     def test_WrongAuthor(self):
-        volume = self.start_server()
-        client = IPCClient(params={'mountpoint': '~'})
+        home_volume = self.start_offline_client()
+        client = IPCClient()
 
-        volume['context'].create(
+        home_volume['context'].create(
                 guid='context',
                 type='content',
                 title='title',
@@ -107,11 +107,11 @@ class ImplementationTest(tests.Test):
                 'notes': '',
                 }
         self.assertRaises(RuntimeError, client.post, ['implementation'], impl)
-        self.assertEqual(0, volume['implementation'].find()[1])
+        self.assertEqual(0, home_volume['implementation'].find()[1])
 
-        volume['context'].update('context', author={sugar.uid(): None})
+        home_volume['context'].update('context', author={sugar.uid(): None})
         guid = client.post(['implementation'], impl)
-        assert volume['implementation'].exists(guid)
+        assert home_volume['implementation'].exists(guid)
 
 
 if __name__ == '__main__':
