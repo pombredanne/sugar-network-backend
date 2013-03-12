@@ -4,9 +4,8 @@
 from __init__ import tests
 
 from sugar_network import db, client
-from sugar_network.client import journal
+from sugar_network.client import journal, injector
 from sugar_network.client.commands import ClientCommands
-from sugar_network.zerosugar import injector
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit.router import IPCRouter
 from sugar_network.toolkit import coroutine

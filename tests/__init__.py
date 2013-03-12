@@ -21,7 +21,7 @@ from sugar_network.client import journal
 from sugar_network.client.commands import ClientCommands
 from sugar_network import db, client, node, toolkit
 from sugar_network.db import env
-from sugar_network.zerosugar import injector, solver
+from sugar_network.client import injector, solver
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation

@@ -19,8 +19,8 @@ from os.path import join
 
 from sugar_network import db, resources, static
 from sugar_network.resources.volume import Resource
-from sugar_network.zerosugar import clones
-from sugar_network.zerosugar.spec import Spec
+from sugar_network.client import clones
+from sugar_network.client.spec import Spec
 from sugar_network.node import obs
 from sugar_network.toolkit import coroutine, exception
 

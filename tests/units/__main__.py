@@ -6,7 +6,6 @@ from toolkit.__main__ import *
 from db.__main__ import *
 from node.__main__ import *
 from resources.__main__ import *
-from zerosugar.__main__ import *
 from client.__main__ import *
 
 if __name__ == '__main__':

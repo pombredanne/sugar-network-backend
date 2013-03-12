@@ -19,8 +19,7 @@ from sugar_network.node import obs
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.zerosugar import packagekit, injector, clones, solver
-from sugar_network.client import IPCClient
+from sugar_network.client import IPCClient, packagekit, injector, clones, solver
 from sugar_network import client as local
 
 

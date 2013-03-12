@@ -8,8 +8,7 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import client, db
-from sugar_network.client import IPCClient, journal
-from sugar_network.zerosugar import clones, injector
+from sugar_network.client import IPCClient, journal, clones, injector
 from sugar_network.toolkit import coroutine
 from sugar_network.toolkit.router import Request, Redirect
 from sugar_network.client.commands import ClientCommands

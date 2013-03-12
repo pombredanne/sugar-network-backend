@@ -21,8 +21,7 @@ from os.path import join, exists
 from sugar_network import db, client, node
 from sugar_network.toolkit import netlink, mountpoints, router
 from sugar_network.toolkit.router import Request, Router
-from sugar_network.client import journal
-from sugar_network.zerosugar import clones, injector
+from sugar_network.client import journal, clones, injector
 from sugar_network.resources.volume import Volume, Commands
 from sugar_network.node.slave import PersonalCommands
 from sugar_network.toolkit import zeroconf, coroutine, util, exception, enforce

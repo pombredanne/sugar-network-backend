@@ -19,11 +19,11 @@ import logging
 from os.path import exists, join
 
 from sugar_network.client import Client, local_root
-from sugar_network.zerosugar.bundle import Bundle
+from sugar_network.client.bundle import Bundle
 from sugar_network.toolkit import BUFFER_SIZE, pipe, util
 
 
-_logger = logging.getLogger('zerosugar.cache')
+_logger = logging.getLogger('client.cache')
 
 
 def get(guid):

@@ -18,7 +18,7 @@ import tarfile
 import zipfile
 from os.path import join
 
-from sugar_network.zerosugar.spec import Spec
+from sugar_network.client.spec import Spec
 
 
 class BundleError(Exception):

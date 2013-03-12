@@ -107,11 +107,6 @@ def path(*args):
     return str(result)
 
 
-def clones(*args, **kwargs):
-    import sugar_network.zerosugar.clones
-    return sugar_network.zerosugar.clones.walk(*args, **kwargs)
-
-
 def Client(url=None, sugar_auth=True, **session):
     from sugar_network.toolkit import http
     if url is None:

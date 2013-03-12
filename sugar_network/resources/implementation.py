@@ -18,14 +18,13 @@
 import xapian
 
 from sugar_network import db, resources
-from sugar_network.zerosugar.licenses import GOOD_LICENSES
-from sugar_network.zerosugar.spec import parse_version
 from sugar_network.resources.volume import Resource
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit.licenses import GOOD_LICENSES
+from sugar_network.toolkit import util, enforce
 
 
 def _encode_version(version):
-    version = parse_version(version)
+    version = util.parse_version(version)
     # Convert to [(`version`, `modifier`)]
     version = zip(*([iter(version)] * 2))
     major, modifier = version.pop(0)

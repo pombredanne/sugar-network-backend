@@ -30,7 +30,7 @@ from sugar_network.toolkit import pipe, enforce
 
 _PK_CONFILE = '/etc/PackageKit/PackageKit.conf'
 
-_logger = logging.getLogger('zerosugar.packagekit')
+_logger = logging.getLogger('client.packagekit')
 
 _pk = None
 _pk_max_resolve = 100
@@ -164,7 +164,7 @@ class _Transaction(object):
         self.error_details = details
 
     def __package_cb(self, status, pk_id, summary):
-        from sugar_network.zerosugar import solver
+        from sugar_network.client import solver
 
         package_name, version, arch, __ = pk_id.split(';')
         clean_version = solver.try_cleanup_distro_version(version)

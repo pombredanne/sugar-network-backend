@@ -10,12 +10,12 @@ from __init__ import tests
 
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
-from sugar_network.zerosugar import clones
+from sugar_network.client import clones
 from sugar_network.toolkit import coroutine, util, sugar
 from sugar_network.resources.volume import Volume
 
 
-class ImplementationsTest(tests.Test):
+class CloneTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)

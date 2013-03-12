@@ -5,7 +5,7 @@ from cStringIO import StringIO
 
 from __init__ import tests
 
-from sugar_network.zerosugar import spec
+from sugar_network.client import spec
 
 
 class SpecTest(tests.Test):

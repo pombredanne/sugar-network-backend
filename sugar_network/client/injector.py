@@ -20,8 +20,7 @@ import logging
 from os.path import join, exists, basename, dirname
 
 from sugar_network import client
-from sugar_network.client import journal
-from sugar_network.zerosugar import cache
+from sugar_network.client import journal, cache
 from sugar_network.toolkit import pipe, lsb_release, util, sugar
 
 
@@ -31,7 +30,7 @@ _PMS_PATHS = {
         'Ubuntu': '/var/lib/dpkg/status',
         }
 
-_logger = logging.getLogger('zerosugar.injector')
+_logger = logging.getLogger('client.injector')
 _pms_path = _PMS_PATHS.get(lsb_release.distributor_id())
 _mtime = None
 
@@ -98,7 +97,7 @@ def _make(context):
     if to_install:
         pipe.trace('Install %s package(s)',
                 ', '.join([i['name'] for i in to_install]))
-        from sugar_network.zerosugar import packagekit
+        from sugar_network.client import packagekit
         packagekit.install(to_install)
 
     for impl in solution:
@@ -169,7 +168,7 @@ def _solve(context):
         pipe.trace('Reuse cached solution')
         return solution
 
-    from sugar_network.zerosugar import solver
+    from sugar_network.client import solver
 
     solution = solver.solve(context)
     _set_cached_solution(cached_path, solution)
