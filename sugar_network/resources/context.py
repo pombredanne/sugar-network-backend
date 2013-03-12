@@ -19,10 +19,8 @@ from os.path import join
 
 from sugar_network import db, resources, static
 from sugar_network.resources.volume import Resource
-from sugar_network.client import clones
-from sugar_network.client.spec import Spec
 from sugar_network.node import obs
-from sugar_network.toolkit import coroutine, exception
+from sugar_network.toolkit import coroutine
 
 
 _logger = logging.getLogger('resources.context')
@@ -152,44 +150,6 @@ class Context(Resource):
             permissions=db.ACCESS_PUBLIC | db.ACCESS_LOCAL | db.ACCESS_SYSTEM)
     def packages(self, value):
         return value
-
-    @db.stored_property(typecast=[], default=[],
-            permissions=db.ACCESS_READ | db.ACCESS_LOCAL | db.ACCESS_SYSTEM)
-    def versions(self, value):
-        result = []
-
-        if self.clone == 2:
-            for path in clones.walk(self.guid):
-                try:
-                    spec = Spec(root=path)
-                except Exception:
-                    exception(_logger, 'Failed to read %r spec file', path)
-                    continue
-                result.append({
-                    'guid': spec.root,
-                    'version': spec['version'],
-                    'arch': '*-*',
-                    'stability': 'stable',
-                    'commands': {
-                        'activity': {
-                            'exec': spec['Activity', 'exec'],
-                            },
-                        },
-                    'requires': spec.requires,
-                    })
-        else:
-            impls, __ = self.volume['implementation'].find(
-                    limit=db.MAX_LIMIT, context=self.guid,
-                    layer=self.request.get('layer'))
-            for impl in impls:
-                for arch, spec in impl['spec'].items():
-                    spec['guid'] = impl.guid
-                    spec['version'] = impl['version']
-                    spec['arch'] = arch
-                    spec['stability'] = impl['stability']
-                    result.append(spec)
-
-        return result
 
     def _process_aliases(self, aliases):
         packages = {}

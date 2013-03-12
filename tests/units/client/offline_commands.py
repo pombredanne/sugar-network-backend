@@ -188,38 +188,41 @@ class OfflineCommandsTest(tests.Test):
         monitor = coroutine.spawn(clones.monitor, self.home_volume['context'], ['Activities'])
         coroutine.dispatch()
 
-        self.assertEqual([
-            {
-                'version': '1',
-                'arch': '*-*',
-                'commands': {
-                    'activity': {
-                        'exec': 'false',
+        self.assertEqual({
+            'name': 'TestActivity',
+            'implementations': [
+                {
+                    'version': '1',
+                    'arch': '*-*',
+                    'commands': {
+                        'activity': {
+                            'exec': 'false',
+                            },
+                        },
+                    'stability': 'stable',
+                    'guid': tests.tmpdir + '/Activities/activity-1',
+                    'requires': {},
+                    },
+                {
+                    'version': '2',
+                    'arch': '*-*',
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'guid': tests.tmpdir + '/Activities/activity-2',
+                    'requires': {
+                        'dep1': {},
+                        'dep2': {'restrictions': [['1', '2']]},
+                        'dep3': {'restrictions': [[None, '2']]},
+                        'dep4': {'restrictions': [['3', None]]},
                         },
                     },
-                'stability': 'stable',
-                'guid': tests.tmpdir + '/Activities/activity-1',
-                'requires': {},
-                },
-            {
-                'version': '2',
-                'arch': '*-*',
-                'commands': {
-                    'activity': {
-                        'exec': 'true',
-                        },
-                    },
-                'stability': 'stable',
-                'guid': tests.tmpdir + '/Activities/activity-2',
-                'requires': {
-                    'dep1': {},
-                    'dep2': {'restrictions': [['1', '2']]},
-                    'dep3': {'restrictions': [[None, '2']]},
-                    'dep4': {'restrictions': [['3', None]]},
-                    },
-                },
-            ],
-            ipc.get(['context', 'bundle_id', 'versions']))
+                ],
+            },
+            ipc.get(['context', 'bundle_id'], cmd='feed'))
 
 
 if __name__ == '__main__':

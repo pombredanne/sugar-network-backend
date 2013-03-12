@@ -543,27 +543,30 @@ class OnlineCommandsTest(tests.Test):
                 }},
             })
 
-        self.assertEqual([
-            {
-                'version': '1',
-                'arch': '*-*',
-                'stability': 'stable',
-                'guid': impl1,
-                },
-            {
-                'version': '2',
-                'arch': '*-*',
-                'stability': 'stable',
-                'guid': impl2,
-                'requires': {
-                    'dep1': {},
-                    'dep2': {'restrictions': [['1', '2']]},
-                    'dep3': {'restrictions': [[None, '2']]},
-                    'dep4': {'restrictions': [['3', None]]},
+        self.assertEqual({
+            'name': 'title',
+            'implementations': [
+                {
+                    'version': '1',
+                    'arch': '*-*',
+                    'stability': 'stable',
+                    'guid': impl1,
                     },
-                },
-            ],
-            ipc.get(['context', context, 'versions']))
+                {
+                    'version': '2',
+                    'arch': '*-*',
+                    'stability': 'stable',
+                    'guid': impl2,
+                    'requires': {
+                        'dep1': {},
+                        'dep2': {'restrictions': [['1', '2']]},
+                        'dep3': {'restrictions': [[None, '2']]},
+                        'dep4': {'restrictions': [['3', None]]},
+                        },
+                    },
+                ],
+            },
+            ipc.get(['context', context], cmd='feed'))
 
     def test_RestrictLayers(self):
         self.start_online_client([User, Context, Implementation, Artifact])
@@ -620,15 +623,21 @@ class OnlineCommandsTest(tests.Test):
                 [{'layer': ['public']}],
                 ipc.get(['artifact'], reply='layer', layer='public')['result'])
 
-        self.assertEqual(
-                [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
-                ipc.get(['context', context, 'versions']))
-        self.assertEqual(
-                [],
-                ipc.get(['context', context, 'versions'], layer='foo'))
-        self.assertEqual(
-                [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
-                ipc.get(['context', context, 'versions'], layer='public'))
+        self.assertEqual({
+            'name': 'title',
+            'implementations': [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+            },
+            ipc.get(['context', context], cmd='feed'))
+        self.assertEqual({
+            'name': 'title',
+            'implementations': [],
+            },
+            ipc.get(['context', context], cmd='feed', layer='foo'))
+        self.assertEqual({
+            'name': 'title',
+            'implementations': [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+            },
+            ipc.get(['context', context], cmd='feed', layer='public'))
 
         client.layers.value = ['foo', 'bar']
 
@@ -662,15 +671,21 @@ class OnlineCommandsTest(tests.Test):
                 [{'layer': ['public']}],
                 ipc.get(['artifact'], reply='layer', layer='public')['result'])
 
-        self.assertEqual(
-                [],
-                ipc.get(['context', context, 'versions']))
-        self.assertEqual(
-                [],
-                ipc.get(['context', context, 'versions'], layer='foo'))
-        self.assertEqual(
-                [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
-                ipc.get(['context', context, 'versions'], layer='public'))
+        self.assertEqual({
+            'name': 'title',
+            'implementations': [],
+            },
+            ipc.get(['context', context], cmd='feed'))
+        self.assertEqual({
+            'name': 'title',
+            'implementations': [],
+            },
+            ipc.get(['context', context], cmd='feed', layer='foo'))
+        self.assertEqual({
+            'name': 'title',
+            'implementations': [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+            },
+            ipc.get(['context', context], cmd='feed', layer='public'))
 
     def test_InvalidateSolutions(self):
         self.start_online_client()

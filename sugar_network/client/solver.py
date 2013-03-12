@@ -165,26 +165,21 @@ def _load_feed(context):
 
     feed_content = None
     try:
-        feed_content = _client.get(['context', context],
+        feed_content = _client.get(['context', context], cmd='feed',
                 # TODO stability='stable'
-                reply=['title', 'aliases', 'versions', 'dependencies'])
+                distro=lsb_release.distributor_id())
         pipe.trace('Found %s feed', context)
     except Exception:
         exception(_logger, 'Failed to fetch %r feed', context)
         pipe.trace('No feeds for %s', context)
         return None
 
-    feed.name = feed_content['title']
-
-    aliases = feed_content['aliases'].get(lsb_release.distributor_id())
-    if aliases:
-        feed.to_resolve = aliases.get('binary')
-    else:
+    feed.name = feed_content['name']
+    feed.to_resolve = feed_content.get('packages')
+    if not feed.to_resolve:
         pipe.trace('No compatible packages for %s', context)
-
-    for release in feed_content['versions']:
-        feed.implement(release, feed_content['dependencies'])
-
+    for impl in feed_content['implementations']:
+        feed.implement(impl)
     if not feed.to_resolve and not feed.implementations:
         pipe.trace('No implementations for %s', context)
 
@@ -227,7 +222,7 @@ class _Feed(model.ZeroInstallFeed):
         self.implementations[self.context] = impl
         self.to_resolve = None
 
-    def implement(self, release, common_deps):
+    def implement(self, release):
         impl_id = release['guid']
 
         impl = _Implementation(self, impl_id, None)
@@ -235,9 +230,6 @@ class _Feed(model.ZeroInstallFeed):
         impl.released = 0
         impl.arch = release['arch']
         impl.upstream_stability = model.stability_levels[release['stability']]
-
-        for i in common_deps:
-            impl.requires.append(_Dependency(i, {}))
         impl.requires.extend(_read_requires(release.get('requires')))
 
         if isabs(impl_id):

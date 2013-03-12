@@ -22,6 +22,7 @@ from sugar_network import db, client, node
 from sugar_network.toolkit import netlink, mountpoints, router
 from sugar_network.toolkit.router import Request, Router
 from sugar_network.client import journal, clones, injector
+from sugar_network.client.spec import Spec
 from sugar_network.resources.volume import Volume, Commands
 from sugar_network.node.slave import PersonalCommands
 from sugar_network.toolkit import zeroconf, coroutine, util, exception, enforce
@@ -210,6 +211,40 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                 self._checkin_context(guid, {'favorite': request.content})
         else:
             raise RuntimeError('Command is not supported for %r' % document)
+
+    @db.document_command(method='GET', cmd='feed',
+            mime_type='application/json')
+    def feed(self, document, guid, layer, distro, request, response):
+        enforce(document == 'context')
+        if self._inline.is_set():
+            return self._node_call(request, response)
+
+        context = self._home.volume['context'].get(guid)
+
+        versions = []
+        for path in clones.walk(context.guid):
+            try:
+                spec = Spec(root=path)
+            except Exception:
+                exception(_logger, 'Failed to read %r spec file', path)
+                continue
+            versions.append({
+                'guid': spec.root,
+                'version': spec['version'],
+                'arch': '*-*',
+                'stability': 'stable',
+                'commands': {
+                    'activity': {
+                        'exec': spec['Activity', 'exec'],
+                        },
+                    },
+                'requires': spec.requires,
+                })
+
+        return {'name': context.get('title',
+                    accept_language=request.accept_language),
+                'implementations': versions,
+                }
 
     def call(self, request, response=None):
         if not self._offline and not self._server_mode and \

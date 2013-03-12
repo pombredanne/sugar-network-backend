@@ -210,6 +210,39 @@ class NodeCommands(db.VolumeCommands, Commands):
 
         return result
 
+    @db.document_command(method='GET', cmd='feed',
+            mime_type='application/json')
+    def feed(self, document, guid, layer, distro, request):
+        enforce(document == 'context')
+        context = self.volume['context'].get(guid)
+
+        versions = []
+        impls, __ = self.volume['implementation'].find(limit=db.MAX_LIMIT,
+                context=context.guid, layer=layer)
+        for impl in impls:
+            for arch, spec in impl['spec'].items():
+                spec['guid'] = impl.guid
+                spec['version'] = impl['version']
+                spec['arch'] = arch
+                spec['stability'] = impl['stability']
+                if context['dependencies']:
+                    requires = spec.setdefault('requires', {})
+                    for i in context['dependencies']:
+                        requires.setdefault(i, {})
+                versions.append(spec)
+
+        result = {
+                'name': context.get('title',
+                    accept_language=request.accept_language),
+                'implementations': versions,
+                }
+        if distro:
+            aliases = context['aliases'].get(distro)
+            if aliases and 'binary' in aliases:
+                result['packages'] = aliases['binary']
+
+        return result
+
     def call(self, request, response=None):
         if node.static_url.value:
             request.static_prefix = node.static_url.value
