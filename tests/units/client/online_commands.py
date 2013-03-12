@@ -150,7 +150,7 @@ class OnlineCommandsTest(tests.Test):
         assert not ipc.get(cmd='inline')
 
         self.assertEqual(
-                {'clone': 2, 'type': ['activity']},
+                {'clone': 2},
                 ipc.get(['context', context], reply=['clone']))
 
     def test_clone_ActivityImpl(self):
@@ -416,7 +416,7 @@ class OnlineCommandsTest(tests.Test):
         assert not ipc.get(cmd='inline')
 
         self.assertEqual(
-                {'favorite': True, 'type': ['activity']},
+                {'favorite': True},
                 ipc.get(['context', context], reply=['favorite']))
 
     def test_subscribe(self):

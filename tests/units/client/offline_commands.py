@@ -83,19 +83,19 @@ class OfflineCommandsTest(tests.Test):
             })
 
         self.assertEqual(
-                {'favorite': 0, 'type': ['activity']},
+                {'favorite': False},
                 ipc.get(['context', context], reply=['favorite']))
 
         ipc.put(['context', context], True, cmd='favorite')
 
         self.assertEqual(
-                {'favorite': True, 'type': ['activity']},
+                {'favorite': True},
                 ipc.get(['context', context], reply=['favorite']))
 
         ipc.put(['context', context], False, cmd='favorite')
 
         self.assertEqual(
-                {'favorite': False, 'type': ['activity']},
+                {'favorite': False},
                 ipc.get(['context', context], reply=['favorite']))
 
     def test_subscribe(self):

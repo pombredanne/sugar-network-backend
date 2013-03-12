@@ -114,8 +114,16 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         return result
 
     @db.directory_command(method='GET',
-            arguments={'reply': db.to_list}, mime_type='application/json')
-    def find(self, request, response, reply):
+            arguments={'reply': db.to_list, 'clone': db.to_int},
+            mime_type='application/json')
+    def find(self, request, response, document, reply, clone):
+        if document == 'context':
+            if self._inline.is_set():
+                if clone:
+                    return self._home.call(request, response)
+            else:
+                if not self._offline and not clone:
+                    request['clone'] = 2
         return self._proxy_get(request, response)
 
     @db.document_command(method='GET',
@@ -455,14 +463,17 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
     def _proxy_get(self, request, response):
         document = request['document']
-        reply = request.get('reply')
-        mixin = set(reply or []) & _LOCAL_PROPS
-        if mixin:
-            # Otherwise there is no way to mixin _LOCAL_PROPS
-            if 'guid' not in request and 'guid' not in reply:
-                reply.append('guid')
-            if document == 'context' and 'type' not in reply:
-                reply.append('type')
+        mixin = None
+
+        if self._inline.is_set() and document in ('context', 'artifact'):
+            reply = request.setdefault('reply', ['guid'])
+            mixin = set(reply) & _LOCAL_PROPS
+            if mixin:
+                # Otherwise there is no way to mixin _LOCAL_PROPS
+                if 'guid' not in request and 'guid' not in reply:
+                    reply.append('guid')
+                if document == 'context' and 'type' not in reply:
+                    reply.append('type')
 
         result = self._node_call(request, response)
         if not mixin:
