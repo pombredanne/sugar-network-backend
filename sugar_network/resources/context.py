@@ -33,6 +33,12 @@ class Context(Resource):
     def type(self, value):
         return value
 
+    @type.setter
+    def type(self, value):
+        if 'package' in value and 'common' not in self['layer']:
+            self['layer'] = tuple(self['layer']) + ('common',)
+        return value
+
     @db.indexed_property(prefix='M',
             full_text=True, default=[], typecast=[])
     def implement(self, value):
@@ -132,8 +138,9 @@ class Context(Resource):
 
     @dependencies.setter
     def dependencies(self, value):
-        # Shift mtime to invalidate solutions
-        self.volume['implementation'].mtime = int(time.time())
+        if self.guid is not None or value:
+            # Shift mtime to invalidate solutions
+            self.volume['implementation'].mtime = int(time.time())
         return value
 
     @db.stored_property(typecast=dict, default={},
@@ -182,9 +189,10 @@ class Context(Resource):
                 else:
                     package['status'] = 'no packages to resolve'
 
-        self.request.call('PUT', document='context', guid=self.guid,
-                content={'packages': packages})
-        # Shift mtime to invalidate solutions
-        self.volume['implementation'].mtime = int(time.time())
+        if packages != self['packages']:
+            self.request.call('PUT', document='context', guid=self.guid,
+                    content={'packages': packages})
+            # Shift mtime to invalidate solutions
+            self.volume['implementation'].mtime = int(time.time())
 
         obs.presolve(aliases)

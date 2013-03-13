@@ -197,14 +197,42 @@ class ContextTest(tests.Test):
             'description': 'description',
             'dependencies': [],
             })
-        self.assertEqual(1, len(events))
-        assert 'mtime' in events[0]['props']
-        del events[:]
+        self.assertEqual(0, len(events))
 
         client.put(['context', guid, 'dependencies'], ['foo'])
         self.assertEqual(1, len(events))
         assert 'mtime' in events[0]['props']
         del events[:]
+
+    def test_SetCommonLayerForPackages(self):
+        self.start_offline_client()
+        ipc = IPCClient()
+
+        guid = ipc.post(['context'], {
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual(['public', 'common'], ipc.get(['context', guid, 'layer']))
+
+        guid = ipc.post(['context'], {
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'layer': 'foo',
+            })
+        self.assertEqual(['foo', 'common'], ipc.get(['context', guid, 'layer']))
+
+        guid = ipc.post(['context'], {
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'layer': ['common', 'bar'],
+            })
+        self.assertEqual(['common', 'bar'], ipc.get(['context', guid, 'layer']))
 
 
 if __name__ == '__main__':

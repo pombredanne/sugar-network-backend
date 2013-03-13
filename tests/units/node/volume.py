@@ -454,9 +454,12 @@ class VolumeTest(tests.Test):
             pass
 
         volume = Volume('db', [Context, Implementation, Review])
+        volume['context'].create(guid='0', ctime=1, mtime=1, layer=['layer0', 'common'])
         volume['context'].create(guid='1', ctime=1, mtime=1, layer='layer1')
         volume['implementation'].create(guid='2', ctime=2, mtime=2, layer='layer2')
         volume['review'].create(guid='3', ctime=3, mtime=3, layer='layer3')
+
+        volume['context'].update(guid='0', tags='0')
         volume['context'].update(guid='1', tags='1')
         volume['implementation'].update(guid='2', tags='2')
         volume['review'].update(guid='3', tags='3')
@@ -464,43 +467,47 @@ class VolumeTest(tests.Test):
 
         self.assertEqual(sorted([
             {'document': 'context'},
+            {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
             {'guid': '1', 'diff': {'tags': {'value': '1', 'mtime': 0}}},
             {'document': 'implementation'},
             {'guid': '2', 'diff': {'tags': {'value': '2', 'mtime': 0}}},
             {'document': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
-            {'commit': [[4, 6]]},
+            {'commit': [[5, 8]]},
             ]),
-            sorted([i for i in diff(volume, util.Sequence([[4, None]]))]))
+            sorted([i for i in diff(volume, util.Sequence([[5, None]]))]))
 
         self.assertEqual(sorted([
             {'document': 'context'},
+            {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
             {'guid': '1', 'diff': {'tags': {'value': '1', 'mtime': 0}}},
             {'document': 'implementation'},
             {'document': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
-            {'commit': [[4, 6]]},
+            {'commit': [[5, 8]]},
             ]),
-            sorted([i for i in diff(volume, util.Sequence([[4, None]]), layer='layer1')]))
+            sorted([i for i in diff(volume, util.Sequence([[5, None]]), layer='layer1')]))
 
         self.assertEqual(sorted([
             {'document': 'context'},
+            {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
             {'document': 'implementation'},
             {'guid': '2', 'diff': {'tags': {'value': '2', 'mtime': 0}}},
             {'document': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
-            {'commit': [[5, 6]]},
+            {'commit': [[5, 8]]},
             ]),
-            sorted([i for i in diff(volume, util.Sequence([[4, None]]), layer='layer2')]))
+            sorted([i for i in diff(volume, util.Sequence([[5, None]]), layer='layer2')]))
 
         self.assertEqual(sorted([
             {'document': 'context'},
+            {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
             {'document': 'implementation'},
             {'document': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
-            {'commit': [[6, 6]]},
+            {'commit': [[5, 8]]},
             ]),
-            sorted([i for i in diff(volume, util.Sequence([[4, None]]), layer='foo')]))
+            sorted([i for i in diff(volume, util.Sequence([[5, None]]), layer='foo')]))
 
 
 if __name__ == '__main__':

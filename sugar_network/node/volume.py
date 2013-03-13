@@ -26,6 +26,11 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None, **kwargs):
         out_seq = util.Sequence([])
     is_initial_diff = not out_seq
 
+    if layer:
+        if isinstance(layer, basestring):
+            layer = [layer]
+        layer.append('common')
+
     try:
         for document, directory in volume.items():
             coroutine.dispatch()
