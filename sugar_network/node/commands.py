@@ -282,10 +282,8 @@ class NodeCommands(db.VolumeCommands, Commands):
         if document == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
 
-        if self._is_master and 'implement' in props:
-            implement = props['implement']
-            if not isinstance(implement, basestring):
-                implement = implement[0]
+        if self._is_master and props.get('implement'):
+            implement = props['implement'][0]
             enforce(not self.volume[document].exists(implement),
                     'Document already exists')
             enforce(_GUID_RE.match(implement) is not None, 'Malformed GUID')

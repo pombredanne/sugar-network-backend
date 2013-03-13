@@ -855,7 +855,7 @@ class VolumeTest(tests.Test):
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
-        self.assertEqual('1', self.call('GET', document='testdocument', guid=guid, prop='prop'))
+        self.assertEqual('_1', self.call('GET', document='testdocument', guid=guid, prop='prop'))
         self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
         self.call('PUT', document='testdocument', guid=guid, prop='prop', content='2')
@@ -874,6 +874,35 @@ class VolumeTest(tests.Test):
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob2', content='bar')
         self.assertEqual(' bar ', file(self.call('GET', document='testdocument', guid=guid, prop='blob2')['blob']).read())
+
+    def test_properties_CallSettersAtTheEnd(self):
+
+        class TestDocument(db.Document):
+
+            @db.indexed_property(slot=1, typecast=int)
+            def prop1(self, value):
+                return value
+
+            @prop1.setter
+            def prop1(self, value):
+                return self['prop3'] + value
+
+            @db.indexed_property(slot=2, typecast=int)
+            def prop2(self, value):
+                return value
+
+            @prop2.setter
+            def prop2(self, value):
+                return self['prop3'] - value
+
+            @db.indexed_property(slot=3, typecast=int)
+            def prop3(self, value):
+                return value
+
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={'prop1': 1, 'prop2': 2, 'prop3': 3})
+        self.assertEqual(4, self.call('GET', document='testdocument', guid=guid, prop='prop1'))
+        self.assertEqual(1, self.call('GET', document='testdocument', guid=guid, prop='prop2'))
 
     def test_SubCall(self):
 

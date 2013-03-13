@@ -100,6 +100,7 @@ class Test(unittest.TestCase):
         stats_user.stats_user_step.value = 1
         stats_user._user_cache.clear()
         obs._client = None
+        obs._repos = {}
         http._RECONNECTION_NUMBER = 0
         auth.reset()
         toolkit.cachedir.value = tmpdir + '/tmp'

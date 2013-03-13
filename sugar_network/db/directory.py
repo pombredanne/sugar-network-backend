@@ -49,8 +49,7 @@ class Directory(object):
             # Metadata cannot be recreated
             document_class.metadata = Metadata(document_class)
             document_class.metadata['guid'] = IndexedProperty('guid',
-                    permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
-                    prefix=GUID_PREFIX)
+                    permissions=env.ACCESS_READ, slot=0, prefix=GUID_PREFIX)
         self.metadata = document_class.metadata
 
         self.document_class = document_class

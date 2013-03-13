@@ -139,10 +139,6 @@ class VolumeCommands(CommandsProcessor):
             if 'guid' not in doc.props:
                 doc.props['guid'] = env.uuid()
             doc.guid = doc.props['guid']
-            for prop in directory.metadata.values():
-                if prop.on_set is not None and \
-                        not prop.permissions & env.ACCESS_CREATE:
-                    doc[prop.name] = prop.on_set(doc, prop.default)
             directory.create(doc.props)
             return doc.guid
 
@@ -253,8 +249,6 @@ class VolumeCommands(CommandsProcessor):
                     prop.assert_access(env.ACCESS_WRITE)
             else:
                 prop.assert_access(access)
-            if prop.on_set is not None:
-                value = prop.on_set(doc, value)
             if isinstance(prop, BlobProperty):
                 enforce(PropertyMetadata.is_blob(value), 'Invalid BLOB value')
                 blobs.append((name, value))
@@ -269,9 +263,24 @@ class VolumeCommands(CommandsProcessor):
                     exception(error)
                     raise RuntimeError(error)
 
+        if access == env.ACCESS_CREATE:
+            for name, prop in directory.metadata.items():
+                if not isinstance(prop, BlobProperty) and \
+                        name not in request.content and \
+                        (prop.default is not None or prop.on_set is not None):
+                    doc.props[name] = prop.default
+
+        for name, value in doc.props.items():
+            prop = directory.metadata[name]
+            if not isinstance(prop, BlobProperty) and prop.on_set is not None:
+                doc.props[name] = prop.on_set(doc, value)
+
         yield directory, doc
 
         for name, value in blobs:
+            prop = directory.metadata[name]
+            if prop.on_set is not None:
+                value = prop.on_set(doc, value)
             directory.set_blob(doc.guid, name, value,
                     mime_type=request.content_type)
 
