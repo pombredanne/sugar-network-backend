@@ -12,6 +12,10 @@ from sugar_network.node import obs
 
 class ObsTest(tests.Test):
 
+    def setUp(self):
+        tests.Test.setUp(self)
+        obs._repos = {}
+
     def test_get_repos(self):
         self.override(http, 'Client', Client(self, [
             (('GET', ['build', 'base']), {'allowed': (400, 404)}, [

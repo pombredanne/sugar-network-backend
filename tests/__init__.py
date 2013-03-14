@@ -100,7 +100,7 @@ class Test(unittest.TestCase):
         stats_user.stats_user_step.value = 1
         stats_user._user_cache.clear()
         obs._client = None
-        obs._repos = {}
+        obs._repos = {'base': [], 'resolve': []}
         http._RECONNECTION_NUMBER = 0
         auth.reset()
         toolkit.cachedir.value = tmpdir + '/tmp'
@@ -318,11 +318,19 @@ class Test(unittest.TestCase):
         trigger = coroutine.AsyncResult()
 
         def waiter(trigger):
-            for event in cp.subscribe(**condition):
+            for event in cp.subscribe():
                 if isinstance(event, basestring) and event.startswith('data: '):
                     event = json.loads(event[6:])
-                trigger.set(event)
-                break
+                for key, value in condition.items():
+                    if isinstance(value, basestring) and value.startswith('!'):
+                        if event.get(key) == value[1:]:
+                            break
+                    else:
+                        if event.get(key) != value:
+                            break
+                else:
+                    trigger.set(event)
+                    break
 
         coroutine.spawn(waiter, trigger)
         coroutine.dispatch()

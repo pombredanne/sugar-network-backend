@@ -968,8 +968,9 @@ class OnlineCommandsTest(tests.Test):
         bundle.close()
         ipc.request('PUT', ['implementation', impl, 'data'], file('bundle', 'rb').read())
 
+        trigger = self.wait_for_events(ipc, event='update', document='context', guid=context1, props={'clone': 2})
         ipc.put(['context', context1], 2, cmd='clone')
-        self.wait_for_events(ipc, event='update', document='context', guid=context1, props={'clone': 2})
+        trigger.wait()
         self.assertEqual(
                 {'clone': 2, 'type': ['activity']},
                 ipc.get(['context', context1], reply=['clone']))
@@ -980,8 +981,9 @@ class OnlineCommandsTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
+        trigger = self.wait_for_events(ipc, event='create', document='context', guid=context2, props={'clone': 0, 'favorite': True})
         ipc.put(['context', context2], True, cmd='favorite')
-        self.wait_for_events(ipc, event='update', document='context', guid=context1, props={'favorite': True})
+        trigger.wait()
         self.assertEqual(
                 {'favorite': True, 'type': ['activity']},
                 ipc.get(['context', context2], reply=['favorite']))

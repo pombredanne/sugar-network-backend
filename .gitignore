@@ -6,3 +6,9 @@ tmp
 misc/db/**
 misc/log
 doc/objects.png
+sugar_network/lib/zeroinstall/locale/**
+sugar_network/lib/zeroinstall/share/**
+sugar_network/lib/zeroinstall/tests/**
+sugar_network/lib/requests/build/**
+sugar_network/lib/requests/docs/**
+sugar_network/lib/requests/tests/**

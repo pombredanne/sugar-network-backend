@@ -53,7 +53,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         self._offline = offline
         self._server_mode = server_mode
 
-        self._home.volume.connect(self.broadcast)
+        home_volume.connect(self._home_event_cb)
 
         if not offline:
             if server_mode:
@@ -294,14 +294,13 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             return self._home.call(request, response)
 
     def _got_online(self):
-        self._home.volume.disconnect(self.broadcast)
+        enforce(not self._inline.is_set())
         self._inline.set()
         self.broadcast({'event': 'inline', 'state': 'online'})
 
     def _got_offline(self, initiate=False):
         if not self._inline.is_set():
             return
-        self._home.volume.connect(self.broadcast)
         self._inline.clear()
         self.broadcast({'event': 'inline', 'state': 'offline'})
 
@@ -405,6 +404,19 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         self._node.volume.close()
         self._got_offline()
 
+    def _home_event_cb(self, event):
+        if not self._inline.is_set():
+            self.broadcast(event)
+        elif event.get('document') == 'context' and 'props' in event:
+            # Broadcast events related to proxy properties
+            event_props = event['props']
+            broadcast_props = event['props'] = {}
+            for name in _LOCAL_PROPS:
+                if name in event_props:
+                    broadcast_props[name] = event_props[name]
+            if broadcast_props:
+                self.broadcast(event)
+
     def _clone_jobject(self, uid, value, get_props, force):
         if value:
             if force or not journal.exists(uid):
@@ -418,7 +430,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         contexts = self._home.volume['context']
 
         if contexts.exists(guid):
-            contexts.update(guid, props.copy())
+            contexts.update(guid, props)
         else:
             copy = self._node_call(method='GET', document='context', guid=guid,
                     reply=[
@@ -433,15 +445,6 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                         guid=guid, prop=prop)
                 if blob is not None:
                     contexts.set_blob(guid, prop, blob)
-
-        if self._inline.is_set():
-            # Home volume events don't go out in online mode
-            self.broadcast({
-                'event': 'update',
-                'document': 'context',
-                'guid': guid,
-                'props': props,
-                })
 
     def _clone_activity(self, guid, request):
         if not request.content:
