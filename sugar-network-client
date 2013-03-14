@@ -75,8 +75,7 @@ class Application(application.Daemon):
 
         volume = Volume(client.path('db'))
         try:
-            volume.populate()
-            self._sync(volume)
+            ClientCommands(volume).populate()
             clones.populate(volume['context'], client.activity_dirs.value)
         finally:
             volume.close()
@@ -122,7 +121,7 @@ class Application(application.Daemon):
         self.accept()
 
         def final_start():
-            self._sync(volume)
+            commands.populate()
             self.jobs.spawn(clones.monitor, volume['context'],
                     client.activity_dirs.value)
 
@@ -171,13 +170,6 @@ class Application(application.Daemon):
                 if error.errno != errno.ECHILD:
                     raise
             break
-
-    def _sync(self, volume):
-        contexts = volume['context']
-        docs, __ = contexts.find(limit=db.MAX_LIMIT, clone=[1, 2])
-        for context in docs:
-            if not clones.ensure_clones(context.guid):
-                contexts.update(context.guid, clone=0)
 
 
 def _read_environ(pid):

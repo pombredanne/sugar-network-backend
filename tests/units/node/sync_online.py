@@ -45,14 +45,14 @@ class SyncOnlineTest(tests.Test):
         self.master_server = coroutine.WSGIServer(('localhost', 9000), Router(MasterCommands(self.master_volume)))
         coroutine.spawn(self.master_server.serve_forever)
         coroutine.dispatch()
-        client = Client('http://localhost:9000')
-        client.get(cmd='whoami')
+        Client('http://localhost:9000').get(cmd='whoami')
 
         files_root.value = 'slave/files'
         self.slave_volume = Volume('slave', [User, Document])
         self.slave_server = coroutine.WSGIServer(('localhost', 9001), Router(SlaveCommands('slave', self.slave_volume)))
         coroutine.spawn(self.slave_server.serve_forever)
         coroutine.dispatch()
+        Client('http://localhost:9001').get(cmd='whoami')
 
     def tearDown(self):
         self.master_server.stop()

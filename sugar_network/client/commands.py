@@ -66,6 +66,17 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                     self._remote_urls.append(client.api_url.value)
                 self._jobs.spawn(self._wait_for_connectivity)
 
+    def populate(self):
+        self._home.volume.populate()
+        contexts = self._home.volume['context']
+        docs, __ = contexts.find(limit=db.MAX_LIMIT, clone=[1, 2])
+        for context in docs:
+            if clones.ensure_clones(context.guid):
+                if context['clone'] != 2:
+                    self._checkin_context(context.guid, {'clone': 2})
+            else:
+                self._checkin_context(context.guid, {'clone': 0})
+
     def close(self):
         self._jobs.kill()
         self._got_offline()
@@ -407,26 +418,30 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         contexts = self._home.volume['context']
 
         if contexts.exists(guid):
-            contexts.update(guid, props)
-            return
+            contexts.update(guid, props.copy())
+        else:
+            copy = self._node_call(method='GET', document='context', guid=guid,
+                    reply=[
+                        'type', 'implement', 'title', 'summary', 'description',
+                        'homepage', 'mime_types', 'dependencies',
+                        ])
+            copy.update(props)
+            copy['guid'] = guid
+            contexts.create(copy)
+            for prop in ('icon', 'artifact_icon', 'preview'):
+                blob = self._node_call(method='GET', document='context',
+                        guid=guid, prop=prop)
+                if blob is not None:
+                    contexts.set_blob(guid, prop, blob)
 
-        if not [i for i in props.values() if i is not None]:
-            return
-
-        copy = self._node_call(method='GET', document='context', guid=guid,
-                reply=[
-                    'type', 'implement', 'title', 'summary', 'description',
-                    'homepage', 'mime_types', 'dependencies',
-                    ])
-        props.update(copy)
-        props['guid'] = guid
-        contexts.create(props)
-
-        for prop in ('icon', 'artifact_icon', 'preview'):
-            blob = self._node_call(method='GET',
-                    document='context', guid=guid, prop=prop)
-            if blob:
-                contexts.set_blob(guid, prop, blob)
+        if self._inline.is_set():
+            # Home volume events don't go out in online mode
+            self.broadcast({
+                'event': 'update',
+                'document': 'context',
+                'guid': guid,
+                'props': props,
+                })
 
     def _clone_activity(self, guid, request):
         if not request.content:

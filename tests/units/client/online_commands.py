@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import json
 import shutil
 import zipfile
 from os.path import exists
@@ -873,6 +874,117 @@ class OnlineCommandsTest(tests.Test):
         self.assertEqual(
                 {'favorite': True, 'clone': 2},
                 ipc.get(['artifact', guid], reply=['favorite', 'clone']))
+
+    def test_populate_HomeVolumeEvents(self):
+        volume = Volume('client')
+        volume['context'].create({
+            'guid': 'context1',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'clone': 0,
+            })
+        volume['context'].create({
+            'guid': 'context2',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'clone': 1,
+            })
+        volume['context'].create({
+            'guid': 'context3',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'clone': 2,
+            })
+
+        self.start_master()
+        cp = ClientCommands(volume)
+        self.wait_for_events(cp, event='inline', state='online').wait()
+        assert cp.inline()
+
+        def events_cb():
+            for event in cp.subscribe():
+                if event.startswith('data: '):
+                    events.append(json.loads(event[6:]))
+        events = []
+        coroutine.spawn(events_cb)
+        coroutine.dispatch()
+
+        self.touch(clones._context_path('context1', 'clone'))
+        self.touch(clones._context_path('context2', 'clone'))
+        cp.populate()
+
+        self.assertEqual([
+            {'event': 'update', 'document': 'context', 'guid': 'context2', 'props': {'clone': 2}},
+            {'event': 'update', 'document': 'context', 'guid': 'context3', 'props': {'clone': 0}},
+            ],
+            events)
+
+    def test_HomeVolumeEvents(self):
+        self.home_volume = self.start_online_client()
+        ipc = IPCClient()
+        coroutine.spawn(clones.monitor, self.home_volume['context'], ['Activities'])
+
+        context1 = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = ipc.post(['implementation'], {
+            'context': context1,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'TestActivitry',
+                    },
+                },
+            })
+        bundle = zipfile.ZipFile('bundle', 'w')
+        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = %s' % context1,
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license=Public Domain',
+            ]))
+        bundle.close()
+        ipc.request('PUT', ['implementation', impl, 'data'], file('bundle', 'rb').read())
+
+        ipc.put(['context', context1], 2, cmd='clone')
+        self.wait_for_events(ipc, event='update', document='context', guid=context1, props={'clone': 2})
+        self.assertEqual(
+                {'clone': 2, 'type': ['activity']},
+                ipc.get(['context', context1], reply=['clone']))
+
+        context2 = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        ipc.put(['context', context2], True, cmd='favorite')
+        self.wait_for_events(ipc, event='update', document='context', guid=context1, props={'favorite': True})
+        self.assertEqual(
+                {'favorite': True, 'type': ['activity']},
+                ipc.get(['context', context2], reply=['favorite']))
 
 
 if __name__ == '__main__':
