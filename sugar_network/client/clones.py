@@ -134,7 +134,7 @@ class _Inotify(Inotify):
             exception(_logger, 'Cannot read %r spec', clone_path)
             return
 
-        context = spec['Activity', 'bundle_id']
+        context = spec['Activity', 'implement']
 
         context_path = _context_path(context, hashed_path)
         _ensure_path(context_path)

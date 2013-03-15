@@ -119,7 +119,7 @@ class Spec(object):
         return self._config.get(section, key)
 
     def __repr__(self):
-        return '<Spec %s>' % self['Activity', 'bundle_id']
+        return '<Spec %s>' % self['Activity', 'implement']
 
     def _get(self, section, key):
         if self._config.has_option(section, key):
@@ -175,6 +175,8 @@ class Spec(object):
             # Do some backwards compatibility expansions for activities
             if not self['summary'] and self['name']:
                 self._fields['summary'] = self['name']
+            if not self['implement'] and self.activity['bundle_id']:
+                self._fields['implement'] = self.activity['bundle_id']
             if not self['version'] and self.activity['activity_version']:
                 self._fields['version'] = self.activity['activity_version']
             if not self['stability']:
