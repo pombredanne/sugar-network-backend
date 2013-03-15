@@ -404,31 +404,16 @@ class IndexTest(tests.Test):
         db.commit()
         db.close()
 
-        # Index exists at start; checkpoint didn't happen
+        # Index exists at start; commit did happen
         db = Index({})
-        self.assertEqual(0, db.mtime)
-        db.store('2', {}, True)
-        db.commit()
-        self.assertEqual(0, db.mtime)
+        self.assertNotEqual(0, db.mtime)
         db.close()
 
-        # Index exists at start; mtime exists at start; checkpoint didn't happen
-        self.touch('index/mtime')
+        # Index exists at start; mtime is outdated
         os.utime('index/mtime', (1, 1))
         db = Index({})
         self.assertEqual(1, db.mtime)
         db.store('3', {}, True)
-        db.commit()
-        self.assertEqual(1, db.mtime)
-        db.close()
-
-        # Index exists at start; checkpoint happened
-        db = Index({})
-        db.checkpoint()
-        self.assertNotEqual(1, db.mtime)
-        os.utime('index/mtime', (1, 1))
-        self.assertEqual(1, db.mtime)
-        db.store('4', {}, True)
         db.commit()
         self.assertNotEqual(1, db.mtime)
         db.close()

@@ -955,117 +955,20 @@ class DocumentTest(tests.Test):
         self.assertEqual(5, doc.meta('blob')['mtime'])
         self.assertEqual('blob-2', file('document/1/1/blob.blob').read())
 
-    def __test_Integers(self):
-        db = Index({
-            'prop': ActiveProperty('prop', 1, 'A', typecast=int, full_text=True),
-            })
+    def test_wipe(self):
 
-        db.store('1', {'prop': 9}, True)
-        db.store('2', {'prop': 89}, True)
-        db.store('3', {'prop': 777}, True)
+        class Document(document.Document):
+            pass
 
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9},
-                    {'guid': '2', 'prop': 89},
-                    {'guid': '3', 'prop': 777},
-                    ],
-                db._find(order_by='prop')[0])
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+        guid = directory.create({'prop': '1'})
+        self.assertEqual([guid], [i.guid for i in directory.find(0, 1024)[0]])
+        directory.commit()
+        assert directory.mtime != 0
 
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9},
-                    {'guid': '2', 'prop': 89},
-                    ],
-                db._find(query='prop:0..100', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9},
-                    ],
-                db._find(query='prop:9', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': 89},
-                    ],
-                db._find(query='prop:=89', order_by='prop')[0])
-
-    def __test_Floats(self):
-        db = Index({
-            'prop': ActiveProperty('prop', 1, 'A', typecast=float, full_text=True),
-            })
-
-        db.store('1', {'prop': 9.1}, True)
-        db.store('2', {'prop': 89.2}, True)
-        db.store('3', {'prop': 777.3}, True)
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9.1},
-                    {'guid': '2', 'prop': 89.2},
-                    {'guid': '3', 'prop': 777.3},
-                    ],
-                db._find(order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9.1},
-                    {'guid': '2', 'prop': 89.2},
-                    ],
-                db._find(query='prop:0..100', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': 9.1},
-                    ],
-                db._find(query='prop:9.1', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': 89.2},
-                    ],
-                db._find(query='prop:=89.2', order_by='prop')[0])
-
-    def __test_Booleans(self):
-        db = Index({
-            'prop': ActiveProperty('prop', 1, 'A', typecast=bool, full_text=True),
-            })
-
-        db.store('1', {'prop': True}, True)
-        db.store('2', {'prop': False}, True)
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': False},
-                    {'guid': '1', 'prop': True},
-                    ],
-                db._find(order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': False},
-                    {'guid': '1', 'prop': True},
-                    ],
-                db._find(query='prop:0..100', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': True},
-                    ],
-                db._find(query='prop:1..1', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '2', 'prop': False},
-                    ],
-                db._find(query='prop:0', order_by='prop')[0])
-
-        self.assertEqual(
-                [
-                    {'guid': '1', 'prop': True},
-                    ],
-                db._find(query='prop:=1', order_by='prop')[0])
+        directory.wipe()
+        self.assertEqual([], [i.guid for i in directory.find(0, 1024)[0]])
+        assert directory.mtime == 0
 
 
 if __name__ == '__main__':

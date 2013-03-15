@@ -53,22 +53,14 @@ class Directory(object):
         self.metadata = document_class.metadata
 
         self.document_class = document_class
+        self._index_class = index_class
         self._root = root
         self._notification_cb = notification_cb
         self._seqno = _SessionSeqno() if seqno is None else seqno
+        self._storage = None
+        self._index = None
 
-        index_path = join(root, 'index')
-        if self._is_layout_stale():
-            if exists(index_path):
-                _logger.warning('%r layout is stale, remove index',
-                        self.metadata.name)
-                shutil.rmtree(index_path, ignore_errors=True)
-            self._save_layout()
-
-        self._storage = Storage(root, self.metadata)
-        self._index = index_class(index_path, self.metadata, self._post_commit)
-
-        _logger.debug('Initiated %r document', document_class)
+        self._open()
 
     @property
     def mtime(self):
@@ -79,8 +71,16 @@ class Directory(object):
         self._index.mtime = value
         self._notify({'event': 'populate', 'props': {'mtime': value}})
 
+    def wipe(self):
+        self.close()
+        _logger.debug('Wipe %r directory', self.metadata.name)
+        shutil.rmtree(self._root, ignore_errors=True)
+        self._open()
+
     def close(self):
         """Flush index write pending queue and close the index."""
+        if self._index is None:
+            return
         self._index.close()
         self._storage = None
         self._index = None
@@ -365,6 +365,21 @@ class Directory(object):
                     None, False)
 
         return seqno, merged
+
+    def _open(self):
+        if not exists(self._root):
+            os.makedirs(self._root)
+        index_path = join(self._root, 'index')
+        if self._is_layout_stale():
+            if exists(index_path):
+                _logger.warning('%r layout is stale, remove index',
+                        self.metadata.name)
+                shutil.rmtree(index_path, ignore_errors=True)
+            self._save_layout()
+        self._storage = Storage(self._root, self.metadata)
+        self._index = self._index_class(index_path, self.metadata,
+                self._post_commit)
+        _logger.debug('Initiated %r document', self.document_class)
 
     def _pre_store(self, guid, changes, event, shift_seqno):
         seqno = changes.get('seqno')

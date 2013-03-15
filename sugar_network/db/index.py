@@ -47,7 +47,6 @@ class IndexReader(object):
         self._props = {}
         self._path = root
         self._mtime_path = join(self._path, 'mtime')
-        self._dirty = True
         self._commit_cb = commit_cb
 
         for name, prop in self.metadata.items():
@@ -386,7 +385,6 @@ class IndexWriter(IndexReader):
     def checkpoint(self):
         with file(self._mtime_path, 'w'):
             pass
-        self._dirty = False
 
     def _do_open(self):
         try:
@@ -411,8 +409,7 @@ class IndexWriter(IndexReader):
             self._db.commit()
         else:
             self._db.flush()
-        if not self._dirty:
-            self.checkpoint()
+        self.checkpoint()
         self._pending_updates = 0
 
         _logger.debug('Commit %r changes took %s seconds',
