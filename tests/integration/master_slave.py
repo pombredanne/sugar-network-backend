@@ -27,6 +27,7 @@ class MasterSlaveTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self, tmp_root=local_tmproot)
 
+        client_key, sugar.keyfile.value = sugar.keyfile.value, None
         self.touch(('master/db/master', 'localhost:8100'))
 
         self.master_pid = self.popen(['sugar-network-node', '-F', 'start',
@@ -35,6 +36,7 @@ class MasterSlaveTest(tests.Test):
             '--stats-root=master/stats', '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
             '--index-flush-threshold=1', '--pull-timeout=1',
+            '--obs-url=',
             ])
         self.slave_pid = self.popen(['sugar-network-node', '-F', 'start',
             '--api-url=http://localhost:8100',
@@ -45,9 +47,8 @@ class MasterSlaveTest(tests.Test):
             '--index-flush-threshold=1', '--sync-layers=pilot',
             ])
 
-        coroutine.sleep(2)
-        Client('http://localhost:8100').get(cmd='whoami')
-        Client('http://localhost:8101').get(cmd='whoami')
+        coroutine.sleep(3)
+        sugar.keyfile.value = client_key
 
     def tearDown(self):
         self.waitpid(self.master_pid, signal.SIGINT)

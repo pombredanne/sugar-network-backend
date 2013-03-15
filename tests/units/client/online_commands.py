@@ -450,6 +450,7 @@ class OnlineCommandsTest(tests.Test):
 
         self.assertEqual([
             {'guid': guid, 'document': 'context', 'event': 'create'},
+            {'document': 'implementation', 'event': 'populate'},
             {'guid': guid, 'document': 'context', 'event': 'update'},
             {'guid': guid, 'event': 'delete', 'document': 'context'},
             ],

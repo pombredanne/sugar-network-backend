@@ -12,6 +12,7 @@ from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit.router import Unauthorized
 from sugar_network.node import stats_user, stats_node, obs
 from sugar_network.node.commands import NodeCommands
+from sugar_network.node.master import MasterCommands
 from sugar_network.resources.volume import Volume, Resource
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
@@ -34,7 +35,7 @@ class NodeTest(tests.Test):
 
     def test_UserStats(self):
         volume = Volume('db')
-        cp = NodeCommands(False, 'guid', volume)
+        cp = NodeCommands('guid', volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
             'name': 'user',
@@ -107,7 +108,7 @@ class NodeTest(tests.Test):
             rrd['user'].put({'total': i}, ts + i)
 
         volume = Volume('db', [User, Context, Review, Feedback, Solution, Artifact])
-        cp = NodeCommands(False, 'guid', volume)
+        cp = NodeCommands('guid', volume)
 
         self.assertEqual({
             'user': [
@@ -131,7 +132,7 @@ class NodeTest(tests.Test):
 
     def test_HandleDeletes(self):
         volume = Volume('db')
-        cp = NodeCommands(False, 'guid', volume)
+        cp = NodeCommands('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
@@ -157,7 +158,7 @@ class NodeTest(tests.Test):
         self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
 
     def test_RegisterUser(self):
-        cp = NodeCommands(False, 'guid', Volume('db', [User]))
+        cp = NodeCommands('guid', Volume('db', [User]))
 
         guid = call(cp, method='POST', document='user', principal='fake', content={
             'name': 'user',
@@ -182,7 +183,7 @@ class NodeTest(tests.Test):
             def probe2(self, directory):
                 pass
 
-        cp = NodeCommands(False, 'guid', Volume('db', [User, Document]))
+        cp = NodeCommands('guid', Volume('db', [User, Document]))
         guid = call(cp, method='POST', document='document', principal='user', content={})
         self.assertRaises(Unauthorized, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
         call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal='user')
@@ -204,7 +205,7 @@ class NodeTest(tests.Test):
         class User(db.Document):
             pass
 
-        cp = NodeCommands(False, 'guid', Volume('db', [User, Document]))
+        cp = NodeCommands('guid', Volume('db', [User, Document]))
         guid = call(cp, method='POST', document='document', principal='principal', content={})
 
         self.assertRaises(db.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
@@ -213,7 +214,7 @@ class NodeTest(tests.Test):
         call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
     def test_ForbiddenCommandsForUserResource(self):
-        cp = NodeCommands(False, 'guid', Volume('db', [User]))
+        cp = NodeCommands('guid', Volume('db', [User]))
 
         call(cp, method='POST', document='user', principal='fake', content={
             'name': 'user1',
@@ -230,7 +231,7 @@ class NodeTest(tests.Test):
         self.assertEqual('user2', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
     def test_SetUser(self):
-        cp = NodeCommands(False, 'guid', Volume('db'))
+        cp = NodeCommands('guid', Volume('db'))
 
         guid = call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
@@ -243,7 +244,7 @@ class NodeTest(tests.Test):
                 call(cp, method='GET', document='context', guid=guid, prop='author'))
 
     def test_find_MaxLimit(self):
-        cp = NodeCommands(False, 'guid', Volume('db'))
+        cp = NodeCommands('guid', Volume('db'))
 
         call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
@@ -273,7 +274,7 @@ class NodeTest(tests.Test):
 
     def test_DeletedDocuments(self):
         volume = Volume('db')
-        cp = NodeCommands(False, 'guid', volume)
+        cp = NodeCommands('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
@@ -292,7 +293,7 @@ class NodeTest(tests.Test):
 
     def test_SetGuidOnMaster(self):
         volume1 = Volume('db1')
-        cp1 = NodeCommands(False, 'guid', volume1)
+        cp1 = NodeCommands('guid', volume1)
         call(cp1, method='POST', document='context', principal='principal', content={
             'type': 'activity',
             'title': 'title',
@@ -303,7 +304,7 @@ class NodeTest(tests.Test):
         self.assertRaises(db.NotFound, call, cp1, method='GET', document='context', guid='foo')
 
         volume2 = Volume('db2')
-        cp2 = NodeCommands(True, 'guid', volume2)
+        cp2 = MasterCommands('guid', volume2)
         call(cp2, method='POST', document='context', principal='principal', content={
             'type': 'activity',
             'title': 'title',
@@ -316,7 +317,7 @@ class NodeTest(tests.Test):
                 call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'implement', 'title']))
 
     def test_SetGuidOnMaster_MalformedGUID(self):
-        cp = NodeCommands(True, 'guid', Volume('db2'))
+        cp = MasterCommands('guid', Volume('db2'))
 
         self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',
@@ -327,7 +328,7 @@ class NodeTest(tests.Test):
             })
 
     def test_SetGuidOnMaster_FailOnExisted(self):
-        cp = NodeCommands(True, 'guid', Volume('db2'))
+        cp = MasterCommands('guid', Volume('db2'))
 
         guid = call(cp, method='POST', document='context', principal='principal', content={
             'type': 'activity',

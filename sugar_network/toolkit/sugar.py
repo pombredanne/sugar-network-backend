@@ -18,9 +18,10 @@ import time
 import uuid
 import random
 import hashlib
+import logging
 from os.path import join, exists, dirname
 
-from sugar_network.toolkit import Option, enforce
+from sugar_network.toolkit import Option, util, enforce
 
 
 _XO_SERIAL_PATH = '/ofw/mfg-data/SN'
@@ -28,6 +29,7 @@ _XO_UUID_PATH = '/ofw/mfg-data/U#'
 _NICKNAME_GCONF = '/desktop/sugar/user/nick'
 _COLOR_GCONF = '/desktop/sugar/user/color'
 
+_logger = logging.getLogger('sugar')
 _uid = None
 
 
@@ -67,21 +69,36 @@ def profile_path(*args):
                 os.environ.get('SUGAR_PROFILE', 'default'))
     else:
         root_dir = '/var/sugar-network'
-    result = join(root_dir, *args)
-    if not exists(dirname(result)):
-        os.makedirs(dirname(result))
-    return result
+    return join(root_dir, *args)
 
 
-def privkey_path():
-    path = keyfile.value
+def ensure_key(path=None):
+    if path is None:
+        path = keyfile.value
     if not path:
         path = profile_path('owner.key')
-    return path
+    keyfile.value = path
+
+    if not exists(path):
+        if not exists(dirname(path)):
+            os.makedirs(dirname(path))
+        _logger.info('Create DSA key')
+        util.assert_call([
+            '/usr/bin/ssh-keygen', '-q', '-t', 'dsa', '-f', path,
+            '-C', '', '-N', ''])
+
+    with file(path + '.pub') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('ssh-'):
+                key = line.split()[1]
+                return str(hashlib.sha1(key).hexdigest())
+
+    raise RuntimeError('No valid DSA public key in %r' % path)
 
 
 def pubkey():
-    pubkey_path = privkey_path() + '.pub'
+    pubkey_path = keyfile.value + '.pub'
     enforce(exists(pubkey_path),
             'Sugar session was never started, no privkey')
     with file(pubkey_path) as f:

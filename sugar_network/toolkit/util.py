@@ -19,7 +19,6 @@ import os
 import re
 import json
 import logging
-import hashlib
 import tempfile
 import collections
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
@@ -197,23 +196,6 @@ def symlink(src, dst):
     elif not exists(dirname(dst)):
         os.makedirs(dirname(dst))
     os.symlink(src, dst)
-
-
-def ensure_dsa_pubkey(path):
-    if not exists(path):
-        _logger.info('Create DSA server key')
-        assert_call([
-            '/usr/bin/ssh-keygen', '-q', '-t', 'dsa', '-f', path,
-            '-C', '', '-N', ''])
-
-    with file(path + '.pub') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('ssh-'):
-                key = line.split()[1]
-                return str(hashlib.sha1(key).hexdigest())
-
-    raise RuntimeError('No valid DSA public key in %r' % path)
 
 
 def svg_to_png(src_path, dst_path, width, height):
@@ -394,6 +376,8 @@ def unique_filename(root, filename):
 
 def NamedTemporaryFile(*args, **kwargs):
     if cachedir.value:
+        if not exists(cachedir.value):
+            os.makedirs(cachedir.value)
         kwargs['dir'] = cachedir.value
     return tempfile.NamedTemporaryFile(*args, **kwargs)
 

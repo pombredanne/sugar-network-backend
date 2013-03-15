@@ -8,12 +8,13 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.feedback import Feedback
 from sugar_network.resources.solution import Solution
+from sugar_network.resources.implementation import Implementation
 
 
 class SolutionTest(tests.Test):
 
     def test_SetContext(self):
-        volume = self.start_master([User, Context, Feedback, Solution])
+        volume = self.start_master([User, Context, Feedback, Solution, Implementation])
         client = Client()
 
         context = client.post(['context'], {

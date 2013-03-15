@@ -52,15 +52,15 @@ class Client(object):
 
         headers = {'Accept-Language': db.default_lang()}
         if self._sugar_auth:
-            privkey_path = sugar.privkey_path()
-            if not exists(privkey_path):
+            key_path = sugar.keyfile.value
+            if not key_path or not exists(key_path):
                 _logger.warning('Sugar session was never started, '
                         'fallback to anonymous mode')
                 self._sugar_auth = False
             else:
                 uid = sugar.uid()
                 headers['SUGAR_USER'] = uid
-                headers['SUGAR_USER_SIGNATURE'] = _sign(privkey_path, uid)
+                headers['SUGAR_USER_SIGNATURE'] = _sign(key_path, uid)
         if sync:
             headers['SUGAR_SYNC'] = '1'
 
@@ -275,6 +275,6 @@ class _Subscription(object):
         return self._content
 
 
-def _sign(privkey_path, data):
-    key = DSA.load_key(privkey_path)
+def _sign(key_path, data):
+    key = DSA.load_key(key_path)
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')

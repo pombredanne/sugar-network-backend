@@ -42,7 +42,7 @@ class SyncOnlineTest(tests.Test):
 
         files_root.value = 'master/files'
         self.master_volume = Volume('master', [User, Document])
-        self.master_server = coroutine.WSGIServer(('localhost', 9000), Router(MasterCommands(self.master_volume)))
+        self.master_server = coroutine.WSGIServer(('localhost', 9000), Router(MasterCommands('localhost:9000', self.master_volume)))
         coroutine.spawn(self.master_server.serve_forever)
         coroutine.dispatch()
         Client('http://localhost:9000').get(cmd='whoami')

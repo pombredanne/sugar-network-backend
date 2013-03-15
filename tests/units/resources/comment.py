@@ -10,12 +10,13 @@ from sugar_network.resources.review import Review
 from sugar_network.resources.feedback import Feedback
 from sugar_network.resources.solution import Solution
 from sugar_network.resources.comment import Comment
+from sugar_network.resources.implementation import Implementation
 
 
 class CommentTest(tests.Test):
 
     def test_SetContext(self):
-        volume = self.start_master([User, Context, Review, Feedback, Solution, Comment])
+        volume = self.start_master([User, Context, Review, Feedback, Solution, Comment, Implementation])
         client = Client()
 
         self.assertRaises(RuntimeError, client.post, ['comment'], {'message': ''})

@@ -49,7 +49,7 @@ class SyncMasterTest(tests.Test):
 
         node.files_root.value = 'sync'
         self.volume = Volume('master', [Document])
-        self.master = MasterCommands(self.volume)
+        self.master = MasterCommands('localhost:8888', self.volume)
 
     def next_uuid(self):
         self.uuid += 1

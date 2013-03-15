@@ -126,6 +126,9 @@ def _get_repos(project):
     if project in _repos:
         return _repos[project]
 
+    if not obs_url.value:
+        return []
+
     repos = _repos[project] = []
     for repo in _request('GET', ['build', project]).findall('entry'):
         repo = repo.get('name')

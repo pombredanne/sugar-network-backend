@@ -107,7 +107,7 @@ class Application(application.Daemon):
         self.cmd_start()
 
     def run(self):
-        util.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+        sugar.ensure_key()
         volume = Volume(client.path('db'), lazy_open=client.lazy_open.value)
         commands = ClientCommands(volume, server_mode=client.server_mode.value)
 

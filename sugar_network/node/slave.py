@@ -52,6 +52,12 @@ class SlaveCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='online-sync',
             permissions=db.ACCESS_LOCAL)
     def online_sync(self):
+        cli = Client(sugar_auth=True)
+
+        # TODO In case if slave user is not created on master
+        # `Client` should handle re-POSTing without loosing payload
+        cli.get(cmd='whoami')
+
         push = [('diff', None, volume.diff(self.volume, self._push_seq)),
                 ('pull', {
                     'sequence': self._pull_seq,
@@ -61,7 +67,7 @@ class SlaveCommands(NodeCommands):
                 ]
         if stats_user.stats_user.value:
             push.append(('stats_diff', None, stats_user.diff()))
-        response = Client().request('POST',
+        response = cli.request('POST',
                 data=sync.chunked_encode(push,
                     src=self.guid, dst=self._master_guid),
                 params={'cmd': 'sync'},

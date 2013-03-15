@@ -8,12 +8,13 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.review import Review
 from sugar_network.resources.artifact import Artifact
+from sugar_network.resources.implementation import Implementation
 
 
 class ReviewTest(tests.Test):
 
     def test_SetContext(self):
-        volume = self.start_master([User, Context, Review, Artifact])
+        volume = self.start_master([User, Context, Review, Artifact, Implementation])
         client = Client()
 
         context = client.post(['context'], {

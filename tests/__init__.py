@@ -25,7 +25,7 @@ from sugar_network.client import injector, solver
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
-from sugar_network.node.commands import NodeCommands
+from sugar_network.node.master import MasterCommands
 from sugar_network.node import stats_user, stats_node, obs, auth, slave, downloads
 from sugar_network.resources.volume import Volume
 
@@ -73,7 +73,8 @@ class Test(unittest.TestCase):
         os.environ['HOME'] = tmpdir
         profile_dir = join(tmpdir, '.sugar', 'default')
         os.makedirs(profile_dir)
-        shutil.copy(join(root, 'data', 'owner.key'), profile_dir)
+        sugar.keyfile.value = join(profile_dir, 'owner.key')
+        shutil.copy(join(root, 'data', 'owner.key'), sugar.keyfile.value)
         shutil.copy(join(root, 'data', 'owner.key.pub'), profile_dir)
 
         db.index_flush_timeout.value = 0
@@ -257,7 +258,7 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context, Implementation]
         self.node_volume = Volume('master', classes)
-        cp = NodeCommands(True, 'guid', self.node_volume)
+        cp = MasterCommands('guid', self.node_volume)
         self.node = coroutine.WSGIServer(('localhost', 8888), Router(cp))
         coroutine.spawn(self.node.serve_forever)
         coroutine.dispatch()
@@ -304,7 +305,7 @@ class Test(unittest.TestCase):
         db.index_write_queue.value = 10
 
         volume = Volume('remote', classes or [User, Context, Implementation])
-        cp = NodeCommands(True, 'guid', volume)
+        cp = MasterCommands('guid', volume)
         httpd = coroutine.WSGIServer(('localhost', 8888), Router(cp))
         try:
             coroutine.joinall([

@@ -162,7 +162,7 @@ class Application(application.Application):
                     sugar.color = lambda: '#000000,#000000'
                     sugar.privkey_path = lambda: '/fake/path'
                 else:
-                    util.ensure_dsa_pubkey(sugar.profile_path('owner.key'))
+                    sugar.ensure_key()
                 home = Volume(client.path('db'))
                 cli = ClientCommands(home, offline=offline.value)
                 if not offline.value:

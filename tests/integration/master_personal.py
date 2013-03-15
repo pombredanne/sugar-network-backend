@@ -27,6 +27,7 @@ class MasterPersonalTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self, tmp_root=local_tmproot)
 
+        client_key, sugar.keyfile.value = sugar.keyfile.value, None
         self.touch(('master/db/master', 'localhost:8100'))
 
         self.master_pid = self.popen(['sugar-network-node', '-F', 'start',
@@ -35,6 +36,7 @@ class MasterPersonalTest(tests.Test):
             '--stats-root=master/stats', '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
             '--index-flush-threshold=1', '--pull-timeout=1',
+            '--obs-url=',
             ])
         self.client_pid = self.popen(['sugar-network-client', '-F', 'start',
             '--api-url=http://localhost:8100', '--cachedir=client/tmp',
@@ -45,9 +47,10 @@ class MasterPersonalTest(tests.Test):
             '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
             ])
-        self.touch(('client/mnt/disk/sugar-network/db/node', 'node'))
+        os.makedirs('client/mnt/disk/sugar-network')
 
         coroutine.sleep(2)
+        sugar.keyfile.value = client_key
         self.wait_for_events(Client('http://localhost:8102'), event='inline', state='online').wait()
         Client('http://localhost:8100').get(cmd='whoami')
         Client('http://localhost:8101').get(cmd='whoami')
