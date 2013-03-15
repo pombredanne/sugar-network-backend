@@ -29,6 +29,7 @@ _POLICY_URL = 'http://wiki.sugarlabs.org/go/Sugar_Network/Policy'
 
 _FIELDS = {
         # name: (required, typecast)
+        'implement': (True, None),
         'name': (True, None),
         'summary': (True, None),
         'description': (False, None),
@@ -119,7 +120,7 @@ class Spec(object):
         return self._config.get(section, key)
 
     def __repr__(self):
-        return '<Spec %s>' % self['Activity', 'implement']
+        return '<Spec %s>' % self['implement']
 
     def _get(self, section, key):
         if self._config.has_option(section, key):

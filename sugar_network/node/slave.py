@@ -38,7 +38,7 @@ _logger = logging.getLogger('node.slave')
 class SlaveCommands(NodeCommands):
 
     def __init__(self, guid, volume_):
-        NodeCommands.__init__(self, False, guid, volume_)
+        NodeCommands.__init__(self, guid, volume_)
 
         self._push_seq = util.PersistentSequence(
                 join(volume_.root, 'push.sequence'), [1, None])

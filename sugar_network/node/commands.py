@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import re
 import logging
 import hashlib
 from os.path import exists, join
@@ -26,18 +25,16 @@ from sugar_network.toolkit import router, util, coroutine, exception, enforce
 
 
 _MAX_STATS_LENGTH = 100
-_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 _logger = logging.getLogger('node.commands')
 
 
 class NodeCommands(db.VolumeCommands, Commands):
 
-    def __init__(self, is_master, guid, volume):
+    def __init__(self, guid, volume):
         db.VolumeCommands.__init__(self, volume)
         Commands.__init__(self)
 
-        self._is_master = is_master
         self._guid = guid
         self._stats = None
 
@@ -50,10 +47,6 @@ class NodeCommands(db.VolumeCommands, Commands):
     @property
     def guid(self):
         return self._guid
-
-    @property
-    def is_master(self):
-        return self._is_master
 
     @router.route('GET', '/packages')
     def packages(self, request, response):
@@ -86,10 +79,7 @@ class NodeCommands(db.VolumeCommands, Commands):
         documents = {}
         for name, directory in self.volume.items():
             documents[name] = {'mtime': directory.mtime}
-        return {'guid': self._guid,
-                'master': self._is_master,
-                'documents': documents,
-                }
+        return {'guid': self._guid, 'documents': documents}
 
     @db.volume_command(method='GET', cmd='stats',
             mime_type='application/json', arguments={
@@ -278,17 +268,8 @@ class NodeCommands(db.VolumeCommands, Commands):
         return cmd
 
     def before_create(self, request, props):
-        document = request['document']
-        if document == 'user':
+        if request['document'] == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
-
-        if self._is_master and props.get('implement'):
-            implement = props['implement'][0]
-            enforce(not self.volume[document].exists(implement),
-                    'Document already exists')
-            enforce(_GUID_RE.match(implement) is not None, 'Malformed GUID')
-            props['guid'] = implement
-
         db.VolumeCommands.before_create(self, request, props)
 
     @db.directory_command_pre(method='GET')

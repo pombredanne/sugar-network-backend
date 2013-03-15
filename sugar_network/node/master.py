@@ -13,28 +13,29 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import re
+import time
 import json
 import base64
 import logging
-from urlparse import urlsplit
 from Cookie import SimpleCookie
 from os.path import join
 
-from sugar_network import db, client, node
-from sugar_network.node import sync, stats_user, files, volume, downloads
+from sugar_network import db, node
+from sugar_network.node import sync, stats_user, files, volume, downloads, obs
 from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import cachedir, util, enforce
+from sugar_network.toolkit import cachedir, coroutine, util, enforce
 
+
+_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 _logger = logging.getLogger('node.master')
 
 
 class MasterCommands(NodeCommands):
 
-    def __init__(self, volume_, guid=None):
-        if not guid:
-            guid = urlsplit(client.api_url.value).netloc
-        NodeCommands.__init__(self, True, guid, volume_)
+    def __init__(self, guid, volume_):
+        NodeCommands.__init__(self, guid, volume_)
 
         self._pulls = {
             'pull': lambda **kwargs:
@@ -128,6 +129,28 @@ class MasterCommands(NodeCommands):
         cookie.store(response)
         return reply
 
+    def before_create(self, request, props):
+        implement = props.get('implement')
+        if implement:
+            implement = implement[0]
+            enforce(not self.volume[request['document']].exists(implement),
+                    'Document already exists')
+            enforce(_GUID_RE.match(implement) is not None, 'Malformed GUID')
+            props['guid'] = implement
+        NodeCommands.before_create(self, request, props)
+
+    def after_post(self, doc):
+        if doc.metadata.name == 'context':
+            shift_implementations = ('dependencies' in doc.props)
+            if 'aliases' in doc.props:
+                # TODO Already launched job should be killed
+                coroutine.spawn(self._resolve_aliases, doc)
+                shift_implementations = True
+            if shift_implementations and not doc.is_new:
+                # Shift mtime to invalidate solutions
+                self.volume['implementation'].mtime = int(time.time())
+        NodeCommands.after_post(self, doc)
+
     def _push(self, stream):
         reply = []
         cookie = _Cookie()
@@ -159,6 +182,42 @@ class MasterCommands(NodeCommands):
                     }, None))
 
         return reply, cookie
+
+    def _resolve_aliases(self, doc):
+        packages = {}
+        for repo in obs.get_repos():
+            alias = doc['aliases'].get(repo['distributor_id'])
+            if not alias:
+                continue
+            package = packages[repo['name']] = {}
+            for kind in ('binary', 'devel'):
+                obs_fails = []
+                for to_resolve in alias.get(kind) or []:
+                    if not to_resolve:
+                        continue
+                    try:
+                        for arch in repo['arches']:
+                            obs.resolve(repo['name'], arch, to_resolve)
+                    except Exception, error:
+                        _logger.warning('Failed to resolve %r on %s',
+                                to_resolve, repo['name'])
+                        obs_fails.append(str(error))
+                        continue
+                    package[kind] = to_resolve
+                    break
+                else:
+                    package['status'] = '; '.join(obs_fails)
+                    break
+            else:
+                if 'binary' in package:
+                    package['status'] = 'success'
+                else:
+                    package['status'] = 'no packages to resolve'
+
+        if packages != doc['packages']:
+            doc.request.call('PUT', document='context', guid=doc.guid,
+                    content={'packages': packages})
+        obs.presolve(doc['aliases'])
 
 
 class _Cookie(list):

@@ -228,6 +228,9 @@ class VolumeCommands(CommandsProcessor):
     def before_update(self, request, props):
         props['mtime'] = int(time.time())
 
+    def after_post(self, doc):
+        pass
+
     @contextmanager
     def _post(self, request, access):
         enforce(isinstance(request.content, dict), 'Invalid value')
@@ -283,6 +286,8 @@ class VolumeCommands(CommandsProcessor):
                 value = prop.on_set(doc, value)
             directory.set_blob(doc.guid, name, value,
                     mime_type=request.content_type)
+
+        self.after_post(doc)
 
     def _preget(self, request):
         metadata = self.volume[request['document']].metadata
