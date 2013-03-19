@@ -9,7 +9,8 @@ from sugar_network import db
 from sugar_network.db import env, volume, Volume, Document, \
         property_command, document_command, directory_command, volume_command, \
         Request, BlobProperty, Response, CommandsProcessor, \
-        CommandNotFound, NotFound, to_int, to_list
+        CommandNotFound, to_int, to_list
+from sugar_network.toolkit.http import NotFound, Forbidden
 
 
 class CommandsTest(tests.Test):
@@ -233,15 +234,15 @@ class CommandsTest(tests.Test):
         self.call(cp, 'PROBE', cmd='all', access_level=env.ACCESS_SYSTEM)
 
         self.call(cp, 'PROBE', cmd='remote', access_level=env.ACCESS_REMOTE)
-        self.assertRaises(env.Forbidden, self.call, cp, 'PROBE', cmd='remote', access_level=env.ACCESS_LOCAL)
-        self.assertRaises(env.Forbidden, self.call, cp, 'PROBE', cmd='remote', access_level=env.ACCESS_SYSTEM)
+        self.assertRaises(Forbidden, self.call, cp, 'PROBE', cmd='remote', access_level=env.ACCESS_LOCAL)
+        self.assertRaises(Forbidden, self.call, cp, 'PROBE', cmd='remote', access_level=env.ACCESS_SYSTEM)
 
-        self.assertRaises(env.Forbidden, self.call, cp, 'PROBE', cmd='local', access_level=env.ACCESS_REMOTE)
+        self.assertRaises(Forbidden, self.call, cp, 'PROBE', cmd='local', access_level=env.ACCESS_REMOTE)
         self.call(cp, 'PROBE', cmd='local', access_level=env.ACCESS_LOCAL)
-        self.assertRaises(env.Forbidden, self.call, cp, 'PROBE', cmd='local', access_level=env.ACCESS_SYSTEM)
+        self.assertRaises(Forbidden, self.call, cp, 'PROBE', cmd='local', access_level=env.ACCESS_SYSTEM)
 
-        self.assertRaises(env.Forbidden, self.call, cp, 'PROBE', cmd='system', access_level=env.ACCESS_REMOTE)
-        self.assertRaises(env.Forbidden, self.call, cp, 'PROBE', cmd='system', access_level=env.ACCESS_LOCAL)
+        self.assertRaises(Forbidden, self.call, cp, 'PROBE', cmd='system', access_level=env.ACCESS_REMOTE)
+        self.assertRaises(Forbidden, self.call, cp, 'PROBE', cmd='system', access_level=env.ACCESS_LOCAL)
         self.call(cp, 'PROBE', cmd='system', access_level=env.ACCESS_SYSTEM)
 
     def test_ParentClasses(self):

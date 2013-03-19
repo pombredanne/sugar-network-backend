@@ -12,7 +12,6 @@ from __init__ import tests
 
 from sugar_network import db
 from sugar_network.client import journal, ipc_port
-from sugar_network.toolkit.router import Request
 
 
 class JournalTest(tests.Test):
@@ -103,7 +102,7 @@ class JournalTest(tests.Test):
         ds.journal_update('guid2', StringIO('data2'), title='title2', description='description2', preview=StringIO('preview2'))
         ds.journal_update('guid3', StringIO('data3'), title='title3', description='description3', preview=StringIO('preview3'))
 
-        request = Request()
+        request = db.Request()
         request.path = ['journal']
         response = db.Response()
         self.assertEqual([
@@ -114,21 +113,21 @@ class JournalTest(tests.Test):
             ds.journal(request, response)['result'])
         self.assertEqual('application/json', response.content_type)
 
-        request = Request(offset=1, limit=1)
+        request = db.Request(offset=1, limit=1)
         request.path = ['journal']
         self.assertEqual([
             {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
             ],
             ds.journal(request, response)['result'])
 
-        request = Request(query='title3')
+        request = db.Request(query='title3')
         request.path = ['journal']
         self.assertEqual([
             {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
             ],
             ds.journal(request, response)['result'])
 
-        request = Request(order_by='+title')
+        request = db.Request(order_by='+title')
         request.path = ['journal']
         self.assertEqual([
             {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
@@ -143,7 +142,7 @@ class JournalTest(tests.Test):
         ds = journal.Commands()
         ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
 
-        request = Request()
+        request = db.Request()
         request.path = ['journal', 'guid1']
         response = db.Response()
         self.assertEqual(
@@ -155,13 +154,13 @@ class JournalTest(tests.Test):
         ds = journal.Commands()
         ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
 
-        request = Request()
+        request = db.Request()
         request.path = ['journal', 'guid1', 'title']
         response = db.Response()
         self.assertEqual('title1', ds.journal(request, response))
         self.assertEqual('application/json', response.content_type)
 
-        request = Request()
+        request = db.Request()
         request.path = ['journal', 'guid1', 'preview']
         response = db.Response()
         self.assertEqual({

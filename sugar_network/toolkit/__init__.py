@@ -102,3 +102,41 @@ def exception(*args):
 
     logger.error(error_message)
     logger.debug('\n'.join(tb))
+
+
+def default_lang():
+    """Default language to fallback for localized strings.
+
+    :returns:
+        string in format of HTTP's Accept-Language, e.g., `en-gb`.
+
+    """
+    global _default_lang
+
+    if _default_lang is None:
+        import locale
+        lang = locale.getdefaultlocale()[0]
+        if lang:
+            _default_lang = lang.replace('_', '-').lower()
+        else:
+            _default_lang = 'en'
+
+    return _default_lang
+
+
+def uuid():
+    """Generate GUID value.
+
+    Function will tranform `uuid.uuid1()` result to leave only alnum symbols.
+    The reason is reusing the same resulting GUID in different cases, e.g.,
+    for Telepathy names where `-` symbols are not permitted.
+
+    :returns:
+        GUID string value
+
+    """
+    from uuid import uuid1
+    return ''.join(str(uuid1()).split('-'))
+
+
+_default_lang = None

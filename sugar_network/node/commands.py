@@ -21,7 +21,7 @@ from os.path import exists, join
 from sugar_network import db, node
 from sugar_network.node import auth, obs, stats_node
 from sugar_network.resources.volume import Commands
-from sugar_network.toolkit import router, util, coroutine, exception, enforce
+from sugar_network.toolkit import http, util, coroutine, exception, enforce
 
 
 _MAX_STATS_LENGTH = 100
@@ -48,7 +48,7 @@ class NodeCommands(db.VolumeCommands, Commands):
     def guid(self):
         return self._guid
 
-    @router.route('GET', '/packages')
+    @db.route('GET', '/packages')
     def packages(self, request, response):
         response.content_type = 'application/json'
         if len(request.path) <= 3:
@@ -61,11 +61,11 @@ class NodeCommands(db.VolumeCommands, Commands):
         else:
             raise RuntimeError('Incorrect path')
 
-    @router.route('HEADER', '/packages')
+    @db.route('HEADER', '/packages')
     def try_packages(self, request, response):
         enforce(len(request.path) == 4, 'Incorrect path')
         path = join(obs.obs_presolve_path.value, *request.path[1:])
-        enforce(exists(path), db.NotFound, 'No such package')
+        enforce(exists(path), http.NotFound, 'No such package')
 
     @db.volume_command(method='GET', cmd='stat',
             mime_type='application/json')
@@ -161,13 +161,13 @@ class NodeCommands(db.VolumeCommands, Commands):
             arguments={'requires': db.to_list})
     def clone(self, document, guid, version, requires, stability='stable'):
         enforce(document == 'context', 'No way to clone')
-        request = router.Request(method='GET', document='implementation',
+        request = db.Request(method='GET', document='implementation',
                 context=guid, version=version, stability=stability,
                 requires=requires, order_by='-version', limit=1,
                 reply=['guid'])
         impls = self.call(request, db.Response())['result']
-        enforce(impls, db.NotFound, 'No implementations found')
-        request = router.Request(method='GET', document='implementation',
+        enforce(impls, http.NotFound, 'No implementations found')
+        request = db.Request(method='GET', document='implementation',
                 guid=impls[0]['guid'], prop='data')
         return self.call(request, db.Response())
 
@@ -238,7 +238,7 @@ class NodeCommands(db.VolumeCommands, Commands):
             request.static_prefix = node.static_url.value
         try:
             result = db.VolumeCommands.call(self, request, response)
-        except router.HTTPStatusPass:
+        except http.StatusPass:
             if self._stats is not None:
                 self._stats.log(request)
             raise
@@ -253,7 +253,7 @@ class NodeCommands(db.VolumeCommands, Commands):
             return
 
         if cmd.permissions & db.ACCESS_AUTH:
-            enforce(auth.try_validate(request, 'user'), router.Unauthorized,
+            enforce(auth.try_validate(request, 'user'), http.Unauthorized,
                     'User is not authenticated')
 
         if cmd.permissions & db.ACCESS_AUTHOR and 'guid' in request:
@@ -263,7 +263,7 @@ class NodeCommands(db.VolumeCommands, Commands):
                 doc = self.volume[request['document']].get(request['guid'])
                 allowed = (request.principal in doc['author'])
             enforce(allowed or auth.try_validate(request, 'root'),
-                    db.Forbidden, 'Operation is permitted only for authors')
+                    http.Forbidden, 'Operation is permitted only for authors')
 
         return cmd
 
@@ -291,7 +291,7 @@ class NodeCommands(db.VolumeCommands, Commands):
     def _NodeCommands_get_post(self, request, response, result):
         directory = self.volume[request['document']]
         doc = directory.get(request['guid'])
-        enforce('deleted' not in doc['layer'], db.NotFound,
+        enforce('deleted' not in doc['layer'], http.NotFound,
                 'Document deleted')
         return result
 
@@ -319,6 +319,6 @@ def _load_pubkey(pubkey):
             # Keep SSH key for further converting to PKCS8
             pubkey_pkcs8 = pubkey
         else:
-            raise db.Forbidden(message)
+            raise http.Forbidden(message)
 
     return str(hashlib.sha1(pubkey.split()[1]).hexdigest()), pubkey_pkcs8

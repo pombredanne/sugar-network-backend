@@ -20,7 +20,7 @@ import xapian
 from sugar_network import db, resources
 from sugar_network.resources.volume import Resource
 from sugar_network.toolkit.licenses import GOOD_LICENSES
-from sugar_network.toolkit import util, enforce
+from sugar_network.toolkit import http, util, enforce
 
 
 def _encode_version(version):
@@ -50,7 +50,7 @@ class Implementation(Resource):
     @context.setter
     def context(self, value):
         context = self.volume['context'].get(value)
-        enforce(self.request.principal in context['author'], db.Forbidden,
+        enforce(self.request.principal in context['author'], http.Forbidden,
                 'Only Context authors can submit new Implementations')
         return value
 

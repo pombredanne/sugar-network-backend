@@ -15,7 +15,6 @@ from sugar_network.resources.feedback import Feedback
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.solution import Solution
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit.router import Request
 
 
 class StatsTest(tests.Test):
@@ -24,7 +23,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
 
-        request = Request(method='GET', document='context', guid='guid')
+        request = db.Request(method='GET', document='context', guid='guid')
         stats.log(request)
         self.assertEqual(0, stats._stats['context'].viewed)
 
@@ -36,7 +35,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
 
-        request = Request(method='GET', document='context', guid='guid', cmd='probe')
+        request = db.Request(method='GET', document='context', guid='guid', cmd='probe')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(0, stats._stats['context'].viewed)
@@ -78,7 +77,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
 
-        request = Request(method='POST', document='context')
+        request = db.Request(method='POST', document='context')
         request.principal = 'user'
         stats.log(request)
         stats.log(request)
@@ -92,7 +91,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
 
-        request = Request(method='PUT', document='context', guid='guid')
+        request = db.Request(method='PUT', document='context', guid='guid')
         request.principal = 'user'
         stats.log(request)
         stats.log(request)
@@ -106,7 +105,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
 
-        request = Request(method='DELETE', document='context')
+        request = db.Request(method='DELETE', document='context')
         request.principal = 'user'
         stats.log(request)
         stats.log(request)
@@ -120,7 +119,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
 
-        request = Request(method='GET', document='user')
+        request = db.Request(method='GET', document='user')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(0, stats._stats['user'].viewed)
@@ -129,7 +128,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
 
-        request = Request(method='GET', document='user', guid='user')
+        request = db.Request(method='GET', document='user', guid='user')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(1, stats._stats['user'].viewed)
@@ -139,7 +138,7 @@ class StatsTest(tests.Test):
         stats = Sniffer(volume)
         volume['feedback'].create(guid='guid', context='context', type='idea', title='', content='')
 
-        request = Request(method='PUT', document='feedback', guid='guid')
+        request = db.Request(method='PUT', document='feedback', guid='guid')
         request.principal = 'user'
         request.content = {}
         stats.log(request)
@@ -169,19 +168,19 @@ class StatsTest(tests.Test):
         volume['feedback'].create(guid='feedback', context='context', type='idea', title='', content='')
         volume['review'].create(guid='review', context='context', title='', content='', rating=5)
 
-        request = Request(method='POST', document='comment')
+        request = db.Request(method='POST', document='comment')
         request.principal = 'user'
         request.content = {'solution': 'solution'}
         stats.log(request)
         self.assertEqual(1, stats._stats['solution'].commented)
 
-        request = Request(method='POST', document='comment')
+        request = db.Request(method='POST', document='comment')
         request.principal = 'user'
         request.content = {'feedback': 'feedback'}
         stats.log(request)
         self.assertEqual(1, stats._stats['feedback'].commented)
 
-        request = Request(method='POST', document='comment')
+        request = db.Request(method='POST', document='comment')
         request.principal = 'user'
         request.content = {'review': 'review'}
         stats.log(request)
@@ -193,21 +192,21 @@ class StatsTest(tests.Test):
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
-        request = Request(method='POST', document='review')
+        request = db.Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'context': 'context', 'rating': 0}
         stats.log(request)
         self.assertEqual(1, stats._stats['context'].reviewed)
         self.assertEqual(0, stats._stats['artifact'].reviewed)
 
-        request = Request(method='POST', document='review')
+        request = db.Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'context': 'context', 'artifact': '', 'rating': 0}
         stats.log(request)
         self.assertEqual(2, stats._stats['context'].reviewed)
         self.assertEqual(0, stats._stats['artifact'].reviewed)
 
-        request = Request(method='POST', document='review')
+        request = db.Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'artifact': 'artifact', 'rating': 0}
         stats.log(request)
@@ -220,12 +219,12 @@ class StatsTest(tests.Test):
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
         volume['implementation'].create(guid='implementation', context='context', license='GPLv3', version='1', date=0, stability='stable', notes='')
 
-        request = Request(method='GET', document='implementation', guid='implementation', prop='fake')
+        request = db.Request(method='GET', document='implementation', guid='implementation', prop='fake')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(0, stats._stats['context'].downloaded)
 
-        request = Request(method='GET', document='implementation', guid='implementation', prop='data')
+        request = db.Request(method='GET', document='implementation', guid='implementation', prop='data')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(1, stats._stats['context'].downloaded)
@@ -235,7 +234,7 @@ class StatsTest(tests.Test):
         stats = Sniffer(volume)
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
 
-        request = Request(method='POST', document='implementation')
+        request = db.Request(method='POST', document='implementation')
         request.principal = 'user'
         request.content = {'context': 'context'}
         stats.log(request)
@@ -246,7 +245,7 @@ class StatsTest(tests.Test):
         stats = Sniffer(volume)
         volume['context'].create(guid='context', type='activity', title='', summary='', description='')
 
-        request = Request(method='POST', document='report')
+        request = db.Request(method='POST', document='report')
         request.principal = 'user'
         request.content = {'context': 'context'}
         stats.log(request)
@@ -256,14 +255,14 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
         stats = Sniffer(volume)
 
-        request = Request(method='PUT', document='context', guid='1')
+        request = db.Request(method='PUT', document='context', guid='1')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(
                 ['1'],
                 stats._stats['context'].active.keys())
 
-        request = Request(method='GET', document='artifact', context='2')
+        request = db.Request(method='GET', document='artifact', context='2')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(
@@ -271,7 +270,7 @@ class StatsTest(tests.Test):
                 stats._stats['context'].active.keys())
 
         volume['artifact'].create(guid='artifact', type='instance', context='3', title='', description='')
-        request = Request(method='GET', document='review', artifact='artifact')
+        request = db.Request(method='GET', document='review', artifact='artifact')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(
@@ -279,21 +278,21 @@ class StatsTest(tests.Test):
                 sorted(stats._stats['context'].active.keys()))
 
         volume['feedback'].create(guid='feedback', context='4', type='idea', title='', content='')
-        request = Request(method='GET', document='solution', feedback='feedback')
+        request = db.Request(method='GET', document='solution', feedback='feedback')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(
                 ['1', '2', '3', '4'],
                 sorted(stats._stats['context'].active.keys()))
 
-        request = Request(method='GET', document='context', guid='5')
+        request = db.Request(method='GET', document='context', guid='5')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(
                 ['1', '2', '3', '4', '5'],
                 sorted(stats._stats['context'].active.keys()))
 
-        request = Request(method='POST', document='report')
+        request = db.Request(method='POST', document='report')
         request.principal = 'user'
         request.content = {'context': '6'}
         stats.log(request)
@@ -302,7 +301,7 @@ class StatsTest(tests.Test):
                 sorted(stats._stats['context'].active.keys()))
 
         volume['solution'].create(guid='solution', context='7', feedback='feedback', content='')
-        request = Request(method='POST', document='comment')
+        request = db.Request(method='POST', document='comment')
         request.principal = 'user'
         request.content = {'solution': 'solution'}
         stats.log(request)
@@ -314,7 +313,7 @@ class StatsTest(tests.Test):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
         stats = Sniffer(volume)
 
-        request = Request(method='GET', document='user')
+        request = db.Request(method='GET', document='user')
         request.principal = '1'
         stats.log(request)
         self.assertEqual(
@@ -324,7 +323,7 @@ class StatsTest(tests.Test):
                 set([]),
                 stats._stats['user'].effective)
 
-        request = Request(method='POST', document='user')
+        request = db.Request(method='POST', document='user')
         request.principal = '2'
         stats.log(request)
         self.assertEqual(
@@ -339,13 +338,13 @@ class StatsTest(tests.Test):
         stats = Sniffer(volume)
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
-        request = Request(method='GET', document='artifact', guid='artifact', prop='fake')
+        request = db.Request(method='GET', document='artifact', guid='artifact', prop='fake')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(0, stats._stats['artifact'].viewed)
         self.assertEqual(0, stats._stats['artifact'].downloaded)
 
-        request = Request(method='GET', document='artifact', guid='artifact', prop='data')
+        request = db.Request(method='GET', document='artifact', guid='artifact', prop='data')
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(0, stats._stats['artifact'].viewed)
@@ -362,22 +361,22 @@ class StatsTest(tests.Test):
         volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
 
         stats = Sniffer(volume)
-        request = Request(method='GET', document='user', guid='user')
+        request = db.Request(method='GET', document='user', guid='user')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='GET', document='context', guid='context')
+        request = db.Request(method='GET', document='context', guid='context')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='GET', document='review', guid='review')
+        request = db.Request(method='GET', document='review', guid='review')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='GET', document='feedback', guid='feedback')
+        request = db.Request(method='GET', document='feedback', guid='feedback')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='GET', document='solution', guid='solution')
+        request = db.Request(method='GET', document='solution', guid='solution')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='GET', document='artifact', guid='artifact')
+        request = db.Request(method='GET', document='artifact', guid='artifact')
         request.principal = 'user'
         stats.log(request)
 
@@ -489,14 +488,14 @@ class StatsTest(tests.Test):
         self.assertEqual(0, volume['context'].get('context')['rating'])
 
         stats = Sniffer(volume)
-        request = Request(method='GET', document='implementation', guid='implementation', prop='data')
+        request = db.Request(method='GET', document='implementation', guid='implementation', prop='data')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='POST', document='review')
+        request = db.Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'context': 'context', 'rating': 5}
         stats.log(request)
-        request = Request(method='POST', document='review')
+        request = db.Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'artifact': 'artifact', 'rating': 5}
         stats.log(request)
@@ -511,10 +510,10 @@ class StatsTest(tests.Test):
         self.assertEqual(5, volume['context'].get('context')['rating'])
 
         stats = Sniffer(volume)
-        request = Request(method='GET', document='implementation', guid='implementation', prop='data')
+        request = db.Request(method='GET', document='implementation', guid='implementation', prop='data')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='POST', document='review')
+        request = db.Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'context': 'context', 'rating': 1}
         stats.log(request)
@@ -534,10 +533,10 @@ class StatsTest(tests.Test):
         self.assertEqual(0, volume['artifact'].get('artifact')['rating'])
 
         stats = Sniffer(volume)
-        request = Request(method='GET', document='artifact', guid='artifact', prop='data')
+        request = db.Request(method='GET', document='artifact', guid='artifact', prop='data')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='POST', document='review')
+        request = db.Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'artifact': 'artifact', 'rating': 5}
         stats.log(request)
@@ -551,10 +550,10 @@ class StatsTest(tests.Test):
         self.assertEqual([1, 5], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(5, volume['artifact'].get('artifact')['rating'])
 
-        request = Request(method='GET', document='artifact', guid='artifact', prop='data')
+        request = db.Request(method='GET', document='artifact', guid='artifact', prop='data')
         request.principal = 'user'
         stats.log(request)
-        request = Request(method='POST', document='review')
+        request = db.Request(method='POST', document='review')
         request.principal = 'user'
         request.content = {'artifact': 'artifact', 'rating': 1}
         stats.log(request)

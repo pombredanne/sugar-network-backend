@@ -17,8 +17,8 @@ import os
 from ConfigParser import ConfigParser
 from os.path import join, exists
 
-from sugar_network import db, node
-from sugar_network.toolkit import enforce
+from sugar_network import node
+from sugar_network.toolkit import http, enforce
 
 
 _config_mtime = 0
@@ -26,7 +26,7 @@ _config = None
 
 
 def validate(request, role):
-    enforce(_validate(request, role), db.Forbidden,
+    enforce(_validate(request, role), http.Forbidden,
             'No enough permissions to proceed the operation')
 
 

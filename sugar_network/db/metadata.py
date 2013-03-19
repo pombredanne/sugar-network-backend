@@ -18,8 +18,9 @@ import types
 import json
 from os.path import exists
 
+from sugar_network import toolkit
 from sugar_network.db import env
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit import http, enforce
 
 
 #: Xapian term prefix for GUID value
@@ -217,14 +218,14 @@ class Property(object):
         """Is access to the property permitted.
 
         If there are no permissions, function should raise
-        `db.Forbidden` exception.
+        `http.Forbidden` exception.
 
         :param mode:
             one of `db.ACCESS_*` constants
             to specify the access mode
 
         """
-        enforce(mode & self.permissions, env.Forbidden,
+        enforce(mode & self.permissions, http.Forbidden,
                 '%s access is disabled for %r property',
                 env.ACCESS_NAMES[mode], self.name)
 
@@ -398,7 +399,7 @@ def _localized_typecast(value):
     if isinstance(value, dict):
         return value
     else:
-        return {env.default_lang(): value}
+        return {toolkit.default_lang(): value}
 
 
 def _localized_reprcast(value):

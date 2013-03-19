@@ -8,6 +8,7 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network import db
+from sugar_network.db.router import Router
 from sugar_network.client import Client, api_url
 from sugar_network.node import sync, stats_user, files_root
 from sugar_network.node.master import MasterCommands
@@ -15,7 +16,6 @@ from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.user import User
 from sugar_network.resources.feedback import Feedback
-from sugar_network.toolkit.router import Request, Router
 from sugar_network.toolkit import util, coroutine
 
 

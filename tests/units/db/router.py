@@ -14,10 +14,10 @@ from os.path import exists
 
 from __init__ import tests, src_root
 
-from sugar_network import db, node, static
+from sugar_network import db, node, static, toolkit
 from sugar_network.client import Client
-from sugar_network.toolkit.router import Router, _Request, _parse_accept_language, Unauthorized, route, Redirect, NotModified, _filename
-from sugar_network.toolkit import util, sugar
+from sugar_network.db.router import Router, _Request, _parse_accept_language, route, _filename
+from sugar_network.toolkit import util, sugar, default_lang, http
 from sugar_network.resources.user import User
 from sugar_network.resources.volume import Volume, Resource
 from sugar_network import client as local
@@ -231,7 +231,7 @@ class RouterTest(tests.Test):
                 'PATH_INFO': '/foo',
                 'REQUEST_METHOD': 'GET',
                 })
-            self.assertRaises(Unauthorized, router.authenticate, request)
+            self.assertRaises(http.Unauthorized, router.authenticate, request)
 
             request.environ['HTTP_SUGAR_USER'] = tests.UID
             request.environ['HTTP_SUGAR_USER_SIGNATURE'] = tests.sign(tests.PRIVKEY, tests.UID)
@@ -245,7 +245,7 @@ class RouterTest(tests.Test):
 
             @db.blob_property()
             def blob(self, value):
-                raise Redirect(URL)
+                raise http.Redirect(URL)
 
             @db.indexed_property(slot=1, prefix='A', full_text=True, default='')
             def term(self, value):
@@ -366,32 +366,32 @@ class RouterTest(tests.Test):
 
         self.fork(self.restful_server, [User, TestDocument])
 
-        self.override(db, 'default_lang', lambda: 'en')
+        self.override(toolkit, 'default_lang', lambda: 'en')
         client = Client(local.api_url.value, sugar_auth=True)
         guid = client.post(['testdocument'], {'prop': 'en'})
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
 
-        self.override(db, 'default_lang', lambda: 'ru')
+        self.override(toolkit, 'default_lang', lambda: 'ru')
         client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
         client.put(['testdocument', guid, 'prop'], 'ru')
         self.assertEqual('ru', client.get(['testdocument', guid, 'prop']))
 
-        self.override(db, 'default_lang', lambda: 'es')
+        self.override(toolkit, 'default_lang', lambda: 'es')
         client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
         client.put(['testdocument', guid, 'prop'], 'es')
         self.assertEqual('es', client.get(['testdocument', guid, 'prop']))
 
-        self.override(db, 'default_lang', lambda: 'ru')
+        self.override(toolkit, 'default_lang', lambda: 'ru')
         client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('ru', client.get(['testdocument', guid, 'prop']))
 
-        self.override(db, 'default_lang', lambda: 'en')
+        self.override(toolkit, 'default_lang', lambda: 'en')
         client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
 
-        self.override(db, 'default_lang', lambda: 'foo')
+        self.override(toolkit, 'default_lang', lambda: 'foo')
         client = Client(local.api_url.value, sugar_auth=True)
         self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
 
@@ -404,7 +404,7 @@ class RouterTest(tests.Test):
                 if not self.request.if_modified_since or self.request.if_modified_since >= value:
                     return value
                 else:
-                    raise NotModified()
+                    raise http.NotModified()
 
         self.start_master([User, TestDocument])
         client = Client(local.api_url.value, sugar_auth=True)
@@ -574,9 +574,9 @@ class RouterTest(tests.Test):
         self.assertEqual('Foo-Bar.gif', _filename(['foo', 'bar'], 'image/gif'))
         self.assertEqual('Fake', _filename('fake', 'foo/bar'))
 
-        self.assertEqual('Eng', _filename({db.default_lang(): 'eng'}, None))
-        self.assertEqual('Eng', _filename([{db.default_lang(): 'eng'}], None))
-        self.assertEqual('Bar-1', _filename([{'lang': 'foo', db.default_lang(): 'bar'}, 1], None))
+        self.assertEqual('Eng', _filename({default_lang(): 'eng'}, None))
+        self.assertEqual('Eng', _filename([{default_lang(): 'eng'}], None))
+        self.assertEqual('Bar-1', _filename([{'lang': 'foo', default_lang(): 'bar'}, 1], None))
 
     def test_ContentDisposition(self):
 

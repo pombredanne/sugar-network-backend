@@ -14,10 +14,10 @@ src_root = abspath(dirname(__file__))
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, toolkit
 from sugar_network.db import env
 from sugar_network.db.volume import VolumeCommands
-from sugar_network.toolkit import coroutine
+from sugar_network.toolkit import coroutine, http
 
 
 class VolumeTest(tests.Test):
@@ -118,7 +118,7 @@ class VolumeTest(tests.Test):
                     ]),
                 sorted(self.call('GET', document='testdocument', reply=['guid', 'prop'])['result']))
 
-        self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid_2)
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid_2)
 
         self.assertEqual(
                 {'guid': guid_1, 'prop': 'value_3'},
@@ -148,7 +148,7 @@ class VolumeTest(tests.Test):
         self.assertEqual('blob2', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
-        self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
 
     def test_SetBLOBsWithMimeType(self):
 
@@ -212,7 +212,7 @@ class VolumeTest(tests.Test):
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
-        self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
         self.assertEqual(
                 {'blob': 'http://localhost/testdocument/%s/blob' % guid},
                 self.call('GET', document='testdocument', guid=guid, reply=['blob'], static_prefix='http://localhost'))
@@ -257,7 +257,7 @@ class VolumeTest(tests.Test):
 
         guid = self.call('POST', document='testdocument', content={'prop': 'value'})
         self.assertEqual('value', self.call('GET', document='testdocument', guid=guid, prop='prop'))
-        self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
         self.assertEqual(
                 {'blob': db.PropertyMetadata()},
                 self.call('GET', document='testdocument', guid=guid, reply=['blob']))
@@ -307,7 +307,7 @@ class VolumeTest(tests.Test):
         self.assertEqual(-1, self.call(method='GET', document='testdocument', guid=guid, prop='prop'))
 
     def test_LocalizedSet(self):
-        env._default_lang = 'en'
+        toolkit._default_lang = 'en'
 
         class TestDocument(db.Document):
 
@@ -372,7 +372,7 @@ class VolumeTest(tests.Test):
                 },
             })
 
-        env._default_lang = 'en'
+        toolkit._default_lang = 'en'
 
         self.assertEqual(
                 {'localized_prop': 'value_en'},
@@ -417,7 +417,7 @@ class VolumeTest(tests.Test):
                 [{'localized_prop': 'value_en'}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
 
-        env._default_lang = 'foo'
+        toolkit._default_lang = 'foo'
         fallback_lang = sorted(['ru', 'es', 'en'])[0]
 
         self.assertEqual(
@@ -611,7 +611,7 @@ class VolumeTest(tests.Test):
                 return value
 
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
-        self.assertRaises(env.Forbidden, self.call, method='POST', document='testdocument', content={'guid': 'foo'})
+        self.assertRaises(http.Forbidden, self.call, method='POST', document='testdocument', content={'guid': 'foo'})
         guid = self.call(method='POST', document='testdocument', content={})
         assert guid
 
@@ -758,11 +758,11 @@ class VolumeTest(tests.Test):
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
-        self.assertRaises(db.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 'value'})
-        self.assertRaises(db.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'prop': 'value'})
-        self.assertRaises(db.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'blob': 'value'})
-        self.assertRaises(db.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='prop', content='value')
-        self.assertRaises(db.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content='value')
+        self.assertRaises(http.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 'value'})
+        self.assertRaises(http.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'prop': 'value'})
+        self.assertRaises(http.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'blob': 'value'})
+        self.assertRaises(http.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='prop', content='value')
+        self.assertRaises(http.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content='value')
 
     def test_BlobsWritePermissions(self):
 
@@ -781,13 +781,13 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={})
         self.call('PUT', document='testdocument', guid=guid, content={'blob1': 'value1', 'blob2': 'value2'})
         self.call('PUT', document='testdocument', guid=guid, content={'blob1': 'value1'})
-        self.assertRaises(db.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'blob2': 'value2_'})
+        self.assertRaises(http.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, content={'blob2': 'value2_'})
 
         guid = self.call('POST', document='testdocument', content={})
         self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='value1')
         self.call('PUT', document='testdocument', guid=guid, prop='blob2', content='value2')
         self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='value1_')
-        self.assertRaises(db.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='blob2', content='value2_')
+        self.assertRaises(http.Forbidden, self.call, 'PUT', document='testdocument', guid=guid, prop='blob2', content='value2_')
 
     def test_properties_OverrideGet(self):
 
@@ -856,15 +856,15 @@ class VolumeTest(tests.Test):
         guid = self.call('POST', document='testdocument', content={})
 
         self.assertEqual('_1', self.call('GET', document='testdocument', guid=guid, prop='prop'))
-        self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
         self.call('PUT', document='testdocument', guid=guid, prop='prop', content='2')
         self.assertEqual('_2', self.call('GET', document='testdocument', guid=guid, prop='prop'))
-        self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
         self.call('PUT', document='testdocument', guid=guid, content={'prop': 3})
         self.assertEqual('_3', self.call('GET', document='testdocument', guid=guid, prop='prop'))
-        self.assertRaises(db.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='blob2')
         self.assertEqual('blob2', self.call('GET', document='testdocument', guid=guid, prop='blob1')['url'])
@@ -966,7 +966,7 @@ class VolumeTest(tests.Test):
 
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
-        self.assertRaises(db.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 1})
+        self.assertRaises(http.Forbidden, self.call, 'POST', document='testdocument', content={'prop': 1})
 
         guid = self.call('POST', document='testdocument', content={})
         self.assertEqual(1, self.call('GET', document='testdocument', guid=guid, prop='prop'))

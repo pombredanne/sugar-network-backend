@@ -16,7 +16,7 @@ from M2Crypto import DSA
 from gevent import monkey
 
 from sugar_network.toolkit import coroutine, sugar, http, mountpoints, util
-from sugar_network.toolkit.router import Router, IPCRouter
+from sugar_network.db.router import Router, IPCRouter
 from sugar_network.client import journal
 from sugar_network.client.commands import ClientCommands
 from sugar_network import db, client, node, toolkit
@@ -53,7 +53,7 @@ class Test(unittest.TestCase):
         self._overriden = []
 
         os.environ['LANG'] = 'en_US'
-        env._default_lang = 'en-us'
+        toolkit._default_lang = 'en-us'
 
         global tmpdir
         tmpdir = join(tmp_root or tmproot, '.'.join(self.id().split('.')[1:]))

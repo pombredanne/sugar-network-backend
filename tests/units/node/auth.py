@@ -9,9 +9,8 @@ from __init__ import tests
 from sugar_network import db
 from sugar_network.node import auth
 from sugar_network.client import IPCClient, Client
-from sugar_network.toolkit.router import Request
 from sugar_network.resources.user import User
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit import http, enforce
 
 
 class AuthTest(tests.Test):
@@ -24,20 +23,20 @@ class AuthTest(tests.Test):
             'role_2 = False',
             ]))
 
-        request = Request()
+        request = db.Request()
         request.principal = 'user_1'
         self.assertEqual(True, auth.try_validate(request, 'role_1'))
         auth.validate(request, 'role_1')
 
         request.principal = 'user_2'
         self.assertEqual(False, auth.try_validate(request, 'role_2'))
-        self.assertRaises(db.Forbidden, auth.validate, request, 'role_2')
+        self.assertRaises(http.Forbidden, auth.validate, request, 'role_2')
 
         request.principal = 'user_3'
         self.assertEqual(False, auth.try_validate(request, 'role_1'))
         self.assertEqual(False, auth.try_validate(request, 'role_2'))
-        self.assertRaises(db.Forbidden, auth.validate, request, 'role_1')
-        self.assertRaises(db.Forbidden, auth.validate, request, 'role_2')
+        self.assertRaises(http.Forbidden, auth.validate, request, 'role_1')
+        self.assertRaises(http.Forbidden, auth.validate, request, 'role_2')
 
     def test_FullWriteForRoot(self):
         client = Client()

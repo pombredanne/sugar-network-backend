@@ -10,7 +10,7 @@ from cStringIO import StringIO
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, toolkit
 from sugar_network.toolkit import util
 from sugar_network.node import files
 
@@ -20,7 +20,7 @@ class FilesTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         self.uuid = 0
-        self.override(db, 'uuid', self.next_uuid)
+        self.override(toolkit, 'uuid', self.next_uuid)
 
     def next_uuid(self):
         self.uuid += 1

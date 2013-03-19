@@ -24,12 +24,12 @@ from gevent import monkey
 
 import sugar_network_webui as webui
 from sugar_network import db, node, client, toolkit
+from sugar_network.db.router import Router
 from sugar_network.client.commands import ClientCommands
 from sugar_network.node import stats_node, stats_user, obs
 from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit.router import Router
 from sugar_network.toolkit.http import Client
 from sugar_network.toolkit import sugar, coroutine, application, util, Option
 from sugar_network.toolkit import enforce

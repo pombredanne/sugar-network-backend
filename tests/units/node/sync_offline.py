@@ -11,7 +11,7 @@ import rrdtool
 
 from __init__ import tests
 
-from sugar_network import db, node
+from sugar_network import db, node, toolkit
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.client import api_url
 from sugar_network.node import sync, stats_user, files_root
@@ -31,7 +31,7 @@ class SyncOfflineTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         self.uuid = 0
-        self.override(db, 'uuid', self.next_uuid)
+        self.override(toolkit, 'uuid', self.next_uuid)
         self.override(os, 'statvfs', lambda *args: statvfs())
         statvfs.f_bfree = 999999999
         stats_user.stats_user_step.value = 1

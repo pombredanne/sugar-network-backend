@@ -27,8 +27,8 @@ from gevent import monkey
 
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
+from sugar_network.db.router import IPCRouter
 from sugar_network.toolkit import sugar, mountpoints
-from sugar_network.toolkit.router import IPCRouter
 from sugar_network.client import clones
 from sugar_network.client.commands import ClientCommands
 from sugar_network.node import stats_node, stats_user, slave

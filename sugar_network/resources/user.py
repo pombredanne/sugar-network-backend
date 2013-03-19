@@ -15,7 +15,7 @@
 
 from sugar_network import db
 from sugar_network.node import stats_user
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit import http, enforce
 
 
 class User(db.Document):
@@ -61,7 +61,7 @@ class User(db.Document):
     @db.document_command(method='GET', cmd='stats-info',
             mime_type='application/json')
     def _stats_info(self, request):
-        enforce(request.principal == self['guid'], db.Forbidden,
+        enforce(request.principal == self['guid'], http.Forbidden,
                 'Operation is permitted only for authors')
 
         status = {}
@@ -77,7 +77,7 @@ class User(db.Document):
 
     @db.document_command(method='POST', cmd='stats-upload')
     def _stats_upload(self, request):
-        enforce(request.principal == self['guid'], db.Forbidden,
+        enforce(request.principal == self['guid'], http.Forbidden,
                 'Operation is permitted only for authors')
 
         name = request.content['name']

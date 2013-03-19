@@ -22,8 +22,9 @@ from cStringIO import StringIO
 from types import GeneratorType
 from os.path import exists, join, dirname, basename, splitext
 
-from sugar_network import db
-from sugar_network.toolkit import BUFFER_SIZE, coroutine, util, http, enforce
+from sugar_network import toolkit
+from sugar_network.toolkit import coroutine, util, http
+from sugar_network.toolkit import BUFFER_SIZE, enforce
 
 
 # Filename suffix to use for sneakernet synchronization files
@@ -74,7 +75,7 @@ def package_encode(packets, **header):
     buf = StringIO()
     zipfile = gzip.GzipFile(mode='wb', fileobj=buf)
 
-    header['filename'] = db.uuid() + _SNEAKERNET_SUFFIX
+    header['filename'] = toolkit.uuid() + _SNEAKERNET_SUFFIX
     json.dump(header, zipfile)
     zipfile.write('\n')
 
@@ -117,7 +118,7 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
             os.makedirs(root)
         with file(join(root, _SNEAKERNET_FLAG_FILE), 'w'):
             pass
-        filename = db.uuid() + _SNEAKERNET_SUFFIX
+        filename = toolkit.uuid() + _SNEAKERNET_SUFFIX
         path = util.unique_filename(root, filename)
     else:
         filename = splitext(basename(path))[0] + _SNEAKERNET_SUFFIX

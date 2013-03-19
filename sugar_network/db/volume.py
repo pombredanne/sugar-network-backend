@@ -19,6 +19,7 @@ import logging
 from contextlib import contextmanager
 from os.path import exists, join, abspath
 
+from sugar_network import toolkit
 from sugar_network.db import env
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
@@ -27,7 +28,8 @@ from sugar_network.db.commands import document_command, property_command
 from sugar_network.db.commands import to_int, to_list
 from sugar_network.db.metadata import BlobProperty, StoredProperty
 from sugar_network.db.metadata import PropertyMetadata
-from sugar_network.toolkit import coroutine, util, exception, enforce
+from sugar_network.toolkit import http, coroutine, util
+from sugar_network.toolkit import exception, enforce
 
 
 _logger = logging.getLogger('db.volume')
@@ -107,7 +109,7 @@ class Volume(dict):
     def __getitem__(self, name):
         directory = self.get(name)
         if directory is None:
-            enforce(name in self._to_open, env.BadRequest,
+            enforce(name in self._to_open, http.BadRequest,
                     'Unknown %r document', name)
             directory = self[name] = self._open(name, self._to_open.pop(name))
         return directory
@@ -133,11 +135,11 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH, mime_type='application/json')
     def create(self, request):
         with self._post(request, env.ACCESS_CREATE) as (directory, doc):
-            enforce('guid' not in doc.props, env.Forbidden,
+            enforce('guid' not in doc.props, http.Forbidden,
                     "Property 'guid' cannot be set manually")
             self.before_create(request, doc.props)
             if 'guid' not in doc.props:
-                doc.props['guid'] = env.uuid()
+                doc.props['guid'] = toolkit.uuid()
             doc.guid = doc.props['guid']
             directory.create(doc.props)
             return doc.guid
@@ -217,7 +219,7 @@ class VolumeCommands(CommandsProcessor):
         else:
             meta = prop.on_get(doc, doc.meta(prop.name))
             enforce(meta is not None and ('blob' in meta or 'url' in meta),
-                    env.NotFound, 'BLOB does not exist')
+                    http.NotFound, 'BLOB does not exist')
             return meta
 
     def before_create(self, request, props):

@@ -24,8 +24,7 @@ from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
 
 from sugar_network import db, client
-from sugar_network.toolkit import sugar, router, enforce
-from sugar_network.toolkit.router import Request
+from sugar_network.toolkit import sugar, enforce
 
 
 _logger = logging.getLogger('client.journal')
@@ -69,7 +68,7 @@ class Commands(object):
                     'Cannot connect to sugar-datastore, '
                     'Journal integration is disabled')
 
-    @router.route('GET', '/journal')
+    @db.route('GET', '/journal')
     def journal(self, request, response):
         enforce(self._ds is not None, 'Journal is inaccessible')
         enforce(len(request.path) <= 3, 'Invalid request')
@@ -81,7 +80,7 @@ class Commands(object):
         elif len(request.path) == 3:
             return self._get_prop(request, response)
 
-    @router.route('PUT', '/journal')
+    @db.route('PUT', '/journal')
     def journal_share(self, request, response):
         enforce(self._ds is not None, 'Journal is inaccessible')
         enforce(len(request.path) == 2 and request.get('cmd') == 'share',
@@ -93,19 +92,19 @@ class Commands(object):
         data_path = _ds_path(guid, 'data')
         enforce(os.access(data_path, os.R_OK), 'No data')
 
-        subrequest = Request(method='POST', document='artifact')
+        subrequest = db.Request(method='POST', document='artifact')
         subrequest.content = request.content
         subrequest.content_type = 'application/json'
         # pylint: disable-msg=E1101
         subguid = self.call(subrequest, response)
 
-        subrequest = Request(method='PUT', document='artifact',
+        subrequest = db.Request(method='PUT', document='artifact',
                 guid=subguid, prop='preview')
         subrequest.content_type = 'image/png'
         with file(preview_path, 'rb') as subrequest.content_stream:
             self.call(subrequest, response)
 
-        subrequest = Request(method='PUT', document='artifact',
+        subrequest = db.Request(method='PUT', document='artifact',
                 guid=subguid, prop='data')
         subrequest.content_type = get(guid, 'mime_type') or 'application/octet'
         with file(data_path, 'rb') as subrequest.content_stream:

@@ -16,18 +16,16 @@
 import sys
 import json
 import logging
-import hashlib
 from os.path import join, dirname, exists
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'requests'))
 
 import requests
 from requests.sessions import Session
-from M2Crypto import DSA
 
-from sugar_network.toolkit import sugar, coroutine, util, exception, enforce
-from sugar_network.toolkit.router import Redirect
-from sugar_network import db, client
+from sugar_network import client, toolkit
+from sugar_network.toolkit import sugar, coroutine, util
+from sugar_network.toolkit import exception, enforce
 
 
 ConnectionError = requests.ConnectionError
@@ -36,6 +34,52 @@ _RECONNECTION_NUMBER = 1
 _RECONNECTION_TIMEOUT = 3
 
 _logger = logging.getLogger('http')
+
+
+class Status(Exception):
+
+    status = None
+    headers = None
+    result = None
+
+
+class StatusPass(Status):
+    pass
+
+
+class NotModified(StatusPass):
+
+    status = '304 Not Modified'
+
+
+class Redirect(StatusPass):
+
+    status = '303 See Other'
+
+    def __init__(self, location):
+        StatusPass.__init__(self)
+        self.headers = {'Location': location}
+
+
+class BadRequest(Status):
+
+    status = '400 Bad Request'
+
+
+class Unauthorized(Status):
+
+    status = '401 Unauthorized'
+    headers = {'WWW-Authenticate': 'Sugar'}
+
+
+class Forbidden(Status):
+
+    status = '403 Forbidden'
+
+
+class NotFound(Status):
+
+    status = '404 Not Found'
 
 
 class Client(object):
@@ -50,7 +94,7 @@ class Client(object):
         elif client.certfile.value:
             verify = client.certfile.value
 
-        headers = {'Accept-Language': db.default_lang()}
+        headers = {'Accept-Language': toolkit.default_lang()}
         if self._sugar_auth:
             key_path = sugar.keyfile.value
             if not key_path or not exists(key_path):
@@ -276,5 +320,7 @@ class _Subscription(object):
 
 
 def _sign(key_path, data):
+    import hashlib
+    from M2Crypto import DSA
     key = DSA.load_key(key_path)
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')

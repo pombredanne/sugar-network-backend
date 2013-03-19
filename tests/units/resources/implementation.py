@@ -6,7 +6,6 @@ import xapian
 from __init__ import tests
 
 from sugar_network.toolkit import sugar
-from sugar_network.toolkit.router import Request
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.implementation import _encode_version, Implementation
 from sugar_network.node.commands import NodeCommands

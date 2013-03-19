@@ -18,11 +18,12 @@ import shutil
 import logging
 from os.path import exists, join
 
+from sugar_network import toolkit
 from sugar_network.db import env
 from sugar_network.db.storage import Storage
 from sugar_network.db.metadata import BlobProperty, Metadata, GUID_PREFIX
 from sugar_network.db.metadata import IndexedProperty, StoredProperty
-from sugar_network.toolkit import util, exception, enforce
+from sugar_network.toolkit import http, util, exception, enforce
 
 
 # To invalidate existed index on stcuture changes
@@ -105,7 +106,7 @@ class Directory(object):
 
         guid = props.get('guid')
         if not guid:
-            guid = props['guid'] = env.uuid()
+            guid = props['guid'] = toolkit.uuid()
 
         for prop_name, prop in self.metadata.items():
             if isinstance(prop, StoredProperty):
@@ -154,7 +155,7 @@ class Directory(object):
     def get(self, guid):
         cached_props = self._index.get_cached(guid)
         record = self._storage.get(guid)
-        enforce(cached_props or record.exists, env.NotFound,
+        enforce(cached_props or record.exists, http.NotFound,
                 'Document %r does not exist in %r',
                 guid, self.metadata.name)
         return self.document_class(guid, record, cached_props)
@@ -402,7 +403,7 @@ class Directory(object):
             else:
                 if prop.localized:
                     if not isinstance(value, dict):
-                        value = {env.default_lang(): value}
+                        value = {toolkit.default_lang(): value}
                     if existed:
                         meta = record.get(name)
                         if meta is not None:

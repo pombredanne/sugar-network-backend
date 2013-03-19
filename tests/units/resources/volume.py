@@ -11,7 +11,6 @@ from __init__ import tests
 from sugar_network import db, node
 from sugar_network.resources.volume import Volume, Resource, Commands
 from sugar_network.resources.user import User
-from sugar_network.toolkit.router import Request
 from sugar_network.toolkit import coroutine, sugar, util
 
 
@@ -98,7 +97,7 @@ class VolumeTest(tests.Test):
         events = []
 
         def read_events():
-            for event in cp.subscribe(Request(), db.Response(), only_commits=True):
+            for event in cp.subscribe(db.Request(), db.Response(), only_commits=True):
                 if not event.strip():
                     continue
                 assert event.startswith('data: ')
@@ -427,7 +426,7 @@ class TestCommands(db.VolumeCommands, Commands):
 
 
 def call(cp, principal=None, content=None, **kwargs):
-    request = Request(**kwargs)
+    request = db.Request(**kwargs)
     request.principal = principal
     request.content = content
     request.environ = {'HTTP_HOST': 'localhost'}

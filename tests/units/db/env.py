@@ -6,6 +6,7 @@ from os.path import exists
 
 from __init__ import tests
 
+from sugar_network import toolkit
 from sugar_network.db import env
 
 
@@ -13,7 +14,7 @@ class EnvTest(tests.Test):
 
     def test_gettext(self):
         # Fallback to default lang
-        env._default_lang = 'default'
+        toolkit._default_lang = 'default'
         self.assertEqual('foo', env.gettext({'lang': 'foo', 'default': 'bar'}, 'lang'))
         self.assertEqual('bar', env.gettext({'lang': 'foo', 'default': 'bar'}, 'fake'))
 

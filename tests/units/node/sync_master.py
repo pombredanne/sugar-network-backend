@@ -16,11 +16,10 @@ import rrdtool
 from __init__ import tests
 
 from sugar_network.db.directory import Directory
-from sugar_network import db, node
+from sugar_network import db, node, toolkit
 from sugar_network.node import sync
 from sugar_network.node.master import MasterCommands
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import coroutine, util
 from sugar_network.toolkit.rrd import Rrd
 
@@ -37,7 +36,7 @@ class SyncMasterTest(tests.Test):
         tests.Test.setUp(self)
 
         self.uuid = 0
-        self.override(db, 'uuid', self.next_uuid)
+        self.override(toolkit, 'uuid', self.next_uuid)
         self.override(os, 'statvfs', lambda *args: statvfs())
         statvfs.f_bfree = 999999999
 

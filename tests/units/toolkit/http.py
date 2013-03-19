@@ -7,7 +7,8 @@ import select
 from __init__ import tests
 
 from sugar_network import db, client as local
-from sugar_network.toolkit import coroutine, router, http
+from sugar_network.db import router
+from sugar_network.toolkit import coroutine, http
 
 
 class HTTPTest(tests.Test):
@@ -71,12 +72,12 @@ class HTTPTest(tests.Test):
         coroutine.dispatch()
         client = http.Client('http://localhost:%s' % local.ipc_port.value, sugar_auth=False)
 
-        request = router.Request()
+        request = db.Request()
         request['method'] = 'GET'
         request['cmd'] = 'f1'
         self.assertEqual('result', client.call(request))
 
-        request = router.Request()
+        request = db.Request()
         request['method'] = 'GET'
         request['cmd'] = 'f2'
         self.assertEqual('result', json.load(client.call(request)))

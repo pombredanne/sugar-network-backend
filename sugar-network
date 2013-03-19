@@ -26,7 +26,7 @@ from os.path import join, exists
 from gevent import monkey
 
 from sugar_network import db, client, toolkit
-from sugar_network.toolkit.router import IPCRouter, Request
+from sugar_network.db.router import IPCRouter
 from sugar_network.resources.volume import Volume
 from sugar_network.client.commands import ClientCommands
 from sugar_network.toolkit import sugar, util, sugar, Option, BUFFER_SIZE
@@ -98,7 +98,7 @@ class Application(application.Application):
         self._call('GET', False)
 
     def _call(self, method, post):
-        request = Request(method=method)
+        request = db.Request(method=method)
         request.allow_redirects = True
         response = db.Response()
         reply = []

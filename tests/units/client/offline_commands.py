@@ -8,7 +8,7 @@ from __init__ import tests, src_root
 from sugar_network import client
 from sugar_network.client import IPCClient, clones
 from sugar_network.client.commands import ClientCommands
-from sugar_network.toolkit.router import IPCRouter
+from sugar_network.db.router import IPCRouter
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import coroutine
 

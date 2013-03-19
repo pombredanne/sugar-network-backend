@@ -10,7 +10,7 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, toolkit
 from sugar_network.node import sync
 from sugar_network.toolkit import BUFFER_SIZE
 
@@ -441,7 +441,7 @@ class SyncTest(tests.Test):
         self.assertEqual(len(stream.value.getvalue()), stream.value.tell())
 
     def test_sneakernet_decode(self):
-        self.override(db, 'uuid', lambda: 'uuid')
+        self.override(toolkit, 'uuid', lambda: 'uuid')
 
         sync.sneakernet_encode([
             ('first', {'packet_prop': 1}, [
@@ -485,7 +485,7 @@ class SyncTest(tests.Test):
         assert not exists('.sneakernet')
 
     def test_sneakernet_encode(self):
-        self.override(db, 'uuid', lambda: 'uuid')
+        self.override(toolkit, 'uuid', lambda: 'uuid')
         payload = ''.join([str(uuid.uuid4()) for i in xrange(5000)])
 
         def content():
@@ -516,7 +516,7 @@ class SyncTest(tests.Test):
                 [(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('3')])
 
     def test_sneakernet_encode_BlobUrls(self):
-        self.override(db, 'uuid', lambda: 'uuid')
+        self.override(toolkit, 'uuid', lambda: 'uuid')
         url = 'http://download.sugarlabs.org/timestamp.txt'
         blob = urllib2.urlopen(url).read()
 

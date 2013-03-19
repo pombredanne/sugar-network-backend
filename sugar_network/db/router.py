@@ -25,48 +25,15 @@ from urlparse import parse_qsl, urlsplit
 from bisect import bisect_left
 from os.path import join, isfile, split, splitext
 
-from sugar_network import db, static
+from sugar_network import static
+from sugar_network.db import env
+from sugar_network.db.commands import Request, Response
+from sugar_network.db.metadata import PropertyMetadata
 from sugar_network.toolkit import BUFFER_SIZE
-from sugar_network.toolkit import sugar, coroutine, exception, enforce
+from sugar_network.toolkit import http, sugar, coroutine, exception, enforce
 
 
 _logger = logging.getLogger('router')
-
-
-class HTTPStatus(Exception):
-
-    status = None
-    headers = None
-    result = None
-
-
-class HTTPStatusPass(HTTPStatus):
-    pass
-
-
-class NotModified(HTTPStatusPass):
-
-    status = '304 Not Modified'
-
-
-class Redirect(HTTPStatusPass):
-
-    status = '303 See Other'
-
-    def __init__(self, location):
-        HTTPStatus.__init__(self)
-        self.headers = {'Location': location}
-
-
-class BadRequest(HTTPStatus):
-
-    status = '400 Bad Request'
-
-
-class Unauthorized(HTTPStatus):
-
-    status = '401 Unauthorized'
-    headers = {'WWW-Authenticate': 'Sugar'}
 
 
 def route(method, path):
@@ -79,25 +46,6 @@ def route(method, path):
         return func
 
     return decorate
-
-
-def stream_reader(stream):
-    try:
-        while True:
-            chunk = stream.read(BUFFER_SIZE)
-            if not chunk:
-                break
-            yield chunk
-    finally:
-        if hasattr(stream, 'close'):
-            stream.close()
-
-
-class Request(db.Request):
-
-    principal = None
-    if_modified_since = None
-    allow_redirects = False
 
 
 class Router(object):
@@ -127,7 +75,7 @@ class Router(object):
             _logger.debug('Logging %r user', user)
             request = Request(method='GET', cmd='exists',
                     document='user', guid=user)
-            enforce(self.commands.call(request), Unauthorized,
+            enforce(self.commands.call(request), http.Unauthorized,
                     'Principal user does not exist')
             self._authenticated.add(user)
 
@@ -135,7 +83,7 @@ class Router(object):
 
     def call(self, request, response):
         if 'HTTP_ORIGIN' in request.environ:
-            enforce(self._assert_origin(request.environ), db.Forbidden,
+            enforce(self._assert_origin(request.environ), http.Forbidden,
                     'Cross-site is not allowed for %r origin',
                     request.environ['HTTP_ORIGIN'])
             response['Access-Control-Allow-Origin'] = \
@@ -156,7 +104,7 @@ class Router(object):
         request.principal = self.authenticate(request)
         if request.path[:1] == ['static']:
             path = join(static.PATH, *request.path[1:])
-            result = db.PropertyMetadata(blob=path,
+            result = PropertyMetadata(blob=path,
                     mime_type=_get_mime_type(path), filename=split(path)[-1])
         else:
             rout = self._routes.get((
@@ -167,9 +115,9 @@ class Router(object):
             else:
                 result = self.commands.call(request, response)
 
-        if isinstance(result, db.PropertyMetadata):
+        if isinstance(result, PropertyMetadata):
             if 'url' in result:
-                raise Redirect(result['url'])
+                raise http.Redirect(result['url'])
 
             path = result['blob']
             enforce(isfile(path), 'No such file')
@@ -177,7 +125,7 @@ class Router(object):
             mtime = result.get('mtime') or os.stat(path).st_mtime
             if request.if_modified_since and mtime and \
                     mtime <= request.if_modified_since:
-                raise NotModified()
+                raise http.NotModified()
             response.last_modified = mtime
 
             response.content_type = result.get('mime_type') or \
@@ -200,7 +148,7 @@ class Router(object):
                 result.seek(0, 2)
                 response.content_length = result.tell()
                 result.seek(0)
-            result = stream_reader(result)
+            result = _stream_reader(result)
 
         return result
 
@@ -216,25 +164,19 @@ class Router(object):
         result = None
         try:
             result = self.call(request, response)
-        except HTTPStatusPass, error:
+        except http.StatusPass, error:
             response.status = error.status
             if error.headers:
                 response.update(error.headers)
             response.content_type = None
         except Exception, error:
             exception('Error while processing %r request', request.url)
-
-            if isinstance(error, db.NotFound):
-                response.status = '404 Not Found'
-            elif isinstance(error, db.Forbidden):
-                response.status = '403 Forbidden'
-            elif isinstance(error, HTTPStatus):
+            if isinstance(error, http.Status):
                 response.status = error.status
                 response.update(error.headers or {})
                 result = error.result
             else:
                 response.status = '500 Internal Server Error'
-
             if result is None:
                 result = {'error': str(error),
                           'request': request.url,
@@ -308,7 +250,7 @@ class IPCRouter(Router):
         return sugar.uid()
 
     def call(self, request, response):
-        request.access_level = db.ACCESS_LOCAL
+        request.access_level = env.ACCESS_LOCAL
         return Router.call(self, request, response)
 
 
@@ -327,7 +269,7 @@ class _Request(Request):
         http_host = environ.get('HTTP_HOST')
         if http_host:
             self.static_prefix = 'http://' + http_host
-        self.access_level = db.ACCESS_REMOTE
+        self.access_level = env.ACCESS_REMOTE
         self.environ = environ
         self.url = '/' + environ['PATH_INFO'].strip('/')
         self.path = [i for i in self.url[1:].split('/') if i]
@@ -397,7 +339,7 @@ class _Request(Request):
         return request
 
 
-class _Response(db.Response):
+class _Response(Response):
     # pylint: disable-msg=E0202
 
     status = '200 OK'
@@ -484,7 +426,7 @@ def _filename(names, mime_type):
     parts = []
     for name in names:
         if isinstance(name, dict):
-            name = db.gettext(name)
+            name = env.gettext(name)
         parts.append(''.join([i.capitalize() for i in str(name).split()]))
     result = '-'.join(parts)
     if mime_type:
@@ -492,3 +434,15 @@ def _filename(names, mime_type):
             mimetypes.init()
         result += mimetypes.guess_extension(mime_type) or ''
     return result.replace(os.sep, '')
+
+
+def _stream_reader(stream):
+    try:
+        while True:
+            chunk = stream.read(BUFFER_SIZE)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        if hasattr(stream, 'close'):
+            stream.close()

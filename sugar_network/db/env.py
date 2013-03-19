@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from sugar_network.toolkit import Option
+from sugar_network import toolkit
+from sugar_network.toolkit import Option, http
 
 
 ACCESS_CREATE = 1
@@ -57,42 +58,6 @@ index_write_queue = Option(
         default=256, type_cast=int)
 
 
-def uuid():
-    """Generate GUID value.
-
-    Function will tranform `uuid.uuid1()` result to leave only alnum symbols.
-    The reason is reusing the same resulting GUID in different cases, e.g.,
-    for Telepathy names where `-` symbols, from `uuid.uuid1()`, are not
-    permitted.
-
-    :returns:
-        GUID string value
-
-    """
-    from uuid import uuid1
-    return ''.join(str(uuid1()).split('-'))
-
-
-def default_lang():
-    """Default language to fallback for localized strings.
-
-    :returns:
-        string in format of HTTP's Accept-Language, e.g., `en-gb`.
-
-    """
-    global _default_lang
-
-    if _default_lang is None:
-        import locale
-        lang = locale.getdefaultlocale()[0]
-        if lang:
-            _default_lang = lang.replace('_', '-').lower()
-        else:
-            _default_lang = 'en'
-
-    return _default_lang
-
-
 def gettext(value, accept_language=None):
     if not value:
         return ''
@@ -100,7 +65,7 @@ def gettext(value, accept_language=None):
         return value
 
     if accept_language is None:
-        accept_language = [default_lang()]
+        accept_language = [toolkit.default_lang()]
     elif isinstance(accept_language, basestring):
         accept_language = [accept_language]
     stripped_value = None
@@ -128,23 +93,5 @@ def gettext(value, accept_language=None):
     return value[min(value.keys())]
 
 
-class BadRequest(Exception):
-    """Bad requested resource."""
+class CommandNotFound(http.BadRequest):
     pass
-
-
-class NotFound(Exception):
-    """Resource was not found."""
-    pass
-
-
-class Forbidden(Exception):
-    """Caller does not have permissions to get access."""
-    pass
-
-
-class CommandNotFound(Exception):
-    pass
-
-
-_default_lang = None

@@ -21,12 +21,12 @@ from urlparse import urlsplit
 from os.path import join, dirname, exists, isabs
 from gettext import gettext as _
 
-from sugar_network import db, node
+from sugar_network import db, node, toolkit
 from sugar_network.client import Client, api_url
 from sugar_network.node import sync, stats_user, files, volume
 from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import mountpoints
-from sugar_network.toolkit import coroutine, util, exception, enforce
+from sugar_network.toolkit import mountpoints, coroutine, util
+from sugar_network.toolkit import exception, enforce
 
 
 # Flag file to recognize a directory as a synchronization directory
@@ -111,7 +111,7 @@ class SlaveCommands(NodeCommands):
         if stats_seq is None:
             stats_seq = {}
         if session is None:
-            session = db.uuid()
+            session = toolkit.uuid()
             push.append(('pull', {
                 'sequence': self._pull_seq,
                 'layer': node.sync_layers.value,

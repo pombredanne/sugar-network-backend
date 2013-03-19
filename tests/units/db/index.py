@@ -3,7 +3,6 @@
 # sugar-lint: disable
 
 import os
-import uuid
 import time
 import shutil
 import locale
@@ -11,6 +10,7 @@ from os.path import exists
 
 from __init__ import tests
 
+from sugar_network import toolkit
 from sugar_network.db import index, env
 from sugar_network.db.metadata import Metadata, IndexedProperty, GUID_PREFIX
 from sugar_network.db.directory import _Query
@@ -542,7 +542,7 @@ class IndexTest(tests.Test):
         self.assertEqual(1, len(commits))
 
     def test_SortLocalizedProps(self):
-        env._default_lang = 'default_lang'
+        toolkit._default_lang = 'default_lang'
         current_lang = locale.getdefaultlocale()[0].replace('_', '-')
 
         db = Index({'prop': IndexedProperty('prop', 1, 'A', localized=True)})

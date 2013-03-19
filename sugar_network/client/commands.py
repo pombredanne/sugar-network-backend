@@ -18,14 +18,14 @@ import socket
 import logging
 from os.path import join, exists
 
-from sugar_network import db, client, node
-from sugar_network.toolkit import netlink, mountpoints, router
-from sugar_network.toolkit.router import Request, Router
+from sugar_network import db, client, node, toolkit
+from sugar_network.toolkit import netlink, mountpoints
 from sugar_network.client import journal, clones, injector
 from sugar_network.client.spec import Spec
 from sugar_network.resources.volume import Volume, Commands
 from sugar_network.node.slave import PersonalCommands
-from sugar_network.toolkit import zeroconf, coroutine, util, exception, enforce
+from sugar_network.toolkit import zeroconf, coroutine, util, http
+from sugar_network.toolkit import exception, enforce
 
 
 # Top-level directory name to keep SN data on mounted devices
@@ -82,7 +82,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         self._got_offline()
         self._home.volume.close()
 
-    @router.route('GET', '/hub')
+    @db.route('GET', '/hub')
     def hub(self, request, response):
         """Serve Hub via HTTP instead of file:// for IPC users.
 
@@ -90,7 +90,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
         """
         if request.environ['PATH_INFO'] == '/hub':
-            raise router.Redirect('/hub/')
+            raise http.Redirect('/hub/')
 
         path = request.path[1:]
         if not path:
@@ -99,7 +99,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
         mtime = os.stat(path).st_mtime
         if request.if_modified_since >= mtime:
-            raise router.NotModified()
+            raise http.NotModified()
 
         if path.endswith('.js'):
             response.content_type = 'text/javascript'
@@ -107,7 +107,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             response.content_type = 'text/css'
         response.last_modified = mtime
 
-        return router.stream_reader(file(path, 'rb'))
+        return file(path, 'rb')
 
     @db.volume_command(method='GET', cmd='inline',
             mime_type='application/json')
@@ -189,7 +189,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                             document='implementation', context=guid,
                             stability='stable', order_by='-version', limit=1,
                             reply=['guid'])['result']
-                    enforce(impls, db.NotFound, 'No implementations')
+                    enforce(impls, http.NotFound, 'No implementations')
                     impl_id = impls[0]['guid']
                     props = self._node_call(method='GET', document='context',
                             guid=guid, reply=['title', 'description'])
@@ -271,7 +271,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             self._remote_connect()
 
         request.static_prefix = self._static_prefix
-        request.accept_language = [db.default_lang()]
+        request.accept_language = [toolkit.default_lang()]
         request.allow_redirects = True
         try:
             return db.CommandsProcessor.call(self, request, response)
@@ -280,9 +280,9 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
     def _node_call(self, request=None, response=None, **kwargs):
         if request is None:
-            request = Request(**kwargs)
+            request = db.Request(**kwargs)
             request.static_prefix = self._static_prefix
-            request.accept_language = [db.default_lang()]
+            request.accept_language = [toolkit.default_lang()]
             request.allow_redirects = True
         if self._inline.is_set():
             if client.layers.value and request.get('document') in \
@@ -382,14 +382,14 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             with file(node_guid_path) as f:
                 node_guid = f.read().strip()
         else:
-            node_guid = db.uuid()
+            node_guid = toolkit.uuid()
             with file(node_guid_path, 'w') as f:
                 f.write(node_guid)
         self._node = PersonalCommands(node_guid, volume, self.broadcast)
 
         logging.info('Start %r node on %s port', volume.root, node.port.value)
         server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
-                Router(self._node))
+                db.Router(self._node))
         self._node_job.spawn(server.serve_forever)
         self._node.volume.connect(self.broadcast)
         self._got_online()
@@ -464,7 +464,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                     requires=request.get('requires'),
                     order_by='-version', limit=1,
                     reply=['guid', 'spec'])['result']
-            enforce(impls, db.NotFound, 'No implementations')
+            enforce(impls, http.NotFound, 'No implementations')
             pipe = injector.clone_impl(guid, **impls[0])
         else:
             pipe = injector.clone(guid)

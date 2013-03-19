@@ -8,6 +8,7 @@ from env import *
 from index import *
 from metadata import *
 from migrate import *
+from router import *
 from storage import *
 from volume import *
 

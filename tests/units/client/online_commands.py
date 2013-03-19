@@ -10,8 +10,7 @@ from __init__ import tests, src_root
 
 from sugar_network import client, db
 from sugar_network.client import IPCClient, journal, clones, injector
-from sugar_network.toolkit import coroutine
-from sugar_network.toolkit.router import Request, Redirect
+from sugar_network.toolkit import coroutine, http
 from sugar_network.client.commands import ClientCommands
 from sugar_network.resources.volume import Volume, Resource
 from sugar_network.resources.user import User
@@ -34,7 +33,7 @@ class OnlineCommandsTest(tests.Test):
         assert trigger.value is None
         assert not cp.inline()
 
-        request = Request(method='GET', cmd='whoami')
+        request = db.Request(method='GET', cmd='whoami')
         cp.call(request)
         trigger.wait()
         assert cp.inline()
@@ -759,7 +758,7 @@ class OnlineCommandsTest(tests.Test):
 
             @db.blob_property()
             def blob(self, value):
-                raise Redirect(URL)
+                raise http.Redirect(URL)
 
         self.start_online_client([User, Document])
         ipc = IPCClient()

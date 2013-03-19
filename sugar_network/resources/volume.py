@@ -18,7 +18,7 @@ import logging
 from os.path import join
 
 from sugar_network import db, static
-from sugar_network.toolkit import router, coroutine, enforce
+from sugar_network.toolkit import coroutine, enforce
 
 
 AUTHOR_INSYSTEM = 1
@@ -163,12 +163,12 @@ class Commands(object):
     def __init__(self):
         self._pooler = _Pooler()
 
-    @router.route('GET', '/robots.txt')
+    @db.route('GET', '/robots.txt')
     def robots(self, request, response):
         response.content_type = 'text/plain'
         return _ROBOTS_TXT
 
-    @router.route('GET', '/favicon.ico')
+    @db.route('GET', '/favicon.ico')
     def favicon(self, request, response):
         return db.PropertyMetadata(
                 blob=join(static.PATH, 'favicon.ico'),

@@ -15,9 +15,10 @@
 
 import logging
 
+from sugar_network import toolkit
 from sugar_network.db import env
 from sugar_network.db.metadata import PropertyMetadata
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit import http, enforce
 
 
 _logger = logging.getLogger('db.commands')
@@ -95,6 +96,9 @@ class Request(dict):
     commands = None
     response = None
     static_prefix = None
+    principal = None
+    if_modified_since = None
+    allow_redirects = False
 
     def __init__(self, **kwargs):
         """Initialize parameters dictionary using named arguments."""
@@ -206,7 +210,7 @@ class CommandsProcessor(object):
         cmd = self.resolve(request)
         enforce(cmd is not None, env.CommandNotFound, 'Unsupported command')
 
-        enforce(request.access_level & cmd.access_level, env.Forbidden,
+        enforce(request.access_level & cmd.access_level, http.Forbidden,
                 'Operation is permitted on requester\'s level')
 
         if response is None:
@@ -215,7 +219,7 @@ class CommandsProcessor(object):
         request.response = response
 
         if not request.accept_language:
-            request.accept_language = [env.default_lang()]
+            request.accept_language = [toolkit.default_lang()]
 
         for arg, cast in cmd.arguments.items():
             if arg not in request:

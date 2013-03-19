@@ -8,8 +8,8 @@ from __init__ import tests
 
 from sugar_network import db, node
 from sugar_network.client import Client
+from sugar_network.toolkit import http
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit.router import Unauthorized
 from sugar_network.node import stats_user, stats_node, obs
 from sugar_network.node.commands import NodeCommands
 from sugar_network.node.master import MasterCommands
@@ -22,7 +22,6 @@ from sugar_network.resources.feedback import Feedback
 from sugar_network.resources.artifact import Artifact
 from sugar_network.resources.solution import Solution
 from sugar_network.resources.user import User
-from sugar_network.toolkit.router import Request
 
 
 class NodeTest(tests.Test):
@@ -154,7 +153,7 @@ class NodeTest(tests.Test):
         call(cp, method='DELETE', document='context', guid=guid, principal='principal')
 
         assert exists(guid_path)
-        self.assertRaises(db.NotFound, call, cp, method='GET', document='context', guid=guid, reply=['guid', 'title'])
+        self.assertRaises(http.NotFound, call, cp, method='GET', document='context', guid=guid, reply=['guid', 'title'])
         self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
 
     def test_RegisterUser(self):
@@ -185,7 +184,7 @@ class NodeTest(tests.Test):
 
         cp = NodeCommands('guid', Volume('db', [User, Document]))
         guid = call(cp, method='POST', document='document', principal='user', content={})
-        self.assertRaises(Unauthorized, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
+        self.assertRaises(http.Unauthorized, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
         call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal='user')
         call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
@@ -208,8 +207,8 @@ class NodeTest(tests.Test):
         cp = NodeCommands('guid', Volume('db', [User, Document]))
         guid = call(cp, method='POST', document='document', principal='principal', content={})
 
-        self.assertRaises(db.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
-        self.assertRaises(db.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid, principal='fake')
+        self.assertRaises(http.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
+        self.assertRaises(http.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid, principal='fake')
         call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal='principal')
         call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
@@ -225,8 +224,8 @@ class NodeTest(tests.Test):
             })
         self.assertEqual('user1', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
-        self.assertRaises(Unauthorized, call, cp, method='PUT', document='user', guid=tests.UID, content={'name': 'user2'})
-        self.assertRaises(db.Forbidden, call, cp, method='PUT', document='user', guid=tests.UID, principal='fake', content={'name': 'user2'})
+        self.assertRaises(http.Unauthorized, call, cp, method='PUT', document='user', guid=tests.UID, content={'name': 'user2'})
+        self.assertRaises(http.Forbidden, call, cp, method='PUT', document='user', guid=tests.UID, principal='fake', content={'name': 'user2'})
         call(cp, method='PUT', document='user', guid=tests.UID, principal=tests.UID, content={'name': 'user2'})
         self.assertEqual('user2', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
@@ -288,7 +287,7 @@ class NodeTest(tests.Test):
 
         volume['context'].update(guid, layer=['deleted'])
 
-        self.assertRaises(db.NotFound, call, cp, method='GET', document='context', guid=guid)
+        self.assertRaises(http.NotFound, call, cp, method='GET', document='context', guid=guid)
         self.assertEqual([], call(cp, method='GET', document='context')['result'])
 
     def test_SetGuidOnMaster(self):
@@ -301,7 +300,7 @@ class NodeTest(tests.Test):
             'description': 'description',
             'implement': 'foo',
             })
-        self.assertRaises(db.NotFound, call, cp1, method='GET', document='context', guid='foo')
+        self.assertRaises(http.NotFound, call, cp1, method='GET', document='context', guid='foo')
 
         volume2 = Volume('db2')
         cp2 = MasterCommands('guid', volume2)
@@ -394,7 +393,7 @@ class NodeTest(tests.Test):
 
 
 def call(cp, principal=None, content=None, **kwargs):
-    request = Request(**kwargs)
+    request = db.Request(**kwargs)
     request.principal = principal
     request.content = content
     request.environ = {'HTTP_HOST': 'localhost'}
