@@ -10,12 +10,12 @@ from __init__ import tests, src_root
 from sugar_network import db, client
 from sugar_network.client import IPCClient
 from sugar_network.client.commands import ClientCommands
-from sugar_network.db.router import IPCRouter
+from sugar_network.client import IPCRouter
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit import sugar, mountpoints, coroutine
+from sugar_network.toolkit import mountpoints, coroutine
 
 
-class PersonalCommandsTest(tests.Test):
+class ServerCommandsTest(tests.Test):
 
     def start_node(self):
         os.makedirs('disk/sugar-network')

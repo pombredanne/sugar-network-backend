@@ -7,7 +7,7 @@ from sugar_network import db, client
 from sugar_network.client import journal, injector, IPCClient
 from sugar_network.client.commands import ClientCommands
 from sugar_network.resources.volume import Volume
-from sugar_network.db.router import IPCRouter
+from sugar_network.client import IPCRouter
 from sugar_network.toolkit import coroutine
 
 import requests

@@ -25,14 +25,12 @@ from gevent import monkey
 import sugar_network_webui as webui
 from sugar_network import db, node, client, toolkit
 from sugar_network.db.router import Router
-from sugar_network.client.commands import ClientCommands
 from sugar_network.node import stats_node, stats_user, obs
 from sugar_network.node.master import MasterCommands
 from sugar_network.node.slave import SlaveCommands
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit.http import Client
-from sugar_network.toolkit import sugar, coroutine, application, util, Option
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit import coroutine, application, util, Option, enforce
 
 
 class Application(application.Daemon):
@@ -67,9 +65,8 @@ class Application(application.Daemon):
             logging.info('Start %s node in master mode', guid)
             cp = MasterCommands(guid, volume)
         else:
-            guid = sugar.ensure_key(join(node.data_root.value, 'node.key'))
-            logging.info('Start %s node in slave mode', guid)
-            cp = SlaveCommands(guid, volume)
+            logging.info('Start slave node')
+            cp = SlaveCommands(join(node.data_root.value, 'node.key'), volume)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)
@@ -80,13 +77,17 @@ class Application(application.Daemon):
 
         if webui.webui.value:
             # XXX Until implementing regular web users
-            sugar.uid = lambda: 'demo'
-            sugar.nickname = lambda: 'demo'
-            sugar.color = lambda: '#000000,#000000'
+            from sugar_network.client.commands import ClientCommands
+
+            class _ClientCommands(ClientCommands):
+
+                def call(self, request, response=None):
+                    request.principal = 'demo'
+                    return ClientCommands.call(self, requests, response)
 
             # Point client API to volume directly
             client.mounts_root.value = None
-            client_commands = ClientCommands(volume, offline=True)
+            client_commands = _ClientCommands(volume, offline=True)
 
             host = (webui.webui_host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)

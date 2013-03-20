@@ -24,11 +24,11 @@ from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
 
 from sugar_network import db, client
-from sugar_network.toolkit import sugar, enforce
+from sugar_network.toolkit import enforce
 
 
 _logger = logging.getLogger('client.journal')
-_ds_root = sugar.profile_path('datastore')
+_ds_root = client.profile_path('datastore')
 
 
 def create_activity_id():

@@ -14,9 +14,37 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-from os.path import join, expanduser
+import logging
+from os.path import join, expanduser, exists
 
-from sugar_network.toolkit import Option, sugar
+from sugar_network.toolkit import Option, util
+
+
+_NICKNAME_GCONF = '/desktop/sugar/user/nick'
+_COLOR_GCONF = '/desktop/sugar/user/color'
+_XO_SERIAL_PATH = ['/ofw/mfg-data/SN', '/proc/device-tree/mfg-data/SN']
+_XO_UUID_PATH = ['/ofw/mfg-data/U#', '/proc/device-tree/mfg-data/U#']
+
+_logger = logging.getLogger('client')
+
+
+def profile_path(*args):
+    """Path within sugar profile directory.
+
+    Missed directories will be created.
+
+    :param args:
+        path parts that will be added to the resulting path
+    :returns:
+        full path with directory part existed
+
+    """
+    if os.geteuid():
+        root_dir = join(os.environ['HOME'], '.sugar',
+                os.environ.get('SUGAR_PROFILE', 'default'))
+    else:
+        root_dir = '/var/sugar-network'
+    return join(root_dir, *args)
 
 
 api_url = Option(
@@ -34,7 +62,7 @@ no_check_certificate = Option(
 
 local_root = Option(
         'path to the directory to keep all local data',
-        default=sugar.profile_path('network'), name='local_root')
+        default=profile_path('network'), name='local_root')
 
 activity_dirs = Option(
         'colon separated list of paths to directories with Sugar '
@@ -87,6 +115,12 @@ no_dbus = Option(
         default=False, type_cast=Option.bool_cast,
         action='store_true', name='no-dbus')
 
+anonymous = Option(
+        'use anonymous user to access to Sugar Network server; '
+        'only read-only operations are available in this mode',
+        default=False, type_cast=Option.bool_cast, action='store_true',
+        name='anonymous')
+
 
 def path(*args):
     """Calculate a path from the root.
@@ -107,15 +141,80 @@ def path(*args):
     return str(result)
 
 
-def Client(url=None, sugar_auth=True, **session):
+def Client(url=None, **session):
     from sugar_network.toolkit import http
     if url is None:
         url = api_url.value
-    return http.Client(url, sugar_auth=sugar_auth, **session)
+    creds = None
+    if not anonymous.value:
+        if exists(key_path()):
+            creds = (_sugar_uid(), key_path(), _profile)
+        else:
+            _logger.warning('Sugar session was never started (no DSA key),'
+                    'fallback to anonymous mode')
+    return http.Client(url, creds=creds, **session)
 
 
 def IPCClient(**session):
     from sugar_network.toolkit import http
     # Since `IPCClient` uses only localhost, ignore `http_proxy` envar
     session['config'] = {'trust_env': False}
-    return http.Client('http://localhost:%s' % ipc_port.value, **session)
+    url = 'http://localhost:%s' % ipc_port.value
+    return http.Client(url, creds=None, **session)
+
+
+def IPCRouter(*args, **kwargs):
+    from sugar_network import db
+    from sugar_network.db.router import Router
+
+    class _IPCRouter(Router):
+
+        def authenticate(self, request):
+            return _sugar_uid()
+
+        def call(self, request, response):
+            request.access_level = db.ACCESS_LOCAL
+            return Router.call(self, request, response)
+
+    return _IPCRouter(*args, **kwargs)
+
+
+def logger_level():
+    """Current Sugar logger level as --debug value."""
+    _LEVELS = {
+            'error': 0,
+            'warning': 0,
+            'info': 1,
+            'debug': 2,
+            'all': 3,
+            }
+    level = os.environ.get('SUGAR_LOGGER_LEVEL')
+    return _LEVELS.get(level, 0)
+
+
+def key_path():
+    return profile_path('owner.key')
+
+
+def _sugar_uid():
+    import hashlib
+    pubkey = util.pubkey(key_path()).split()[1]
+    return str(hashlib.sha1(pubkey).hexdigest())
+
+
+def _profile():
+    import gconf
+    conf = gconf.client_get_default()
+    return {'name': conf.get_string(_NICKNAME_GCONF) or '',
+            'color': conf.get_string(_COLOR_GCONF) or '#000000,#000000',
+            'machine_sn': _read_XO_value(_XO_SERIAL_PATH) or '',
+            'machine_uuid': _read_XO_value(_XO_UUID_PATH) or '',
+            'pubkey': util.pubkey(key_path()),
+            }
+
+
+def _read_XO_value(paths):
+    for value_path in paths:
+        if exists(value_path):
+            with file(value_path) as f:
+                return f.read().rstrip('\x00\n')

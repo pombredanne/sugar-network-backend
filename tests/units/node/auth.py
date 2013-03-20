@@ -6,7 +6,7 @@ import json
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, client
 from sugar_network.node import auth
 from sugar_network.client import IPCClient, Client
 from sugar_network.resources.user import User
@@ -39,17 +39,17 @@ class AuthTest(tests.Test):
         self.assertRaises(http.Forbidden, auth.validate, request, 'role_2')
 
     def test_FullWriteForRoot(self):
-        client = Client()
+        conn = Client()
 
         self.start_master()
-        client.post(['context'], {
+        conn.post(['context'], {
             'implement': 'guid',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
-        self.assertNotEqual('probe', client.get(['context', 'guid', 'title']))
+        self.assertNotEqual('probe', conn.get(['context', 'guid', 'title']))
         self.stop_nodes()
 
         self.touch((
@@ -58,18 +58,18 @@ class AuthTest(tests.Test):
             ))
 
         self.start_master()
-        self.assertRaises(RuntimeError, client.put, ['context', 'guid'], {'title': 'probe'})
+        self.assertRaises(RuntimeError, conn.put, ['context', 'guid'], {'title': 'probe'})
 
         self.touch(('authorization.conf', [
             '[%s]' % tests.UID,
             'root = True',
             ]))
         auth.reset()
-        client.put(['context', 'guid'], {'title': 'probe'})
-        self.assertEqual('probe', client.get(['context', 'guid', 'title']))
+        conn.put(['context', 'guid'], {'title': 'probe'})
+        self.assertEqual('probe', conn.get(['context', 'guid', 'title']))
 
     def test_Anonymous(self):
-        client = Client(sugar_auth=False)
+        conn = http.Client(client.api_url.value)
 
         props = {'implement': 'guid',
                  'type': 'package',
@@ -79,16 +79,16 @@ class AuthTest(tests.Test):
                  }
         self.start_master()
 
-        self.assertRaises(RuntimeError, client.post, ['context'], props)
+        self.assertRaises(RuntimeError, conn.post, ['context'], props)
 
         self.touch(('authorization.conf', [
             '[anonymous]',
             'user = True',
             ]))
         auth.reset()
-        client.post(['context'], props)
-        self.assertEqual('title', client.get(['context', 'guid', 'title']))
-        self.assertEqual([], client.get(['context', 'guid', 'author']))
+        conn.post(['context'], props)
+        self.assertEqual('title', conn.get(['context', 'guid', 'title']))
+        self.assertEqual([], conn.get(['context', 'guid', 'author']))
 
         self.stop_nodes()
         self.touch((
@@ -98,7 +98,7 @@ class AuthTest(tests.Test):
         self.start_master()
 
         auth.reset()
-        self.assertRaises(RuntimeError, client.put, ['context', 'guid'], {'title': 'probe'})
+        self.assertRaises(RuntimeError, conn.put, ['context', 'guid'], {'title': 'probe'})
 
         self.touch(('authorization.conf', [
             '[anonymous]',
@@ -106,12 +106,12 @@ class AuthTest(tests.Test):
             'root = True',
             ]))
         auth.reset()
-        client.put(['context', 'guid'], {'title': 'probe'})
-        self.assertEqual('probe', client.get(['context', 'guid', 'title']))
-        self.assertEqual([{'name': 'fake', 'role': 3}], client.get(['context', 'guid', 'author']))
+        conn.put(['context', 'guid'], {'title': 'probe'})
+        self.assertEqual('probe', conn.get(['context', 'guid', 'title']))
+        self.assertEqual([{'name': 'fake', 'role': 3}], conn.get(['context', 'guid', 'author']))
 
     def test_LiveUpdate(self):
-        client = Client(sugar_auth=False)
+        conn = http.Client(client.api_url.value)
 
         props = {'implement': 'guid',
                  'type': 'package',
@@ -123,19 +123,19 @@ class AuthTest(tests.Test):
 
         self.touch(('authorization.conf', ''))
         os.utime('authorization.conf', (1, 1))
-        self.assertRaises(RuntimeError, client.post, ['context'], props)
+        self.assertRaises(RuntimeError, conn.post, ['context'], props)
 
         self.touch(('authorization.conf', [
             '[anonymous]',
             'user = True',
             ]))
         os.utime('authorization.conf', (2, 2))
-        client.post(['context'], props)
-        self.assertEqual([], client.get(['context', 'guid', 'author']))
+        conn.post(['context'], props)
+        self.assertEqual([], conn.get(['context', 'guid', 'author']))
 
         self.touch(('authorization.conf', ''))
         os.utime('authorization.conf', (3, 3))
-        self.assertRaises(RuntimeError, client.post, ['context'], props)
+        self.assertRaises(RuntimeError, conn.post, ['context'], props)
 
     def test_DefaultAuthorization(self):
 
@@ -152,11 +152,11 @@ class AuthTest(tests.Test):
                 return 'ok2'
 
         self.start_master([User, Document])
-        client = Client(sugar_auth=True)
+        conn = Client()
 
-        guid = client.post(['document'], {})
-        self.assertEqual('ok1', client.get(['document', guid], cmd='probe1'))
-        self.assertEqual('ok2', client.get(['document', guid], cmd='probe2'))
+        guid = conn.post(['document'], {})
+        self.assertEqual('ok1', conn.get(['document', guid], cmd='probe1'))
+        self.assertEqual('ok2', conn.get(['document', guid], cmd='probe2'))
 
 
 if __name__ == '__main__':

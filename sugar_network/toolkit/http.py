@@ -16,7 +16,7 @@
 import sys
 import json
 import logging
-from os.path import join, dirname, exists
+from os.path import join, dirname
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'requests'))
 
@@ -24,8 +24,7 @@ import requests
 from requests.sessions import Session
 
 from sugar_network import client, toolkit
-from sugar_network.toolkit import sugar, coroutine, util
-from sugar_network.toolkit import exception, enforce
+from sugar_network.toolkit import coroutine, util, exception, enforce
 
 
 ConnectionError = requests.ConnectionError
@@ -84,9 +83,9 @@ class NotFound(Status):
 
 class Client(object):
 
-    def __init__(self, api_url='', sugar_auth=False, sync=False, **session):
+    def __init__(self, api_url='', creds=None, **session):
         self.api_url = api_url
-        self._sugar_auth = sugar_auth
+        self._get_profile = None
 
         verify = True
         if client.no_check_certificate.value:
@@ -95,19 +94,10 @@ class Client(object):
             verify = client.certfile.value
 
         headers = {'Accept-Language': toolkit.default_lang()}
-        if self._sugar_auth:
-            key_path = sugar.keyfile.value
-            if not key_path or not exists(key_path):
-                _logger.warning('Sugar session was never started, '
-                        'fallback to anonymous mode')
-                self._sugar_auth = False
-            else:
-                uid = sugar.uid()
-                headers['SUGAR_USER'] = uid
-                headers['SUGAR_USER_SIGNATURE'] = _sign(key_path, uid)
-        if sync:
-            headers['SUGAR_SYNC'] = '1'
-
+        if creds:
+            uid, keyfile, self._get_profile = creds
+            headers['SUGAR_USER'] = uid
+            headers['SUGAR_USER_SIGNATURE'] = _sign(keyfile, uid)
         session['headers'] = headers
         session['verify'] = verify
         session['prefetch'] = False
@@ -162,11 +152,11 @@ class Client(object):
 
             if response.status_code != 200:
                 if response.status_code == 401:
-                    enforce(self._sugar_auth,
+                    enforce(self._get_profile is not None,
                             'Operation is not available in anonymous mode')
                     _logger.info('User is not registered on the server, '
                             'registering')
-                    self._register()
+                    self.post(['user'], self._get_profile())
                     continue
                 if allowed and response.status_code in allowed:
                     return response
@@ -239,15 +229,6 @@ class Client(object):
 
     def subscribe(self, **condition):
         return _Subscription(self, condition, _RECONNECTION_NUMBER)
-
-    def _register(self):
-        self.post(['user'], {
-            'name': sugar.nickname() or '',
-            'color': sugar.color() or '#000000,#000000',
-            'machine_sn': sugar.machine_sn() or '',
-            'machine_uuid': sugar.machine_uuid() or '',
-            'pubkey': sugar.pubkey(),
-            })
 
     def _decode_reply(self, response):
         if response.headers.get('Content-Type') == 'application/json':

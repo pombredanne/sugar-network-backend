@@ -5,7 +5,6 @@ import xapian
 
 from __init__ import tests
 
-from sugar_network.toolkit import sugar
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.implementation import _encode_version, Implementation
 from sugar_network.node.commands import NodeCommands
@@ -108,7 +107,7 @@ class ImplementationTest(tests.Test):
         self.assertRaises(RuntimeError, client.post, ['implementation'], impl)
         self.assertEqual(0, home_volume['implementation'].find()[1])
 
-        home_volume['context'].update('context', author={sugar.uid(): None})
+        home_volume['context'].update('context', author={tests.UID: None})
         guid = client.post(['implementation'], impl)
         assert home_volume['implementation'].exists(guid)
 

@@ -21,7 +21,7 @@ from os.path import join, exists, basename, dirname
 
 from sugar_network import client
 from sugar_network.client import journal, cache
-from sugar_network.toolkit import pipe, lsb_release, util, sugar
+from sugar_network.toolkit import pipe, lsb_release, util
 
 
 _PMS_PATHS = {
@@ -36,8 +36,8 @@ _mtime = None
 
 
 def make(guid):
-    return pipe.fork(_make, logname=guid, context=guid,
-            session={'context': guid})
+    return pipe.fork(_make, log_path=client.profile_path('logs', guid),
+            context=guid, session={'context': guid})
 
 
 def launch(guid, args=None, activity_id=None, object_id=None, uri=None,
@@ -62,8 +62,8 @@ def launch(guid, args=None, activity_id=None, object_id=None, uri=None,
     if uri:
         args.extend(['-u', uri])
 
-    return pipe.fork(_launch, logname=guid, context=guid, args=args,
-            session={
+    return pipe.fork(_launch, log_path=client.profile_path('logs', guid),
+            context=guid, args=args, session={
                 'context': guid,
                 'activity_id': activity_id,
                 'color': color,
@@ -71,13 +71,14 @@ def launch(guid, args=None, activity_id=None, object_id=None, uri=None,
 
 
 def clone(guid):
-    return pipe.fork(_clone, logname=guid, context=guid,
-            session={'context': guid})
+    return pipe.fork(_clone, log_path=client.profile_path('logs', guid),
+            context=guid, session={'context': guid})
 
 
 def clone_impl(context, guid, spec):
-    return pipe.fork(_clone_impl, logname=context, guid=guid, spec=spec,
-            session={'context': context})
+    return pipe.fork(_clone_impl,
+            log_path=client.profile_path('logs', context), guid=guid,
+            spec=spec, session={'context': context})
 
 
 def invalidate_solutions(mtime):
@@ -177,7 +178,7 @@ def _solve(context):
 
 
 def _activity_env(impl, environ):
-    root = sugar.profile_path('data', impl['context'])
+    root = client.profile_path('data', impl['context'])
     impl_path = impl['path']
 
     for path in ['instance', 'data', 'tmp']:

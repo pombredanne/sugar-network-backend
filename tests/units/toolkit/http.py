@@ -29,7 +29,7 @@ class HTTPTest(tests.Test):
         self.server = coroutine.WSGIServer(('localhost', local.ipc_port.value), Router(db.CommandsProcessor()))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
-        client = http.Client('http://localhost:%s' % local.ipc_port.value, sugar_auth=False)
+        client = http.Client('http://localhost:%s' % local.ipc_port.value)
 
         events = []
         Router.events = ['', 'fake', 'data: fail', 'data: null', 'data: -1', 'data: {"foo": "bar"}']
@@ -70,7 +70,7 @@ class HTTPTest(tests.Test):
         self.server = coroutine.WSGIServer(('localhost', local.ipc_port.value), router.Router(Commands()))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
-        client = http.Client('http://localhost:%s' % local.ipc_port.value, sugar_auth=False)
+        client = http.Client('http://localhost:%s' % local.ipc_port.value)
 
         request = db.Request()
         request['method'] = 'GET'

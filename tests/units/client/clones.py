@@ -11,7 +11,7 @@ from __init__ import tests
 from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.client import clones
-from sugar_network.toolkit import coroutine, util, sugar
+from sugar_network.toolkit import coroutine, util
 from sugar_network.resources.volume import Volume
 
 
@@ -165,7 +165,7 @@ class CloneTest(tests.Test):
         self.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
-                description={'en': 'description'}, user=[sugar.uid()])
+                description={'en': 'description'}, user=[tests.UID])
 
         os.makedirs('Activities/activity/activity')
         coroutine.sleep(1)
@@ -219,7 +219,7 @@ class CloneTest(tests.Test):
         self.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
-                description={'en': 'description'}, user=[sugar.uid()])
+                description={'en': 'description'}, user=[tests.UID])
 
         self.touch(('activity/activity/activity.info', [
             '[Activity]',
@@ -250,7 +250,7 @@ class CloneTest(tests.Test):
         self.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
-                description={'en': 'description'}, user=[sugar.uid()])
+                description={'en': 'description'}, user=[tests.UID])
 
         self.touch(('activity/activity/activity.info', [
             '[Activity]',
@@ -308,7 +308,7 @@ class CloneTest(tests.Test):
         self.volume['context'].create(
                 guid='org.sugarlabs.HelloWorld', type='activity',
                 title={'en': 'title'}, summary={'en': 'summary'},
-                description={'en': 'description'}, user=[sugar.uid()])
+                description={'en': 'description'}, user=[tests.UID])
 
         self.touch('Activities/activity/activity/icon.svg')
         self.touch(('Activities/activity/activity/mimetypes.xml', [

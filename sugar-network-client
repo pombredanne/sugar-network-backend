@@ -27,14 +27,12 @@ from gevent import monkey
 
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
-from sugar_network.db.router import IPCRouter
-from sugar_network.toolkit import sugar, mountpoints
-from sugar_network.client import clones
+from sugar_network.client import IPCRouter, clones
 from sugar_network.client.commands import ClientCommands
 from sugar_network.node import stats_node, stats_user, slave
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit import Option
-from sugar_network.toolkit import util, printf, application, coroutine, enforce
+from sugar_network.toolkit import mountpoints, util, printf, application
+from sugar_network.toolkit import Option, coroutine, enforce
 
 
 class Application(application.Daemon):
@@ -52,7 +50,7 @@ class Application(application.Daemon):
         if new_root:
             application.logdir.value = join(client.local_root.value, 'log')
         else:
-            application.logdir.value = sugar.profile_path('logs')
+            application.logdir.value = client.profile_path('logs')
         if not exists(toolkit.cachedir.value):
             os.makedirs(toolkit.cachedir.value)
         application.rundir.value = join(client.local_root.value, 'run')
@@ -66,10 +64,9 @@ class Application(application.Daemon):
             printf.info('%s already started, no need in index', self.name)
             return
 
-        if not exists(sugar.profile_path('owner.key')):
+        if not exists(client.key_path()):
             # Command was launched in foreign environment
-            sugar.uid = lambda: 'index'
-            sugar.nickname = lambda: 'index'
+            client.anonymous.value = True
 
         printf.info('Index database in %r', client.local_root.value)
 
@@ -107,7 +104,7 @@ class Application(application.Daemon):
         self.cmd_start()
 
     def run(self):
-        sugar.ensure_key()
+        util.ensure_key(client.key_path())
         volume = Volume(client.path('db'), lazy_open=client.lazy_open.value)
         commands = ClientCommands(volume, server_mode=client.server_mode.value)
 
@@ -187,18 +184,17 @@ monkey.patch_time()
 locale.setlocale(locale.LC_ALL, '')
 
 # New defaults
-application.debug.value = sugar.logger_level()
+application.debug.value = client.logger_level()
 # It seems to be that most of users (on XO at least) don't have recent SSH
 node.trust_users.value = True
 # If tmpfs is mounted to /tmp, `os.fstat()` will return 0 free space
 # and will brake offline synchronization logic
-toolkit.cachedir.value = sugar.profile_path('tmp')
+toolkit.cachedir.value = client.profile_path('tmp')
 
 Option.seek('main', application)
 Option.seek('main', [toolkit.cachedir])
 Option.seek('webui', webui)
 Option.seek('client', client)
-Option.seek('client', [sugar.keyfile])
 Option.seek('db', db)
 Option.seek('node', [node.port, node.find_limit, node.sync_layers,
     node.trust_users])
@@ -213,6 +209,6 @@ app = Application(
         config_files=[
             '/etc/sweets.conf',
             '~/.config/sweets/config',
-            sugar.profile_path('sweets.conf'),
+            client.profile_path('sweets.conf'),
             ])
 app.start()

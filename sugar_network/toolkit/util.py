@@ -19,6 +19,7 @@ import os
 import re
 import json
 import logging
+import hashlib
 import tempfile
 import collections
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
@@ -66,6 +67,27 @@ def init_logging(debug_level):
     else:
         logging.Logger.heartbeat = lambda self, message, *args, **kwargs: \
                 self._log(8, message, args, **kwargs)
+
+
+def ensure_key(path):
+    if not exists(path):
+        if not exists(dirname(path)):
+            os.makedirs(dirname(path))
+        _logger.info('Create DSA key')
+        assert_call([
+            '/usr/bin/ssh-keygen', '-q', '-t', 'dsa', '-f', path,
+            '-C', '', '-N', ''])
+    key = pubkey(path).split()[1]
+    return str(hashlib.sha1(key).hexdigest())
+
+
+def pubkey(path):
+    with file(path + '.pub') as f:
+        for line in f.readlines():
+            line = line.strip()
+            if line.startswith('ssh-'):
+                return line
+    raise RuntimeError('No valid DSA public keys in %r' % path)
 
 
 def parse_version(version_string):

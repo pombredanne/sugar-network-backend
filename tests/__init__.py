@@ -15,9 +15,9 @@ from os.path import dirname, join, exists, abspath, isfile
 from M2Crypto import DSA
 from gevent import monkey
 
-from sugar_network.toolkit import coroutine, sugar, http, mountpoints, util
-from sugar_network.db.router import Router, IPCRouter
-from sugar_network.client import journal
+from sugar_network.toolkit import coroutine, http, mountpoints, util
+from sugar_network.db.router import Router
+from sugar_network.client import journal, IPCRouter
 from sugar_network.client.commands import ClientCommands
 from sugar_network import db, client, node, toolkit
 from sugar_network.db import env
@@ -73,8 +73,7 @@ class Test(unittest.TestCase):
         os.environ['HOME'] = tmpdir
         profile_dir = join(tmpdir, '.sugar', 'default')
         os.makedirs(profile_dir)
-        sugar.keyfile.value = join(profile_dir, 'owner.key')
-        shutil.copy(join(root, 'data', 'owner.key'), sugar.keyfile.value)
+        shutil.copy(join(root, 'data', 'owner.key'), join(profile_dir, 'owner.key'))
         shutil.copy(join(root, 'data', 'owner.key.pub'), profile_dir)
 
         db.index_flush_timeout.value = 0
@@ -117,10 +116,6 @@ class Test(unittest.TestCase):
                 'sugar_network.resources.artifact',
                 'sugar_network.resources.implementation',
                 ]
-
-        sugar.nickname = lambda: 'test'
-        sugar.color = lambda: '#000000,#000000'
-        self.override(sugar, 'uid', lambda: UID)
 
         os.makedirs('tmp')
 

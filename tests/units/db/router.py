@@ -15,111 +15,14 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import db, node, static, toolkit
-from sugar_network.client import Client
 from sugar_network.db.router import Router, _Request, _parse_accept_language, route, _filename
-from sugar_network.toolkit import util, sugar, default_lang, http
+from sugar_network.toolkit import util, default_lang, http
 from sugar_network.resources.user import User
 from sugar_network.resources.volume import Volume, Resource
 from sugar_network import client as local
 
 
 class RouterTest(tests.Test):
-
-    def test_Walkthrough(self):
-
-        class Document(Resource):
-
-            @db.indexed_property(slot=1, prefix='A', full_text=True, default='')
-            def term(self, value):
-                return value
-
-            @db.stored_property(default='')
-            def stored(self, value):
-                return value
-
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
-        self.fork(self.restful_server, [User, Document])
-        client = Client(local.api_url.value, sugar_auth=True)
-
-        guid_1 = client.post(['document'], {'term': 'term', 'stored': 'stored'})
-
-        self.assertEqual({
-            'stored': 'stored',
-            'term': 'term',
-            'guid': guid_1,
-            'layer': ['public'],
-            },
-            client.get(['document', guid_1], reply='stored,term,guid,layer'))
-
-        guid_2 = client.post(['document'], {'term': 'term2', 'stored': 'stored2'})
-
-        self.assertEqual({
-            'stored': 'stored2',
-            'term': 'term2',
-            'guid': guid_2,
-            'layer': ['public'],
-            },
-            client.get(['document', guid_2], reply='stored,term,guid,layer'))
-
-        reply = client.get(['document'], reply='guid,stored,term')
-        self.assertEqual(2, reply['total'])
-        self.assertEqual(
-                sorted([
-                    {'guid': guid_1, 'stored': 'stored', 'term': 'term'},
-                    {'guid': guid_2, 'stored': 'stored2', 'term': 'term2'},
-                    ]),
-                sorted(reply['result']))
-
-        client.put(['document', guid_2], {'stored': 'stored3', 'term': 'term3'})
-
-        self.assertEqual({
-            'stored': 'stored3',
-            'term': 'term3',
-            'guid': guid_2,
-            'layer': ['public'],
-            },
-            client.get(['document', guid_2], reply='stored,term,guid,layer'))
-
-        self.assertEqual(
-                {'total': 2,
-                    'result': sorted([
-                        {'guid': guid_1, 'stored': 'stored', 'term': 'term'},
-                        {'guid': guid_2, 'stored': 'stored3', 'term': 'term3'},
-                        ])},
-                client.get(['document'], reply='guid,stored,term'))
-
-        client.delete(['document', guid_1])
-
-        self.assertEqual(
-                {'total': 1,
-                    'result': sorted([
-                        {'guid': guid_2, 'stored': 'stored3', 'term': 'term3'},
-                        ])},
-                client.get(['document'], reply='guid,stored,term'))
-
-        self.assertEqual(
-                'term3',
-                client.get(['document', guid_2, 'term']))
-        client.put(['document', guid_2, 'term'], 'term4')
-        self.assertEqual(
-                'term4',
-                client.get(['document', guid_2, 'term']))
-
-        payload = 'blob'
-        client.put(['document', guid_2, 'blob'], payload)
-        self.assertEqual(
-                payload,
-                client.request('GET', ['document', guid_2, 'blob']).content)
-
-        client.delete(['document', guid_2])
-
-        self.assertEqual(
-                {'total': 0,
-                    'result': sorted([])},
-                client.get(['document'], reply='guid,stored,term'))
 
     def test_StreamedResponse(self):
 
@@ -182,80 +85,198 @@ class RouterTest(tests.Test):
             lambda *args: None)
         self.assertEqual('', ''.join([i for i in response]))
 
-    def test_Register(self):
+    def test_StatusWOResult(self):
 
-        class Document(Resource):
+        class Status(http.Status):
+            status = '001 Status'
+            headers = {'Status-Header': 'value'}
 
-            @db.indexed_property(slot=1, prefix='A', full_text=True, default='')
-            def term(self, value):
-                return value
+        class CommandsProcessor(db.CommandsProcessor):
 
-            @db.stored_property(default='')
-            def stored(self, value):
-                return value
+            @db.volume_command(method='GET')
+            def get(self, response):
+                raise Status('Status-Error')
 
-        self.fork(self.restful_server, [User, Document])
+        router = Router(CommandsProcessor())
 
-        client = Client(local.api_url.value, sugar_auth=False)
-        self.assertRaises(RuntimeError, client.post, ['document'], {'term': 'term', 'stored': 'stored'})
-        self.assertRaises(RuntimeError, client.get, ['user', sugar.uid()])
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        error = json.dumps({'request': '/', 'error': 'Status-Error'})
+        self.assertEqual(error, ''.join([i for i in reply]))
+        self.assertEqual([
+            '001 Status',
+            {'Content-Length': str(len(error)), 'Content-Type': 'application/json', 'Status-Header': 'value'},
+            ],
+            response)
 
-        client = Client(local.api_url.value, sugar_auth=True)
-        client.post(['document'], {'term': 'term', 'stored': 'stored'})
-        self.assertEqual(sugar.uid(), client.get(['user', sugar.uid(), 'guid']))
+    def test_StatusWResult(self):
 
-    def test_Authenticate(self):
+        class Status(http.Status):
+            status = '001 Status'
+            headers = {'Status-Header': 'value'}
+            result = 'result'
 
-        class Document(Resource):
+        class CommandsProcessor(db.CommandsProcessor):
 
-            @db.indexed_property(slot=1, prefix='A', full_text=True, default='')
-            def term(self, value):
-                return value
+            @db.volume_command(method='GET')
+            def get(self, response):
+                raise Status('Status-Error')
 
-            @db.stored_property(default='')
-            def stored(self, value):
-                return value
+        router = Router(CommandsProcessor())
 
-        pid = self.fork(self.restful_server, [User, Document])
-        client = Client(local.api_url.value, sugar_auth=True)
-        client.post(['document'], {'term': 'term', 'stored': 'stored'})
-        self.waitpid(pid)
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        error = 'result'
+        self.assertEqual(error, ''.join([i for i in reply]))
+        self.assertEqual([
+            '001 Status',
+            {'Content-Length': str(len(error)), 'Status-Header': 'value'},
+            ],
+            response)
 
-        with Volume(tests.tmpdir + '/remote', [User]) as documents:
-            cp = db.VolumeCommands(documents)
-            router = Router(cp)
+    def test_StatusPass(self):
 
-            request = _Request({
-                'HTTP_SUGAR_USER': 'foo',
-                'HTTP_SUGAR_USER_SIGNATURE': tests.sign(tests.PRIVKEY, 'foo'),
-                'PATH_INFO': '/foo',
-                'REQUEST_METHOD': 'GET',
-                })
-            self.assertRaises(http.Unauthorized, router.authenticate, request)
+        class StatusPass(http.StatusPass):
+            status = '001 StatusPass'
+            headers = {'StatusPass-Header': 'value'}
+            result = 'result'
 
-            request.environ['HTTP_SUGAR_USER'] = tests.UID
-            request.environ['HTTP_SUGAR_USER_SIGNATURE'] = tests.sign(tests.PRIVKEY, tests.UID)
-            user = router.authenticate(request)
-            self.assertEqual(tests.UID, user)
+        class CommandsProcessor(db.CommandsProcessor):
 
-    def test_HandleRedirects(self):
+            @db.volume_command(method='GET')
+            def get(self, response):
+                raise StatusPass('Status-Error')
+
+        router = Router(CommandsProcessor())
+
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        error = ''
+        self.assertEqual(error, ''.join([i for i in reply]))
+        self.assertEqual([
+            '001 StatusPass',
+            {'Content-Length': str(len(error)), 'StatusPass-Header': 'value'},
+            ],
+            response)
+
+    def test_BlobsRedirects(self):
         URL = 'http://sugarlabs.org'
 
-        class Document2(Resource):
+        class CommandsProcessor(db.CommandsProcessor):
 
-            @db.blob_property()
-            def blob(self, value):
-                raise http.Redirect(URL)
+            @db.volume_command(method='GET')
+            def get(self, response):
+                return db.PropertyMetadata(url=URL)
 
-            @db.indexed_property(slot=1, prefix='A', full_text=True, default='')
-            def term(self, value):
-                return value
+        router = Router(CommandsProcessor())
 
-        self.fork(self.restful_server, [User, Document2])
-        client = Client(local.api_url.value, sugar_auth=True)
-        guid = client.post(['document2'], {'term': 'probe'})
-        content = urllib2.urlopen(URL).read()
-        assert content == client.request('GET', ['document2', guid, 'blob']).content
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        error = ''
+        self.assertEqual(error, ''.join([i for i in reply]))
+        self.assertEqual([
+            '303 See Other',
+            {'Content-Length': '0', 'Location': URL},
+            ],
+            response)
+
+    def test_LastModified(self):
+
+        class CommandsProcessor(db.CommandsProcessor):
+
+            @db.volume_command(method='GET')
+            def get(self, request):
+                request.response.last_modified = 10
+                return 'ok'
+
+        router = Router(CommandsProcessor())
+
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = 'ok'
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '200 OK',
+            {'Last-Modified': formatdate(10, localtime=False, usegmt=True), 'Content-Length': str(len(result))},
+            ],
+            response)
+
+    def test_IfModifiedSince(self):
+
+        class CommandsProcessor(db.CommandsProcessor):
+
+            @db.volume_command(method='GET')
+            def get(self, request):
+                if not request.if_modified_since or request.if_modified_since >= 10:
+                    return 'ok'
+                else:
+                    raise http.NotModified()
+
+        router = Router(CommandsProcessor())
+
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = 'ok'
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '200 OK',
+            {'Content-Length': str(len(result))},
+            ],
+            response)
+
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'HTTP_IF_MODIFIED_SINCE': formatdate(11, localtime=False, usegmt=True),
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = 'ok'
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '200 OK',
+            {'Content-Length': str(len(result))},
+            ],
+            response)
+
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'HTTP_IF_MODIFIED_SINCE': formatdate(9, localtime=False, usegmt=True),
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = ''
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '304 Not Modified',
+            {'Content-Length': str(len(result))},
+            ],
+            response)
 
     def test_Request_MultipleQueryArguments(self):
         request = _Request({
@@ -356,210 +377,108 @@ class RouterTest(tests.Test):
         self.assertEqual(['route3'], calls)
         del calls[:]
 
-    def test_GetLocalizedProps(self):
-
-        class TestDocument(Resource):
-
-            @db.indexed_property(slot=100, localized=True)
-            def prop(self, value):
-                return value
-
-        self.fork(self.restful_server, [User, TestDocument])
-
-        self.override(toolkit, 'default_lang', lambda: 'en')
-        client = Client(local.api_url.value, sugar_auth=True)
-        guid = client.post(['testdocument'], {'prop': 'en'})
-        self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
-
-        self.override(toolkit, 'default_lang', lambda: 'ru')
-        client = Client(local.api_url.value, sugar_auth=True)
-        self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
-        client.put(['testdocument', guid, 'prop'], 'ru')
-        self.assertEqual('ru', client.get(['testdocument', guid, 'prop']))
-
-        self.override(toolkit, 'default_lang', lambda: 'es')
-        client = Client(local.api_url.value, sugar_auth=True)
-        self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
-        client.put(['testdocument', guid, 'prop'], 'es')
-        self.assertEqual('es', client.get(['testdocument', guid, 'prop']))
-
-        self.override(toolkit, 'default_lang', lambda: 'ru')
-        client = Client(local.api_url.value, sugar_auth=True)
-        self.assertEqual('ru', client.get(['testdocument', guid, 'prop']))
-
-        self.override(toolkit, 'default_lang', lambda: 'en')
-        client = Client(local.api_url.value, sugar_auth=True)
-        self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
-
-        self.override(toolkit, 'default_lang', lambda: 'foo')
-        client = Client(local.api_url.value, sugar_auth=True)
-        self.assertEqual('en', client.get(['testdocument', guid, 'prop']))
-
-    def test_IfModifiedSince(self):
-
-        class TestDocument(Resource):
-
-            @db.indexed_property(slot=100, typecast=int)
-            def prop(self, value):
-                if not self.request.if_modified_since or self.request.if_modified_since >= value:
-                    return value
-                else:
-                    raise http.NotModified()
-
-        self.start_master([User, TestDocument])
-        client = Client(local.api_url.value, sugar_auth=True)
-
-        guid = client.post(['testdocument'], {'prop': 10})
-        self.assertEqual(
-                200,
-                client.request('GET', ['testdocument', guid, 'prop']).status_code)
-        self.assertEqual(
-                200,
-                client.request('GET', ['testdocument', guid, 'prop'], headers={
-                    'If-Modified-Since': formatdate(11, localtime=False, usegmt=True),
-                    }).status_code)
-        self.assertEqual(
-                304,
-                client.request('GET', ['testdocument', guid, 'prop'], headers={
-                    'If-Modified-Since': formatdate(9, localtime=False, usegmt=True),
-                    }).status_code)
-
-    def test_LastModified(self):
-
-        class TestDocument(Resource):
-
-            @db.indexed_property(slot=100, typecast=int)
-            def prop1(self, value):
-                self.request.response.last_modified = value
-                return value
-
-            @db.indexed_property(slot=101, typecast=int)
-            def prop2(self, value):
-                return value
-
-            @db.blob_property()
-            def prop3(self, value):
-                return value
-
-        self.start_master([User, TestDocument])
-        client = Client(local.api_url.value, sugar_auth=True)
-
-        guid = client.post(['testdocument'], {'prop1': 10, 'prop2': 20, 'prop3': 'blob'})
-        self.assertEqual(
-                formatdate(10, localtime=False, usegmt=True),
-                client.request('GET', ['testdocument', guid, 'prop1']).headers['Last-Modified'])
-        self.assertEqual(
-                None,
-                client.request('GET', ['testdocument', guid, 'prop2']).headers['Last-Modified'])
-        mtime = os.stat('master/testdocument/%s/%s/prop3' % (guid[:2], guid)).st_mtime
-        self.assertEqual(
-                formatdate(mtime, localtime=False, usegmt=True),
-                client.request('GET', ['testdocument', guid, 'prop3']).headers['Last-Modified'])
-
     def test_StaticFiles(self):
-
-        class TestDocument(Resource):
-            pass
-
-        self.start_master([User, TestDocument])
-        client = Client(local.api_url.value, sugar_auth=True)
-        guid = client.post(['testdocument'], {})
-
+        router = Router(db.CommandsProcessor())
         local_path = src_root + '/sugar_network/static/httpdocs/images/missing.png'
-        response = client.request('GET', ['static', 'images', 'missing.png'])
-        self.assertEqual(200, response.status_code)
-        assert file(local_path).read() == response.content
-        self.assertEqual(
-                formatdate(os.stat(local_path).st_mtime, localtime=False, usegmt=True),
-                response.headers['Last-Modified'])
+
+        response = []
+        reply = router({
+            'PATH_INFO': '/static/images/missing.png',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = file(local_path).read()
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '200 OK',
+            {
+                'Last-Modified': formatdate(os.stat(local_path).st_mtime, localtime=False, usegmt=True),
+                'Content-Length': str(len(result)),
+                'Content-Type': 'image/png',
+                'Content-Disposition': 'attachment; filename="missing.png"',
+                }
+            ],
+            response)
 
     def test_StaticFilesIfModifiedSince(self):
+        router = Router(db.CommandsProcessor())
+        local_path = src_root + '/sugar_network/static/httpdocs/images/missing.png'
+        mtime = os.stat(local_path).st_mtime
 
-        class TestDocument(Resource):
-            pass
+        response = []
+        reply = router({
+            'PATH_INFO': '/static/images/missing.png',
+            'REQUEST_METHOD': 'GET',
+            'HTTP_IF_MODIFIED_SINCE': formatdate(mtime - 1, localtime=False, usegmt=True),
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = file(local_path).read()
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '200 OK',
+            {
+                'Last-Modified': formatdate(mtime, localtime=False, usegmt=True),
+                'Content-Length': str(len(result)),
+                'Content-Type': 'image/png',
+                'Content-Disposition': 'attachment; filename="missing.png"',
+                }
+            ],
+            response)
 
-        self.start_master([User, TestDocument])
-        client = Client(local.api_url.value, sugar_auth=True)
-        guid = client.post(['testdocument'], {})
+        response = []
+        reply = router({
+            'PATH_INFO': '/static/images/missing.png',
+            'REQUEST_METHOD': 'GET',
+            'HTTP_IF_MODIFIED_SINCE': formatdate(mtime, localtime=False, usegmt=True),
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = ''
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '304 Not Modified',
+            {'Content-Length': str(len(result))},
+            ],
+            response)
 
-        mtime = os.stat(src_root + '/sugar_network/static/httpdocs/images/missing.png').st_mtime
-        self.assertEqual(
-                304,
-                client.request('GET', ['static', 'images', 'missing.png'], headers={
-                    'If-Modified-Since': formatdate(mtime, localtime=False, usegmt=True),
-                    }).status_code)
-        self.assertEqual(
-                200,
-                client.request('GET', ['static', 'images', 'missing.png'], headers={
-                    'If-Modified-Since': formatdate(mtime - 1, localtime=False, usegmt=True),
-                    }).status_code)
-        self.assertEqual(
-                304,
-                client.request('GET', ['static', 'images', 'missing.png'], headers={
-                    'If-Modified-Since': formatdate(mtime + 1, localtime=False, usegmt=True),
-                    }).status_code)
-
-    def test_IfModifiedSinceForBlobs(self):
-
-        class TestDocument(Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
-        self.start_master([User, TestDocument])
-        client = Client(local.api_url.value, sugar_auth=True)
-
-        guid = client.post(['testdocument'], {'blob': 'value'})
-        blob_path = 'master/testdocument/%s/%s/blob' % (guid[:2], guid)
-
-        os.utime(blob_path, (10, 10))
-        self.assertEqual(
-                304,
-                client.request('GET', ['testdocument', guid, 'blob'], headers={
-                    'If-Modified-Since': formatdate(11, localtime=False, usegmt=True),
-                    }).status_code)
-        self.assertEqual(
-                304,
-                client.request('GET', ['testdocument', guid, 'blob'], headers={
-                    'If-Modified-Since': formatdate(10, localtime=False, usegmt=True),
-                    }).status_code)
-
-        self.assertEqual(
-                200,
-                client.request('GET', ['testdocument', guid, 'blob'], headers={
-                    'If-Modified-Since': formatdate(9, localtime=False, usegmt=True),
-                    }).status_code)
+        response = []
+        reply = router({
+            'PATH_INFO': '/static/images/missing.png',
+            'REQUEST_METHOD': 'GET',
+            'HTTP_IF_MODIFIED_SINCE': formatdate(mtime + 1, localtime=False, usegmt=True),
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = ''
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '304 Not Modified',
+            {'Content-Length': str(len(result))},
+            ],
+            response)
 
     def test_JsonpCallback(self):
 
-        class Document(Resource):
+        class CommandsProcessor(db.CommandsProcessor):
 
-            @db.indexed_property(slot=1, prefix='A', full_text=True, default='')
-            def term(self, value):
-                return value
+            @db.volume_command(method='GET')
+            def get(self, request):
+                return 'ok'
 
-        self.start_master([User, Document])
-        client = Client(local.api_url.value)
+        router = Router(CommandsProcessor())
 
-        response = client.request(
-                'POST',
-                ['document'],
-                json.dumps({'term': 'value'}),
-                params={'callback': 'foo'},
-                headers={'Content-Type': 'application/json'})
-        guid = re.match('foo\("([^"]+)"\);', response.content)
-        assert guid is not None
-        guid = guid.groups()[0]
-
-        response = client.request(
-                'GET',
-                ['document'],
-                params={'callback': 'bar', 'reply': 'guid'},
-                headers={'Content-Type': 'application/json'})
-        self.assertEqual(
-                'bar({"total": 1, "result": [{"guid": "%s"}]});' % guid,
-                response.content)
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'callback=foo',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = 'foo("ok");'
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '200 OK',
+            {'Content-Length': str(len(result))},
+            ],
+            response)
 
     def test_filename(self):
         self.assertEqual('Foo', _filename('foo', None))
@@ -578,61 +497,60 @@ class RouterTest(tests.Test):
         self.assertEqual('Eng', _filename([{default_lang(): 'eng'}], None))
         self.assertEqual('Bar-1', _filename([{'lang': 'foo', default_lang(): 'bar'}, 1], None))
 
-    def test_ContentDisposition(self):
+    def test_BlobsDisposition(self):
+        self.touch(('blob.data', 'value'))
 
-        class TestDocument(Resource):
+        class CommandsProcessor(db.CommandsProcessor):
 
-            @db.blob_property()
-            def blob1(self, value):
-                if value:
-                    value['name'] = 'foo'
-                return value
+            @db.volume_command(method='GET', cmd='1')
+            def cmd1(self, request):
+                return db.PropertyMetadata(name='foo', blob='blob.data')
 
-            @db.blob_property()
-            def blob2(self, value):
-                return value
+            @db.volume_command(method='GET', cmd='2')
+            def cmd2(self, request):
+                return db.PropertyMetadata(filename='foo.bar', blob='blob.data')
 
-            @db.blob_property()
-            def blob3(self, value):
-                if value:
-                    value['filename'] = 'foo.bar'
-                return value
+        router = Router(CommandsProcessor())
 
-        self.start_master([User, TestDocument])
-        client = Client(local.api_url.value, sugar_auth=True)
-        guid = client.post(['testdocument'], {})
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'cmd=1',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = 'value'
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '200 OK',
+            {
+                'Last-Modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
+                'Content-Length': str(len(result)),
+                'Content-Type': 'application/octet-stream',
+                'Content-Disposition': 'attachment; filename="Foo.obj"',
+                }
+            ],
+            response)
 
-        response = client.request('GET', ['testdocument', guid])
-        assert 'Content-Disposition' not in response.headers
-
-        response = client.request('GET', ['static', 'images', 'missing.png'])
-        self.assertEqual(
-                'attachment; filename="missing.png"',
-                response.headers.get('Content-Disposition'))
-
-        client.request('PUT', ['testdocument', guid, 'blob1'], 'data')
-        response = client.request('GET', ['testdocument', guid, 'blob1'])
-        self.assertEqual(
-                'attachment; filename="Foo.obj"',
-                response.headers.get('Content-Disposition'))
-
-        client.request('PUT', ['testdocument', guid, 'blob1'], 'data', {'Content-Type': 'image/png'})
-        response = client.request('GET', ['testdocument', guid, 'blob1'])
-        self.assertEqual(
-                'attachment; filename="Foo.png"',
-                response.headers.get('Content-Disposition'))
-
-        client.request('PUT', ['testdocument', guid, 'blob2'], 'data', {'Content-Type': 'image/png'})
-        response = client.request('GET', ['testdocument', guid, 'blob2'])
-        self.assertEqual(
-                'attachment; filename="Blob2.png"',
-                response.headers.get('Content-Disposition'))
-
-        client.request('PUT', ['testdocument', guid, 'blob3'], 'data', {'Content-Type': 'image/png'})
-        response = client.request('GET', ['testdocument', guid, 'blob3'])
-        self.assertEqual(
-                'attachment; filename="foo.bar"',
-                response.headers.get('Content-Disposition'))
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'cmd=2',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        result = 'value'
+        self.assertEqual(result, ''.join([i for i in reply]))
+        self.assertEqual([
+            '200 OK',
+            {
+                'Last-Modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
+                'Content-Length': str(len(result)),
+                'Content-Type': 'application/octet-stream',
+                'Content-Disposition': 'attachment; filename="foo.bar"',
+                }
+            ],
+            response)
 
 
 if __name__ == '__main__':

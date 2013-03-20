@@ -22,10 +22,10 @@ from os.path import join, dirname, exists, isabs
 from gettext import gettext as _
 
 from sugar_network import db, node, toolkit
-from sugar_network.client import Client, api_url
+from sugar_network.client import api_url
 from sugar_network.node import sync, stats_user, files, volume
 from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import mountpoints, coroutine, util
+from sugar_network.toolkit import mountpoints, coroutine, util, http
 from sugar_network.toolkit import exception, enforce
 
 
@@ -37,9 +37,11 @@ _logger = logging.getLogger('node.slave')
 
 class SlaveCommands(NodeCommands):
 
-    def __init__(self, guid, volume_):
+    def __init__(self, key_path, volume_):
+        guid = util.ensure_key(key_path)
         NodeCommands.__init__(self, guid, volume_)
 
+        self._key_path = key_path
         self._push_seq = util.PersistentSequence(
                 join(volume_.root, 'push.sequence'), [1, None])
         self._pull_seq = util.PersistentSequence(
@@ -52,10 +54,18 @@ class SlaveCommands(NodeCommands):
     @db.volume_command(method='POST', cmd='online-sync',
             permissions=db.ACCESS_LOCAL)
     def online_sync(self):
-        cli = Client(sugar_auth=True)
+        profile = {
+                'name': self.guid,
+                'color': '#000000,#000000',
+                'machine_sn': '',
+                'machine_uuid': '',
+                'pubkey': util.pubkey(self._key_path),
+                }
+        cli = http.Client(api_url.value,
+                creds=(self.guid, self._key_path, lambda: profile))
 
         # TODO In case if slave user is not created on master
-        # `Client` should handle re-POSTing without loosing payload
+        # `http.Client` should handle re-POSTing without loosing payload
         cli.get(cmd='whoami')
 
         push = [('diff', None, volume.diff(self.volume, self._push_seq)),
@@ -182,8 +192,8 @@ class SlaveCommands(NodeCommands):
 
 class PersonalCommands(SlaveCommands):
 
-    def __init__(self, guid, volume_, localcast):
-        SlaveCommands.__init__(self, guid, volume_)
+    def __init__(self, key_path, volume_, localcast):
+        SlaveCommands.__init__(self, key_path, volume_)
 
         self._localcast = localcast
         self._mounts = util.Pool()

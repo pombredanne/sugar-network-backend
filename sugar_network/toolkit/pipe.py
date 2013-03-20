@@ -20,9 +20,9 @@ import struct
 import signal
 import logging
 import threading
-from os.path import exists
+from os.path import exists, dirname, basename
 
-from sugar_network.toolkit import coroutine, util, sugar
+from sugar_network.toolkit import coroutine, util
 
 
 _logger = logging.getLogger('pipe')
@@ -49,7 +49,7 @@ def trace(message, *args):
     _trace.append(message)
 
 
-def fork(callback, logname=None, session=None, **kwargs):
+def fork(callback, log_path=None, session=None, **kwargs):
     fd_r, fd_w = os.pipe()
 
     pid = os.fork()
@@ -64,8 +64,8 @@ def fork(callback, logname=None, session=None, **kwargs):
 
     def thread_func():
         environ = {}
-        if logname:
-            environ['log_path'] = _setup_logging(logname)
+        if log_path:
+            environ['log_path'] = _setup_logging(log_path)
         feedback('fork', session=session, environ=environ)
         try:
             callback(**kwargs)
@@ -171,11 +171,11 @@ def _decode_exit_failure(status):
     return failure
 
 
-def _setup_logging(context):
-    log_dir = sugar.profile_path('logs')
+def _setup_logging(path):
+    log_dir = dirname(path)
     if not exists(log_dir):
         os.makedirs(log_dir)
-    path = util.unique_filename(log_dir, context + '.log')
+    path = util.unique_filename(log_dir, basename(path) + '.log')
 
     logfile = file(path, 'a+')
     os.dup2(logfile.fileno(), sys.stdout.fileno())

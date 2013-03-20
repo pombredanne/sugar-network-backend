@@ -30,7 +30,7 @@ from sugar_network.db import env
 from sugar_network.db.commands import Request, Response
 from sugar_network.db.metadata import PropertyMetadata
 from sugar_network.toolkit import BUFFER_SIZE
-from sugar_network.toolkit import http, sugar, coroutine, exception, enforce
+from sugar_network.toolkit import http, coroutine, exception, enforce
 
 
 _logger = logging.getLogger('router')
@@ -244,16 +244,6 @@ class Router(object):
             cls = cls.__base__
 
 
-class IPCRouter(Router):
-
-    def authenticate(self, request):
-        return sugar.uid()
-
-    def call(self, request, response):
-        request.access_level = env.ACCESS_LOCAL
-        return Router.call(self, request, response)
-
-
 class _Request(Request):
 
     environ = None
@@ -327,8 +317,6 @@ class _Request(Request):
             self['document'], self['guid'] = self.path
         elif scope == 1:
             self['document'], = self.path
-
-        self.sync = bool(environ.get('HTTP_SUGAR_SYNC'))
 
     def clone(self):
         request = Request.clone(self)

@@ -15,7 +15,7 @@ from __init__ import tests
 
 from sugar_network.client import Client
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import sugar, util, coroutine
+from sugar_network.toolkit import util, coroutine
 
 
 # /tmp might be on tmpfs wich returns 0 bytes for free mem all time
@@ -27,7 +27,6 @@ class MasterPersonalTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self, tmp_root=local_tmproot)
 
-        client_key, sugar.keyfile.value = sugar.keyfile.value, None
         self.touch(('master/db/master', 'localhost:8100'))
 
         self.master_pid = self.popen(['sugar-network-node', '-F', 'start',
@@ -50,7 +49,6 @@ class MasterPersonalTest(tests.Test):
         os.makedirs('client/mnt/disk/sugar-network')
 
         coroutine.sleep(2)
-        sugar.keyfile.value = client_key
         self.wait_for_events(Client('http://localhost:8102'), event='inline', state='online').wait()
         Client('http://localhost:8100').get(cmd='whoami')
         Client('http://localhost:8101').get(cmd='whoami')
@@ -104,7 +102,7 @@ class MasterPersonalTest(tests.Test):
             'layer': 'pilot',
             })
         stats_timestamp = int(time.time())
-        client.post(['user', sugar.uid()], {
+        client.post(['user', tests.UID], {
             'name': 'db',
             'values': [(stats_timestamp, {'f': 1}), (stats_timestamp + 1, {'f': 2})],
             }, cmd='stats-upload')
@@ -195,12 +193,12 @@ class MasterPersonalTest(tests.Test):
         self.assertEqual('1', file('client/mnt/disk/sugar-network/files/1/1').read())
         self.assertEqual('2', file('client/mnt/disk/sugar-network/files/2/2').read())
 
-        rrd = Rrd('master/stats/user/%s/%s' % (sugar.uid()[:2], sugar.uid()), 1)
+        rrd = Rrd('master/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
         self.assertEqual([
             [('db', stats_timestamp, {'f': 1.0}), ('db', stats_timestamp + 1, {'f': 2.0})],
             ],
             [[(db.name,) + i for i in db.get(db.first, db.last)] for db in rrd])
-        rrd = Rrd('client/mnt/disk/sugar-network/stats/user/%s/%s' % (sugar.uid()[:2], sugar.uid()), 1)
+        rrd = Rrd('client/mnt/disk/sugar-network/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
         self.assertEqual([
             [('db', stats_timestamp, {'f': 1.0}), ('db', stats_timestamp + 1, {'f': 2.0})],
             ],

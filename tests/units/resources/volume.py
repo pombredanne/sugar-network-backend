@@ -11,7 +11,7 @@ from __init__ import tests
 from sugar_network import db, node
 from sugar_network.resources.volume import Volume, Resource, Commands
 from sugar_network.resources.user import User
-from sugar_network.toolkit import coroutine, sugar, util
+from sugar_network.toolkit import coroutine, util
 
 
 class VolumeTest(tests.Test):

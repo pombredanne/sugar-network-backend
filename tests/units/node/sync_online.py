@@ -45,14 +45,13 @@ class SyncOnlineTest(tests.Test):
         self.master_server = coroutine.WSGIServer(('localhost', 9000), Router(MasterCommands('localhost:9000', self.master_volume)))
         coroutine.spawn(self.master_server.serve_forever)
         coroutine.dispatch()
-        Client('http://localhost:9000').get(cmd='whoami')
 
         files_root.value = 'slave/files'
         self.slave_volume = Volume('slave', [User, Document])
-        self.slave_server = coroutine.WSGIServer(('localhost', 9001), Router(SlaveCommands('slave', self.slave_volume)))
+        util.ensure_key('slave/node')
+        self.slave_server = coroutine.WSGIServer(('localhost', 9001), Router(SlaveCommands('slave/node', self.slave_volume)))
         coroutine.spawn(self.slave_server.serve_forever)
         coroutine.dispatch()
-        Client('http://localhost:9001').get(cmd='whoami')
 
     def tearDown(self):
         self.master_server.stop()
@@ -64,7 +63,7 @@ class SyncOnlineTest(tests.Test):
 
         # Sync users
         client.post(cmd='online-sync')
-        self.assertEqual([[2, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[3, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
@@ -76,7 +75,7 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid2, 'content': {'en-us': '2'}},
             ],
             [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
-        self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[5, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[4, None]], json.load(file('slave/push.sequence')))
 
         guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
@@ -87,7 +86,7 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid3, 'content': {'en-us': '3'}},
             ],
             [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
-        self.assertEqual([[5, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[5, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
@@ -96,7 +95,7 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual(
                 {'guid': guid2, 'content': {'en-us': '22'}},
                 self.master_volume['document'].get(guid2).properties(['guid', 'content']))
-        self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[7, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[6, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
@@ -108,7 +107,7 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid3, 'content': {'en-us': '3'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
-        self.assertEqual([[7, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[8, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[7, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
@@ -125,7 +124,7 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
-        self.assertEqual([[11, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[12, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[12, None]], json.load(file('slave/push.sequence')))
 
     def test_PushStats(self):
@@ -141,7 +140,7 @@ class SyncOnlineTest(tests.Test):
 
         # Sync users
         slave_client.post(cmd='online-sync')
-        self.assertEqual([[2, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[3, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
@@ -153,7 +152,7 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid2, 'content': {'en-us': '2'}},
             ],
             [i.properties(['guid', 'content']) for i in self.slave_volume['document'].find()[0]])
-        self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[5, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
@@ -164,7 +163,7 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid3, 'content': {'en-us': '3'}},
             ],
             [i.properties(['guid', 'content']) for i in self.slave_volume['document'].find()[0]])
-        self.assertEqual([[5, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
@@ -173,7 +172,7 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual(
                 {'guid': guid2, 'content': {'en-us': '22'}},
                 self.slave_volume['document'].get(guid2).properties(['guid', 'content']))
-        self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[7, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
@@ -185,7 +184,7 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid3, 'content': {'en-us': '3'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
-        self.assertEqual([[7, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[8, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
@@ -202,7 +201,7 @@ class SyncOnlineTest(tests.Test):
             {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
-        self.assertEqual([[12, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[13, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
     def test_PullFiles(self):
@@ -217,13 +216,13 @@ class SyncOnlineTest(tests.Test):
         files, stamp = json.load(file('master/files.index'))
         self.assertEqual(1, stamp)
         self.assertEqual(sorted([
-            [2, '1', 1],
-            [3, '2/2', 2],
-            [4, '3/3/3', 3],
+            [3, '1', 1],
+            [4, '2/2', 2],
+            [5, '3/3/3', 3],
             ]),
             sorted(files))
 
-        self.assertEqual([[5, None]], json.load(file('slave/files.sequence')))
+        self.assertEqual([[6, None]], json.load(file('slave/files.sequence')))
         self.assertEqual('a', file('slave/files/1').read())
         self.assertEqual('bb', file('slave/files/2/2').read())
         self.assertEqual('ccc', file('slave/files/3/3/3').read())
@@ -234,7 +233,7 @@ class SyncOnlineTest(tests.Test):
 
         # Sync users
         slave.post(cmd='online-sync')
-        self.assertEqual([[2, None]], json.load(file('slave/pull.sequence')))
+        self.assertEqual([[3, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         guid = slave.post(['document'], {'context': '', 'content': '1', 'title': '1', 'type': 'idea'})

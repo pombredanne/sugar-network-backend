@@ -16,7 +16,7 @@
 import os
 import socket
 import logging
-from os.path import join, exists
+from os.path import join
 
 from sugar_network import db, client, node, toolkit
 from sugar_network.toolkit import netlink, mountpoints
@@ -375,17 +375,9 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         node.files_root.value = join(root, _SN_DIRNAME, 'files')
 
         volume = Volume(db_path, lazy_open=client.lazy_open.value)
+        self._node = PersonalCommands(join(db_path, 'node'), volume,
+                self.broadcast)
         self._jobs.spawn(volume.populate)
-
-        node_guid_path = join(db_path, 'node')
-        if exists(node_guid_path):
-            with file(node_guid_path) as f:
-                node_guid = f.read().strip()
-        else:
-            node_guid = toolkit.uuid()
-            with file(node_guid_path, 'w') as f:
-                f.write(node_guid)
-        self._node = PersonalCommands(node_guid, volume, self.broadcast)
 
         logging.info('Start %r node on %s port', volume.root, node.port.value)
         server = coroutine.WSGIServer(('0.0.0.0', node.port.value),

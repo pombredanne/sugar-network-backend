@@ -530,7 +530,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_Arguments(self):
         forks = []
-        self.override(pipe_, 'fork', lambda callback, logname, session, args, **kwargs: forks.append(args))
+        self.override(pipe_, 'fork', lambda callback, log_path, session, args=None, **kwargs: forks.append(args))
         self.override(journal, 'create_activity_id', lambda: 'new_activity_id')
 
         injector.launch('app')

@@ -26,18 +26,12 @@ from os.path import join, exists
 from gevent import monkey
 
 from sugar_network import db, client, toolkit
-from sugar_network.db.router import IPCRouter
 from sugar_network.resources.volume import Volume
+from sugar_network.client import IPCRouter
 from sugar_network.client.commands import ClientCommands
-from sugar_network.toolkit import sugar, util, sugar, Option, BUFFER_SIZE
-from sugar_network.toolkit import printf, application, coroutine, enforce
+from sugar_network.toolkit import printf, application, coroutine, util
+from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
-
-anonymous = Option(
-        'use anonymous user to access to Sugar Network server; '
-        'only read-only operations are available in this mode',
-        default=False, type_cast=Option.bool_cast, action='store_true',
-        name='anonymous')
 
 porcelain = Option(
         'give the output in an easy-to-parse format for scripts',
@@ -156,13 +150,8 @@ class Application(application.Application):
         try:
             if not self.check_for_instance():
                 pid_path = self.new_instance()
-                if anonymous.value:
-                    sugar.uid = lambda: 'anonymous'
-                    sugar.nickname = lambda: 'anonymous'
-                    sugar.color = lambda: '#000000,#000000'
-                    sugar.privkey_path = lambda: '/fake/path'
-                else:
-                    sugar.ensure_key()
+                if not client.anonymous.value:
+                    util.ensure_key(client.key_path())
                 home = Volume(client.path('db'))
                 cli = ClientCommands(home, offline=offline.value)
                 if not offline.value:
@@ -173,7 +162,7 @@ class Application(application.Application):
                 coroutine.spawn(server.serve_forever)
                 coroutine.dispatch()
 
-            result = client.IPCClient(sync=True).call(request, response)
+            result = client.IPCClient().call(request, response)
 
         finally:
             if server is not None:
@@ -224,18 +213,17 @@ monkey.patch_ssl()
 monkey.patch_time()
 
 # New defaults
-application.debug.value = sugar.logger_level()
+application.debug.value = client.logger_level()
 # If tmpfs is mounted to /tmp, `os.fstat()` will return 0 free space
 # and will brake offline synchronization logic
-toolkit.cachedir.value = sugar.profile_path('tmp')
+toolkit.cachedir.value = client.profile_path('tmp')
 
 Option.seek('main', [
-    application.debug, anonymous, porcelain, post_data, post_file, json,
-    offline,
+    application.debug, porcelain, post_data, post_file, json, offline,
     ])
 Option.seek('client', [
     client.api_url, client.layers, client.ipc_port, client.local_root,
-    client.no_dbus,
+    client.no_dbus, client.anonymous,
     ])
 
 locale.setlocale(locale.LC_ALL, '')
@@ -248,7 +236,7 @@ app = Application(
         config_files=[
             '/etc/sweets.conf',
             '~/.config/sweets/config',
-            sugar.profile_path('sweets.conf'),
+            client.profile_path('sweets.conf'),
             ],
         stop_args=['launch'])
 app.start()
