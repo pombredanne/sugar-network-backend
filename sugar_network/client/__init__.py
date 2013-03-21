@@ -148,7 +148,7 @@ def Client(url=None, **session):
     creds = None
     if not anonymous.value:
         if exists(key_path()):
-            creds = (_sugar_uid(), key_path(), _profile)
+            creds = (sugar_uid(), key_path(), _profile)
         else:
             _logger.warning('Sugar session was never started (no DSA key),'
                     'fallback to anonymous mode')
@@ -170,7 +170,7 @@ def IPCRouter(*args, **kwargs):
     class _IPCRouter(Router):
 
         def authenticate(self, request):
-            return _sugar_uid()
+            return sugar_uid()
 
         def call(self, request, response):
             request.access_level = db.ACCESS_LOCAL
@@ -196,7 +196,7 @@ def key_path():
     return profile_path('owner.key')
 
 
-def _sugar_uid():
+def sugar_uid():
     import hashlib
     pubkey = util.pubkey(key_path()).split()[1]
     return str(hashlib.sha1(pubkey).hexdigest())
