@@ -62,11 +62,11 @@ class FilesTest(tests.Test):
         in_seq = util.Sequence([[1, None]])
         self.assertEqual(sorted([
             {'op': 'commit', 'sequence': [[1, 3]]},
-            {'op': 'update', 'blob': 'files/1', 'path': '1'},
-            {'op': 'update', 'blob': 'files/2/3', 'path': '2/3'},
-            {'op': 'update', 'blob': 'files/4/5/6', 'path': '4/5/6'},
+            {'op': 'update', 'blob_size': 1, 'blob': '1', 'path': '1'},
+            {'op': 'update', 'blob_size': 1, 'blob': '3', 'path': '2/3'},
+            {'op': 'update', 'blob_size': 1, 'blob': '6', 'path': '4/5/6'},
             ]),
-            sorted([i for i in seeder.diff(in_seq)]))
+            sorted(files_diff(seeder, in_seq)))
         self.assertEqual(3, seqno.value)
         assert exists('index')
         self.assertEqual(
@@ -99,30 +99,36 @@ class FilesTest(tests.Test):
         in_seq = util.Sequence([[2, 2], [4, 10], [20, None]])
         self.assertEqual(sorted([
             {'op': 'commit', 'sequence': [[2, 5]]},
-            {'op': 'update', 'blob': 'files/2', 'path': '2'},
-            {'op': 'update', 'blob': 'files/4', 'path': '4'},
-            {'op': 'update', 'blob': 'files/5', 'path': '5'},
+            {'op': 'update', 'blob_size': 1, 'blob': '2', 'path': '2'},
+            {'op': 'update', 'blob_size': 1, 'blob': '4', 'path': '4'},
+            {'op': 'update', 'blob_size': 1, 'blob': '5', 'path': '5'},
             ]),
-            sorted([i for i in seeder.diff(in_seq)]))
+            sorted(files_diff(seeder, in_seq)))
 
     def test_Index_PartialDiff(self):
         seqno = util.Seqno('seqno')
         seeder = files.Index('files', 'index', seqno)
 
-        self.touch('files/1')
-        self.touch('files/2')
-        self.touch('files/3')
+        self.touch(('files/1', '1'))
+        self.touch(('files/2', '2'))
+        self.touch(('files/3', '3'))
         self.utime('files', 1)
 
         in_seq = util.Sequence([[1, None]])
         diff = seeder.diff(in_seq)
-        self.assertEqual({'op': 'update', 'blob': 'files/1', 'path': '1'}, next(diff))
+        record = next(diff)
+        record['blob'] = ''.join([i for i in record['blob']])
+        self.assertEqual({'op': 'update', 'blob_size': 1, 'blob': '1', 'path': '1'}, record)
         self.assertEqual({'op': 'commit', 'sequence': []}, diff.throw(StopIteration))
         self.assertRaises(StopIteration, diff.next)
 
         diff = seeder.diff(in_seq)
-        self.assertEqual({'op': 'update', 'blob': 'files/1', 'path': '1'}, next(diff))
-        self.assertEqual({'op': 'update', 'blob': 'files/2', 'path': '2'}, next(diff))
+        record = next(diff)
+        record['blob'] = ''.join([i for i in record['blob']])
+        self.assertEqual({'op': 'update', 'blob_size': 1, 'blob': '1', 'path': '1'}, record)
+        record = next(diff)
+        record['blob'] = ''.join([i for i in record['blob']])
+        self.assertEqual({'op': 'update', 'blob_size': 1, 'blob': '2', 'path': '2'}, record)
         self.assertEqual({'op': 'commit', 'sequence': [[1, 1]]}, diff.throw(StopIteration))
         self.assertRaises(StopIteration, diff.next)
 
@@ -130,15 +136,19 @@ class FilesTest(tests.Test):
         seqno = util.Seqno('seqno')
         seeder = files.Index('files', 'index', seqno)
 
-        self.touch('files/1')
-        self.touch('files/2')
-        self.touch('files/3')
+        self.touch(('files/1', '1'))
+        self.touch(('files/2', '2'))
+        self.touch(('files/3', '3'))
         self.utime('files', 1)
 
         in_seq = util.Sequence([[1, 1], [3, None]])
         diff = seeder.diff(in_seq)
-        self.assertEqual({'op': 'update', 'blob': 'files/1', 'path': '1'}, next(diff))
-        self.assertEqual({'op': 'update', 'blob': 'files/3', 'path': '3'}, next(diff))
+        record = next(diff)
+        record['blob'] = ''.join([i for i in record['blob']])
+        self.assertEqual({'op': 'update', 'blob_size': 1, 'blob': '1', 'path': '1'}, record)
+        record = next(diff)
+        record['blob'] = ''.join([i for i in record['blob']])
+        self.assertEqual({'op': 'update', 'blob_size': 1, 'blob': '3', 'path': '3'}, record)
         self.assertEqual({'op': 'commit', 'sequence': [[1, 3]]}, next(diff))
         self.assertRaises(StopIteration, diff.next)
 
@@ -146,15 +156,19 @@ class FilesTest(tests.Test):
         seqno = util.Seqno('seqno')
         seeder = files.Index('files', 'index', seqno)
 
-        self.touch('files/1')
-        self.touch('files/2')
-        self.touch('files/3')
+        self.touch(('files/1', '1'))
+        self.touch(('files/2', '2'))
+        self.touch(('files/3', '3'))
         self.utime('files', 1)
 
         in_seq = util.Sequence([[1, 1], [3, None]])
         diff = seeder.diff(in_seq, util.Sequence([[1, 1]]))
-        self.assertEqual({'op': 'update', 'blob': 'files/1', 'path': '1'}, next(diff))
-        self.assertEqual({'op': 'update', 'blob': 'files/3', 'path': '3'}, next(diff))
+        record = next(diff)
+        record['blob'] = ''.join([i for i in record['blob']])
+        self.assertEqual({'op': 'update', 'blob_size': 1, 'blob': '1', 'path': '1'}, record)
+        record = next(diff)
+        record['blob'] = ''.join([i for i in record['blob']])
+        self.assertEqual({'op': 'update', 'blob_size': 1, 'blob': '3', 'path': '3'}, record)
         self.assertEqual({'op': 'commit', 'sequence': [[1, 1], [3, 3]]}, next(diff))
         self.assertRaises(StopIteration, diff.next)
 
@@ -182,10 +196,10 @@ class FilesTest(tests.Test):
         os.utime('files', (3, 3))
 
         self.assertEqual(sorted([
-            {'op': 'update', 'blob': 'files/2', 'path': '2'},
+            {'op': 'update', 'blob_size': 1, 'blob': '2', 'path': '2'},
             {'op': 'commit', 'sequence': [[4, 4]]},
             ]),
-            sorted([i for i in seeder.diff(util.Sequence([[4, None]]))]))
+            sorted(files_diff(seeder, util.Sequence([[4, None]]))))
         self.assertEqual(4, seqno.value)
 
         os.utime('files/1', (4, 4))
@@ -193,20 +207,20 @@ class FilesTest(tests.Test):
         os.utime('files', (4, 4))
 
         self.assertEqual(sorted([
-            {'op': 'update', 'blob': 'files/1', 'path': '1'},
-            {'op': 'update', 'blob': 'files/3', 'path': '3'},
+            {'op': 'update', 'blob_size': 1, 'blob': '1', 'path': '1'},
+            {'op': 'update', 'blob_size': 1, 'blob': '3', 'path': '3'},
             {'op': 'commit', 'sequence': [[5, 6]]},
             ]),
-            sorted([i for i in seeder.diff(util.Sequence([[5, None]]))]))
+            sorted(files_diff(seeder, util.Sequence([[5, None]]))))
         self.assertEqual(6, seqno.value)
 
         self.assertEqual(sorted([
-            {'op': 'update', 'blob': 'files/1', 'path': '1'},
-            {'op': 'update', 'blob': 'files/2', 'path': '2'},
-            {'op': 'update', 'blob': 'files/3', 'path': '3'},
+            {'op': 'update', 'blob_size': 1, 'blob': '1', 'path': '1'},
+            {'op': 'update', 'blob_size': 1, 'blob': '2', 'path': '2'},
+            {'op': 'update', 'blob_size': 1, 'blob': '3', 'path': '3'},
             {'op': 'commit', 'sequence': [[1, 6]]},
             ]),
-            sorted([i for i in seeder.diff(util.Sequence([[1, None]]))]))
+            sorted(files_diff(seeder, util.Sequence([[1, None]]))))
         self.assertEqual(6, seqno.value)
 
     def test_Index_DiffCreatedFiles(self):
@@ -236,10 +250,10 @@ class FilesTest(tests.Test):
         os.utime('files', (2, 2))
 
         self.assertEqual(sorted([
-            {'op': 'update', 'blob': 'files/4', 'path': '4'},
+            {'op': 'update', 'blob_size': 1, 'blob': '4', 'path': '4'},
             {'op': 'commit', 'sequence': [[4, 4]]},
             ]),
-            sorted([i for i in seeder.diff(util.Sequence([[4, None]]))]))
+            sorted(files_diff(seeder, util.Sequence([[4, None]]))))
         self.assertEqual(4, seqno.value)
 
         self.touch(('files/5', '5'))
@@ -249,11 +263,11 @@ class FilesTest(tests.Test):
         os.utime('files', (3, 3))
 
         self.assertEqual(sorted([
-            {'op': 'update', 'blob': 'files/5', 'path': '5'},
-            {'op': 'update', 'blob': 'files/6', 'path': '6'},
+            {'op': 'update', 'blob_size': 1, 'blob': '5', 'path': '5'},
+            {'op': 'update', 'blob_size': 1, 'blob': '6', 'path': '6'},
             {'op': 'commit', 'sequence': [[5, 6]]},
             ]),
-            sorted([i for i in seeder.diff(util.Sequence([[5, None]]))]))
+            sorted(files_diff(seeder, util.Sequence([[5, None]]))))
         self.assertEqual(6, seqno.value)
 
     def test_Index_DiffDeletedFiles(self):
@@ -275,12 +289,12 @@ class FilesTest(tests.Test):
 
         assert seeder.sync()
         self.assertEqual(sorted([
-            {'op': 'update', 'blob': 'files/1', 'path': '1'},
-            {'op': 'update', 'blob': 'files/3', 'path': '3'},
+            {'op': 'update', 'blob_size': 1, 'blob': '1', 'path': '1'},
+            {'op': 'update', 'blob_size': 1, 'blob': '3', 'path': '3'},
             {'op': 'delete', 'path': '2'},
             {'op': 'commit', 'sequence': [[1, 4]]},
             ]),
-            sorted([i for i in seeder.diff(util.Sequence([[1, None]]))]))
+            sorted(files_diff(seeder, util.Sequence([[1, None]]))))
         self.assertEqual(4, seqno.value)
 
         os.unlink('files/1')
@@ -331,6 +345,13 @@ class FilesTest(tests.Test):
         assert not exists('dst/1')
         assert not exists('dst/2/2')
         assert not exists('dst/3/3/3')
+
+
+def files_diff(index, in_seq, out_seq=None, **kwargs):
+    for record in index.diff(in_seq, out_seq=out_seq, **kwargs):
+        if 'blob' in record:
+            record['blob'] = ''.join([i for i in record['blob']])
+        yield record
 
 
 if __name__ == '__main__':

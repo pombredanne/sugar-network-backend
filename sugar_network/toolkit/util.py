@@ -25,7 +25,7 @@ import collections
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
 from os.path import lexists, isfile
 
-from sugar_network.toolkit import cachedir, exception, enforce
+from sugar_network.toolkit import BUFFER_SIZE, cachedir, exception, enforce
 
 
 _VERSION_RE = re.compile('-([a-z]*)')
@@ -88,6 +88,15 @@ def pubkey(path):
             if line.startswith('ssh-'):
                 return line
     raise RuntimeError('No valid DSA public keys in %r' % path)
+
+
+def iter_file(path):
+    with file(path, 'rb') as f:
+        while True:
+            chunk = f.read(BUFFER_SIZE)
+            if not chunk:
+                return
+            yield chunk
 
 
 def parse_version(version_string):
@@ -615,6 +624,11 @@ class PersistentSequence(Sequence):
         if exists(self._path):
             with file(self._path) as f:
                 self[:] = json.load(f)
+
+    @property
+    def mtime(self):
+        if exists(self._path):
+            return os.stat(self._path).st_mtime
 
     def commit(self):
         dir_path = dirname(self._path)

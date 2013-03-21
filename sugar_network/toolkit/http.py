@@ -15,6 +15,7 @@
 
 import sys
 import json
+import types
 import logging
 from os.path import join, dirname
 
@@ -205,7 +206,10 @@ class Client(object):
             headers['Content-Type'] = \
                     request.content_type or 'application/octet-stream'
             # TODO Avoid reading the full content at once
-            request.content = request.content_stream.read()
+            if isinstance(request.content_stream, types.GeneratorType):
+                request.content = ''.join([i for i in request.content_stream])
+            else:
+                request.content = request.content_stream.read()
             headers['Content-Length'] = str(len(request.content))
 
         reply = self.request(method, path, data=request.content,

@@ -99,8 +99,12 @@ class Index(object):
                             yield {'op': 'delete', 'path': path}
                             deleted += 1
                         else:
-                            yield {'op': 'update', 'path': path,
-                                   'blob': join(self._files_path, path)}
+                            blob_path = join(self._files_path, path)
+                            yield {'op': 'update',
+                                   'path': path,
+                                   'blob_size': os.stat(blob_path).st_size,
+                                   'blob': util.iter_file(blob_path),
+                                   }
                         out_seq.include(start, seqno)
                         start = seqno
                         files += 1

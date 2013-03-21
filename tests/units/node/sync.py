@@ -4,7 +4,6 @@
 import os
 import uuid
 import json
-import urllib2
 from StringIO import StringIO
 from os.path import exists
 
@@ -241,10 +240,9 @@ class SyncTest(tests.Test):
         header_size = len(dumps({'packet': 'first'}))
         blob_header_size = len(dumps({'blob_size': 100}))
         record_size = len(dumps({'record': 2}))
-        self.touch(('blob', '*' * 100))
 
         def content():
-            yield {'blob': 'blob'}
+            yield {'blob_size': 100, 'blob': ['*' * 100]}
             yield {'record': 2}
             yield {'record': 3}
 
@@ -279,14 +277,13 @@ class SyncTest(tests.Test):
         header_size = len(dumps({'packet': 'first'}))
         blob_header_size = len(dumps({'blob_size': 100}))
         record_size = len(dumps({'record': 2}))
-        self.touch(('blob', '*' * 100))
 
         def content():
             try:
                 yield {'record': 1}
             except StopIteration:
                 pass
-            yield {'blob': 'blob'}
+            yield {'blob_size': 100, 'blob': ['*' * 100]}
             yield {'record': 3}
 
         i = sync.limited_encode(header_size, [('first', None, content()), ('second', None, content())])
@@ -335,10 +332,6 @@ class SyncTest(tests.Test):
         self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
 
     def test_encode_Blobs(self):
-        self.touch(('1', 'a'))
-        self.touch(('2', 'bb'))
-        self.touch(('3', 'ccc'))
-
         self.assertEqual([
             dumps({'packet': 1}),
             dumps({'num': 1, 'blob_size': 1}),
@@ -351,8 +344,8 @@ class SyncTest(tests.Test):
             dumps({'packet': 'last'}),
             ],
             [i for i in sync.encode([
-                (1, None, [{'num': 1, 'blob': '1'}, {'num': 2, 'blob': '2'}]),
-                (2, None, [{'num': 3, 'blob': '3'}]),
+                (1, None, [{'num': 1, 'blob_size': 1, 'blob': ['a']}, {'num': 2, 'blob_size': 2, 'blob': ['bb']}]),
+                (2, None, [{'num': 3, 'blob_size': 3, 'blob': ['ccc']}]),
                 ])])
 
     def test_decode_Blobs(self):
@@ -514,20 +507,6 @@ class SyncTest(tests.Test):
         self.assertEqual(
                 [({'packet': 'first', 'filename': 'uuid.sneakernet'}, [{'record': payload}, {'record': payload}])],
                 [(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('3')])
-
-    def test_sneakernet_encode_BlobUrls(self):
-        self.override(toolkit, 'uuid', lambda: 'uuid')
-        url = 'http://download.sugarlabs.org/timestamp.txt'
-        blob = urllib2.urlopen(url).read()
-
-        self.assertEqual(True,
-                sync.sneakernet_encode([(None, None, [{'url': url}])], root='.', limit=999999999))
-        for packet in sync.sneakernet_decode('.'):
-            break
-        for record in packet:
-            break
-        self.assertEqual(len(blob), record['blob_size'])
-        self.assertEqual(blob, record['blob'].read())
 
 
 def decode_chunked(encdata):

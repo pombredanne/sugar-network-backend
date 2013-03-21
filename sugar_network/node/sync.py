@@ -23,8 +23,7 @@ from types import GeneratorType
 from os.path import exists, join, dirname, basename, splitext
 
 from sugar_network import toolkit
-from sugar_network.toolkit import coroutine, util, http
-from sugar_network.toolkit import BUFFER_SIZE, enforce
+from sugar_network.toolkit import coroutine, util, BUFFER_SIZE, enforce
 
 
 # Filename suffix to use for sneakernet synchronization files
@@ -169,8 +168,6 @@ class _EncodingStatus(object):
 
 
 def _encode(limit, packets, download_blobs, header, status):
-    downloader = http.Client()
-
     for packet, props, content in packets:
         if status.aborted:
             break
@@ -192,19 +189,9 @@ def _encode(limit, packets, download_blobs, header, status):
             while True:
                 blob = None
                 blob_size = 0
-                if download_blobs and 'url' in record:
-                    response = downloader.request('GET',
-                            record.pop('url'), allow_redirects=True,
-                            # No content encoding, we need uncompressed size
-                            headers={'Accept-Encoding': ''})
-                    blob_size = int(response.headers.get('Content-Length'))
-                    blob = _url_fetcher(response)
-                elif 'blob' in record:
-                    path = record.pop('blob')
-                    blob_size = os.stat(path).st_size
-                    blob = _file_fetcher(path)
-                if blob is not None:
-                    record['blob_size'] = blob_size
+                if 'blob' in record:
+                    blob = record.pop('blob')
+                    blob_size = record['blob_size']
 
                 dump = json.dumps(record) + '\n'
                 if not status.aborted and limit is not None and \
@@ -358,17 +345,3 @@ class _GzipStream(object):
 
     def readline(self):
         return util.readline(self)
-
-
-def _file_fetcher(path):
-    with file(path, 'rb') as f:
-        while True:
-            chunk = f.read(BUFFER_SIZE)
-            if not chunk:
-                return
-            yield chunk
-
-
-def _url_fetcher(response):
-    for chunk in response.iter_content(BUFFER_SIZE):
-        yield chunk

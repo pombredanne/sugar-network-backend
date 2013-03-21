@@ -439,24 +439,16 @@ class DocumentTest(tests.Test):
 
         out_seq = Sequence()
         self.assertEqual([
-            {'guid': '1', 'blob': tests.tmpdir + '/1/1/blob.blob', 'diff': {
-                'blob': {
-                    'mtime': 1,
-                    'digest': hashlib.sha1('1').hexdigest(),
-                    'mime_type': 'application/octet-stream',
-                    },
-                }},
             {'guid': '1', 'diff': {
                 'guid': {'value': '1', 'mtime': 1},
                 'ctime': {'value': 1, 'mtime': 1},
                 'prop': {'value': '1', 'mtime': 1},
                 'mtime': {'value': 1, 'mtime': 1},
-                }},
-            {'guid': '2', 'blob': tests.tmpdir + '/2/2/blob.blob', 'diff': {
                 'blob': {
-                    'mtime': 2,
-                    'digest': hashlib.sha1('2').hexdigest(),
+                    'mtime': 1,
+                    'digest': hashlib.sha1('1').hexdigest(),
                     'mime_type': 'application/octet-stream',
+                    'blob': tests.tmpdir + '/1/1/blob.blob',
                     },
                 }},
             {'guid': '2', 'diff': {
@@ -464,6 +456,12 @@ class DocumentTest(tests.Test):
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
+                'blob': {
+                    'mtime': 2,
+                    'digest': hashlib.sha1('2').hexdigest(),
+                    'mime_type': 'application/octet-stream',
+                    'blob': tests.tmpdir + '/2/2/blob.blob',
+                    },
                 }},
             {'guid': '3', 'diff': {
                 'guid': {'value': '3', 'mtime': 3},
@@ -472,38 +470,37 @@ class DocumentTest(tests.Test):
                 'mtime': {'value': 3, 'mtime': 3},
                 }},
             ],
-            [i for i in directory.diff(Sequence([[0, None]]), out_seq)])
+            [i for i in diff(directory, [[0, None]], out_seq)])
         self.assertEqual([[1, 5]], out_seq)
 
         out_seq = Sequence()
         self.assertEqual([
-            {'guid': '2', 'blob': tests.tmpdir + '/2/2/blob.blob', 'diff': {
-                'blob': {
-                    'mtime': 2,
-                    'digest': hashlib.sha1('2').hexdigest(),
-                    'mime_type': 'application/octet-stream',
-                    },
-                }},
             {'guid': '2', 'diff': {
                 'guid': {'value': '2', 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
+                'blob': {
+                    'mtime': 2,
+                    'digest': hashlib.sha1('2').hexdigest(),
+                    'mime_type': 'application/octet-stream',
+                    'blob': tests.tmpdir + '/2/2/blob.blob',
+                    },
                 }},
             ],
-            [i for i in directory.diff(Sequence([[3, 4]]), out_seq)])
+            [i for i in diff(directory, [[3, 4]], out_seq)])
         self.assertEqual([[3, 4]], out_seq)
 
         out_seq = Sequence()
         self.assertEqual([
             ],
-            [i for i in directory.diff(Sequence([[3, 3]]), out_seq)])
+            [i for i in diff(directory, [[3, 3]], out_seq)])
         self.assertEqual([], out_seq)
 
         out_seq = Sequence()
         self.assertEqual([
             ],
-            [i for i in directory.diff(Sequence([[6, 100]]), out_seq)])
+            [i for i in diff(directory, [[6, 100]], out_seq)])
         self.assertEqual([], out_seq)
         directory.update(guid='2', prop='22')
         self.assertEqual([
@@ -511,7 +508,7 @@ class DocumentTest(tests.Test):
                 'prop': {'value': '22', 'mtime': int(os.stat('2/2/prop').st_mtime)},
                 }},
             ],
-            [i for i in directory.diff(Sequence([[6, 100]]), out_seq)])
+            [i for i in diff(directory, [[6, 100]], out_seq)])
         self.assertEqual([[6, 6]], out_seq)
 
     def test_diff_IgnoreCalcProps(self):
@@ -535,14 +532,14 @@ class DocumentTest(tests.Test):
                 'mtime': {'value': 1, 'mtime': 1},
                 }},
             ],
-            [i for i in directory.diff(Sequence([[0, None]]), out_seq)])
+            [i for i in diff(directory, [[0, None]], out_seq)])
         self.assertEqual([[1, 1]], out_seq)
 
         directory.update(guid='guid', prop='2')
         out_seq = Sequence()
         self.assertEqual([
             ],
-            [i for i in directory.diff(Sequence([[6, 100]]), out_seq)])
+            [i for i in diff(directory, [[6, 100]], out_seq)])
         self.assertEqual([], out_seq)
 
     def test_diff_Exclude(self):
@@ -573,44 +570,13 @@ class DocumentTest(tests.Test):
                 'prop': {'value': '2_', 'mtime': 0},
                 }},
             ],
-            [i for i in directory.diff(Sequence([[0, None]]), out_seq, Sequence([[2, 3]]))])
+            [i for i in diff(directory, [[0, None]], out_seq, [[2, 3]])])
 
         self.assertEqual([[1, 1], [4, 4]], out_seq)
 
-    def test_diff_Partial(self):
-
-        class Document(document.Document):
-
-            @db.indexed_property(slot=1)
-            def prop(self, value):
-                return value
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-        directory.create(guid='1', prop='1', ctime=1, mtime=1)
-        for i in os.listdir('1/1'):
-            os.utime('1/1/%s' % i, (1, 1))
-        directory.create(guid='2', prop='2', ctime=2, mtime=2)
-        for i in os.listdir('2/2'):
-            os.utime('2/2/%s' % i, (2, 2))
-
-        out_seq = Sequence()
-        for diff in directory.diff(Sequence([[0, None]]), out_seq):
-            self.assertEqual('1', diff['guid'])
-            break
-        self.assertEqual([], out_seq)
-
-        out_seq = Sequence()
-        for diff in directory.diff(Sequence([[0, None]]), out_seq):
-            if diff['guid'] == '2':
-                break
-        self.assertEqual([[1, 1]], out_seq)
-
-        out_seq = Sequence()
-        for diff in directory.diff(Sequence([[0, None]]), out_seq):
-            pass
-        self.assertEqual([[1, 2]], out_seq)
-
     def test_diff_WithBlobsSetByUrl(self):
+        URL = 'http://src.sugarlabs.org/robots.txt'
+        URL_content = urllib2.urlopen(URL).read()
 
         class Document(document.Document):
 
@@ -621,26 +587,23 @@ class DocumentTest(tests.Test):
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
         directory.create(guid='1', ctime=1, mtime=1)
-        directory.set_blob('1', 'blob', url='http://sugarlabs.org')
-        for i in os.listdir('1/1'):
-            os.utime('1/1/%s' % i, (1, 1))
+        directory.set_blob('1', 'blob', url=URL)
+        self.utime('1/1', 1)
 
         out_seq = Sequence()
         self.assertEqual([
-            {'guid': '1', 'url': 'http://sugarlabs.org', 'diff': {
-                'blob': {
-                    'mtime': 1,
-                    'mime_type': 'application/octet-stream',
-                    'digest': None,
-                    },
-                }},
             {'guid': '1', 'diff': {
                 'guid': {'value': '1', 'mtime': 1},
                 'ctime': {'value': 1, 'mtime': 1},
                 'mtime': {'value': 1, 'mtime': 1},
+                'blob': {
+                    'url': URL,
+                    'mime_type': 'application/octet-stream',
+                    'mtime': 1,
+                    },
                 }},
             ],
-            [i for i in directory.diff(Sequence([[0, None]]), out_seq)])
+            [i for i in diff(directory, [[0, None]], out_seq)])
         self.assertEqual([[1, 2]], out_seq)
 
     def test_diff_Filter(self):
@@ -667,7 +630,7 @@ class DocumentTest(tests.Test):
                 'prop': {'value': '2', 'mtime': 2},
                 }},
             ],
-            [i for i in directory.diff(Sequence([[0, None]]), out_seq, prop='2')])
+            [i for i in diff(directory, [[0, None]], out_seq, prop='2')])
         self.assertEqual([[2, 2]], out_seq)
 
     def test_diff_GroupBy(self):
@@ -696,7 +659,7 @@ class DocumentTest(tests.Test):
                 'prop': {'value': '0', 'mtime': 2},
                 }},
             ],
-            [i for i in directory.diff(Sequence([[0, None]]), out_seq, group_by='prop')])
+            [i for i in diff(directory, [[0, None]], out_seq, group_by='prop')])
         self.assertEqual([[2, 2]], out_seq)
 
     def test_merge_New(self):
@@ -728,8 +691,8 @@ class DocumentTest(tests.Test):
             os.utime('document1/3/3/%s' % i, (3, 3))
 
         directory2 = Directory('document2', Document, IndexWriter)
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory2.merge(**diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory2.merge(**patch)
 
         self.assertEqual(
                 sorted([
@@ -740,7 +703,7 @@ class DocumentTest(tests.Test):
                 sorted([(i['ctime'], i['prop'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]]))
 
         doc = directory2.get('1')
-        self.assertEqual(2, doc.get('seqno'))
+        self.assertEqual(1, doc.get('seqno'))
         self.assertEqual(1, doc.meta('guid')['mtime'])
         self.assertEqual(1, doc.meta('ctime')['mtime'])
         self.assertEqual(1, doc.meta('prop')['mtime'])
@@ -748,7 +711,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(1, doc.meta('blob')['mtime'])
 
         doc = directory2.get('2')
-        self.assertEqual(4, doc.get('seqno'))
+        self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
         self.assertEqual(2, doc.meta('prop')['mtime'])
@@ -756,7 +719,7 @@ class DocumentTest(tests.Test):
         self.assertEqual(2, doc.meta('blob')['mtime'])
 
         doc = directory2.get('3')
-        self.assertEqual(5, doc.get('seqno'))
+        self.assertEqual(3, doc.get('seqno'))
         self.assertEqual(3, doc.meta('guid')['mtime'])
         self.assertEqual(3, doc.meta('ctime')['mtime'])
         self.assertEqual(3, doc.meta('prop')['mtime'])
@@ -795,8 +758,8 @@ class DocumentTest(tests.Test):
         self.assertEqual(2, doc.meta('blob')['mtime'])
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
 
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory2.merge(**diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory2.merge(**patch)
 
         self.assertEqual(
                 [(2, 2, 'guid')],
@@ -810,8 +773,8 @@ class DocumentTest(tests.Test):
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
 
         os.utime('document1/gu/guid/mtime', (3, 3))
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory2.merge(**diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory2.merge(**patch)
 
         self.assertEqual(
                 [(2, 1, 'guid')],
@@ -825,8 +788,8 @@ class DocumentTest(tests.Test):
         self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
 
         os.utime('document1/gu/guid/blob', (4, 4))
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory2.merge(**diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory2.merge(**patch)
 
         self.assertEqual(
                 [(2, 1, 'guid')],
@@ -851,8 +814,8 @@ class DocumentTest(tests.Test):
         directory1.create(guid='1', prop='1', ctime=1, mtime=1)
 
         directory2 = Directory('document2', Document, IndexWriter)
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory2.merge(shift_seqno=False, **diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory2.merge(shift_seqno=False, **patch)
         self.assertEqual(
                 [(1, 1, '1', '1')],
                 [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory2.find(0, 1024)[0]])
@@ -862,8 +825,8 @@ class DocumentTest(tests.Test):
         self.assertEqual(0, doc.meta('prop')['seqno'])
 
         directory3 = Directory('document3', Document, IndexWriter)
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory3.merge(**diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory3.merge(**patch)
         self.assertEqual(
                 [(1, 1, '1', '1')],
                 [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
@@ -875,8 +838,8 @@ class DocumentTest(tests.Test):
         time.sleep(1)
         directory1.update(guid='1', prop='2', ctime=2, mtime=2)
 
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory3.merge(shift_seqno=False, **diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory3.merge(shift_seqno=False, **patch)
         self.assertEqual(
                 [(2, 2, '1', '2')],
                 [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
@@ -888,8 +851,8 @@ class DocumentTest(tests.Test):
         time.sleep(1)
         directory1.update(guid='1', prop='3', ctime=3, mtime=3)
 
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory3.merge(**diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory3.merge(**patch)
         self.assertEqual(
                 [(3, 3, '1', '3')],
                 [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
@@ -912,8 +875,8 @@ class DocumentTest(tests.Test):
             os.utime('document1/gu/guid/%s' % i, (1, 1))
 
         directory2 = Directory('document2', Document, IndexWriter)
-        for diff in directory1.diff(Sequence([[0, None]]), Sequence()):
-            directory2.merge(**diff)
+        for patch in diff(directory1, [[0, None]], Sequence()):
+            directory2.merge(**patch)
 
         doc = directory2.get('guid')
         self.assertEqual(1, doc.get('seqno'))
@@ -969,6 +932,16 @@ class DocumentTest(tests.Test):
         directory.wipe()
         self.assertEqual([], [i.guid for i in directory.find(0, 1024)[0]])
         assert directory.mtime == 0
+
+
+def diff(directory, in_seq, out_seq, exclude_seq=None, **kwargs):
+    for guid, patch in directory.diff(Sequence(in_seq), Sequence(exclude_seq) if exclude_seq else None, **kwargs):
+        diff = {}
+        for prop, meta, seqno in patch:
+            diff[prop] = meta
+            out_seq.include(seqno, seqno)
+        if diff:
+            yield {'guid': guid, 'diff': diff}
 
 
 if __name__ == '__main__':

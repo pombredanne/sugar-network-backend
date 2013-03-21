@@ -13,37 +13,62 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import logging
 
-from sugar_network.toolkit import util, coroutine, enforce
+from sugar_network.toolkit import BUFFER_SIZE, http, util, coroutine, enforce
 
 
-_logger = logging.getLogger('node.sync')
+# Apply node level layer for these documents
+_LIMITED_RESOURCES = ('context', 'implementation')
+
+_logger = logging.getLogger('node.volume')
 
 
-def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None, **kwargs):
+def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
+        fetch_blobs=False, **kwargs):
+    connection = http.Client()
     if out_seq is None:
         out_seq = util.Sequence([])
     is_initial_diff = not out_seq
-
     if layer:
         if isinstance(layer, basestring):
             layer = [layer]
         layer.append('common')
-
     try:
         for document, directory in volume.items():
             coroutine.dispatch()
             directory.commit()
             yield {'document': document}
-            for patch in directory.diff(in_seq, out_seq, exclude_seq,
-                    layer=layer
-                            if document in ('context', 'implementation')
-                            else None,
-                    **kwargs):
-                coroutine.dispatch()
-                yield patch
-
+            for guid, patch in directory.diff(in_seq, exclude_seq,
+                    layer=layer if document in _LIMITED_RESOURCES else None):
+                adiff = {}
+                adiff_seq = util.Sequence()
+                for prop, meta, seqno in patch:
+                    if 'blob' in meta:
+                        blob_path = meta.pop('blob')
+                        yield {'guid': guid,
+                               'diff': {prop: meta},
+                               'blob_size': os.stat(blob_path).st_size,
+                               'blob': util.iter_file(blob_path),
+                               }
+                    elif fetch_blobs and 'url' in meta:
+                        blob = connection.request('GET',
+                                meta.pop('url'), allow_redirects=True,
+                                # We need uncompressed size
+                                headers={'Accept-Encoding': ''})
+                        yield {'guid': guid,
+                               'diff': {prop: meta},
+                               'blob_size':
+                                    int(blob.headers['Content-Length']),
+                               'blob': blob.iter_content(BUFFER_SIZE),
+                               }
+                    else:
+                        adiff[prop] = meta
+                    adiff_seq.include(seqno, seqno)
+                if adiff:
+                    yield {'guid': guid, 'diff': adiff}
+                out_seq.include(adiff_seq)
         if is_initial_diff:
             # There is only one diff, so, we can stretch it to remove all holes
             out_seq.stretch()

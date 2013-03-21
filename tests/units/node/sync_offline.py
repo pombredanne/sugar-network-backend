@@ -215,8 +215,6 @@ class SyncOfflineTest(tests.Test):
         files_root.value = 'files'
 
         ts = int(time.time())
-        self.touch(('blob-1', 'a'))
-        self.touch(('blob-2', 'bb'))
         sync.sneakernet_encode([
             ('diff', {'src': 'localhost:8888'}, [
                 {'document': 'document'},
@@ -233,8 +231,8 @@ class SyncOfflineTest(tests.Test):
                 {'commit': [[1, 2]]},
                 ]),
             ('files_diff', {'src': 'localhost:8888'}, [
-                {'op': 'update', 'blob': 'blob-1', 'path': '1'},
-                {'op': 'update', 'blob': 'blob-2', 'path': '2'},
+                {'op': 'update', 'blob_size': 1, 'blob': ['a'], 'path': '1'},
+                {'op': 'update', 'blob_size': 2, 'blob': ['bb'], 'path': '2'},
                 {'op': 'commit', 'sequence': [[1, 2]]},
                 ]),
             ('ack', {'ack': [[101, 103]], 'sequence': [[1, 3]], 'src': 'localhost:8888', 'dst': cp.guid}, []),

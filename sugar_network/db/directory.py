@@ -280,59 +280,46 @@ class Directory(object):
             self.commit()
             self._notify({'event': 'populate'})
 
-    def diff(self, in_seq, out_seq, exclude_seq=None, **kwargs):
-        if 'group_by' in kwargs:
+    def diff(self, seq, exclude_seq=None, **params):
+        if exclude_seq is None:
+            exclude_seq = []
+        if 'group_by' in params:
             # Pickup only most recent change
-            kwargs['order_by'] = '-seqno'
+            params['order_by'] = '-seqno'
         else:
-            kwargs['order_by'] = 'seqno'
+            params['order_by'] = 'seqno'
         # TODO On big requests, xapian can raise an exception on edits
-        kwargs['limit'] = env.MAX_LIMIT
-        kwargs['no_cache'] = True
+        params['limit'] = env.MAX_LIMIT
+        params['no_cache'] = True
 
-        for start, end in in_seq:
+        for start, end in seq:
             query = 'seqno:%s..' % start
             if end:
                 query += str(end)
-            documents, __ = self.find(query=query, **kwargs)
+            documents, __ = self.find(query=query, **params)
 
             for doc in documents:
-                diff = {}
-                diff_seq = util.Sequence()
-                for name, prop in self.metadata.items():
-                    if name == 'seqno' or prop.permissions & env.ACCESS_CALC:
-                        continue
-                    meta = doc.meta(name)
-                    if meta is None:
-                        continue
-                    seqno = meta.get('seqno')
-                    if seqno not in in_seq or \
-                            exclude_seq is not None and seqno in exclude_seq:
-                        continue
-                    if isinstance(prop, BlobProperty):
-                        patch = {'guid': doc.guid,
-                                 'diff': {
-                                     name: {
-                                         'mtime': meta['mtime'],
-                                         'mime_type': meta.get('mime_type'),
-                                         'digest': meta.get('digest'),
-                                         },
-                                     },
-                                 }
-                        if 'url' in meta:
-                            patch['url'] = meta['url']
+
+                def patch():
+                    for name, prop in self.metadata.items():
+                        if name == 'seqno' or \
+                                prop.permissions & env.ACCESS_CALC:
+                            continue
+                        meta = doc.meta(name)
+                        if meta is None:
+                            continue
+                        seqno = meta.get('seqno')
+                        if seqno not in seq or seqno in exclude_seq:
+                            continue
+                        if isinstance(prop, BlobProperty):
+                            del meta['seqno']
                         else:
-                            patch['blob'] = meta['blob']
-                        yield patch
-                    else:
-                        diff[name] = {
-                                'mtime': meta['mtime'],
-                                'value': meta['value'],
-                                }
-                    diff_seq.include(seqno, seqno)
-                if diff:
-                    yield {'guid': doc.guid, 'diff': diff}
-                out_seq.include(diff_seq)
+                            meta = {'mtime': meta['mtime'],
+                                    'value': meta.get('value'),
+                                    }
+                        yield name, meta, seqno
+
+                yield doc.guid, patch()
 
     def merge(self, guid, diff, shift_seqno=True, **kwargs):
         """Apply changes for documents."""

@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import os
+import urllib2
 import hashlib
 from cStringIO import StringIO
 
@@ -388,24 +389,85 @@ class VolumeTest(tests.Test):
         volume['document'].set_blob('1', 'prop', 'payload')
         self.utime('db', 0)
 
-        in_seq = util.Sequence([[1, None]])
+        patch = diff(volume, util.Sequence([[1, None]]))
+        self.assertEqual(
+                {'document': 'document'},
+                next(patch))
+        record = next(patch)
+        self.assertEqual('payload', ''.join([i for i in record.pop('blob')]))
+        self.assertEqual(
+                {'guid': '1', 'blob_size': len('payload'), 'diff': {
+                    'prop': {
+                        'digest': hashlib.sha1('payload').hexdigest(),
+                        'mime_type': 'application/octet-stream',
+                        'mtime': 0,
+                        },
+                    }},
+                record)
+        self.assertEqual(
+                {'guid': '1', 'diff': {
+                    'guid': {'value': '1', 'mtime': 0},
+                    'mtime': {'value': 0, 'mtime': 0},
+                    'ctime': {'value': 0, 'mtime': 0},
+                    }},
+                next(patch))
+        self.assertEqual(
+                {'commit': [[1, 1]]},
+                next(patch))
+
+    def test_diff_BlobUrls(self):
+        url = 'http://src.sugarlabs.org/robots.txt'
+        blob = urllib2.urlopen(url).read()
+
+        class Document(db.Document):
+
+            @db.blob_property()
+            def prop(self, value):
+                return value
+
+        volume = Volume('db', [Document])
+        volume['document'].create(guid='1', seqno=1)
+        volume['document'].set_blob('1', 'prop', url=url)
+        self.utime('db', 1)
+
         self.assertEqual([
             {'document': 'document'},
-            {'guid': '1', 'blob': tests.tmpdir + '/db/document/1/1/prop.blob', 'diff': {
-                'prop': {
-                    'digest': hashlib.sha1('payload').hexdigest(),
-                    'mime_type': 'application/octet-stream',
-                    'mtime': 0,
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1},
+                    'mtime': {'value': 0, 'mtime': 1},
+                    'ctime': {'value': 0, 'mtime': 1},
+                    'prop': {'url': url, 'mime_type': 'application/octet-stream', 'mtime': 1},
                     },
-                }},
-            {'guid': '1', 'diff': {
-                'guid': {'value': '1', 'mtime': 0},
-                'mtime': {'value': 0, 'mtime': 0},
-                'ctime': {'value': 0, 'mtime': 0},
-                }},
+                },
             {'commit': [[1, 1]]},
             ],
-            [i for i in diff(volume, in_seq)])
+            [i for i in diff(volume, util.Sequence([[1, None]]))])
+
+        patch = diff(volume, util.Sequence([[1, None]]), fetch_blobs=True)
+        self.assertEqual(
+                {'document': 'document'},
+                next(patch))
+        record = next(patch)
+        self.assertEqual(blob, ''.join([i for i in record.pop('blob')]))
+        self.assertEqual(
+                {'guid': '1', 'blob_size': len(blob), 'diff': {
+                    'prop': {
+                        'mime_type': 'application/octet-stream',
+                        'mtime': 1,
+                        },
+                    }},
+                record)
+        self.assertEqual(
+                {'guid': '1', 'diff': {
+                    'guid': {'value': '1', 'mtime': 1},
+                    'mtime': {'value': 0, 'mtime': 1},
+                    'ctime': {'value': 0, 'mtime': 1},
+                    }},
+                next(patch))
+        self.assertEqual(
+                {'commit': [[1, 1]]},
+                next(patch))
 
     def test_merge_Blobs(self):
 
