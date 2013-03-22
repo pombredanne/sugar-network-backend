@@ -77,19 +77,21 @@ class Application(application.Daemon):
 
         if webui.webui.value:
             # XXX Until implementing regular web users
+            from sugar_network import client
             from sugar_network.client.commands import ClientCommands
 
             class _ClientCommands(ClientCommands):
 
                 def call(self, request, response=None):
                     request.principal = 'demo'
-                    return ClientCommands.call(self, requests, response)
+                    return ClientCommands.call(self, request, response)
 
+            client.sugar_uid = lambda: 'demo'
             # Point client API to volume directly
             client.mounts_root.value = None
             client_commands = _ClientCommands(volume, offline=True)
 
-            host = (webui.webui_host.value, webui.webui_port.value)
+            host = (node.host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)
             server = coroutine.WSGIServer(host,
                     webui.get_app(client_commands, client.api_url.value))
