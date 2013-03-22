@@ -11,7 +11,7 @@ from sugar_network.toolkit import coroutine, enforce
 class ContextTest(tests.Test):
 
     def test_SetCommonLayerForPackages(self):
-        self.start_offline_client()
+        self.start_online_client()
         ipc = IPCClient()
 
         guid = ipc.post(['context'], {

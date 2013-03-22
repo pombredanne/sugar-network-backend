@@ -28,7 +28,7 @@ from gevent import monkey
 from sugar_network import db, client, toolkit
 from sugar_network.resources.volume import Volume
 from sugar_network.client import IPCRouter
-from sugar_network.client.commands import ClientCommands
+from sugar_network.client.commands import CachedClientCommands
 from sugar_network.toolkit import printf, application, coroutine, util
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
@@ -153,7 +153,7 @@ class Application(application.Application):
                 if not client.anonymous.value:
                     util.ensure_key(client.key_path())
                 home = Volume(client.path('db'))
-                cli = ClientCommands(home, offline=offline.value)
+                cli = CachedClientCommands(home, offline=offline.value)
                 if not offline.value:
                     for __ in cli.subscribe(event='inline', state='online'):
                         break

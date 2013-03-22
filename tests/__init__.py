@@ -115,6 +115,7 @@ class Test(unittest.TestCase):
                 'sugar_network.resources.context',
                 'sugar_network.resources.artifact',
                 'sugar_network.resources.implementation',
+                'sugar_network.resources.report',
                 ]
 
         os.makedirs('tmp')

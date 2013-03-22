@@ -16,3 +16,8 @@
 - increase granularity for sync.chunked_encode()
 - slave._Pooler might leak events if pullers are not in time to call wait()
 - revert per-document "downloads" property as "launches", a part of unpersonizalied user_stats
+- more useful offline workflow
+  - keep offline Contexts synchronized with online source
+  - (?) not only new content in offline mode
+- handle proxy prpos for prop= requests
+- reuse "layer" for home volume instead of "clone" and "favorite"

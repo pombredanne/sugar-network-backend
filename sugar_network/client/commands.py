@@ -32,7 +32,7 @@ from sugar_network.toolkit import exception, enforce
 _SN_DIRNAME = 'sugar-network'
 _LOCAL_PROPS = frozenset(['favorite', 'clone'])
 
-_logger = logging.getLogger('client.mountset')
+_logger = logging.getLogger('client.commands')
 
 
 class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
@@ -43,7 +43,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         if not client.no_dbus.value:
             journal.Commands.__init__(self)
 
-        self._home = db.VolumeCommands(home_volume)
+        self._home = _VolumeCommands(home_volume)
         self._inline = coroutine.Event()
         self._remote_urls = []
         self._node = None
@@ -519,3 +519,102 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                 mixin_jobject(props, request_guid or props['guid'])
 
         return result
+
+
+class CachedClientCommands(ClientCommands):
+
+    def __init__(self, home_volume, server_mode=False, offline=False):
+        ClientCommands.__init__(self, home_volume, server_mode, offline)
+        self._push_seq = util.PersistentSequence(
+                join(home_volume.root, 'push.sequence'), [1, None])
+        self._push_job = coroutine.Pool()
+
+    def _got_online(self):
+        ClientCommands._got_online(self)
+        self._push_job.spawn(self._push)
+
+    def _got_offline(self, initiate=False):
+        self._push_job.kill()
+        ClientCommands._got_offline(self, initiate)
+
+    def _push(self):
+        pushed_seq = util.Sequence()
+        skiped_seq = util.Sequence()
+
+        def push(request, seq):
+            try:
+                self._node.call(request)
+            except Exception:
+                exception(_logger, 'Cannot push %r, will postpone', request)
+                skiped_seq.include(seq)
+            else:
+                pushed_seq.include(seq)
+
+        for document, directory in self._home.volume.items():
+            if directory.mtime <= self._push_seq.mtime:
+                continue
+
+            _logger.debug('Check %r local cache to push', document)
+
+            for guid, patch in directory.diff(self._push_seq, layer='local'):
+                diff = {}
+                diff_seq = util.Sequence()
+                for prop, meta, seqno in patch:
+                    if 'blob' in meta:
+                        request = db.Request(method='PUT', document=document,
+                                guid=guid, prop=prop)
+                        request.content_type = meta['mime_type']
+                        request.content_length = os.stat(meta['blob']).st_size
+                        request.content_stream = util.iter_file(meta['blob'])
+                        push(request, [[seqno, seqno]])
+                    elif 'url' in meta:
+                        request = db.Request(method='PUT', document=document,
+                            guid=guid, prop=prop)
+                        request.content_type = 'application/json'
+                        request.content = meta
+                        push(request, [[seqno, seqno]])
+                    else:
+                        diff[prop] = meta['value']
+                        diff_seq.include(seqno, seqno)
+                if not diff:
+                    continue
+                request = db.Request(document=document)
+                if 'guid' in diff:
+                    request['method'] = 'POST'
+                    access = db.ACCESS_CREATE | db.ACCESS_WRITE
+                else:
+                    request['method'] = 'PUT'
+                    request['guid'] = guid
+                    access = db.ACCESS_WRITE
+                for name in diff.keys():
+                    if not (directory.metadata[name].permissions & access):
+                        del diff[name]
+                request.content_type = 'application/json'
+                request.content = diff
+                push(request, diff_seq)
+
+        if not pushed_seq:
+            self.broadcast({'event': 'push'})
+            return
+
+        _logger.info('Pushed %r local cache', pushed_seq)
+
+        self._push_seq.exclude(pushed_seq)
+        if not skiped_seq:
+            self._push_seq.stretch()
+        self._push_seq.commit()
+        # No any decent reasons to keep fail reports after uploding.
+        # TODO The entire offlile synchronization should be improved,
+        # for now, it is possible to have a race here
+        self._home.volume['report'].wipe()
+        self.broadcast({'event': 'push'})
+
+
+class _VolumeCommands(db.VolumeCommands):
+
+    def __init__(self, volume):
+        db.VolumeCommands.__init__(self, volume)
+
+    def before_create(self, request, props):
+        props['layer'] = tuple(props['layer']) + ('local',)
+        db.VolumeCommands.before_create(self, request, props)
