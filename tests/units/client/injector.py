@@ -348,11 +348,11 @@ class InjectorTest(tests.Test):
         bundle.close()
 
         remote.post(['context'], {
+            'guid': 'dep1',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            'implement': 'dep1',
             'aliases': {
                 lsb_release.distributor_id(): {
                     'status': 'success',
@@ -361,11 +361,11 @@ class InjectorTest(tests.Test):
                 },
             })
         remote.post(['context'], {
+            'guid': 'dep2',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            'implement': 'dep2',
             'aliases': {
                 lsb_release.distributor_id(): {
                     'status': 'success',
@@ -575,7 +575,7 @@ class InjectorTest(tests.Test):
                 },
             }})
         remote.post(['context'], {
-            'implement': 'dep1',
+            'guid': 'dep1',
             'type': 'package',
             'title': 'title1',
             'summary': 'summary',
@@ -588,7 +588,7 @@ class InjectorTest(tests.Test):
                 },
             })
         remote.post(['context'], {
-            'implement': 'dep2',
+            'guid': 'dep2',
             'type': 'package',
             'title': 'title2',
             'summary': 'summary',
@@ -601,7 +601,7 @@ class InjectorTest(tests.Test):
                 },
             })
         remote.post(['context'], {
-            'implement': 'dep3',
+            'guid': 'dep3',
             'type': 'package',
             'title': 'title3',
             'summary': 'summary',
@@ -657,7 +657,7 @@ class InjectorTest(tests.Test):
                 },
             }})
         remote.post(['context'], {
-            'implement': 'dep',
+            'guid': 'dep',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
@@ -727,7 +727,7 @@ class InjectorTest(tests.Test):
                 },
             }})
         remote.post(['context'], {
-            'implement': 'sugar',
+            'guid': 'sugar',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',

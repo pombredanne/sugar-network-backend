@@ -290,43 +290,33 @@ class NodeTest(tests.Test):
         self.assertRaises(http.NotFound, call, cp, method='GET', document='context', guid=guid)
         self.assertEqual([], call(cp, method='GET', document='context')['result'])
 
-    def test_SetGuidOnMaster(self):
-        volume1 = Volume('db1')
-        cp1 = NodeCommands('guid', volume1)
-        call(cp1, method='POST', document='context', principal='principal', content={
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'implement': 'foo',
-            })
-        self.assertRaises(http.NotFound, call, cp1, method='GET', document='context', guid='foo')
-
+    def test_CreateGUID(self):
+        # TODO Temporal security hole, see TODO
         volume2 = Volume('db2')
         cp2 = MasterCommands('guid', volume2)
         call(cp2, method='POST', document='context', principal='principal', content={
+            'guid': 'foo',
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            'implement': 'foo',
             })
         self.assertEqual(
-                {'guid': 'foo', 'implement': ['foo'], 'title': 'title'},
-                call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'implement', 'title']))
+                {'guid': 'foo', 'title': 'title'},
+                call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'title']))
 
-    def test_SetGuidOnMaster_MalformedGUID(self):
+    def test_CreateMalformedGUID(self):
         cp = MasterCommands('guid', Volume('db2'))
 
         self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal='principal', content={
+            'guid': '!?',
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            'implement': '!?',
             })
 
-    def test_SetGuidOnMaster_FailOnExisted(self):
+    def test_FailOnExistedGUID(self):
         cp = MasterCommands('guid', Volume('db2'))
 
         guid = call(cp, method='POST', document='context', principal='principal', content={
@@ -337,11 +327,11 @@ class NodeTest(tests.Test):
             })
 
         self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal='principal', content={
+            'guid': guid,
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            'implement': guid,
             })
 
     def test_PackagesRoute(self):

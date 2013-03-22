@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import re
 import time
 import logging
 from contextlib import contextmanager
@@ -31,6 +32,8 @@ from sugar_network.db.metadata import PropertyMetadata
 from sugar_network.toolkit import http, coroutine, util
 from sugar_network.toolkit import exception, enforce
 
+
+_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 _logger = logging.getLogger('db.volume')
 
@@ -135,8 +138,6 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH, mime_type='application/json')
     def create(self, request):
         with self._post(request, env.ACCESS_CREATE) as (directory, doc):
-            enforce('guid' not in doc.props, http.Forbidden,
-                    "Property 'guid' cannot be set manually")
             self.before_create(request, doc.props)
             if 'guid' not in doc.props:
                 doc.props['guid'] = toolkit.uuid()
@@ -223,6 +224,13 @@ class VolumeCommands(CommandsProcessor):
             return meta
 
     def before_create(self, request, props):
+        if 'guid' in props:
+            # TODO Temporal security hole, see TODO
+            guid = props['guid']
+            enforce(not self.volume[request['document']].exists(guid),
+                    '%s already exists', guid)
+            enforce(_GUID_RE.match(guid) is not None,
+                    'Malformed %s GUID', guid)
         ts = int(time.time())
         props['ctime'] = ts
         props['mtime'] = ts

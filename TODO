@@ -4,6 +4,8 @@
   - (?) log all (including editros) posters of particular document to minimize conflicts about why somthing was changed
     or better, detailed log for every editor's change
 
+- Remove temporal security hole with speciying guid in POST,
+  it was added as a fast hack to support offline creation (with later pushing to a node)
 - GC implementations cache
 - get all localized strings from activity.info while populating local contexts
 - activities migth need MIME registering while checking-in

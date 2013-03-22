@@ -43,7 +43,7 @@ class AuthTest(tests.Test):
 
         self.start_master()
         conn.post(['context'], {
-            'implement': 'guid',
+            'guid': 'guid',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
@@ -71,7 +71,7 @@ class AuthTest(tests.Test):
     def test_Anonymous(self):
         conn = http.Client(client.api_url.value)
 
-        props = {'implement': 'guid',
+        props = {'guid': 'guid',
                  'type': 'package',
                  'title': 'title',
                  'summary': 'summary',
@@ -113,7 +113,7 @@ class AuthTest(tests.Test):
     def test_LiveUpdate(self):
         conn = http.Client(client.api_url.value)
 
-        props = {'implement': 'guid',
+        props = {'guid': 'guid',
                  'type': 'package',
                  'title': 'title',
                  'summary': 'summary',

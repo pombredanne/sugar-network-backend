@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import re
 import time
 import json
 import base64
@@ -26,8 +25,6 @@ from sugar_network.node import sync, stats_user, files, volume, downloads, obs
 from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import cachedir, coroutine, util, enforce
 
-
-_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 _logger = logging.getLogger('node.master')
 
@@ -128,16 +125,6 @@ class MasterCommands(NodeCommands):
 
         cookie.store(response)
         return reply
-
-    def before_create(self, request, props):
-        implement = props.get('implement')
-        if implement:
-            implement = implement[0]
-            enforce(not self.volume[request['document']].exists(implement),
-                    'Document already exists')
-            enforce(_GUID_RE.match(implement) is not None, 'Malformed GUID')
-            props['guid'] = implement
-        NodeCommands.before_create(self, request, props)
 
     def after_post(self, doc):
         if doc.metadata.name == 'context':
