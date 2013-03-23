@@ -20,7 +20,7 @@ from sugar_network.resources.user import User
 from sugar_network.resources.context import Context
 from sugar_network.resources.implementation import Implementation
 from sugar_network.client import IPCClient, packagekit, injector, clones, solver
-from sugar_network import client as local
+from sugar_network import client
 
 
 class InjectorTest(tests.Test):
@@ -33,9 +33,9 @@ class InjectorTest(tests.Test):
 
     def test_clone_Online(self):
         self.start_online_client([User, Context, Implementation])
-        remote = IPCClient()
+        conn = IPCClient()
 
-        context = remote.post(['context'], {
+        context = conn.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
@@ -51,7 +51,7 @@ class InjectorTest(tests.Test):
             ],
             [i for i in pipe])
 
-        impl = remote.post(['implementation'], {
+        impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -126,15 +126,15 @@ class InjectorTest(tests.Test):
 
     def test_clone_impl(self):
         self.start_online_client([User, Context, Implementation])
-        remote = IPCClient()
+        conn = IPCClient()
 
-        context = remote.post(['context'], {
+        context = conn.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
-        impl = remote.post(['implementation'], {
+        impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -173,15 +173,15 @@ class InjectorTest(tests.Test):
 
     def test_launch_Online(self):
         self.start_online_client([User, Context, Implementation])
-        remote = IPCClient()
+        conn = IPCClient()
 
-        context = remote.post(['context'], {
+        context = conn.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
-        impl = remote.post(['implementation'], {
+        impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -230,7 +230,7 @@ class InjectorTest(tests.Test):
             ],
             [i for i in pipe])
 
-        impl_2 = remote.post(['implementation'], {
+        impl_2 = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
@@ -310,15 +310,15 @@ class InjectorTest(tests.Test):
 
     def test_InstallDeps(self):
         self.start_online_client([User, Context, Implementation])
-        remote = IPCClient()
+        conn = IPCClient()
 
-        context = remote.post(['context'], {
+        context = conn.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
-        impl = remote.post(['implementation'], {
+        impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -347,7 +347,7 @@ class InjectorTest(tests.Test):
         bundle.writestr('topdir/probe', 'probe')
         bundle.close()
 
-        remote.post(['context'], {
+        conn.post(['context'], {
             'guid': 'dep1',
             'type': 'package',
             'title': 'title',
@@ -360,7 +360,7 @@ class InjectorTest(tests.Test):
                     },
                 },
             })
-        remote.post(['context'], {
+        conn.post(['context'], {
             'guid': 'dep2',
             'type': 'package',
             'title': 'title',
@@ -398,47 +398,51 @@ class InjectorTest(tests.Test):
 
     def test_SolutionsCache_Set(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
 
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution], json.load(file('cache/solutions/co/context')))
+        self.assertEqual([client.api_url.value, solution], json.load(file('cache/solutions/co/context')))
 
     def test_SolutionsCache_InvalidateByAPIUrl(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/co/context'
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
-        self.touch((cached_path, json.dumps([local.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
 
-        local.api_url.value = 'fake'
+        client.api_url.value = 'fake'
         self.assertEqual(solution, injector._solve('context'))
         self.assertEqual(['fake', solution], json.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/co/context'
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         injector.invalidate_solutions(1)
-        self.touch((cached_path, json.dumps([local.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution], json.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByPMSMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/co/context'
 
@@ -446,51 +450,71 @@ class InjectorTest(tests.Test):
         self.touch('pms')
         os.utime('pms', (1, 1))
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
-        self.touch((cached_path, json.dumps([local.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime('pms', (3, 3))
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution], json.load(file(cached_path)))
+
+    def test_SolutionsCache_DeliberateReuseInOffline(self):
+        solution1 = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
+        self.override(solver, 'solve', lambda *args: solution1)
+        cached_path = 'cache/solutions/co/context'
+
+        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
+        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
+        os.utime(cached_path, (1, 1))
+        injector.invalidate_solutions(2)
+        self.assertEqual(solution1, injector._solve('context'))
+
+        self.override(client, 'IPCClient', lambda: _FakeConnection(False))
+        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
+        os.utime(cached_path, (1, 1))
+        injector.invalidate_solutions(2)
+        self.assertEqual(solution2, injector._solve('context'))
+
 
     def test_SolutionsCache_InvalidateBySpecMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/co/context'
 
         solution2 = [{'spec': 'spec', 'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         self.touch('spec')
         os.utime('spec', (1, 1))
-        self.touch((cached_path, json.dumps([local.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
 
         os.utime('spec', (3, 3))
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual([local.api_url.value, solution], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, solution], json.load(file(cached_path)))
 
     def test_clone_SetExecPermissionsForActivities(self):
         self.start_online_client([User, Context, Implementation])
-        remote = IPCClient()
+        conn = IPCClient()
 
-        context = remote.post(['context'], {
+        context = conn.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
-        impl = remote.post(['implementation'], {
+        impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -546,16 +570,16 @@ class InjectorTest(tests.Test):
 
     def test_ProcessCommonDependencies(self):
         self.start_online_client([User, Context, Implementation])
-        remote = IPCClient()
+        conn = IPCClient()
 
-        context = remote.post(['context'], {
+        context = conn.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             'dependencies': ['dep1', 'dep2'],
             })
-        impl = remote.post(['implementation'], {
+        impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -574,7 +598,7 @@ class InjectorTest(tests.Test):
                     },
                 },
             }})
-        remote.post(['context'], {
+        conn.post(['context'], {
             'guid': 'dep1',
             'type': 'package',
             'title': 'title1',
@@ -587,7 +611,7 @@ class InjectorTest(tests.Test):
                     },
                 },
             })
-        remote.post(['context'], {
+        conn.post(['context'], {
             'guid': 'dep2',
             'type': 'package',
             'title': 'title2',
@@ -600,7 +624,7 @@ class InjectorTest(tests.Test):
                     },
                 },
             })
-        remote.post(['context'], {
+        conn.post(['context'], {
             'guid': 'dep3',
             'type': 'package',
             'title': 'title3',
@@ -626,19 +650,19 @@ class InjectorTest(tests.Test):
                     {'version': '1', 'id': 'dep3', 'context': 'dep3', 'name': 'title3', 'stability': 'packaged'},
                     {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
                     ]),
-                sorted(solver.solve(context)))
+                sorted(solver.solve(conn, context)))
 
     def test_LoadFeed_SetPackages(self):
         self.start_online_client([User, Context, Implementation])
-        remote = IPCClient()
+        conn = IPCClient()
 
-        context = remote.post(['context'], {
+        context = conn.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
-        remote.post(['implementation'], {
+        conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -656,7 +680,7 @@ class InjectorTest(tests.Test):
                     },
                 },
             }})
-        remote.post(['context'], {
+        conn.post(['context'], {
             'guid': 'dep',
             'type': 'package',
             'title': 'title',
@@ -668,30 +692,30 @@ class InjectorTest(tests.Test):
             return dict([(i, {'name': i, 'pk_id': i, 'version': '1', 'arch': '*', 'installed': True}) for i in names])
         self.override(packagekit, 'resolve', resolve)
 
-        self.assertRaises(RuntimeError, solver.solve, context)
+        self.assertRaises(RuntimeError, solver.solve, conn, context)
 
-        remote.put(['context', 'dep', 'aliases'], {
+        conn.put(['context', 'dep', 'aliases'], {
             lsb_release.distributor_id(): {
                 'status': 'success',
                 'binary': [['bin']],
                 },
             })
-        self.assertEqual('dep', solver.solve(context)[-1]['context'])
+        self.assertEqual('dep', solver.solve(conn, context)[-1]['context'])
 
-        remote.put(['context', 'dep', 'aliases'], {
+        conn.put(['context', 'dep', 'aliases'], {
             'foo': {
                 'status': 'success',
                 'binary': [['bin']],
                 },
             })
-        self.assertRaises(RuntimeError, solver.solve, context)
+        self.assertRaises(RuntimeError, solver.solve, conn, context)
 
-        remote.put(['context', 'dep', 'aliases'], {
+        conn.put(['context', 'dep', 'aliases'], {
             lsb_release.distributor_id(): {
                 'binary': [['bin']],
                 },
             })
-        self.assertEqual('dep', solver.solve(context)[-1]['context'])
+        self.assertEqual('dep', solver.solve(conn, context)[-1]['context'])
 
     def test_SolveSugar(self):
         self.touch(('__init__.py', ''))
@@ -700,15 +724,15 @@ class InjectorTest(tests.Test):
         imp.load_module('jarabe', file_, pathname_, description_)
 
         self.start_online_client([User, Context, Implementation])
-        remote = IPCClient()
+        conn = IPCClient()
 
-        context = remote.post(['context'], {
+        context = conn.post(['context'], {
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
-        impl = remote.post(['implementation'], {
+        impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -726,7 +750,7 @@ class InjectorTest(tests.Test):
                     },
                 },
             }})
-        remote.post(['context'], {
+        conn.post(['context'], {
             'guid': 'sugar',
             'type': 'package',
             'title': 'title',
@@ -738,7 +762,17 @@ class InjectorTest(tests.Test):
             {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
             {'name': 'sugar', 'version': '777', 'context': 'sugar', 'path': '/', 'id': 'sugar', 'stability': 'packaged'},
             ],
-            solver.solve(context))
+            solver.solve(conn, context))
+
+
+class _FakeConnection(object):
+
+    def __init__(self, inline):
+        self.inline = inline
+
+    def get(self, cmd=None, *args, **kwargs):
+        if cmd == 'inline':
+            return self.inline
 
 
 if __name__ == '__main__':

@@ -17,7 +17,7 @@ import sys
 import logging
 from os.path import isabs, join, dirname
 
-from sugar_network.client import IPCClient, packagekit
+from sugar_network.client import packagekit
 from sugar_network.toolkit import util, lsb_release, pipe, exception
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'zeroinstall'))
@@ -34,27 +34,21 @@ def _interface_init(self, url):
 
 
 model.Interface.__init__ = _interface_init
-reader.load_feed_from_cache = lambda url, * args, ** kwargs: _load_feed(url)
 reader.check_readable = lambda * args, ** kwargs: True
 
 try_cleanup_distro_version = distro.try_cleanup_distro_version
 canonical_machine = distro.canonical_machine
 
 _logger = logging.getLogger('zeroinstall')
-_client = None
 
 
-def solve(context):
-    global _client
-
-    _client = IPCClient()
-    try:
-        requirement = Requirements(context)
-        # TODO
-        requirement.command = 'activity'
-        return _solve(requirement)
-    finally:
-        _client.close()
+def solve(conn, context):
+    reader.load_feed_from_cache = lambda url, *args, **kwargs: \
+            _load_feed(conn, url)
+    requirement = Requirements(context)
+    # TODO
+    requirement.command = 'activity'
+    return _solve(requirement)
 
 
 def _solve(requirement):
@@ -150,7 +144,7 @@ def _impl_new(config, iface, sel):
     return impl
 
 
-def _load_feed(context):
+def _load_feed(conn, context):
     feed = _Feed(context)
 
     if context == 'sugar':
@@ -165,7 +159,7 @@ def _load_feed(context):
 
     feed_content = None
     try:
-        feed_content = _client.get(['context', context], cmd='feed',
+        feed_content = conn.get(['context', context], cmd='feed',
                 # TODO stability='stable'
                 distro=lsb_release.distributor_id())
         pipe.trace('Found %s feed', context)

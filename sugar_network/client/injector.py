@@ -162,6 +162,7 @@ def _clone_impl(guid, spec):
 
 
 def _solve(context):
+    print '>', context
     pipe.trace('Start solving %s feed', context)
 
     cached_path, solution, stale = _get_cached_solution(context)
@@ -169,9 +170,15 @@ def _solve(context):
         pipe.trace('Reuse cached solution')
         return solution
 
+    conn = client.IPCClient()
+    print solution, conn.get(cmd='inline')
+    if solution is not None and not conn.get(cmd='inline'):
+        pipe.trace('Reuse stale cached solution in offline mode')
+        return solution
+
     from sugar_network.client import solver
 
-    solution = solver.solve(context)
+    solution = solver.solve(conn, context)
     _set_cached_solution(cached_path, solution)
 
     return solution
