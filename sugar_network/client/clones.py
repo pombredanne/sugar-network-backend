@@ -21,6 +21,7 @@ import logging
 from os.path import join, exists, lexists, relpath, dirname, basename, isdir
 from os.path import abspath, islink
 
+from sugar_network import db
 from sugar_network.client.spec import Spec
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
@@ -41,24 +42,6 @@ def walk(context):
         path = join(root, filename)
         if exists(path):
             yield os.readlink(path)
-
-
-def ensure_clones(context):
-    root = _context_path(context, '')
-    if not exists(root):
-        return False
-
-    found = False
-
-    for filename in os.listdir(root):
-        path = join(root, filename)
-        if lexists(path):
-            if not exists(path):
-                os.unlink(path)
-            else:
-                found = True
-
-    return found
 
 
 def wipeout(context):
@@ -98,15 +81,40 @@ class _Inotify(Inotify):
         self._mime_dir = join(xdg_data_home, 'mime')
 
     def setup(self, paths):
+        mtime = 0
         for path in paths:
             path = abspath(path)
-            if not exists(path):
+            if exists(path):
+                mtime = max(mtime, os.stat(path).st_mtime)
+            else:
                 if not os.access(dirname(path), os.W_OK):
                     _logger.warning('No permissions to create %s '
                             'directory, do not monitor it', path)
                     continue
                 os.makedirs(path)
             self._roots.append(_Root(self, path))
+
+        if mtime <= self._contexts.mtime:
+            return
+
+        docs, __ = self._contexts.find(limit=db.MAX_LIMIT, clone=[1, 2])
+        for context in docs:
+            root = _context_path(context.guid, '')
+            found = False
+            if exists(root):
+                for filename in os.listdir(root):
+                    path = join(root, filename)
+                    if lexists(path):
+                        if not exists(path):
+                            os.unlink(path)
+                        else:
+                            found = True
+                            break
+            if found:
+                if context['clone'] != 2:
+                    self._contexts.update(context.guid, clone=2)
+            else:
+                self._contexts.update(context.guid, clone=0)
 
     def serve_forever(self):
         while True:

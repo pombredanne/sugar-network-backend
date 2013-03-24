@@ -66,17 +66,6 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                     self._remote_urls.append(client.api_url.value)
                 self._jobs.spawn(self._wait_for_connectivity)
 
-    def populate(self):
-        self._home.volume.populate()
-        contexts = self._home.volume['context']
-        docs, __ = contexts.find(limit=db.MAX_LIMIT, clone=[1, 2])
-        for context in docs:
-            if clones.ensure_clones(context.guid):
-                if context['clone'] != 2:
-                    self._checkin_context(context.guid, {'clone': 2})
-            else:
-                self._checkin_context(context.guid, {'clone': 0})
-
     def close(self):
         self._jobs.kill()
         self._got_offline()

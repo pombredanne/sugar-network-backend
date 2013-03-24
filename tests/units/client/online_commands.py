@@ -938,56 +938,6 @@ class OnlineCommandsTest(tests.Test):
                 {'favorite': True, 'clone': 2},
                 ipc.get(['artifact', guid], reply=['favorite', 'clone']))
 
-    def test_populate_HomeVolumeEvents(self):
-        volume = Volume('client')
-        volume['context'].create({
-            'guid': 'context1',
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'clone': 0,
-            })
-        volume['context'].create({
-            'guid': 'context2',
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'clone': 1,
-            })
-        volume['context'].create({
-            'guid': 'context3',
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'clone': 2,
-            })
-
-        self.start_master()
-        cp = ClientCommands(volume)
-        self.wait_for_events(cp, event='inline', state='online').wait()
-        assert cp.inline()
-
-        def events_cb():
-            for event in cp.subscribe():
-                if event.startswith('data: '):
-                    events.append(json.loads(event[6:]))
-        events = []
-        coroutine.spawn(events_cb)
-        coroutine.dispatch()
-
-        self.touch(clones._context_path('context1', 'clone'))
-        self.touch(clones._context_path('context2', 'clone'))
-        cp.populate()
-
-        self.assertEqual([
-            {'event': 'update', 'document': 'context', 'guid': 'context2', 'props': {'clone': 2}},
-            {'event': 'update', 'document': 'context', 'guid': 'context3', 'props': {'clone': 0}},
-            ],
-            events)
-
     def test_HomeVolumeEvents(self):
         self.home_volume = self.start_online_client()
         ipc = IPCClient()

@@ -72,7 +72,7 @@ class Application(application.Daemon):
 
         volume = Volume(client.path('db'))
         try:
-            ClientCommands(volume).populate()
+            volume.populate()
             clones.populate(volume['context'], client.activity_dirs.value)
         finally:
             volume.close()
@@ -119,7 +119,7 @@ class Application(application.Daemon):
         self.accept()
 
         def final_start():
-            commands.populate()
+            volume.populate()
             self.jobs.spawn(clones.monitor, volume['context'],
                     client.activity_dirs.value)
 

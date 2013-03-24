@@ -354,6 +354,70 @@ class CloneTest(tests.Test):
         assert not lexists('share/mime/packages/%s.xml' % hashed_path)
         assert not lexists('share/mime/application/x-foo-bar.xml')
 
+    def test_Sync(self):
+        volume = Volume('client')
+        volume['context'].create({
+            'guid': 'context1',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'clone': 0,
+            })
+        volume['context'].create({
+            'guid': 'context2',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'clone': 1,
+            })
+        volume['context'].create({
+            'guid': 'context3',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'clone': 2,
+            })
+
+        os.makedirs('Activities')
+        os.utime('Activities', (volume['context'].mtime + 1, volume['context'].mtime + 1))
+
+        self.touch(clones._context_path('context1', 'clone'))
+        self.touch(clones._context_path('context2', 'clone'))
+        clones.populate(volume['context'], ['Activities'])
+
+        self.assertEqual(0, volume['context'].get('context1')['clone'])
+        self.assertEqual(2, volume['context'].get('context2')['clone'])
+        self.assertEqual(0, volume['context'].get('context3')['clone'])
+
+    def test_SyncByMtime(self):
+        volume = Volume('client')
+        volume['context'].create({
+            'guid': 'context',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'clone': 2,
+            })
+
+        os.makedirs('Activities')
+        os.utime('Activities', (2, 2))
+
+        volume['context'].mtime = 3
+        clones.populate(volume['context'], ['Activities'])
+        self.assertEqual(2, volume['context'].get('context')['clone'])
+
+        volume['context'].mtime = 2
+        clones.populate(volume['context'], ['Activities'])
+        self.assertEqual(2, volume['context'].get('context')['clone'])
+
+        volume['context'].mtime = 1
+        clones.populate(volume['context'], ['Activities'])
+        self.assertEqual(0, volume['context'].get('context')['clone'])
+
 
 if __name__ == '__main__':
     tests.main()
