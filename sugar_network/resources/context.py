@@ -117,11 +117,6 @@ class Context(Resource):
     def clone(self, value):
         return value
 
-    @db.stored_property(typecast=[int], default=(-1, -1),
-            permissions=db.ACCESS_PUBLIC | db.ACCESS_LOCAL)
-    def position(self, value):
-        return value
-
     @db.stored_property(typecast=[], default=[],
             permissions=db.ACCESS_PUBLIC | db.ACCESS_LOCAL)
     def dependencies(self, value):
