@@ -68,8 +68,13 @@ def to_int(value):
         if not value:
             return 0
         enforce(value.isdigit(), 'Argument should be an integer value')
-        return int(value)
-    return value
+    return int(value)
+
+
+def to_bool(value):
+    if isinstance(value, basestring):
+        return int(value.strip().lower() in ('true', '1', 'on'))
+    return int(bool(value))
 
 
 def to_list(value):

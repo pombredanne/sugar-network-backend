@@ -162,7 +162,6 @@ def _clone_impl(guid, spec):
 
 
 def _solve(context):
-    print '>', context
     pipe.trace('Start solving %s feed', context)
 
     cached_path, solution, stale = _get_cached_solution(context)
@@ -171,7 +170,6 @@ def _solve(context):
         return solution
 
     conn = client.IPCClient()
-    print solution, conn.get(cmd='inline')
     if solution is not None and not conn.get(cmd='inline'):
         pipe.trace('Reuse stale cached solution in offline mode')
         return solution

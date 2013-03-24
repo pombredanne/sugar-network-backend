@@ -368,7 +368,7 @@ from sugar_network.db.commands import \
         directory_command, directory_command_pre, directory_command_post, \
         document_command, document_command_pre, document_command_post, \
         property_command, property_command_pre, property_command_post, \
-        to_int, to_list, Request, Response, CommandsProcessor
+        to_int, to_list, to_bool, Request, Response, CommandsProcessor
 
 from sugar_network.db.document import Document
 

@@ -125,17 +125,17 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         return result
 
     @db.directory_command(method='GET',
-            arguments={'reply': db.to_list, 'clone': db.to_int},
+            arguments={
+                'reply': db.to_list,
+                'clone': db.to_int,
+                'favorite': db.to_bool,
+                },
             mime_type='application/json')
-    def find(self, request, response, document, reply, clone):
-        if document == 'context':
-            if self._inline.is_set():
-                if clone:
-                    return self._home.call(request, response)
-            else:
-                if not self._offline and not clone:
-                    request['clone'] = 2
-        return self._proxy_get(request, response)
+    def find(self, request, response, document, reply, clone, favorite):
+        if not self._inline.is_set() or clone or favorite:
+            return self._home.call(request, response)
+        else:
+            return self._proxy_get(request, response)
 
     @db.document_command(method='GET',
             arguments={'reply': db.to_list}, mime_type='application/json')
