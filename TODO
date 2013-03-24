@@ -21,3 +21,4 @@
   - (?) not only new content in offline mode
 - handle proxy prpos for prop= requests
 - reuse "layer" for home volume instead of "clone" and "favorite"
+- local preferences regarding feeds

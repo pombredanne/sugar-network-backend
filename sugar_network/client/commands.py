@@ -235,10 +235,13 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             mime_type='application/json')
     def feed(self, document, guid, layer, distro, request, response):
         enforce(document == 'context')
-        if self._inline.is_set():
-            return self._node_call(request, response)
 
-        context = self._home.volume['context'].get(guid)
+        try:
+            context = self._home.volume['context'].get(guid)
+        except http.NotFound:
+            context = None
+        if context is None or context['clone'] != 2:
+            return self._node_call(request, response)
 
         versions = []
         for path in clones.walk(context.guid):

@@ -45,7 +45,7 @@ def trace(message, *args):
         _trace = []
     if args:
         message = message % args
-    _logger.info(message)
+    _logger.debug(message)
     _trace.append(message)
 
 

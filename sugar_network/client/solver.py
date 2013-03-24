@@ -162,7 +162,7 @@ def _load_feed(conn, context):
         feed_content = conn.get(['context', context], cmd='feed',
                 # TODO stability='stable'
                 distro=lsb_release.distributor_id())
-        pipe.trace('Found %s feed', context)
+        pipe.trace('Found %s feed: %r', context, feed_content)
     except Exception:
         exception(_logger, 'Failed to fetch %r feed', context)
         pipe.trace('No feeds for %s', context)

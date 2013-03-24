@@ -569,7 +569,7 @@ class OnlineCommandsTest(tests.Test):
             },
             ipc.get(['context', context], cmd='feed'))
 
-    def test_RestrictLayers(self):
+    def test_Feeds_RestrictLayers(self):
         self.start_online_client([User, Context, Implementation, Artifact])
         ipc = IPCClient()
 
@@ -687,6 +687,69 @@ class OnlineCommandsTest(tests.Test):
             'implementations': [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
             },
             ipc.get(['context', context], cmd='feed', layer='public'))
+
+    def test_Feeds_PreferLocalFeeds(self):
+        home_volume = self.start_online_client()
+        ipc = IPCClient()
+
+        context = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = ipc.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '2',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {'*-*': {}},
+            })
+
+        self.assertEqual({
+            'name': 'title',
+            'implementations': [
+                {
+                    'version': '2',
+                    'arch': '*-*',
+                    'stability': 'stable',
+                    'guid': impl,
+                    },
+                ],
+            },
+            ipc.get(['context', context], cmd='feed'))
+
+        self.touch(('Activities/activity-1/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = ' + context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ]))
+        monitor = coroutine.spawn(clones.monitor, home_volume['context'], ['Activities'])
+        coroutine.dispatch()
+
+        self.assertEqual({
+            'name': 'TestActivity',
+            'implementations': [
+                {
+                    'version': '1',
+                    'arch': '*-*',
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'stability': 'stable',
+                    'guid': tests.tmpdir + '/Activities/activity-1',
+                    'requires': {},
+                    },
+                ],
+            },
+            ipc.get(['context', context], cmd='feed'))
 
     def test_InvalidateSolutions(self):
         self.start_online_client()
