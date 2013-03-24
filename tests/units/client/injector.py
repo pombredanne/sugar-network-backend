@@ -4,6 +4,7 @@
 import os
 import imp
 import json
+import time
 import pickle
 import shutil
 import zipfile
@@ -31,7 +32,7 @@ class InjectorTest(tests.Test):
         self.override(obs, 'get_repos', lambda: [])
         self.override(obs, 'presolve', lambda *args: None)
 
-    def test_clone_Online(self):
+    def test_clone(self):
         self.start_online_client([User, Context, Implementation])
         conn = IPCClient()
 
@@ -98,24 +99,6 @@ class InjectorTest(tests.Test):
             {'state': 'analyze', 'context': context},
             {'state': 'solved', 'context': context},
             {'state': 'download', 'context': context},
-            {'state': 'ready', 'context': context},
-            {'state': 'exit', 'context': context},
-            ],
-            [i for i in pipe])
-        assert exists('cache/implementation/%s' % impl)
-        assert exists('Activities/topdir/probe')
-        self.assertEqual('probe', file('Activities/topdir/probe').read())
-
-        os.unlink(blob_path)
-        os.unlink(blob_path + '.blob')
-        shutil.rmtree('Activities')
-
-        pipe = injector.clone(context)
-        log_path = tests.tmpdir +  '/.sugar/default/logs/%s_3.log' % context
-        self.assertEqual([
-            {'state': 'fork', 'context': context},
-            {'state': 'analyze', 'context': context},
-            {'state': 'solved', 'context': context},
             {'state': 'ready', 'context': context},
             {'state': 'exit', 'context': context},
             ],
@@ -210,7 +193,7 @@ class InjectorTest(tests.Test):
             pass
         self.assertEqual('exit', event['state'])
         __, (solution,) = json.load(file('cache/solutions/%s/%s' % (context[:2], context)))
-        self.assertEqual(tests.tmpdir + '/Activities/topdir', solution['id'])
+        self.assertEqual(tests.tmpdir + '/Activities/topdir', solution['path'])
 
     def test_launch_Online(self):
         self.start_online_client([User, Context, Implementation])
@@ -592,6 +575,51 @@ class InjectorTest(tests.Test):
         assert os.access('Activities/topdir/bin/probe', os.X_OK)
         assert not os.access('Activities/topdir/file1', os.X_OK)
         assert not os.access('Activities/topdir/test/file2', os.X_OK)
+
+    def test_clone_InvalidateSolutionByAbsentImpls(self):
+        self.start_online_client([User, Context, Implementation])
+        conn = IPCClient()
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = conn.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'topdir',
+                    },
+                },
+            })
+        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
+        self.touch((blob_path, json.dumps({})))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
+        bundle.writestr('topdir/probe', 'probe')
+        bundle.close()
+
+        for event in injector.clone(context):
+            pass
+        self.assertEqual('exit', event['state'])
+        shutil.rmtree('Activities/topdir')
+
+        for event in injector.clone(context):
+            pass
+        self.assertEqual('exit', event['state'])
+        assert exists('Activities/topdir')
 
     def test_launch_Arguments(self):
         forks = []

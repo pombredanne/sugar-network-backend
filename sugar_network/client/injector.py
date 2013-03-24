@@ -141,7 +141,7 @@ def _clone(context):
             cloned.append(dst_path)
             _logger.info('Clone implementation to %r', dst_path)
             util.cptree(path, dst_path)
-            impl['id'] = dst_path
+            impl['path'] = dst_path
     except Exception:
         while cloned:
             shutil.rmtree(cloned.pop(), ignore_errors=True)
@@ -230,13 +230,16 @@ def _get_cached_solution(guid):
         stale = (_mtime > os.stat(path).st_mtime)
     if not stale and _pms_path is not None:
         stale = (os.stat(_pms_path).st_mtime > os.stat(path).st_mtime)
-    if not stale:
-        for impl in solution:
+
+    for impl in solution:
+        impl_path = impl.get('path')
+        if impl_path and not exists(impl_path):
+            os.unlink(path)
+            return None, None
+        if not stale:
             spec = impl.get('spec')
             if spec and exists(spec):
                 stale = (os.stat(spec).st_mtime > os.stat(path).st_mtime)
-                if stale:
-                    break
 
     return solution, stale
 
