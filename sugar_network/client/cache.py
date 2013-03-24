@@ -15,7 +15,6 @@
 
 import os
 import shutil
-import logging
 from os.path import exists, join
 
 from sugar_network.client import Client, local_root
@@ -23,15 +22,13 @@ from sugar_network.client.bundle import Bundle
 from sugar_network.toolkit import BUFFER_SIZE, pipe, util
 
 
-_logger = logging.getLogger('client.cache')
-
-
 def get(guid):
     path = join(local_root.value, 'cache', 'implementation', guid)
     if exists(path):
+        pipe.trace('Reuse cached %s implementation from %r', guid, path)
         return path
 
-    _logger.debug('Fetch %r implementation', guid)
+    pipe.trace('Download %s implementation', guid)
     # TODO Per download progress
     pipe.feedback('download')
 

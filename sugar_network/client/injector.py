@@ -105,7 +105,6 @@ def _make(context):
         if 'path' in impl or impl['stability'] == 'packaged':
             continue
 
-        pipe.trace('Download %s implementation', impl['id'])
         # TODO Process different mountpoints
         impl_path = cache.get(impl['id'])
         if 'prefix' in impl:
@@ -142,10 +141,13 @@ def _clone(context):
             cloned.append(dst_path)
             _logger.info('Clone implementation to %r', dst_path)
             util.cptree(path, dst_path)
+            impl['id'] = dst_path
     except Exception:
         while cloned:
             shutil.rmtree(cloned.pop(), ignore_errors=True)
         raise
+
+    _set_cached_solution(context, solution)
 
 
 def _clone_impl(guid, spec):
@@ -164,7 +166,7 @@ def _clone_impl(guid, spec):
 def _solve(context):
     pipe.trace('Start solving %s feed', context)
 
-    cached_path, solution, stale = _get_cached_solution(context)
+    solution, stale = _get_cached_solution(context)
     if stale is False:
         pipe.trace('Reuse cached solution')
         return solution
@@ -177,7 +179,7 @@ def _solve(context):
     from sugar_network.client import solver
 
     solution = solver.solve(conn, context)
-    _set_cached_solution(cached_path, solution)
+    _set_cached_solution(context, solution)
 
     return solution
 
@@ -207,9 +209,12 @@ def _activity_env(impl, environ):
     os.chdir(impl_path)
 
 
-def _get_cached_solution(guid):
-    path = client.path('cache', 'solutions', guid[:2], guid)
+def _cached_solution_path(guid):
+    return client.path('cache', 'solutions', guid[:2], guid)
 
+
+def _get_cached_solution(guid):
+    path = _cached_solution_path(guid)
     solution = None
     if exists(path):
         try:
@@ -218,7 +223,7 @@ def _get_cached_solution(guid):
         except Exception, error:
             _logger.debug('Cannot open %r solution: %s', path, error)
     if solution is None:
-        return path, None, None
+        return None, None
 
     stale = (api_url != client.api_url.value)
     if not stale and _mtime is not None:
@@ -233,10 +238,11 @@ def _get_cached_solution(guid):
                 if stale:
                     break
 
-    return path, solution, stale
+    return solution, stale
 
 
-def _set_cached_solution(path, solution):
+def _set_cached_solution(guid, solution):
+    path = _cached_solution_path(guid)
     if not exists(dirname(path)):
         os.makedirs(dirname(path))
     with file(path, 'w') as f:

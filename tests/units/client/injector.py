@@ -171,6 +171,47 @@ class InjectorTest(tests.Test):
         assert exists('Activities/topdir/probe')
         self.assertEqual('probe', file('Activities/topdir/probe').read())
 
+    def test_clone_CachedSolutionPointsToClonedPath(self):
+        self.start_online_client([User, Context, Implementation])
+        conn = IPCClient()
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = conn.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'stability': 'stable',
+                    'size': 0,
+                    'extract': 'topdir',
+                    },
+                },
+            })
+        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
+        self.touch((blob_path, json.dumps({})))
+        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
+        bundle.writestr('topdir/probe', 'probe')
+        bundle.close()
+
+        for event in injector.clone(context):
+            pass
+        self.assertEqual('exit', event['state'])
+        __, (solution,) = json.load(file('cache/solutions/%s/%s' % (context[:2], context)))
+        self.assertEqual(tests.tmpdir + '/Activities/topdir', solution['id'])
+
     def test_launch_Online(self):
         self.start_online_client([User, Context, Implementation])
         conn = IPCClient()
