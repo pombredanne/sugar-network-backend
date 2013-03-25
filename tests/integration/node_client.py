@@ -27,7 +27,7 @@ class NodeClientTest(tests.Test):
             '--port=8100', '--data-root=node', '--cachedir=tmp', '-DDD',
             '--rundir=run', '--stats-node-step=0',
             ])
-        coroutine.sleep(1)
+        coroutine.sleep(2)
 
     def tearDown(self):
         self.waitpid(self.node_pid, signal.SIGINT)
@@ -86,18 +86,21 @@ class NodeClientTest(tests.Test):
 
     def test_UsecaseOOB(self):
         privkey_path = '.sugar/default/owner.key'
+        pubkey_path = '.sugar/default/owner.key.pub'
         os.unlink(privkey_path)
+        os.unlink(pubkey_path)
 
         self.assertEqual(
                 '\n'.join(['dep1.rpm', 'dep2.rpm', 'dep3.rpm']),
                 self.cli(['GET', '/context/package', 'cmd=deplist', 'repo=Fedora-14', '--anonymous', '--no-dbus', '--porcelain']))
 
-        self.cli(['PUT', '/context/context', '--anonymous', 'cmd=clone', '-jd', '1'])
+        self.cli(['PUT', '/context/context', '--anonymous', 'cmd=clone', 'nodeps=1', 'stability=stable', '-jd', '1'])
         self.cli(['PUT', '/context/context', '--anonymous', 'cmd=favorite', '-jd', 'true'])
         assert exists('Activities/Chat.activity/activity/activity.info')
         self.assertEqual(True, json.load(file('client/db/context/co/context/favorite'))['value'])
 
         assert not exists(privkey_path)
+        assert not exists(pubkey_path)
 
     def cli(self, cmd, stdin=None):
         cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd

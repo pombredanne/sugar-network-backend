@@ -170,7 +170,8 @@ def IPCRouter(*args, **kwargs):
     class _IPCRouter(Router):
 
         def authenticate(self, request):
-            return sugar_uid()
+            if not anonymous.value:
+                return sugar_uid()
 
         def call(self, request, response):
             request.access_level = db.ACCESS_LOCAL

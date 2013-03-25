@@ -28,7 +28,7 @@ from gevent import monkey
 from sugar_network import db, client, toolkit
 from sugar_network.resources.volume import Volume
 from sugar_network.client import IPCRouter
-from sugar_network.client.commands import CachedClientCommands
+from sugar_network.client.commands import ClientCommands
 from sugar_network.toolkit import printf, application, coroutine, util
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
@@ -146,29 +146,29 @@ class Application(application.Application):
 
         pid_path = None
         server = None
-        cli = None
+        cp = None
         try:
-            if not self.check_for_instance():
+            if self.check_for_instance():
+                cp = client.IPCClient()
+            else:
                 pid_path = self.new_instance()
                 if not client.anonymous.value:
                     util.ensure_key(client.key_path())
                 home = Volume(client.path('db'))
-                cli = CachedClientCommands(home, offline=offline.value)
+                cp = ClientCommands(home, offline=offline.value)
                 if not offline.value:
-                    for __ in cli.subscribe(event='inline', state='online'):
+                    for __ in cp.subscribe(event='inline', state='online'):
                         break
                 server = coroutine.WSGIServer(
-                        ('localhost', client.ipc_port.value), IPCRouter(cli))
+                        ('localhost', client.ipc_port.value), IPCRouter(cp))
                 coroutine.spawn(server.serve_forever)
                 coroutine.dispatch()
-
-            result = client.IPCClient().call(request, response)
-
+            result = cp.call(request, response)
         finally:
             if server is not None:
                 server.close()
-            if cli is not None:
-                cli.close()
+            if cp is not None:
+                cp.close()
             if pid_path:
                 os.unlink(pid_path)
 
