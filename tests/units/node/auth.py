@@ -58,7 +58,7 @@ class AuthTest(tests.Test):
             ))
 
         self.start_master()
-        self.assertRaises(RuntimeError, conn.put, ['context', 'guid'], {'title': 'probe'})
+        self.assertRaises(http.Forbidden, conn.put, ['context', 'guid'], {'title': 'probe'})
 
         self.touch(('authorization.conf', [
             '[%s]' % tests.UID,
@@ -98,7 +98,7 @@ class AuthTest(tests.Test):
         self.start_master()
 
         auth.reset()
-        self.assertRaises(RuntimeError, conn.put, ['context', 'guid'], {'title': 'probe'})
+        self.assertRaises(http.Forbidden, conn.put, ['context', 'guid'], {'title': 'probe'})
 
         self.touch(('authorization.conf', [
             '[anonymous]',

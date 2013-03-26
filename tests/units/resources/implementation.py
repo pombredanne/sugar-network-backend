@@ -9,6 +9,7 @@ from sugar_network.resources.volume import Volume
 from sugar_network.resources.implementation import _encode_version, Implementation
 from sugar_network.node.commands import NodeCommands
 from sugar_network.client import IPCClient
+from sugar_network.toolkit import http
 
 
 class ImplementationTest(tests.Test):
@@ -104,7 +105,7 @@ class ImplementationTest(tests.Test):
                 'stability': 'stable',
                 'notes': '',
                 }
-        self.assertRaises(RuntimeError, client.post, ['implementation'], impl)
+        self.assertRaises(http.Forbidden, client.post, ['implementation'], impl)
         self.assertEqual(0, home_volume['implementation'].find()[1])
 
         home_volume['context'].update('context', author={tests.UID: None})

@@ -10,7 +10,7 @@ from sugar_network.client import IPCClient, clones
 from sugar_network.client.commands import ClientCommands
 from sugar_network.client import IPCRouter
 from sugar_network.resources.volume import Volume
-from sugar_network.toolkit import coroutine
+from sugar_network.toolkit import coroutine, http
 
 
 class OfflineCommandsTest(tests.Test):
@@ -50,7 +50,7 @@ class OfflineCommandsTest(tests.Test):
         assert exists(guid_path)
 
         ipc.delete(['context', guid])
-        self.assertRaises(RuntimeError, ipc.get, ['context', guid])
+        self.assertRaises(http.NotFound, ipc.get, ['context', guid])
         assert not exists(guid_path)
 
     def test_whoami(self):

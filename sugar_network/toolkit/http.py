@@ -64,22 +64,26 @@ class Redirect(StatusPass):
 class BadRequest(Status):
 
     status = '400 Bad Request'
+    status_code = 400
 
 
 class Unauthorized(Status):
 
     status = '401 Unauthorized'
     headers = {'WWW-Authenticate': 'Sugar'}
+    status_code = 401
 
 
 class Forbidden(Status):
 
     status = '403 Forbidden'
+    status_code = 403
 
 
 class NotFound(Status):
 
     status = '404 Not Found'
+    status_code = 404
 
 
 class Client(object):
@@ -173,6 +177,9 @@ class Client(object):
                             '\n' + content if content else None)
                     response.raise_for_status()
                 else:
+                    for cls in _FORWARD_STATUSES:
+                        if response.status_code == cls.status_code:
+                            raise cls(error['error'])
                     raise RuntimeError(error['error'])
 
             return response
@@ -309,3 +316,10 @@ def _sign(key_path, data):
     from M2Crypto import DSA
     key = DSA.load_key(key_path)
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
+
+
+_FORWARD_STATUSES = [
+        BadRequest,
+        Forbidden,
+        NotFound,
+        ]

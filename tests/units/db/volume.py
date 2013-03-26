@@ -598,7 +598,7 @@ class VolumeTest(tests.Test):
         cp.call(request, db.Response())
         self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
 
-    def test_DoNotPassGuidsForCreate(self):
+    def __test_DoNotPassGuidsForCreate(self):
 
         class TestDocument(db.Document):
 
