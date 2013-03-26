@@ -469,6 +469,61 @@ class VolumeTest(tests.Test):
                 {'commit': [[1, 1]]},
                 next(patch))
 
+    def test_diff_SkipBrokenBlobUrls(self):
+
+        class Document(db.Document):
+
+            @db.blob_property()
+            def prop(self, value):
+                return value
+
+        volume = Volume('db', [Document])
+        volume['document'].create(guid='1')
+        volume['document'].set_blob('1', 'prop', url='http://foo/bar')
+        volume['document'].create(guid='2')
+        self.utime('db', 1)
+
+        self.assertEqual([
+            {'document': 'document'},
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1},
+                    'mtime': {'value': 0, 'mtime': 1},
+                    'ctime': {'value': 0, 'mtime': 1},
+                    'prop': {'url': 'http://foo/bar', 'mime_type': 'application/octet-stream', 'mtime': 1},
+                    },
+                },
+            {'guid': '2',
+                'diff': {
+                    'guid': {'value': '2', 'mtime': 1},
+                    'mtime': {'value': 0, 'mtime': 1},
+                    'ctime': {'value': 0, 'mtime': 1},
+                    },
+                },
+            {'commit': [[1, 3]]},
+            ],
+            [i for i in diff(volume, util.Sequence([[1, None]]), fetch_blobs=False)])
+
+        self.assertEqual([
+            {'document': 'document'},
+            {'guid': '1',
+                'diff': {
+                    'guid': {'value': '1', 'mtime': 1},
+                    'mtime': {'value': 0, 'mtime': 1},
+                    'ctime': {'value': 0, 'mtime': 1},
+                    },
+                },
+            {'guid': '2',
+                'diff': {
+                    'guid': {'value': '2', 'mtime': 1},
+                    'mtime': {'value': 0, 'mtime': 1},
+                    'ctime': {'value': 0, 'mtime': 1},
+                    },
+                },
+            {'commit': [[1, 1], [3, 3]]},
+            ],
+            [i for i in diff(volume, util.Sequence([[1, None]]), fetch_blobs=True)])
+
     def test_merge_Blobs(self):
 
         class Document(db.Document):

@@ -30,7 +30,7 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
     connection = http.Client()
     if out_seq is None:
         out_seq = util.Sequence([])
-    is_initial_diff = not out_seq
+    is_the_only_seq = not out_seq
     if layer:
         if isinstance(layer, basestring):
             layer = [layer]
@@ -53,10 +53,17 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
                                'blob': util.iter_file(blob_path),
                                }
                     elif fetch_blobs and 'url' in meta:
-                        blob = connection.request('GET',
-                                meta.pop('url'), allow_redirects=True,
-                                # We need uncompressed size
-                                headers={'Accept-Encoding': ''})
+                        url = meta.pop('url')
+                        try:
+                            blob = connection.request('GET', url,
+                                    allow_redirects=True,
+                                    # We need uncompressed size
+                                    headers={'Accept-Encoding': ''})
+                        except Exception:
+                            _logger.exception('Cannot fetch %r for %s:%s:%s',
+                                    url, document, guid, prop)
+                            is_the_only_seq = False
+                            continue
                         yield {'guid': guid,
                                'diff': {prop: meta},
                                'blob_size':
@@ -69,7 +76,7 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
                 if adiff:
                     yield {'guid': guid, 'diff': adiff}
                 out_seq.include(adiff_seq)
-        if is_initial_diff:
+        if is_the_only_seq:
             # There is only one diff, so, we can stretch it to remove all holes
             out_seq.stretch()
     except StopIteration:
