@@ -131,6 +131,18 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
     def get(self, request, response):
         return self._proxy_get(request, response)
 
+    @db.property_command(method='GET', mime_type='application/json')
+    def get_prop(self, request, response):
+        try:
+            return self._node_call(request, response)
+        except http.NotFound:
+            if self._inline.is_set():
+                # In case if user got offline guids (clone=2 requests)
+                # that don't exist in online
+                return self._home.call(request, response)
+            else:
+                raise
+
     @db.document_command(method='GET', cmd='make')
     def make(self, document, guid):
         enforce(document == 'context', 'Only contexts can be launched')

@@ -250,6 +250,30 @@ class CommandsTest(tests.Test):
         assert not volume['report'].exists(guid)
         assert self.node_volume['report'].exists(guid)
 
+    def test_SwitchToOfflineForAbsentOnlineProps(self):
+        volume = Volume('client')
+        cp = ClientCommands(volume)
+
+        post = db.Request(method='POST', document='context')
+        post.content_type = 'application/json'
+        post.content = {
+                'type': 'activity',
+                'title': 'title',
+                'summary': 'summary',
+                'description': 'description',
+                }
+        guid = cp.call(post)
+
+        self.assertEqual('title', cp.call(db.Request(method='GET', document='context', guid=guid, prop='title')))
+
+        trigger = self.wait_for_events(cp, event='inline', state='online')
+        self.start_master()
+        cp.call(db.Request(method='GET', cmd='whoami'))
+        trigger.wait()
+
+        assert not self.node_volume['context'].exists(guid)
+        self.assertEqual('title', cp.call(db.Request(method='GET', document='context', guid=guid, prop='title')))
+
 
 if __name__ == '__main__':
     tests.main()
