@@ -394,7 +394,7 @@ class SyncMasterTest(tests.Test):
 
     def test_pull_EmptyPackets(self):
         self.master._pulls = {
-            'pull': lambda layer, in_seq, out_seq=None, exclude_seq=None: \
+            'pull': lambda layer, in_seq, out_seq=None, exclude_seq=None, **kwargs: \
                 ('diff', None, [{'layer': layer, 'seq': in_seq}]),
             }
 
@@ -433,8 +433,8 @@ class SyncMasterTest(tests.Test):
             yield {'layer': layer, 'seq': seq}
 
         self.master._pulls = {
-            'pull': lambda layer, in_seq, out_seq, exclude_seq=None: ('diff', None, diff(layer, in_seq, out_seq)),
-            'files_pull': lambda layer, in_seq, out_seq, exclude_seq=None: ('files_diff', None, diff(layer, in_seq, out_seq)),
+            'pull': lambda layer, in_seq, out_seq, exclude_seq=None, **kwargs: ('diff', None, diff(layer, in_seq, out_seq)),
+            'files_pull': lambda layer, in_seq, out_seq, exclude_seq=None, **kwargs: ('files_diff', None, diff(layer, in_seq, out_seq)),
             }
 
         request = Request()

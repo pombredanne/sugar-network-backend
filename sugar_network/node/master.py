@@ -26,6 +26,8 @@ from sugar_network.node.commands import NodeCommands
 from sugar_network.toolkit import cachedir, coroutine, util, enforce
 
 
+_ONE_WAY_DOCUMENTS = ['report']
+
 _logger = logging.getLogger('node.master')
 
 
@@ -36,7 +38,8 @@ class MasterCommands(NodeCommands):
 
         self._pulls = {
             'pull': lambda **kwargs:
-                ('diff', None, volume.diff(self.volume, **kwargs)),
+                ('diff', None, volume.diff(self.volume,
+                    ignore_documents=_ONE_WAY_DOCUMENTS, **kwargs)),
             'files_pull': lambda **kwargs:
                 ('files_diff', None, self._files.diff(**kwargs)),
             }

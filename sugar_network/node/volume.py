@@ -26,7 +26,7 @@ _logger = logging.getLogger('node.volume')
 
 
 def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
-        fetch_blobs=False, **kwargs):
+        fetch_blobs=False, ignore_documents=None, **kwargs):
     connection = http.Client()
     if out_seq is None:
         out_seq = util.Sequence([])
@@ -37,6 +37,8 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
         layer.append('common')
     try:
         for document, directory in volume.items():
+            if ignore_documents and document in ignore_documents:
+                continue
             coroutine.dispatch()
             directory.commit()
             yield {'document': document}
