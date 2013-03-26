@@ -223,12 +223,12 @@ class MasterSlaveTest(tests.Test):
             }, cmd='stats-upload')
 
         # Clone initial dump from master
-        pid = self.popen('V=1 sugar-network-sync sync1 http://localhost:8100', shell=True)
+        pid = self.popen('V=1 sugar-network-sync sync1/sugar-network-sync http://localhost:8100', shell=True)
         self.waitpid(pid, 0)
         # Import cloned data on slave
-        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync1')
+        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync1/sugar-network-sync')
         # Upload slave initial data to master
-        pid = self.popen('V=1 sync1/sugar-network-sync', shell=True)
+        pid = self.popen('V=1 sync1/sugar-network-sync/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
 
         # Update data on master
@@ -256,12 +256,12 @@ class MasterSlaveTest(tests.Test):
         slave.put(['context', guid_1, 'preview'], 'preview1_')
 
         # Export slave changes
-        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2')
+        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2/sugar-network-sync')
         # Sync them with master
-        pid = self.popen('V=1 sync2/sugar-network-sync', shell=True)
+        pid = self.popen('V=1 sync2/sugar-network-sync/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
         # Process master's reply
-        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2')
+        slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2/sugar-network-sync')
 
         self.assertEqual(
                 {'total': 6, 'result': [

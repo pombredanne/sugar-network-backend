@@ -111,7 +111,8 @@ class MasterCommands(NodeCommands):
             pull = self._pull_queue.set(pull_key, out_seq,
                     sync.sneakernet_encode,
                     [self._pulls[op](in_seq=seq, out_seq=out_seq,
-                        exclude_seq=exclude_seq, layer=layer)],
+                        exclude_seq=exclude_seq, layer=layer,
+                        fetch_blobs=True)],
                     limit=accept_length, src=self.guid)
             _logger.debug('Start new %r', pull)
 
