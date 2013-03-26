@@ -53,7 +53,7 @@ class SlaveCommands(NodeCommands):
 
     @db.volume_command(method='POST', cmd='online-sync',
             permissions=db.ACCESS_LOCAL)
-    def online_sync(self):
+    def online_sync(self, no_pull=False):
         profile = {
                 'name': self.guid,
                 'color': '#000000,#000000',
@@ -61,23 +61,25 @@ class SlaveCommands(NodeCommands):
                 'machine_uuid': '',
                 'pubkey': util.pubkey(self._key_path),
                 }
-        cli = http.Client(api_url.value,
+        conn = http.Client(api_url.value,
                 creds=(self.guid, self._key_path, lambda: profile))
 
         # TODO In case if slave user is not created on master
         # `http.Client` should handle re-POSTing without loosing payload
-        cli.get(cmd='whoami')
+        conn.get(cmd='whoami')
 
-        push = [('diff', None, volume.diff(self.volume, self._push_seq)),
+        push = [('diff', None, volume.diff(self.volume, self._push_seq))]
+        if not no_pull:
+            push.extend([
                 ('pull', {
                     'sequence': self._pull_seq,
                     'layer': node.sync_layers.value,
                     }, None),
                 ('files_pull', {'sequence': self._files_seq}, None),
-                ]
+                ])
         if stats_user.stats_user.value:
             push.append(('stats_diff', None, stats_user.diff()))
-        response = cli.request('POST',
+        response = conn.request('POST',
                 data=sync.chunked_encode(push,
                     src=self.guid, dst=self._master_guid),
                 params={'cmd': 'sync'},

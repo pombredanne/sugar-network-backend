@@ -26,17 +26,12 @@ from os.path import join, exists
 
 import MySQLdb as mdb
 
-import active_document as ad
-from sugar_network import sugar, Client
-from sugar_network.toolkit.collection import PersistentSequence, Sequence
-from sugar_network.zerosugar.licenses import GOOD_LICENSES
-from sugar_network.zerosugar.spec import parse_version
-from sugar_network.zerosugar.bundle import Bundle
-from sugar_network.resources.volume import Volume
+from sugar_network import db, client
 from sugar_network.node import data_root
-from sugar_network.client import api_url
-from active_toolkit.options import Option
-from active_toolkit import application
+from sugar_network.client.bundle import Bundle
+from sugar_network.resources.volume import Volume
+from sugar_network.node.slave import SlaveCommands
+from sugar_network.toolkit import util, licenses, application, Option
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
@@ -138,14 +133,14 @@ class Application(application.Application):
     @property
     def volume(self):
         if self._volume is None:
-            self._volume = Volume(join(data_root.value, 'db'))
+            self._volume = Volume(data_root.value)
             self._volume.populate()
         return self._volume
 
     @property
     def client(self):
         if self._client is None:
-            self._client = Client(api_url.value)
+            self._client = client.Client()
         return self._client
 
     def epilog(self):
@@ -153,7 +148,7 @@ class Application(application.Application):
             self._volume.close()
 
     @application.command(
-            'consecutively launch of pull and push commands')
+            'consecutively launch pull and push commands')
     def sync(self):
         self.pull()
         self.push()
@@ -217,21 +212,8 @@ class Application(application.Application):
             'submit pulled activities.sugarlabs.org content to '
             'Sugar Network server')
     def push(self):
-        pull_seq = PersistentSequence(join(data_root.value, 'push'), [1, None])
-        last_seqno = None
-        try:
-            for document, directory in self.volume.items():
-                for guid, seqno, diff in directory.diff(pull_seq, limit=1024):
-                    for meta in diff.values():
-                        if 'path' in meta:
-                            with file(meta.pop('path')) as f:
-                                meta['content'] = b64encode(f.read())
-                    self.client.put([document, guid], diff, cmd='merge')
-                    last_seqno = max(last_seqno, seqno)
-        finally:
-            if last_seqno is not None:
-                pull_seq.exclude(1, last_seqno)
-                pull_seq.commit()
+        node = SlaveCommands(join(data_root.value, 'node.key'), self.volume)
+        node.online_sync(no_pull=True)
 
     def sync_activities(self, addon_id=None):
         sql = """
@@ -249,9 +231,12 @@ class Application(application.Application):
         for addon_id, bundle_id in self.sqlexec(sql):
             if [i for i in IGNORE_ADDONS if i in bundle_id]:
                 continue
-            self.sync_context(addon_id, bundle_id)
-            self.sync_versions(addon_id, bundle_id)
-            self.sync_reviews(addon_id, bundle_id)
+            try:
+                self.sync_context(addon_id, bundle_id)
+                self.sync_versions(addon_id, bundle_id)
+                self.sync_reviews(addon_id, bundle_id)
+            except Exception, error:
+                print '-- Cannot sync %r addon: %s' % (addon_id, error)
 
     def sync_reviews(self, addon_id, bundle_id):
         sql = """
@@ -319,7 +304,7 @@ class Application(application.Application):
                 continue
 
             try:
-                parsed_version = parse_version(version)
+                parsed_version = util.parse_version(version)
             except Exception, error:
                 print '-- Cannot parse %r version for %r: %s' % \
                         (version, bundle_id, error)
@@ -495,8 +480,8 @@ class Application(application.Application):
                 }
 
         requires = []
-        sugar_min = tuple(parse_version(sugar_min)[0])
-        sugar_max = tuple(parse_version(sugar_max)[0])
+        sugar_min = tuple(util.parse_version(sugar_min)[0])
+        sugar_max = tuple(util.parse_version(sugar_max)[0])
         for release, name in SUGAR_RELEASES.items():
             if release >= sugar_min and release <= sugar_max:
                 requires.append(name)
@@ -522,7 +507,7 @@ class Application(application.Application):
                 }
 
     def parse_license(self, alicense):
-        for good in GOOD_LICENSES:
+        for good in licenses.GOOD_LICENSES:
             if not alicense or good in ['ec']:
                 continue
             if good in alicense:
@@ -610,14 +595,11 @@ mysql_password = Option(
 Option.seek('main', [application.debug])
 Option.seek('aslo', [mysql_server, mysql_user, mysql_password, mysql_database])
 Option.seek('node', [data_root])
-Option.seek('client', [api_url, sugar.keyfile])
+Option.seek('client', [client.api_url])
 
-ad.index_write_queue.value = 1024 * 10
-ad.index_flush_threshold.value = 0
-ad.index_flush_timeout.value = 0
-
-sugar.nickname = lambda: 'aslo'
-sugar.color = lambda: '#000000,#000000'
+db.index_write_queue.value = 1024 * 10
+db.index_flush_threshold.value = 0
+db.index_flush_timeout.value = 0
 
 application = Application(
         name='sugar-network-aslo',
