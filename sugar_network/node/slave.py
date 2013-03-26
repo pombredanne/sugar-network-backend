@@ -30,7 +30,7 @@ from sugar_network.toolkit import exception, enforce
 
 
 # Flag file to recognize a directory as a synchronization directory
-_SYNC_DIRNAME = '.sugar-network-sync'
+_SYNC_DIRNAME = 'sugar-network-sync'
 
 _logger = logging.getLogger('node.slave')
 
@@ -210,7 +210,8 @@ class PersonalCommands(SlaveCommands):
         for mountpoint in self._mounts:
             self._localcast({'event': 'sync_next', 'path': mountpoint})
             try:
-                self._offline_session = self._offline_sync(mountpoint,
+                self._offline_session = self._offline_sync(
+                        join(mountpoint, _SYNC_DIRNAME),
                         **(self._offline_session or {}))
             except Exception, error:
                 exception(_logger, 'Failed to complete synchronization')

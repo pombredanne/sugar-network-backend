@@ -32,9 +32,6 @@ _SNEAKERNET_SUFFIX = '.sneakernet'
 # Leave at leat n bytes in fs whle calling `encode_to_file()`
 _SNEAKERNET_RESERVED_SIZE = 1024 * 1024
 
-# Indication file to place to sneakernet synchronization directory
-_SNEAKERNET_FLAG_FILE = '.sugar-network-sync'
-
 _logger = logging.getLogger('node.sync')
 
 
@@ -115,8 +112,6 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
     if path is None:
         if not exists(root):
             os.makedirs(root)
-        with file(join(root, _SNEAKERNET_FLAG_FILE), 'w'):
-            pass
         filename = toolkit.uuid() + _SNEAKERNET_SUFFIX
         path = util.unique_filename(root, filename)
     else:

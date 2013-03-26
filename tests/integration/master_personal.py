@@ -108,14 +108,14 @@ class MasterPersonalTest(tests.Test):
             }, cmd='stats-upload')
 
         # Clone initial dump from master
-        pid = self.popen('V=1 sugar-network-sync mnt http://localhost:8100', shell=True)
+        pid = self.popen('V=1 sugar-network-sync mnt/sugar-network-sync http://localhost:8100', shell=True)
         self.waitpid(pid, 0)
         # Import cloned data on client
         trigger = self.wait_for_events(client, event='sync_complete')
         os.rename('mnt', 'client/mnt/1')
         trigger.wait()
         # Upload client initial data to master
-        pid = self.popen('V=1 client/mnt/1/sugar-network-sync', shell=True)
+        pid = self.popen('V=1 client/mnt/1/sugar-network-sync/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
 
         # Update data on master
@@ -147,7 +147,7 @@ class MasterPersonalTest(tests.Test):
         os.rename('client/mnt/1', 'client/mnt/2')
         trigger.wait()
         # Sync them with master
-        pid = self.popen('V=1 client/mnt/2/sugar-network-sync', shell=True)
+        pid = self.popen('V=1 client/mnt/2/sugar-network-sync/sugar-network-sync', shell=True)
         self.waitpid(pid, 0)
         # Process master's reply
         trigger = self.wait_for_events(client, event='sync_complete')

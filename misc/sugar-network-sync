@@ -151,7 +151,7 @@ FS=
 disk_limit=$(expr 1024 \* 1024 \* 10)
 
 if [ $# -eq 0 ]; then
-    if [ -e "$(dirname $0)/.sugar-network-sync" ]; then
+    if [ "$(basename $(dirname $(realpath $0)))" = "sugar-network-sync" ]; then
         # Script was launched from sync directory, so, process sync
         sync_path="$(dirname $0)"
     else
@@ -164,8 +164,8 @@ mkdir -p "${sync_path}" || abort "Cannot create ${sync_path} sync directory"
 cd "${sync_path}" || abort "Cannot switch to ${sync_path} sync directory"
 
 mountpoint="$(stat --printf %m .)"
-[ "${mountpoint}" = "$PWD" ] || info "NOTICE To make $PWD capable for further auto synchronization on a node side, place its content to the mount's root"
-touch .sugar-network-sync
+[ "${mountpoint}/sugar-network-sync" = "$PWD" ] || \
+    info "NOTICE To make $PWD directory capable for further auto synchronization, place it to the mount's root"
 
 if [ "${clone_url}" ]; then
     info "Clone master"
@@ -174,7 +174,7 @@ if [ "${clone_url}" ]; then
 fi
 
 # Upload push packets at first
-for package in $(find -type f -name '*.sneakernet'); do
+for package in $(find -type f -name '*.sneakernet' -printf '%f\n'); do
     api_url="$(get_header_key "${package}" api_url)"
     if [ -z "${api_url}" ]; then
         info "Skip ${package}, it is not intended for uploading"
