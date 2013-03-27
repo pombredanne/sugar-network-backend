@@ -17,7 +17,7 @@ import os
 import shutil
 from os.path import exists, join
 
-from sugar_network.client import Client, local_root
+from sugar_network.client import IPCClient, local_root
 from sugar_network.client.bundle import Bundle
 from sugar_network.toolkit import BUFFER_SIZE, pipe, util
 
@@ -32,7 +32,7 @@ def get(guid):
     # TODO Per download progress
     pipe.feedback('download')
 
-    response = Client().request('GET', ['implementation', guid, 'data'],
+    response = IPCClient().request('GET', ['implementation', guid, 'data'],
             allow_redirects=True)
     content_length = int(response.headers.get('Content-Length', '0'))
 
