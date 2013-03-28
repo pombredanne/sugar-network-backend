@@ -232,6 +232,8 @@ class Client(object):
                         reply.headers['Content-Disposition']
             if 'Content-Type' in reply.headers:
                 response.content_type = reply.headers['Content-Type']
+            if 'Content-Length' in reply.headers:
+                response.content_length = int(reply.headers['Content-Length'])
 
         if reply.headers.get('Content-Type') == 'application/json':
             return json.loads(reply.content)

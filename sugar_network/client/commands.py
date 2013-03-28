@@ -132,11 +132,12 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         return self._proxy_get(request, response)
 
     @db.property_command(method='GET', mime_type='application/json')
-    def get_prop(self, request, response):
+    def get_prop(self, request, response, document, guid):
         try:
             return self._node_call(request, response)
         except http.NotFound:
-            if self._inline.is_set():
+            if self._inline.is_set() and \
+                    self._home.volume[document].exists(guid):
                 # In case if user got offline guids (clone=2 requests)
                 # that don't exist in online
                 return self._home.call(request, response)
