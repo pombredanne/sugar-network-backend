@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import time
+import json
 from os.path import exists
 
 from __init__ import tests
@@ -336,14 +337,21 @@ class NodeTest(tests.Test):
 
     def test_PresolveRoute(self):
         node.files_root.value = '.'
-        self.touch(('presolve/repo/arch/package', 'file'))
+        self.touch(('presolve/repo/arch/package', json.dumps([
+            {'path': '/1', 'foo': 1},
+            {'path': '/2/3', 'bar': 2},
+            ])))
         volume = self.start_master()
         client = Client()
 
         self.assertRaises(RuntimeError, client.get, ['presolve'])
         self.assertRaises(RuntimeError, client.get, ['presolve', 'repo'])
         self.assertRaises(RuntimeError, client.get, ['presolve', 'repo', 'arch'])
-        self.assertEqual('file', client.get(['presolve', 'repo', 'arch', 'package']))
+        self.assertEqual([
+            {'url': 'http://localhost:8888/1', 'foo': 1},
+            {'url': 'http://localhost:8888/2/3', 'bar': 2},
+            ],
+            client.get(['presolve', 'repo', 'arch', 'package']))
 
     def test_PackagesRoute(self):
         node.files_root.value = '.'

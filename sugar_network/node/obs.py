@@ -17,7 +17,7 @@ import os
 import json
 import logging
 from xml.etree import cElementTree as ElementTree
-from os.path import join, exists, basename
+from os.path import join, exists, basename, relpath
 
 from sugar_network.toolkit import Option, http, util, exception, enforce
 
@@ -96,9 +96,11 @@ def presolve(aliases, dst_path):
                 if not exists(packages_dir):
                     os.makedirs(packages_dir)
                 for info in packages:
-                    path = join(packages_dir, basename(info['url']))
+                    url = info.pop('url')
+                    path = join(packages_dir, basename(url))
                     if not exists(path):
-                        _client.download(info['url'], path)
+                        _client.download(url, path)
+                    info['path'] = os.sep + relpath(path, dst_path)
                 presolve_dir = join(dst_path, 'presolve', repo['name'], arch)
                 if not exists(presolve_dir):
                     os.makedirs(presolve_dir)

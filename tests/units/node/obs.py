@@ -128,13 +128,13 @@ class ObsTest(tests.Test):
             }, '.')
 
         self.assertEqual([
-            {'url': 'http://pkg1-1.prm', 'name': 'pkg1-1'},
-            {'url': 'http://pkg1-2.prm', 'name': 'pkg1-2'},
+            {'path': '/packages/OLPC-11.3.1/i586/pkg1-1.prm', 'name': 'pkg1-1'},
+            {'path': '/packages/OLPC-11.3.1/i586/pkg1-2.prm', 'name': 'pkg1-2'},
             ],
             json.load(file('presolve/OLPC-11.3.1/i586/pkg1')))
         self.assertEqual([
-            {'url': 'http://pkg2-1.prm', 'name': 'pkg2-1'},
-            {'url': 'http://pkg2-2.prm', 'name': 'pkg2-2'},
+            {'path': '/packages/OLPC-11.3.1/i586/pkg2-1.prm', 'name': 'pkg2-1'},
+            {'path': '/packages/OLPC-11.3.1/i586/pkg2-2.prm', 'name': 'pkg2-2'},
             ],
             json.load(file('presolve/OLPC-11.3.1/i586/pkg2')))
         self.assertEqual('1', file('packages/OLPC-11.3.1/i586/pkg1-1.prm').read())

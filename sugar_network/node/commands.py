@@ -13,8 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
 import logging
 import hashlib
+from os.path import join
 
 from sugar_network import db, node
 from sugar_network.node import auth, stats_node
@@ -49,7 +51,12 @@ class NodeCommands(db.VolumeCommands, Commands):
     @db.route('GET', '/presolve')
     def route_presolve(self, request, response):
         enforce(node.files_root.value, http.BadRequest, 'Disabled')
-        return util.iter_file(node.files_root.value, *request.path)
+        with file(join(node.files_root.value, *request.path)) as f:
+            deps = json.load(f)
+        for info in deps:
+            info['url'] = request.static_prefix + info.pop('path')
+        response.content_type = 'application/json'
+        return deps
 
     @db.route('GET', '/packages')
     def route_packages(self, request, response):
