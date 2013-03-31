@@ -90,8 +90,8 @@ def pubkey(path):
     raise RuntimeError('No valid DSA public keys in %r' % path)
 
 
-def iter_file(path):
-    with file(path, 'rb') as f:
+def iter_file(*path):
+    with file(join(*path), 'rb') as f:
         while True:
             chunk = f.read(BUFFER_SIZE)
             if not chunk:

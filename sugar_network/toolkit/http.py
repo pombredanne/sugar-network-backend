@@ -25,7 +25,8 @@ import requests
 from requests.sessions import Session
 
 from sugar_network import client, toolkit
-from sugar_network.toolkit import coroutine, util, exception, enforce
+from sugar_network.toolkit import coroutine, util
+from sugar_network.toolkit import BUFFER_SIZE, exception, enforce
 
 
 ConnectionError = requests.ConnectionError
@@ -138,6 +139,18 @@ class Client(object):
     def delete(self, path_=None, **kwargs):
         response = self.request('DELETE', path_, params=kwargs)
         return self._decode_reply(response)
+
+    def download(self, path, dst):
+        response = self.request('GET', path, allow_redirects=True)
+        content_length = int(response.headers.get('Content-Length', '0'))
+        chunk_size = min(content_length, BUFFER_SIZE)
+        f = file(dst, 'wb') if isinstance(dst, basestring) else dst
+        try:
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                f.write(chunk)
+        finally:
+            if isinstance(dst, basestring):
+                f.close()
 
     def request(self, method, path=None, data=None, headers=None, allowed=None,
             params=None, **kwargs):

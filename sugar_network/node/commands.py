@@ -13,13 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import logging
 import hashlib
-from os.path import exists, join
 
 from sugar_network import db, node
-from sugar_network.node import auth, obs, stats_node
+from sugar_network.node import auth, stats_node
 from sugar_network.resources.volume import Commands
 from sugar_network.toolkit import http, util, coroutine, exception, enforce
 
@@ -48,24 +46,15 @@ class NodeCommands(db.VolumeCommands, Commands):
     def guid(self):
         return self._guid
 
-    @db.route('GET', '/packages')
-    def packages(self, request, response):
-        response.content_type = 'application/json'
-        if len(request.path) <= 3:
-            path = join(obs.obs_presolve_path.value, *request.path[1:])
-            return os.listdir(path)
-        elif len(request.path) == 4:
-            path = join(obs.obs_presolve_path.value, *request.path[1:])
-            return db.PropertyMetadata(blob=path, filename=request.path[-1],
-                    mime_type='application/json')
-        else:
-            raise RuntimeError('Incorrect path')
+    @db.route('GET', '/presolve')
+    def route_presolve(self, request, response):
+        enforce(node.files_root.value, http.BadRequest, 'Disabled')
+        return util.iter_file(node.files_root.value, *request.path)
 
-    @db.route('HEADER', '/packages')
-    def try_packages(self, request, response):
-        enforce(len(request.path) == 4, 'Incorrect path')
-        path = join(obs.obs_presolve_path.value, *request.path[1:])
-        enforce(exists(path), http.NotFound, 'No such package')
+    @db.route('GET', '/packages')
+    def route_packages(self, request, response):
+        enforce(node.files_root.value, http.BadRequest, 'Disabled')
+        return util.iter_file(node.files_root.value, *request.path)
 
     @db.volume_command(method='GET', cmd='stat',
             mime_type='application/json')

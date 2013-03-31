@@ -6,6 +6,7 @@ from cStringIO import StringIO
 
 from __init__ import tests
 
+from sugar_network import node
 from sugar_network.toolkit import http
 from sugar_network.node import obs
 
@@ -74,7 +75,7 @@ class ObsTest(tests.Test):
         obs.resolve('repo', 'arch', ['pkg1', 'pkg2'])
 
     def test_presolve(self):
-        self.override(http, 'Client', Client(self, [
+        self.override(http, 'Client', lambda *args: Client(self, [
             (('GET', ['build', 'presolve']), {'allowed': (400, 404)}, [
                 '<directory>',
                 '   <entry name="OLPC-11.3.1" />',
@@ -115,24 +116,31 @@ class ObsTest(tests.Test):
                     '</resolve>',
                     ],
                 ),
+            ('http://pkg1-1.prm', ['1']),
+            ('http://pkg1-2.prm', ['2']),
+            ('http://pkg2-1.prm', ['3']),
+            ('http://pkg2-2.prm', ['4']),
             ]))
 
-        obs.obs_presolve_path.value = 'packages'
         obs.presolve({
             'Debian': {'binary': [['deb']]},
             'Fedora': {'binary': [['pkg1', 'pkg2']], 'devel': [['pkg3']]},
-            })
+            }, '.')
 
         self.assertEqual([
             {'url': 'http://pkg1-1.prm', 'name': 'pkg1-1'},
             {'url': 'http://pkg1-2.prm', 'name': 'pkg1-2'},
             ],
-            json.load(file('packages/OLPC-11.3.1/i586/pkg1')))
+            json.load(file('presolve/OLPC-11.3.1/i586/pkg1')))
         self.assertEqual([
             {'url': 'http://pkg2-1.prm', 'name': 'pkg2-1'},
             {'url': 'http://pkg2-2.prm', 'name': 'pkg2-2'},
             ],
-            json.load(file('packages/OLPC-11.3.1/i586/pkg2')))
+            json.load(file('presolve/OLPC-11.3.1/i586/pkg2')))
+        self.assertEqual('1', file('packages/OLPC-11.3.1/i586/pkg1-1.prm').read())
+        self.assertEqual('2', file('packages/OLPC-11.3.1/i586/pkg1-2.prm').read())
+        self.assertEqual('3', file('packages/OLPC-11.3.1/i586/pkg2-1.prm').read())
+        self.assertEqual('4', file('packages/OLPC-11.3.1/i586/pkg2-2.prm').read())
 
 
 class Response(object):
@@ -155,6 +163,16 @@ class Client(object):
         response = Response()
         response.raw = StringIO(''.join(reply))
         return response
+
+    def download(self, path, dst):
+        assert self.calls
+        path_, reply = self.calls.pop(0)
+        self.test.assertEqual(path_, path)
+        if isinstance(dst, basestring):
+            with file(dst, 'wb') as f:
+                f.write(''.join(reply))
+        else:
+            dst.write(''.join(reply))
 
     def __call__(self, url):
         return self

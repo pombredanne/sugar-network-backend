@@ -19,7 +19,7 @@ from os.path import exists, join
 
 from sugar_network.client import IPCClient, local_root
 from sugar_network.client.bundle import Bundle
-from sugar_network.toolkit import BUFFER_SIZE, pipe, util
+from sugar_network.toolkit import pipe, util
 
 
 def get(guid):
@@ -32,14 +32,8 @@ def get(guid):
     # TODO Per download progress
     pipe.feedback('download')
 
-    response = IPCClient().request('GET', ['implementation', guid, 'data'],
-            allow_redirects=True)
-    content_length = int(response.headers.get('Content-Length', '0'))
-
     with util.NamedTemporaryFile() as tmp_file:
-        chunk_size = min(content_length, BUFFER_SIZE)
-        for chunk in response.iter_content(chunk_size=chunk_size):
-            tmp_file.write(chunk)
+        IPCClient().download(['implementation', guid, 'data'], tmp_file)
         tmp_file.flush()
         os.makedirs(path)
         try:

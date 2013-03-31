@@ -135,9 +135,10 @@ class MasterCommands(NodeCommands):
     def presolve(self, request, document, guid):
         enforce(document == 'context', http.BadRequest,
                 'Only Contexts can be presolved')
+        enforce(node.files_root.value, http.BadRequest, 'Disabled')
         package = self.volume[document].get(guid)
         enforce(package['aliases'], http.BadRequest, 'Nothing to presolve')
-        return obs.presolve(package['aliases'])
+        return obs.presolve(package['aliases'], node.files_root.value)
 
     def after_post(self, doc):
         if doc.metadata.name == 'context':
@@ -217,7 +218,9 @@ class MasterCommands(NodeCommands):
         if packages != doc['packages']:
             doc.request.call('PUT', document='context', guid=doc.guid,
                     content={'packages': packages})
-        obs.presolve(doc['aliases'])
+
+        if node.files_root.value:
+            obs.presolve(doc['aliases'], node.files_root.value)
 
 
 class _Cookie(list):

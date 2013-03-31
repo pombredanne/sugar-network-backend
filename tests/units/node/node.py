@@ -334,30 +334,27 @@ class NodeTest(tests.Test):
             'description': 'description',
             })
 
+    def test_PresolveRoute(self):
+        node.files_root.value = '.'
+        self.touch(('presolve/repo/arch/package', 'file'))
+        volume = self.start_master()
+        client = Client()
+
+        self.assertRaises(RuntimeError, client.get, ['presolve'])
+        self.assertRaises(RuntimeError, client.get, ['presolve', 'repo'])
+        self.assertRaises(RuntimeError, client.get, ['presolve', 'repo', 'arch'])
+        self.assertEqual('file', client.get(['presolve', 'repo', 'arch', 'package']))
+
     def test_PackagesRoute(self):
-        obs.obs_presolve_path.value = 'packages'
+        node.files_root.value = '.'
+        self.touch(('packages/repo/arch/package', 'file'))
         volume = self.start_master()
         client = Client()
 
         self.assertRaises(RuntimeError, client.get, ['packages'])
-
-        self.touch(('packages/repo/arch/package', '{"foo": -1}'))
-        self.assertEqual(
-                ['repo'],
-                client.get(['packages']))
-        self.assertEqual(
-                ['arch'],
-                client.get(['packages', 'repo']))
-        self.assertEqual(
-                ['package'],
-                client.get(['packages', 'repo', 'arch']))
-        self.assertEqual(
-                {"foo": -1},
-                client.get(['packages', 'repo', 'arch', 'package']))
-
-        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'fake'])
-        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'repo', 'fake'])
-        self.assertRaises(RuntimeError, client.request, 'GET', ['packages', 'repo', 'arch', 'fake'])
+        self.assertRaises(RuntimeError, client.get, ['packages', 'repo'])
+        self.assertRaises(RuntimeError, client.get, ['packages', 'repo', 'arch'])
+        self.assertEqual('file', client.get(['packages', 'repo', 'arch', 'package']))
 
     def test_Clone(self):
         volume = self.start_master()
