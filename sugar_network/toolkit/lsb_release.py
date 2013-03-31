@@ -28,15 +28,20 @@ _DERIVATES = {
         'Trisquel': (
             'Ubuntu', [
                 lambda x: '%02d.%02d' %
-                        (int(float(x)) + 6,
-                            4 if float(x) - int(float(x)) < 0.5 else 10),
+                    (int(float(x)) + 6, 4
+                        if float(x) - int(float(x)) < 0.5 else 10),
                 ],
             ),
         'LinuxMint': (
             'Ubuntu', [
                 lambda x: '%02d.%02d' %
-                        (math.ceil(int(x) / 2.) + 5,
-                            [4, 10][(int(x) - 1) % 2]),
+                    (math.ceil(int(x) / 2.) + 5, [4, 10][(int(x) - 1) % 2]),
+                ],
+            ),
+        'Tuquito': (
+            'Ubuntu', [
+                lambda x: '%02d.%02d' %
+                    (int(float(x)) + 6, 4 if float(x) == int(float(x)) else 10)
                 ],
             ),
         }
