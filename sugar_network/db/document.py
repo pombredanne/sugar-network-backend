@@ -32,7 +32,7 @@ class Document(object):
     def __init__(self, guid, record, cached_props=None, request=None):
         self.props = cached_props or {}
         self.guid = guid
-        self.is_new = bool(guid)
+        self.is_new = not bool(guid)
         self._record = record
         self.request = request
 

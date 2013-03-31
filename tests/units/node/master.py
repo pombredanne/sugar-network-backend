@@ -176,8 +176,7 @@ class MasterTest(tests.Test):
             'Gentoo-2.1': {'status': 'success', 'binary': ['bin'], 'devel': ['devel']},
             },
             ipc.get(['context', guid, 'packages']))
-        print events
-        self.assertEqual(1, len(events))
+        self.assertEqual(2, len(events))
         assert 'mtime' in events[0]['props']
 
     def test_InvalidateSolutionsOnDependenciesChanges(self):
