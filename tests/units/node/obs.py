@@ -75,19 +75,19 @@ class ObsTest(tests.Test):
 
     def test_presolve(self):
         self.override(http, 'Client', Client(self, [
-            (('GET', ['build', 'resolve']), {'allowed': (400, 404)}, [
+            (('GET', ['build', 'presolve']), {'allowed': (400, 404)}, [
                 '<directory>',
                 '   <entry name="OLPC-11.3.1" />',
                 '</directory>',
                 ]),
-            (('GET', ['build', 'resolve', 'OLPC-11.3.1']), {'allowed': (400, 404)}, [
+            (('GET', ['build', 'presolve', 'OLPC-11.3.1']), {'allowed': (400, 404)}, [
                 '<directory>',
                 '   <entry name="i586" />',
                 '</directory>',
                 ]),
             (('GET', ['resolve']),
                 {'allowed': (400, 404), 'params': {
-                    'project': 'resolve',
+                    'project': 'presolve',
                     'repository': 'OLPC-11.3.1',
                     'arch': 'i586',
                     'package': 'pkg1',
@@ -102,7 +102,7 @@ class ObsTest(tests.Test):
                 ),
             (('GET', ['resolve']),
                 {'allowed': (400, 404), 'params': {
-                    'project': 'resolve',
+                    'project': 'presolve',
                     'repository': 'OLPC-11.3.1',
                     'arch': 'i586',
                     'package': 'pkg2',

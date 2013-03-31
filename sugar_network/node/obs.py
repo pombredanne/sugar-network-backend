@@ -33,7 +33,7 @@ obs_project = Option(
 
 obs_presolve_project = Option(
         'OBS project to use with packagekit-backend-presolve',
-        default='resolve')
+        default='presolve')
 
 obs_presolve_path = Option(
         'filesystem path to store presolved packages',
@@ -90,17 +90,19 @@ def presolve(aliases):
                 continue
 
             _logger.debug('Presolve %r on %s', names, repo['name'])
+            dep_graphs = {}
 
             for package, arch, response in presolves:
                 dirname = join(obs_presolve_path.value, repo['name'], arch)
                 if not exists(dirname):
                     os.makedirs(dirname)
-                deps_graph = []
+                deps = dep_graphs[package] = []
                 for pkg in response.findall('binary'):
-                    deps_graph.append(dict(pkg.items()))
+                    deps.append(dict(pkg.items()))
                 with util.new_file(join(dirname, package)) as f:
-                    json.dump(deps_graph, f)
-            break
+                    json.dump(deps, f)
+
+            return {'repo': repo['name'], 'packages': dep_graphs}
 
 
 def _request(*args, **kwargs):

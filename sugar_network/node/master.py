@@ -23,7 +23,7 @@ from os.path import join
 from sugar_network import db, node
 from sugar_network.node import sync, stats_user, files, volume, downloads, obs
 from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import cachedir, coroutine, util, enforce
+from sugar_network.toolkit import http, cachedir, coroutine, util, enforce
 
 
 _ONE_WAY_DOCUMENTS = ['report']
@@ -129,6 +129,15 @@ class MasterCommands(NodeCommands):
 
         cookie.store(response)
         return reply
+
+    @db.document_command(method='PUT', cmd='presolve',
+            permissions=db.ACCESS_AUTH, mime_type='application/json')
+    def presolve(self, request, document, guid):
+        enforce(document == 'context', http.BadRequest,
+                'Only Contexts can be presolved')
+        package = self.volume[document].get(guid)
+        enforce(package['aliases'], http.BadRequest, 'Nothing to presolve')
+        return obs.presolve(package['aliases'])
 
     def after_post(self, doc):
         if doc.metadata.name == 'context':
