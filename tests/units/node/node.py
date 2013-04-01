@@ -344,9 +344,15 @@ class NodeTest(tests.Test):
         volume = self.start_master()
         client = Client()
 
-        self.assertRaises(RuntimeError, client.get, ['presolve'])
-        self.assertRaises(RuntimeError, client.get, ['presolve', 'repo'])
-        self.assertRaises(RuntimeError, client.get, ['presolve', 'repo', 'arch'])
+        self.assertEqual(
+                ['repo'],
+                client.get(['presolve']))
+        self.assertEqual(
+                ['arch'],
+                client.get(['presolve', 'repo']))
+        self.assertEqual(
+                ['package'],
+                client.get(['presolve', 'repo', 'arch']))
         self.assertEqual([
             {'url': 'http://localhost:8888/1', 'foo': 1},
             {'url': 'http://localhost:8888/2/3', 'bar': 2},

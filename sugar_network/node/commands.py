@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import json
 import logging
 import hashlib
@@ -51,12 +52,18 @@ class NodeCommands(db.VolumeCommands, Commands):
     @db.route('GET', '/presolve')
     def route_presolve(self, request, response):
         enforce(node.files_root.value, http.BadRequest, 'Disabled')
-        with file(join(node.files_root.value, *request.path)) as f:
-            deps = json.load(f)
-        for info in deps:
-            info['url'] = request.static_prefix + info.pop('path')
+        if len(request.path) <= 3:
+            path = join(node.files_root.value, *request.path)
+            result = os.listdir(path)
+        elif len(request.path) == 4:
+            with file(join(node.files_root.value, *request.path)) as f:
+                result = json.load(f)
+            for info in result:
+                info['url'] = request.static_prefix + info.pop('path')
+        else:
+            raise http.BadRequest('Incorrect path')
         response.content_type = 'application/json'
-        return deps
+        return result
 
     @db.route('GET', '/packages')
     def route_packages(self, request, response):
