@@ -15,9 +15,8 @@
 
 import json
 import logging
-from os.path import join
 
-from sugar_network import db, static
+from sugar_network import db
 from sugar_network.toolkit import coroutine, enforce
 
 
@@ -163,21 +162,6 @@ class Commands(object):
     def __init__(self):
         self._pooler = _Pooler()
 
-    @db.route('GET', '/robots.txt')
-    def robots(self, request, response):
-        response.content_type = 'text/plain'
-        return _ROBOTS_TXT
-
-    @db.route('GET', '/favicon.ico')
-    def favicon(self, request, response):
-        return db.PropertyMetadata(
-                blob=join(static.PATH, 'favicon.ico'),
-                mime_type='image/x-icon')
-
-    @db.volume_command(method='GET', mime_type='text/html')
-    def hello(self):
-        return _HELLO_HTML
-
     @db.volume_command(method='GET', cmd='subscribe',
             mime_type='text/event-stream')
     def subscribe(self, request=None, response=None, ping=False, **condition):
@@ -258,15 +242,3 @@ class _Pooler(object):
         self._open.clear()
         self._value = value
         self._ready.set()
-
-
-_HELLO_HTML = """\
-<h2>Welcome to Sugar Network API!</h2>
-Consult <a href="http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/API">
-Sugar Labs Wiki</a> to learn how it can be used.
-"""
-
-_ROBOTS_TXT = """\
-User-agent: *
-Disallow: /
-"""

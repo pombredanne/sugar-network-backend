@@ -10,6 +10,7 @@ from sugar_network.db import env, volume, Volume, Document, \
         property_command, document_command, directory_command, volume_command, \
         Request, BlobProperty, Response, CommandsProcessor, \
         CommandNotFound, to_int, to_list
+from sugar_network.db.router import route
 from sugar_network.toolkit.http import NotFound, Forbidden
 
 
@@ -473,6 +474,54 @@ class CommandsTest(tests.Test):
             'accept_language': 'foo',
             },
             cp.call(request, db.Response()))
+
+    def test_Routes(self):
+        calls = []
+
+        class BaseRoutes(CommandsProcessor):
+
+            @route('GET', '/foo')
+            def route1(self, request, response):
+                return 'route1'
+
+        class Routes(BaseRoutes):
+
+            @route('PUT', '/foo')
+            def route2(self, request, response):
+                return 'route2'
+
+            @route('GET', '/bar')
+            def route3(self, request, response):
+                return 'route3'
+
+            def call(self, request, response):
+                try:
+                    return CommandsProcessor.call(self, request, response)
+                except CommandNotFound:
+                    return 'default'
+
+        cp = Routes()
+        request = Request()
+
+        request.path = []
+        request['method'] = 'GET'
+        self.assertEqual('default', cp.call(request, db.Response()))
+
+        request.path = ['foo']
+        request['method'] = 'GET'
+        self.assertEqual('route1', cp.call(request, db.Response()))
+
+        request.path = ['foo']
+        request['method'] = 'PUT'
+        self.assertEqual('route2', cp.call(request, db.Response()))
+
+        request.path = ['foo']
+        request['method'] = 'POST'
+        self.assertEqual('default', cp.call(request, db.Response()))
+
+        request.path = ['bar', 'foo', 'probe']
+        request['method'] = 'GET'
+        self.assertEqual('route3', cp.call(request, db.Response()))
 
     def call(self, cp, method, document=None, guid=None, prop=None,
             access_level=env.ACCESS_REMOTE, **kwargs):

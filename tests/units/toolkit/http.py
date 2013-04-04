@@ -15,24 +15,24 @@ class HTTPTest(tests.Test):
 
     def test_Subscribe(self):
 
-        class Router(router.Router):
+        class CommandsProcessor(db.CommandsProcessor):
 
             events = []
 
             @router.route('GET', '/')
             def subscribe(self, request, response):
                 assert request.get('cmd') == 'subscribe'
-                while Router.events:
+                while CommandsProcessor.events:
                     coroutine.sleep(.3)
-                    yield Router.events.pop(0) + '\n'
+                    yield CommandsProcessor.events.pop(0) + '\n'
 
-        self.server = coroutine.WSGIServer(('localhost', local.ipc_port.value), Router(db.CommandsProcessor()))
+        self.server = coroutine.WSGIServer(('localhost', local.ipc_port.value), router.Router(CommandsProcessor()))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
         client = http.Client('http://localhost:%s' % local.ipc_port.value)
 
         events = []
-        Router.events = ['', 'fake', 'data: fail', 'data: null', 'data: -1', 'data: {"foo": "bar"}']
+        CommandsProcessor.events = ['', 'fake', 'data: fail', 'data: null', 'data: -1', 'data: {"foo": "bar"}']
         try:
             for i in client.subscribe():
                 events.append(i)
@@ -43,7 +43,7 @@ class HTTPTest(tests.Test):
                 events)
 
         events = []
-        Router.events = ['', 'fake', 'data: fail', 'data: null', 'data: -1', 'data: {"foo": "bar"}']
+        CommandsProcessor.events = ['', 'fake', 'data: fail', 'data: null', 'data: -1', 'data: {"foo": "bar"}']
         subscription = client.subscribe()
         try:
             while select.select([subscription.fileno()], [], []):

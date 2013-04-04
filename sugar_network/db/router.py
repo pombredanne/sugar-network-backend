@@ -56,10 +56,6 @@ class Router(object):
         self._valid_origins = set()
         self._invalid_origins = set()
         self._host = None
-        self._routes = {}
-
-        self._scan_for_routes(commands)
-        self._scan_for_routes(self)
 
         if 'SSH_ASKPASS' in os.environ:
             # Otherwise ssh-keygen will popup auth dialogs on registeration
@@ -107,13 +103,7 @@ class Router(object):
             result = PropertyMetadata(blob=path,
                     mime_type=_get_mime_type(path), filename=split(path)[-1])
         else:
-            rout = self._routes.get((
-                request['method'],
-                request.path[0] if request.path else ''))
-            if rout:
-                result = rout(request, response)
-            else:
-                result = self.commands.call(request, response)
+            result = self.commands.call(request, response)
 
         if isinstance(result, PropertyMetadata):
             if 'url' in result:
@@ -233,22 +223,11 @@ class Router(object):
             self._invalid_origins.add(origin)
         return valid
 
-    def _scan_for_routes(self, obj):
-        cls = obj.__class__
-        while cls is not None:
-            for name in dir(cls):
-                attr = getattr(obj, name)
-                if hasattr(attr, 'route'):
-                    self._routes[attr.route] = attr
-            # pylint: disable-msg=E1101
-            cls = cls.__base__
-
 
 class _Request(Request):
 
     environ = None
     url = None
-    path = None
 
     def __init__(self, environ=None):
         Request.__init__(self)

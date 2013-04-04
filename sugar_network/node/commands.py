@@ -19,7 +19,7 @@ import logging
 import hashlib
 from os.path import join
 
-from sugar_network import db, node
+from sugar_network import db, node, static
 from sugar_network.node import auth, stats_node
 from sugar_network.resources.volume import Commands
 from sugar_network.toolkit import http, util, coroutine, exception, enforce
@@ -48,6 +48,21 @@ class NodeCommands(db.VolumeCommands, Commands):
     @property
     def guid(self):
         return self._guid
+
+    @db.route('GET', '/robots.txt')
+    def robots(self, request, response):
+        response.content_type = 'text/plain'
+        return _ROBOTS_TXT
+
+    @db.route('GET', '/favicon.ico')
+    def favicon(self, request, response):
+        return db.PropertyMetadata(
+                blob=join(static.PATH, 'favicon.ico'),
+                mime_type='image/x-icon')
+
+    @db.volume_command(method='GET', mime_type='text/html')
+    def hello(self):
+        return _HELLO_HTML
 
     @db.route('GET', '/presolve')
     def route_presolve(self, request, response):
@@ -325,3 +340,15 @@ def _load_pubkey(pubkey):
             raise http.Forbidden(message)
 
     return str(hashlib.sha1(pubkey.split()[1]).hexdigest()), pubkey_pkcs8
+
+
+_HELLO_HTML = """\
+<h2>Welcome to Sugar Network API!</h2>
+Consult <a href="http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/API">
+Sugar Labs Wiki</a> to learn how it can be used.
+"""
+
+_ROBOTS_TXT = """\
+User-agent: *
+Disallow: /
+"""

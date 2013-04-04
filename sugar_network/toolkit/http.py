@@ -204,13 +204,16 @@ class Client(object):
         guid = params.pop('guid') if 'guid' in params else None
         prop = params.pop('prop') if 'prop' in params else None
 
-        path = []
-        if document:
-            path.append(document)
-        if guid:
-            path.append(guid)
-        if prop:
-            path.append(prop)
+        if request.path is not None:
+            path = request.path
+        else:
+            path = []
+            if document:
+                path.append(document)
+            if guid:
+                path.append(guid)
+            if prop:
+                path.append(prop)
 
         if request.content_type == 'application/json':
             request.content = json.dumps(request.content)

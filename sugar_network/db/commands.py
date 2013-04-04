@@ -104,6 +104,7 @@ class Request(dict):
     principal = None
     if_modified_since = None
     allow_redirects = False
+    path = None
 
     def __init__(self, **kwargs):
         """Initialize parameters dictionary using named arguments."""
@@ -174,6 +175,7 @@ class Response(dict):
 class CommandsProcessor(object):
 
     def __init__(self, volume=None):
+        self._routes = {}
         self._commands = {
                 'volume': _Commands(),
                 'directory': _Commands(),
@@ -181,6 +183,8 @@ class CommandsProcessor(object):
                 'property': _Commands(),
                 }
         self.volume = volume
+
+        self._scan_for_routes()
 
         for scope, kwargs in _scan_class(self.__class__, False):
             cmd = _Command((self,), **kwargs)
@@ -212,6 +216,13 @@ class CommandsProcessor(object):
             command call result
 
         """
+        if request.path is not None:
+            rout = self._routes.get((
+                request['method'],
+                request.path[0] if request.path else ''))
+            if rout:
+                return rout(self, request, response)
+
         cmd = self.resolve(request)
         enforce(cmd is not None, env.CommandNotFound, 'Unsupported command')
 
@@ -290,6 +301,16 @@ class CommandsProcessor(object):
 
         commands = self._commands['property']
         return commands.get(key) or commands.get(document_key)
+
+    def _scan_for_routes(self):
+        cls = self.__class__
+        while cls is not None:
+            for name in dir(cls):
+                attr = getattr(cls, name)
+                if hasattr(attr, 'route'):
+                    self._routes[attr.route] = attr
+            # pylint: disable-msg=E1101
+            cls = cls.__base__
 
 
 class _Command(object):
