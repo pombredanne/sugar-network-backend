@@ -49,7 +49,7 @@ def profile_path(*args):
 
 api_url = Option(
         'url to connect to Sugar Network server API',
-        default='http://api-devel.network.sugarlabs.org', short_option='-a',
+        default='http://node-devel.sugarlabs.org', short_option='-a',
         name='api-url')
 
 certfile = Option(
