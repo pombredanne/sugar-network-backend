@@ -33,10 +33,6 @@ sleep = gevent.sleep
 #: Wait for the spawned events to finish.
 joinall = gevent.joinall
 
-# TODO In #3753 case, resetting glibc cache doesn't help
-# if c-ares is being used for DNS resolving.
-gevent.hub.Hub.resolver_class = ['gevent.socket.BlockingResolver']
-
 _group = gevent.pool.Group()
 _logger = logging.getLogger('coroutine')
 _wsgi_logger = logging.getLogger('wsgi')
