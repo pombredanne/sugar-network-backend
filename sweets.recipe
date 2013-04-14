@@ -2,7 +2,7 @@
 name      = sugar-network
 
 [Package]
-project   = SweetsDistribution:Factory
+project   = SweetsDistribution:0.94:SugarNetwork
 implement = %(name)s
 summary   = Sugar Network
 license   = GPLv3+
