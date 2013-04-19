@@ -173,11 +173,11 @@ class Spec(object):
                 self._fields[key] = value
 
         if self.activity is not None:
+            # TODO Switch to `implement` tag at the end
+            self._fields['implement'] = self.activity['bundle_id']
             # Do some backwards compatibility expansions for activities
             if not self['summary'] and self['name']:
                 self._fields['summary'] = self['name']
-            if not self['implement'] and self.activity['bundle_id']:
-                self._fields['implement'] = self.activity['bundle_id']
             if not self['version'] and self.activity['activity_version']:
                 self._fields['version'] = self.activity['activity_version']
             if not self['stability']:
