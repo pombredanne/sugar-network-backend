@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import time
 import socket
 import logging
 from os.path import join
@@ -31,6 +32,9 @@ from sugar_network.toolkit import exception, enforce
 # Top-level directory name to keep SN data on mounted devices
 _SN_DIRNAME = 'sugar-network'
 _LOCAL_PROPS = frozenset(['favorite', 'clone'])
+
+# If disconnect happned in more than `_RECONNECT_MINIMUM` seconds, reconnect
+_RECONNECT_MINIMUM = 60
 
 _logger = logging.getLogger('client.commands')
 
@@ -333,35 +337,40 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         def connect():
             for url in self._remote_urls:
                 self.broadcast({'event': 'inline', 'state': 'connecting'})
-                try:
-                    _logger.debug('Connecting to %r node', url)
-                    self._node = client.Client(url)
-                    info = self._node.get(cmd='info')
-                    subscription = self._node.subscribe()
-                except Exception:
-                    exception(_logger, 'Cannot connect to %r node', url)
-                    self._got_offline()
-                    continue
-
-                impl_info = info['documents'].get('implementation')
-                if impl_info:
-                    injector.invalidate_solutions(impl_info['mtime'])
-
-                _logger.info('Connected to %r node', url)
-                self._got_online()
-                try:
-                    for event in subscription:
-                        if event.get('document') == 'implementation':
-                            mtime = event.get('props', {}).get('mtime')
-                            if mtime:
-                                injector.invalidate_solutions(mtime)
-                        self.broadcast(event)
-                except Exception:
-                    exception(_logger, 'Failed to dispatch remote event')
-                finally:
-                    _logger.info('Got disconnected from %r node', url)
-                    self._node.close()
-                    self._got_offline()
+                while True:
+                    subscription = None
+                    try:
+                        _logger.debug('Connecting to %r node', url)
+                        self._node = client.Client(url)
+                        info = self._node.get(cmd='info')
+                        subscription = self._node.subscribe()
+                    except Exception:
+                        exception(_logger, 'Cannot connect to %r node', url)
+                    if subscription is None:
+                        self._got_offline()
+                        break
+                    impl_info = info['documents'].get('implementation')
+                    if impl_info:
+                        injector.invalidate_solutions(impl_info['mtime'])
+                    if not self._inline.is_set():
+                        _logger.info('Connected to %r node', url)
+                        self._got_online()
+                    ts = time.time()
+                    try:
+                        for event in subscription:
+                            if event.get('document') == 'implementation':
+                                mtime = event.get('props', {}).get('mtime')
+                                if mtime:
+                                    injector.invalidate_solutions(mtime)
+                            self.broadcast(event)
+                    except Exception:
+                        exception(_logger, 'Server subscription failed')
+                    if time.time() - ts < _RECONNECT_MINIMUM:
+                        _logger.info('Got disconnected from %r', url)
+                        self._node.close()
+                        self._got_offline()
+                        break
+                    _logger.debug('Got disconnected from %r, reconnect', url)
 
         if not self._node_job and util.default_route_exists():
             self._node_job.spawn(connect)

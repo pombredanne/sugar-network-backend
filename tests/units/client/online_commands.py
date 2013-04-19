@@ -28,6 +28,7 @@ class OnlineCommandsTest(tests.Test):
         assert not cp.inline()
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
+        coroutine.sleep(1)
         self.start_master()
         trigger.wait(1)
         assert trigger.value is None
