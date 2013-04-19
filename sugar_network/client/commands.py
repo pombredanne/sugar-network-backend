@@ -564,6 +564,7 @@ class CachedClientCommands(ClientCommands):
             for guid, patch in directory.diff(self._push_seq, layer='local'):
                 diff = {}
                 diff_seq = util.Sequence()
+                post_requests = []
                 for prop, meta, seqno in patch:
                     if 'blob' in meta:
                         request = db.Request(method='PUT', document=document,
@@ -571,13 +572,13 @@ class CachedClientCommands(ClientCommands):
                         request.content_type = meta['mime_type']
                         request.content_length = os.stat(meta['blob']).st_size
                         request.content_stream = util.iter_file(meta['blob'])
-                        push(request, [[seqno, seqno]])
+                        post_requests.append((request, seqno))
                     elif 'url' in meta:
                         request = db.Request(method='PUT', document=document,
                             guid=guid, prop=prop)
                         request.content_type = 'application/json'
                         request.content = meta
-                        push(request, [[seqno, seqno]])
+                        post_requests.append((request, seqno))
                     else:
                         diff[prop] = meta['value']
                         diff_seq.include(seqno, seqno)
@@ -597,6 +598,8 @@ class CachedClientCommands(ClientCommands):
                 request.content_type = 'application/json'
                 request.content = diff
                 push(request, diff_seq)
+                for request, seqno in post_requests:
+                    push(request, [[seqno, seqno]])
 
         if not pushed_seq:
             self.broadcast({'event': 'push'})
@@ -607,11 +610,11 @@ class CachedClientCommands(ClientCommands):
         self._push_seq.exclude(pushed_seq)
         if not skiped_seq:
             self._push_seq.stretch()
+            # No any decent reasons to keep fail reports after uploding.
+            # TODO The entire offlile synchronization should be improved,
+            # for now, it is possible to have a race here
+            self._home.volume['report'].wipe()
         self._push_seq.commit()
-        # No any decent reasons to keep fail reports after uploding.
-        # TODO The entire offlile synchronization should be improved,
-        # for now, it is possible to have a race here
-        self._home.volume['report'].wipe()
         self.broadcast({'event': 'push'})
 
 
