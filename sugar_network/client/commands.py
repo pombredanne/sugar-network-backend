@@ -329,8 +329,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                 while coroutine.select([monitor.fileno()], [], [], 1)[0]:
                     monitor.read()
                 self._node_job.kill()
-                # Otherwise, `socket.gethostbyname()` will return stale resolve
-                util.res_init()
+                coroutine.reset_resolver()
 
     def _remote_connect(self):
 

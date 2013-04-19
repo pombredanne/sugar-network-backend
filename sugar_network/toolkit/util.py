@@ -175,25 +175,6 @@ def readline(stream, limit=None):
     return bytes(line)
 
 
-def res_init():
-    """Reset resolving cache.
-
-    Calling this function will enforce libc to avoid using stale resolving
-    cache after getting [re]connected. For example, if application process
-    was launched when there were no any DNS servers available, after getting
-    connected, call `res_init()` to reuse newly appeared DNS servers.
-
-    """
-    import ctypes
-    from ctypes.util import find_library
-    try:
-        lib_name = find_library('c')
-        libc = ctypes.CDLL(lib_name)
-        getattr(libc, '__res_init')(None)
-    except Exception:
-        _logger.exception('Failed to call res_init()')
-
-
 def default_route_exists():
     with file('/proc/self/net/route') as f:
         # Skip header

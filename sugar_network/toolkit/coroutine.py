@@ -47,6 +47,10 @@ def shutdown():
     return _group.join()
 
 
+def reset_resolver():
+    gevent.get_hub().resolver = None
+
+
 def socket(*args, **kwargs):
     import gevent.socket
     return gevent.socket.socket(*args, **kwargs)
