@@ -333,43 +333,39 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
     def _remote_connect(self):
 
+        def listen_for_events():
+            while True:
+                ts = time.time()
+                try:
+                    for event in self._node.subscribe():
+                        if event.get('document') == 'implementation':
+                            mtime = event.get('props', {}).get('mtime')
+                            if mtime:
+                                injector.invalidate_solutions(mtime)
+                        self.broadcast(event)
+                except Exception:
+                    exception(_logger, 'Failed on subscription')
+                if time.time() - ts < _RECONNECT_MINIMUM:
+                    _logger.info('Subscription aborted')
+                    break
+
         def connect():
             for url in self._remote_urls:
                 self.broadcast({'event': 'inline', 'state': 'connecting'})
-                while True:
-                    subscription = None
-                    try:
-                        _logger.debug('Connecting to %r node', url)
-                        self._node = client.Client(url)
-                        info = self._node.get(cmd='info')
-                        subscription = self._node.subscribe()
-                    except Exception:
-                        exception(_logger, 'Cannot connect to %r node', url)
-                    if subscription is None:
-                        self._got_offline()
-                        break
+                try:
+                    _logger.debug('Connecting to %r node', url)
+                    self._node = client.Client(url)
+                    info = self._node.get(cmd='info')
                     impl_info = info['documents'].get('implementation')
                     if impl_info:
                         injector.invalidate_solutions(impl_info['mtime'])
-                    if not self._inline.is_set():
-                        _logger.info('Connected to %r node', url)
-                        self._got_online()
-                    ts = time.time()
-                    try:
-                        for event in subscription:
-                            if event.get('document') == 'implementation':
-                                mtime = event.get('props', {}).get('mtime')
-                                if mtime:
-                                    injector.invalidate_solutions(mtime)
-                            self.broadcast(event)
-                    except Exception:
-                        exception(_logger, 'Server subscription failed')
-                    if time.time() - ts < _RECONNECT_MINIMUM:
-                        _logger.info('Got disconnected from %r', url)
-                        self._node.close()
-                        self._got_offline()
-                        break
-                    _logger.debug('Got disconnected from %r, reconnect', url)
+                    _logger.info('Connected to %r node', url)
+                    self._got_online()
+                    listen_for_events()
+                except Exception:
+                    exception(_logger, 'Connection to %r failed', url)
+                self._node.close()
+                self._got_offline()
 
         if not self._node_job and util.default_route_exists():
             self._node_job.spawn(connect)
