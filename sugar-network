@@ -155,7 +155,8 @@ class Application(application.Application):
                 if not client.anonymous.value:
                     util.ensure_key(client.key_path())
                 home = Volume(client.path('db'))
-                cp = ClientCommands(home, offline=offline.value)
+                cp = ClientCommands(home, offline=offline.value,
+                        no_subscription=True)
                 if not offline.value:
                     for __ in cp.subscribe(event='inline', state='online'):
                         break

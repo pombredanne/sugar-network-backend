@@ -41,7 +41,8 @@ _logger = logging.getLogger('client.commands')
 
 class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
-    def __init__(self, home_volume, server_mode=False, offline=False):
+    def __init__(self, home_volume, server_mode=False, offline=False,
+            no_subscription=False):
         db.CommandsProcessor.__init__(self)
         Commands.__init__(self)
         if not client.no_dbus.value:
@@ -55,6 +56,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         self._jobs = coroutine.Pool()
         self._static_prefix = 'http://localhost:%s' % client.ipc_port.value
         self._offline = offline
+        self._no_subscription = no_subscription
         self._server_mode = server_mode
 
         home_volume.connect(self._home_event_cb)
@@ -361,6 +363,8 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                         injector.invalidate_solutions(impl_info['mtime'])
                     _logger.info('Connected to %r node', url)
                     self._got_online()
+                    if self._no_subscription:
+                        break
                     listen_for_events()
                 except Exception:
                     exception(_logger, 'Connection to %r failed', url)

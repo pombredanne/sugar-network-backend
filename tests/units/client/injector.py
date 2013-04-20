@@ -413,9 +413,13 @@ class InjectorTest(tests.Test):
         pipe = injector.launch(context)
         self.assertEqual('exit', [i for i in pipe][-1].get('state'))
         with file('resolve') as f:
-            self.assertEqual(['dep1.bin'], pickle.load(f))
-            self.assertEqual(['dep2.bin'], pickle.load(f))
+            deps = [pickle.load(f),
+                    pickle.load(f),
+                    ]
             self.assertRaises(EOFError, pickle.load, f)
+            self.assertEqual(
+                    sorted([['dep1.bin'], ['dep2.bin']]),
+                    sorted(deps))
         with file('install') as f:
             self.assertEqual(['dep2.bin'], pickle.load(f))
             self.assertRaises(EOFError, pickle.load, f)
