@@ -431,7 +431,7 @@ class OnlineCommandsTest(tests.Test):
                     event.pop('props')
                 events.append(event)
         job = coroutine.spawn(read_events)
-        coroutine.dispatch()
+        coroutine.dispatch(.1)
 
         guid = ipc.post(['context'], {
             'type': 'activity',
@@ -439,11 +439,11 @@ class OnlineCommandsTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        coroutine.dispatch()
+        coroutine.dispatch(.1)
         ipc.put(['context', guid], {
             'title': 'title_2',
             })
-        coroutine.dispatch()
+        coroutine.dispatch(.1)
         ipc.delete(['context', guid])
         coroutine.sleep(.5)
         job.kill()
@@ -458,18 +458,20 @@ class OnlineCommandsTest(tests.Test):
         del events[:]
 
         job = coroutine.spawn(read_events)
-        coroutine.dispatch()
+        coroutine.dispatch(.1)
         guid = self.node_volume['context'].create({
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
+        coroutine.dispatch(.1)
         self.node_volume['context'].update(guid, {
             'title': 'title_2',
             })
+        coroutine.dispatch(.1)
         self.node_volume['context'].delete(guid)
-        coroutine.sleep(.5)
+        coroutine.dispatch(.1)
         job.kill()
 
         self.assertEqual([

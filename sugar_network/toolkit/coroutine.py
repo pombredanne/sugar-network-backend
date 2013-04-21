@@ -113,13 +113,13 @@ def Queue(*args, **kwargs):
 
 
 def Lock(*args, **kwargs):
-    import gevent.coros
-    return gevent.coros.Semaphore(*args, **kwargs)
+    import gevent.lock
+    return gevent.lock.Semaphore(*args, **kwargs)
 
 
 def RLock(*args, **kwargs):
-    import gevent.coros
-    return gevent.coros.RLock(*args, **kwargs)
+    import gevent.lock
+    return gevent.lock.RLock(*args, **kwargs)
 
 
 class AsyncEvent(object):

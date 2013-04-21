@@ -50,10 +50,11 @@ class CommandsTest(tests.Test):
 
         self.assertRaises(RuntimeError, cp.launch, 'fake-document', 'app', [])
 
+        trigger = self.wait_for_events(cp, event='launch')
         cp.launch('context', 'app', [])
         self.assertEqual(
                 {'event': 'launch', 'args': ['app', []], 'kwargs': {'color': None, 'activity_id': None, 'uri': None, 'object_id': None}},
-                self.wait_for_events(cp, event='launch').wait())
+                trigger.wait())
 
     def test_launch_ResumeJobject(self):
         self.override(injector, 'launch', lambda *args, **kwargs: [{'args': args, 'kwargs': kwargs}])
@@ -61,10 +62,11 @@ class CommandsTest(tests.Test):
         volume = Volume('db')
         cp = ClientCommands(volume, offline=True)
 
+        trigger = self.wait_for_events(cp, event='launch')
         cp.launch('context', 'app', [], object_id='object_id')
         self.assertEqual(
                 {'event': 'launch', 'args': ['app', []], 'kwargs': {'color': None, 'activity_id': None, 'uri': None, 'object_id': 'object_id'}},
-                self.wait_for_events(cp, event='launch').wait())
+                trigger.wait())
 
     def test_InlineSwitchInFind(self):
         self.home_volume = self.start_online_client()
@@ -202,7 +204,7 @@ class CommandsTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='push')
         self.start_master()
-        cp.call(db.Request(method='GET', cmd='whoami'))
+        cp.call(db.Request(method='GET', cmd='inline'))
         trigger.wait()
 
         self.assertEqual([[3, None]], json.load(file('client/push.sequence')))
@@ -214,13 +216,14 @@ class CommandsTest(tests.Test):
         trigger = self.wait_for_events(cp, event='inline', state='offline')
         self.node.stop()
         trigger.wait()
+        self.node_volume.close()
 
         volume['context'].update(guid1, {'title': 'title_'})
         volume['context'].delete(guid2)
 
         trigger = self.wait_for_events(cp, event='push')
         self.start_master()
-        cp.call(db.Request(method='GET', cmd='whoami'))
+        cp.call(db.Request(method='GET', cmd='inline'))
         trigger.wait()
 
         self.assertEqual([[4, None]], json.load(file('client/push.sequence')))

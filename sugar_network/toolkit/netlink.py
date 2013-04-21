@@ -20,6 +20,8 @@ import socket
 import struct
 import logging
 
+from sugar_network.toolkit import coroutine
+
 
 # RTnetlink multicast groups - backwards compatibility for userspace
 RTMGRP_LINK = 1
@@ -51,6 +53,36 @@ NLMSG_OVERRUN = 0x4
 _MESSAGE_MAX_SIZE = 16384
 
 _logger = logging.getLogger('netlink')
+
+
+def wait_for_route():
+
+    def get_route():
+        with file('/proc/self/net/route') as f:
+            # Skip header
+            f.readline()
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                dst, gw = line.split('\t', 3)[1:3]
+                if int(dst, 16) == 0:
+                    return gw
+
+    old_route = get_route()
+    if old_route:
+        yield old_route
+    with Netlink(socket.NETLINK_ROUTE,
+            RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE) as monitor:
+        while True:
+            coroutine.select([monitor.fileno()], [], [])
+            while coroutine.select([monitor.fileno()], [], [], 1)[0]:
+                monitor.read()
+            new_route = get_route()
+            if new_route != old_route:
+                coroutine.reset_resolver()
+                yield new_route
+            old_route = new_route
 
 
 class Netlink(object):

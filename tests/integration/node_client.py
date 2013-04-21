@@ -10,7 +10,7 @@ from os.path import exists
 
 from __init__ import tests, src_root
 
-from sugar_network.client import IPCClient
+from sugar_network.client import IPCClient, Client
 from sugar_network.toolkit import coroutine, util
 
 
@@ -113,6 +113,9 @@ class NodeClientTest(tests.Test):
                 '--api-url=http://localhost:8100',
                 ])
             coroutine.sleep(2)
+            ipc = Client('http://localhost:5101')
+            if not ipc.get(cmd='inline'):
+                self.wait_for_events(ipc, event='inline', state='online').wait()
 
         result = util.assert_call(cmd, stdin=json.dumps(stdin))
         if result and '--porcelain' not in cmd:

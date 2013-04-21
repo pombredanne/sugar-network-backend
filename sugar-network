@@ -160,6 +160,7 @@ class Application(application.Application):
                 if not offline.value:
                     for __ in cp.subscribe(event='inline', state='online'):
                         break
+                    coroutine.dispatch()
                 server = coroutine.WSGIServer(
                         ('localhost', client.ipc_port.value), IPCRouter(cp))
                 coroutine.spawn(server.serve_forever)

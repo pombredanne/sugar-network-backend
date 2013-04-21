@@ -15,7 +15,6 @@
 
 import os
 import time
-import socket
 import logging
 from os.path import join
 
@@ -107,6 +106,9 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
     @db.volume_command(method='GET', cmd='inline',
             mime_type='application/json')
     def inline(self):
+        if not self._offline and not self._server_mode and \
+                not self._inline.is_set():
+            self._remote_connect()
         return self._inline.is_set()
 
     @db.volume_command(method='GET', cmd='whoami',
@@ -277,10 +279,6 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                 }
 
     def call(self, request, response=None):
-        if not self._offline and not self._server_mode and \
-                not self._inline.is_set():
-            self._remote_connect()
-
         request.static_prefix = self._static_prefix
         request.accept_language = [toolkit.default_lang()]
         request.allow_redirects = True
@@ -323,15 +321,10 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             self._remote_connect()
 
     def _wait_for_connectivity(self):
-        with netlink.Netlink(socket.NETLINK_ROUTE, netlink.RTMGRP_IPV4_ROUTE |
-                netlink.RTMGRP_IPV6_ROUTE | netlink.RTMGRP_NOTIFY) as monitor:
-            while True:
+        for route in netlink.wait_for_route():
+            self._node_job.kill()
+            if route:
                 self._remote_connect()
-                coroutine.select([monitor.fileno()], [], [])
-                while coroutine.select([monitor.fileno()], [], [], 1)[0]:
-                    monitor.read()
-                self._node_job.kill()
-                coroutine.reset_resolver()
 
     def _remote_connect(self):
 
@@ -368,10 +361,12 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                     listen_for_events()
                 except Exception:
                     exception(_logger, 'Connection to %r failed', url)
-                self._node.close()
-                self._got_offline()
+                finally:
+                    if not self._no_subscription:
+                        self._node.close()
+                        self._got_offline()
 
-        if not self._node_job and util.default_route_exists():
+        if not self._node_job:
             self._node_job.spawn(connect)
 
     def _found_mount(self, root):

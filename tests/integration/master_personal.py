@@ -49,7 +49,9 @@ class MasterPersonalTest(tests.Test):
         os.makedirs('client/mnt/disk/sugar-network')
 
         coroutine.sleep(2)
-        self.wait_for_events(Client('http://localhost:8102'), event='inline', state='online').wait()
+        ipc = Client('http://localhost:8102')
+        if not ipc.get(cmd='inline'):
+            self.wait_for_events(ipc, event='inline', state='online').wait()
         Client('http://localhost:8100').get(cmd='whoami')
         Client('http://localhost:8101').get(cmd='whoami')
 

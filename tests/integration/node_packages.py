@@ -108,6 +108,8 @@ class NodePackagesSlaveTest(tests.Test):
         client.ipc_port.value = 8200
         ipc = IPCClient()
         coroutine.sleep(2)
+        if not ipc.get(cmd='inline'):
+            self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
                 [{'url': 'http://localhost:8100/packages/OLPC-11.3.1/i586/rpm', 'name': 'rpm'}],
                 ipc.get(['presolve', 'OLPC-11.3.1', 'i586', 'package']))
@@ -144,6 +146,8 @@ class NodePackagesSlaveTest(tests.Test):
         client.ipc_port.value = 8200
         ipc = IPCClient()
         coroutine.sleep(2)
+        if not ipc.get(cmd='inline'):
+            self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
                 [{'url': 'http://localhost:8101/packages/OLPC-11.3.1/i586/rpm', 'name': 'rpm'}],
                 ipc.get(['presolve', 'OLPC-11.3.1', 'i586', 'package']))
@@ -163,7 +167,8 @@ class NodePackagesSlaveTest(tests.Test):
         conn = Client('http://localhost:8102')
         client.ipc_port.value = 8202
         ipc = IPCClient()
-        self.wait_for_events(ipc, event='inline', state='online').wait()
+        if not ipc.get(cmd='inline'):
+            self.wait_for_events(ipc, event='inline', state='online').wait()
 
         pid = self.popen('V=1 sugar-network-sync sync/sugar-network-sync http://localhost:8100', shell=True)
         self.waitpid(pid, 0)
