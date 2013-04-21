@@ -84,14 +84,13 @@ class _Inotify(Inotify):
         mtime = 0
         for path in paths:
             path = abspath(path)
-            if exists(path):
-                mtime = max(mtime, os.stat(path).st_mtime)
-            else:
+            if not exists(path):
                 if not os.access(dirname(path), os.W_OK):
                     _logger.warning('No permissions to create %s '
                             'directory, do not monitor it', path)
                     continue
                 os.makedirs(path)
+            mtime = max(mtime, os.stat(path).st_mtime)
             self._roots.append(_Root(self, path))
 
         if mtime <= self._contexts.mtime:

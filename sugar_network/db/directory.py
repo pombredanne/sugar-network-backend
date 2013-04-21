@@ -275,8 +275,8 @@ class Directory(object):
                         guid, self.metadata.name)
                 record.invalidate()
 
-        self._index.checkpoint()
         if found:
+            self._index.checkpoint()
             self._save_layout()
             self.commit()
             self._notify({'event': 'populate'})
