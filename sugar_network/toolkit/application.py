@@ -25,7 +25,7 @@ from optparse import OptionParser
 from os.path import join, abspath, exists, basename
 from gettext import gettext as _
 
-from sugar_network.toolkit import Option, printf, enforce
+from sugar_network.toolkit import Option, coroutine, printf, enforce
 
 
 debug = Option(
@@ -332,17 +332,17 @@ class Daemon(Application):
     def _launch(self):
         logging.info('Start %s', self.name)
 
-        def sigterm_cb(signum, frame):
+        def sigterm_cb(signum):
             logging.info('Got signal %s to stop %s', signum, self.name)
             self.shutdown()
 
-        def sighup_cb(signum, frame):
+        def sighup_cb():
             logging.info('Reload %s on SIGHUP signal', self.name)
             self._keep_stdout()
 
-        signal.signal(signal.SIGINT, sigterm_cb)
-        signal.signal(signal.SIGTERM, sigterm_cb)
-        signal.signal(signal.SIGHUP, sighup_cb)
+        coroutine.signal(signal.SIGINT, sigterm_cb, signal.SIGINT)
+        coroutine.signal(signal.SIGTERM, sigterm_cb, signal.SIGTERM)
+        coroutine.signal(signal.SIGHUP, sighup_cb)
 
         pid_path = self.new_instance()
         try:

@@ -257,7 +257,7 @@ class Test(unittest.TestCase):
         cp = MasterCommands('guid', self.node_volume)
         self.node = coroutine.WSGIServer(('localhost', 8888), Router(cp))
         coroutine.spawn(self.node.serve_forever)
-        coroutine.dispatch()
+        coroutine.dispatch(.1)
         return self.node_volume
 
     def start_online_client(self, classes=None):

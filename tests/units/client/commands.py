@@ -181,7 +181,7 @@ class CommandsTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
         node_volume = self.start_master()
-        cp.call(db.Request(method='GET', cmd='whoami'))
+        cp.call(db.Request(method='GET', cmd='inline'))
         trigger.wait()
 
         guid = cp.call(post)
@@ -247,7 +247,7 @@ class CommandsTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='push')
         self.start_master([User, Report])
-        cp.call(db.Request(method='GET', cmd='whoami'))
+        cp.call(db.Request(method='GET', cmd='inline'))
         trigger.wait()
 
         assert not volume['report'].exists(guid)
@@ -271,7 +271,7 @@ class CommandsTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
         self.start_master()
-        cp.call(db.Request(method='GET', cmd='whoami'))
+        cp.call(db.Request(method='GET', cmd='inline'))
         trigger.wait()
 
         assert not self.node_volume['context'].exists(guid)
