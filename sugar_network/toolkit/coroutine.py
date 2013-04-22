@@ -33,6 +33,8 @@ sleep = gevent.sleep
 #: Wait for the spawned events to finish.
 joinall = gevent.joinall
 
+gevent.hub.Hub.resolver_class = 'gevent.resolver_ares.Resolver'
+
 _group = gevent.pool.Group()
 _logger = logging.getLogger('coroutine')
 _wsgi_logger = logging.getLogger('wsgi')
