@@ -120,7 +120,7 @@ def _request(*args, **kwargs):
     response = _client.request(*args, allowed=(400, 404), **kwargs)
     enforce(response.headers.get('Content-Type') == 'text/xml',
             'Irregular OBS response')
-    reply = ElementTree.parse(response.raw).getroot()
+    reply = ElementTree.fromstring(response.content)
 
     if response.status_code != 200:
         summary = reply.find('summary')
