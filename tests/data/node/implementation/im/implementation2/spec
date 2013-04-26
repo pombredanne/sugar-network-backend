@@ -1,0 +1,1 @@
+{"seqno": 3, "value": {"*-*": {"commands": {"activity": {"exec": "true"}}, "extract": "Chat.activity", "requires": {"dep1": {}, "dep2": {}, "dep3": {}}}}}

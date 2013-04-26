@@ -90,17 +90,22 @@ class NodeClientTest(tests.Test):
         os.unlink(privkey_path)
         os.unlink(pubkey_path)
 
-        self.assertEqual(
-                '\n'.join(['dep1.rpm', 'dep2.rpm', 'dep3.rpm']),
-                self.cli(['GET', '/context/package', 'cmd=deplist', 'repo=Fedora-14', '--anonymous', '--no-dbus', '--porcelain']))
-
-        self.cli(['PUT', '/context/context', '--anonymous', 'cmd=clone', 'nodeps=1', 'stability=stable', '-jd', '1'])
-        self.cli(['PUT', '/context/context', '--anonymous', 'cmd=favorite', '-jd', 'true'])
-        assert exists('Activities/Chat.activity/activity/activity.info')
-        self.assertEqual(True, json.load(file('client/db/context/co/context/favorite'))['value'])
-
+        deplist = self.cli(['GET', '/context/activity', 'cmd=deplist', 'repo=Fedora-14', '--anonymous', '--no-dbus', '--porcelain'])
         assert not exists(privkey_path)
         assert not exists(pubkey_path)
+        self.assertEqual(
+                sorted(['dep1.rpm', 'dep2.rpm', 'dep3.rpm']),
+                sorted(deplist.split('\n')))
+
+        self.cli(['PUT', '/context/context', '--anonymous', 'cmd=clone', 'nodeps=1', 'stability=stable', '-jd', '1'])
+        assert not exists(privkey_path)
+        assert not exists(pubkey_path)
+
+        self.cli(['PUT', '/context/context', '--anonymous', 'cmd=favorite', '-jd', 'true'])
+        assert not exists(privkey_path)
+        assert not exists(pubkey_path)
+        assert exists('Activities/Chat.activity/activity/activity.info')
+        self.assertEqual(True, json.load(file('client/db/context/co/context/favorite'))['value'])
 
     def cli(self, cmd, stdin=None):
         cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd

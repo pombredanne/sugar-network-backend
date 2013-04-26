@@ -146,7 +146,7 @@ class ObsTest(tests.Test):
 class Response(object):
 
     headers = {'Content-Type': 'text/xml'}
-    raw = None
+    content = None
     status_code = 200
 
 
@@ -161,7 +161,7 @@ class Client(object):
         args_, kwargs_, reply = self.calls.pop(0)
         self.test.assertEqual((args_, kwargs_), (args, kwargs))
         response = Response()
-        response.raw = StringIO(''.join(reply))
+        response.content = ''.join(reply)
         return response
 
     def download(self, path, dst):

@@ -190,8 +190,9 @@ class NodeCommands(db.VolumeCommands, Commands):
         return self.call(request, db.Response())
 
     @db.document_command(method='GET', cmd='deplist',
-            mime_type='application/json')
-    def deplist(self, document, guid, repo):
+            mime_type='application/json', arguments={'requires': db.to_list})
+    def deplist(self, document, guid, repo, layer, requires,
+            stability='stable'):
         """List of native packages context is dependening on.
 
         Command return only GNU/Linux package names and ignores
@@ -206,11 +207,15 @@ class NodeCommands(db.VolumeCommands, Commands):
         """
         enforce(document == 'context')
         enforce(repo, 'Argument %r should be set', 'repo')
-        context = self.volume['context'].get(guid)
+
+        impls, total = self.volume['implementation'].find(context=guid,
+                layer=layer, stability=stability, requires=requires,
+                order_by='-version', limit=1)
+        enforce(total, http.NotFound, 'No implementations')
 
         result = []
-
-        for package in context['dependencies']:
+        for package in set(next(impls)['spec']['*-*'].get('requires') or []) \
+                | set(self.volume['context'].get(guid)['dependencies']):
             dep = self.volume['context'].get(package)
             enforce(repo in dep['packages'],
                     'No packages for %r on %r', package, repo)
