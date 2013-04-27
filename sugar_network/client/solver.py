@@ -17,7 +17,7 @@ import sys
 import logging
 from os.path import isabs, join, dirname
 
-from sugar_network.client import packagekit
+from sugar_network.client import packagekit, SUGAR_API_COMPATIBILITY
 from sugar_network.toolkit import util, lsb_release, pipe, exception
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'zeroinstall'))
@@ -151,7 +151,8 @@ def _load_feed(conn, context):
         try:
             # pylint: disable-msg=F0401
             from jarabe import config
-            feed.implement_sugar(config.version)
+            for version in SUGAR_API_COMPATIBILITY.get(config.version) or []:
+                feed.implement_sugar(version)
             feed.name = context
             return feed
         except ImportError:
@@ -242,13 +243,14 @@ class _Feed(model.ZeroInstallFeed):
         self.implementations[impl_id] = impl
 
     def implement_sugar(self, sugar_version):
-        impl = _Implementation(self, self.context, None)
+        impl_id = 'sugar-%s' % sugar_version
+        impl = _Implementation(self, impl_id, None)
         impl.version = util.parse_version(sugar_version)
         impl.released = 0
         impl.arch = '*-*'
         impl.upstream_stability = model.stability_levels['packaged']
         impl.local_path = '/'
-        self.implementations[self.context] = impl
+        self.implementations[impl_id] = impl
 
 
 class _Implementation(model.ZeroInstallImplementation):

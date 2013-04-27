@@ -20,6 +20,10 @@ from os.path import join, expanduser, exists
 from sugar_network.toolkit import Option, util
 
 
+SUGAR_API_COMPATIBILITY = {
+        '0.94': frozenset(['0.86', '0.88', '0.90', '0.92', '0.94']),
+        }
+
 _NICKNAME_GCONF = '/desktop/sugar/user/nick'
 _COLOR_GCONF = '/desktop/sugar/user/color'
 _XO_SERIAL_PATH = ['/ofw/mfg-data/SN', '/proc/device-tree/mfg-data/SN']

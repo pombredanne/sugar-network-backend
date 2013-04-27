@@ -792,7 +792,7 @@ class InjectorTest(tests.Test):
 
     def test_SolveSugar(self):
         self.touch(('__init__.py', ''))
-        self.touch(('jarabe.py', 'class config: version = "777"'))
+        self.touch(('jarabe.py', 'class config: version = "0.94"'))
         file_, pathname_, description_ = imp.find_module('jarabe', ['.'])
         imp.load_module('jarabe', file_, pathname_, description_)
 
@@ -805,6 +805,14 @@ class InjectorTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
+        conn.post(['context'], {
+            'guid': 'sugar',
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
         impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
@@ -823,17 +831,28 @@ class InjectorTest(tests.Test):
                     },
                 },
             }})
-        conn.post(['context'], {
-            'guid': 'sugar',
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-
         self.assertEqual([
             {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
-            {'name': 'sugar', 'version': '777', 'context': 'sugar', 'path': '/', 'id': 'sugar', 'stability': 'packaged'},
+            {'name': 'sugar', 'version': '0.94', 'context': 'sugar', 'path': '/', 'id': 'sugar-0.94', 'stability': 'packaged'},
+            ],
+            solver.solve(conn, context))
+
+        conn.put(['implementation', impl], {
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'requires': {
+                        'sugar': {'restrictions': [['0.80', '0.87']]},
+                    },
+                },
+            }})
+        self.assertEqual([
+            {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
+            {'name': 'sugar', 'version': '0.86', 'context': 'sugar', 'path': '/', 'id': 'sugar-0.86', 'stability': 'packaged'},
             ],
             solver.solve(conn, context))
 
