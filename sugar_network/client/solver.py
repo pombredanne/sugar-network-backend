@@ -151,7 +151,8 @@ def _load_feed(conn, context):
         try:
             # pylint: disable-msg=F0401
             from jarabe import config
-            for version in SUGAR_API_COMPATIBILITY.get(config.version) or []:
+            host_versin = '.'.join(config.version.split('.', 2)[:2])
+            for version in SUGAR_API_COMPATIBILITY.get(host_versin) or []:
                 feed.implement_sugar(version)
             feed.name = context
             return feed

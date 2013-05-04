@@ -856,6 +856,53 @@ class InjectorTest(tests.Test):
             ],
             solver.solve(conn, context))
 
+    def test_StripSugarVersion(self):
+        self.touch(('__init__.py', ''))
+        self.touch(('jarabe.py', 'class config: version = "0.94.1"'))
+        file_, pathname_, description_ = imp.find_module('jarabe', ['.'])
+        imp.load_module('jarabe', file_, pathname_, description_)
+
+        self.start_online_client([User, Context, Implementation])
+        conn = IPCClient()
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        conn.post(['context'], {
+            'guid': 'sugar',
+            'type': 'package',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        impl = conn.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'echo',
+                            },
+                        },
+                    'requires': {
+                        'sugar': {},
+                    },
+                },
+            }})
+        self.assertEqual([
+            {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
+            {'name': 'sugar', 'version': '0.94', 'context': 'sugar', 'path': '/', 'id': 'sugar-0.94', 'stability': 'packaged'},
+            ],
+            solver.solve(conn, context))
+
 
 class _FakeConnection(object):
 
