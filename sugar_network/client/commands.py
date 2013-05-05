@@ -459,13 +459,9 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         self._checkin_context(guid, {'clone': 1})
 
         if request.get('nodeps'):
-            impls = self._node_call(method='GET', document='implementation',
-                    context=guid, stability=request.get('stability'),
-                    requires=request.get('requires'),
-                    order_by='-version', limit=1,
-                    reply=['guid', 'spec'])['result']
-            enforce(impls, http.NotFound, 'No implementations')
-            pipe = injector.clone_impl(guid, **impls[0])
+            pipe = injector.clone_impl(guid,
+                    stability=request.get('stability'),
+                    requires=request.get('requires'))
         else:
             pipe = injector.clone(guid)
 

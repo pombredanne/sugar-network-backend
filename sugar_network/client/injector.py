@@ -21,7 +21,7 @@ from os.path import join, exists, basename, dirname
 
 from sugar_network import client
 from sugar_network.client import journal, cache
-from sugar_network.toolkit import pipe, lsb_release, util
+from sugar_network.toolkit import http, pipe, lsb_release, util, enforce
 
 
 _PMS_PATHS = {
@@ -75,10 +75,10 @@ def clone(guid):
             context=guid, session={'context': guid})
 
 
-def clone_impl(context, guid, spec):
+def clone_impl(context, **params):
     return pipe.fork(_clone_impl,
-            log_path=client.profile_path('logs', context), guid=guid,
-            spec=spec, session={'context': context})
+            log_path=client.profile_path('logs', context), context=context,
+            params=params, session={'context': context})
 
 
 def invalidate_solutions(mtime):
@@ -150,10 +150,16 @@ def _clone(context):
     _set_cached_solution(context, solution)
 
 
-def _clone_impl(guid, spec):
-    spec = spec['*-*']
+def _clone_impl(context, params):
+    conn = client.IPCClient()
+    impls = conn.get(['implementation'], context=context, order_by='-version',
+            limit=1, reply=['guid', 'version', 'stability', 'spec'],
+            **params)['result']
+    enforce(impls, http.NotFound, 'No implementations')
 
-    src_path = cache.get(guid)
+    impl = impls[0]
+    spec = impl['spec']['*-*']
+    src_path = cache.get(impl['guid'])
     if 'extract' in spec:
         src_path = join(src_path, spec['extract'])
     dst_path = util.unique_filename(
@@ -161,6 +167,17 @@ def _clone_impl(guid, spec):
 
     _logger.info('Clone implementation to %r', dst_path)
     util.cptree(src_path, dst_path)
+
+    _set_cached_solution(context, [{
+        'id': dst_path,
+        'context': context,
+        'version': impl['version'],
+        'name': 'TODO',
+        'stability': impl['stability'],
+        'spec': join(dst_path, 'activity', 'activity.info'),
+        'path': dst_path,
+        'command': spec['commands']['activity']['exec'].split(),
+        }])
 
 
 def _solve(context):

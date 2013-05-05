@@ -142,7 +142,7 @@ class InjectorTest(tests.Test):
         bundle.writestr('topdir/probe', 'probe')
         bundle.close()
 
-        pipe = injector.clone_impl(context, impl, {'*-*': {'extract': 'topdir'}})
+        pipe = injector.clone_impl(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
         self.assertEqual([
             {'state': 'fork', 'context': context},
@@ -152,6 +152,8 @@ class InjectorTest(tests.Test):
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
         assert exists('Activities/topdir/probe')
+        __, (solution,) = json.load(file('cache/solutions/%s/%s' % (context[:2], context)))
+        self.assertEqual(tests.tmpdir + '/Activities/topdir', solution['path'])
         self.assertEqual('probe', file('Activities/topdir/probe').read())
 
     def test_clone_CachedSolutionPointsToClonedPath(self):

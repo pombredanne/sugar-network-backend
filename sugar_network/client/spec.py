@@ -117,7 +117,7 @@ class Spec(object):
             if key in _FIELDS:
                 return self._fields.get(key)
             section = 'DEFAULT'
-        return self._config.get(section, key)
+        return self._get(section, key)
 
     def __repr__(self):
         return '<Spec %s>' % self['implement']
