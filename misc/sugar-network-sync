@@ -151,7 +151,7 @@ FS=
 disk_limit=$(expr 1024 \* 1024 \* 10)
 
 if [ $# -eq 0 ]; then
-    if [ "$(basename $(dirname $(realpath $0)))" = "sugar-network-sync" ]; then
+    if [ "$(basename $(dirname $0))" = "sugar-network-sync" ]; then
         # Script was launched from sync directory, so, process sync
         sync_path="$(dirname $0)"
     else

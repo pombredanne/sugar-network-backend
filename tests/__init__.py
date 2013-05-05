@@ -71,6 +71,7 @@ class Test(unittest.TestCase):
         os.environ['XDG_DATA_HOME'] = tmpdir + '/share'
         os.environ['SUGAR_LOGGER_LEVEL'] = 'all'
         os.environ['HOME'] = tmpdir
+        os.environ['LC_ALL'] = 'en_US.UTF-8'
         profile_dir = join(tmpdir, '.sugar', 'default')
         os.makedirs(profile_dir)
         shutil.copy(join(root, 'data', 'owner.key'), join(profile_dir, 'owner.key'))
