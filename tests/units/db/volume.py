@@ -510,7 +510,7 @@ class VolumeTest(tests.Test):
 
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
 
-        ts = time.time()
+        ts = int(time.time())
         guid = self.call(method='POST', document='testdocument', content={})
         assert self.volume['testdocument'].get(guid)['ctime'] in range(ts - 1, ts + 1)
         assert self.volume['testdocument'].get(guid)['mtime'] in range(ts - 1, ts + 1)

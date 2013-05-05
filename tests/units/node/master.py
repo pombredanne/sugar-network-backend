@@ -171,7 +171,7 @@ class MasterTest(tests.Test):
                 'devel': [['devel']],
                 },
             })
-        coroutine.dispatch()
+        coroutine.sleep(.5)
         self.assertEqual({
             'Gentoo-2.1': {'status': 'success', 'binary': ['bin'], 'devel': ['devel']},
             },
@@ -200,6 +200,7 @@ class MasterTest(tests.Test):
         self.assertEqual(0, len(events))
 
         ipc.put(['context', guid, 'dependencies'], ['foo'])
+        coroutine.sleep(.1)
         self.assertEqual(1, len(events))
         assert 'mtime' in events[0]['props']
         del events[:]

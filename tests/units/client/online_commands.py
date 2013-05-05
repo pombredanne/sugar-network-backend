@@ -778,10 +778,11 @@ class OnlineCommandsTest(tests.Test):
             'notes': '',
             'spec': {'*-*': {}},
             })
+        coroutine.sleep(.5)
         assert injector._mtime > mtime
 
         mtime = injector._mtime
-        coroutine.sleep(1.5)
+        coroutine.sleep(1)
 
         impl2 = ipc.post(['implementation'], {
             'context': context,
