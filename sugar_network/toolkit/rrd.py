@@ -152,29 +152,29 @@ class _DbSet(object):
                 break
 
         start = start - start % self._step - self._step
-        end = end - end % self._step - self._step
+        end = min(end, start + _FETCH_PAGE * resolution)
+        end -= end % self._step + self._step
 
         for db in reversed(revisions):
             db_end = min(end, db.last - self._step)
-            while start <= db_end:
-                until = max(start,
-                        min(start + _FETCH_PAGE, db_end))
-                (row_start, start, row_step), __, rows = _rrdtool.fetch(
-                        str(db.path),
-                        'AVERAGE',
-                        '--start', str(start),
-                        '--end', str(until),
-                        '--resolution', str(resolution))
-                for raw_row in rows:
-                    row_start += row_step
-                    row = {}
-                    accept = False
-                    for i, value in enumerate(raw_row):
-                        row[db.field_names[i]] = value
-                        accept = accept or value is not None
-                    if accept:
-                        yield row_start, row
-                start = until + 1
+            if start > db_end:
+                break
+            (row_start, start, row_step), __, rows = _rrdtool.fetch(
+                    str(db.path),
+                    'AVERAGE',
+                    '--start', str(start),
+                    '--end', str(db_end),
+                    '--resolution', str(resolution))
+            for raw_row in rows:
+                row_start += row_step
+                row = {}
+                accept = False
+                for i, value in enumerate(raw_row):
+                    row[db.field_names[i]] = value
+                    accept = accept or value is not None
+                if accept:
+                    yield row_start, row
+            start = db_end + 1
 
     def _get_db(self, timestamp):
         if self.__db is None and self._field_names:
