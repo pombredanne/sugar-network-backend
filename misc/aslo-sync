@@ -18,10 +18,8 @@
 import os
 import time
 import getpass
-import logging
 import tempfile
 import subprocess
-from base64 import b64encode
 from os.path import join, exists
 
 import MySQLdb as mdb
@@ -51,6 +49,7 @@ SUGAR_RELEASES = {
         (0, 94): 'sugar-0.94',
         (0, 96): 'sugar-0.96',
         (0, 98): 'sugar-0.98',
+        (0, 100): 'sugar-0.100',
         }
 
 CATEGIORIES_TO_TAGS = {
@@ -75,8 +74,8 @@ MISNAMED_LICENSES = {
 
 IGNORE_ADDONS = frozenset([
         'net.gcompris.',    # Exclude per-activity GC addons
-        'org.laptop.GmailActivity', # Licensing question
-        'com.batovi.SuperVampireNinjaZero', # Licensing question
+        'org.laptop.GmailActivity',  # Licensing question
+        'com.batovi.SuperVampireNinjaZero',  # Licensing question
         'org.sugarlabs.SugarNetworkActivity',
         ])
 
@@ -174,7 +173,7 @@ class Application(application.Application):
                     implement=SUGAR_GUID,
                     type='package', title='Sugar',
                     summary='Constructionist learning platform',
-                    description= \
+                    description=
                         'Sugar provides simple yet powerful means of engaging '
                         'young children in the world of learning that is '
                         'opened up by computers and the Internet. With Sugar, '
@@ -245,7 +244,10 @@ class Application(application.Application):
                 reviews.created,
                 reviews.title,
                 reviews.body,
-                IF(users.firstname!="", CONCAT_WS(' ', users.firstname, users.lastname), users.nickname)
+                reviews.rating,
+                IF(users.firstname!="",
+                    CONCAT_WS(' ', users.firstname, users.lastname),
+                    users.nickname)
             FROM
                 reviews
                 INNER JOIN versions ON versions.id = reviews.version_id
@@ -253,8 +255,8 @@ class Application(application.Application):
             WHERE
                 reply_to IS NULL AND versions.addon_id = %s
             """ % addon_id
-        directory = self.volume['feedback']
-        for guid, created, title, content, author in self.sqlexec(sql):
+        directory = self.volume['review']
+        for guid, created, title, content, rating, author in self.sqlexec(sql):
             if directory.exists(str(guid)):
                 continue
             directory.create(
@@ -262,9 +264,9 @@ class Application(application.Application):
                     ctime=int(time.mktime(created.timetuple())),
                     mtime=int(time.mktime(created.timetuple())),
                     context=bundle_id,
-                    type='review',
                     title=self.get_i18n_field(title),
                     content=self.get_i18n_field(content),
+                    rating=rating,
                     author=self.authors(author),
                     )
 
@@ -343,7 +345,7 @@ class Application(application.Application):
 
             try:
                 impl = self.sync_implementaiton(bundle_id,
-                        'http://download.sugarlabs.org/activities/%s/%s' % \
+                        'http://download.sugarlabs.org/activities/%s/%s' %
                                 (addon_id, filename),
                         sugar_min, sugar_max,
                         stability='stable' if status == 4 else 'developer',
@@ -352,7 +354,8 @@ class Application(application.Application):
                         license=alicense if alicense else [],
                         )
             except Exception, error:
-                print '-- Failed to sync %s for %s: %s' % (version, bundle_id, error)
+                print '-- Failed to sync %s for %s: %s' % \
+                        (version, bundle_id, error)
                 continue
 
             if impl and parsed_version > recent_version:
@@ -391,7 +394,9 @@ class Application(application.Application):
                 addons.description,
                 (select max(localized_string) from translations where
                     id=addons.homepage),
-                IF(users.firstname != '', CONCAT_WS(' ', users.firstname, users.lastname), users.nickname)
+                IF(users.firstname != '',
+                    CONCAT_WS(' ', users.firstname, users.lastname),
+                    users.nickname)
             FROM
                 addons
                 INNER JOIN addons_users on addons_users.addon_id=addons.id
@@ -526,16 +531,16 @@ class Application(application.Application):
 
         return alicense
 
-    def get_i18n_field(self, id):
+    def get_i18n_field(self, an_id):
         result = {}
-        if id:
+        if an_id:
             for locale, value in self.sqlexec("""
                     SELECT
                         locale, localized_string
                     FROM
                         translations
                     WHERE
-                        id = %s""" % id):
+                        id = %s""" % an_id):
                 result[locale] = value
         return result
 
@@ -555,8 +560,8 @@ class Application(application.Application):
         dst = src + '.png'
         try:
             subprocess.check_call(
-                    ['convert', '-background', 'none'] + \
-                    args + \
+                    ['convert', '-background', 'none'] +
+                    args +
                     [src, dst])
             with file(dst) as f:
                 self.volume[document].set_blob(guid, prop, f)
@@ -603,7 +608,7 @@ db.index_flush_timeout.value = 0
 
 application = Application(
         name='sugar-network-aslo',
-        description= \
+        description=
                 'Synchronize Sugar Network content with '
                 'http://activities.sugarlabs.org',
         config_files=['/etc/sweets.conf', '~/.config/sweets/config'])
