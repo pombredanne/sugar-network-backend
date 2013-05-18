@@ -57,7 +57,7 @@ class OfflineCommandsTest(tests.Test):
         ipc = IPCClient()
 
         self.assertEqual(
-                {'guid': tests.UID, 'roles': [], 'route': 'proxy'},
+                {'guid': tests.UID, 'roles': []},
                 ipc.get(cmd='whoami'))
 
     def test_clone(self):

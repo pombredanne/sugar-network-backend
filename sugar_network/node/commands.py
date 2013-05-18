@@ -14,10 +14,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import json
 import logging
 import hashlib
-from os.path import join
+from os.path import join, isdir
 
 from sugar_network import db, node, static
 from sugar_network.node import auth, stats_node
@@ -64,26 +63,15 @@ class NodeCommands(db.VolumeCommands, Commands):
     def hello(self):
         return _HELLO_HTML
 
-    @db.route('GET', '/presolve')
-    def route_presolve(self, request, response):
-        enforce(node.files_root.value, http.BadRequest, 'Disabled')
-        if len(request.path) <= 3:
-            path = join(node.files_root.value, *request.path)
-            result = os.listdir(path)
-        elif len(request.path) == 4:
-            with file(join(node.files_root.value, *request.path)) as f:
-                result = json.load(f)
-            for info in result:
-                info['url'] = request.static_prefix + info.pop('path')
-        else:
-            raise http.BadRequest('Incorrect path')
-        response.content_type = 'application/json'
-        return result
-
     @db.route('GET', '/packages')
     def route_packages(self, request, response):
         enforce(node.files_root.value, http.BadRequest, 'Disabled')
-        return util.iter_file(node.files_root.value, *request.path)
+        path = join(node.files_root.value, *request.path)
+        if isdir(path):
+            response.content_type = 'application/json'
+            return os.listdir(path)
+        else:
+            return util.iter_file(path)
 
     @db.volume_command(method='GET', cmd='stat',
             mime_type='application/json')
@@ -167,13 +155,18 @@ class NodeCommands(db.VolumeCommands, Commands):
         layer = list(set(doc['layer']) - set(request.content))
         directory.update(guid, {'layer': layer})
 
+    @db.volume_command(method='GET', cmd='status',
+            mime_type='application/json')
+    def status(self):
+        return {'route': 'direct'}
+
     @db.volume_command(method='GET', cmd='whoami',
             mime_type='application/json')
     def whoami(self, request):
         roles = []
         if auth.try_validate(request, 'root'):
             roles.append('root')
-        return {'roles': roles, 'guid': request.principal, 'route': 'direct'}
+        return {'roles': roles, 'guid': request.principal}
 
     @db.document_command(method='GET', cmd='clone',
             arguments={'requires': db.to_list})

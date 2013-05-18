@@ -49,7 +49,7 @@ class OnlineCommandsTest(tests.Test):
         ipc = IPCClient()
 
         self.assertEqual(
-                {'guid': tests.UID, 'roles': [], 'route': 'proxy'},
+                {'guid': tests.UID, 'roles': []},
                 ipc.get(cmd='whoami'))
 
     def test_clone_Activities(self):
@@ -148,7 +148,7 @@ class OnlineCommandsTest(tests.Test):
         trigger = self.wait_for_events(ipc, event='inline', state='offline')
         self.node.stop()
         trigger.wait()
-        assert not ipc.get(cmd='inline')
+        assert ipc.get(cmd='status')['route'] == 'offline'
 
         self.assertEqual(
                 {'clone': 2},
@@ -414,7 +414,7 @@ class OnlineCommandsTest(tests.Test):
         trigger = self.wait_for_events(ipc, event='inline', state='offline')
         self.node.stop()
         trigger.wait()
-        assert not ipc.get(cmd='inline')
+        assert ipc.get(cmd='status')['route'] == 'offline'
 
         self.assertEqual(
                 {'favorite': True},

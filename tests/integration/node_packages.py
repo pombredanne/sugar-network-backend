@@ -93,11 +93,11 @@ class NodePackagesSlaveTest(tests.Test):
         coroutine.sleep(2)
 
         self.assertEqual(
-                [{'url': 'http://localhost:8100/packages/OLPC-11.3.1/i586/rpm', 'name': 'rpm'}],
-                conn.get(['presolve', 'OLPC-11.3.1', 'i586', 'package']))
+                '{"i586": [{"path": "rpm", "name": "rpm"}]}',
+                conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8100/packages/OLPC-11.3.1/i586/rpm').read())
+                urllib2.urlopen('http://localhost:8100/packages/presolve:OLPC-11.3.1/rpm').read())
 
         pid = self.popen(['sugar-network-client', '-F', 'start',
             '--api-url=http://localhost:8100', '--cachedir=master.client/tmp',
@@ -108,11 +108,11 @@ class NodePackagesSlaveTest(tests.Test):
         client.ipc_port.value = 8200
         ipc = IPCClient()
         coroutine.sleep(2)
-        if not ipc.get(cmd='inline'):
+        if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
-                [{'url': 'http://localhost:8100/packages/OLPC-11.3.1/i586/rpm', 'name': 'rpm'}],
-                ipc.get(['presolve', 'OLPC-11.3.1', 'i586', 'package']))
+                {"i586": [{"path": "rpm", "name": "rpm"}]},
+                ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.waitpid(pid, signal.SIGINT)
 
         # From slave
@@ -131,11 +131,11 @@ class NodePackagesSlaveTest(tests.Test):
         conn.post(cmd='online-sync')
 
         self.assertEqual(
-                [{'url': 'http://localhost:8101/packages/OLPC-11.3.1/i586/rpm', 'name': 'rpm'}],
-                conn.get(['presolve', 'OLPC-11.3.1', 'i586', 'package']))
+                '{"i586": [{"path": "rpm", "name": "rpm"}]}',
+                conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8101/packages/OLPC-11.3.1/i586/rpm').read())
+                urllib2.urlopen('http://localhost:8101/packages/presolve:OLPC-11.3.1/rpm').read())
 
         pid = self.popen(['sugar-network-client', '-F', 'start',
             '--api-url=http://localhost:8101', '--cachedir=master.client/tmp',
@@ -146,11 +146,11 @@ class NodePackagesSlaveTest(tests.Test):
         client.ipc_port.value = 8200
         ipc = IPCClient()
         coroutine.sleep(2)
-        if not ipc.get(cmd='inline'):
+        if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
-                [{'url': 'http://localhost:8101/packages/OLPC-11.3.1/i586/rpm', 'name': 'rpm'}],
-                ipc.get(['presolve', 'OLPC-11.3.1', 'i586', 'package']))
+                {"i586": [{"path": "rpm", "name": "rpm"}]},
+                ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.waitpid(pid, signal.SIGINT)
 
         # From personal slave
@@ -167,7 +167,7 @@ class NodePackagesSlaveTest(tests.Test):
         conn = Client('http://localhost:8102')
         client.ipc_port.value = 8202
         ipc = IPCClient()
-        if not ipc.get(cmd='inline'):
+        if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
 
         pid = self.popen('V=1 sugar-network-sync sync/sugar-network-sync http://localhost:8100', shell=True)
@@ -179,18 +179,18 @@ class NodePackagesSlaveTest(tests.Test):
         self.waitpid(pid, 0)
 
         self.assertEqual(
-                [{'url': 'http://localhost:8102/packages/OLPC-11.3.1/i586/rpm', 'name': 'rpm'}],
-                conn.get(['presolve', 'OLPC-11.3.1', 'i586', 'package']))
+                '{"i586": [{"path": "rpm", "name": "rpm"}]}',
+                conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8102/packages/OLPC-11.3.1/i586/rpm').read())
+                urllib2.urlopen('http://localhost:8102/packages/presolve:OLPC-11.3.1/rpm').read())
 
         self.assertEqual(
-                [{'url': 'http://localhost:8202/packages/OLPC-11.3.1/i586/rpm', 'name': 'rpm'}],
-                ipc.get(['presolve', 'OLPC-11.3.1', 'i586', 'package']))
+                {"i586": [{"path": "rpm", "name": "rpm"}]},
+                ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8202/packages/OLPC-11.3.1/i586/rpm').read())
+                urllib2.urlopen('http://localhost:8202/packages/presolve:OLPC-11.3.1/rpm').read())
 
 
 if __name__ == '__main__':

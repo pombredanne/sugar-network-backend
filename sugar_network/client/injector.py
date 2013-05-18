@@ -189,7 +189,7 @@ def _solve(context):
         return solution
 
     conn = client.IPCClient()
-    if solution is not None and not conn.get(cmd='inline'):
+    if solution is not None and conn.get(cmd='status')['route'] == 'offline':
         pipe.trace('Reuse stale cached solution in offline mode')
         return solution
 

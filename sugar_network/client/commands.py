@@ -103,6 +103,14 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
         return file(path, 'rb')
 
+    @db.volume_command(method='GET', cmd='status',
+            mime_type='application/json')
+    def status(self):
+        result = {'route': 'proxy' if self._inline.is_set() else 'offline'}
+        if self._inline.is_set():
+            result['node'] = self._node.api_url
+        return result
+
     @db.volume_command(method='GET', cmd='inline',
             mime_type='application/json')
     def inline(self):
@@ -118,7 +126,6 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             result = self._node_call(request, response)
         except db.CommandNotFound:
             result = {'roles': [], 'guid': request.principal}
-        result['route'] = 'proxy'
         return result
 
     @db.directory_command(method='GET',
@@ -383,15 +390,16 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         node.files_root.value = join(root, _SN_DIRNAME, 'files')
 
         volume = Volume(db_path, lazy_open=client.lazy_open.value)
-        self._node = PersonalCommands(join(db_path, 'node'), volume,
+        self._node = _PersonalCommands(join(db_path, 'node'), volume,
                 self.broadcast)
+        self._node.api_url = 'http://localhost:%s' % node.port.value
         self._jobs.spawn(volume.populate)
 
         logging.info('Start %r node on %s port', volume.root, node.port.value)
         server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
                 db.Router(self._node))
         self._node_job.spawn(server.serve_forever)
-        self._node.volume.connect(self.broadcast)
+        volume.connect(self.broadcast)
         self._got_online()
 
     def _lost_mount(self, root):
@@ -625,3 +633,8 @@ class _VolumeCommands(db.VolumeCommands):
     def before_create(self, request, props):
         props['layer'] = tuple(props['layer']) + ('local',)
         db.VolumeCommands.before_create(self, request, props)
+
+
+class _PersonalCommands(PersonalCommands):
+
+    api_url = None

@@ -16,7 +16,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import sys
 import errno
 import signal
 import locale
@@ -28,11 +27,11 @@ from gevent import monkey
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
 from sugar_network.client import IPCRouter, clones
-from sugar_network.client.commands import ClientCommands, CachedClientCommands
-from sugar_network.node import stats_node, stats_user, slave
+from sugar_network.client.commands import CachedClientCommands
+from sugar_network.node import stats_node, stats_user
 from sugar_network.resources.volume import Volume
 from sugar_network.toolkit import mountpoints, util, printf, application
-from sugar_network.toolkit import Option, coroutine, enforce
+from sugar_network.toolkit import Option, coroutine
 
 
 class Application(application.Daemon):
@@ -205,7 +204,7 @@ Option.seek('user-stats', stats_user)
 app = Application(
         name='sugar-network-client',
         description='Sugar Network client application.',
-        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
+        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
                  'for details.',
         config_files=[
             '/etc/sweets.conf',

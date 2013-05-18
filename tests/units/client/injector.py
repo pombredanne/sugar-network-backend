@@ -912,8 +912,8 @@ class _FakeConnection(object):
         self.inline = inline
 
     def get(self, cmd=None, *args, **kwargs):
-        if cmd == 'inline':
-            return self.inline
+        if cmd == 'status':
+            return {'route': 'proxy' if self.inline else 'offline'}
 
 
 if __name__ == '__main__':

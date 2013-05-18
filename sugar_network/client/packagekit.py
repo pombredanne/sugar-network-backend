@@ -175,7 +175,7 @@ class _Transaction(object):
                 'pk_id': str(pk_id),
                 'version': clean_version,
                 'name': package_name,
-                'arch': solver.canonical_machine(arch),
+                'arch': solver.canonicalize_machine(arch),
                 'installed': (status == 'installed'),
                 }
         _logger.debug('Resolved PackageKit name: %r', package)

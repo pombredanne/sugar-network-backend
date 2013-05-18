@@ -119,7 +119,7 @@ class NodeClientTest(tests.Test):
                 ])
             coroutine.sleep(2)
             ipc = Client('http://localhost:5101')
-            if not ipc.get(cmd='inline'):
+            if ipc.get(cmd='status')['route'] == 'offline':
                 self.wait_for_events(ipc, event='inline', state='online').wait()
 
         result = util.assert_call(cmd, stdin=json.dumps(stdin))

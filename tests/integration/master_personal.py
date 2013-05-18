@@ -50,7 +50,7 @@ class MasterPersonalTest(tests.Test):
 
         coroutine.sleep(2)
         ipc = Client('http://localhost:8102')
-        if not ipc.get(cmd='inline'):
+        if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         Client('http://localhost:8100').get(cmd='whoami')
         Client('http://localhost:8101').get(cmd='whoami')

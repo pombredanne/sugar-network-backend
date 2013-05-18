@@ -17,7 +17,7 @@ import os
 import json
 import logging
 from xml.etree import cElementTree as ElementTree
-from os.path import join, exists, basename, relpath
+from os.path import join, exists, basename
 
 from sugar_network.toolkit import Option, http, util, exception, enforce
 
@@ -79,36 +79,39 @@ def presolve(aliases, dst_path):
                             'withdeps': '1',
                             'exclude': 'sugar',
                             })
-                        packages = []
+                        binaries = []
                         for pkg in response.findall('binary'):
-                            packages.append(dict(pkg.items()))
-                        presolves.append((package, arch, packages))
+                            binaries.append(dict(pkg.items()))
+                        presolves.append((package, arch, binaries))
             except Exception:
                 exception(_logger, 'Failed to presolve %r on %s',
                         names, repo['name'])
                 continue
 
             _logger.debug('Presolve %r on %s', names, repo['name'])
-            dep_graphs = {}
 
-            for package, arch, packages in presolves:
-                packages_dir = join(dst_path, 'packages', repo['name'], arch)
-                if not exists(packages_dir):
-                    os.makedirs(packages_dir)
-                for info in packages:
-                    url = info.pop('url')
-                    path = join(packages_dir, basename(url))
+            dst_dir = join(dst_path, 'packages',
+                    '%s:%s' % (obs_presolve_project.value, repo['name']))
+            if not exists(dst_dir):
+                os.makedirs(dst_dir)
+            result = {}
+
+            for package, arch, binaries in presolves:
+                info = result.setdefault(package, {})
+                files = info[arch] = []
+                for binary in binaries:
+                    url = binary.pop('url')
+                    filename = binary['path'] = basename(url)
+                    path = join(dst_dir, filename)
                     if not exists(path):
                         _client.download(url, path)
-                    info['path'] = os.sep + relpath(path, dst_path)
-                presolve_dir = join(dst_path, 'presolve', repo['name'], arch)
-                if not exists(presolve_dir):
-                    os.makedirs(presolve_dir)
-                with util.new_file(join(presolve_dir, package)) as f:
-                    json.dump(packages, f)
-                dep_graphs[package] = packages
+                    files.append(binary)
 
-            return {'repo': repo['name'], 'packages': dep_graphs}
+            for package, info in result.items():
+                with util.new_file(join(dst_dir, package)) as f:
+                    json.dump(info, f)
+
+            return {'repo': repo['name'], 'packages': result}
 
 
 def _request(*args, **kwargs):

@@ -29,7 +29,7 @@ from sugar_network import db, client, toolkit
 from sugar_network.resources.volume import Volume
 from sugar_network.client import IPCRouter
 from sugar_network.client.commands import ClientCommands
-from sugar_network.toolkit import printf, application, coroutine, util
+from sugar_network.toolkit import application, coroutine, util
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
 
@@ -233,7 +233,7 @@ locale.setlocale(locale.LC_ALL, '')
 app = Application(
         name='sugar-network-client',
         description='Sugar Network client utility',
-        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
+        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
                  'for details.',
         config_files=[
             '/etc/sweets.conf',

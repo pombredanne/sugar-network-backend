@@ -77,7 +77,6 @@ class Application(application.Daemon):
 
         if webui.webui.value:
             # XXX Until implementing regular web users
-            from sugar_network import client
             from sugar_network.client.commands import ClientCommands
 
             class _ClientCommands(ClientCommands):
@@ -147,7 +146,7 @@ Option.seek('db', db)
 app = Application(
         name='sugar-network-node',
         description='Sugar Network node server',
-        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network ' \
+        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
                  'for details.',
         config_files=[
             '/etc/sugar-network/config',

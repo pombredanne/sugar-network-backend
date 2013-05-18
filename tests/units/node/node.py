@@ -335,39 +335,15 @@ class NodeTest(tests.Test):
             'description': 'description',
             })
 
-    def test_PresolveRoute(self):
-        node.files_root.value = '.'
-        self.touch(('presolve/repo/arch/package', json.dumps([
-            {'path': '/1', 'foo': 1},
-            {'path': '/2/3', 'bar': 2},
-            ])))
-        volume = self.start_master()
-        client = Client()
-
-        self.assertEqual(
-                ['repo'],
-                client.get(['presolve']))
-        self.assertEqual(
-                ['arch'],
-                client.get(['presolve', 'repo']))
-        self.assertEqual(
-                ['package'],
-                client.get(['presolve', 'repo', 'arch']))
-        self.assertEqual([
-            {'url': 'http://localhost:8888/1', 'foo': 1},
-            {'url': 'http://localhost:8888/2/3', 'bar': 2},
-            ],
-            client.get(['presolve', 'repo', 'arch', 'package']))
-
     def test_PackagesRoute(self):
         node.files_root.value = '.'
         self.touch(('packages/repo/arch/package', 'file'))
         volume = self.start_master()
         client = Client()
 
-        self.assertRaises(RuntimeError, client.get, ['packages'])
-        self.assertRaises(RuntimeError, client.get, ['packages', 'repo'])
-        self.assertRaises(RuntimeError, client.get, ['packages', 'repo', 'arch'])
+        self.assertEqual(['repo'], client.get(['packages']))
+        self.assertEqual(['arch'], client.get(['packages', 'repo']))
+        self.assertEqual(['package'], client.get(['packages', 'repo', 'arch']))
         self.assertEqual('file', client.get(['packages', 'repo', 'arch', 'package']))
 
     def test_Clone(self):

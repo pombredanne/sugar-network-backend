@@ -22,10 +22,13 @@ from sugar_network.toolkit import util, lsb_release, pipe, exception
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'zeroinstall'))
 
-from zeroinstall.injector import reader, model, distro
+from zeroinstall.injector import reader, model
 from zeroinstall.injector.config import Config
 from zeroinstall.injector.driver import Driver
 from zeroinstall.injector.requirements import Requirements
+from zeroinstall.injector.arch import canonicalize_machine, machine_ranks
+# pylint: disable-msg=W0611
+from zeroinstall.injector.distro import try_cleanup_distro_version
 
 
 def _interface_init(self, url):
@@ -36,10 +39,26 @@ def _interface_init(self, url):
 model.Interface.__init__ = _interface_init
 reader.check_readable = lambda * args, ** kwargs: True
 
-try_cleanup_distro_version = distro.try_cleanup_distro_version
-canonical_machine = distro.canonical_machine
-
 _logger = logging.getLogger('zeroinstall')
+
+
+def select_architecture(arches):
+    """Select most appropriate, for the host system, machine architecture
+
+    :param arches:
+        list of architecture names to select
+    :returns:
+        one of passed architecture names, or, `None` if not any
+
+    """
+    result_rank = 9999
+    result_arch = None
+    for arch in arches:
+        rank = machine_ranks.get(canonicalize_machine(arch))
+        if rank is not None and rank < result_rank:
+            result_rank = rank
+            result_arch = arch
+    return result_arch
 
 
 def solve(conn, context):

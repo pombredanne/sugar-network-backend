@@ -17,7 +17,6 @@ class MasterTest(tests.Test):
             {'distributor_id': 'Debian', 'name': 'Debian-7.0', 'arches': ['x86_64']},
             ])
         self.override(obs, 'resolve', lambda repo, arch, names: ['fake'])
-        self.override(obs, 'presolve', lambda *args: None)
 
         self.start_online_client()
         ipc = IPCClient()
@@ -54,7 +53,6 @@ class MasterTest(tests.Test):
             {'distributor_id': 'Debian', 'name': 'Debian-7.0', 'arches': ['x86_64']},
             ])
         self.override(obs, 'resolve', lambda repo, arch, names: enforce(False, 'resolve failed'))
-        self.override(obs, 'presolve', lambda *args: None)
 
         self.start_online_client()
         ipc = IPCClient()
@@ -94,7 +92,6 @@ class MasterTest(tests.Test):
             {'distributor_id': 'Gentoo', 'name': 'Gentoo-2.1', 'arches': ['x86', 'x86_64']},
             ])
         self.override(obs, 'resolve', resolve)
-        self.override(obs, 'presolve', lambda *args: None)
 
         self.start_online_client()
         ipc = IPCClient()
@@ -147,7 +144,6 @@ class MasterTest(tests.Test):
             {'distributor_id': 'Gentoo', 'name': 'Gentoo-2.1', 'arches': ['x86_64']},
             ])
         self.override(obs, 'resolve', lambda repo, arch, names: ['fake'])
-        self.override(obs, 'presolve', lambda *args: None)
 
         self.start_online_client()
         ipc = IPCClient()
