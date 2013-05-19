@@ -107,7 +107,7 @@ class OnlineCommandsTest(tests.Test):
         assert exists('Activities/TestActivitry/activity/activity.info')
         assert not exists('Activities/TestActivitry_1/activity/activity.info')
         self.assertEqual(
-                {'clone': 2, 'type': ['activity']},
+                {'clone': 2},
                 ipc.get(['context', context], reply=['clone']))
 
         ipc.put(['context', context], 2, cmd='clone')
@@ -116,7 +116,7 @@ class OnlineCommandsTest(tests.Test):
         assert exists('Activities/TestActivitry/activity/activity.info')
         assert not exists('Activities/TestActivitry_1/activity/activity.info')
         self.assertEqual(
-                {'clone': 2, 'type': ['activity']},
+                {'clone': 2},
                 ipc.get(['context', context], reply=['clone']))
 
         ipc.put(['context', context], 1, cmd='clone', force=1)
@@ -125,7 +125,7 @@ class OnlineCommandsTest(tests.Test):
         assert exists('Activities/TestActivitry/activity/activity.info')
         assert exists('Activities/TestActivitry_1/activity/activity.info')
         self.assertEqual(
-                {'clone': 2, 'type': ['activity']},
+                {'clone': 2},
                 ipc.get(['context', context], reply=['clone']))
 
         ipc.put(['context', context], 0, cmd='clone')
@@ -134,7 +134,7 @@ class OnlineCommandsTest(tests.Test):
         assert not exists('Activities/TestActivitry/activity/activity.info')
         assert not exists('Activities/TestActivitry_1/activity/activity.info')
         self.assertEqual(
-                {'clone': 0, 'type': ['activity']},
+                {'clone': 0},
                 ipc.get(['context', context], reply=['clone']))
 
         ipc.put(['context', context], 1, cmd='clone')
@@ -142,7 +142,7 @@ class OnlineCommandsTest(tests.Test):
 
         assert exists('Activities/TestActivitry/activity/activity.info')
         self.assertEqual(
-                {'clone': 2, 'type': ['activity']},
+                {'clone': 2},
                 ipc.get(['context', context], reply=['clone']))
 
         trigger = self.wait_for_events(ipc, event='inline', state='offline')
@@ -228,7 +228,7 @@ class OnlineCommandsTest(tests.Test):
 
         assert exists('Activities/TestActivitry/activity/activity.info')
         self.assertEqual(
-                {'clone': 2, 'type': ['activity']},
+                {'clone': 2},
                 ipc.get(['context', context], reply=['clone']))
 
     def test_clone_Content(self):
@@ -397,18 +397,18 @@ class OnlineCommandsTest(tests.Test):
         ipc.put(['context', context], True, cmd='favorite')
         coroutine.sleep(.5)
         self.assertEqual(
-                {'favorite': True, 'type': ['activity']},
+                {'favorite': True},
                 ipc.get(['context', context], reply=['favorite']))
 
         ipc.put(['context', context], False, cmd='favorite')
         self.assertEqual(
-                {'favorite': False, 'type': ['activity']},
+                {'favorite': False},
                 ipc.get(['context', context], reply=['favorite']))
 
         ipc.put(['context', context], True, cmd='favorite')
         coroutine.sleep(.5)
         self.assertEqual(
-                {'favorite': True, 'type': ['activity']},
+                {'favorite': True},
                 ipc.get(['context', context], reply=['favorite']))
 
         trigger = self.wait_for_events(ipc, event='inline', state='offline')
@@ -867,7 +867,7 @@ class OnlineCommandsTest(tests.Test):
                 [{'guid': context, 'favorite': True, 'clone': 2, 'type': ['activity']}],
                 ipc.get(['context'], reply=['favorite', 'clone'])['result'])
         self.assertEqual(
-                {'favorite': True, 'clone': 2, 'type': ['activity']},
+                {'favorite': True, 'clone': 2},
                 ipc.get(['context', context], reply=['favorite', 'clone']))
 
     def test_Proxy_Content(self):
@@ -942,6 +942,32 @@ class OnlineCommandsTest(tests.Test):
                 {'favorite': True, 'clone': 2},
                 ipc.get(['artifact', guid], reply=['favorite', 'clone']))
 
+    def test_Proxy_NoNeedlessRemoteRequests(self):
+        home_volume = self.start_online_client()
+        ipc = IPCClient()
+
+        guid = ipc.post(['context'], {
+            'type': 'content',
+            'title': 'remote',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual(
+                {'title': 'remote'},
+                ipc.get(['context', guid], reply=['title']))
+
+        home_volume['context'].create({
+            'guid': guid,
+            'type': 'activity',
+            'title': 'local',
+            'summary': 'summary',
+            'description': 'description',
+            'favorite': True,
+            })
+        self.assertEqual(
+                {'title': 'local'},
+                ipc.get(['context', guid], reply=['title']))
+
     def test_HomeVolumeEvents(self):
         self.home_volume = self.start_online_client()
         ipc = IPCClient()
@@ -989,7 +1015,7 @@ class OnlineCommandsTest(tests.Test):
         ipc.put(['context', context1], 2, cmd='clone')
         trigger.wait()
         self.assertEqual(
-                {'clone': 2, 'type': ['activity']},
+                {'clone': 2},
                 ipc.get(['context', context1], reply=['clone']))
 
         context2 = ipc.post(['context'], {
@@ -1002,7 +1028,7 @@ class OnlineCommandsTest(tests.Test):
         ipc.put(['context', context2], True, cmd='favorite')
         trigger.wait()
         self.assertEqual(
-                {'favorite': True, 'type': ['activity']},
+                {'favorite': True},
                 ipc.get(['context', context2], reply=['favorite']))
 
 

@@ -6,7 +6,7 @@ import json
 import signal
 import shutil
 import zipfile
-from os.path import exists
+from os.path import exists, join
 
 from __init__ import tests, src_root
 
@@ -23,7 +23,7 @@ class NodeClientTest(tests.Test):
         util.cptree(src_root + '/tests/data/node', 'node')
         self.client_pid = None
 
-        self.node_pid = self.popen(['sugar-network-node', '-F', 'start',
+        self.node_pid = self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
             '--port=8100', '--data-root=node', '--cachedir=tmp', '-DDD',
             '--rundir=run', '--stats-node-step=0',
             ])
@@ -111,7 +111,7 @@ class NodeClientTest(tests.Test):
         cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd
 
         if '--anonymous' not in cmd and not self.client_pid:
-            self.client_pid = self.popen(['sugar-network-client',
+            self.client_pid = self.popen([join(src_root, 'sugar-network-client'),
                 '-DDDF', 'start',
                 '--activity-dirs=client/Activities', '--local-root=client',
                 '--mounts-root=mnt', '--cachedir=tmp', '--ipc-port=5101',

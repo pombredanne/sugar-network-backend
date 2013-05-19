@@ -11,7 +11,7 @@ from os.path import exists, join, dirname, abspath
 
 import rrdtool
 
-from __init__ import tests
+from __init__ import tests, src_root
 
 from sugar_network.client import Client
 from sugar_network.toolkit.rrd import Rrd
@@ -29,7 +29,7 @@ class MasterPersonalTest(tests.Test):
 
         self.touch(('master/db/master', 'localhost:8100'))
 
-        self.master_pid = self.popen(['sugar-network-node', '-F', 'start',
+        self.master_pid = self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
             '--port=8100', '--data-root=master/db', '--cachedir=master/tmp',
             '-DDD', '--rundir=master/run', '--files-root=master/files',
             '--stats-root=master/stats', '--stats-user', '--stats-user-step=1',
@@ -37,7 +37,7 @@ class MasterPersonalTest(tests.Test):
             '--index-flush-threshold=1', '--pull-timeout=1',
             '--obs-url=',
             ])
-        self.client_pid = self.popen(['sugar-network-client', '-F', 'start',
+        self.client_pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://localhost:8100', '--cachedir=client/tmp',
             '-DDD', '--rundir=client/run', '--server-mode', '--layers=pilot',
             '--local-root=client', '--activity-dirs=client/activities',
@@ -110,7 +110,7 @@ class MasterPersonalTest(tests.Test):
             }, cmd='stats-upload')
 
         # Clone initial dump from master
-        pid = self.popen('V=1 sugar-network-sync mnt/sugar-network-sync http://localhost:8100', shell=True)
+        pid = self.popen('V=1 %s mnt/sugar-network-sync http://localhost:8100' % join(src_root, 'sugar-network-sync'), shell=True)
         self.waitpid(pid, 0)
         # Import cloned data on client
         trigger = self.wait_for_events(client, event='sync_complete')

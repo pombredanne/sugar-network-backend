@@ -12,7 +12,7 @@ from os.path import exists, join, dirname, abspath
 
 import rrdtool
 
-from __init__ import tests
+from __init__ import tests, src_root
 
 from sugar_network import db, client
 from sugar_network.client import Client, IPCClient
@@ -68,7 +68,7 @@ class NodePackagesSlaveTest(tests.Test):
         # From master
 
         self.touch(('master/db/master', 'localhost:8100'))
-        self.pids.append(self.popen(['sugar-network-node', '-F', 'start',
+        self.pids.append(self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
             '--port=8100', '--data-root=master/db', '--cachedir=master/tmp',
             '-DDD', '--rundir=master/run', '--files-root=master/files',
             '--stats-root=master/stats', '--stats-user', '--stats-user-step=1',
@@ -99,7 +99,7 @@ class NodePackagesSlaveTest(tests.Test):
                 'package_content',
                 urllib2.urlopen('http://localhost:8100/packages/presolve:OLPC-11.3.1/rpm').read())
 
-        pid = self.popen(['sugar-network-client', '-F', 'start',
+        pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://localhost:8100', '--cachedir=master.client/tmp',
             '-DDD', '--rundir=master.client/run', '--layers=pilot',
             '--local-root=master.client', '--activity-dirs=master.client/activities',
@@ -117,7 +117,7 @@ class NodePackagesSlaveTest(tests.Test):
 
         # From slave
 
-        self.pids.append(self.popen(['sugar-network-node', '-F', 'start',
+        self.pids.append(self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
             '--api-url=http://localhost:8100',
             '--port=8101', '--data-root=slave/db', '--cachedir=slave/tmp',
             '-DDD', '--rundir=slave/run', '--files-root=slave/files',
@@ -137,7 +137,7 @@ class NodePackagesSlaveTest(tests.Test):
                 'package_content',
                 urllib2.urlopen('http://localhost:8101/packages/presolve:OLPC-11.3.1/rpm').read())
 
-        pid = self.popen(['sugar-network-client', '-F', 'start',
+        pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://localhost:8101', '--cachedir=master.client/tmp',
             '-DDD', '--rundir=master.client/run', '--layers=pilot',
             '--local-root=master.client', '--activity-dirs=master.client/activities',
@@ -156,7 +156,7 @@ class NodePackagesSlaveTest(tests.Test):
         # From personal slave
 
         os.makedirs('client/mnt/disk/sugar-network')
-        self.pids.append(self.popen(['sugar-network-client', '-F', 'start',
+        self.pids.append(self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://localhost:8100', '--cachedir=client/tmp',
             '-DDD', '--rundir=client/run', '--server-mode', '--layers=pilot',
             '--local-root=client', '--activity-dirs=client/activities',
@@ -170,7 +170,7 @@ class NodePackagesSlaveTest(tests.Test):
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
 
-        pid = self.popen('V=1 sugar-network-sync sync/sugar-network-sync http://localhost:8100', shell=True)
+        pid = self.popen('V=1 %s sync/sugar-network-sync http://localhost:8100' % join(src_root, 'sugar-network-sync'), shell=True)
         self.waitpid(pid, 0)
         trigger = self.wait_for_events(ipc, event='sync_complete')
         os.rename('sync', 'client/mnt/sync')

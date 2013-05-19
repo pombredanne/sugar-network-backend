@@ -485,23 +485,27 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
     def _proxy_get(self, request, response):
         document = request['document']
-        mixin = None
+        if not self._inline.is_set() or \
+                document not in ('context', 'artifact'):
+            return self._node_call(request, response)
 
-        if self._inline.is_set() and document in ('context', 'artifact'):
-            reply = request.setdefault('reply', ['guid'])
-            mixin = set(reply) & _LOCAL_PROPS
-            if mixin:
-                # Otherwise there is no way to mixin _LOCAL_PROPS
-                if 'guid' not in request and 'guid' not in reply:
-                    reply.append('guid')
-                if document == 'context' and 'type' not in reply:
-                    reply.append('type')
+        request_guid = request.get('guid')
+        if request_guid and self._home.volume[document].exists(request_guid):
+            return self._home.call(request, response)
+
+        reply = request.setdefault('reply', ['guid'])
+        mixin = set(reply) & _LOCAL_PROPS
+        if mixin:
+            # Otherwise there is no way to mixin _LOCAL_PROPS
+            if 'guid' not in request and 'guid' not in reply:
+                reply.append('guid')
+            if document == 'context' and 'type' not in reply:
+                reply.append('type')
 
         result = self._node_call(request, response)
         if not mixin:
             return result
 
-        request_guid = request.get('guid')
         if request_guid:
             items = [result]
         else:
