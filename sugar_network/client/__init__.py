@@ -145,7 +145,7 @@ def path(*args):
     return str(result)
 
 
-def Client(url=None, **session):
+def Client(url=None):
     from sugar_network.toolkit import http
     if url is None:
         url = api_url.value
@@ -156,15 +156,14 @@ def Client(url=None, **session):
         else:
             _logger.warning('Sugar session was never started (no DSA key),'
                     'fallback to anonymous mode')
-    return http.Client(url, creds=creds, **session)
+    return http.Client(url, creds=creds)
 
 
-def IPCClient(**session):
+def IPCClient():
     from sugar_network.toolkit import http
-    # Since `IPCClient` uses only localhost, ignore `http_proxy` envar
-    session['config'] = {'trust_env': False}
     url = 'http://localhost:%s' % ipc_port.value
-    return http.Client(url, creds=None, **session)
+    # It is localhost, so, ignore `http_proxy` envar disabling `trust_env`
+    return http.Client(url, creds=None, trust_env=False)
 
 
 def IPCRouter(*args, **kwargs):

@@ -52,10 +52,6 @@ def limited_encode(limit, packets, **header):
     return _encode(limit, packets, False, header, _EncodingStatus())
 
 
-def chunked_encode(packets, **header):
-    return _ChunkedEncoder(encode(packets, **header))
-
-
 def package_decode(stream):
     stream = _GzipStream(stream)
     package_props = json.loads(stream.readline())
@@ -210,37 +206,6 @@ def _encode(limit, packets, download_blobs, header, status):
             pass
 
     yield json.dumps({'packet': 'last'}) + '\n'
-
-
-class _ChunkedEncoder(object):
-
-    def __init__(self, encoder):
-        self._encoder = encoder
-        self._buffer = ''
-        self._buffer_start = 0
-        self._buffer_end = 0
-
-    def read(self, size):
-        if self._encoder is None:
-            return ''
-
-        def buffer_read():
-            result = self._buffer[self._buffer_start:self._buffer_start + size]
-            self._buffer_start += size
-            return '%X\r\n%s\r\n' % (len(result), result)
-
-        if self._buffer_start < self._buffer_end:
-            return buffer_read()
-
-        try:
-            self._buffer = next(self._encoder)
-        except StopIteration:
-            self._encoder = None
-            return '0\r\n\r\n'
-
-        self._buffer_start = 0
-        self._buffer_end = len(self._buffer)
-        return buffer_read()
 
 
 class _PacketsIterator(object):

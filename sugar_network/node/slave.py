@@ -80,8 +80,7 @@ class SlaveCommands(NodeCommands):
         if stats_user.stats_user.value:
             push.append(('stats_diff', None, stats_user.diff()))
         response = conn.request('POST',
-                data=sync.chunked_encode(push,
-                    src=self.guid, dst=self._master_guid),
+                data=sync.encode(push, src=self.guid, dst=self._master_guid),
                 params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})
         self._import(sync.decode(response.raw), None)

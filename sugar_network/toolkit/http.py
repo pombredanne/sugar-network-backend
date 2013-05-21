@@ -21,15 +21,13 @@ from os.path import join, dirname
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'requests'))
 
-import requests
-from requests.sessions import Session
+from requests import Session, ConnectionError
+from requests.exceptions import SSLError
 
 from sugar_network import client, toolkit
 from sugar_network.toolkit import coroutine, util
 from sugar_network.toolkit import BUFFER_SIZE, exception, enforce
 
-
-ConnectionError = requests.ConnectionError
 
 _RECONNECTION_NUMBER = 1
 _RECONNECTION_TIMEOUT = 3
@@ -89,25 +87,20 @@ class NotFound(Status):
 
 class Client(object):
 
-    def __init__(self, api_url='', creds=None, **session):
+    def __init__(self, api_url='', creds=None, trust_env=True):
         self.api_url = api_url
         self._get_profile = None
+        self._session = session = Session()
 
-        verify = True
+        session.stream = True
+        session.trust_env = trust_env
         if client.no_check_certificate.value:
-            verify = False
-        elif client.certfile.value:
-            verify = client.certfile.value
-
-        headers = {'Accept-Language': toolkit.default_lang()}
+            session.verify = False
         if creds:
             uid, keyfile, self._get_profile = creds
-            headers['SUGAR_USER'] = uid
-            headers['SUGAR_USER_SIGNATURE'] = _sign(keyfile, uid)
-        session['headers'] = headers
-        session['verify'] = verify
-        session['prefetch'] = False
-        self._session = Session(**session)
+            session.headers['SUGAR_USER'] = uid
+            session.headers['SUGAR_USER_SIGNATURE'] = _sign(keyfile, uid)
+        session.headers['Accept-Language'] = toolkit.default_lang()
 
     def __enter__(self):
         return self
@@ -161,10 +154,9 @@ class Client(object):
 
         while True:
             try:
-                response = requests.request(method, path, data=data,
-                        headers=headers, session=self._session, params=params,
-                        **kwargs)
-            except requests.exceptions.SSLError:
+                response = self._session.request(method, path, data=data,
+                        headers=headers, params=params, **kwargs)
+            except SSLError:
                 _logger.warning('Use --no-check-certificate to avoid checks')
                 raise
 
