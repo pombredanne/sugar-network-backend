@@ -48,8 +48,10 @@ class InjectorTest(tests.Test):
         self.assertEqual([
             {'state': 'fork', 'context': context},
             {'state': 'analyze', 'context': context},
-            {'state': 'failure', 'context': context, 'error': "Interface '%s' has no usable implementations" % context, 'log_path': log_path, 'trace': None},
-            ],
+            {'state': 'failure', 'context': context, 'log_path': log_path, 'trace': None, 'error': """\
+Can't find all required implementations:
+- %s -> (problem)
+    No known implementations at all""" % context}],
             [i for i in pipe])
 
         impl = conn.post(['implementation'], {

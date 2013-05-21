@@ -59,6 +59,7 @@ def init_logging(debug_level):
             'inotify',
             'netlink',
             'sugar_stats',
+            '0install',
             ])
     elif debug_level < 4:
         logging.Logger.trace = lambda self, message, *args, **kwargs: \

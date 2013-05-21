@@ -56,7 +56,7 @@ class NodePackagesSlaveTest(tests.Test):
             @route('GET', '/resolve')
             def resolve(self, request, response):
                 response.content_type = 'text/xml'
-                return '<resolve><binary name="rpm" url="http://localhost:9999/packages/rpm"/></resolve>'
+                return '<resolve><binary name="rpm" url="http://localhost:9999/packages/rpm" arch="arch"/></resolve>'
 
             @route('GET', '/packages')
             def packages(self, request, response):
@@ -90,10 +90,10 @@ class NodePackagesSlaveTest(tests.Test):
             'type': 'package',
             'aliases': {'Fedora': {'binary': [['package']]}},
             })
-        coroutine.sleep(2)
+        coroutine.sleep(3)
 
         self.assertEqual(
-                '{"i586": [{"path": "rpm", "name": "rpm"}]}',
+                '{"arch": [{"path": "rpm", "name": "rpm"}]}',
                 conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
@@ -111,7 +111,7 @@ class NodePackagesSlaveTest(tests.Test):
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
-                {"i586": [{"path": "rpm", "name": "rpm"}]},
+                {"arch": [{"path": "rpm", "name": "rpm"}]},
                 ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.waitpid(pid, signal.SIGINT)
 
@@ -131,7 +131,7 @@ class NodePackagesSlaveTest(tests.Test):
         conn.post(cmd='online-sync')
 
         self.assertEqual(
-                '{"i586": [{"path": "rpm", "name": "rpm"}]}',
+                '{"arch": [{"path": "rpm", "name": "rpm"}]}',
                 conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
@@ -149,7 +149,7 @@ class NodePackagesSlaveTest(tests.Test):
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
-                {"i586": [{"path": "rpm", "name": "rpm"}]},
+                {"arch": [{"path": "rpm", "name": "rpm"}]},
                 ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.waitpid(pid, signal.SIGINT)
 
@@ -179,14 +179,14 @@ class NodePackagesSlaveTest(tests.Test):
         self.waitpid(pid, 0)
 
         self.assertEqual(
-                '{"i586": [{"path": "rpm", "name": "rpm"}]}',
+                '{"arch": [{"path": "rpm", "name": "rpm"}]}',
                 conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
                 urllib2.urlopen('http://localhost:8102/packages/presolve:OLPC-11.3.1/rpm').read())
 
         self.assertEqual(
-                {"i586": [{"path": "rpm", "name": "rpm"}]},
+                {"arch": [{"path": "rpm", "name": "rpm"}]},
                 ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',

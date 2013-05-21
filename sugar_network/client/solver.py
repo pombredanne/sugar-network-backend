@@ -38,6 +38,7 @@ def _interface_init(self, url):
 
 model.Interface.__init__ = _interface_init
 reader.check_readable = lambda * args, ** kwargs: True
+reader.update_from_cache = lambda * args, ** kwargs: None
 
 _logger = logging.getLogger('zeroinstall')
 
@@ -121,8 +122,10 @@ def _solve(requirement):
         pipe.trace('\n  '.join(['Solving results:'] + summary))
 
         # pylint: disable-msg=W0212
-        reason = solver._failure_reason
-        if not reason:
+        reason_exception = solver.get_failure_reason()
+        if reason_exception is not None:
+            reason = reason_exception.message
+        else:
             reason = 'Cannot find implementations for %s' % ', '.join(missed)
         raise RuntimeError(reason)
 
