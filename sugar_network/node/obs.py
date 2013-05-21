@@ -35,10 +35,6 @@ obs_presolve_project = Option(
         'OBS project to use with packagekit-backend-presolve',
         default='presolve')
 
-_PRESOLVE_REPO_MAP = {
-        'OLPC': 'Fedora',
-        }
-
 _logger = logging.getLogger('node.obs')
 _client = None
 _repos = {}
@@ -60,13 +56,14 @@ def resolve(repo, arch, names):
 
 def presolve(aliases, dst_path):
     for repo in _get_repos(obs_presolve_project.value):
-        alias = aliases.get(_PRESOLVE_REPO_MAP[repo['distributor_id']])
+        # Presolves make sense only for XO, thus, for Fedora
+        alias = aliases.get('Fedora')
         if not alias:
             continue
 
-        binaries = alias['binary']
-        while binaries:
-            names = binaries.pop()
+        names = alias['binary']
+        while names:
+            names = names.pop()
             presolves = []
             try:
                 for arch in repo['arches']:
@@ -82,7 +79,7 @@ def presolve(aliases, dst_path):
                         binaries = []
                         for pkg in response.findall('binary'):
                             binaries.append(dict(pkg.items()))
-                        presolves.append((package, arch, binaries))
+                        presolves.append((package, binaries))
             except Exception:
                 exception(_logger, 'Failed to presolve %r on %s',
                         names, repo['name'])
@@ -96,10 +93,12 @@ def presolve(aliases, dst_path):
                 os.makedirs(dst_dir)
             result = {}
 
-            for package, arch, binaries in presolves:
-                info = result.setdefault(package, {})
-                files = info[arch] = []
+            for package, binaries in presolves:
+                files = []
                 for binary in binaries:
+                    arch = binary.pop('arch')
+                    if not files:
+                        result.setdefault(package, {})[arch] = files
                     url = binary.pop('url')
                     filename = binary['path'] = basename(url)
                     path = join(dst_dir, filename)
@@ -143,8 +142,6 @@ def _get_repos(project):
     repos = _repos[project] = []
     for repo in _request('GET', ['build', project]).findall('entry'):
         repo = repo.get('name')
-        if '-' not in repo:
-            continue
         arches = _request('GET', ['build', project, repo])
         repos.append({
             'distributor_id': repo.split('-', 1)[0],

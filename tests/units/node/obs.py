@@ -54,7 +54,7 @@ class ObsTest(tests.Test):
                     'package': 'pkg1',
                     }},
                 [   '<resolve>',
-                    '   <binary name="pygame" url="http://pkg1.prm" />',
+                    '   <binary name="pygame" url="http://pkg1.prm" arch="arch"/>',
                     '</resolve>',
                     ],
                 ),
@@ -66,7 +66,7 @@ class ObsTest(tests.Test):
                     'package': 'pkg2',
                     }},
                 [   '<resolve>',
-                    '   <binary name="pygame" url="http://pkg2.prm" />',
+                    '   <binary name="pygame" url="http://pkg2.prm" arch="arch"/>',
                     '</resolve>',
                     ],
                 ),
@@ -96,8 +96,8 @@ class ObsTest(tests.Test):
                     'exclude': 'sugar',
                     }},
                 [   '<resolve>',
-                    '   <binary name="pkg1-1" url="http://pkg1-1.prm" />',
-                    '   <binary name="pkg1-2" url="http://pkg1-2.prm" />',
+                    '   <binary name="pkg1-1" url="http://pkg1-1.prm" arch="arch"/>',
+                    '   <binary name="pkg1-2" url="http://pkg1-2.prm" arch="arch"/>',
                     '</resolve>',
                     ],
                 ),
@@ -111,8 +111,8 @@ class ObsTest(tests.Test):
                     'exclude': 'sugar',
                     }},
                 [   '<resolve>',
-                    '   <binary name="pkg2-1" url="http://pkg2-1.prm" />',
-                    '   <binary name="pkg2-2" url="http://pkg2-2.prm" />',
+                    '   <binary name="pkg2-1" url="http://pkg2-1.prm" arch="arch"/>',
+                    '   <binary name="pkg2-2" url="http://pkg2-2.prm" arch="arch"/>',
                     '</resolve>',
                     ],
                 ),
@@ -128,14 +128,14 @@ class ObsTest(tests.Test):
             }, '.')
 
         self.assertEqual({
-            'i586': [
+            'arch': [
                 {'path': 'pkg1-1.prm', 'name': 'pkg1-1'},
                 {'path': 'pkg1-2.prm', 'name': 'pkg1-2'},
                 ],
             },
             json.load(file('packages/presolve:OLPC-11.3.1/pkg1')))
         self.assertEqual({
-            'i586': [
+            'arch': [
                 {'path': 'pkg2-1.prm', 'name': 'pkg2-1'},
                 {'path': 'pkg2-2.prm', 'name': 'pkg2-2'},
                 ],
