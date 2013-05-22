@@ -57,7 +57,7 @@ offline = Option(
         name='offline')
 
 
-_ESCAPE_VALUE_RE = re.compile('([^\[\]\{\}0-9][^\]\[\{\}]+)')
+_ESCAPE_VALUE_RE = re.compile('([^\\[\\]\\{\\}0-9][^\\]\\[\\{\\}]+)')
 
 
 class Application(application.Application):
@@ -234,7 +234,7 @@ app = Application(
         name='sugar-network-client',
         description='Sugar Network client utility',
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
-                 'for details.',
+               'for details.',
         config_files=[
             '/etc/sweets.conf',
             '~/.config/sweets/config',

@@ -147,7 +147,7 @@ app = Application(
         name='sugar-network-node',
         description='Sugar Network node server',
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
-                 'for details.',
+               'for details.',
         config_files=[
             '/etc/sugar-network/config',
             '~/.config/sugar-network/config',

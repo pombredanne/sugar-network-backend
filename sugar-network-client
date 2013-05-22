@@ -205,7 +205,7 @@ app = Application(
         name='sugar-network-client',
         description='Sugar Network client application.',
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
-                 'for details.',
+               'for details.',
         config_files=[
             '/etc/sweets.conf',
             '~/.config/sweets/config',

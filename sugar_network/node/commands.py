@@ -16,7 +16,7 @@
 import os
 import logging
 import hashlib
-from os.path import join, isdir
+from os.path import join, isdir, exists
 
 from sugar_network import db, node, static
 from sugar_network.node import auth, stats_node
@@ -67,6 +67,7 @@ class NodeCommands(db.VolumeCommands, Commands):
     def route_packages(self, request, response):
         enforce(node.files_root.value, http.BadRequest, 'Disabled')
         path = join(node.files_root.value, *request.path)
+        enforce(exists(path), http.NotFound, 'File was not found')
         if isdir(path):
             response.content_type = 'application/json'
             return os.listdir(path)
