@@ -21,7 +21,7 @@ from os.path import join, dirname
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'requests'))
 
-from requests import Session, ConnectionError
+from requests import Session
 from requests.exceptions import SSLError
 
 from sugar_network import client, toolkit
@@ -135,8 +135,11 @@ class Client(object):
 
     def download(self, path, dst):
         response = self.request('GET', path, allow_redirects=True)
-        content_length = int(response.headers.get('Content-Length', '0'))
-        chunk_size = min(content_length, BUFFER_SIZE)
+        content_length = response.headers.get('Content-Length')
+        if content_length:
+            chunk_size = min(int(content_length), BUFFER_SIZE)
+        else:
+            chunk_size = BUFFER_SIZE
         f = file(dst, 'wb') if isinstance(dst, basestring) else dst
         try:
             for chunk in response.iter_content(chunk_size=chunk_size):
