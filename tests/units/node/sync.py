@@ -294,43 +294,6 @@ class SyncTest(tests.Test):
         self.assertEqual({'packet': 'last'}, json.loads(i.send(999999999)))
         self.assertRaises(StopIteration, i.next)
 
-    def test_chunked_encode(self):
-        output = sync.chunked_encode([])
-        self.assertEqual({'packet': 'last'}, json.loads(decode_chunked(output.read(100))))
-
-        data = [{'foo': 1}, {'bar': 2}]
-        data_stream = dumps({'packet': 'packet'})
-        for record in data:
-            data_stream += dumps(record)
-        data_stream += dumps({'packet': 'last'})
-
-        output = sync.chunked_encode([('packet', None, iter(data))])
-        pauload = StringIO()
-        while True:
-            chunk = output.read(1)
-            if not chunk:
-                break
-            pauload.write(chunk)
-        self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
-
-        output = sync.chunked_encode([('packet', None, iter(data))])
-        pauload = StringIO()
-        while True:
-            chunk = output.read(2)
-            if not chunk:
-                break
-            pauload.write(chunk)
-        self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
-
-        output = sync.chunked_encode([('packet', None, iter(data))])
-        pauload = StringIO()
-        while True:
-            chunk = output.read(1000)
-            if not chunk:
-                break
-            pauload.write(chunk)
-        self.assertEqual(data_stream, decode_chunked(pauload.getvalue()))
-
     def test_encode_Blobs(self):
         self.assertEqual([
             dumps({'packet': 1}),
