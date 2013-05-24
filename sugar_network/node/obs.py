@@ -88,7 +88,7 @@ def presolve(aliases, dst_path):
             _logger.debug('Presolve %r on %s', names, repo['name'])
 
             dst_dir = join(dst_path, 'packages',
-                    '%s:%s' % (obs_presolve_project.value, repo['name']))
+                    '%s::%s' % (obs_presolve_project.value, repo['name']))
             if not exists(dst_dir):
                 os.makedirs(dst_dir)
             result = {}
