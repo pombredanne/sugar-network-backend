@@ -106,7 +106,7 @@ class Application(application.Daemon):
         util.ensure_key(client.key_path())
         volume = Volume(client.path('db'), lazy_open=client.lazy_open.value)
         commands = CachedClientCommands(volume,
-                server_mode=client.server_mode.value)
+                client.api_url.value if not client.server_mode.value else None)
 
         logging.info('Listening for IPC requests on %s port',
                 client.ipc_port.value)

@@ -21,7 +21,7 @@ class CommandsTest(tests.Test):
 
     def test_Hub(self):
         volume = Volume('db')
-        cp = ClientCommands(volume, offline=True)
+        cp = ClientCommands(volume)
         server = coroutine.WSGIServer(
                 ('localhost', client.ipc_port.value), IPCRouter(cp))
         coroutine.spawn(server.serve_forever)
@@ -46,7 +46,7 @@ class CommandsTest(tests.Test):
     def test_launch(self):
         self.override(injector, 'launch', lambda *args, **kwargs: [{'args': args, 'kwargs': kwargs}])
         volume = Volume('db')
-        cp = ClientCommands(volume, offline=True)
+        cp = ClientCommands(volume)
 
         self.assertRaises(RuntimeError, cp.launch, 'fake-document', 'app', [])
 
@@ -60,7 +60,7 @@ class CommandsTest(tests.Test):
         self.override(injector, 'launch', lambda *args, **kwargs: [{'args': args, 'kwargs': kwargs}])
         self.override(journal, 'exists', lambda *args: True)
         volume = Volume('db')
-        cp = ClientCommands(volume, offline=True)
+        cp = ClientCommands(volume)
 
         trigger = self.wait_for_events(cp, event='launch')
         cp.launch('context', 'app', [], object_id='object_id')
@@ -166,7 +166,7 @@ class CommandsTest(tests.Test):
 
     def test_SetLocalLayerInOffline(self):
         volume = Volume('client')
-        cp = ClientCommands(volume)
+        cp = ClientCommands(volume, client.api_url.value)
         post = db.Request(method='POST', document='context')
         post.content_type = 'application/json'
         post.content = {
@@ -189,7 +189,7 @@ class CommandsTest(tests.Test):
 
     def test_CachedClientCommands(self):
         volume = Volume('client')
-        cp = CachedClientCommands(volume)
+        cp = CachedClientCommands(volume, client.api_url.value)
 
         post = db.Request(method='POST', document='context')
         post.content_type = 'application/json'
@@ -234,7 +234,7 @@ class CommandsTest(tests.Test):
 
     def test_CachedClientCommands_WipeReports(self):
         volume = Volume('client')
-        cp = CachedClientCommands(volume)
+        cp = CachedClientCommands(volume, client.api_url.value)
 
         post = db.Request(method='POST', document='report')
         post.content_type = 'application/json'
@@ -255,7 +255,7 @@ class CommandsTest(tests.Test):
 
     def test_SwitchToOfflineForAbsentOnlineProps(self):
         volume = Volume('client')
-        cp = ClientCommands(volume)
+        cp = ClientCommands(volume, client.api_url.value)
 
         post = db.Request(method='POST', document='context')
         post.content_type = 'application/json'

@@ -88,12 +88,14 @@ class Application(application.Daemon):
             client.sugar_uid = lambda: 'demo'
             # Point client API to volume directly
             client.mounts_root.value = None
-            client_commands = _ClientCommands(volume, offline=True)
-
+            home_volume = Volume(join(application.rundir.value, 'db'))
+            client_commands = _ClientCommands(home_volume,
+                    api_url='http://localhost:%s' % node.port.value,
+                    static_prefix=client.api_url.value)
             host = (node.host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)
             server = coroutine.WSGIServer(host,
-                    webui.get_app(client_commands, client.api_url.value))
+                    webui.get_app(client_commands, client.api_url.value, True))
             self.jobs.spawn(server.serve_forever)
 
         try:
@@ -121,7 +123,7 @@ class Application(application.Daemon):
 
     def _ensure_instance(self):
         enforce(self.check_for_instance(), 'Node is not started')
-        return Client('http://localhost:%s' % node.port.value)
+        return Client('http://localhost:%s' % node.port.value, trust_env=False)
 
 
 # Let toolkit.http work in concurrence

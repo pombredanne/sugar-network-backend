@@ -20,7 +20,7 @@ class ServerCommandsTest(tests.Test):
     def start_node(self):
         os.makedirs('disk/sugar-network')
         self.node_volume = Volume('db')
-        cp = ClientCommands(self.node_volume, server_mode=True)
+        cp = ClientCommands(self.node_volume)
         trigger = self.wait_for_events(cp, event='inline', state='online')
         coroutine.spawn(mountpoints.monitor, tests.tmpdir)
         trigger.wait()
@@ -32,7 +32,7 @@ class ServerCommandsTest(tests.Test):
     def test_PopulateNode(self):
         os.makedirs('disk/sugar-network')
         volume = Volume('db')
-        cp = ClientCommands(volume, server_mode=True)
+        cp = ClientCommands(volume)
 
         assert not cp.inline()
         trigger = self.wait_for_events(cp, event='inline', state='online')
@@ -42,7 +42,7 @@ class ServerCommandsTest(tests.Test):
 
     def test_MountNode(self):
         volume = Volume('db')
-        cp = ClientCommands(volume, server_mode=True)
+        cp = ClientCommands(volume)
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
         mountpoints.populate('.')

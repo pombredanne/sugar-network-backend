@@ -24,7 +24,7 @@ import requests
 class OnlineCommandsTest(tests.Test):
 
     def test_inline(self):
-        cp = ClientCommands(Volume('client'))
+        cp = ClientCommands(Volume('client'), client.api_url.value)
         assert not cp.inline()
 
         trigger = self.wait_for_events(cp, event='inline', state='online')

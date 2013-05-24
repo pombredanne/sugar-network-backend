@@ -40,8 +40,8 @@ _logger = logging.getLogger('client.commands')
 
 class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
-    def __init__(self, home_volume, server_mode=False, offline=False,
-            no_subscription=False):
+    def __init__(self, home_volume, api_url=None, no_subscription=False,
+            static_prefix=None):
         db.CommandsProcessor.__init__(self)
         Commands.__init__(self)
         if not client.no_dbus.value:
@@ -53,23 +53,24 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         self._node = None
         self._node_job = coroutine.Pool()
         self._jobs = coroutine.Pool()
-        self._static_prefix = 'http://localhost:%s' % client.ipc_port.value
-        self._offline = offline
         self._no_subscription = no_subscription
-        self._server_mode = server_mode
+        self._server_mode = not api_url
+
+        if not static_prefix:
+            static_prefix = 'http://localhost:%s' % client.ipc_port.value
+        self._static_prefix = static_prefix
 
         home_volume.connect(self._home_event_cb)
 
-        if not offline:
-            if server_mode:
-                mountpoints.connect(_SN_DIRNAME,
-                        self._found_mount, self._lost_mount)
+        if self._server_mode:
+            mountpoints.connect(_SN_DIRNAME,
+                    self._found_mount, self._lost_mount)
+        else:
+            if client.discover_server.value:
+                self._jobs.spawn(self._discover_node)
             else:
-                if client.discover_server.value:
-                    self._jobs.spawn(self._discover_node)
-                else:
-                    self._remote_urls.append(client.api_url.value)
-                self._jobs.spawn(self._wait_for_connectivity)
+                self._remote_urls.append(api_url)
+            self._jobs.spawn(self._wait_for_connectivity)
 
     def close(self):
         self._jobs.kill()
@@ -114,8 +115,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
     @db.volume_command(method='GET', cmd='inline',
             mime_type='application/json')
     def inline(self):
-        if not self._offline and not self._server_mode and \
-                not self._inline.is_set():
+        if not self._server_mode and not self._inline.is_set():
             self._remote_connect()
         return self._inline.is_set()
 
@@ -539,8 +539,10 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
 class CachedClientCommands(ClientCommands):
 
-    def __init__(self, home_volume, server_mode=False, offline=False):
-        ClientCommands.__init__(self, home_volume, server_mode, offline)
+    def __init__(self, home_volume, api_url=None, no_subscription=False,
+            static_prefix=None):
+        ClientCommands.__init__(self, home_volume, api_url, no_subscription,
+                static_prefix)
         self._push_seq = util.PersistentSequence(
                 join(home_volume.root, 'push.sequence'), [1, None])
         self._push_job = coroutine.Pool()

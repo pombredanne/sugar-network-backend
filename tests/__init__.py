@@ -266,7 +266,7 @@ class Test(unittest.TestCase):
             classes = [User, Context, Implementation]
         self.start_master(classes)
         volume = Volume('client', classes)
-        commands = ClientCommands(volume)
+        commands = ClientCommands(volume, client.api_url.value)
         self.wait_for_events(commands, event='inline', state='online').wait()
         self.client = coroutine.WSGIServer(
                 ('localhost', client.ipc_port.value), IPCRouter(commands))
@@ -278,7 +278,7 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context, Implementation]
         volume = Volume('client', classes)
-        commands = ClientCommands(volume, server_mode=True)
+        commands = ClientCommands(volume)
         self.client = coroutine.WSGIServer(
                 ('localhost', client.ipc_port.value), IPCRouter(commands))
         coroutine.spawn(self.client.serve_forever)

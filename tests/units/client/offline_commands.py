@@ -18,7 +18,7 @@ class OfflineCommandsTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         self.home_volume = Volume('db')
-        commands = ClientCommands(self.home_volume, offline=True)
+        commands = ClientCommands(self.home_volume)
         server = coroutine.WSGIServer(('localhost', client.ipc_port.value), IPCRouter(commands))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
