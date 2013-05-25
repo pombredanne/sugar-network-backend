@@ -288,7 +288,9 @@ class VolumeCommands(CommandsProcessor):
             if not isinstance(prop, BlobProperty) and prop.on_set is not None:
                 doc.props[name] = prop.on_set(doc, value)
 
+        changed_props = doc.props.copy()
         yield directory, doc
+        doc.props = changed_props
 
         for name, value in blobs:
             prop = directory.metadata[name]

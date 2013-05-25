@@ -61,9 +61,9 @@ def presolve(aliases, dst_path):
         if not alias:
             continue
 
-        names = alias['binary']
-        while names:
-            names = names.pop()
+        name_variants = alias['binary']
+        while name_variants:
+            names = name_variants.pop()
             presolves = []
             try:
                 for arch in repo['arches']:
