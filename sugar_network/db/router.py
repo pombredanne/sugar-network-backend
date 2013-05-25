@@ -20,7 +20,7 @@ import time
 import types
 import logging
 import mimetypes
-from email.utils import parsedate, formatdate
+from email.utils import parsedate
 from urlparse import parse_qsl, urlsplit
 from bisect import bisect_left
 from os.path import join, isfile, split, splitext
@@ -307,51 +307,8 @@ class _Request(Request):
 
 
 class _Response(Response):
-    # pylint: disable-msg=E0202
 
     status = '200 OK'
-
-    @property
-    def content_length(self):
-        return int(self.get('Content-Length') or '0')
-
-    @content_length.setter
-    def content_length(self, value):
-        self['Content-Length'] = str(value)
-
-    @property
-    def content_type(self):
-        return self.get('Content-Type')
-
-    @content_type.setter
-    def content_type(self, value):
-        if value:
-            self['Content-Type'] = value
-        elif 'Content-Type' in self:
-            del self['Content-Type']
-
-    @property
-    def last_modified(self):
-        return self.get('Last-Modified')
-
-    @last_modified.setter
-    def last_modified(self, value):
-        self['Last-Modified'] = formatdate(value, localtime=False, usegmt=True)
-
-    def items(self):
-        result = []
-        for key, value in dict.items(self):
-            if type(value) in (list, tuple):
-                for i in value:
-                    result.append((key, str(i)))
-            else:
-                result.append((key, str(value)))
-        return result
-
-    def __repr__(self):
-        args = ['status=%r' % self.status,
-                ] + ['%s=%r' % i for i in self.items()]
-        return '<db.Response %s>' % ' '.join(args)
 
 
 def _parse_accept_language(accept_language):

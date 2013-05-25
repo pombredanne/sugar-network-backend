@@ -243,7 +243,7 @@ class _Cookie(list):
             self[op, layer].include(seq)
 
     def store(self, response):
-        response['Set-Cookie'] = []
+        response.set('set-cookie', [])
         if self:
             _logger.debug('Postpone %r in cookie', self)
             self._set_cookie(response, 'sugar_network_pull',
@@ -280,7 +280,7 @@ class _Cookie(list):
 
     def _set_cookie(self, response, name, value, age=3600):
         cookie = '%s=%s; Max-Age=%s; HttpOnly' % (name, value, age)
-        response['Set-Cookie'].append(cookie)
+        response.get('set-cookie').append(cookie)
 
     def _unset_cookie(self, response, name):
         self._set_cookie(response, name, 'unset_%s' % name, 0)

@@ -89,7 +89,7 @@ class RouterTest(tests.Test):
 
         class Status(http.Status):
             status = '001 Status'
-            headers = {'Status-Header': 'value'}
+            headers = {'status-header': 'value'}
 
         class CommandsProcessor(db.CommandsProcessor):
 
@@ -109,7 +109,7 @@ class RouterTest(tests.Test):
         self.assertEqual(error, ''.join([i for i in reply]))
         self.assertEqual([
             '001 Status',
-            {'Content-Length': str(len(error)), 'Content-Type': 'application/json', 'Status-Header': 'value'},
+            {'content-length': str(len(error)), 'content-type': 'application/json', 'status-header': 'value'},
             ],
             response)
 
@@ -117,7 +117,7 @@ class RouterTest(tests.Test):
 
         class Status(http.Status):
             status = '001 Status'
-            headers = {'Status-Header': 'value'}
+            headers = {'status-header': 'value'}
             result = 'result'
 
         class CommandsProcessor(db.CommandsProcessor):
@@ -138,7 +138,7 @@ class RouterTest(tests.Test):
         self.assertEqual(error, ''.join([i for i in reply]))
         self.assertEqual([
             '001 Status',
-            {'Content-Length': str(len(error)), 'Status-Header': 'value'},
+            {'content-length': str(len(error)), 'status-header': 'value'},
             ],
             response)
 
@@ -146,7 +146,7 @@ class RouterTest(tests.Test):
 
         class StatusPass(http.StatusPass):
             status = '001 StatusPass'
-            headers = {'StatusPass-Header': 'value'}
+            headers = {'statuspass-header': 'value'}
             result = 'result'
 
         class CommandsProcessor(db.CommandsProcessor):
@@ -167,7 +167,7 @@ class RouterTest(tests.Test):
         self.assertEqual(error, ''.join([i for i in reply]))
         self.assertEqual([
             '001 StatusPass',
-            {'Content-Length': str(len(error)), 'StatusPass-Header': 'value'},
+            {'content-length': str(len(error)), 'statuspass-header': 'value'},
             ],
             response)
 
@@ -192,7 +192,7 @@ class RouterTest(tests.Test):
         self.assertEqual(error, ''.join([i for i in reply]))
         self.assertEqual([
             '303 See Other',
-            {'Content-Length': '0', 'Location': URL},
+            {'content-length': '0', 'location': URL},
             ],
             response)
 
@@ -217,7 +217,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '200 OK',
-            {'Last-Modified': formatdate(10, localtime=False, usegmt=True), 'Content-Length': str(len(result))},
+            {'last-modified': formatdate(10, localtime=False, usegmt=True), 'content-length': str(len(result))},
             ],
             response)
 
@@ -244,7 +244,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '200 OK',
-            {'Content-Length': str(len(result))},
+            {'content-length': str(len(result))},
             ],
             response)
 
@@ -259,7 +259,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '200 OK',
-            {'Content-Length': str(len(result))},
+            {'content-length': str(len(result))},
             ],
             response)
 
@@ -274,7 +274,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '304 Not Modified',
-            {'Content-Length': str(len(result))},
+            {'content-length': str(len(result))},
             ],
             response)
 
@@ -345,10 +345,10 @@ class RouterTest(tests.Test):
         self.assertEqual([
             '200 OK',
             {
-                'Last-Modified': formatdate(os.stat(local_path).st_mtime, localtime=False, usegmt=True),
-                'Content-Length': str(len(result)),
-                'Content-Type': 'image/png',
-                'Content-Disposition': 'attachment; filename="missing.png"',
+                'last-modified': formatdate(os.stat(local_path).st_mtime, localtime=False, usegmt=True),
+                'content-length': str(len(result)),
+                'content-type': 'image/png',
+                'content-disposition': 'attachment; filename="missing.png"',
                 }
             ],
             response)
@@ -370,10 +370,10 @@ class RouterTest(tests.Test):
         self.assertEqual([
             '200 OK',
             {
-                'Last-Modified': formatdate(mtime, localtime=False, usegmt=True),
-                'Content-Length': str(len(result)),
-                'Content-Type': 'image/png',
-                'Content-Disposition': 'attachment; filename="missing.png"',
+                'last-modified': formatdate(mtime, localtime=False, usegmt=True),
+                'content-length': str(len(result)),
+                'content-type': 'image/png',
+                'content-disposition': 'attachment; filename="missing.png"',
                 }
             ],
             response)
@@ -389,7 +389,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '304 Not Modified',
-            {'Content-Length': str(len(result))},
+            {'content-length': str(len(result))},
             ],
             response)
 
@@ -404,7 +404,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '304 Not Modified',
-            {'Content-Length': str(len(result))},
+            {'content-length': str(len(result))},
             ],
             response)
 
@@ -429,7 +429,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '200 OK',
-            {'Content-Length': str(len(result))},
+            {'content-length': str(len(result))},
             ],
             response)
 
@@ -477,10 +477,10 @@ class RouterTest(tests.Test):
         self.assertEqual([
             '200 OK',
             {
-                'Last-Modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
-                'Content-Length': str(len(result)),
-                'Content-Type': 'application/octet-stream',
-                'Content-Disposition': 'attachment; filename="Foo.obj"',
+                'last-modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
+                'content-length': str(len(result)),
+                'content-type': 'application/octet-stream',
+                'content-disposition': 'attachment; filename="Foo.obj"',
                 }
             ],
             response)
@@ -497,10 +497,10 @@ class RouterTest(tests.Test):
         self.assertEqual([
             '200 OK',
             {
-                'Last-Modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
-                'Content-Length': str(len(result)),
-                'Content-Type': 'application/octet-stream',
-                'Content-Disposition': 'attachment; filename="foo.bar"',
+                'last-modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
+                'content-length': str(len(result)),
+                'content-type': 'application/octet-stream',
+                'content-disposition': 'attachment; filename="foo.bar"',
                 }
             ],
             response)

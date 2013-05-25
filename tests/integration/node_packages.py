@@ -94,10 +94,10 @@ class NodePackagesSlaveTest(tests.Test):
 
         self.assertEqual(
                 '{"arch": [{"path": "rpm", "name": "rpm"}]}',
-                conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
+                conn.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8100/packages/presolve:OLPC-11.3.1/rpm').read())
+                urllib2.urlopen('http://localhost:8100/packages/presolve/OLPC-11.3.1/rpm').read())
 
         pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://localhost:8100', '--cachedir=master.client/tmp',
@@ -111,8 +111,8 @@ class NodePackagesSlaveTest(tests.Test):
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
-                {"arch": [{"path": "rpm", "name": "rpm"}]},
-                ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
+                '{"arch": [{"path": "rpm", "name": "rpm"}]}',
+                ipc.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.waitpid(pid, signal.SIGINT)
 
         # From slave
@@ -132,10 +132,10 @@ class NodePackagesSlaveTest(tests.Test):
 
         self.assertEqual(
                 '{"arch": [{"path": "rpm", "name": "rpm"}]}',
-                conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
+                conn.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8101/packages/presolve:OLPC-11.3.1/rpm').read())
+                urllib2.urlopen('http://localhost:8101/packages/presolve/OLPC-11.3.1/rpm').read())
 
         pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://localhost:8101', '--cachedir=master.client/tmp',
@@ -149,8 +149,8 @@ class NodePackagesSlaveTest(tests.Test):
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
-                {"arch": [{"path": "rpm", "name": "rpm"}]},
-                ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
+                '{"arch": [{"path": "rpm", "name": "rpm"}]}',
+                ipc.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.waitpid(pid, signal.SIGINT)
 
         # From personal slave
@@ -180,17 +180,17 @@ class NodePackagesSlaveTest(tests.Test):
 
         self.assertEqual(
                 '{"arch": [{"path": "rpm", "name": "rpm"}]}',
-                conn.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
+                conn.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8102/packages/presolve:OLPC-11.3.1/rpm').read())
+                urllib2.urlopen('http://localhost:8102/packages/presolve/OLPC-11.3.1/rpm').read())
 
         self.assertEqual(
-                {"arch": [{"path": "rpm", "name": "rpm"}]},
-                ipc.get(['packages', 'presolve:OLPC-11.3.1', 'package']))
+                '{"arch": [{"path": "rpm", "name": "rpm"}]}',
+                ipc.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8202/packages/presolve:OLPC-11.3.1/rpm').read())
+                urllib2.urlopen('http://localhost:8202/packages/presolve/OLPC-11.3.1/rpm').read())
 
 
 if __name__ == '__main__':

@@ -133,18 +133,18 @@ class ObsTest(tests.Test):
                 {'path': 'pkg1-2.prm', 'name': 'pkg1-2'},
                 ],
             },
-            json.load(file('packages/presolve::OLPC-11.3.1/pkg1')))
+            json.load(file('packages/presolve/OLPC-11.3.1/pkg1')))
         self.assertEqual({
             'arch': [
                 {'path': 'pkg2-1.prm', 'name': 'pkg2-1'},
                 {'path': 'pkg2-2.prm', 'name': 'pkg2-2'},
                 ],
             },
-            json.load(file('packages/presolve::OLPC-11.3.1/pkg2')))
-        self.assertEqual('1', file('packages/presolve::OLPC-11.3.1/pkg1-1.prm').read())
-        self.assertEqual('2', file('packages/presolve::OLPC-11.3.1/pkg1-2.prm').read())
-        self.assertEqual('3', file('packages/presolve::OLPC-11.3.1/pkg2-1.prm').read())
-        self.assertEqual('4', file('packages/presolve::OLPC-11.3.1/pkg2-2.prm').read())
+            json.load(file('packages/presolve/OLPC-11.3.1/pkg2')))
+        self.assertEqual('1', file('packages/presolve/OLPC-11.3.1/pkg1-1.prm').read())
+        self.assertEqual('2', file('packages/presolve/OLPC-11.3.1/pkg1-2.prm').read())
+        self.assertEqual('3', file('packages/presolve/OLPC-11.3.1/pkg2-1.prm').read())
+        self.assertEqual('4', file('packages/presolve/OLPC-11.3.1/pkg2-2.prm').read())
 
 
 class Response(object):

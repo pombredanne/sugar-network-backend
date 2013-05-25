@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+from email.utils import formatdate
 
 from sugar_network import toolkit
 from sugar_network.db import env
@@ -156,20 +157,66 @@ class Request(dict):
 
 class Response(dict):
 
-    #: Response payload length
-    content_length = None
-    #: Payload MIME type
-    content_type = None
-    #: UNIX seconds of last modification
-    last_modified = None
-
     def __init__(self, **kwargs):
         """Initialize parameters dictionary using named arguments."""
         dict.__init__(self, kwargs)
 
+    @property
+    def content_length(self):
+        return int(self.get('content-length') or '0')
+
+    @content_length.setter
+    def content_length(self, value):
+        self.set('content-length', value)
+
+    @property
+    def content_type(self):
+        return self.get('content-type')
+
+    @content_type.setter
+    def content_type(self, value):
+        if value:
+            self.set('content-type', value)
+        elif 'content-type' in self:
+            self.remove('content-type')
+
+    @property
+    def last_modified(self):
+        return self.get('last-modified')
+
+    @last_modified.setter
+    def last_modified(self, value):
+        self.set('last-modified',
+                formatdate(value, localtime=False, usegmt=True))
+
+    def items(self):
+        result = []
+        for key, value in dict.items(self):
+            if type(value) in (list, tuple):
+                for i in value:
+                    result.append((key, str(i)))
+            else:
+                result.append((key, str(value)))
+        return result
+
     def __repr__(self):
         args = ['%s=%r' % i for i in self.items()]
-        return '<db.Response %s>' % ' '.join(args)
+        return '<Response %s>' % ' '.join(args)
+
+    def __getitem__(self, key):
+        return self.get(key.lower())
+
+    def __setitem__(self, key, value):
+        return self.set(key.lower(), value)
+
+    def __delitem__(self, key, value):
+        self.remove(key.lower())
+
+    def set(self, key, value):
+        dict.__setitem__(self, key, value)
+
+    def remove(self, key):
+        dict.__delitem__(self, key)
 
 
 class CommandsProcessor(object):

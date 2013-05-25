@@ -176,7 +176,7 @@ class SyncMasterTest(tests.Test):
             'sugar_network_sent=unset_sugar_network_sent; Max-Age=0; HttpOnly',
             'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def test_push_WithCookies(self):
         ts = int(time.time())
@@ -221,7 +221,7 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({None: [[1, 1]]})),
             'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def test_push_CollectCookies(self):
         request = Request()
@@ -248,7 +248,7 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({None: []})),
             'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_pull=%s' % \
@@ -272,7 +272,7 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({None: []})),
             'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def test_push_DoNotExcludeAcksFromCookies(self):
         ts = int(time.time())
@@ -310,7 +310,7 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({None: [[1, 1]]})),
             'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def test_pull(self):
         self.volume['document'].create(guid='1', prop='1', ctime=1, mtime=1)
@@ -331,11 +331,11 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({})),
             'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
         coroutine.sleep(.5)
 
         request = Request()
-        request.environ['HTTP_COOKIE'] = response.get('Set-Cookie')[0]
+        request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
         response = db.Response()
         reply = StringIO()
         for chunk in self.master.pull(request, response):
@@ -367,10 +367,10 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({})),
             'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
         request = Request()
-        request.environ['HTTP_COOKIE'] = response.get('Set-Cookie')[0]
+        request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
         response = db.Response()
         reply = StringIO()
         for chunk in self.master.pull(request, response):
@@ -390,7 +390,7 @@ class SyncMasterTest(tests.Test):
             'sugar_network_sent=unset_sugar_network_sent; Max-Age=0; HttpOnly',
             'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def test_pull_EmptyPackets(self):
         self.master._pulls = {
@@ -410,12 +410,12 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({})),
             'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
         coroutine.sleep(.5)
         self.assertEqual(1, len([i for i in glob('tmp/pulls/*.tag')]))
 
         request = Request()
-        request.environ['HTTP_COOKIE'] = response.get('Set-Cookie')[0]
+        request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
         response = db.Response()
         self.assertEqual(None, self.master.pull(request, response))
         self.assertEqual([
@@ -423,7 +423,7 @@ class SyncMasterTest(tests.Test):
             'sugar_network_sent=unset_sugar_network_sent; Max-Age=0; HttpOnly',
             'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
         self.assertEqual(0, len([i for i in glob('tmp/pulls/*.tag')]))
 
     def test_pull_FullClone(self):
@@ -447,11 +447,11 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({})),
             'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
         coroutine.sleep(.5)
 
         request = Request()
-        request.environ['HTTP_COOKIE'] = response.get('Set-Cookie')[0]
+        request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
         response = db.Response()
         reply = StringIO()
         for chunk in self.master.pull(request, response):
@@ -468,10 +468,10 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({})),
             'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
         request = Request()
-        request.environ['HTTP_COOKIE'] = response.get('Set-Cookie')[0]
+        request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
         response = db.Response()
         reply = StringIO()
         for chunk in self.master.pull(request, response):
@@ -486,7 +486,7 @@ class SyncMasterTest(tests.Test):
             'sugar_network_sent=unset_sugar_network_sent; Max-Age=0; HttpOnly',
             'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def test_push_SetSentCookies(self):
         request = Request()
@@ -536,7 +536,7 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({'1': [], '2': [], '3': [[1, 2]]})),
             'sugar_network_delay=0; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def test_pull_ExcludeSentCookies(self):
         self.volume['document'].create(guid='1', prop='1', ctime=1, mtime=1)
@@ -557,11 +557,11 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({'slave': [[2, 2]]})),
             'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
         coroutine.sleep(.5)
 
         request = Request()
-        request.environ['HTTP_COOKIE'] = ';'.join(response.get('Set-Cookie'))
+        request.environ['HTTP_COOKIE'] = ';'.join(response.get('set-cookie'))
         reply = StringIO()
         for chunk in self.master.pull(request, response):
             reply.write(chunk)
@@ -584,7 +584,7 @@ class SyncMasterTest(tests.Test):
             'sugar_network_sent=unset_sugar_network_sent; Max-Age=0; HttpOnly',
             'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def test_pull_DoNotExcludeSentCookiesForMultipleNodes(self):
         self.volume['document'].create(guid='1', prop='1', ctime=1, mtime=1)
@@ -605,11 +605,11 @@ class SyncMasterTest(tests.Test):
                     base64.b64encode(json.dumps({'slave': [[2, 2]], 'other': []})),
             'sugar_network_delay=30; Max-Age=3600; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
         coroutine.sleep(.5)
 
         request = Request()
-        request.environ['HTTP_COOKIE'] = ';'.join(response.get('Set-Cookie'))
+        request.environ['HTTP_COOKIE'] = ';'.join(response.get('set-cookie'))
         reply = StringIO()
         for chunk in self.master.pull(request, response):
             reply.write(chunk)
@@ -638,7 +638,7 @@ class SyncMasterTest(tests.Test):
             'sugar_network_sent=unset_sugar_network_sent; Max-Age=0; HttpOnly',
             'sugar_network_delay=unset_sugar_network_delay; Max-Age=0; HttpOnly',
             ],
-            response.get('Set-Cookie'))
+            response.get('set-cookie'))
 
     def __test_pull_LimittedPull(self):
         pass

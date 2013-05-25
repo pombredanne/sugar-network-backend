@@ -57,7 +57,7 @@ class Redirect(StatusPass):
 
     def __init__(self, location):
         StatusPass.__init__(self)
-        self.headers = {'Location': location}
+        self.headers = {'location': location}
 
 
 class BadRequest(Status):
@@ -235,9 +235,14 @@ class Client(object):
                 allow_redirects=request.allow_redirects)
 
         if reply.status_code == 303:
-            raise Redirect(reply.headers['Location'])
+            raise Redirect(reply.headers.get('location'))
 
         if response is not None:
+            if 'transfer-encoding' in reply.headers:
+                # `requests` library handles encoding on its own
+                del reply.headers['transfer-encoding']
+            response.update(reply.headers)
+            """
             if 'Content-Disposition' in reply.headers:
                 response['Content-Disposition'] = \
                         reply.headers['Content-Disposition']
@@ -245,6 +250,7 @@ class Client(object):
                 response.content_type = reply.headers['Content-Type']
             if 'Content-Length' in reply.headers:
                 response.content_length = int(reply.headers['Content-Length'])
+            """
 
         if reply.headers.get('Content-Type') == 'application/json':
             return json.loads(reply.content)
@@ -328,6 +334,7 @@ def _sign(key_path, data):
     import hashlib
     from M2Crypto import DSA
     key = DSA.load_key(key_path)
+    # pylint: disable-msg=E1121
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
 
 
