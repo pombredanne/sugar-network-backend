@@ -77,8 +77,8 @@ def clone(guid):
 
 def clone_impl(context, **params):
     return pipe.fork(_clone_impl,
-            log_path=client.profile_path('logs', context), context=context,
-            params=params, session={'context': context})
+            log_path=client.profile_path('logs', context),
+            context_guid=context, params=params, session={'context': context})
 
 
 def invalidate_solutions(mtime):
@@ -150,14 +150,18 @@ def _clone(context):
     _set_cached_solution(context, solution)
 
 
-def _clone_impl(context, params):
+def _clone_impl(context_guid, params):
     conn = client.IPCClient()
-    impls = conn.get(['implementation'], context=context, order_by='-version',
-            limit=1, reply=['guid', 'version', 'stability', 'spec'],
+
+    context = conn.get(['context', context_guid], reply=['title'])
+
+    impls = conn.get(['implementation'], context=context_guid,
+            order_by='-version', limit=1,
+            reply=['guid', 'version', 'stability', 'spec'],
             **params)['result']
     enforce(impls, http.NotFound, 'No implementations')
-
     impl = impls[0]
+
     spec = impl['spec']['*-*']
     src_path = cache.get(impl['guid'])
     if 'extract' in spec:
@@ -168,11 +172,11 @@ def _clone_impl(context, params):
     _logger.info('Clone implementation to %r', dst_path)
     util.cptree(src_path, dst_path)
 
-    _set_cached_solution(context, [{
+    _set_cached_solution(context_guid, [{
         'id': dst_path,
-        'context': context,
+        'context': context_guid,
         'version': impl['version'],
-        'name': 'TODO',
+        'name': context['title'],
         'stability': impl['stability'],
         'spec': join(dst_path, 'activity', 'activity.info'),
         'path': dst_path,
