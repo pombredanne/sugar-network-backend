@@ -385,24 +385,26 @@ class Application(application.Application):
                 elif bundle_id in LICENSES_MAP:
                     alicense = LICENSES_MAP[bundle_id]
                 else:
-                    print '-- Skip bad license %r from %s of %s' % \
+                    print '-- Skip bad %r license from %s in %s' % \
                             (alicense, filename, addon_id)
                     continue
 
             if self.volume['implementation'].find(
-                    context=bundle_id, version=version)[1] == 0:
-                try:
-                    self.sync_implementaiton(bundle_id, addon_id, filename,
-                            sugar_min, sugar_max,
-                            stability='stable' if status == 4 else 'developer',
-                            date=int(time.mktime(release_date.timetuple())),
-                            notes=self.get_i18n_field(releasenotes),
-                            license=alicense if alicense else [],
-                            )
-                except Exception, error:
-                    print '-- Failed to sync %s for %s: %s' % \
-                            (version, bundle_id, error)
-                    continue
+                    context=bundle_id, version=version, limit=1)[1]:
+                continue
+
+            try:
+                self.sync_implementaiton(bundle_id, addon_id, filename,
+                        sugar_min, sugar_max,
+                        stability='stable' if status == 4 else 'developer',
+                        date=int(time.mktime(release_date.timetuple())),
+                        notes=self.get_i18n_field(releasenotes),
+                        license=alicense if alicense else [],
+                        )
+            except Exception, error:
+                print '-- Failed to sync %s for %s: %s' % \
+                        (version, bundle_id, error)
+                continue
 
             if parsed_version > recent_version:
                 recent_version = parsed_version
@@ -519,7 +521,7 @@ class Application(application.Application):
 
     def sync_implementaiton(self, context, addon_id, filename,
             sugar_min, sugar_max, **impl_props):
-        bundle = Bundle(join(ACTIVITIES_PATH, addon_id, filename))
+        bundle = Bundle(join(ACTIVITIES_PATH, str(addon_id), filename))
         spec = bundle.get_spec()
         if spec is None:
             raise Exception('Bundle does not contain spec file')
@@ -561,7 +563,7 @@ class Application(application.Application):
                 author=self.authors(),
                 **impl_props)
         self.volume['implementation'].set_blob(impl, 'data',
-                url='/'.join([DOWNLOAD_URL, addon_id, filename]))
+                url='/'.join([DOWNLOAD_URL, str(addon_id), filename]))
 
     def parse_license(self, alicense):
         for good in licenses.GOOD_LICENSES:
