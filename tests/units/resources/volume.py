@@ -177,6 +177,43 @@ class VolumeTest(tests.Test):
                 {'user': {'name': 'User', 'role': 3, 'order': 0}},
                 volume['document'].get(guid)['author'])
 
+    def test_FindByAuthor(self):
+
+        class Document(Resource):
+            pass
+
+        volume = Volume('db', [User, Document])
+        cp = TestCommands(volume)
+
+        volume['user'].create(guid='user1', color='', pubkey='', name='UserName1')
+        volume['user'].create(guid='user2', color='', pubkey='', name='User Name2')
+        volume['user'].create(guid='user3', color='', pubkey='', name='User Name 3')
+
+        guid1 = call(cp, method='POST', document='document', content={}, principal='user1')
+        guid2 = call(cp, method='POST', document='document', content={}, principal='user2')
+        guid3 = call(cp, method='POST', document='document', content={}, principal='user3')
+
+        self.assertEqual(sorted([
+            {'guid': guid1},
+            ]),
+            call(cp, method='GET', document='document', author='UserName1')['result'])
+
+        self.assertEqual(sorted([
+            {'guid': guid1},
+            ]),
+            sorted(call(cp, method='GET', document='document', query='author:UserName')['result']))
+        self.assertEqual(sorted([
+            {'guid': guid1},
+            {'guid': guid2},
+            {'guid': guid3},
+            ]),
+            sorted(call(cp, method='GET', document='document', query='author:User')['result']))
+        self.assertEqual(sorted([
+            {'guid': guid2},
+            {'guid': guid3},
+            ]),
+            sorted(call(cp, method='GET', document='document', query='author:Name')['result']))
+
     def test_PreserveAuthorsOrder(self):
 
         class Document(Resource):

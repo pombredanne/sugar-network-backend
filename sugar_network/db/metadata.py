@@ -26,7 +26,7 @@ from sugar_network.toolkit import http, enforce
 #: Xapian term prefix for GUID value
 GUID_PREFIX = 'I'
 
-_LIST_TYPES = (list, tuple, frozenset)
+_LIST_TYPES = (list, tuple, frozenset, types.GeneratorType)
 
 
 def indexed_property(property_class=None, *args, **kwargs):
@@ -203,14 +203,14 @@ class Property(object):
         if self._reprcast is not None:
             value = self._reprcast(value)
 
-        for value in (value if type(value) in _LIST_TYPES else [value]):
-            if type(value) is bool:
-                value = int(value)
-            if type(value) is unicode:
-                value = unicode(value).encode('utf8')
+        for subvalue in (value if type(value) in _LIST_TYPES else [value]):
+            if type(subvalue) is bool:
+                subvalue = int(subvalue)
+            if type(subvalue) is unicode:
+                subvalue = unicode(subvalue).encode('utf8')
             else:
-                value = str(value)
-            result.append(value)
+                subvalue = str(subvalue)
+            result.append(subvalue)
 
         return result
 

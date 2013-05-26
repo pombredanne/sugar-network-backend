@@ -87,6 +87,30 @@ class IndexTest(tests.Test):
                 [],
                 db._find(key='fake', reply=['key'])[0])
 
+    def test_IndexByReprcastGenerator(self):
+
+        def iterate(value):
+            if value != 'fake':
+                yield 'foo'
+                yield 'bar'
+            yield value
+
+        db = Index({'key': IndexedProperty('key', 1, 'K', reprcast=iterate)})
+        db.store('1', {'key': 'value'}, True)
+
+        self.assertEqual(
+                [{'guid': '1'}],
+                db._find(key='foo')[0])
+        self.assertEqual(
+                [{'guid': '1'}],
+                db._find(key='bar')[0])
+        self.assertEqual(
+                [{'guid': '1'}],
+                db._find(key='value')[0])
+        self.assertEqual(
+                [],
+                db._find(key='fake')[0])
+
     def test_find(self):
         db = Index({
             'var_1': IndexedProperty('var_1', 1, 'A', full_text=True),

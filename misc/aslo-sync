@@ -176,7 +176,7 @@ class Application(application.Application):
             self.volume['context'].create(
                     guid=SUGAR_GUID,
                     implement=SUGAR_GUID,
-                    type='package', title='Sugar',
+                    type='package', title='sugar',
                     summary='Constructionist learning platform',
                     description=
                         'Sugar provides simple yet powerful means of engaging '

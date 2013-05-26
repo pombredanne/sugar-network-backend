@@ -29,10 +29,14 @@ _logger = logging.getLogger('resources.volume')
 
 
 def _reprcast_authors(value):
-    for guid, props in value.items():
-        if 'name' in props:
-            yield props['name']
-        yield guid
+    if isinstance(value, dict):
+        for guid, props in value.items():
+            if 'name' in props:
+                yield props['name']
+            else:
+                yield guid
+    else:
+        yield value
 
 
 class Resource(db.Document):
