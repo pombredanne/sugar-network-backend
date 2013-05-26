@@ -18,9 +18,8 @@
 import os
 import time
 import getpass
-import tempfile
-import subprocess
-from os.path import join, exists
+from ConfigParser import ConfigParser
+from os.path import join
 
 import MySQLdb as mdb
 
@@ -122,6 +121,12 @@ LICENSES_MAP = {
         'au.net.acid.Jam2Jam1': ['GPLv2+'],
         }
 
+ACTIVITY_I18N_PROPS = [
+        ('title', 'name'),
+        ('summary', 'summary'),
+        ('description', 'description'),
+        ]
+
 
 class Application(application.Application):
 
@@ -206,6 +211,45 @@ class Application(application.Application):
                 self.sync_activities(addon_id)
         else:
             self.sync_activities()
+
+    @application.command(
+            'pull activities metadata from activities.sugarlabs.org')
+    def pull_metadata(self):
+        sql = """
+            SELECT
+                id,
+                guid
+            FROM
+                addons
+            WHERE
+                status > 0 AND status < 5
+            """
+        for addon_id in self.args:
+            sql += ' AND id = %s' % addon_id
+
+        for addon_id, bundle_id in self.sqlexec(sql):
+            impls, __ = self.volume['implementation'].find(
+                    context=bundle_id, order_by='-version', limit=1)
+            for impl in impls:
+                version = impl['version']
+                break
+            else:
+                continue
+            rows = self.sqlexec("""
+                    SELECT
+                        files.filename
+                    FROM versions
+                        INNER JOIN files ON files.version_id = versions.id
+                    WHERE
+                        versions.addon_id = %s AND versions.version = '%s'
+                    ORDER BY
+                        versions.id DESC
+                    LIMIT
+                        1
+                    """ % (addon_id, version))
+            if not rows:
+                continue
+            self.sync_context_metadata(bundle_id, addon_id, rows[0][0])
 
     @application.command(
             'submit pulled activities.sugarlabs.org content to '
@@ -294,10 +338,12 @@ class Application(application.Application):
                     applications_versions.version_id=versions.id
             WHERE
                 addons.status > 0 AND addons.status < 5 AND addons.id = %s
+            ORDER BY
+                versions.id DESC
             """ % addon_id
 
         recent_version = None
-        recent_impl = None
+        recent_filename = None
 
         for version_id, version, status, license_id, alicense, release_date, \
                 releasenotes, filename, sugar_min, sugar_max \
@@ -305,15 +351,15 @@ class Application(application.Application):
             if version_id in IGNORE_VERSIONS:
                 continue
 
+            if filename.endswith('.xol'):
+                print '-- Ignore library bundles for %r' % bundle_id
+                continue
+
             try:
                 parsed_version = util.parse_version(version)
             except Exception, error:
                 print '-- Cannot parse %r version for %r: %s' % \
                         (version, bundle_id, error)
-                continue
-
-            if self.volume['implementation'].find(
-                    context=bundle_id, version=version)[1] > 0:
                 continue
 
             if license_id is None:
@@ -343,40 +389,67 @@ class Application(application.Application):
                             (alicense, filename, addon_id)
                     continue
 
-            try:
-                impl = self.sync_implementaiton(bundle_id,
-                        'http://download.sugarlabs.org/activities/%s/%s' %
-                                (addon_id, filename),
-                        sugar_min, sugar_max,
-                        stability='stable' if status == 4 else 'developer',
-                        date=int(time.mktime(release_date.timetuple())),
-                        notes=self.get_i18n_field(releasenotes),
-                        license=alicense if alicense else [],
-                        )
-            except Exception, error:
-                print '-- Failed to sync %s for %s: %s' % \
-                        (version, bundle_id, error)
-                continue
+            if self.volume['implementation'].find(
+                    context=bundle_id, version=version)[1] == 0:
+                try:
+                    self.sync_implementaiton(bundle_id, addon_id, filename,
+                            sugar_min, sugar_max,
+                            stability='stable' if status == 4 else 'developer',
+                            date=int(time.mktime(release_date.timetuple())),
+                            notes=self.get_i18n_field(releasenotes),
+                            license=alicense if alicense else [],
+                            )
+                except Exception, error:
+                    print '-- Failed to sync %s for %s: %s' % \
+                            (version, bundle_id, error)
+                    continue
 
-            if impl and parsed_version > recent_version:
+            if parsed_version > recent_version:
                 recent_version = parsed_version
-                recent_impl = impl
+                recent_filename = filename
 
         if recent_version:
-            icon = recent_impl.pop('artifact_icon')
-            self.volume['context'].update(bundle_id, **recent_impl)
-            self.volume['context'].set_blob(bundle_id, 'artifact_icon', icon)
+            self.sync_context_metadata(bundle_id, addon_id, recent_filename)
 
-            with tempfile.NamedTemporaryFile() as f:
-                f.write(icon)
-                f.flush()
-                self.svg_to_png(f.name, 'context', bundle_id, 'icon', [
-                    '-adaptive-resize', '55x55',
-                    ])
-                self.svg_to_png(f.name, 'context', bundle_id, 'preview', [
-                    '-density', '400',
-                    '-adaptive-resize', '160x120',
-                    ])
+    def sync_context_metadata(self, bundle_id, addon_id, filename):
+        bundle = Bundle(join(ACTIVITIES_PATH, str(addon_id), filename))
+        spec = bundle.get_spec()
+
+        props = {}
+        for prop in ('homepage', 'mime_types'):
+            if spec[prop]:
+                props[prop] = spec[prop]
+
+        try:
+            svg = bundle.extractfile(join(bundle.extract, spec['icon']))
+            icon = props['artifact_icon'] = svg.read()
+            png = svg_to_png(icon, '--width=55', '--height=55')
+            if png:
+                props['icon'] = png
+            png = svg_to_png(icon, '--width=160', '--height=120')
+            if png:
+                props['preview'] = png
+        except Exception, error:
+            print '-- Cannot find activity icon: %s' % error
+
+        for prop, confname in ACTIVITY_I18N_PROPS:
+            if spec[confname]:
+                props[prop] = {'en': spec[confname]}
+        for path in bundle.get_names():
+            locale_path = path.split(os.sep)
+            if len(locale_path) < 3 or locale_path[-3] != 'locale' or \
+                    locale_path[-1] != 'activity.linfo':
+                continue
+            config = ConfigParser()
+            config.readfp(bundle.extractfile(path))
+            lang = locale_path[-2].replace('_', '-').lower()
+            for prop, confname in ACTIVITY_I18N_PROPS:
+                if config.has_option('Activity', confname):
+                    value = config.get('Activity', confname)
+                    props.setdefault(prop, {})[lang] = value
+
+        print '-- Update %r metadata from %r' % (bundle_id, filename)
+        self.volume['context'].update(bundle_id, **props)
 
     def sync_context(self, addon_id, bundle_id):
         if not self.volume['context'].exists(bundle_id):
@@ -444,26 +517,12 @@ class Application(application.Application):
                 ctime=created,
                 mtime=modified)
 
-    def sync_implementaiton(self, context, url, sugar_min, sugar_max,
-            **impl_props):
-        path = url[len(DOWNLOAD_URL):].strip('/').split('/')
-        path = join(ACTIVITIES_PATH, *path)
-        if path.endswith('.xol'):
-            return None
-        if not exists(path):
-            print '-- Cannot find ASLO bundle at %s' % path
-            return None
-
-        try:
-            bundle = Bundle(path)
-        except Exception, error:
-            print '-- Cannor read %s bundle: %s' % (path, error)
-            return None
-
+    def sync_implementaiton(self, context, addon_id, filename,
+            sugar_min, sugar_max, **impl_props):
+        bundle = Bundle(join(ACTIVITIES_PATH, addon_id, filename))
         spec = bundle.get_spec()
         if spec is None:
-            print '-- Bundle %s does not contain spec' % path
-            return None
+            raise Exception('Bundle does not contain spec file')
 
         if not impl_props['license']:
             impl_props['license'] = self.parse_license(spec['license'])
@@ -471,9 +530,7 @@ class Application(application.Application):
                 if context in LICENSES_MAP:
                     impl_props['license'] = LICENSES_MAP[context]
                 else:
-                    print '-- Skip bad license %r from %s' % \
-                            (spec['license'], path)
-                    return None
+                    raise Exception('Skip bad license %r' % spec['license'])
 
         print '-- Add %r version to %r activity' % (spec['version'], context)
 
@@ -503,13 +560,8 @@ class Application(application.Application):
                 ctime=time.time(), mtime=time.time(),
                 author=self.authors(),
                 **impl_props)
-        self.volume['implementation'].set_blob(impl, 'data', url=url)
-
-        icon = bundle.extractfile(join(bundle.extract, spec['icon'])).read()
-        return {'homepage': spec['homepage'] or '',
-                'mime_types': spec['mime_types'] or [],
-                'artifact_icon': icon,
-                }
+        self.volume['implementation'].set_blob(impl, 'data',
+                url='/'.join([DOWNLOAD_URL, addon_id, filename]))
 
     def parse_license(self, alicense):
         for good in licenses.GOOD_LICENSES:
@@ -556,21 +608,6 @@ class Application(application.Application):
         cursor.execute(text)
         return cursor.fetchall()
 
-    def svg_to_png(self, src, document, guid, prop, args):
-        dst = src + '.png'
-        try:
-            subprocess.check_call(
-                    ['convert', '-background', 'none'] +
-                    args +
-                    [src, dst])
-            with file(dst) as f:
-                self.volume[document].set_blob(guid, prop, f)
-        except Exception, error:
-            print '-- Cannot convert SVG icon: %s' % error
-        finally:
-            if exists(dst):
-                os.unlink(dst)
-
     def authors(self, original=None):
         result = {
                 ASLO_GUID: {
@@ -582,6 +619,15 @@ class Application(application.Application):
                     'role': 2, 'order': 1, 'name': original,
                     }
         return result
+
+
+def svg_to_png(svg, *args):
+    try:
+        return util.assert_call(
+                ('rsvg-convert', '--keep-aspect-ratio') + args,
+                stdin=svg)
+    except Exception, error:
+        print '-- Cannot convert SVG icon: %s' % error
 
 
 mysql_server = Option(
