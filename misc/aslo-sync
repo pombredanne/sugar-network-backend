@@ -17,8 +17,10 @@
 
 import os
 import time
+import shutil
 import getpass
-from ConfigParser import ConfigParser
+import gettext
+import tempfile
 from os.path import join
 
 import MySQLdb as mdb
@@ -121,11 +123,9 @@ LICENSES_MAP = {
         'au.net.acid.Jam2Jam1': ['GPLv2+'],
         }
 
-ACTIVITY_I18N_PROPS = [
-        ('title', 'name'),
-        ('summary', 'summary'),
-        ('description', 'description'),
-        ]
+
+class AbsDict(dict):
+    pass
 
 
 class Application(application.Application):
@@ -425,7 +425,7 @@ class Application(application.Application):
                 props[prop] = spec[prop]
 
         try:
-            svg = bundle.extractfile(join(bundle.extract, spec['icon']))
+            svg = bundle.extractfile(join(bundle.rootdir, spec['icon']))
             icon = props['artifact_icon'] = svg.read()
             png = svg_to_png(icon, '--width=55', '--height=55')
             if png:
@@ -434,23 +434,54 @@ class Application(application.Application):
             if png:
                 props['preview'] = png
         except Exception, error:
-            print '-- Cannot find activity icon: %s' % error
+            print '-- Cannot find activity icon in %r: %s' % (filename, error)
 
-        for prop, confname in ACTIVITY_I18N_PROPS:
+        msgids = {}
+        for prop, confname in [
+                ('title', 'name'),
+                ('summary', 'summary'),
+                ('description', 'description'),
+                ]:
             if spec[confname]:
-                props[prop] = {'en': spec[confname]}
-        for path in bundle.get_names():
-            locale_path = path.split(os.sep)
-            if len(locale_path) < 3 or locale_path[-3] != 'locale' or \
-                    locale_path[-1] != 'activity.linfo':
-                continue
-            config = ConfigParser()
-            config.readfp(bundle.extractfile(path))
-            lang = locale_path[-2].replace('_', '-').lower()
-            for prop, confname in ACTIVITY_I18N_PROPS:
-                if config.has_option('Activity', confname):
-                    value = config.get('Activity', confname)
-                    props.setdefault(prop, {})[lang] = value
+                msgids[prop] = spec[confname]
+
+        title, summary, description = self.sqlexec("""
+                SELECT
+                    addons.name,
+                    addons.summary,
+                    addons.description
+                FROM
+                    addons
+                WHERE
+                    addons.id = %s
+                """ % addon_id)[0]
+        if 'title' not in msgids:
+            props['title'] = AbsDict(self.get_i18n_field(title))
+        if 'summary' not in msgids:
+            props['summary'] = AbsDict(self.get_i18n_field(summary))
+        if 'description' not in msgids:
+            props['description'] = AbsDict(self.get_i18n_field(description))
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            for path in bundle.get_names():
+                if not path.endswith('.mo'):
+                    continue
+                locale_path = path.strip(os.sep).split(os.sep)
+                if len(locale_path) != 5 or locale_path[1] != 'locale':
+                    continue
+                lang = locale_path[2]
+                bundle.extract(path, tmpdir)
+                i18n = gettext.translation(bundle_id,
+                        join(tmpdir, *locale_path[:2]), [lang])
+                for prop, value in msgids.items():
+                    msgstr = i18n.gettext(value)
+                    if msgstr != value or lang == 'en':
+                        props.setdefault(prop, AbsDict())[lang] = msgstr
+        except Exception, error:
+            print '-- Failed to read locales from %r: %s' % (filename, error)
+        finally:
+            shutil.rmtree(tmpdir)
 
         print '-- Update %r metadata from %r' % (bundle_id, filename)
         self.volume['context'].update(bundle_id, **props)
@@ -560,7 +591,7 @@ class Application(application.Application):
                 spec={'*-*': {
                     'commands': spec.commands,
                     'requires': spec.requires,
-                    'extract': bundle.extract,
+                    'extract': bundle.rootdir,
                     }},
                 ctime=time.time(), mtime=time.time(),
                 author=self.authors(),
@@ -598,7 +629,7 @@ class Application(application.Application):
                         translations
                     WHERE
                         id = %s""" % an_id):
-                result[locale] = value
+                result[locale.lower()] = value
         return result
 
     def sqlexec(self, text):

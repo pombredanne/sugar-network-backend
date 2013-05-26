@@ -28,7 +28,7 @@ class BundleError(Exception):
 class Bundle(object):
 
     def __init__(self, bundle, mime_type=None):
-        self._extract = False
+        self._rootdir = False
 
         if mime_type is None:
             mime_type = _detect_mime_type(bundle) or ''
@@ -37,10 +37,12 @@ class Bundle(object):
             self._bundle = zipfile.ZipFile(bundle)
             self._do_get_names = self._bundle.namelist
             self._do_extractfile = self._bundle.open
+            self._do_extract = self._bundle.extract
         elif mime_type.split('/')[-1].endswith('-tar'):
             self._bundle = tarfile.open(bundle)
             self._do_get_names = self._bundle.getnames
             self._do_extractfile = self._bundle.extractfile
+            self._do_extract = self._bundle.extract
         else:
             raise BundleError('Unsupported bundle type for "%s" file, '
                     'it can be either tar or zip.' % bundle)
@@ -55,10 +57,8 @@ class Bundle(object):
     def get_names(self):
         return self._do_get_names()
 
-    def extractfileto(self, name, dst_path):
-        f = file(dst_path, 'w')
-        f.write(self._do_extractfile(name).read())
-        f.close()
+    def extract(self, name, dst_path):
+        return self._do_extract(name, dst_path)
 
     def extractfile(self, name):
         return self._do_extractfile(name)
@@ -67,26 +67,26 @@ class Bundle(object):
         self._bundle.extractall(path=path, members=members)
 
     @property
-    def extract(self):
-        if self._extract is not False:
-            return self._extract
-        self._extract = None
+    def rootdir(self):
+        if self._rootdir is not False:
+            return self._rootdir
+        self._rootdir = None
 
         for arcname in self.get_names():
             parts = arcname.split(os.sep)
             if len(parts) > 1:
-                if self._extract is None:
-                    self._extract = parts[0]
-                elif parts[0] != self._extract:
-                    self._extract = None
+                if self._rootdir is None:
+                    self._rootdir = parts[0]
+                elif parts[0] != self._rootdir:
+                    self._rootdir = None
                     break
 
-        return self._extract
+        return self._rootdir
 
     def get_spec(self):
-        if self.extract:
-            specs = (join(self.extract, 'sweets.recipe'),
-                     join(self.extract, 'activity', 'activity.info'))
+        if self.rootdir:
+            specs = (join(self.rootdir, 'sweets.recipe'),
+                     join(self.rootdir, 'activity', 'activity.info'))
         else:
             specs = ('sweets.recipe', join('activity', 'activity.info'))
 

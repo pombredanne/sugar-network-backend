@@ -392,7 +392,8 @@ class Directory(object):
                 if prop.localized:
                     if not isinstance(value, dict):
                         value = {toolkit.default_lang(): value}
-                    if existed:
+                    if existed and \
+                            type(value) is dict:  # TODO To reset `value`
                         meta = record.get(name)
                         if meta is not None:
                             meta['value'].update(value)
