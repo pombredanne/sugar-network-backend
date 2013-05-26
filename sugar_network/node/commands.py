@@ -210,6 +210,8 @@ class NodeCommands(db.VolumeCommands, Commands):
         result = []
         for package in set(next(impls)['spec']['*-*'].get('requires') or []) \
                 | set(self.volume['context'].get(guid)['dependencies']):
+            if package == 'sugar':
+                continue
             dep = self.volume['context'].get(package)
             enforce(repo in dep['packages'],
                     'No packages for %r on %r', package, repo)
