@@ -1,0 +1,130 @@
+#!/usr/bin/env python
+# -*- coding: utf8 -*-
+
+# Copyright (C) l013 Aleksey Lim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+from optparse import OptionParser
+
+import MySQLdb as mdb
+
+from sugar_network import db
+from sugar_network.node import data_root
+from sugar_network.resources.volume import Volume
+from sugar_network.toolkit import Option
+
+
+ASLO_GUID = 'd26cef70447160f31a7497cc0320f23a4e383cc3'
+
+UNKNOWN_USERS = {
+        41:    u'Mario César Señoranis Ayala',
+        4195:  u'Andrés Aguirre',
+        35:    u' Ridderman',
+        6842:  u'Juan Ignacio Rodríguez Rodríguez',
+        9462:  u'Cristian García Rea',
+        9823:  u'Nicolás Furquez',
+        5808:  u'Enzo Ludueña',
+        199:   u'Tony Anderson',
+        60:    u'Jameson Quinn',
+        52:    u'Oneyda Ortega',
+        76:    u'milan zimmermann',
+        }
+
+
+mysql_server = Option(
+        'MySQL server',
+        default='localhost', name='mysql_server')
+mysql_database = Option(
+        'MySQL database',
+        default='activities', name='mysql_database')
+mysql_user = Option(
+        'MySQL user',
+        default='root', name='mysql_user')
+mysql_password = Option(
+        'MySQL password',
+        name='mysql_password')
+
+Option.seek('aslo', [mysql_server, mysql_user, mysql_password, mysql_database])
+Option.seek('node', [data_root])
+Option.parse_args(OptionParser(), config_files=['~/.config/sweets/config'])
+
+db.index_write_queue.value = 1024 * 10
+db.index_flush_threshold.value = 0
+db.index_flush_timeout.value = 0
+
+my_connection = mdb.connect('localhost', 'activities', 'Sugar8ME', 'activities')
+my_connection = mdb.connect(mysql_server.value, mysql_user.value,
+        mysql_password.value, mysql_database.value)
+
+
+def sqlexec(text):
+    cursor = my_connection.cursor()
+    cursor.execute(text)
+    return cursor.fetchall()
+
+
+def new_authors(doc):
+    result = {}
+    for user, props in doc['author'].items():
+        if user == ASLO_GUID:
+            result[ASLO_GUID] = {
+                    'role': 1,
+                    'order': 1,
+                    'name': 'Activity Library',
+                    }
+            continue
+        if user in users_by_nickname:
+            nickname = user
+            fullname = users_by_nickname[nickname]
+        else:
+            fullname = props.get('name') or user
+            if fullname in users_by_fullname:
+                nickname = users_by_fullname[fullname] or fullname
+            else:
+                print '-- No %r/%r user' % (user, fullname)
+                nickname = user
+        result[nickname] = {'role': 2, 'order': 2, 'name': fullname}
+    return result
+
+
+users_by_fullname = {}
+users_by_nickname = {}
+for uid, nickname, fullname in sqlexec("""
+        SELECT
+            id,
+            nickname,
+            IF(firstname!="",
+                CONCAT_WS(' ', firstname, lastname),
+                nickname)
+        FROM users
+        """):
+    if uid in UNKNOWN_USERS:
+        users_by_fullname[UNKNOWN_USERS[uid]] = nickname
+    users_by_fullname[fullname] = nickname
+    users_by_nickname[nickname] = fullname
+
+
+volume = Volume(data_root.value)
+volume.populate()
+
+try:
+    for document in ('context', 'review'):
+        documents, __ = volume[document].find(limit=db.MAX_LIMIT)
+        for doc in documents:
+            authors = new_authors(doc)
+            if authors:
+                volume[document].update(doc.guid, author=authors)
+finally:
+    volume.close()

@@ -289,6 +289,7 @@ class Application(application.Application):
                 reviews.title,
                 reviews.body,
                 reviews.rating,
+                users.nickname,
                 IF(users.firstname!="",
                     CONCAT_WS(' ', users.firstname, users.lastname),
                     users.nickname)
@@ -300,7 +301,8 @@ class Application(application.Application):
                 reply_to IS NULL AND versions.addon_id = %s
             """ % addon_id
         directory = self.volume['review']
-        for guid, created, title, content, rating, author in self.sqlexec(sql):
+        for guid, created, title, content, rating, nickname, author in \
+                self.sqlexec(sql):
             if directory.exists(str(guid)):
                 continue
             directory.create(
@@ -311,7 +313,7 @@ class Application(application.Application):
                     title=self.get_i18n_field(title),
                     content=self.get_i18n_field(content),
                     rating=rating,
-                    author=self.authors(author),
+                    author=self.authors(nickname, author),
                     )
 
     def sync_versions(self, addon_id, bundle_id):
@@ -459,8 +461,8 @@ class Application(application.Application):
                     implement=bundle_id, title={}, summary={}, description={},
                     author=self.authors(), layer=['public'], ctime=0, mtime=0)
 
-        created, modified, title, summary, description, homepage, name = \
-                self.sqlexec("""
+        created, modified, title, summary, description, homepage, nickname, \
+                author = self.sqlexec("""
             SELECT
                 addons.created,
                 addons.modified,
@@ -469,6 +471,7 @@ class Application(application.Application):
                 addons.description,
                 (select max(localized_string) from translations where
                     id=addons.homepage),
+                users.nickname,
                 IF(users.firstname != '',
                     CONCAT_WS(' ', users.firstname, users.lastname),
                     users.nickname)
@@ -515,7 +518,7 @@ class Application(application.Application):
                 description=self.get_i18n_field(description),
                 homepage=homepage or '',
                 tags=list(tags),
-                author=self.authors(name),
+                author=self.authors(nickname, author),
                 ctime=created,
                 mtime=modified)
 
@@ -610,14 +613,14 @@ class Application(application.Application):
         cursor.execute(text)
         return cursor.fetchall()
 
-    def authors(self, original=None):
+    def authors(self, nickname=None, original=None):
         result = {
                 ASLO_GUID: {
                     'role': 1, 'order': 0, 'name': 'Activity Library',
                     },
                 }
-        if original:
-            result[original] = {
+        if nickname:
+            result[nickname] = {
                     'role': 2, 'order': 1, 'name': original,
                     }
         return result
