@@ -33,7 +33,7 @@ def _reprcast_authors(value):
         for guid, props in value.items():
             if 'name' in props:
                 yield props['name']
-            if not (props['role'] | AUTHOR_INSYSTEM):
+            if not (props['role'] & AUTHOR_INSYSTEM):
                 yield guid
     else:
         yield value
