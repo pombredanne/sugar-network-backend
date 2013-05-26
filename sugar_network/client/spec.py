@@ -186,7 +186,7 @@ class Spec(object):
                 self._fields['homepage'] = \
                         'http://wiki.sugarlabs.org/go/Activities/%s' % \
                         self['name']
-            if '.' not in self['icon']:
+            if not self['icon'].lower().endswith('.svg'):
                 self._fields['icon'] = join('activity', self['icon'] + '.svg')
             if not self['license']:
                 self._fields['license'] = 'license is not specified'
