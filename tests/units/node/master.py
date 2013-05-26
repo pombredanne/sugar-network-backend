@@ -161,6 +161,9 @@ class MasterTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
+        coroutine.sleep(.5)
+        self.assertEqual(0, len(events))
+
         ipc.put(['context', guid, 'aliases'], {
             'Gentoo': {
                 'binary': [['bin']],
@@ -168,12 +171,12 @@ class MasterTest(tests.Test):
                 },
             })
         coroutine.sleep(.5)
+        self.assertEqual(1, len(events))
+        assert 'mtime' in events[0]['props']
         self.assertEqual({
             'Gentoo-2.1': {'status': 'success', 'binary': ['bin'], 'devel': ['devel']},
             },
             ipc.get(['context', guid, 'packages']))
-        self.assertEqual(2, len(events))
-        assert 'mtime' in events[0]['props']
 
     def test_InvalidateSolutionsOnDependenciesChanges(self):
         self.start_online_client()
