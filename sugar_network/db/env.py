@@ -68,8 +68,9 @@ def gettext(value, accept_language=None):
         accept_language = [toolkit.default_lang()]
     elif isinstance(accept_language, basestring):
         accept_language = [accept_language]
-    stripped_value = None
+    accept_language.append('en')
 
+    stripped_value = None
     for lang in accept_language:
         result = value.get(lang)
         if result is not None:

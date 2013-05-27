@@ -35,6 +35,11 @@ class EnvTest(tests.Test):
         self.assertEqual('bar', env.gettext({'1-a': 'foo', '1': 'bar', 'default': 'default'}, '1-b'))
         self.assertEqual('foo', env.gettext({'1-a': 'foo', '2': 'bar', 'default': 'default'}, '1-b'))
 
+    def test_gettext_EnAsTheLastResort(self):
+        toolkit._default_lang = 'en-us'
+        self.assertEqual('right', env.gettext({'a': 'wrong', 'en': 'right'}, 'probe'))
+        self.assertEqual('exact', env.gettext({'a': 'wrong', 'en': 'right', 'probe': 'exact'}, 'probe'))
+
 
 if __name__ == '__main__':
     tests.main()
