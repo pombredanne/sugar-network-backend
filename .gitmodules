@@ -1,6 +1,6 @@
 [submodule "sugar_network/lib/zeroinstall"]
     path = sugar_network/lib/zeroinstall
-    url = git://git.sugarlabs.org/0sugar/zeroinstall-injector.git
+    url = git://git.sugarlabs.org/network/0install.git
 [submodule "sugar_network/lib/pylru"]
 	path = sugar_network/lib/pylru
 	url = git://github.com/jlhutch/pylru.git
