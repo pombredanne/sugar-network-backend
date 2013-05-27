@@ -125,6 +125,12 @@ anonymous = Option(
         default=False, type_cast=Option.bool_cast, action='store_true',
         name='anonymous')
 
+accept_language = Option(
+        'space separated list of languages to request localized content '
+        'from the server; by default, reuse system locale',
+        default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
+        name='accept-language', short_option='-l')
+
 
 def path(*args):
     """Calculate a path from the root.

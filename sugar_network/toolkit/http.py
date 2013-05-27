@@ -98,9 +98,9 @@ class Client(object):
             session.verify = False
         if creds:
             uid, keyfile, self._get_profile = creds
-            session.headers['SUGAR_USER'] = uid
-            session.headers['SUGAR_USER_SIGNATURE'] = _sign(keyfile, uid)
-        session.headers['Accept-Language'] = toolkit.default_lang()
+            session.headers['sugar_user'] = uid
+            session.headers['sugar_user_signature'] = _sign(keyfile, uid)
+        session.headers['accept-language'] = toolkit.default_lang()
 
     def __enter__(self):
         return self
@@ -213,22 +213,23 @@ class Client(object):
         if request.content_type == 'application/json':
             request.content = json.dumps(request.content)
 
-        headers = None
+        headers = {}
         if request.content is not None:
-            headers = {}
-            headers['Content-Type'] = \
+            headers['content-type'] = \
                     request.content_type or 'application/octet-stream'
-            headers['Content-Length'] = str(len(request.content))
+            headers['content-length'] = str(len(request.content))
         elif request.content_stream is not None:
-            headers = {}
-            headers['Content-Type'] = \
+            headers['content-type'] = \
                     request.content_type or 'application/octet-stream'
             # TODO Avoid reading the full content at once
             if isinstance(request.content_stream, types.GeneratorType):
                 request.content = ''.join([i for i in request.content_stream])
             else:
                 request.content = request.content_stream.read()
-            headers['Content-Length'] = str(len(request.content))
+            headers['content-length'] = str(len(request.content))
+
+        if request.accept_language:
+            headers['accept-language'] = request.accept_language[0]
 
         reply = self.request(method, path, data=request.content,
                 params=params, headers=headers, allowed=[303],

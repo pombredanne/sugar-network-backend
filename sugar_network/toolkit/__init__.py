@@ -116,10 +116,14 @@ def default_lang():
     if _default_lang is None:
         import locale
         lang = locale.getdefaultlocale()[0]
-        if lang:
-            _default_lang = lang.replace('_', '-').lower()
-        else:
+        if not lang or lang == 'C':
             _default_lang = 'en'
+        else:
+            lang, region = lang.lower().split('_')
+            if lang == region:
+                _default_lang = lang
+            else:
+                _default_lang = '-'.join([lang, region])
 
     return _default_lang
 

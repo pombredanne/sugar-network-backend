@@ -56,6 +56,10 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         self._no_subscription = no_subscription
         self._server_mode = not api_url
 
+        self._accept_language = client.accept_language.value
+        if not self._accept_language:
+            self._accept_language = [toolkit.default_lang()]
+
         if not static_prefix:
             static_prefix = 'http://localhost:%s' % client.ipc_port.value
         self._static_prefix = static_prefix
@@ -287,7 +291,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
     def call(self, request, response=None):
         request.static_prefix = self._static_prefix
-        request.accept_language = [toolkit.default_lang()]
+        request.accept_language = self._accept_language
         request.allow_redirects = True
         try:
             return db.CommandsProcessor.call(self, request, response)
@@ -298,7 +302,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         if request is None:
             request = db.Request(**kwargs)
             request.static_prefix = self._static_prefix
-            request.accept_language = [toolkit.default_lang()]
+            request.accept_language = self._accept_language
             request.allow_redirects = True
         if self._inline.is_set():
             if client.layers.value and request.get('document') in \

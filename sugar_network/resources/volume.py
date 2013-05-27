@@ -31,10 +31,13 @@ _logger = logging.getLogger('resources.volume')
 def _reprcast_authors(value):
     if isinstance(value, dict):
         for guid, props in value.items():
-            if 'name' in props:
-                yield props['name']
-            if not (props['role'] & AUTHOR_INSYSTEM):
+            if not isinstance(props, dict):
                 yield guid
+            else:
+                if 'name' in props:
+                    yield props['name']
+                if not (props['role'] & AUTHOR_INSYSTEM):
+                    yield guid
     else:
         yield value
 

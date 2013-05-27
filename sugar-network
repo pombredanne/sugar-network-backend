@@ -226,7 +226,7 @@ Option.seek('main', [
     ])
 Option.seek('client', [
     client.api_url, client.layers, client.ipc_port, client.local_root,
-    client.no_dbus, client.anonymous,
+    client.no_dbus, client.anonymous, client.accept_language,
     ])
 
 locale.setlocale(locale.LC_ALL, '')
