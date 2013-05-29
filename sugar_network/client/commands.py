@@ -16,6 +16,7 @@
 import os
 import time
 import logging
+import httplib
 from os.path import join
 
 from sugar_network import db, client, node, toolkit
@@ -61,7 +62,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             self._accept_language = [toolkit.default_lang()]
 
         if not static_prefix:
-            static_prefix = 'http://localhost:%s' % client.ipc_port.value
+            static_prefix = 'http://127.0.0.1:%s' % client.ipc_port.value
         self._static_prefix = static_prefix
 
         home_volume.connect(self._home_event_cb)
@@ -152,16 +153,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
     @db.property_command(method='GET', mime_type='application/json')
     def get_prop(self, request, response, document, guid):
-        try:
-            return self._node_call(request, response)
-        except http.NotFound:
-            if self._inline.is_set() and \
-                    self._home.volume[document].exists(guid):
-                # In case if user got offline guids (clone=2 requests)
-                # that don't exist in online
-                return self._home.call(request, response)
-            else:
-                raise
+        return self._proxy_get(request, response)
 
     @db.document_command(method='GET', cmd='make')
     def make(self, document, guid):
@@ -309,7 +301,15 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                     ('context', 'implementation') and \
                     'layer' not in request:
                 request['layer'] = client.layers.value
-            return self._node.call(request, response)
+            try:
+                reply = self._node.call(request, response)
+                if hasattr(reply, 'read'):
+                    return _ResponseStream(reply, self._fall_offline)
+                else:
+                    return reply
+            except (http.ConnectionError, httplib.IncompleteRead):
+                self._fall_offline()
+                return self._home.call(request, response)
         else:
             return self._home.call(request, response)
 
@@ -323,6 +323,9 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             return
         self._inline.clear()
         self.broadcast({'event': 'inline', 'state': 'offline'})
+
+    def _fall_offline(self):
+        self._got_offline()
 
     def _discover_node(self):
         for host in zeroconf.browse_workstations():
@@ -396,7 +399,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         volume = Volume(db_path, lazy_open=client.lazy_open.value)
         self._node = _PersonalCommands(join(db_path, 'node'), volume,
                 self.broadcast)
-        self._node.api_url = 'http://localhost:%s' % node.port.value
+        self._node.api_url = 'http://127.0.0.1:%s' % node.port.value
         self._jobs.spawn(volume.populate)
 
         logging.info('Start %r node on %s port', volume.root, node.port.value)
@@ -489,22 +492,27 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
     def _proxy_get(self, request, response):
         document = request['document']
-        if not self._inline.is_set() or \
-                document not in ('context', 'artifact'):
+        if document not in ('context', 'artifact'):
             return self._node_call(request, response)
+
+        if not self._inline.is_set():
+            return self._home.call(request, response)
 
         request_guid = request.get('guid')
         if request_guid and self._home.volume[document].exists(request_guid):
             return self._home.call(request, response)
 
-        reply = request.setdefault('reply', ['guid'])
-        mixin = set(reply) & _LOCAL_PROPS
-        if mixin:
-            # Otherwise there is no way to mixin _LOCAL_PROPS
-            if 'guid' not in request and 'guid' not in reply:
-                reply.append('guid')
-            if document == 'context' and 'type' not in reply:
-                reply.append('type')
+        if 'prop' in request:
+            mixin = None
+        else:
+            reply = request.setdefault('reply', ['guid'])
+            mixin = set(reply) & _LOCAL_PROPS
+            if mixin:
+                # Otherwise there is no way to mixin _LOCAL_PROPS
+                if 'guid' not in request and 'guid' not in reply:
+                    reply.append('guid')
+                if document == 'context' and 'type' not in reply:
+                    reply.append('type')
 
         result = self._node_call(request, response)
         if not mixin:
@@ -648,3 +656,26 @@ class _VolumeCommands(db.VolumeCommands):
 class _PersonalCommands(PersonalCommands):
 
     api_url = None
+
+
+class _ResponseStream(object):
+
+    def __init__(self, stream, on_fail_cb):
+        self._stream = stream
+        self._on_fail_cb = on_fail_cb
+
+    def __hasattr__(self, key):
+        return hasattr(self._stream, key)
+
+    def __getattr__(self, key):
+        return getattr(self._stream, key)
+
+    def read(self, size=None):
+        try:
+            return self._stream.read(size)
+        except (http.ConnectionError, httplib.IncompleteRead):
+            self._on_fail_cb()
+            raise
+        except Exception:
+            self._on_fail_cb()
+            raise

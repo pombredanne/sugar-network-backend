@@ -108,17 +108,17 @@ class NodeClientTest(tests.Test):
         self.assertEqual(True, json.load(file('client/db/context/co/context/favorite'))['value'])
 
     def cli(self, cmd, stdin=None):
-        cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://localhost:8100', '-DDD'] + cmd
+        cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://127.0.0.1:8100', '-DDD'] + cmd
 
         if '--anonymous' not in cmd and not self.client_pid:
             self.client_pid = self.popen([join(src_root, 'sugar-network-client'),
                 '-DDDF', 'start',
                 '--activity-dirs=client/Activities', '--local-root=client',
                 '--mounts-root=mnt', '--cachedir=tmp', '--ipc-port=5101',
-                '--api-url=http://localhost:8100',
+                '--api-url=http://127.0.0.1:8100',
                 ])
             coroutine.sleep(2)
-            ipc = Client('http://localhost:5101')
+            ipc = Client('http://127.0.0.1:5101')
             if ipc.get(cmd='status')['route'] == 'offline':
                 self.wait_for_events(ipc, event='inline', state='online').wait()
 

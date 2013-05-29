@@ -19,7 +19,7 @@ from sugar_network.toolkit import Option
 host = Option(
         'hostname to listen for incomming connections and '
         'using for publicly visible urls',
-        default='localhost', name='host')
+        default='127.0.0.1', name='host')
 
 port = Option(
         'port number to listen incomming connections',

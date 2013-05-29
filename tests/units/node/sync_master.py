@@ -48,7 +48,7 @@ class SyncMasterTest(tests.Test):
 
         node.files_root.value = 'sync'
         self.volume = Volume('master', [Document])
-        self.master = MasterCommands('localhost:8888', self.volume)
+        self.master = MasterCommands('127.0.0.1:8888', self.volume)
 
     def next_uuid(self):
         self.uuid += 1
@@ -68,7 +68,7 @@ class SyncMasterTest(tests.Test):
                     {'commit': [[1, 1]]},
                     ]),
                 ('pull', {'sequence': [[1, None]]}, None),
-                ], dst='localhost:8888'):
+                ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -77,8 +77,8 @@ class SyncMasterTest(tests.Test):
             response.write(chunk)
         response.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[1, 1]], 'dst': None}, []),
-            ({'packet': 'diff', 'src': 'localhost:8888'}, [{'document': 'document'}, {'commit': []}]),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': '127.0.0.1:8888', 'sequence': [[1, 1]], 'dst': None}, []),
+            ({'packet': 'diff', 'src': '127.0.0.1:8888'}, [{'document': 'document'}, {'commit': []}]),
             ],
             [(packet.props, [i for i in packet]) for packet in sync.decode(response)])
 
@@ -95,7 +95,7 @@ class SyncMasterTest(tests.Test):
                         }},
                     {'commit': [[2, 2]]},
                     ]),
-                ], dst='localhost:8888'):
+                ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -104,8 +104,8 @@ class SyncMasterTest(tests.Test):
             response.write(chunk)
         response.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[2, 2]], 'src': 'localhost:8888', 'sequence': [[2, 2]], 'dst': None}, []),
-            ({'packet': 'diff', 'src': 'localhost:8888'}, [
+            ({'packet': 'ack', 'ack': [[2, 2]], 'src': '127.0.0.1:8888', 'sequence': [[2, 2]], 'dst': None}, []),
+            ({'packet': 'diff', 'src': '127.0.0.1:8888'}, [
                 {'document': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 1},
@@ -132,7 +132,7 @@ class SyncMasterTest(tests.Test):
         self.assertRaises(RuntimeError, lambda: next(self.master.sync(request)))
 
         request = Request()
-        for chunk in sync.encode([('pull', {'sequence': [[1, None]]}, None)], dst='localhost:8888'):
+        for chunk in sync.encode([('pull', {'sequence': [[1, None]]}, None)], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
         next(self.master.sync(request))
@@ -152,12 +152,12 @@ class SyncMasterTest(tests.Test):
                         }},
                     {'commit': [[1, 1]]},
                     ]),
-                ('stats_diff', {'dst': 'localhost:8888'}, [
+                ('stats_diff', {'dst': '127.0.0.1:8888'}, [
                     {'db': 'db', 'user': 'user'},
                     {'timestamp': ts, 'values': {'field': 1.0}},
                     {'commit': {'user': {'db': [[1, ts]]}}},
                     ]),
-                ], dst='localhost:8888'):
+                ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -167,8 +167,8 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[1, 1]], 'dst': None, 'filename': '2.sneakernet'}, []),
-            ({'packet': 'stats_ack', 'sequence': {'user': {'db': [[1, ts]]}}, 'src': 'localhost:8888', 'dst': None, 'filename': '2.sneakernet'}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': '127.0.0.1:8888', 'sequence': [[1, 1]], 'dst': None, 'filename': '2.sneakernet'}, []),
+            ({'packet': 'stats_ack', 'sequence': {'user': {'db': [[1, ts]]}}, 'src': '127.0.0.1:8888', 'dst': None, 'filename': '2.sneakernet'}, []),
             ],
             [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
@@ -195,12 +195,12 @@ class SyncMasterTest(tests.Test):
                         }},
                     {'commit': [[2, 2]]},
                     ]),
-                ('stats_diff', {'dst': 'localhost:8888'}, [
+                ('stats_diff', {'dst': '127.0.0.1:8888'}, [
                     {'db': 'db', 'user': 'user'},
                     {'timestamp': ts + 1, 'values': {'field': 2.0}},
                     {'commit': {'user': {'db': [[2, ts]]}}},
                     ]),
-                ], dst='localhost:8888'):
+                ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -210,8 +210,8 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[2, 2]], 'dst': None, 'filename': '2.sneakernet'}, []),
-            ({'packet': 'stats_ack', 'sequence': {'user': {'db': [[2, ts]]}}, 'src': 'localhost:8888', 'dst': None, 'filename': '2.sneakernet'}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': '127.0.0.1:8888', 'sequence': [[2, 2]], 'dst': None, 'filename': '2.sneakernet'}, []),
+            ({'packet': 'stats_ack', 'sequence': {'user': {'db': [[2, ts]]}}, 'src': '127.0.0.1:8888', 'dst': None, 'filename': '2.sneakernet'}, []),
             ],
             [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
@@ -232,7 +232,7 @@ class SyncMasterTest(tests.Test):
                 ('pull', {'sequence': [[1, 2]]}, None),
                 ('files_pull', {'sequence': [[11, None]]}, None),
                 ('files_pull', {'sequence': [[3, 4]]}, None),
-                ], dst='localhost:8888'):
+                ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
         response = db.Response()
@@ -256,7 +256,7 @@ class SyncMasterTest(tests.Test):
         for chunk in sync.package_encode([
                 ('pull', {'sequence': [[1, 5]]}, None),
                 ('files_pull', {'sequence': [[1, 5]]}, None),
-                ], dst='localhost:8888'):
+                ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
         response = db.Response()
@@ -290,7 +290,7 @@ class SyncMasterTest(tests.Test):
                         }},
                     {'commit': [[10, 10]]},
                     ]),
-                ], dst='localhost:8888'):
+                ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -300,7 +300,7 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[10, 10]], 'dst': None, 'filename': '2.sneakernet'}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': '127.0.0.1:8888', 'sequence': [[10, 10]], 'dst': None, 'filename': '2.sneakernet'}, []),
             ],
             [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([
@@ -515,7 +515,7 @@ class SyncMasterTest(tests.Test):
                         }},
                     {'commit': [[2, 2]]},
                     ]),
-                ], dst='localhost:8888'):
+                ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
@@ -525,8 +525,8 @@ class SyncMasterTest(tests.Test):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
-            ({'packet': 'ack', 'ack': [[1, 1]], 'src': 'localhost:8888', 'sequence': [[1, 1]], 'dst': '3', 'filename': '2.sneakernet'}, []),
-            ({'packet': 'ack', 'ack': [[2, 2]], 'src': 'localhost:8888', 'sequence': [[2, 2]], 'dst': '3', 'filename': '2.sneakernet'}, []),
+            ({'packet': 'ack', 'ack': [[1, 1]], 'src': '127.0.0.1:8888', 'sequence': [[1, 1]], 'dst': '3', 'filename': '2.sneakernet'}, []),
+            ({'packet': 'ack', 'ack': [[2, 2]], 'src': '127.0.0.1:8888', 'sequence': [[2, 2]], 'dst': '3', 'filename': '2.sneakernet'}, []),
             ],
             [(packet.props, [i for i in packet]) for packet in sync.package_decode(reply)])
         self.assertEqual([

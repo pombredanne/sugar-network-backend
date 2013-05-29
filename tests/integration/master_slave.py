@@ -27,7 +27,7 @@ class MasterSlaveTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self, tmp_root=local_tmproot)
 
-        self.touch(('master/db/master', 'localhost:8100'))
+        self.touch(('master/db/master', '127.0.0.1:8100'))
 
         self.master_pid = self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
             '--port=8100', '--data-root=master/db', '--cachedir=master/tmp',
@@ -38,7 +38,7 @@ class MasterSlaveTest(tests.Test):
             '--obs-url=',
             ])
         self.slave_pid = self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
-            '--api-url=http://localhost:8100',
+            '--api-url=http://127.0.0.1:8100',
             '--port=8101', '--data-root=slave/db', '--cachedir=slave/tmp',
             '-DDD', '--rundir=slave/run', '--files-root=slave/files',
             '--stats-root=slave/stats', '--stats-user', '--stats-user-step=1',
@@ -55,8 +55,8 @@ class MasterSlaveTest(tests.Test):
 
     def test_OnlineSync(self):
         ts = int(time.time())
-        master = Client('http://localhost:8100')
-        slave = Client('http://localhost:8101')
+        master = Client('http://127.0.0.1:8100')
+        slave = Client('http://127.0.0.1:8101')
 
         # Initial data
 
@@ -174,8 +174,8 @@ class MasterSlaveTest(tests.Test):
         self.assertEqual('file2', file('slave/files/file2').read())
 
     def test_OfflineSync(self):
-        master = Client('http://localhost:8100')
-        slave = Client('http://localhost:8101')
+        master = Client('http://127.0.0.1:8100')
+        slave = Client('http://127.0.0.1:8101')
 
         # Create shared files on master
         self.touch(('master/files/1/1', '1'))
@@ -223,7 +223,7 @@ class MasterSlaveTest(tests.Test):
             }, cmd='stats-upload')
 
         # Clone initial dump from master
-        pid = self.popen('V=1 %s sync1/sugar-network-sync http://localhost:8100' % join(src_root, 'sugar-network-sync'), shell=True)
+        pid = self.popen('V=1 %s sync1/sugar-network-sync http://127.0.0.1:8100' % join(src_root, 'sugar-network-sync'), shell=True)
         self.waitpid(pid, 0)
         # Import cloned data on slave
         slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync1/sugar-network-sync')

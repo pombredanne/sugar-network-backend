@@ -167,9 +167,18 @@ def Client(url=None):
 
 def IPCClient():
     from sugar_network.toolkit import http
-    url = 'http://localhost:%s' % ipc_port.value
-    # It is localhost, so, ignore `http_proxy` envar disabling `trust_env`
-    return http.Client(url, creds=None, trust_env=False)
+
+    return http.Client(
+            url='http://127.0.0.1:%s' % ipc_port.value,
+            creds=None,
+            # No need in proxy for localhost
+            trust_env=False,
+            # The 1st ipc->client->node request might fail if connection
+            # to the node is lost, so, initiate the 2nd request from ipc
+            # to retrive data from client in offline mode without propagating
+            # errors from ipc
+            max_retries=1,
+            )
 
 
 def IPCRouter(*args, **kwargs):

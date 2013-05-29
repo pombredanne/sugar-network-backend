@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import json
+import time
 import shutil
 import zipfile
 from os.path import exists
@@ -496,20 +498,20 @@ class OnlineCommandsTest(tests.Test):
                 'image',
                 ipc.request('GET', ['context', guid, 'preview']).content)
         self.assertEqual(
-                {'preview': 'http://localhost:8888/context/%s/preview' % guid},
+                {'preview': 'http://127.0.0.1:8888/context/%s/preview' % guid},
                 ipc.get(['context', guid], reply=['preview']))
         self.assertEqual(
-                [{'preview': 'http://localhost:8888/context/%s/preview' % guid}],
+                [{'preview': 'http://127.0.0.1:8888/context/%s/preview' % guid}],
                 ipc.get(['context'], reply=['preview'])['result'])
 
         self.assertEqual(
                 file(src_root + '/sugar_network/static/httpdocs/images/missing.png').read(),
                 ipc.request('GET', ['context', guid, 'icon']).content)
         self.assertEqual(
-                {'icon': 'http://localhost:8888/static/images/missing.png'},
+                {'icon': 'http://127.0.0.1:8888/static/images/missing.png'},
                 ipc.get(['context', guid], reply=['icon']))
         self.assertEqual(
-                [{'icon': 'http://localhost:8888/static/images/missing.png'}],
+                [{'icon': 'http://127.0.0.1:8888/static/images/missing.png'}],
                 ipc.get(['context'], reply=['icon'])['result'])
 
     def test_Feeds(self):
@@ -1029,6 +1031,86 @@ class OnlineCommandsTest(tests.Test):
         self.assertEqual(
                 {'favorite': True},
                 ipc.get(['context', context2], reply=['favorite']))
+
+    def test_FallbackToLocalSNOnRemoteTransportFails(self):
+        local_pid = os.getpid()
+
+        class Document(Resource):
+
+            @db.document_command(method='GET', cmd='sleep')
+            def sleep(self):
+                if os.getpid() == local_pid:
+                    return 'local'
+                else:
+                    coroutine.sleep(.5)
+                    return 'remote'
+
+            @db.document_command(method='GET', cmd='yield_raw_and_sleep',
+                    mime_type='application/octet-stream')
+            def yield_raw_and_sleep(self):
+                if os.getpid() == local_pid:
+                    yield 'local'
+                else:
+                    for __ in range(33):
+                        yield "remote\n"
+                    coroutine.sleep(.5)
+                    for __ in range(33):
+                        yield "remote\n"
+
+            @db.document_command(method='GET', cmd='yield_json_and_sleep',
+                    mime_type='application/json')
+            def yield_json_and_sleep(self):
+                if os.getpid() == local_pid:
+                    yield '"local"'
+                else:
+                    yield '"'
+                    yield 'r'
+                    coroutine.sleep(.5)
+                    yield 'emote"'
+
+        home_volume = self.start_client([User, Document])
+        ipc = IPCClient()
+        guid = ipc.post(['document'], {})
+
+        self.assertEqual('local', ipc.get(['document', guid], cmd='sleep'))
+        self.assertEqual('local', ipc.get(['document', guid], cmd='yield_raw_and_sleep'))
+        self.assertEqual('local', ipc.get(['document', guid], cmd='yield_json_and_sleep'))
+
+        node_pid = self.fork_master([User, Document])
+        ipc.get(cmd='inline')
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+        guid = ipc.post(['document'], {})
+        home_volume['document'].create(guid=guid)
+
+        ts = time.time()
+        self.assertEqual('remote', ipc.get(['document', guid], cmd='sleep'))
+        self.assertEqual('remote\n' * 66, ipc.get(['document', guid], cmd='yield_raw_and_sleep'))
+        self.assertEqual('remote', ipc.get(['document', guid], cmd='yield_json_and_sleep'))
+        assert time.time() - ts >= 1.5
+
+        def kill():
+            coroutine.sleep(.25)
+            self.waitpid(node_pid)
+
+        coroutine.spawn(kill)
+        self.assertEqual('local', ipc.get(['document', guid], cmd='sleep'))
+        assert not ipc.get(cmd='inline')
+
+        node_pid = self.fork_master([User, Document])
+        ipc.get(cmd='inline')
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        coroutine.spawn(kill)
+        self.assertEqual('local', ipc.get(['document', guid], cmd='yield_raw_and_sleep'))
+        assert not ipc.get(cmd='inline')
+
+        node_pid = self.fork_master([User, Document])
+        ipc.get(cmd='inline')
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        coroutine.spawn(kill)
+        self.assertEqual('local', ipc.get(['document', guid], cmd='yield_json_and_sleep'))
+        assert not ipc.get(cmd='inline')
 
 
 if __name__ == '__main__':

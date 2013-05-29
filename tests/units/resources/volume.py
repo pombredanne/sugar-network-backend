@@ -466,7 +466,7 @@ def call(cp, principal=None, content=None, **kwargs):
     request = db.Request(**kwargs)
     request.principal = principal
     request.content = content
-    request.environ = {'HTTP_HOST': 'localhost'}
+    request.environ = {'HTTP_HOST': '127.0.0.1'}
     request.commands = cp
     return cp.call(request, db.Response())
 

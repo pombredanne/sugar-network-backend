@@ -216,5 +216,5 @@ def _prop_path(guid, prop):
 
 
 def _preview_url(guid):
-    return 'http://localhost:%s/journal/%s/preview' % \
+    return 'http://127.0.0.1:%s/journal/%s/preview' % \
             (client.ipc_port.value, guid)

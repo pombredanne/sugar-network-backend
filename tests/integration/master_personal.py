@@ -27,7 +27,7 @@ class MasterPersonalTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self, tmp_root=local_tmproot)
 
-        self.touch(('master/db/master', 'localhost:8100'))
+        self.touch(('master/db/master', '127.0.0.1:8100'))
 
         self.master_pid = self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
             '--port=8100', '--data-root=master/db', '--cachedir=master/tmp',
@@ -38,7 +38,7 @@ class MasterPersonalTest(tests.Test):
             '--obs-url=',
             ])
         self.client_pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
-            '--api-url=http://localhost:8100', '--cachedir=client/tmp',
+            '--api-url=http://127.0.0.1:8100', '--cachedir=client/tmp',
             '-DDD', '--rundir=client/run', '--server-mode', '--layers=pilot',
             '--local-root=client', '--activity-dirs=client/activities',
             '--port=8101', '--index-flush-threshold=1',
@@ -49,11 +49,11 @@ class MasterPersonalTest(tests.Test):
         os.makedirs('client/mnt/disk/sugar-network')
 
         coroutine.sleep(2)
-        ipc = Client('http://localhost:8102')
+        ipc = Client('http://127.0.0.1:8102')
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
-        Client('http://localhost:8100').get(cmd='whoami')
-        Client('http://localhost:8101').get(cmd='whoami')
+        Client('http://127.0.0.1:8100').get(cmd='whoami')
+        Client('http://127.0.0.1:8101').get(cmd='whoami')
 
     def tearDown(self):
         self.waitpid(self.master_pid, signal.SIGINT)
@@ -61,8 +61,8 @@ class MasterPersonalTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_SyncMounts(self):
-        master = Client('http://localhost:8100')
-        client = Client('http://localhost:8102')
+        master = Client('http://127.0.0.1:8100')
+        client = Client('http://127.0.0.1:8102')
 
         # Create shared files on master
         self.touch(('master/files/1/1', '1'))
@@ -110,7 +110,7 @@ class MasterPersonalTest(tests.Test):
             }, cmd='stats-upload')
 
         # Clone initial dump from master
-        pid = self.popen('V=1 %s mnt/sugar-network-sync http://localhost:8100' % join(src_root, 'sugar-network-sync'), shell=True)
+        pid = self.popen('V=1 %s mnt/sugar-network-sync http://127.0.0.1:8100' % join(src_root, 'sugar-network-sync'), shell=True)
         self.waitpid(pid, 0)
         # Import cloned data on client
         trigger = self.wait_for_events(client, event='sync_complete')

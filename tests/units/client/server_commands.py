@@ -24,7 +24,7 @@ class ServerCommandsTest(tests.Test):
         trigger = self.wait_for_events(cp, event='inline', state='online')
         coroutine.spawn(mountpoints.monitor, tests.tmpdir)
         trigger.wait()
-        server = coroutine.WSGIServer(('localhost', client.ipc_port.value), IPCRouter(cp))
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), IPCRouter(cp))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
         return cp
@@ -122,20 +122,20 @@ class ServerCommandsTest(tests.Test):
                 'image',
                 ipc.request('GET', ['context', guid, 'preview']).content)
         self.assertEqual(
-                {'preview': 'http://localhost:5555/context/%s/preview' % guid},
+                {'preview': 'http://127.0.0.1:5555/context/%s/preview' % guid},
                 ipc.get(['context', guid], reply=['preview']))
         self.assertEqual(
-                [{'preview': 'http://localhost:5555/context/%s/preview' % guid}],
+                [{'preview': 'http://127.0.0.1:5555/context/%s/preview' % guid}],
                 ipc.get(['context'], reply=['preview'])['result'])
 
         self.assertEqual(
                 file(src_root + '/sugar_network/static/httpdocs/images/missing.png').read(),
                 ipc.request('GET', ['context', guid, 'icon']).content)
         self.assertEqual(
-                {'icon': 'http://localhost:5555/static/images/missing.png'},
+                {'icon': 'http://127.0.0.1:5555/static/images/missing.png'},
                 ipc.get(['context', guid], reply=['icon']))
         self.assertEqual(
-                [{'icon': 'http://localhost:5555/static/images/missing.png'}],
+                [{'icon': 'http://127.0.0.1:5555/static/images/missing.png'}],
                 ipc.get(['context'], reply=['icon'])['result'])
 
 

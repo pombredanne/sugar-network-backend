@@ -56,28 +56,28 @@ class NodePackagesSlaveTest(tests.Test):
             @route('GET', '/resolve')
             def resolve(self, request, response):
                 response.content_type = 'text/xml'
-                return '<resolve><binary name="rpm" url="http://localhost:9999/packages/rpm" arch="arch"/></resolve>'
+                return '<resolve><binary name="rpm" url="http://127.0.0.1:9999/packages/rpm" arch="arch"/></resolve>'
 
             @route('GET', '/packages')
             def packages(self, request, response):
                 return 'package_content'
 
-        obs = coroutine.WSGIServer(('localhost', 9999), Router(OBS()))
+        obs = coroutine.WSGIServer(('127.0.0.1', 9999), Router(OBS()))
         coroutine.spawn(obs.serve_forever)
 
         # From master
 
-        self.touch(('master/db/master', 'localhost:8100'))
+        self.touch(('master/db/master', '127.0.0.1:8100'))
         self.pids.append(self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
             '--port=8100', '--data-root=master/db', '--cachedir=master/tmp',
             '-DDD', '--rundir=master/run', '--files-root=master/files',
             '--stats-root=master/stats', '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
             '--index-flush-threshold=1', '--pull-timeout=1',
-            '--obs-url=http://localhost:9999',
+            '--obs-url=http://127.0.0.1:9999',
             ]))
         coroutine.sleep(2)
-        conn = Client('http://localhost:8100')
+        conn = Client('http://127.0.0.1:8100')
 
         conn.post(['/context'], {
             'guid': 'package',
@@ -97,10 +97,10 @@ class NodePackagesSlaveTest(tests.Test):
                 conn.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8100/packages/presolve/OLPC-11.3.1/rpm').read())
+                urllib2.urlopen('http://127.0.0.1:8100/packages/presolve/OLPC-11.3.1/rpm').read())
 
         pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
-            '--api-url=http://localhost:8100', '--cachedir=master.client/tmp',
+            '--api-url=http://127.0.0.1:8100', '--cachedir=master.client/tmp',
             '-DDD', '--rundir=master.client/run', '--layers=pilot',
             '--local-root=master.client', '--activity-dirs=master.client/activities',
             '--index-flush-threshold=1', '--ipc-port=8200',
@@ -118,7 +118,7 @@ class NodePackagesSlaveTest(tests.Test):
         # From slave
 
         self.pids.append(self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
-            '--api-url=http://localhost:8100',
+            '--api-url=http://127.0.0.1:8100',
             '--port=8101', '--data-root=slave/db', '--cachedir=slave/tmp',
             '-DDD', '--rundir=slave/run', '--files-root=slave/files',
             '--stats-root=slave/stats', '--stats-user', '--stats-user-step=1',
@@ -126,7 +126,7 @@ class NodePackagesSlaveTest(tests.Test):
             '--index-flush-threshold=1', '--sync-layers=pilot',
             ]))
         coroutine.sleep(2)
-        conn = Client('http://localhost:8101')
+        conn = Client('http://127.0.0.1:8101')
 
         conn.post(cmd='online-sync')
 
@@ -135,10 +135,10 @@ class NodePackagesSlaveTest(tests.Test):
                 conn.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8101/packages/presolve/OLPC-11.3.1/rpm').read())
+                urllib2.urlopen('http://127.0.0.1:8101/packages/presolve/OLPC-11.3.1/rpm').read())
 
         pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
-            '--api-url=http://localhost:8101', '--cachedir=master.client/tmp',
+            '--api-url=http://127.0.0.1:8101', '--cachedir=master.client/tmp',
             '-DDD', '--rundir=master.client/run', '--layers=pilot',
             '--local-root=master.client', '--activity-dirs=master.client/activities',
             '--index-flush-threshold=1', '--ipc-port=8200',
@@ -157,20 +157,20 @@ class NodePackagesSlaveTest(tests.Test):
 
         os.makedirs('client/mnt/disk/sugar-network')
         self.pids.append(self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
-            '--api-url=http://localhost:8100', '--cachedir=client/tmp',
+            '--api-url=http://127.0.0.1:8100', '--cachedir=client/tmp',
             '-DDD', '--rundir=client/run', '--server-mode', '--layers=pilot',
             '--local-root=client', '--activity-dirs=client/activities',
             '--port=8102', '--index-flush-threshold=1',
             '--mounts-root=client/mnt', '--ipc-port=8202',
             ]))
         coroutine.sleep(2)
-        conn = Client('http://localhost:8102')
+        conn = Client('http://127.0.0.1:8102')
         client.ipc_port.value = 8202
         ipc = IPCClient()
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
 
-        pid = self.popen('V=1 %s sync/sugar-network-sync http://localhost:8100' % join(src_root, 'sugar-network-sync'), shell=True)
+        pid = self.popen('V=1 %s sync/sugar-network-sync http://127.0.0.1:8100' % join(src_root, 'sugar-network-sync'), shell=True)
         self.waitpid(pid, 0)
         trigger = self.wait_for_events(ipc, event='sync_complete')
         os.rename('sync', 'client/mnt/sync')
@@ -183,14 +183,14 @@ class NodePackagesSlaveTest(tests.Test):
                 conn.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8102/packages/presolve/OLPC-11.3.1/rpm').read())
+                urllib2.urlopen('http://127.0.0.1:8102/packages/presolve/OLPC-11.3.1/rpm').read())
 
         self.assertEqual(
                 '{"arch": [{"path": "rpm", "name": "rpm"}]}',
                 ipc.get(['packages', 'presolve', 'OLPC-11.3.1', 'package']))
         self.assertEqual(
                 'package_content',
-                urllib2.urlopen('http://localhost:8202/packages/presolve/OLPC-11.3.1/rpm').read())
+                urllib2.urlopen('http://127.0.0.1:8202/packages/presolve/OLPC-11.3.1/rpm').read())
 
 
 if __name__ == '__main__':

@@ -23,11 +23,11 @@ class CommandsTest(tests.Test):
         volume = Volume('db')
         cp = ClientCommands(volume)
         server = coroutine.WSGIServer(
-                ('localhost', client.ipc_port.value), IPCRouter(cp))
+                ('127.0.0.1', client.ipc_port.value), IPCRouter(cp))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
 
-        url = 'http://localhost:%s' % client.ipc_port.value
+        url = 'http://127.0.0.1:%s' % client.ipc_port.value
 
         response = requests.request('GET', url + '/hub', allow_redirects=False)
         self.assertEqual(303, response.status_code)

@@ -61,12 +61,7 @@ class Test(unittest.TestCase):
         os.makedirs(tmpdir)
         os.chdir(tmpdir)
 
-        if fork_num:
-            self.logfile = tmpdir + '-%s.log' % fork_num
-        else:
-            self.logfile = tmpdir + '.log'
-        if exists(self.logfile):
-            os.unlink(self.logfile)
+        self._setup_logging(fork_num)
 
         os.environ['XDG_DATA_HOME'] = tmpdir + '/share'
         os.environ['SUGAR_LOGGER_LEVEL'] = 'all'
@@ -87,7 +82,7 @@ class Test(unittest.TestCase):
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.activity_dirs.value = [tmpdir + '/Activities']
-        client.api_url.value = 'http://localhost:8888'
+        client.api_url.value = 'http://127.0.0.1:8888'
         client.mounts_root.value = None
         client.ipc_port.value = 5555
         client.layers.value = None
@@ -120,14 +115,6 @@ class Test(unittest.TestCase):
                 ]
 
         os.makedirs('tmp')
-
-        self._logfile = file(self.logfile + '.out', 'a')
-        sys.stdout = sys.stderr = self._logfile
-
-        for handler in logging.getLogger().handlers:
-            logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG, filename=self.logfile)
-        util.init_logging(10)
 
         self.node = None
         self.client = None
@@ -218,19 +205,11 @@ class Test(unittest.TestCase):
         pid = os.fork()
         if pid:
             self.forks.append(pid)
-            coroutine.sleep(2)
+            coroutine.sleep(.1)
             return pid
 
         self.fork_num += 1
-        logfile = file('%s-%s.log' % (tmpdir, self.fork_num), 'w')
-        os.dup2(logfile.fileno(), 1)
-        os.dup2(logfile.fileno(), 2)
-        logfile.close()
-
-        for handler in logging.getLogger().handlers:
-            logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG)
-
+        self._setup_logging(self.fork_num)
         coroutine.shutdown()
         try:
             cb(*args)
@@ -256,10 +235,35 @@ class Test(unittest.TestCase):
             classes = [User, Context, Implementation]
         self.node_volume = Volume('master', classes)
         cp = MasterCommands('guid', self.node_volume)
-        self.node = coroutine.WSGIServer(('localhost', 8888), Router(cp))
+        self.node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
         coroutine.spawn(self.node.serve_forever)
         coroutine.dispatch(.1)
         return self.node_volume
+
+    def fork_master(self, classes=None):
+        if classes is None:
+            classes = [User, Context, Implementation]
+
+        def node():
+            volume = Volume('master', classes)
+            cp = MasterCommands('guid', volume)
+            node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
+            node.serve_forever()
+
+        pid = self.fork(node)
+        coroutine.sleep(.1)
+        return pid
+
+    def start_client(self, classes=None):
+        if classes is None:
+            classes = [User, Context, Implementation]
+        volume = Volume('client', classes)
+        commands = ClientCommands(volume, client.api_url.value)
+        self.client = coroutine.WSGIServer(
+                ('127.0.0.1', client.ipc_port.value), IPCRouter(commands))
+        coroutine.spawn(self.client.serve_forever)
+        coroutine.dispatch()
+        return volume
 
     def start_online_client(self, classes=None):
         if classes is None:
@@ -269,7 +273,7 @@ class Test(unittest.TestCase):
         commands = ClientCommands(volume, client.api_url.value)
         self.wait_for_events(commands, event='inline', state='online').wait()
         self.client = coroutine.WSGIServer(
-                ('localhost', client.ipc_port.value), IPCRouter(commands))
+                ('127.0.0.1', client.ipc_port.value), IPCRouter(commands))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
         return volume
@@ -280,7 +284,7 @@ class Test(unittest.TestCase):
         volume = Volume('client', classes)
         commands = ClientCommands(volume)
         self.client = coroutine.WSGIServer(
-                ('localhost', client.ipc_port.value), IPCRouter(commands))
+                ('127.0.0.1', client.ipc_port.value), IPCRouter(commands))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
         return volume
@@ -303,7 +307,7 @@ class Test(unittest.TestCase):
 
         volume = Volume('remote', classes or [User, Context, Implementation])
         cp = MasterCommands('guid', volume)
-        httpd = coroutine.WSGIServer(('localhost', 8888), Router(cp))
+        httpd = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
         try:
             coroutine.joinall([
                 coroutine.spawn(httpd.serve_forever),
@@ -333,6 +337,22 @@ class Test(unittest.TestCase):
         coroutine.spawn(waiter, trigger)
         coroutine.dispatch()
         return trigger
+
+    def _setup_logging(self, fork_num):
+        for handler in logging.getLogger().handlers:
+            logging.getLogger().removeHandler(handler)
+        logging.basicConfig(level=logging.DEBUG,
+                filename=join(tmpdir, '%s.log' % fork_num),
+                format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+        util.init_logging(10)
+
+        sys.stdout.flush()
+        sys.stderr.flush()
+        outfile = file(join(tmpdir, '%s.out' % fork_num), 'w')
+        if fork_num > 0:
+            os.dup2(outfile.fileno(), 1)
+            os.dup2(outfile.fileno(), 2)
+        sys.stdout = sys.stderr = outfile
 
 
 def sign(privkey, data):

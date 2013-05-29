@@ -19,7 +19,7 @@ class OfflineCommandsTest(tests.Test):
         tests.Test.setUp(self)
         self.home_volume = Volume('db')
         commands = ClientCommands(self.home_volume)
-        server = coroutine.WSGIServer(('localhost', client.ipc_port.value), IPCRouter(commands))
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), IPCRouter(commands))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
 
@@ -147,20 +147,20 @@ class OfflineCommandsTest(tests.Test):
                 'image',
                 ipc.request('GET', ['context', guid, 'preview']).content)
         self.assertEqual(
-                {'preview': 'http://localhost:5555/context/%s/preview' % guid},
+                {'preview': 'http://127.0.0.1:5555/context/%s/preview' % guid},
                 ipc.get(['context', guid], reply=['preview']))
         self.assertEqual(
-                [{'preview': 'http://localhost:5555/context/%s/preview' % guid}],
+                [{'preview': 'http://127.0.0.1:5555/context/%s/preview' % guid}],
                 ipc.get(['context'], reply=['preview'])['result'])
 
         self.assertEqual(
                 file(src_root + '/sugar_network/static/httpdocs/images/missing.png').read(),
                 ipc.request('GET', ['context', guid, 'icon']).content)
         self.assertEqual(
-                {'icon': 'http://localhost:5555/static/images/missing.png'},
+                {'icon': 'http://127.0.0.1:5555/static/images/missing.png'},
                 ipc.get(['context', guid], reply=['icon']))
         self.assertEqual(
-                [{'icon': 'http://localhost:5555/static/images/missing.png'}],
+                [{'icon': 'http://127.0.0.1:5555/static/images/missing.png'}],
                 ipc.get(['context'], reply=['icon'])['result'])
 
     def test_Feeds(self):

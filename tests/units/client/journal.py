@@ -95,7 +95,7 @@ class JournalTest(tests.Test):
         self.assertEqual('data2', file(self.ds.get_filename('guid')).read())
 
     def test_FindRequest(self):
-        url = 'http://localhost:%s/journal/' % ipc_port.value
+        url = 'http://127.0.0.1:%s/journal/' % ipc_port.value
 
         ds = journal.Commands()
         ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
@@ -137,7 +137,7 @@ class JournalTest(tests.Test):
             ds.journal(request, response)['result'])
 
     def test_GetRequest(self):
-        url = 'http://localhost:%s/journal/' % ipc_port.value
+        url = 'http://127.0.0.1:%s/journal/' % ipc_port.value
 
         ds = journal.Commands()
         ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))

@@ -22,7 +22,8 @@ from os.path import join, dirname
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'requests'))
 
 from requests import Session
-from requests.exceptions import SSLError
+# pylint: disable-msg=W0611
+from requests.exceptions import SSLError, ConnectionError
 
 from sugar_network import client, toolkit
 from sugar_network.toolkit import coroutine, util
@@ -87,10 +88,11 @@ class NotFound(Status):
 
 class Client(object):
 
-    def __init__(self, api_url='', creds=None, trust_env=True):
+    def __init__(self, api_url='', creds=None, trust_env=True, max_retries=0):
         self.api_url = api_url
         self._get_profile = None
         self._session = session = Session()
+        self._max_retries = max_retries
 
         session.stream = True
         session.trust_env = trust_env
@@ -155,7 +157,9 @@ class Client(object):
         if not isinstance(path, basestring):
             path = '/'.join([i.strip('/') for i in [self.api_url] + path])
 
+        a_try = 0
         while True:
+            a_try += 1
             try:
                 response = self._session.request(method, path, data=data,
                         headers=headers, params=params, **kwargs)
@@ -170,6 +174,7 @@ class Client(object):
                     _logger.info('User is not registered on the server, '
                             'registering')
                     self.post(['user'], self._get_profile())
+                    a_try = 0
                     continue
                 if allowed and response.status_code in allowed:
                     return response
@@ -177,6 +182,11 @@ class Client(object):
                 try:
                     error = json.loads(content)
                 except Exception:
+                    # On non-JSONified fail response, assume that the error
+                    # was not sent by the application level server code, i.e.,
+                    # something happaned on low level, like connection abort.
+                    if a_try <= self._max_retries and method == 'GET':
+                        continue
                     _logger.error('Request failed, '
                             'method=%s path=%r params=%r headers=%r '
                             'status_code=%s content=%s',

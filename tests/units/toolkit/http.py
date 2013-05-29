@@ -26,10 +26,10 @@ class HTTPTest(tests.Test):
                     coroutine.sleep(.3)
                     yield CommandsProcessor.events.pop(0) + '\n'
 
-        self.server = coroutine.WSGIServer(('localhost', local.ipc_port.value), router.Router(CommandsProcessor()))
+        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), router.Router(CommandsProcessor()))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
-        client = http.Client('http://localhost:%s' % local.ipc_port.value)
+        client = http.Client('http://127.0.0.1:%s' % local.ipc_port.value)
 
         events = []
         CommandsProcessor.events = ['', 'fake', 'data: fail', 'data: null', 'data: -1', 'data: {"foo": "bar"}']
@@ -67,10 +67,10 @@ class HTTPTest(tests.Test):
             def f2(self):
                 yield json.dumps('result')
 
-        self.server = coroutine.WSGIServer(('localhost', local.ipc_port.value), router.Router(Commands()))
+        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), router.Router(Commands()))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
-        client = http.Client('http://localhost:%s' % local.ipc_port.value)
+        client = http.Client('http://127.0.0.1:%s' % local.ipc_port.value)
 
         request = db.Request()
         request['method'] = 'GET'
