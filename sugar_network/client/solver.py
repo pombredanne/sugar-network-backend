@@ -192,7 +192,8 @@ def _load_feed(conn, context):
         pipe.trace('No feeds for %s', context)
         return None
 
-    feed.name = feed_content['name']
+    # XXX 0install fails on non-ascii name
+    feed.name = feed_content['name'].encode('ascii', 'backslashreplace')
     feed.to_resolve = feed_content.get('packages')
     if not feed.to_resolve:
         pipe.trace('No compatible packages for %s', context)
