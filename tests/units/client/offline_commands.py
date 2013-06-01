@@ -224,6 +224,11 @@ class OfflineCommandsTest(tests.Test):
             },
             ipc.get(['context', 'bundle_id'], cmd='feed'))
 
+    def test_LocalAPIShouldDuplicateNodeButWith503Response(self):
+        ipc = IPCClient()
+        self.assertRaises(http.ServiceUnavailable, ipc.get, ['context', 'foo'], cmd='feed')
+        self.assertRaises(http.ServiceUnavailable, ipc.get, ['packages', 'foo', 'bar'])
+
 
 if __name__ == '__main__':
     tests.main()

@@ -50,6 +50,7 @@ def main():
 class Test(unittest.TestCase):
 
     def setUp(self, fork_num=0, tmp_root=None):
+        self.maxDiff = None
         self._overriden = []
 
         os.environ['LANG'] = 'en_US'

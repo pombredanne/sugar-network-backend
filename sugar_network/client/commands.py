@@ -108,6 +108,15 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
         return file(path, 'rb')
 
+    @db.route('GET', '/packages')
+    def route_packages(self, request, response):
+        if self._inline.is_set():
+            return self._node_call(request, response)
+        else:
+            # Let caller know that we are in offline and
+            # no way to process specified request on the node
+            raise http.ServiceUnavailable()
+
     @db.volume_command(method='GET', cmd='status',
             mime_type='application/json')
     def status(self):
@@ -253,7 +262,12 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         except http.NotFound:
             context = None
         if context is None or context['clone'] != 2:
-            return self._node_call(request, response)
+            if self._inline.is_set():
+                return self._node_call(request, response)
+            else:
+                # Let caller know that we are in offline and
+                # no way to process specified request on the node
+                raise http.ServiceUnavailable()
 
         versions = []
         for path in clones.walk(context.guid):

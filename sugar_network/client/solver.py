@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2012 Aleksey Lim
+# Copyright (C) 2010-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@ import logging
 from os.path import isabs, join, dirname
 
 from sugar_network.client import packagekit, SUGAR_API_COMPATIBILITY
-from sugar_network.toolkit import util, lsb_release, pipe, exception
+from sugar_network.toolkit import http, util, lsb_release, pipe, exception
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'zeroinstall'))
 
@@ -65,24 +65,22 @@ def select_architecture(arches):
 def solve(conn, context):
     reader.load_feed_from_cache = lambda url, *args, **kwargs: \
             _load_feed(conn, url)
+
     requirement = Requirements(context)
     # TODO
     requirement.command = 'activity'
-    return _solve(requirement)
-
-
-def _solve(requirement):
     config = Config()
     driver = Driver(config, requirement)
     solver = driver.solver
     solver.record_details = True
+    status = None
 
     while True:
         solver.solve(requirement.interface_uri,
                 driver.target_arch, command_name=requirement.command)
         if solver.ready:
             break
-        resolved = False
+        resolved = None
         for url in solver.feeds_used:
             feed = config.iface_cache.get_feed(url)
             if feed is None:
@@ -90,13 +88,17 @@ def _solve(requirement):
             while feed.to_resolve:
                 try:
                     resolved = packagekit.resolve(feed.to_resolve.pop(0))
-                    feed.resolve(resolved.values())
-                except Exception:
-                    if not feed.to_resolve:
+                except Exception, error:
+                    if feed.to_resolve:
+                        continue
+                    if status is None:
+                        status = conn.get(cmd='status')
+                    if status['route'] == 'offline':
+                        raise http.ServiceUnavailable(str(error))
+                    else:
                         raise
-                else:
-                    resolved = True
-                    break
+                feed.resolve(resolved.values())
+                feed.to_resolve = None
         if not resolved:
             break
 
@@ -187,6 +189,9 @@ def _load_feed(conn, context):
                 # TODO stability='stable'
                 distro=lsb_release.distributor_id())
         pipe.trace('Found %s feed: %r', context, feed_content)
+    except http.ServiceUnavailable:
+        pipe.trace('Failed to fetch %s feed', context)
+        raise
     except Exception:
         exception(_logger, 'Failed to fetch %r feed', context)
         pipe.trace('No feeds for %s', context)
@@ -239,7 +244,6 @@ class _Feed(model.ZeroInstallFeed):
         impl.add_download_source(self.context, 0, None)
 
         self.implementations[self.context] = impl
-        self.to_resolve = None
 
     def implement(self, release):
         impl_id = release['guid']

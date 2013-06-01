@@ -48,7 +48,7 @@ class InjectorTest(tests.Test):
         self.assertEqual([
             {'state': 'fork', 'context': context},
             {'state': 'analyze', 'context': context},
-            {'state': 'failure', 'context': context, 'log_path': log_path, 'trace': None, 'error': """\
+            {'state': 'failure', 'context': context, 'log_path': log_path, 'trace': None, 'error_type': 'RuntimeError', 'error': """\
 Can't find all required implementations:
 - %s -> (problem)
     No known implementations at all""" % context}],
@@ -82,6 +82,7 @@ Can't find all required implementations:
             {'state': 'solved', 'context': context},
             {'state': 'download', 'context': context},
             {'state': 'failure', 'context': context, 'error': 'BLOB does not exist', 'log_path': log_path, 'trace': None,
+                'error_type': 'NotFound',
                 'solution': [{'name': 'title', 'prefix': 'topdir', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'}],
                 },
             ],
@@ -906,6 +907,31 @@ Can't find all required implementations:
             {'name': 'sugar', 'version': '0.94', 'context': 'sugar', 'path': '/', 'id': 'sugar-0.94', 'stability': 'packaged'},
             ],
             solver.solve(conn, context))
+
+    def test_PopupServiceUnavailableInOffline(self):
+        self.touch(('Activities/Activity/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = bundle_id',
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'requires = dep',
+            ]))
+
+        home_volume = self.start_client()
+        clones.populate(home_volume['context'], ['Activities'])
+        ipc = IPCClient()
+
+        self.assertEqual([
+            {'context': 'context', 'state': 'fork'},
+            {'context': 'context', 'state': 'analyze'},
+            {'context': 'context', 'state': 'failure',
+                'error': '', 'error_type': 'ServiceUnavailable', 'trace': None,
+                'log_path': tests.tmpdir +  '/.sugar/default/logs/context.log'},
+            ],
+            [i for i in injector.make('context')])
 
 
 class _FakeConnection(object):

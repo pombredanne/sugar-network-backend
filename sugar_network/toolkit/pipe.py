@@ -70,8 +70,9 @@ def fork(callback, log_path=None, session=None, **kwargs):
         try:
             callback(**kwargs)
         except Exception, error:
+            feedback('failure', error_type=type(error).__name__,
+                    error=str(error), environ={'trace': _trace})
             _logger.exception('%r(%r) failed', callback, kwargs)
-            feedback('failure', error=str(error), environ={'trace': _trace})
 
     if session is None:
         session = {}
@@ -182,6 +183,8 @@ def _setup_logging(path):
     os.dup2(logfile.fileno(), sys.stderr.fileno())
     logfile.close()
 
+    for handler in logging.getLogger().handlers:
+        logging.getLogger().removeHandler(handler)
     logging.basicConfig(level=logging.getLogger().level,
             format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 

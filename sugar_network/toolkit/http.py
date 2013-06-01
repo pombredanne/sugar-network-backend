@@ -83,6 +83,12 @@ class NotFound(Status):
     status_code = 404
 
 
+class ServiceUnavailable(Status):
+
+    status = '503 Service Unavailable'
+    status_code = 503
+
+
 class Client(object):
 
     def __init__(self, api_url='', creds=None, trust_env=True, max_retries=0):
@@ -188,7 +194,7 @@ class Client(object):
                     # If so, try to resend request.
                     if a_try <= self._max_retries and method == 'GET':
                         continue
-                    _logger.error('Request failed, '
+                    _logger.trace('Request failed, '
                             'method=%s path=%r params=%r headers=%r '
                             'status_code=%s content=%s',
                             method, path, params, headers,
@@ -340,4 +346,5 @@ _FORWARD_STATUSES = [
         BadRequest,
         Forbidden,
         NotFound,
+        ServiceUnavailable,
         ]
