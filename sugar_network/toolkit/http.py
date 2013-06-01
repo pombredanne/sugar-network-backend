@@ -23,15 +23,12 @@ sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'requests'))
 
 from requests import Session
 # pylint: disable-msg=W0611
-from requests.exceptions import SSLError, ConnectionError
+from requests.exceptions import SSLError, ConnectionError, HTTPError
 
 from sugar_network import client, toolkit
 from sugar_network.toolkit import coroutine, util
 from sugar_network.toolkit import BUFFER_SIZE, exception, enforce
 
-
-_RECONNECTION_NUMBER = 1
-_RECONNECTION_TIMEOUT = 3
 
 _logger = logging.getLogger('http')
 
@@ -103,6 +100,9 @@ class Client(object):
             session.headers['sugar_user'] = uid
             session.headers['sugar_user_signature'] = _sign(keyfile, uid)
         session.headers['accept-language'] = toolkit.default_lang()
+
+    def __repr__(self):
+        return '<Connection api_url=%s>' % self.api_url
 
     def __enter__(self):
         return self
@@ -185,6 +185,7 @@ class Client(object):
                     # On non-JSONified fail response, assume that the error
                     # was not sent by the application level server code, i.e.,
                     # something happaned on low level, like connection abort.
+                    # If so, try to resend request.
                     if a_try <= self._max_retries and method == 'GET':
                         continue
                     _logger.error('Request failed, '
@@ -269,7 +270,7 @@ class Client(object):
             return reply.raw
 
     def subscribe(self, **condition):
-        return _Subscription(self, condition, _RECONNECTION_NUMBER)
+        return _Subscription(self, condition)
 
     def _decode_reply(self, response):
         if response.headers.get('Content-Type') == 'application/json':
@@ -280,8 +281,7 @@ class Client(object):
 
 class _Subscription(object):
 
-    def __init__(self, aclient, condition, tries):
-        self._tries = tries or 1
+    def __init__(self, aclient, condition):
         self._client = aclient
         self._content = None
         self._condition = condition
@@ -322,21 +322,8 @@ class _Subscription(object):
             return self._content
         params.update(self._condition)
         params['cmd'] = 'subscribe'
-
         _logger.debug('Subscribe to %r, %r', self._client.api_url, params)
-
-        for a_try in reversed(xrange(self._tries)):
-            try:
-                response = self._client.request('GET', params=params)
-                break
-            except Exception:
-                if a_try == 0:
-                    raise
-                exception(_logger,
-                        'Cannot subscribe to %r, retry in %s second(s)',
-                        self._client.api_url, _RECONNECTION_TIMEOUT)
-                coroutine.sleep(_RECONNECTION_TIMEOUT)
-
+        response = self._client.request('GET', params=params)
         self._content = response.raw
         return self._content
 

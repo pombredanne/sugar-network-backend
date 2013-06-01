@@ -17,7 +17,7 @@ from gevent import monkey
 
 from sugar_network.toolkit import coroutine, http, mountpoints, util
 from sugar_network.db.router import Router
-from sugar_network.client import journal, IPCRouter
+from sugar_network.client import journal, IPCRouter, commands
 from sugar_network.client.commands import ClientCommands
 from sugar_network import db, client, node, toolkit
 from sugar_network.db import env
@@ -86,6 +86,7 @@ class Test(unittest.TestCase):
         client.mounts_root.value = None
         client.ipc_port.value = 5555
         client.layers.value = None
+        commands._RECONNECT_TIMEOUT = 0
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1

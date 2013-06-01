@@ -11,7 +11,7 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import client, db
-from sugar_network.client import IPCClient, journal, clones, injector
+from sugar_network.client import IPCClient, journal, clones, injector, commands
 from sugar_network.toolkit import coroutine, http
 from sugar_network.client.commands import ClientCommands
 from sugar_network.resources.volume import Volume, Resource
@@ -1111,6 +1111,23 @@ class OnlineCommandsTest(tests.Test):
         coroutine.spawn(kill)
         self.assertEqual('local', ipc.get(['document', guid], cmd='yield_json_and_sleep'))
         assert not ipc.get(cmd='inline')
+
+    def test_ReconnectOnServerFall(self):
+        commands._RECONNECT_TIMEOUT = 1
+
+        node_pid = self.fork_master([User])
+        self.start_client([User])
+        ipc = IPCClient()
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        def shutdown():
+            coroutine.sleep(.1)
+            self.waitpid(node_pid)
+        coroutine.spawn(shutdown)
+        self.wait_for_events(ipc, event='inline', state='offline').wait()
+
+        self.fork_master([User])
+        self.wait_for_events(ipc, event='inline', state='online').wait()
 
 
 if __name__ == '__main__':

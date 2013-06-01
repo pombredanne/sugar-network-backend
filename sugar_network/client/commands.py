@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import time
 import logging
 import httplib
 from os.path import join
@@ -33,8 +32,8 @@ from sugar_network.toolkit import exception, enforce
 _SN_DIRNAME = 'sugar-network'
 _LOCAL_PROPS = frozenset(['favorite', 'clone'])
 
-# If disconnect happned in more than `_RECONNECT_MINIMUM` seconds, reconnect
-_RECONNECT_MINIMUM = 60
+_RECONNECT_TIMEOUT = 3
+_RECONNECT_TIMEOUT_MAX = 60 * 15
 
 _logger = logging.getLogger('client.commands')
 
@@ -50,9 +49,9 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
         self._home = _VolumeCommands(home_volume)
         self._inline = coroutine.Event()
+        self._inline_job = coroutine.Pool()
         self._remote_urls = []
         self._node = None
-        self._node_job = coroutine.Pool()
         self._jobs = coroutine.Pool()
         self._no_subscription = no_subscription
         self._server_mode = not api_url
@@ -304,28 +303,36 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             try:
                 reply = self._node.call(request, response)
                 if hasattr(reply, 'read'):
-                    return _ResponseStream(reply, self._fall_offline)
+                    return _ResponseStream(reply, self._restart_online)
                 else:
                     return reply
             except (http.ConnectionError, httplib.IncompleteRead):
-                self._fall_offline()
+                self._restart_online()
                 return self._home.call(request, response)
         else:
             return self._home.call(request, response)
 
     def _got_online(self):
         enforce(not self._inline.is_set())
+        _logger.debug('Got online on %r', self._node)
         self._inline.set()
         self.broadcast({'event': 'inline', 'state': 'online'})
 
-    def _got_offline(self, initiate=False):
-        if not self._inline.is_set():
-            return
-        self._inline.clear()
+    def _got_offline(self):
+        if self._inline.is_set():
+            _logger.debug('Got offline on %r', self._node)
+            self._node.close()
+            self._inline.clear()
         self.broadcast({'event': 'inline', 'state': 'offline'})
 
     def _fall_offline(self):
-        self._got_offline()
+        _logger.debug('Fall to offline on %r', self._node)
+        self._inline_job.kill()
+
+    def _restart_online(self):
+        self._fall_offline()
+        _logger.debug('Try to become online in %s seconds', _RECONNECT_TIMEOUT)
+        self._remote_connect(_RECONNECT_TIMEOUT)
 
     def _discover_node(self):
         for host in zeroconf.browse_workstations():
@@ -336,52 +343,60 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
 
     def _wait_for_connectivity(self):
         for route in netlink.wait_for_route():
-            self._node_job.kill()
+            self._fall_offline()
             if route:
                 self._remote_connect()
 
-    def _remote_connect(self):
+    def _remote_connect(self, timeout=0):
 
-        def listen_for_events():
-            while True:
-                ts = time.time()
-                try:
-                    for event in self._node.subscribe():
-                        if event.get('document') == 'implementation':
-                            mtime = event.get('props', {}).get('mtime')
-                            if mtime:
-                                injector.invalidate_solutions(mtime)
-                        self.broadcast(event)
-                except Exception:
-                    exception(_logger, 'Failed on subscription')
-                if time.time() - ts < _RECONNECT_MINIMUM:
-                    _logger.info('Subscription aborted')
-                    break
+        def pull_events():
+            for event in self._node.subscribe():
+                if event.get('document') == 'implementation':
+                    mtime = event.get('props', {}).get('mtime')
+                    if mtime:
+                        injector.invalidate_solutions(mtime)
+                self.broadcast(event)
+
+        def handshake(url):
+            _logger.debug('Connecting to %r node', url)
+            self._node = client.Client(url)
+            info = self._node.get(cmd='info')
+            impl_info = info['documents'].get('implementation')
+            if impl_info:
+                injector.invalidate_solutions(impl_info['mtime'])
+            if self._inline.is_set():
+                _logger.info('Reconnected to %r node', url)
+            else:
+                self._got_online()
 
         def connect():
-            for url in self._remote_urls:
+            timeout = _RECONNECT_TIMEOUT
+            while True:
                 self.broadcast({'event': 'inline', 'state': 'connecting'})
-                try:
-                    _logger.debug('Connecting to %r node', url)
-                    self._node = client.Client(url)
-                    info = self._node.get(cmd='info')
-                    impl_info = info['documents'].get('implementation')
-                    if impl_info:
-                        injector.invalidate_solutions(impl_info['mtime'])
-                    _logger.info('Connected to %r node', url)
-                    self._got_online()
-                    if self._no_subscription:
+                for url in self._remote_urls:
+                    while True:
+                        try:
+                            handshake(url)
+                            if self._no_subscription:
+                                return
+                            pull_events()
+                        except http.HTTPError, error:
+                            if error.response.status_code in (502, 504):
+                                _logger.debug('Retry %r on gateway error', url)
+                                continue
+                        except Exception:
+                            exception(_logger, 'Connection to %r failed', url)
                         break
-                    listen_for_events()
-                except Exception:
-                    exception(_logger, 'Connection to %r failed', url)
-                finally:
-                    if not self._no_subscription:
-                        self._node.close()
-                        self._got_offline()
+                self._got_offline()
+                if not timeout:
+                    break
+                _logger.debug('Try to reconect in %s seconds', timeout)
+                coroutine.sleep(timeout)
+                timeout *= _RECONNECT_TIMEOUT
+                timeout = min(timeout, _RECONNECT_TIMEOUT_MAX)
 
-        if not self._node_job:
-            self._node_job.spawn(connect)
+        if not self._inline_job:
+            self._inline_job.spawn_later(timeout, connect)
 
     def _found_mount(self, root):
         if self._inline.is_set():
@@ -399,14 +414,12 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         volume = Volume(db_path, lazy_open=client.lazy_open.value)
         self._node = _PersonalCommands(join(db_path, 'node'), volume,
                 self.broadcast)
-        self._node.api_url = 'http://127.0.0.1:%s' % node.port.value
         self._jobs.spawn(volume.populate)
 
         logging.info('Start %r node on %s port', volume.root, node.port.value)
         server = coroutine.WSGIServer(('0.0.0.0', node.port.value),
                 db.Router(self._node))
-        self._node_job.spawn(server.serve_forever)
-        volume.connect(self.broadcast)
+        self._inline_job.spawn(server.serve_forever)
         self._got_online()
 
     def _lost_mount(self, root):
@@ -414,9 +427,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                 not self._node.volume.root.startswith(root):
             return
         _logger.debug('Lost %r node mount', root)
-        self._node_job.kill()
-        self._node.volume.disconnect(self.broadcast)
-        self._node.volume.close()
+        self._inline_job.kill()
         self._got_offline()
 
     def _home_event_cb(self, event):
@@ -563,9 +574,9 @@ class CachedClientCommands(ClientCommands):
         ClientCommands._got_online(self)
         self._push_job.spawn(self._push)
 
-    def _got_offline(self, initiate=False):
+    def _got_offline(self):
         self._push_job.kill()
-        ClientCommands._got_offline(self, initiate)
+        ClientCommands._got_offline(self)
 
     def _push(self):
         pushed_seq = util.Sequence()
@@ -655,7 +666,18 @@ class _VolumeCommands(db.VolumeCommands):
 
 class _PersonalCommands(PersonalCommands):
 
-    api_url = None
+    def __init__(self, key_path, volume, localcast):
+        PersonalCommands.__init__(self, key_path, volume, localcast)
+        self.api_url = 'http://127.0.0.1:%s' % node.port.value
+        volume.connect(localcast)
+
+    def close(self):
+        self.volume.disconnect(self._localcast)
+        self.volume.close()
+
+    def __repr__(self):
+        return '<LocalNode path=%s api_url=%s>' % \
+                (self.volume.root, self.api_url)
 
 
 class _ResponseStream(object):
@@ -674,8 +696,5 @@ class _ResponseStream(object):
         try:
             return self._stream.read(size)
         except (http.ConnectionError, httplib.IncompleteRead):
-            self._on_fail_cb()
-            raise
-        except Exception:
             self._on_fail_cb()
             raise

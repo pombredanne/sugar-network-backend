@@ -40,8 +40,15 @@ _logger = logging.getLogger('coroutine')
 _wsgi_logger = logging.getLogger('wsgi')
 
 
-def spawn(callback, *args):
-    return _group.spawn(callback, *args)
+def spawn(*args, **kwargs):
+    return _group.spawn(*args, **kwargs)
+
+
+def spawn_later(seconds, *args, **kwargs):
+    job = _group.greenlet_class(*args, **kwargs)
+    job.start_later(seconds)
+    _group.add(job)
+    return job
 
 
 def shutdown():
@@ -195,6 +202,13 @@ class Pool(gevent.pool.Pool):
 
     def spawn(self, *args, **kwargs):
         job = gevent.pool.Pool.spawn(self, *args, **kwargs)
+        _group.add(job)
+        return job
+
+    def spawn_later(self, seconds, *args, **kwargs):
+        job = self.greenlet_class(*args, **kwargs)
+        job.start_later(seconds)
+        self.add(job)
         _group.add(job)
         return job
 

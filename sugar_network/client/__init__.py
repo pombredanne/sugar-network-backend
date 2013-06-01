@@ -169,7 +169,7 @@ def IPCClient():
     from sugar_network.toolkit import http
 
     return http.Client(
-            url='http://127.0.0.1:%s' % ipc_port.value,
+            api_url='http://127.0.0.1:%s' % ipc_port.value,
             creds=None,
             # No need in proxy for localhost
             trust_env=False,
