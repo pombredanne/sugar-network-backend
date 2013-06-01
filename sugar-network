@@ -209,8 +209,7 @@ class Application(application.Application):
             sys.stdout.write(result)
 
 # Let toolkit.http work in concurrence
-# XXX No DNS because `toolkit.network.res_init()` doesn't work otherwise
-monkey.patch_socket(dns=False)
+monkey.patch_socket()
 monkey.patch_select()
 monkey.patch_ssl()
 monkey.patch_time()
