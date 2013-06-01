@@ -66,20 +66,22 @@ def solve(conn, context):
     reader.load_feed_from_cache = lambda url, *args, **kwargs: \
             _load_feed(conn, url)
 
-    requirement = Requirements(context)
+    req = Requirements(context)
     # TODO
-    requirement.command = 'activity'
+    req.command = 'activity'
     config = Config()
-    driver = Driver(config, requirement)
+    driver = Driver(config, req)
     solver = driver.solver
     solver.record_details = True
     status = None
+    ready = False
 
     while True:
-        solver.solve(requirement.interface_uri,
-                driver.target_arch, command_name=requirement.command)
-        if solver.ready:
+        solver.solve(context, driver.target_arch, command_name=req.command)
+        if ready and solver.ready:
             break
+        ready = solver.ready
+
         resolved = None
         for url in solver.feeds_used:
             feed = config.iface_cache.get_feed(url)
@@ -103,26 +105,32 @@ def solve(conn, context):
             break
 
     selections = solver.selections.selections
+    missed = []
 
-    if solver.ready:
-        _logger.debug('Solving results: %r', solver.details)
-    else:
-        missed = []
-        summary = []
-        for iface, impls in solver.details.items():
-            summary.append(iface.uri)
-            if impls:
-                for impl, reason in impls:
-                    if not reason and solver.selections[iface.uri] is None:
-                        reason = 'wrong version'
-                        missed.append(iface.uri)
-                    summary.append('  v%s (%s)' %
-                            (impl.get_version(), reason or 'ok'))
-            else:
-                summary.append('  (no versions)')
-                missed.append(iface.uri)
-        pipe.trace('\n  '.join(['Solving results:'] + summary))
+    top_summary = []
+    dep_summary = []
+    for iface, impls in solver.details.items():
+        summary = (top_summary if iface.uri == context else dep_summary)
+        summary.append(iface.uri)
+        if impls:
+            sel = selections.get(iface.uri)
+            for impl, reason in impls:
+                if not reason and sel is None:
+                    reason = 'wrong version'
+                    missed.append(iface.uri)
+                if reason:
+                    reason = '(%s)' % reason
+                summary.append('%s v%s %s' % (
+                    '*' if sel is not None and sel.impl is impl else ' ',
+                    impl.get_version(),
+                    reason or '',
+                    ))
+        else:
+            summary.append('  (no versions)')
+            missed.append(iface.uri)
+    pipe.trace('\n  '.join(['Solving results:'] + top_summary + dep_summary))
 
+    if not ready:
         # pylint: disable-msg=W0212
         reason_exception = solver.get_failure_reason()
         if reason_exception is not None:
@@ -132,13 +140,9 @@ def solve(conn, context):
         raise RuntimeError(reason)
 
     solution = []
-    solution.append(_impl_new(
-        config,
-        requirement.interface_uri,
-        selections[requirement.interface_uri],
-        ))
+    solution.append(_impl_new(config, context, selections[context]))
     for iface, sel in selections.items():
-        if sel is not None and iface != requirement.interface_uri:
+        if sel is not None and iface != context:
             solution.append(_impl_new(config, iface, sel))
 
     return solution
