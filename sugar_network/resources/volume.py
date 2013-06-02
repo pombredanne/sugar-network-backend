@@ -136,11 +136,11 @@ class Volume(db.Volume):
             'sugar_network.resources.user',
             )
 
-    def __init__(self, root, document_classes=None, lazy_open=False):
+    def __init__(self, root, document_classes=None):
         if document_classes is None:
             document_classes = Volume.RESOURCES
         self._populators = coroutine.Pool()
-        db.Volume.__init__(self, root, document_classes, lazy_open=lazy_open)
+        db.Volume.__init__(self, root, document_classes)
 
     def close(self):
         self._populators.kill()

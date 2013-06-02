@@ -42,7 +42,7 @@ class Volume(dict):
 
     _flush_pool = []
 
-    def __init__(self, root, documents, index_class=None, lazy_open=False):
+    def __init__(self, root, documents, index_class=None):
         Volume._flush_pool.append(self)
 
         if index_class is None:
@@ -55,7 +55,6 @@ class Volume(dict):
             os.makedirs(root)
         self._index_class = index_class
         self._subscriptions = {}
-        self._to_open = {}
         self.seqno = util.Seqno(join(self._root, 'seqno'))
 
         for document in documents:
@@ -63,10 +62,7 @@ class Volume(dict):
                 name = document.split('.')[-1]
             else:
                 name = document.__name__.lower()
-            if lazy_open:
-                self._to_open[name] = document
-            else:
-                self[name] = self._open(name, document)
+            self[name] = self._open(name, document)
 
     @property
     def root(self):
@@ -111,10 +107,8 @@ class Volume(dict):
 
     def __getitem__(self, name):
         directory = self.get(name)
-        if directory is None:
-            enforce(name in self._to_open, http.BadRequest,
-                    'Unknown %r document', name)
-            directory = self[name] = self._open(name, self._to_open.pop(name))
+        enforce(directory is not None, http.BadRequest,
+                'Unknown %r document', name)
         return directory
 
     def _open(self, name, document):

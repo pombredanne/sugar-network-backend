@@ -104,7 +104,7 @@ class Application(application.Daemon):
 
     def run(self):
         util.ensure_key(client.key_path())
-        volume = Volume(client.path('db'), lazy_open=client.lazy_open.value)
+        volume = Volume(client.path('db'))
         commands = CachedClientCommands(volume,
                 client.api_url.value if not client.server_mode.value else None)
 

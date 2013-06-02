@@ -138,7 +138,7 @@ class VolumeTest(tests.Test):
                 ('db/context/1/1/description', json.dumps({"value": {}})),
                 )
 
-        volume = Volume('db', lazy_open=True)
+        volume = Volume('db')
         cp = TestCommands(volume)
         assert not exists('db/context/index')
 

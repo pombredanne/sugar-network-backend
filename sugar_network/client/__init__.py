@@ -90,10 +90,6 @@ mounts_root = Option(
         'path to a directory with remote devices mounts',
         default='/media')
 
-lazy_open = Option(
-        'do not open all indexes at once on startup',
-        default=False, type_cast=Option.bool_cast, action='store_true')
-
 ipc_port = Option(
         'port number to listen for incomming connections from IPC clients',
         default=5001, type_cast=int, name='ipc_port')
@@ -188,8 +184,7 @@ def IPCRouter(*args, **kwargs):
     class _IPCRouter(Router):
 
         def authenticate(self, request):
-            if not anonymous.value:
-                return sugar_uid()
+            pass
 
         def call(self, request, response):
             request.access_level = db.ACCESS_LOCAL

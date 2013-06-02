@@ -430,33 +430,6 @@ class VolumeTest(tests.Test):
                 [{'localized_prop': 'value_%s' % fallback_lang}],
                 self.call('GET', document='testdocument', accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
 
-    def test_LazyOpen(self):
-
-        class Document1(db.Document):
-            pass
-
-        class Document2(db.Document):
-            pass
-
-        volume = db.Volume('.', [Document1, Document2], lazy_open=True)
-        assert not exists('document1/index')
-        assert not exists('document2/index')
-        volume['document1'].find()
-        volume['document2'].find()
-        assert exists('document1/index')
-        assert exists('document2/index')
-        volume['document1'].find()
-        volume['document2'].find()
-        volume.close()
-
-        shutil.rmtree('document1')
-        shutil.rmtree('document2')
-
-        volume = db.Volume('.', [Document1, Document2], lazy_open=False)
-        assert exists('document1/index')
-        assert exists('document2/index')
-        volume.close()
-
     def test_OpenByModuleName(self):
         self.touch(
                 ('foo/bar.py', [
