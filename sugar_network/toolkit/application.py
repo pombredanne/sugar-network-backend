@@ -116,7 +116,7 @@ class Application(object):
                         term += ' ' + line
                         continue
                 text.extend(textwrap.wrap(line, 54))
-            if len(term) < 24:
+            if len(term) < 22:
                 sys.stdout.write('  %-22s' % term)
             else:
                 text.insert(0, '')

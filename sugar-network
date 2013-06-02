@@ -56,6 +56,14 @@ offline = Option(
         default=False, type_cast=Option.bool_cast, action='store_true',
         name='offline')
 
+object_id = Option(
+        'for launch command, identifier of the associated datastore object',
+        name='object-id', short_option='-o')
+
+uri = Option(
+        'for launch command, URI to load',
+        name='uri', short_option='-u')
+
 
 _ESCAPE_VALUE_RE = re.compile('([^\\[\\]\\{\\}0-9][^\\]\\[\\{\\}]+)')
 
@@ -72,26 +80,60 @@ class Application(application.Application):
             os.makedirs(toolkit.cachedir.value)
 
     @application.command(
+            'launch Sugar activity',
+            args='BUNDLE_ID [COMMAND-LINE-ARGS]',
+            )
+    def launch(self):
+        enforce(self.check_for_instance(), 'No sugar-network-client session')
+        ipc = client.IPCClient()
+
+        enforce(self.args, 'BUNDLE_ID was not specified')
+        bundle_id = self.args.pop(0)
+
+        params = {}
+        if self.args:
+            params['args'] = self.args
+        if object_id.value:
+            params['object_id'] = object_id.value
+        if uri.value:
+            params['uri'] = uri.value
+
+        ipc.get(['context', bundle_id], cmd='launch', **params)
+
+    @application.command(
+            'clone Sugar activity to ~/Activities directory',
+            args='BUNDLE_ID',
+            )
+    def clone(self):
+        enforce(self.check_for_instance(), 'No sugar-network-client session')
+        ipc = client.IPCClient()
+
+        enforce(self.args, 'BUNDLE_ID was not specified')
+        bundle_id = self.args.pop(0)
+
+        ipc.put(['context', bundle_id], 1, cmd='clone')
+
+    @application.command(
             'send POST API request')
     def POST(self):
-        self._call('POST', True)
+        self._request('POST', True)
 
     @application.command(
             'send PUT API request')
     def PUT(self):
-        self._call('PUT', True)
+        self._request('PUT', True)
 
     @application.command(
             'send DELETE API request')
     def DELETE(self):
-        self._call('DELETE', False)
+        self._request('DELETE', False)
 
     @application.command(
             'send GET API request')
     def GET(self):
-        self._call('GET', False)
+        self._request('GET', False)
 
-    def _call(self, method, post):
+    def _request(self, method, post):
         request = db.Request(method=method)
         request.allow_redirects = True
         response = db.Response()
@@ -222,6 +264,7 @@ toolkit.cachedir.value = client.profile_path('tmp')
 
 Option.seek('main', [
     application.debug, porcelain, post_data, post_file, json, offline,
+    object_id, uri,
     ])
 Option.seek('client', [
     client.api_url, client.layers, client.ipc_port, client.local_root,
