@@ -36,11 +36,6 @@ class Report(Resource):
             self['version'] = version['version']
         return value
 
-    @db.indexed_property(prefix='D', full_text=True, localized=True,
-            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
-    def description(self, value):
-        return value
-
     @db.stored_property(default='',
             permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def version(self, value):
