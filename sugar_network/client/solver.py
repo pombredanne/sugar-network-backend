@@ -176,7 +176,7 @@ def _load_feed(conn, context):
             host_versin = '.'.join(config.version.split('.', 2)[:2])
             for version in SUGAR_API_COMPATIBILITY.get(host_versin) or []:
                 feed.implement_sugar(version)
-            feed.name = feed.name = context
+            feed.name = feed.title = context
             return feed
         except ImportError:
             pass
