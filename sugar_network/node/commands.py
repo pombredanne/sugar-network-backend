@@ -66,13 +66,31 @@ class NodeCommands(db.VolumeCommands, Commands):
     @db.route('GET', '/packages')
     def route_packages(self, request, response):
         enforce(node.files_root.value, http.BadRequest, 'Disabled')
-        path = join(node.files_root.value, *request.path)
-        enforce(exists(path), http.NotFound, 'File was not found')
-        if isdir(path):
+        if request.path and request.path[-1] == 'updates':
+            root = join(node.files_root.value, *request.path[:-1])
+            enforce(isdir(root), http.NotFound, 'Directory was not found')
+            result = []
+            last_modified = 0
+            for filename in os.listdir(root):
+                if '.' in filename:
+                    continue
+                path = join(root, filename)
+                mtime = os.stat(path).st_mtime
+                if mtime > request.if_modified_since:
+                    result.append(filename)
+                    last_modified = max(last_modified, mtime)
             response.content_type = 'application/json'
-            return os.listdir(path)
+            if last_modified:
+                response.last_modified = last_modified
+            return result
         else:
-            return util.iter_file(path)
+            path = join(node.files_root.value, *request.path)
+            enforce(exists(path), http.NotFound, 'File was not found')
+            if isdir(path):
+                response.content_type = 'application/json'
+                return os.listdir(path)
+            else:
+                return util.iter_file(path)
 
     @db.volume_command(method='GET', cmd='stat',
             mime_type='application/json')

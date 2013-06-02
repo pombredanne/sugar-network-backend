@@ -3,6 +3,7 @@
 
 import time
 import json
+from email.utils import formatdate, parsedate
 from os.path import exists
 
 from __init__ import tests
@@ -345,6 +346,45 @@ class NodeTest(tests.Test):
         self.assertEqual(['arch'], client.get(['packages', 'repo']))
         self.assertEqual(['package'], client.get(['packages', 'repo', 'arch']))
         self.assertEqual('file', client.get(['packages', 'repo', 'arch', 'package']))
+
+    def test_PackageUpdatesRoute(self):
+        node.files_root.value = '.'
+        self.touch(
+                ('packages/repo/1', '', 1),
+                ('packages/repo/1.1', '', 1),
+                ('packages/repo/2', '', 2),
+                ('packages/repo/2.2', '', 2),
+                )
+        volume = self.start_master()
+        ipc = Client()
+
+        self.assertEqual(
+                sorted(['1', '2']),
+                sorted(ipc.get(['packages', 'repo', 'updates'])))
+
+        response = ipc.request('GET', ['packages', 'repo', 'updates'], headers={'if-modified-since': formatdate(0)})
+        self.assertEqual(
+                sorted(['1', '2']),
+                sorted(json.loads(response.content)))
+        self.assertEqual(2, time.mktime(parsedate(response.headers['last-modified'])))
+
+        response = ipc.request('GET', ['packages', 'repo', 'updates'], headers={'if-modified-since': formatdate(1)})
+        self.assertEqual(
+                sorted(['2']),
+                sorted(json.loads(response.content)))
+        self.assertEqual(2, time.mktime(parsedate(response.headers['last-modified'])))
+
+        response = ipc.request('GET', ['packages', 'repo', 'updates'], headers={'if-modified-since': formatdate(2)})
+        self.assertEqual(
+                sorted([]),
+                sorted(json.loads(response.content)))
+        assert 'last-modified' not in response.headers
+
+        response = ipc.request('GET', ['packages', 'repo', 'updates'], headers={'if-modified-since': formatdate(3)})
+        self.assertEqual(
+                sorted([]),
+                sorted(json.loads(response.content)))
+        assert 'last-modified' not in response.headers
 
     def test_Clone(self):
         volume = self.start_master()
