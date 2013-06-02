@@ -147,7 +147,7 @@ def _impl_new(config, iface, sel):
     impl = {'id': sel.id,
             'context': iface,
             'version': sel.version,
-            'name': feed.name,
+            'name': feed.title,
             'stability': sel.impl.upstream_stability.name,
             }
     if isabs(sel.id):
@@ -176,7 +176,7 @@ def _load_feed(conn, context):
             host_versin = '.'.join(config.version.split('.', 2)[:2])
             for version in SUGAR_API_COMPATIBILITY.get(host_versin) or []:
                 feed.implement_sugar(version)
-            feed.name = context
+            feed.name = feed.name = context
             return feed
         except ImportError:
             pass
@@ -192,8 +192,9 @@ def _load_feed(conn, context):
         pipe.trace('No feeds for %s', context)
         return None
 
-    # XXX 0install fails on non-ascii name
-    feed.name = feed_content['name'].encode('ascii', 'backslashreplace')
+    # XXX 0install fails on non-ascii `name` values
+    feed.name = context
+    feed.title = feed_content['name']
     feed.to_resolve = feed_content.get('packages')
     if not feed.to_resolve:
         pipe.trace('No compatible packages for %s', context)
@@ -218,6 +219,7 @@ class _Feed(model.ZeroInstallFeed):
         self.last_checked = None
         self.to_resolve = None
         self._package_implementations = []
+        self.title = None
 
     @property
     def url(self):
