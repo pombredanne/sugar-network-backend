@@ -629,7 +629,8 @@ class Application(application.Application):
                         translations
                     WHERE
                         id = %s""" % an_id):
-                result[locale.lower()] = value
+                if value:
+                    result[locale.lower()] = value
         return result
 
     def sqlexec(self, text):
