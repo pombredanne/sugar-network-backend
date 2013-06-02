@@ -23,7 +23,7 @@ from sugar_network.toolkit import netlink, mountpoints
 from sugar_network.client import journal, clones, injector
 from sugar_network.client.spec import Spec
 from sugar_network.resources.volume import Volume, Commands
-from sugar_network.node.slave import PersonalCommands
+from sugar_network.node.slave import SlaveCommands
 from sugar_network.toolkit import zeroconf, coroutine, util, http
 from sugar_network.toolkit import exception, enforce
 
@@ -31,6 +31,9 @@ from sugar_network.toolkit import exception, enforce
 # Top-level directory name to keep SN data on mounted devices
 _SN_DIRNAME = 'sugar-network'
 _LOCAL_PROPS = frozenset(['favorite', 'clone'])
+
+# Flag file to recognize a directory as a synchronization directory
+_SYNC_DIRNAME = 'sugar-network-sync'
 
 _RECONNECT_TIMEOUT = 3
 _RECONNECT_TIMEOUT_MAX = 60 * 15
@@ -138,7 +141,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         try:
             result = self._node_call(request, response)
         except db.CommandNotFound:
-            result = {'roles': [], 'guid': request.principal}
+            result = {'roles': [], 'guid': client.sugar_uid()}
         return result
 
     @db.directory_command(method='GET',
@@ -425,7 +428,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         node.stats_root.value = join(root, _SN_DIRNAME, 'stats')
         node.files_root.value = join(root, _SN_DIRNAME, 'files')
 
-        volume = Volume(db_path, lazy_open=client.lazy_open.value)
+        volume = Volume(db_path)
         self._node = _PersonalCommands(join(db_path, 'node'), volume,
                 self.broadcast)
         self._jobs.spawn(volume.populate)
@@ -678,12 +681,35 @@ class _VolumeCommands(db.VolumeCommands):
         db.VolumeCommands.before_create(self, request, props)
 
 
-class _PersonalCommands(PersonalCommands):
+class _PersonalCommands(SlaveCommands):
 
     def __init__(self, key_path, volume, localcast):
-        PersonalCommands.__init__(self, key_path, volume, localcast)
+        SlaveCommands.__init__(self, key_path, volume)
+
         self.api_url = 'http://127.0.0.1:%s' % node.port.value
+        self._localcast = localcast
+        self._mounts = util.Pool()
+        self._jobs = coroutine.Pool()
+
+        users = volume['user']
+        if not users.exists(client.sugar_uid()):
+            users.create(guid=client.sugar_uid(), **client.sugar_profile())
+
+        mountpoints.connect(_SYNC_DIRNAME,
+                self.__found_mountcb, self.__lost_mount_cb)
         volume.connect(localcast)
+
+    @db.volume_command(method='GET', cmd='whoami',
+            mime_type='application/json')
+    def whoami(self, request):
+        return {'roles': [], 'guid': client.sugar_uid()}
+
+    def validate(self, *args):
+        return True
+
+    def call(self, request, response=None):
+        request.principal = client.sugar_uid()
+        return SlaveCommands.call(self, request, response)
 
     def close(self):
         self.volume.disconnect(self._localcast)
@@ -692,6 +718,42 @@ class _PersonalCommands(PersonalCommands):
     def __repr__(self):
         return '<LocalNode path=%s api_url=%s>' % \
                 (self.volume.root, self.api_url)
+
+    def _sync_mounts(self):
+        self._localcast({'event': 'sync_start'})
+
+        for mountpoint in self._mounts:
+            self._localcast({'event': 'sync_next', 'path': mountpoint})
+            try:
+                self._offline_session = self._offline_sync(
+                        join(mountpoint, _SYNC_DIRNAME),
+                        **(self._offline_session or {}))
+            except Exception, error:
+                exception(_logger, 'Failed to complete synchronization')
+                self._localcast({'event': 'sync_abort', 'error': str(error)})
+                self._offline_session = None
+                raise
+
+        if self._offline_session is None:
+            _logger.debug('Synchronization completed')
+            self._localcast({'event': 'sync_complete'})
+        else:
+            _logger.debug('Postpone synchronization with %r session',
+                    self._offline_session)
+            self._localcast({'event': 'sync_paused'})
+
+    def __found_mountcb(self, path):
+        self._mounts.add(path)
+        if self._jobs:
+            _logger.debug('Found %r sync mount, pool it', path)
+        else:
+            _logger.debug('Found %r sync mount, start synchronization', path)
+            self._jobs.spawn(self._sync_mounts)
+
+    def __lost_mount_cb(self, path):
+        if self._mounts.remove(path) == util.Pool.ACTIVE:
+            _logger.warning('%r was unmounted, break synchronization', path)
+            self._jobs.kill()
 
 
 class _ResponseStream(object):

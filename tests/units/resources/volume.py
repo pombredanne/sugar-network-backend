@@ -140,15 +140,6 @@ class VolumeTest(tests.Test):
 
         volume = Volume('db')
         cp = TestCommands(volume)
-        assert not exists('db/context/index')
-
-        self.assertEqual(
-                [],
-                call(cp, method='GET', document='context')['result'])
-        coroutine.dispatch()
-        self.assertEqual(
-                [{'guid': '1'}],
-                call(cp, method='GET', document='context')['result'])
         assert exists('db/context/index')
 
     def test_DefaultAuthor(self):

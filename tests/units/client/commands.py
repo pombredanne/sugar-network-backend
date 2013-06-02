@@ -210,8 +210,14 @@ class CommandsTest(tests.Test):
         self.assertEqual([[3, None]], json.load(file('client/push.sequence')))
         self.assertEqual({'en-us': 'title'}, volume['context'].get(guid1)['title'])
         self.assertEqual({'en-us': 'title'}, self.node_volume['context'].get(guid1)['title'])
+        self.assertEqual(
+                {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
+                self.node_volume['context'].get(guid1)['author'])
         self.assertEqual({'en-us': 'title'}, volume['context'].get(guid2)['title'])
         self.assertEqual({'en-us': 'title'}, self.node_volume['context'].get(guid2)['title'])
+        self.assertEqual(
+                {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
+                self.node_volume['context'].get(guid2)['author'])
 
         trigger = self.wait_for_events(cp, event='inline', state='offline')
         self.node.stop()
@@ -229,8 +235,14 @@ class CommandsTest(tests.Test):
         self.assertEqual([[4, None]], json.load(file('client/push.sequence')))
         self.assertEqual({'en-us': 'title_'}, volume['context'].get(guid1)['title'])
         self.assertEqual({'en-us': 'title_'}, self.node_volume['context'].get(guid1)['title'])
+        self.assertEqual(
+                {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
+                self.node_volume['context'].get(guid1)['author'])
         assert not volume['context'].exists(guid2)
         self.assertEqual({'en-us': 'title'}, self.node_volume['context'].get(guid2)['title'])
+        self.assertEqual(
+                {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
+                self.node_volume['context'].get(guid2)['author'])
 
     def test_CachedClientCommands_WipeReports(self):
         volume = Volume('client')
@@ -240,7 +252,6 @@ class CommandsTest(tests.Test):
         post.content_type = 'application/json'
         post.content = {
                 'context': 'context',
-                'description': 'description',
                 'error': 'error',
                 }
         guid = cp.call(post)

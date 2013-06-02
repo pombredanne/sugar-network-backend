@@ -30,6 +30,7 @@ _XO_SERIAL_PATH = ['/ofw/mfg-data/SN', '/proc/device-tree/mfg-data/SN']
 _XO_UUID_PATH = ['/ofw/mfg-data/U#', '/proc/device-tree/mfg-data/U#']
 
 _logger = logging.getLogger('client')
+_sugar_uid = None
 
 
 def profile_path(*args):
@@ -154,7 +155,7 @@ def Client(url=None):
     creds = None
     if not anonymous.value:
         if exists(key_path()):
-            creds = (sugar_uid(), key_path(), _profile)
+            creds = (sugar_uid(), key_path(), sugar_profile)
         else:
             _logger.warning('Sugar session was never started (no DSA key),'
                     'fallback to anonymous mode')
@@ -211,12 +212,15 @@ def key_path():
 
 
 def sugar_uid():
-    import hashlib
-    pubkey = util.pubkey(key_path()).split()[1]
-    return str(hashlib.sha1(pubkey).hexdigest())
+    global _sugar_uid
+    if _sugar_uid is None:
+        import hashlib
+        pubkey = util.pubkey(key_path()).split()[1]
+        _sugar_uid = str(hashlib.sha1(pubkey).hexdigest())
+    return _sugar_uid
 
 
-def _profile():
+def sugar_profile():
     import gconf
     conf = gconf.client_get_default()
     return {'name': conf.get_string(_NICKNAME_GCONF) or '',

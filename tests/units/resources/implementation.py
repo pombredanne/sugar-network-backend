@@ -63,7 +63,7 @@ class ImplementationTest(tests.Test):
                 _encode_version('1-post1.2-3'))
 
     def test_SetMimeTypeForActivities(self):
-        home_volume = self.start_offline_client()
+        self.start_online_client()
         client = IPCClient()
 
         context = client.post(['context'], {
@@ -80,17 +80,17 @@ class ImplementationTest(tests.Test):
             'notes': '',
             })
         client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
-        self.assertEqual('image/png', home_volume['implementation'].get(impl).meta('data')['mime_type'])
+        self.assertEqual('image/png', self.node_volume['implementation'].get(impl).meta('data')['mime_type'])
 
         client.put(['context', context, 'type'], 'activity')
         client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
-        self.assertEqual('application/vnd.olpc-sugar', home_volume['implementation'].get(impl).meta('data')['mime_type'])
+        self.assertEqual('application/vnd.olpc-sugar', self.node_volume['implementation'].get(impl).meta('data')['mime_type'])
 
     def test_WrongAuthor(self):
-        home_volume = self.start_offline_client()
+        self.start_online_client()
         client = IPCClient()
 
-        home_volume['context'].create(
+        self.node_volume['context'].create(
                 guid='context',
                 type='content',
                 title='title',
@@ -106,11 +106,11 @@ class ImplementationTest(tests.Test):
                 'notes': '',
                 }
         self.assertRaises(http.Forbidden, client.post, ['implementation'], impl)
-        self.assertEqual(0, home_volume['implementation'].find()[1])
+        self.assertEqual(0, self.node_volume['implementation'].find()[1])
 
-        home_volume['context'].update('context', author={tests.UID: None})
+        self.node_volume['context'].update('context', author={tests.UID: None})
         guid = client.post(['implementation'], impl)
-        assert home_volume['implementation'].exists(guid)
+        assert self.node_volume['implementation'].exists(guid)
 
 
 if __name__ == '__main__':

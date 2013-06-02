@@ -116,6 +116,15 @@ class Test(unittest.TestCase):
                 'sugar_network.resources.report',
                 ]
 
+        if tmp_root is None:
+            self.override(client, 'sugar_profile', lambda: {
+                'name': 'test',
+                'color': '#000000,#000000',
+                'machine_sn': '',
+                'machine_uuid': '',
+                'pubkey': PUBKEY,
+                })
+
         os.makedirs('tmp')
 
         self.node = None

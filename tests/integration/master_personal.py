@@ -13,7 +13,7 @@ import rrdtool
 
 from __init__ import tests, src_root
 
-from sugar_network.client import Client
+from sugar_network.client import Client, sugar_uid
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import util, coroutine
 
@@ -63,6 +63,7 @@ class MasterPersonalTest(tests.Test):
     def test_SyncMounts(self):
         master = Client('http://127.0.0.1:8100')
         client = Client('http://127.0.0.1:8102')
+        uid = sugar_uid()
 
         # Create shared files on master
         self.touch(('master/files/1/1', '1'))
@@ -104,7 +105,7 @@ class MasterPersonalTest(tests.Test):
             'layer': 'pilot',
             })
         stats_timestamp = int(time.time())
-        client.post(['user', tests.UID], {
+        client.post(['user', uid], {
             'name': 'db',
             'values': [(stats_timestamp, {'f': 1}), (stats_timestamp + 1, {'f': 2})],
             }, cmd='stats-upload')
@@ -195,12 +196,12 @@ class MasterPersonalTest(tests.Test):
         self.assertEqual('1', file('client/mnt/disk/sugar-network/files/1/1').read())
         self.assertEqual('2', file('client/mnt/disk/sugar-network/files/2/2').read())
 
-        rrd = Rrd('master/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
+        rrd = Rrd('master/stats/user/%s/%s' % (uid[:2], uid), 1)
         self.assertEqual([
             [('db', stats_timestamp, {'f': 1.0}), ('db', stats_timestamp + 1, {'f': 2.0})],
             ],
             [[(db.name,) + i for i in db.get(db.first, db.last)] for db in rrd])
-        rrd = Rrd('client/mnt/disk/sugar-network/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
+        rrd = Rrd('client/mnt/disk/sugar-network/stats/user/%s/%s' % (uid[:2], uid), 1)
         self.assertEqual([
             [('db', stats_timestamp, {'f': 1.0}), ('db', stats_timestamp + 1, {'f': 2.0})],
             ],

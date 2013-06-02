@@ -25,12 +25,9 @@ from sugar_network import db, node, toolkit
 from sugar_network.client import api_url
 from sugar_network.node import sync, stats_user, files, volume
 from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import mountpoints, coroutine, util, http
+from sugar_network.toolkit import util, http
 from sugar_network.toolkit import exception, enforce
 
-
-# Flag file to recognize a directory as a synchronization directory
-_SYNC_DIRNAME = 'sugar-network-sync'
 
 _logger = logging.getLogger('node.slave')
 
@@ -189,52 +186,3 @@ class SlaveCommands(NodeCommands):
                     if seq:
                         self._files_seq.exclude(seq)
                         self._files_seq.commit()
-
-
-class PersonalCommands(SlaveCommands):
-
-    def __init__(self, key_path, volume_, localcast):
-        SlaveCommands.__init__(self, key_path, volume_)
-
-        self._localcast = localcast
-        self._mounts = util.Pool()
-        self._jobs = coroutine.Pool()
-
-        mountpoints.connect(_SYNC_DIRNAME,
-                self.__found_mountcb, self.__lost_mount_cb)
-
-    def _sync_mounts(self):
-        self._localcast({'event': 'sync_start'})
-
-        for mountpoint in self._mounts:
-            self._localcast({'event': 'sync_next', 'path': mountpoint})
-            try:
-                self._offline_session = self._offline_sync(
-                        join(mountpoint, _SYNC_DIRNAME),
-                        **(self._offline_session or {}))
-            except Exception, error:
-                exception(_logger, 'Failed to complete synchronization')
-                self._localcast({'event': 'sync_abort', 'error': str(error)})
-                self._offline_session = None
-                raise
-
-        if self._offline_session is None:
-            _logger.debug('Synchronization completed')
-            self._localcast({'event': 'sync_complete'})
-        else:
-            _logger.debug('Postpone synchronization with %r session',
-                    self._offline_session)
-            self._localcast({'event': 'sync_paused'})
-
-    def __found_mountcb(self, path):
-        self._mounts.add(path)
-        if self._jobs:
-            _logger.debug('Found %r sync mount, pool it', path)
-        else:
-            _logger.debug('Found %r sync mount, start synchronization', path)
-            self._jobs.spawn(self._sync_mounts)
-
-    def __lost_mount_cb(self, path):
-        if self._mounts.remove(path) == util.Pool.ACTIVE:
-            _logger.warning('%r was unmounted, break synchronization', path)
-            self._jobs.kill()

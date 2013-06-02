@@ -165,7 +165,7 @@ class NodeCommands(db.VolumeCommands, Commands):
             mime_type='application/json')
     def whoami(self, request):
         roles = []
-        if auth.try_validate(request, 'root'):
+        if self.validate(request, 'root'):
             roles.append('root')
         return {'roles': roles, 'guid': request.principal}
 
@@ -252,6 +252,9 @@ class NodeCommands(db.VolumeCommands, Commands):
 
         return result
 
+    def validate(self, *args):
+        return auth.try_validate(*args)
+
     def call(self, request, response=None):
         if node.static_url.value:
             request.static_prefix = node.static_url.value
@@ -272,7 +275,7 @@ class NodeCommands(db.VolumeCommands, Commands):
             return
 
         if cmd.permissions & db.ACCESS_AUTH:
-            enforce(auth.try_validate(request, 'user'), http.Unauthorized,
+            enforce(self.validate(request, 'user'), http.Unauthorized,
                     'User is not authenticated')
 
         if cmd.permissions & db.ACCESS_AUTHOR and 'guid' in request:
@@ -281,7 +284,7 @@ class NodeCommands(db.VolumeCommands, Commands):
             else:
                 doc = self.volume[request['document']].get(request['guid'])
                 allowed = (request.principal in doc['author'])
-            enforce(allowed or auth.try_validate(request, 'root'),
+            enforce(allowed or self.validate(request, 'root'),
                     http.Forbidden, 'Operation is permitted only for authors')
 
         return cmd

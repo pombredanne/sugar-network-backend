@@ -23,7 +23,7 @@ class OfflineCommandsTest(tests.Test):
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
 
-    def test_SetUser(self):
+    def test_NoAuthors(self):
         ipc = IPCClient()
 
         guid = ipc.post(['context'], {
@@ -33,7 +33,10 @@ class OfflineCommandsTest(tests.Test):
             'description': 'description',
             })
         self.assertEqual(
-                [{'name': tests.UID, 'role': 2}],
+                {},
+                self.home_volume['context'].get(guid)['author'])
+        self.assertEqual(
+                [],
                 ipc.get(['context', guid, 'author']))
 
     def test_HandleDeletes(self):
