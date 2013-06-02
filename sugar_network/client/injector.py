@@ -221,7 +221,7 @@ def _activity_env(impl, environ):
         ])
     environ['SUGAR_BUNDLE_PATH'] = impl_path
     environ['SUGAR_BUNDLE_ID'] = impl['context']
-    environ['SUGAR_BUNDLE_NAME'] = impl['name']
+    environ['SUGAR_BUNDLE_NAME'] = impl['name'].encode('utf8')
     environ['SUGAR_BUNDLE_VERSION'] = impl['version']
     environ['SUGAR_ACTIVITY_ROOT'] = root
     environ['PYTHONPATH'] = impl_path + ':' + environ.get('PYTHONPATH', '')
