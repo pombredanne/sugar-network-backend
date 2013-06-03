@@ -127,7 +127,7 @@ def parse_version(version_string):
         for x in range(0, length, 2):
             part = parts[x]
             if part:
-                parts[x] = [int(i) for i in parts[x].split('.')]
+                parts[x] = [int(i or '0') for i in part.split('.')]
             else:
                 parts[x] = []  # (because ''.split('.') == [''], not [])
         for x in range(1, length, 2):

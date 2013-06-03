@@ -22,11 +22,11 @@ from sugar_network.toolkit import http, util, lsb_release, pipe, exception
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'zeroinstall'))
 
-from zeroinstall.injector import reader, model
+from zeroinstall.injector import reader, model, arch as _arch
 from zeroinstall.injector.config import Config
 from zeroinstall.injector.driver import Driver
 from zeroinstall.injector.requirements import Requirements
-from zeroinstall.injector.arch import canonicalize_machine, machine_ranks
+from zeroinstall.injector.arch import machine_ranks
 # pylint: disable-msg=W0611
 from zeroinstall.injector.distro import try_cleanup_distro_version
 
@@ -41,6 +41,11 @@ reader.check_readable = lambda * args, ** kwargs: True
 reader.update_from_cache = lambda * args, ** kwargs: None
 
 _logger = logging.getLogger('zeroinstall')
+
+
+def canonicalize_machine(arch):
+    result = _arch.canonicalize_machine(arch)
+    return None if arch in ('noarch', 'all') else result
 
 
 def select_architecture(arches):
