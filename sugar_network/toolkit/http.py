@@ -244,9 +244,15 @@ class Client(object):
             else:
                 request.content = request.content_stream.read()
             headers['content-length'] = str(len(request.content))
-
         if request.accept_language:
             headers['accept-language'] = request.accept_language[0]
+        if hasattr(request, 'environ'):
+            for env_key, key in (
+                    ('HTTP_IF_MODIFIED_SINCE', 'if-modified-since'),
+                    ):
+                value = request.environ.get(env_key)
+                if value:
+                    headers[key] = value
 
         reply = self.request(method, path, data=request.content,
                 params=params, headers=headers, allowed=[303],
@@ -260,15 +266,6 @@ class Client(object):
                 # `requests` library handles encoding on its own
                 del reply.headers['transfer-encoding']
             response.update(reply.headers)
-            """
-            if 'Content-Disposition' in reply.headers:
-                response['Content-Disposition'] = \
-                        reply.headers['Content-Disposition']
-            if 'Content-Type' in reply.headers:
-                response.content_type = reply.headers['Content-Type']
-            if 'Content-Length' in reply.headers:
-                response.content_length = int(reply.headers['Content-Length'])
-            """
 
         if reply.headers.get('Content-Type') == 'application/json':
             return json.loads(reply.content)
