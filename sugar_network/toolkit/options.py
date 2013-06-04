@@ -15,8 +15,9 @@
 
 """Command-line options parsing utilities."""
 
+import os
 import sys
-from os.path import exists, expanduser
+from os.path import exists, expanduser, isdir, join
 
 
 class Option(object):
@@ -38,7 +39,7 @@ class Option(object):
     config_files = []
 
     _config = None
-    _config_files_to_save = []
+    _config_to_save = None
 
     def __init__(self, description=None, default=None, short_option=None,
             type_cast=None, type_repr=None, action=None, name=None):
@@ -198,16 +199,6 @@ class Option(object):
         return options, args
 
     @staticmethod
-    def bind(parser, config_files=None, notice=None):
-        # DEPRECATED
-        Option._bind(parser, config_files, notice)
-
-    @staticmethod
-    def merge(options, config_files=None):
-        # DEPRECATED
-        Option._merge(options, config_files)
-
-    @staticmethod
     def export():
         """Current configuration in human readable form.
 
@@ -236,9 +227,9 @@ class Option(object):
     @staticmethod
     def save(path=None):
         if not path:
-            if not Option._config_files_to_save:
+            if not Option._config_to_save:
                 raise RuntimeError('No configure files to save')
-            path = Option._config_files_to_save[-1]
+            path = Option._config_to_save
         with file(path, 'w') as f:
             f.write('\n'.join(Option.export()))
 
@@ -324,12 +315,17 @@ class Option(object):
         for config in config_files or []:
             if isinstance(config, ConfigParser):
                 configs.append(config)
-            else:
-                config = expanduser(config)
-                if exists(config):
-                    Option.config_files.append(config)
-                    configs[0].read(config)
-                Option._config_files_to_save.append(config)
+                continue
+            config = expanduser(config)
+            if isdir(config):
+                for path in sorted(os.listdir(config)):
+                    path = join(config, path)
+                    Option.config_files.append(path)
+                    configs[0].read(path)
+            elif exists(config):
+                Option.config_files.append(config)
+                configs[0].read(config)
+                Option._config_to_save = config
 
         for prop in Option.items.values():
             if hasattr(options, prop.attr_name) and \

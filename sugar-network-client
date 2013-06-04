@@ -207,6 +207,7 @@ app = Application(
                'for details.',
         config_files=[
             '/etc/sweets.conf',
+            '/etc/sweets.d',
             '~/.config/sweets/config',
             client.profile_path('sweets.conf'),
             ])

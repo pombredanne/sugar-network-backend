@@ -15,7 +15,7 @@ from os.path import dirname, join, exists, abspath, isfile
 from M2Crypto import DSA
 from gevent import monkey
 
-from sugar_network.toolkit import coroutine, http, mountpoints, util
+from sugar_network.toolkit import coroutine, http, mountpoints, util, Option
 from sugar_network.db.router import Router
 from sugar_network.client import journal, IPCRouter, commands
 from sugar_network.client.commands import ClientCommands
@@ -73,6 +73,12 @@ class Test(unittest.TestCase):
         shutil.copy(join(root, 'data', 'owner.key'), join(profile_dir, 'owner.key'))
         shutil.copy(join(root, 'data', 'owner.key.pub'), profile_dir)
 
+        Option.unsorted_items = []
+        Option.items = {}
+        Option.sections = {}
+        Option.config_files = []
+        Option._config = None
+        Option._config_to_save = None
         db.index_flush_timeout.value = 0
         db.index_flush_threshold.value = 1
         node.find_limit.value = 1024
