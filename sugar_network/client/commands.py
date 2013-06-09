@@ -67,7 +67,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
             static_prefix = 'http://127.0.0.1:%s' % client.ipc_port.value
         self._static_prefix = static_prefix
 
-        home_volume.connect(self._home_event_cb)
+        home_volume.connect(self.broadcast)
 
         if self._server_mode:
             mountpoints.connect(_SN_DIRNAME,
@@ -369,7 +369,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         def pull_events():
             for event in self._node.subscribe():
                 if event.get('document') == 'implementation':
-                    mtime = event.get('props', {}).get('mtime')
+                    mtime = event.get('mtime')
                     if mtime:
                         injector.invalidate_solutions(mtime)
                 self.broadcast(event)
@@ -447,19 +447,6 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         self._inline_job.kill()
         self._got_offline()
 
-    def _home_event_cb(self, event):
-        if not self._inline.is_set():
-            self.broadcast(event)
-        elif event.get('document') == 'context' and 'props' in event:
-            # Broadcast events related to proxy properties
-            event_props = event['props']
-            broadcast_props = event['props'] = {}
-            for name in _LOCAL_PROPS:
-                if name in event_props:
-                    broadcast_props[name] = event_props[name]
-            if broadcast_props:
-                self.broadcast(event)
-
     def _clone_jobject(self, uid, value, get_props, force):
         if value:
             if force or not journal.exists(uid):
@@ -487,7 +474,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
                 blob = self._node_call(method='GET', document='context',
                         guid=guid, prop=prop)
                 if blob is not None:
-                    contexts.set_blob(guid, prop, blob)
+                    contexts.update(guid, {prop: {'blob': blob}})
 
     def _clone_activity(self, guid, request):
         if not request.content:
@@ -676,9 +663,9 @@ class _VolumeCommands(db.VolumeCommands):
     def __init__(self, volume):
         db.VolumeCommands.__init__(self, volume)
 
-    def before_create(self, request, props):
+    def on_create(self, request, props, event):
         props['layer'] = tuple(props['layer']) + ('local',)
-        db.VolumeCommands.before_create(self, request, props)
+        db.VolumeCommands.on_create(self, request, props, event)
 
 
 class _PersonalCommands(SlaveCommands):
@@ -693,7 +680,9 @@ class _PersonalCommands(SlaveCommands):
 
         users = volume['user']
         if not users.exists(client.sugar_uid()):
-            users.create(guid=client.sugar_uid(), **client.sugar_profile())
+            profile = client.sugar_profile()
+            profile['guid'] = client.sugar_uid()
+            users.create(profile)
 
         mountpoints.connect(_SYNC_DIRNAME,
                 self.__found_mountcb, self.__lost_mount_cb)

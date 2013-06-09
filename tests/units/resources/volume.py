@@ -16,24 +16,6 @@ from sugar_network.toolkit import coroutine, util
 
 class VolumeTest(tests.Test):
 
-    def test_SimulateDeleteEvents(self):
-
-        class Document(Resource):
-            pass
-
-        events = []
-        volume = Volume('db', [Document])
-        volume.connect(lambda event: events.append(event))
-
-        volume['document'].create(guid='guid')
-        del events[:]
-        volume['document'].update('guid', layer=['deleted'])
-
-        self.assertEqual([
-            {'event': 'delete', 'document': 'document', 'guid': 'guid'},
-            ],
-            events)
-
     def test_Subscribe(self):
 
         class Document(Resource):
@@ -53,15 +35,13 @@ class VolumeTest(tests.Test):
                 assert event.startswith('data: ')
                 assert event.endswith('\n\n')
                 event = json.loads(event[6:])
-                if 'props' in event:
-                    event.pop('props')
                 events.append(event)
 
         job = coroutine.spawn(read_events)
         coroutine.dispatch()
-        volume['document'].create(guid='guid', prop='value1')
+        volume['document'].create({'guid': 'guid', 'prop': 'value1'})
         coroutine.dispatch()
-        volume['document'].update('guid', prop='value2')
+        volume['document'].update('guid', {'prop': 'value2'})
         coroutine.dispatch()
         volume['document'].delete('guid')
         coroutine.dispatch()
@@ -103,15 +83,13 @@ class VolumeTest(tests.Test):
                 assert event.startswith('data: ')
                 assert event.endswith('\n\n')
                 event = json.loads(event[6:])
-                if 'props' in event:
-                    event.pop('props')
                 events.append(event)
 
         job = coroutine.spawn(read_events)
         coroutine.dispatch()
-        volume['document'].create(guid='guid', prop='value1')
+        volume['document'].create({'guid': 'guid', 'prop': 'value1'})
         coroutine.dispatch()
-        volume['document'].update('guid', prop='value2')
+        volume['document'].update('guid', {'prop': 'value2'})
         coroutine.dispatch()
         volume['document'].delete('guid')
         coroutine.dispatch()
@@ -158,7 +136,7 @@ class VolumeTest(tests.Test):
                 {'user': {'role': 2, 'order': 0}},
                 volume['document'].get(guid)['author'])
 
-        volume['user'].create(guid='user', color='', pubkey='', name='User')
+        volume['user'].create({'guid': 'user', 'color': '', 'pubkey': '', 'name': 'User'})
 
         guid = call(cp, method='POST', document='document', content={}, principal='user')
         self.assertEqual(
@@ -176,9 +154,9 @@ class VolumeTest(tests.Test):
         volume = Volume('db', [User, Document])
         cp = TestCommands(volume)
 
-        volume['user'].create(guid='user1', color='', pubkey='', name='UserName1')
-        volume['user'].create(guid='user2', color='', pubkey='', name='User Name2')
-        volume['user'].create(guid='user3', color='', pubkey='', name='User Name 3')
+        volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'UserName1'})
+        volume['user'].create({'guid': 'user2', 'color': '', 'pubkey': '', 'name': 'User Name2'})
+        volume['user'].create({'guid': 'user3', 'color': '', 'pubkey': '', 'name': 'User Name 3'})
 
         guid1 = call(cp, method='POST', document='document', content={}, principal='user1')
         guid2 = call(cp, method='POST', document='document', content={}, principal='user2')
@@ -213,9 +191,9 @@ class VolumeTest(tests.Test):
         volume = Volume('db', [User, Document])
         cp = TestCommands(volume)
 
-        volume['user'].create(guid='user1', color='', pubkey='', name='User1')
-        volume['user'].create(guid='user2', color='', pubkey='', name='User2')
-        volume['user'].create(guid='user3', color='', pubkey='', name='User3')
+        volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'User1'})
+        volume['user'].create({'guid': 'user2', 'color': '', 'pubkey': '', 'name': 'User2'})
+        volume['user'].create({'guid': 'user3', 'color': '', 'pubkey': '', 'name': 'User3'})
 
         guid = call(cp, method='POST', document='document', content={}, principal='user1')
         call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2', role=0)
@@ -290,8 +268,8 @@ class VolumeTest(tests.Test):
         volume = Volume('db', [User, Document])
         cp = TestCommands(volume)
 
-        volume['user'].create(guid='user1', color='', pubkey='', name='User1')
-        volume['user'].create(guid='user2', color='', pubkey='', name='User2')
+        volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'User1'})
+        volume['user'].create({'guid': 'user2', 'color': '', 'pubkey': '', 'name': 'User2'})
 
         guid = call(cp, method='POST', document='document', content={}, principal='user1')
         self.assertEqual([
@@ -353,7 +331,7 @@ class VolumeTest(tests.Test):
         volume = Volume('db', [User, Document])
         cp = TestCommands(volume)
 
-        volume['user'].create(guid='user1', color='', pubkey='', name='User1')
+        volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'User1'})
         guid = call(cp, method='POST', document='document', content={}, principal='user1')
 
         call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='User2', role=0)
@@ -400,8 +378,8 @@ class VolumeTest(tests.Test):
         volume = Volume('db', [User, Document])
         cp = TestCommands(volume)
 
-        volume['user'].create(guid='user1', color='', pubkey='', name='User1')
-        volume['user'].create(guid='user2', color='', pubkey='', name='User2')
+        volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'User1'})
+        volume['user'].create({'guid': 'user2', 'color': '', 'pubkey': '', 'name': 'User2'})
         guid = call(cp, method='POST', document='document', content={}, principal='user1')
         call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='user2')
         call(cp, method='PUT', document='document', guid=guid, cmd='useradd', user='User3')

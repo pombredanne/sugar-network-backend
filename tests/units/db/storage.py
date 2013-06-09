@@ -56,86 +56,6 @@ class StorageTest(tests.Test):
             },
             storage.get('guid').get('prop'))
 
-    def test_Record_set_blob_ByStream(self):
-        storage = self.storage([BlobProperty('prop')])
-
-        record = storage.get('guid1')
-        data = '!' * BUFFER_SIZE * 2
-        record.set_blob('prop', StringIO(data))
-        self.assertEqual({
-            'blob': tests.tmpdir + '/gu/guid1/prop.blob',
-            'mtime': int(os.stat('gu/guid1/prop').st_mtime),
-            'digest': hashlib.sha1(data).hexdigest(),
-            },
-            record.get('prop'))
-        self.assertEqual(data, file('gu/guid1/prop.blob').read())
-
-        record = storage.get('guid2')
-        record.set_blob('prop', StringIO('12345'), 1)
-        self.assertEqual({
-            'blob': tests.tmpdir + '/gu/guid2/prop.blob',
-            'mtime': int(os.stat('gu/guid2/prop').st_mtime),
-            'digest': hashlib.sha1('1').hexdigest(),
-            },
-            record.get('prop'))
-        self.assertEqual('1', file('gu/guid2/prop.blob').read())
-
-    def test_Record_set_blob_ByPath(self):
-        storage = self.storage([BlobProperty('prop')])
-
-        record = storage.get('guid1')
-        self.touch(('file', 'data'))
-        record.set_blob('prop', tests.tmpdir + '/file')
-        self.assertEqual({
-            'blob': tests.tmpdir + '/gu/guid1/prop.blob',
-            'mtime': int(os.stat('gu/guid1/prop').st_mtime),
-            'digest': hashlib.sha1('data').hexdigest(),
-            },
-            record.get('prop'))
-        self.assertEqual('data', file('gu/guid1/prop.blob').read())
-
-        record = storage.get('guid2')
-        self.touch(('directory/1', '1'))
-        self.touch(('directory/2/3', '3'))
-        self.touch(('directory/2/4/5', '5'))
-        record.set_blob('prop', tests.tmpdir + '/directory')
-        self.assertEqual({
-            'blob': tests.tmpdir + '/gu/guid2/prop.blob',
-            'mtime': int(os.stat('gu/guid2/prop').st_mtime),
-            'digest': hashlib.sha1(
-                '1' '1'
-                '2/3' '3'
-                '2/4/5' '5'
-                ).hexdigest(),
-            },
-            record.get('prop'))
-        util.assert_call('diff -r directory gu/guid2/prop.blob', shell=True)
-
-    def test_Record_set_blob_ByUrl(self):
-        storage = self.storage([BlobProperty('prop')])
-        record = storage.get('guid1')
-
-        record.set_blob('prop', url='http://sugarlabs.org')
-        self.assertEqual({
-            'url': 'http://sugarlabs.org',
-            'mtime': int(os.stat('gu/guid1/prop').st_mtime),
-            },
-            record.get('prop'))
-        assert not exists('gu/guid1/prop.blob')
-
-    def test_Record_set_blob_ByValue(self):
-        storage = self.storage([BlobProperty('prop')])
-        record = storage.get('guid')
-
-        record.set_blob('prop', '/foo/bar')
-        self.assertEqual({
-            'blob': tests.tmpdir + '/gu/guid/prop.blob',
-            'mtime': int(os.stat('gu/guid/prop').st_mtime),
-            'digest': hashlib.sha1('/foo/bar').hexdigest(),
-            },
-            record.get('prop'))
-        self.assertEqual('/foo/bar', file('gu/guid/prop.blob').read())
-
     def test_delete(self):
         storage = self.storage([StoredProperty('prop')])
 
@@ -143,8 +63,6 @@ class StorageTest(tests.Test):
         storage.delete('absent')
 
         record = storage.get('guid')
-        self.touch(('directory/1/2/3', '3'))
-        record.set_blob('prop', 'directory')
         record.set('prop', value='value')
         assert exists('gu/guid')
         storage.delete('guid')

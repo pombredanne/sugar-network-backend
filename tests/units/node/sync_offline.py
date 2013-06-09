@@ -70,8 +70,8 @@ class SyncOfflineTest(tests.Test):
         cp = SlaveCommands('node/key', volume)
         stats_user.stats_user.value = True
 
-        volume['document'].create(guid='1', prop='value1', ctime=1, mtime=1)
-        volume['document'].create(guid='2', prop='value2', ctime=2, mtime=2)
+        volume['document'].create({'guid': '1', 'prop': 'value1', 'ctime': 1, 'mtime': 1})
+        volume['document'].create({'guid': '2', 'prop': 'value2', 'ctime': 2, 'mtime': 2})
         self.utime('node', 0)
 
         ts = int(time.time())
@@ -122,8 +122,8 @@ class SyncOfflineTest(tests.Test):
         cp = SlaveCommands('node/key', volume)
         stats_user.stats_user.value = True
 
-        volume['document'].create(guid='1', prop=payload, ctime=1, mtime=1)
-        volume['document'].create(guid='2', prop=payload, ctime=2, mtime=2)
+        volume['document'].create({'guid': '1', 'prop': payload, 'ctime': 1, 'mtime': 1})
+        volume['document'].create({'guid': '2', 'prop': payload, 'ctime': 2, 'mtime': 2})
         self.utime('node', 0)
 
         ts = int(time.time())

@@ -74,7 +74,7 @@ class Resource(db.Document):
             permissions=db.ACCESS_AUTH | db.ACCESS_AUTHOR)
     def useradd(self, user, role):
         enforce(user, "Argument 'user' is not specified")
-        self.directory.update(self.guid, author=self._useradd(user, role))
+        self.directory.update(self.guid, {'author': self._useradd(user, role)})
 
     @db.document_command(method='PUT', cmd='userdel',
             permissions=db.ACCESS_AUTH | db.ACCESS_AUTHOR)
@@ -84,7 +84,7 @@ class Resource(db.Document):
         author = self['author']
         enforce(user in author, 'No such user')
         del author[user]
-        self.directory.update(self.guid, author=author)
+        self.directory.update(self.guid, {'author': author})
 
     @db.indexed_property(prefix='RL', typecast=[], default=['public'])
     def layer(self, value):
@@ -145,14 +145,6 @@ class Volume(db.Volume):
     def close(self):
         self._populators.kill()
         db.Volume.close(self)
-
-    def notify(self, event):
-        if event['event'] == 'update' and 'props' in event and \
-                'deleted' in event['props'].get('layer', []):
-            event['event'] = 'delete'
-            del event['props']
-
-        db.Volume.notify(self, event)
 
     def _open(self, name, document):
         directory = db.Volume._open(self, name, document)

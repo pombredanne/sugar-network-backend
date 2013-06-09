@@ -72,7 +72,7 @@ class Router(object):
             request = Request(method='GET', cmd='exists',
                     document='user', guid=user)
             enforce(self.commands.call(request), http.Unauthorized,
-                    'Principal user does not exist')
+                    'Principal does not exist')
             self._authenticated.add(user)
 
         return user

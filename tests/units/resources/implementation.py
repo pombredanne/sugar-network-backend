@@ -90,14 +90,14 @@ class ImplementationTest(tests.Test):
         self.start_online_client()
         client = IPCClient()
 
-        self.node_volume['context'].create(
-                guid='context',
-                type='content',
-                title='title',
-                summary='summary',
-                description='description',
-                author={'fake': None}
-                )
+        self.node_volume['context'].create({
+                'guid': 'context',
+                'type': 'content',
+                'title': 'title',
+                'summary': 'summary',
+                'description': 'description',
+                'author': {'fake': None},
+                })
 
         impl = {'context': 'context',
                 'license': 'GPLv3+',
@@ -108,7 +108,7 @@ class ImplementationTest(tests.Test):
         self.assertRaises(http.Forbidden, client.post, ['implementation'], impl)
         self.assertEqual(0, self.node_volume['implementation'].find()[1])
 
-        self.node_volume['context'].update('context', author={tests.UID: None})
+        self.node_volume['context'].update('context', {'author': {tests.UID: None}})
         guid = client.post(['implementation'], impl)
         assert self.node_volume['implementation'].exists(guid)
 

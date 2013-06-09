@@ -80,7 +80,7 @@ class IndexReader(object):
         """
         pass
 
-    def store(self, guid, properties, new, pre_cb=None, post_cb=None, *args):
+    def store(self, guid, properties, pre_cb=None, post_cb=None, *args):
         """Store new document in the index.
 
         :param guid:
@@ -88,8 +88,6 @@ class IndexReader(object):
         :param properties:
             document's properties to store; for non new entities,
             not necessary all document's properties
-        :param new:
-            initial store for the document; `None` for merging from other nodes
         :param pre_cb:
             callback to execute before storing;
             will be called with passing `guid` and `properties`
@@ -315,7 +313,7 @@ class IndexWriter(IndexReader):
             self._do_open()
         return IndexReader.find(self, query)
 
-    def store(self, guid, properties, new, pre_cb=None, post_cb=None, *args):
+    def store(self, guid, properties, pre_cb=None, post_cb=None, *args):
         if self._db is None:
             self._do_open()
 

@@ -107,8 +107,6 @@ class OfflineCommandsTest(tests.Test):
 
         def read_events():
             for event in ipc.subscribe(event='!commit'):
-                if 'props' in event:
-                    event.pop('props')
                 events.append(event)
         job = coroutine.spawn(read_events)
         coroutine.dispatch()

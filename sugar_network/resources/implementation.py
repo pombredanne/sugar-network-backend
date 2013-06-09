@@ -95,5 +95,5 @@ class Implementation(Resource):
     def data(self, value):
         context = self.volume['context'].get(self['context'])
         if 'activity' in context['type']:
-            self.request.content_type = 'application/vnd.olpc-sugar'
+            value['mime_type'] = 'application/vnd.olpc-sugar'
         return value

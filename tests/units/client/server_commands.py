@@ -78,8 +78,6 @@ class ServerCommandsTest(tests.Test):
 
         def read_events():
             for event in ipc.subscribe(event='!commit'):
-                if 'props' in event:
-                    event.pop('props')
                 events.append(event)
         job = coroutine.spawn(read_events)
         coroutine.dispatch()
@@ -95,14 +93,12 @@ class ServerCommandsTest(tests.Test):
             'title': 'title_2',
             })
         coroutine.dispatch()
-        ipc.delete(['context', guid])
         coroutine.sleep(.5)
         job.kill()
 
         self.assertEqual([
             {'guid': guid, 'document': 'context', 'event': 'create'},
             {'guid': guid, 'document': 'context', 'event': 'update'},
-            {'guid': guid, 'event': 'delete', 'document': 'context'},
             ],
             events)
 

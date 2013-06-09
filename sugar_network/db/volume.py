@@ -15,7 +15,9 @@
 
 import os
 import re
+import sys
 import time
+import hashlib
 import logging
 from contextlib import contextmanager
 from os.path import exists, join, abspath
@@ -30,7 +32,7 @@ from sugar_network.db.commands import to_int, to_list
 from sugar_network.db.metadata import BlobProperty, StoredProperty
 from sugar_network.db.metadata import PropertyMetadata
 from sugar_network.toolkit import http, coroutine, util
-from sugar_network.toolkit import exception, enforce
+from sugar_network.toolkit import BUFFER_SIZE, exception, enforce
 
 
 _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
@@ -132,11 +134,12 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH, mime_type='application/json')
     def create(self, request):
         with self._post(request, env.ACCESS_CREATE) as (directory, doc):
-            self.before_create(request, doc.props)
+            event = {}
+            self.on_create(request, doc.props, event)
             if 'guid' not in doc.props:
                 doc.props['guid'] = toolkit.uuid()
             doc.guid = doc.props['guid']
-            directory.create(doc.props)
+            directory.create(doc.props, event)
             return doc.guid
 
     @directory_command(method='GET',
@@ -160,10 +163,11 @@ class VolumeCommands(CommandsProcessor):
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
     def update(self, request):
         with self._post(request, env.ACCESS_WRITE) as (directory, doc):
-            modified = bool(doc.props)
-            self.before_update(request, doc.props)
-            if modified:
-                directory.update(doc.guid, doc.props)
+            if not doc.props:
+                return
+            event = {}
+            self.on_update(request, doc.props, event)
+            directory.update(doc.guid, doc.props, event)
 
     @property_command(method='PUT',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
@@ -179,7 +183,7 @@ class VolumeCommands(CommandsProcessor):
 
     @document_command(method='DELETE',
             permissions=env.ACCESS_AUTH | env.ACCESS_AUTHOR)
-    def delete(self, document, guid):
+    def delete(self, request, document, guid):
         directory = self.volume[document]
         directory.delete(guid)
 
@@ -217,7 +221,7 @@ class VolumeCommands(CommandsProcessor):
                     http.NotFound, 'BLOB does not exist')
             return meta
 
-    def before_create(self, request, props):
+    def on_create(self, request, props, event):
         if 'guid' in props:
             # TODO Temporal security hole, see TODO
             guid = props['guid']
@@ -229,7 +233,7 @@ class VolumeCommands(CommandsProcessor):
         props['ctime'] = ts
         props['mtime'] = ts
 
-    def before_update(self, request, props):
+    def on_update(self, request, props, event):
         props['mtime'] = int(time.time())
 
     def after_post(self, doc):
@@ -249,49 +253,50 @@ class VolumeCommands(CommandsProcessor):
 
         for name, value in request.content.items():
             prop = directory.metadata[name]
-            if isinstance(prop, BlobProperty) and access == env.ACCESS_WRITE:
-                if doc.meta(name) is None:
-                    prop.assert_access(env.ACCESS_CREATE)
+            if isinstance(prop, BlobProperty):
+                prop.assert_access(env.ACCESS_CREATE if
+                        access == env.ACCESS_WRITE and doc.meta(name) is None
+                        else access)
+                if value is None:
+                    value = {'blob': None}
+                elif isinstance(value, dict):
+                    enforce('url' in value,
+                            'Key %r is not specified in %r blob property',
+                            'url', name)
+                    value = {'url': value['url']}
                 else:
-                    prop.assert_access(env.ACCESS_WRITE)
+                    value = _read_blob(request, prop, value)
+                    blobs.append(value['blob'])
             else:
                 prop.assert_access(access)
-            if isinstance(prop, BlobProperty):
-                enforce(PropertyMetadata.is_blob(value), 'Invalid BLOB value')
-                blobs.append((name, value))
-            else:
                 if prop.localized and isinstance(value, basestring):
                     value = {request.accept_language[0]: value}
                 try:
-                    doc.props[name] = prop.decode(value)
+                    value = prop.decode(value)
                 except Exception, error:
                     error = 'Value %r for %r property is invalid: %s' % \
                             (value, prop.name, error)
                     exception(error)
                     raise RuntimeError(error)
+            doc[name] = value
 
         if access == env.ACCESS_CREATE:
             for name, prop in directory.metadata.items():
                 if not isinstance(prop, BlobProperty) and \
                         name not in request.content and \
                         (prop.default is not None or prop.on_set is not None):
-                    doc.props[name] = prop.default
+                    doc[name] = prop.default
 
-        for name, value in doc.props.items():
-            prop = directory.metadata[name]
-            if not isinstance(prop, BlobProperty) and prop.on_set is not None:
-                doc.props[name] = prop.on_set(doc, value)
-
-        changed_props = doc.props.copy()
-        yield directory, doc
-        doc.props = changed_props
-
-        for name, value in blobs:
-            prop = directory.metadata[name]
-            if prop.on_set is not None:
-                value = prop.on_set(doc, value)
-            directory.set_blob(doc.guid, name, value,
-                    mime_type=request.content_type)
+        try:
+            for name, value in doc.props.items():
+                prop = directory.metadata[name]
+                if prop.on_set is not None:
+                    doc.props[name] = prop.on_set(doc, value)
+            yield directory, doc
+        finally:
+            for path in blobs:
+                if exists(path):
+                    os.unlink(path)
 
         self.after_post(doc)
 
@@ -321,3 +326,32 @@ class VolumeCommands(CommandsProcessor):
                     value = request.static_prefix + value
             result[name] = value
         return result
+
+
+def _read_blob(request, prop, value):
+    digest = hashlib.sha1()
+    dst = util.NamedTemporaryFile(delete=False)
+
+    try:
+        if isinstance(value, basestring):
+            digest.update(value)
+            dst.write(value)
+        else:
+            size = request.content_length or sys.maxint
+            while size > 0:
+                chunk = value.read(min(size, BUFFER_SIZE))
+                if not chunk:
+                    break
+                dst.write(chunk)
+                size -= len(chunk)
+                digest.update(chunk)
+    except Exception:
+        os.unlink(dst.name)
+        raise
+    finally:
+        dst.close()
+
+    return {'blob': dst.name,
+            'digest': digest.hexdigest(),
+            'mime_type': request.content_type or prop.mime_type,
+            }

@@ -148,11 +148,12 @@ class NodeCommands(db.VolumeCommands, Commands):
 
     @db.document_command(method='DELETE',
             permissions=db.ACCESS_AUTH | db.ACCESS_AUTHOR)
-    def delete(self, document, guid):
+    def delete(self, request, document, guid):
         # Servers data should not be deleted immediately
         # to let master-slave synchronization possible
-        directory = self.volume[document]
-        directory.update(guid, {'layer': ['deleted']})
+        request['method'] = 'PUT'
+        request.content = {'layer': ['deleted']}
+        self.update(request)
 
     @db.document_command(method='PUT', cmd='attach',
             permissions=db.ACCESS_AUTH)
@@ -307,10 +308,16 @@ class NodeCommands(db.VolumeCommands, Commands):
 
         return cmd
 
-    def before_create(self, request, props):
+    def on_create(self, request, props, event):
         if request['document'] == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
-        db.VolumeCommands.before_create(self, request, props)
+        db.VolumeCommands.on_create(self, request, props, event)
+
+    def on_update(self, request, props, event):
+        db.VolumeCommands.on_update(self, request, props, event)
+        if 'deleted' in props.get('layer', []):
+            event['event'] = 'delete'
+        print '1>>>', request, props, event
 
     @db.directory_command_pre(method='GET')
     def _NodeCommands_find_pre(self, request):

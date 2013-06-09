@@ -142,8 +142,8 @@ class MasterCommands(NodeCommands):
 
     def after_post(self, doc):
         if doc.metadata.name == 'context':
-            shift_implementations = ('dependencies' in doc.props)
-            if 'aliases' in doc.props:
+            shift_implementations = doc.modified('dependencies')
+            if doc.modified('aliases'):
                 # TODO Already launched job should be killed
                 coroutine.spawn(self._resolve_aliases, doc)
                 shift_implementations = True

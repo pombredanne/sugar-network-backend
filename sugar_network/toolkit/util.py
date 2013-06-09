@@ -387,6 +387,14 @@ def unique_filename(root, filename):
     return path
 
 
+def TemporaryFile(*args, **kwargs):
+    if cachedir.value:
+        if not exists(cachedir.value):
+            os.makedirs(cachedir.value)
+        kwargs['dir'] = cachedir.value
+    return tempfile.TemporaryFile(*args, **kwargs)
+
+
 def NamedTemporaryFile(*args, **kwargs):
     if cachedir.value:
         if not exists(cachedir.value):

@@ -71,7 +71,7 @@ class Directory(object):
     @mtime.setter
     def mtime(self, value):
         self._index.mtime = value
-        self._notify({'event': 'populate', 'props': {'mtime': value}})
+        self._notify({'event': 'populate', 'mtime': value})
 
     def wipe(self):
         self.close()
@@ -91,39 +91,29 @@ class Directory(object):
         """Flush pending chnages to disk."""
         self._index.commit()
 
-    def create(self, props=None, **kwargs):
+    def create(self, props, event=None):
         """Create new document.
 
         If `guid` property is not specified, it will be auto set.
 
-        :param kwargs:
+        :param props:
             new document properties
         :returns:
             GUID of newly created document
 
         """
-        if props is None:
-            props = kwargs
-
         guid = props.get('guid')
         if not guid:
             guid = props['guid'] = toolkit.uuid()
-
-        for prop_name, prop in self.metadata.items():
-            if isinstance(prop, StoredProperty):
-                if prop_name in props:
-                    continue
-                enforce(prop.default is not None,
-                        'Property %r should be passed for new %r document',
-                        prop_name, self.metadata.name)
-            if prop.default is not None:
-                props[prop_name] = prop.default
-
         _logger.debug('Create %s[%s]: %r', self.metadata.name, guid, props)
-        self._post(guid, props, True)
+        post_event = {'event': 'create', 'guid': guid}
+        if event:
+            post_event.update(event)
+        self._index.store(guid, props, self._pre_store, self._post_store,
+                post_event)
         return guid
 
-    def update(self, guid, props=None, **kwargs):
+    def update(self, guid, props, event=None):
         """Update properties for an existing document.
 
         :param guid:
@@ -132,12 +122,12 @@ class Directory(object):
             properties to store, not necessary all document's properties
 
         """
-        if props is None:
-            props = kwargs
-        if not props:
-            return
         _logger.debug('Update %s[%s]: %r', self.metadata.name, guid, props)
-        self._post(guid, props, False)
+        post_event = {'event': 'update', 'guid': guid}
+        if event:
+            post_event.update(event)
+        self._index.store(guid, props, self._pre_store, self._post_store,
+                post_event)
 
     def delete(self, guid):
         """Delete document.
@@ -206,36 +196,6 @@ class Directory(object):
 
         return iterate(), mset.get_matches_estimated()
 
-    def set_blob(self, guid, prop, data=None, size=None, mime_type=None,
-            **kwargs):
-        """Receive BLOB property.
-
-        This function works in parallel to setting non-BLOB properties values
-        and `post()` function.
-
-        :param prop:
-            BLOB property name
-        :param data:
-            stream to read BLOB content, path to file to copy, or, web url
-        :param size:
-            read only specified number of bytes; otherwise, read until the EOF
-
-        """
-        prop = self.metadata[prop]
-        record = self._storage.get(guid)
-        seqno = self._seqno.next()
-
-        _logger.debug('Received %r BLOB property from %s[%s]',
-                prop.name, self.metadata.name, guid)
-
-        if not mime_type:
-            mime_type = prop.mime_type
-        record.set_blob(prop.name, data, size, seqno=seqno,
-                mime_type=mime_type, **kwargs)
-
-        if record.consistent:
-            self._post(guid, {'seqno': seqno}, False)
-
     def populate(self):
         """Populate the index.
 
@@ -249,9 +209,9 @@ class Directory(object):
 
         """
         found = False
-        migrate = (self._index.mtime == 0)
+        migrate = (self.mtime == 0)
 
-        for guid in self._storage.walk(self._index.mtime):
+        for guid in self._storage.walk(self.mtime):
             if not found:
                 _logger.info('Start populating %r index', self.metadata.name)
                 found = True
@@ -268,7 +228,7 @@ class Directory(object):
                     meta = record.get(name)
                     if meta is not None:
                         props[name] = meta['value']
-                self._index.store(guid, props, None, None, None)
+                self._index.store(guid, props)
                 yield
             except Exception:
                 exception('Cannot populate %r in %r, invalidate it',
@@ -279,7 +239,7 @@ class Directory(object):
             self._index.checkpoint()
             self._save_layout()
             self.commit()
-            self._notify({'event': 'populate'})
+            self._notify({'event': 'populate', 'mtime': self.mtime})
 
     def diff(self, seq, exclude_seq=None, **params):
         if exclude_seq is None:
@@ -347,11 +307,9 @@ class Directory(object):
             props = {}
             if seqno:
                 props['seqno'] = seqno
-            self._index.store(guid, props, False,
-                    self._pre_store, self._post_store,
-                    # No need in after-merge event, further commit event
-                    # is enough to avoid events flow on nodes synchronization
-                    None, False)
+            # No need in after-merge event, further commit event
+            # is enough to avoid events flow on nodes synchronization
+            self._index.store(guid, props, self._pre_store, self._post_store)
 
         return seqno, merged
 
@@ -370,39 +328,41 @@ class Directory(object):
                 self._post_commit)
         _logger.debug('Initiated %r document', self.document_class)
 
-    def _pre_store(self, guid, changes, event, shift_seqno):
+    def _pre_store(self, guid, changes, event=None):
         seqno = changes.get('seqno')
-        if shift_seqno and not seqno:
+        if event is not None and not seqno:
             seqno = changes['seqno'] = self._seqno.next()
 
         record = self._storage.get(guid)
         existed = record.exists
 
         for name, prop in self.metadata.items():
-            if not isinstance(prop, StoredProperty):
-                continue
             value = changes.get(name)
-            if value is None:
-                if existed:
-                    meta = record.get(name)
-                    if meta is not None:
-                        value = meta['value']
-                changes[name] = prop.default if value is None else value
-            else:
-                if prop.localized:
-                    if not isinstance(value, dict):
-                        value = {toolkit.default_lang(): value}
-                    if existed and \
-                            type(value) is dict:  # TODO To reset `value`
+            if isinstance(prop, BlobProperty):
+                if value is not None:
+                    record.set(name, seqno=seqno, **value)
+            elif isinstance(prop, StoredProperty):
+                if value is None:
+                    if existed:
                         meta = record.get(name)
                         if meta is not None:
-                            meta['value'].update(value)
                             value = meta['value']
-                    changes[name] = value
-                record.set(name, value=value, seqno=seqno)
+                    changes[name] = prop.default if value is None else value
+                else:
+                    if prop.localized:
+                        if not isinstance(value, dict):
+                            value = {toolkit.default_lang(): value}
+                        if existed and \
+                                type(value) is dict:  # TODO To reset `value`
+                            meta = record.get(name)
+                            if meta is not None:
+                                meta['value'].update(value)
+                                value = meta['value']
+                        changes[name] = value
+                    record.set(name, value=value, seqno=seqno)
 
-    def _post_store(self, guid, changes, event, shift_seqno):
-        if event:
+    def _post_store(self, guid, changes, event=None):
+        if event is not None:
             self._notify(event)
 
     def _post_delete(self, guid, event):
@@ -411,15 +371,7 @@ class Directory(object):
 
     def _post_commit(self):
         self._seqno.commit()
-        self._notify({'event': 'commit'})
-
-    def _post(self, guid, props, new):
-        event = {'event': 'create' if new else 'update',
-                 'props': props.copy(),
-                 'guid': guid,
-                 }
-        self._index.store(guid, props, new,
-                self._pre_store, self._post_store, event, True)
+        self._notify({'event': 'commit', 'mtime': self.mtime})
 
     def _notify(self, event):
         if self._notification_cb is not None:

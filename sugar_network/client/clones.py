@@ -111,9 +111,9 @@ class _Inotify(Inotify):
                             break
             if found:
                 if context['clone'] != 2:
-                    self._contexts.update(context.guid, clone=2)
+                    self._contexts.update(context.guid, {'clone': 2})
             else:
-                self._contexts.update(context.guid, clone=0)
+                self._contexts.update(context.guid, {'clone': 0})
 
     def serve_forever(self):
         while True:
@@ -156,17 +156,25 @@ class _Inotify(Inotify):
             _logger.debug('Register unknown local activity, %r', context)
 
             mtime = os.stat(spec.root).st_mtime
-            self._contexts.create(guid=context, type='activity',
-                    title=spec['name'], summary=spec['summary'],
-                    description=spec['description'], clone=2,
-                    ctime=mtime, mtime=mtime)
+            self._contexts.create({
+                'guid': context,
+                'type': 'activity',
+                'title': spec['name'],
+                'summary': spec['summary'],
+                'description': spec['description'],
+                'clone': 2,
+                'ctime': mtime,
+                'mtime': mtime,
+                })
 
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):
-                self._contexts.set_blob(context, 'artifact_icon', icon_path)
+                with file(icon_path, 'b') as f:
+                    self._contexts.update(context,
+                            {'artifact_icon': {'blob': f}})
                 with util.NamedTemporaryFile() as f:
                     util.svg_to_png(icon_path, f.name, 32, 32)
-                    self._contexts.set_blob(context, 'icon', f.name)
+                    self._contexts.update(context, {'icon': {'blob': f.name}})
 
         self._checkin_activity(spec)
 

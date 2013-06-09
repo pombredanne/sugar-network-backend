@@ -17,7 +17,7 @@ from __init__ import tests
 from sugar_network import db, toolkit
 from sugar_network.db import env
 from sugar_network.db.volume import VolumeCommands
-from sugar_network.toolkit import coroutine, http
+from sugar_network.toolkit import coroutine, http, util
 
 
 class VolumeTest(tests.Test):
@@ -25,6 +25,29 @@ class VolumeTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         self.response = db.Response()
+
+    def test_PostDefaults(self):
+
+        class Document(db.Document):
+
+            @db.stored_property(default='default')
+            def w_default(self, value):
+                return value
+
+            @db.stored_property()
+            def wo_default(self, value):
+                return value
+
+            @db.indexed_property(slot=1, default='not_stored_default')
+            def not_stored_default(self, value):
+                return value
+
+        self.volume = db.Volume(tests.tmpdir, [Document])
+        guid = self.call('POST', document='document', content={})
+
+        self.assertEqual('default', self.call('GET', document='document', guid=guid, prop='w_default'))
+        self.assertEqual(None, self.call('GET', document='document', guid=guid, prop='wo_default'))
+        self.assertEqual('not_stored_default', self.call('GET', document='document', guid=guid, prop='not_stored_default'))
 
     def test_Populate(self):
         self.touch(
@@ -76,7 +99,7 @@ class VolumeTest(tests.Test):
                 return value
 
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
-        self.volume['testdocument'].create(guid='guid')
+        self.volume['testdocument'].create({'guid': 'guid'})
 
         self.assertEqual({
             'total': 1,
@@ -139,8 +162,6 @@ class VolumeTest(tests.Test):
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
 
-        self.assertRaises(RuntimeError, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content={'path': '/'})
-
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content='blob1')
         self.assertEqual('blob1', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
 
@@ -149,6 +170,66 @@ class VolumeTest(tests.Test):
 
         self.call('PUT', document='testdocument', guid=guid, prop='blob', content=None)
         self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
+    def test_SetBLOBsByMeta(self):
+
+        class TestDocument(db.Document):
+
+            @db.blob_property(mime_type='default')
+            def blob(self, value):
+                return value
+
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+
+        self.assertRaises(RuntimeError, self.call, 'PUT', document='testdocument', guid=guid, prop='blob',
+                content={}, content_type='application/json')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
+        self.touch('file')
+        self.assertRaises(RuntimeError, self.call, 'PUT', document='testdocument', guid=guid, prop='blob',
+                content={'blob': 'file'}, content_type='application/json')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob',
+                content={'url': 'foo', 'bar': 'probe'}, content_type='application/json')
+        blob = self.call('GET', document='testdocument', guid=guid, prop='blob')
+        self.assertEqual('foo', blob['url'])
+        assert 'bar' not in blob
+
+    def test_RemoveBLOBs(self):
+
+        class TestDocument(db.Document):
+
+            @db.blob_property(mime_type='default')
+            def blob(self, value):
+                return value
+
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={'blob': 'blob'})
+
+        self.assertEqual('blob', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
+
+        self.call('PUT', document='testdocument', guid=guid, prop='blob')
+        self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob')
+
+    def test_RemoveTempBLOBFilesOnFails(self):
+
+        class TestDocument(db.Document):
+
+            @db.blob_property(mime_type='default')
+            def blob(self, value):
+                return value
+
+            @blob.setter
+            def blob(self, value):
+                raise RuntimeError()
+
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={})
+
+        self.assertRaises(RuntimeError, self.call, 'PUT', document='testdocument', guid=guid, prop='blob', content='probe')
+        self.assertEqual(0, len(os.listdir('tmp')))
 
     def test_SetBLOBsWithMimeType(self):
 
@@ -221,7 +302,7 @@ class VolumeTest(tests.Test):
             ],
             self.call('GET', document='testdocument', reply=['blob'], static_prefix='http://127.0.0.1')['result'])
 
-        self.volume['testdocument'].set_blob(guid, 'blob', 'file')
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content='file')
         self.assertEqual('file', file(self.call('GET', document='testdocument', guid=guid, prop='blob')['blob']).read())
         self.assertEqual(
                 {'blob': 'http://127.0.0.1/testdocument/%s/blob' % guid},
@@ -231,7 +312,8 @@ class VolumeTest(tests.Test):
             ],
             self.call('GET', document='testdocument', reply=['blob'], static_prefix='http://127.0.0.1')['result'])
 
-        self.volume['testdocument'].set_blob(guid, 'blob', db.PropertyMetadata(url='http://foo'))
+        self.call('PUT', document='testdocument', guid=guid, prop='blob', content={'url': 'http://foo'},
+                content_type='application/json')
         self.assertEqual('http://foo', self.call('GET', document='testdocument', guid=guid, prop='blob')['url'])
         self.assertEqual(
                 {'blob': 'http://foo'},
@@ -469,7 +551,7 @@ class VolumeTest(tests.Test):
                 'http://sugarlabs.org',
                 self.call('GET', document='testdocument', guid=guid, prop='blob')['url'])
 
-    def test_before_create(self):
+    def test_on_create(self):
 
         class TestDocument(db.Document):
 
@@ -488,13 +570,13 @@ class VolumeTest(tests.Test):
         assert self.volume['testdocument'].get(guid)['ctime'] in range(ts - 1, ts + 1)
         assert self.volume['testdocument'].get(guid)['mtime'] in range(ts - 1, ts + 1)
 
-    def test_before_create_Override(self):
+    def test_on_create_Override(self):
 
         class Commands(VolumeCommands):
 
-            def before_create(self, request, props):
+            def on_create(self, request, props, event):
                 props['prop'] = 'overriden'
-                VolumeCommands.before_create(self, request, props)
+                VolumeCommands.on_create(self, request, props, event)
 
         class TestDocument(db.Document):
 
@@ -519,7 +601,7 @@ class VolumeTest(tests.Test):
         cp.call(request, db.Response())
         self.assertEqual('bar', volume['testdocument'].get(guid)['prop'])
 
-    def test_before_update(self):
+    def test_on_update(self):
 
         class TestDocument(db.Document):
 
@@ -540,13 +622,13 @@ class VolumeTest(tests.Test):
         self.call(method='PUT', document='testdocument', guid=guid, content={'prop': 'probe'})
         assert self.volume['testdocument'].get(guid)['mtime'] - prev_mtime >= 1
 
-    def test_before_update_Override(self):
+    def test_on_update_Override(self):
 
         class Commands(VolumeCommands):
 
-            def before_update(self, request, props):
+            def on_update(self, request, props, event):
                 props['prop'] = 'overriden'
-                VolumeCommands.before_update(self, request, props)
+                VolumeCommands.on_update(self, request, props, event)
 
         class TestDocument(db.Document):
 
@@ -601,13 +683,13 @@ class VolumeTest(tests.Test):
         assert not exists('seqno')
         self.assertEqual(0, volume.seqno.value)
 
-        volume['document1'].create(guid='1')
+        volume['document1'].create({'guid': '1'})
         self.assertEqual(1, volume['document1'].get('1')['seqno'])
-        volume['document2'].create(guid='1')
+        volume['document2'].create({'guid': '1'})
         self.assertEqual(2, volume['document2'].get('1')['seqno'])
-        volume['document1'].create(guid='2')
+        volume['document1'].create({'guid': '2'})
         self.assertEqual(3, volume['document1'].get('2')['seqno'])
-        volume['document2'].create(guid='2')
+        volume['document2'].create({'guid': '2'})
         self.assertEqual(4, volume['document2'].get('2')['seqno'])
 
         self.assertEqual(4, volume.seqno.value)
@@ -650,52 +732,28 @@ class VolumeTest(tests.Test):
         volume.connect(lambda event: events.append(event))
 
         volume.populate()
+        mtime = int(os.stat('document1/index/mtime').st_mtime)
         self.assertEqual([
-            {'event': 'commit', 'document': 'document1'},
-            {'event': 'populate', 'document': 'document1'},
+            {'event': 'commit', 'document': 'document1', 'mtime': mtime},
+            {'event': 'populate', 'document': 'document1', 'mtime': mtime},
             ],
             events)
         del events[:]
 
-        volume['document1'].create(guid='guid1')
-        volume['document2'].create(guid='guid2')
+        volume['document1'].create({'guid': 'guid1'})
+        volume['document2'].create({'guid': 'guid2'})
         self.assertEqual([
-            {'event': 'create', 'document': 'document1', 'guid': 'guid1', 'props': {
-                'ctime': 0,
-                'mtime': 0,
-                'seqno': 0,
-                'prop': '',
-                'guid': 'guid1',
-                }},
-            {'event': 'create', 'document': 'document2', 'guid': 'guid2', 'props': {
-                'ctime': 0,
-                'mtime': 0,
-                'seqno': 0,
-                'prop': '',
-                'guid': 'guid2',
-                }},
+            {'event': 'create', 'document': 'document1', 'guid': 'guid1'},
+            {'event': 'create', 'document': 'document2', 'guid': 'guid2'},
             ],
             events)
         del events[:]
 
-        volume['document1'].update('guid1', prop='foo')
-        volume['document2'].update('guid2', prop='bar')
+        volume['document1'].update('guid1', {'prop': 'foo'})
+        volume['document2'].update('guid2', {'prop': 'bar'})
         self.assertEqual([
-            {'event': 'update', 'document': 'document1', 'guid': 'guid1', 'props': {
-                'prop': 'foo',
-                }},
-            {'event': 'update', 'document': 'document2', 'guid': 'guid2', 'props': {
-                'prop': 'bar',
-                }},
-            ],
-            events)
-        del events[:]
-
-        volume['document2'].set_blob('guid2', 'blob', StringIO('blob'))
-        self.assertEqual([
-            {'event': 'update', 'document': 'document2', 'guid': 'guid2', 'props': {
-                'seqno': 5,
-                }},
+            {'event': 'update', 'document': 'document1', 'guid': 'guid1'},
+            {'event': 'update', 'document': 'document2', 'guid': 'guid2'},
             ],
             events)
         del events[:]
@@ -708,11 +766,13 @@ class VolumeTest(tests.Test):
         del events[:]
 
         volume['document1'].commit()
+        mtime1 = int(os.stat('document1/index/mtime').st_mtime)
         volume['document2'].commit()
+        mtime2 = int(os.stat('document2/index/mtime').st_mtime)
 
         self.assertEqual([
-            {'event': 'commit', 'document': 'document1'},
-            {'event': 'commit', 'document': 'document2'},
+            {'event': 'commit', 'document': 'document1', 'mtime': mtime1},
+            {'event': 'commit', 'document': 'document2', 'mtime': mtime2},
             ],
             events)
 
@@ -815,7 +875,7 @@ class VolumeTest(tests.Test):
 
             @blob1.setter
             def blob1(self, value):
-                return db.PropertyMetadata(url=value)
+                return db.PropertyMetadata(url=file(value['blob']).read())
 
             @db.blob_property()
             def blob2(self, meta):
@@ -823,7 +883,10 @@ class VolumeTest(tests.Test):
 
             @blob2.setter
             def blob2(self, value):
-                return ' %s ' % value
+                with util.NamedTemporaryFile(delete=False) as f:
+                    f.write(' %s ' % file(value['blob']).read())
+                value['blob'] = f.name
+                return value
 
         self.volume = db.Volume(tests.tmpdir, [TestDocument])
         guid = self.call('POST', document='testdocument', content={})
@@ -839,8 +902,8 @@ class VolumeTest(tests.Test):
         self.assertEqual('_3', self.call('GET', document='testdocument', guid=guid, prop='prop'))
         self.assertRaises(http.NotFound, self.call, 'GET', document='testdocument', guid=guid, prop='blob1')
 
-        self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='blob2')
-        self.assertEqual('blob2', self.call('GET', document='testdocument', guid=guid, prop='blob1')['url'])
+        self.call('PUT', document='testdocument', guid=guid, prop='blob1', content='blob_url')
+        self.assertEqual('blob_url', self.call('GET', document='testdocument', guid=guid, prop='blob1')['url'])
 
         guid = self.call('POST', document='testdocument', content={'blob2': 'foo'})
         self.assertEqual(' foo ', file(self.call('GET', document='testdocument', guid=guid, prop='blob2')['blob']).read())
@@ -887,11 +950,15 @@ class VolumeTest(tests.Test):
 
             @blob.setter
             def blob(self, value):
-                if '!' not in value:
+                blob = file(value['blob']).read()
+                if '!' not in blob:
                     meta = self.meta('blob')
                     if meta:
-                        value = file(meta['blob']).read() + value
-                    coroutine.spawn(self.post, value)
+                        blob = file(meta['blob']).read() + blob
+                        with util.NamedTemporaryFile(delete=False) as f:
+                            f.write(blob)
+                        value['blob'] = f.name
+                    coroutine.spawn(self.post, blob)
                 return value
 
             def post(self, value):

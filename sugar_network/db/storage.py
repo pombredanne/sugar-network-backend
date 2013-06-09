@@ -14,16 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import sys
 import time
 import json
 import shutil
-import hashlib
 import cPickle as pickle
-from os.path import exists, join, isdir, basename, relpath, isabs
+from os.path import exists, join, isdir, basename
 
 from sugar_network.db.metadata import PropertyMetadata, BlobProperty
-from sugar_network.toolkit import BUFFER_SIZE, util, exception
+from sugar_network.toolkit import util, exception
 
 
 class Storage(object):
@@ -131,20 +129,21 @@ class Record(object):
         if exists(path):
             return PropertyMetadata(path)
 
-    def set(self, prop, mtime=None, path=None, blob=None, **meta):
+    def set(self, prop, mtime=None, **meta):
         if not exists(self._root):
             os.makedirs(self._root)
         meta_path = join(self._root, prop)
 
-        if isinstance(blob, basestring):
-            path = blob
-            blob = None
-        blob_path = join(self._root, prop + PropertyMetadata.BLOB_SUFFIX)
-        if blob is not None:
-            with util.new_file(blob_path) as f:
-                shutil.copyfileobj(blob, f)
-        elif path and exists(path):
-            util.cptree(path, blob_path)
+        if 'blob' in meta:
+            dst_blob_path = meta_path + PropertyMetadata.BLOB_SUFFIX
+            blob = meta.pop('blob')
+            if hasattr(blob, 'read'):
+                with util.new_file(dst_blob_path) as f:
+                    shutil.copyfileobj(blob, f)
+            elif blob is not None:
+                os.rename(blob, dst_blob_path)
+            elif exists(dst_blob_path):
+                os.unlink(dst_blob_path)
 
         with util.new_file(meta_path) as f:
             json.dump(meta, f)
@@ -157,64 +156,3 @@ class Record(object):
             # Touch directory to let it possible to crawl it on startup
             # when index was not previously closed properly
             os.utime(join(self._root, '..'), (mtime, mtime))
-
-    def set_blob(self, prop, data=None, size=None, **kwargs):
-        if not exists(self._root):
-            os.makedirs(self._root)
-        path = join(self._root, prop + PropertyMetadata.BLOB_SUFFIX)
-        meta = PropertyMetadata(**kwargs)
-
-        if data is None:
-            if exists(path):
-                os.unlink(path)
-        elif isinstance(data, PropertyMetadata):
-            data.update(meta)
-            meta = data
-        else:
-            digest = hashlib.sha1()
-            if hasattr(data, 'read'):
-                if size is None:
-                    size = sys.maxint
-                self._set_blob_by_stream(digest, data, size, path)
-            elif isabs(data) and exists(data):
-                self._set_blob_by_path(digest, data, path)
-            else:
-                with util.new_file(path) as f:
-                    f.write(data)
-                digest.update(data)
-            meta['digest'] = digest.hexdigest()
-
-        self.set(prop, **meta)
-
-    def _set_blob_by_stream(self, digest, stream, size, path):
-        with util.new_file(path) as f:
-            while size > 0:
-                chunk = stream.read(min(size, BUFFER_SIZE))
-                if not chunk:
-                    break
-                f.write(chunk)
-                size -= len(chunk)
-                if digest is not None:
-                    digest.update(chunk)
-
-    def _set_blob_by_path(self, digest, src_path, dst_path):
-        util.cptree(src_path, dst_path)
-
-        def hash_file(path):
-            with file(path) as f:
-                while True:
-                    chunk = f.read(BUFFER_SIZE)
-                    if not chunk:
-                        break
-                    if digest is not None:
-                        digest.update(chunk)
-
-        if isdir(dst_path):
-            for root, __, files in os.walk(dst_path):
-                for filename in files:
-                    path = join(root, filename)
-                    if digest is not None:
-                        digest.update(relpath(path, dst_path))
-                    hash_file(path)
-        else:
-            hash_file(dst_path)

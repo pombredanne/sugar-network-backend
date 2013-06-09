@@ -35,6 +35,7 @@ class Document(object):
         self.is_new = not bool(guid)
         self._record = record
         self.request = request
+        self._modifies = set()
 
     @property
     def volume(self):
@@ -76,6 +77,8 @@ class Document(object):
             if isinstance(prop, StoredProperty):
                 if meta is not None:
                     value = meta.get('value')
+                else:
+                    value = prop.default
             else:
                 value = meta or PropertyMetadata()
             self.props[prop.name] = value
@@ -95,8 +98,12 @@ class Document(object):
     def meta(self, prop):
         return self._record.get(prop)
 
+    def modified(self, prop):
+        return prop in self._modifies
+
     def __getitem__(self, prop):
         return self.get(prop)
 
     def __setitem__(self, prop, value):
         self.props[prop] = value
+        self._modifies.add(prop)

@@ -128,11 +128,6 @@ class PropertyMetadata(dict):
             meta['mtime'] = int(os.stat(path_).st_mtime)
         dict.__init__(self, meta)
 
-    @classmethod
-    def is_blob(cls, blob):
-        return isinstance(blob, (type(None), basestring, cls)) or \
-                hasattr(blob, 'read')
-
 
 class Property(object):
     """Basic class to collect information about document property."""

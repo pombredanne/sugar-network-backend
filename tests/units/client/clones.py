@@ -162,10 +162,14 @@ class CloneTest(tests.Test):
                 self.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.volume['context'].create(
-                guid='org.sugarlabs.HelloWorld', type='activity',
-                title={'en': 'title'}, summary={'en': 'summary'},
-                description={'en': 'description'}, user=[tests.UID])
+        self.volume['context'].create({
+                'guid': 'org.sugarlabs.HelloWorld',
+                'type': 'activity',
+                'title': {'en': 'title'},
+                'summary': {'en': 'summary'},
+                'description': {'en': 'description'},
+                'user': [tests.UID],
+                })
 
         os.makedirs('Activities/activity/activity')
         coroutine.sleep(1)
@@ -216,10 +220,14 @@ class CloneTest(tests.Test):
                 self.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.volume['context'].create(
-                guid='org.sugarlabs.HelloWorld', type='activity',
-                title={'en': 'title'}, summary={'en': 'summary'},
-                description={'en': 'description'}, user=[tests.UID])
+        self.volume['context'].create({
+                'guid': 'org.sugarlabs.HelloWorld',
+                'type': 'activity',
+                'title': {'en': 'title'},
+                'summary': {'en': 'summary'},
+                'description': {'en': 'description'},
+                'user': [tests.UID],
+                })
 
         self.touch(('activity/activity/activity.info', [
             '[Activity]',
@@ -247,10 +255,14 @@ class CloneTest(tests.Test):
                 self.volume['context'], ['Activities'])
         coroutine.sleep()
 
-        self.volume['context'].create(
-                guid='org.sugarlabs.HelloWorld', type='activity',
-                title={'en': 'title'}, summary={'en': 'summary'},
-                description={'en': 'description'}, user=[tests.UID])
+        self.volume['context'].create({
+                'guid': 'org.sugarlabs.HelloWorld',
+                'type': 'activity',
+                'title': {'en': 'title'},
+                'summary': {'en': 'summary'},
+                'description': {'en': 'description'},
+                'user': [tests.UID],
+                })
 
         self.touch(('activity/activity/activity.info', [
             '[Activity]',
@@ -305,10 +317,14 @@ class CloneTest(tests.Test):
         self.job = coroutine.spawn(clones.monitor,
                 self.volume['context'], ['Activities'])
 
-        self.volume['context'].create(
-                guid='org.sugarlabs.HelloWorld', type='activity',
-                title={'en': 'title'}, summary={'en': 'summary'},
-                description={'en': 'description'}, user=[tests.UID])
+        self.volume['context'].create({
+                'guid': 'org.sugarlabs.HelloWorld',
+                'type': 'activity',
+                'title': {'en': 'title'},
+                'summary': {'en': 'summary'},
+                'description': {'en': 'description'},
+                'user': [tests.UID],
+                })
 
         self.touch('Activities/activity/activity/icon.svg')
         self.touch(('Activities/activity/activity/mimetypes.xml', [

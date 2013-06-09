@@ -11,6 +11,7 @@ from sugar_network.resources.feedback import Feedback
 from sugar_network.resources.solution import Solution
 from sugar_network.resources.comment import Comment
 from sugar_network.resources.implementation import Implementation
+from sugar_network.toolkit import http
 
 
 class CommentTest(tests.Test):
@@ -19,7 +20,9 @@ class CommentTest(tests.Test):
         volume = self.start_master([User, Context, Review, Feedback, Solution, Comment, Implementation])
         client = Client()
 
-        self.assertRaises(RuntimeError, client.post, ['comment'], {'message': ''})
+        self.assertRaises(http.NotFound, client.post, ['comment'], {'message': '', 'review': 'absent'})
+        self.assertRaises(http.NotFound, client.post, ['comment'], {'message': '', 'feedback': 'absent'})
+        self.assertRaises(http.NotFound, client.post, ['comment'], {'message': '', 'solution': 'absent'})
 
         context = client.post(['context'], {
             'type': 'package',

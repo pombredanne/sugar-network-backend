@@ -313,8 +313,8 @@ class SyncMasterTest(tests.Test):
             response.get('set-cookie'))
 
     def test_pull(self):
-        self.volume['document'].create(guid='1', prop='1', ctime=1, mtime=1)
-        self.volume['document'].create(guid='2', prop='2', ctime=2, mtime=2)
+        self.volume['document'].create({'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1})
+        self.volume['document'].create({'guid': '2', 'prop': '2', 'ctime': 2, 'mtime': 2})
         self.utime('master', 0)
         self.touch(('sync/1', 'file1'))
         self.touch(('sync/2', 'file2'))
@@ -539,8 +539,8 @@ class SyncMasterTest(tests.Test):
             response.get('set-cookie'))
 
     def test_pull_ExcludeSentCookies(self):
-        self.volume['document'].create(guid='1', prop='1', ctime=1, mtime=1)
-        self.volume['document'].create(guid='2', prop='2', ctime=2, mtime=2)
+        self.volume['document'].create({'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1})
+        self.volume['document'].create({'guid': '2', 'prop': '2', 'ctime': 2, 'mtime': 2})
         self.utime('master', 0)
 
         request = Request()
@@ -587,8 +587,8 @@ class SyncMasterTest(tests.Test):
             response.get('set-cookie'))
 
     def test_pull_DoNotExcludeSentCookiesForMultipleNodes(self):
-        self.volume['document'].create(guid='1', prop='1', ctime=1, mtime=1)
-        self.volume['document'].create(guid='2', prop='2', ctime=2, mtime=2)
+        self.volume['document'].create({'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1})
+        self.volume['document'].create({'guid': '2', 'prop': '2', 'ctime': 2, 'mtime': 2})
         self.utime('master', 0)
 
         request = Request()

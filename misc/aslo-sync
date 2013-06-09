@@ -161,24 +161,26 @@ class Application(application.Application):
             'pull activities.sugarlabs.org content to local db')
     def pull(self):
         if not self.volume['context'].exists(SN_GUID):
-            self.volume['context'].create(
-                    guid=SN_GUID,
-                    implement=SN_GUID,
-                    type='project',
-                    title='Sugar Network',
-                    summary='Sugar Network',
-                    description='Sugar Network',
-                    ctime=time.time(), mtime=time.time(),
-                    author=self.authors(),
-                    )
+            self.volume['context'].create({
+                    'guid': SN_GUID,
+                    'implement': SN_GUID,
+                    'type': 'project',
+                    'title': 'Sugar Network',
+                    'summary': 'Sugar Network',
+                    'description': 'Sugar Network',
+                    'ctime': time.time(),
+                    'mtime': time.time(),
+                    'author': self.authors(),
+                    })
 
         if not self.volume['context'].exists(SUGAR_GUID):
-            self.volume['context'].create(
-                    guid=SUGAR_GUID,
-                    implement=SUGAR_GUID,
-                    type='package', title='sugar',
-                    summary='Constructionist learning platform',
-                    description=
+            self.volume['context'].create({
+                    'guid': SUGAR_GUID,
+                    'implement': SUGAR_GUID,
+                    'type': 'package',
+                    'title': 'sugar',
+                    'summary': 'Constructionist learning platform',
+                    'description':
                         'Sugar provides simple yet powerful means of engaging '
                         'young children in the world of learning that is '
                         'opened up by computers and the Internet. With Sugar, '
@@ -188,21 +190,23 @@ class Application(application.Application):
                         'sharing, collaborative learning, and reflection, '
                         'developing skills that help them in all aspects '
                         'of life.',
-                    ctime=time.time(), mtime=time.time(),
-                    author=self.authors(),
-                    )
+                    'ctime': time.time(),
+                    'mtime': time.time(),
+                    'author': self.authors(),
+                    })
 
         if not self.volume['context'].exists(PACKAGES_GUID):
-            self.volume['context'].create(
-                    guid=PACKAGES_GUID,
-                    implement=PACKAGES_GUID,
-                    type='project',
-                    title='Packages',
-                    summary='Collection of GNU/Linux packages metadata',
-                    description='Collection of GNU/Linux packages metadata',
-                    ctime=time.time(), mtime=time.time(),
-                    author=self.authors(),
-                    )
+            self.volume['context'].create({
+                    'guid': PACKAGES_GUID,
+                    'implement': PACKAGES_GUID,
+                    'type': 'project',
+                    'title': 'Packages',
+                    'summary': 'Collection of GNU/Linux packages metadata',
+                    'description': 'Collection of GNU/Linux packages metadata',
+                    'ctime': time.time(),
+                    'mtime': time.time(),
+                    'author': self.authors(),
+                    })
             self.volume['context'].set_blob(PACKAGES_GUID, 'icon',
                     url='/static/images/package.png')
 
@@ -305,16 +309,16 @@ class Application(application.Application):
                 self.sqlexec(sql):
             if directory.exists(str(guid)):
                 continue
-            directory.create(
-                    guid=str(guid),
-                    ctime=int(time.mktime(created.timetuple())),
-                    mtime=int(time.mktime(created.timetuple())),
-                    context=bundle_id,
-                    title=self.get_i18n_field(title),
-                    content=self.get_i18n_field(content),
-                    rating=rating,
-                    author=self.authors(nickname, author),
-                    )
+            directory.create({
+                    'guid': str(guid),
+                    'ctime': int(time.mktime(created.timetuple())),
+                    'mtime': int(time.mktime(created.timetuple())),
+                    'context': bundle_id,
+                    'title': self.get_i18n_field(title),
+                    'content': self.get_i18n_field(content),
+                    'rating': rating,
+                    'author': self.authors(nickname, author),
+                    })
 
     def sync_versions(self, addon_id, bundle_id):
         sql = """
@@ -484,13 +488,22 @@ class Application(application.Application):
             shutil.rmtree(tmpdir)
 
         print '-- Update %r metadata from %r' % (bundle_id, filename)
-        self.volume['context'].update(bundle_id, **props)
+        self.volume['context'].update(bundle_id, props)
 
     def sync_context(self, addon_id, bundle_id):
         if not self.volume['context'].exists(bundle_id):
-            self.volume['context'].create(guid=bundle_id, type='activity',
-                    implement=bundle_id, title={}, summary={}, description={},
-                    author=self.authors(), layer=['public'], ctime=0, mtime=0)
+            self.volume['context'].create({
+                    'guid': bundle_id,
+                    'type': 'activity',
+                    'implement': bundle_id,
+                    'title': {},
+                    'summary': {},
+                    'description': {},
+                    'author': self.authors(),
+                    'layer': ['public'],
+                    'ctime': 0,
+                    'mtime': 0,
+                    })
 
         created, modified, title, summary, description, homepage, nickname, \
                 author = self.sqlexec("""
@@ -543,15 +556,16 @@ class Application(application.Application):
                 """ % addon_id):
             tags.add(row[0])
 
-        self.volume['context'].update(bundle_id,
-                title=self.get_i18n_field(title),
-                summary=self.get_i18n_field(summary),
-                description=self.get_i18n_field(description),
-                homepage=homepage or '',
-                tags=list(tags),
-                author=self.authors(nickname, author),
-                ctime=created,
-                mtime=modified)
+        self.volume['context'].update(bundle_id, {
+                'title': self.get_i18n_field(title),
+                'summary': self.get_i18n_field(summary),
+                'description': self.get_i18n_field(description),
+                'homepage': homepage or '',
+                'tags': list(tags),
+                'author': self.authors(nickname, author),
+                'ctime': created,
+                'mtime': modified,
+                })
 
     def sync_implementaiton(self, context, addon_id, filename,
             sugar_min, sugar_max, **impl_props):
@@ -584,18 +598,20 @@ class Application(application.Application):
             if release >= sugar_min and release <= sugar_max:
                 requires.append(name)
 
-        impl = self.volume['implementation'].create(
-                context=context,
-                version=spec['version'],
-                requires=requires,
-                spec={'*-*': {
+        impl = {'context': context,
+                'version': spec['version'],
+                'requires': requires,
+                'spec': {'*-*': {
                     'commands': spec.commands,
                     'requires': spec.requires,
                     'extract': bundle.rootdir,
                     }},
-                ctime=time.time(), mtime=time.time(),
-                author=self.authors(),
-                **impl_props)
+                'ctime': time.time(),
+                'mtime': time.time(),
+                'author': self.authors(),
+                }
+        impl.update(impl_props)
+        impl = self.volume['implementation'].create(impl)
         self.volume['implementation'].set_blob(impl, 'data',
                 url='/'.join([DOWNLOAD_URL, str(addon_id), filename]))
 

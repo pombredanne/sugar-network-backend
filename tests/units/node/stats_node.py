@@ -56,13 +56,13 @@ class StatsTest(tests.Test):
         self.assertEqual(0, stats._stats['solution'].total)
         self.assertEqual(0, stats._stats['artifact'].total)
 
-        volume['user'].create(guid='user', name='user', color='', pubkey='')
-        volume['context'].create(guid='context', type='activity', title='', summary='', description='')
-        volume['review'].create(guid='review', context='context', title='', content='', rating=5)
-        volume['feedback'].create(guid='feedback', context='context', type='idea', title='', content='')
-        volume['feedback'].create(guid='feedback2', context='context', type='idea', title='', content='', solution='solution')
-        volume['solution'].create(guid='solution', context='context', feedback='feedback', content='')
-        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
+        volume['user'].create({'guid': 'user', 'name': 'user', 'color': '', 'pubkey': ''})
+        volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
+        volume['review'].create({'guid': 'review', 'context': 'context', 'title': '', 'content': '', 'rating': 5})
+        volume['feedback'].create({'guid': 'feedback', 'context': 'context', 'type': 'idea', 'title': '', 'content': ''})
+        volume['feedback'].create({'guid': 'feedback2', 'context': 'context', 'type': 'idea', 'title': '', 'content': '', 'solution': 'solution'})
+        volume['solution'].create({'guid': 'solution', 'context': 'context', 'feedback': 'feedback', 'content': ''})
+        volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         stats = Sniffer(volume)
         self.assertEqual(1, stats._stats['user'].total)
@@ -136,7 +136,7 @@ class StatsTest(tests.Test):
     def test_FeedbackSolutions(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
-        volume['feedback'].create(guid='guid', context='context', type='idea', title='', content='')
+        volume['feedback'].create({'guid': 'guid', 'context': 'context', 'type': 'idea', 'title': '', 'content': ''})
 
         request = db.Request(method='PUT', document='feedback', guid='guid')
         request.principal = 'user'
@@ -164,9 +164,9 @@ class StatsTest(tests.Test):
     def test_Comments(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
-        volume['solution'].create(guid='solution', context='context', feedback='feedback', content='')
-        volume['feedback'].create(guid='feedback', context='context', type='idea', title='', content='')
-        volume['review'].create(guid='review', context='context', title='', content='', rating=5)
+        volume['solution'].create({'guid': 'solution', 'context': 'context', 'feedback': 'feedback', 'content': ''})
+        volume['feedback'].create({'guid': 'feedback', 'context': 'context', 'type': 'idea', 'title': '', 'content': ''})
+        volume['review'].create({'guid': 'review', 'context': 'context', 'title': '', 'content': '', 'rating': 5})
 
         request = db.Request(method='POST', document='comment')
         request.principal = 'user'
@@ -189,8 +189,8 @@ class StatsTest(tests.Test):
     def test_Reviewes(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
-        volume['context'].create(guid='context', type='activity', title='', summary='', description='')
-        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
+        volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
+        volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         request = db.Request(method='POST', document='review')
         request.principal = 'user'
@@ -216,8 +216,8 @@ class StatsTest(tests.Test):
     def test_ContextDownloaded(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
         stats = Sniffer(volume)
-        volume['context'].create(guid='context', type='activity', title='', summary='', description='')
-        volume['implementation'].create(guid='implementation', context='context', license='GPLv3', version='1', date=0, stability='stable', notes='')
+        volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
+        volume['implementation'].create({'guid': 'implementation', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
 
         request = db.Request(method='GET', document='implementation', guid='implementation', prop='fake')
         request.principal = 'user'
@@ -232,7 +232,7 @@ class StatsTest(tests.Test):
     def test_ContextReleased(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
         stats = Sniffer(volume)
-        volume['context'].create(guid='context', type='activity', title='', summary='', description='')
+        volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
 
         request = db.Request(method='POST', document='implementation')
         request.principal = 'user'
@@ -243,7 +243,7 @@ class StatsTest(tests.Test):
     def test_ContextFailed(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
         stats = Sniffer(volume)
-        volume['context'].create(guid='context', type='activity', title='', summary='', description='')
+        volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
 
         request = db.Request(method='POST', document='report')
         request.principal = 'user'
@@ -269,7 +269,7 @@ class StatsTest(tests.Test):
                 ['1', '2'],
                 stats._stats['context'].active.keys())
 
-        volume['artifact'].create(guid='artifact', type='instance', context='3', title='', description='')
+        volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': '3', 'title': '', 'description': ''})
         request = db.Request(method='GET', document='review', artifact='artifact')
         request.principal = 'user'
         stats.log(request)
@@ -277,7 +277,7 @@ class StatsTest(tests.Test):
                 ['1', '2', '3'],
                 sorted(stats._stats['context'].active.keys()))
 
-        volume['feedback'].create(guid='feedback', context='4', type='idea', title='', content='')
+        volume['feedback'].create({'guid': 'feedback', 'context': '4', 'type': 'idea', 'title': '', 'content': ''})
         request = db.Request(method='GET', document='solution', feedback='feedback')
         request.principal = 'user'
         stats.log(request)
@@ -300,7 +300,7 @@ class StatsTest(tests.Test):
                 ['1', '2', '3', '4', '5', '6'],
                 sorted(stats._stats['context'].active.keys()))
 
-        volume['solution'].create(guid='solution', context='7', feedback='feedback', content='')
+        volume['solution'].create({'guid': 'solution', 'context': '7', 'feedback': 'feedback', 'content': ''})
         request = db.Request(method='POST', document='comment')
         request.principal = 'user'
         request.content = {'solution': 'solution'}
@@ -336,7 +336,7 @@ class StatsTest(tests.Test):
     def test_ArtifactDownloaded(self):
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
         stats = Sniffer(volume)
-        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
+        volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         request = db.Request(method='GET', document='artifact', guid='artifact', prop='fake')
         request.principal = 'user'
@@ -353,12 +353,12 @@ class StatsTest(tests.Test):
     def test_Commit(self):
         stats_node_step.value = 1
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact])
-        volume['user'].create(guid='user', name='user', color='', pubkey='')
-        volume['context'].create(guid='context', type='activity', title='', summary='', description='')
-        volume['review'].create(guid='review', context='context', title='', content='', rating=5)
-        volume['feedback'].create(guid='feedback', context='context', type='idea', title='', content='')
-        volume['solution'].create(guid='solution', context='context', feedback='feedback', content='')
-        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
+        volume['user'].create({'guid': 'user', 'name': 'user', 'color': '', 'pubkey': ''})
+        volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
+        volume['review'].create({'guid': 'review', 'context': 'context', 'title': '', 'content': '', 'rating': 5})
+        volume['feedback'].create({'guid': 'feedback', 'context': 'context', 'type': 'idea', 'title': '', 'content': ''})
+        volume['solution'].create({'guid': 'solution', 'context': 'context', 'feedback': 'feedback', 'content': ''})
+        volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         stats = Sniffer(volume)
         request = db.Request(method='GET', document='user', guid='user')
@@ -480,9 +480,9 @@ class StatsTest(tests.Test):
         stats_node_step.value = 1
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
 
-        volume['context'].create(guid='context', type='activity', title='', summary='', description='')
-        volume['implementation'].create(guid='implementation', context='context', license='GPLv3', version='1', date=0, stability='stable', notes='')
-        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
+        volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
+        volume['implementation'].create({'guid': 'implementation', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
+        volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         self.assertEqual([0, 0], volume['context'].get('context')['reviews'])
         self.assertEqual(0, volume['context'].get('context')['rating'])
@@ -526,8 +526,8 @@ class StatsTest(tests.Test):
         stats_node_step.value = 1
         volume = Volume('local', [User, Context, Review, Feedback, Solution, Artifact, Implementation])
 
-        volume['context'].create(guid='context', type='activity', title='', summary='', description='')
-        volume['artifact'].create(guid='artifact', type='instance', context='context', title='', description='')
+        volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
+        volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         self.assertEqual([0, 0], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(0, volume['artifact'].get('artifact')['rating'])

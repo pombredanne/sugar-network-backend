@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import time
 import json
 from email.utils import formatdate, parsedate
@@ -10,7 +11,7 @@ from __init__ import tests
 
 from sugar_network import db, node
 from sugar_network.client import Client
-from sugar_network.toolkit import http
+from sugar_network.toolkit import http, coroutine
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.node import stats_user, stats_node, obs
 from sugar_network.node.commands import NodeCommands
@@ -152,11 +153,40 @@ class NodeTest(tests.Test):
             call(cp, method='GET', document='context', guid=guid, reply=['guid', 'title', 'layer']))
         self.assertEqual(['public'], volume['context'].get(guid)['layer'])
 
+        events = []
+        volume.connect(lambda event: events.append(event))
         call(cp, method='DELETE', document='context', guid=guid, principal='principal')
+        coroutine.dispatch()
 
-        assert exists(guid_path)
         self.assertRaises(http.NotFound, call, cp, method='GET', document='context', guid=guid, reply=['guid', 'title'])
         self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
+        self.assertEqual([
+            {'event': 'delete', 'document': 'context', 'guid': guid},
+            {'event': 'commit', 'document': 'context', 'mtime': int(os.stat('db/context/index/mtime').st_mtime)},
+            ],
+            events)
+
+    def test_SimulateDeleteEvents(self):
+        volume = Volume('db')
+        cp = NodeCommands('guid', volume)
+
+        guid = call(cp, method='POST', document='context', principal='principal', content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        events = []
+        volume.connect(lambda event: events.append(event))
+        call(cp, method='PUT', document='context', guid=guid, principal='principal', content={'layer': ['deleted']})
+        coroutine.dispatch()
+
+        self.assertEqual([
+            {'event': 'delete', 'document': 'context', 'guid': guid},
+            {'event': 'commit', 'document': 'context', 'mtime': int(os.stat('db/context/index/mtime').st_mtime)},
+            ],
+            events)
 
     def test_RegisterUser(self):
         cp = NodeCommands('guid', Volume('db', [User]))
@@ -287,7 +317,7 @@ class NodeTest(tests.Test):
         call(cp, method='GET', document='context', guid=guid)
         self.assertNotEqual([], call(cp, method='GET', document='context')['result'])
 
-        volume['context'].update(guid, layer=['deleted'])
+        volume['context'].update(guid, {'layer': ['deleted']})
 
         self.assertRaises(http.NotFound, call, cp, method='GET', document='context', guid=guid)
         self.assertEqual([], call(cp, method='GET', document='context')['result'])

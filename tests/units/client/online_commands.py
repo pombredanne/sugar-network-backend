@@ -429,8 +429,6 @@ class OnlineCommandsTest(tests.Test):
 
         def read_events():
             for event in ipc.subscribe(event='!commit'):
-                if 'props' in event:
-                    event.pop('props')
                 events.append(event)
         job = coroutine.spawn(read_events)
         coroutine.dispatch(.1)
@@ -1012,7 +1010,7 @@ class OnlineCommandsTest(tests.Test):
         bundle.close()
         ipc.request('PUT', ['implementation', impl, 'data'], file('bundle', 'rb').read())
 
-        trigger = self.wait_for_events(ipc, event='update', document='context', guid=context1, props={'clone': 2})
+        trigger = self.wait_for_events(ipc, event='update', document='context', guid=context1)
         ipc.put(['context', context1], 2, cmd='clone')
         trigger.wait()
         self.assertEqual(
@@ -1025,7 +1023,7 @@ class OnlineCommandsTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        trigger = self.wait_for_events(ipc, event='create', document='context', guid=context2, props={'clone': 0, 'favorite': True})
+        trigger = self.wait_for_events(ipc, event='create', document='context', guid=context2)
         ipc.put(['context', context2], True, cmd='favorite')
         trigger.wait()
         self.assertEqual(
@@ -1080,7 +1078,7 @@ class OnlineCommandsTest(tests.Test):
         ipc.get(cmd='inline')
         self.wait_for_events(ipc, event='inline', state='online').wait()
         guid = ipc.post(['document'], {})
-        home_volume['document'].create(guid=guid)
+        home_volume['document'].create({'guid': guid})
 
         ts = time.time()
         self.assertEqual('remote', ipc.get(['document', guid], cmd='sleep'))

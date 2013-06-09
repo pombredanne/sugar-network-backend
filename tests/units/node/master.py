@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
+
 from __init__ import tests
 
 from sugar_network.node import obs
@@ -162,7 +164,7 @@ class MasterTest(tests.Test):
             'description': 'description',
             })
         coroutine.sleep(.5)
-        self.assertEqual(0, len(events))
+        self.assertEqual([], events)
 
         ipc.put(['context', guid, 'aliases'], {
             'Gentoo': {
@@ -171,8 +173,10 @@ class MasterTest(tests.Test):
                 },
             })
         coroutine.sleep(.5)
-        self.assertEqual(1, len(events))
-        assert 'mtime' in events[0]['props']
+        self.assertEqual([
+            {'event': 'populate', 'document': 'implementation', 'mtime': int(os.stat('master/implementation/index/mtime').st_mtime)},
+            ],
+            events)
         self.assertEqual({
             'Gentoo-2.1': {'status': 'success', 'binary': ['bin'], 'devel': ['devel']},
             },
@@ -200,9 +204,10 @@ class MasterTest(tests.Test):
 
         ipc.put(['context', guid, 'dependencies'], ['foo'])
         coroutine.sleep(.1)
-        self.assertEqual(1, len(events))
-        assert 'mtime' in events[0]['props']
-        del events[:]
+        self.assertEqual([
+            {'event': 'populate', 'document': 'implementation', 'mtime': int(os.stat('master/implementation/index/mtime').st_mtime)},
+            ],
+            events)
 
 
 if __name__ == '__main__':

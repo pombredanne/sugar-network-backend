@@ -29,12 +29,12 @@ class IndexTest(tests.Test):
     def test_Create(self):
         db = Index({'key': IndexedProperty('key', 1, 'K')})
 
-        db.store('1', {'key': 'value_1'}, True)
+        db.store('1', {'key': 'value_1'})
         self.assertEqual(
                 ([{'guid': '1', 'key': 'value_1'}], 1),
                 db._find(reply=['key']))
 
-        db.store('2', {'key': 'value_2'}, True)
+        db.store('2', {'key': 'value_2'})
         self.assertEqual(
                 ([{'guid': '1', 'key': 'value_1'},
                   {'guid': '2', 'key': 'value_2'}], 2),
@@ -46,12 +46,12 @@ class IndexTest(tests.Test):
             'var_2': IndexedProperty('var_2', 2, 'B'),
             })
 
-        db.store('1', {'var_1': 'value_1', 'var_2': 'value_2'}, True)
+        db.store('1', {'var_1': 'value_1', 'var_2': 'value_2'})
         self.assertEqual(
                 ([{'guid': '1', 'var_1': 'value_1', 'var_2': 'value_2'}], 1),
                 db._find(reply=['var_1', 'var_2']))
 
-        db.store('1', {'var_1': 'value_3', 'var_2': 'value_4'}, False)
+        db.store('1', {'var_1': 'value_3', 'var_2': 'value_4'})
         self.assertEqual(
                 ([{'guid': '1', 'var_1': 'value_3', 'var_2': 'value_4'}], 1),
                 db._find(reply=['var_1', 'var_2']))
@@ -59,7 +59,7 @@ class IndexTest(tests.Test):
     def test_delete(self):
         db = Index({'key': IndexedProperty('key', 1, 'K')})
 
-        db.store('1', {'key': 'value'}, True)
+        db.store('1', {'key': 'value'})
         self.assertEqual(
                 ([{'guid': '1', 'key': 'value'}], 1),
                 db._find(reply=['key']))
@@ -72,7 +72,7 @@ class IndexTest(tests.Test):
     def test_IndexByReprcast(self):
         db = Index({'key': IndexedProperty('key', 1, 'K', reprcast=lambda x: "foo" + x)})
 
-        db.store('1', {'key': 'bar'}, True)
+        db.store('1', {'key': 'bar'})
 
         self.assertEqual(
                 [{'guid': '1', 'key': 'foobar'}],
@@ -96,7 +96,7 @@ class IndexTest(tests.Test):
             yield value
 
         db = Index({'key': IndexedProperty('key', 1, 'K', reprcast=iterate)})
-        db.store('1', {'key': 'value'}, True)
+        db.store('1', {'key': 'value'})
 
         self.assertEqual(
                 [{'guid': '1'}],
@@ -118,9 +118,9 @@ class IndexTest(tests.Test):
             'var_3': IndexedProperty('var_3', 3, 'C', full_text=True),
             })
 
-        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
-        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'}, True)
-        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'}, True)
+        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
 
         self.assertEqual(
                 ([{'guid': '1', 'var_1': '1'},
@@ -147,7 +147,7 @@ class IndexTest(tests.Test):
             'prop': IndexedProperty('prop', 1, 'P', full_text=True),
             })
 
-        db.store('guid', {'prop': 'value'}, True)
+        db.store('guid', {'prop': 'value'})
 
         self.assertEqual(
                 [{'guid': 'guid', 'prop': 'value'}],
@@ -164,8 +164,8 @@ class IndexTest(tests.Test):
             'var_1': IndexedProperty('var_1', 1, 'A', typecast=bool),
             })
 
-        db.store('1', {'var_1': True}, True)
-        db.store('2', {'var_1': False}, True)
+        db.store('1', {'var_1': True})
+        db.store('2', {'var_1': False})
 
         self.assertEqual(
                 [{'guid': '1'}],
@@ -181,9 +181,9 @@ class IndexTest(tests.Test):
             'var_3': IndexedProperty('var_3', 3, 'C', full_text=True),
             })
 
-        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
-        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'}, True)
-        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'}, True)
+        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
 
         self.assertEqual(
                 ([{'guid': '1', 'var_1': '1'},
@@ -209,9 +209,9 @@ class IndexTest(tests.Test):
             'var_3': IndexedProperty('var_3', 3, 'C', boolean=True, full_text=True),
             })
 
-        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
-        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'}, True)
-        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'}, True)
+        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
 
         self.assertEqual(
                 ([{'guid': '1', 'var_1': '1'}], 1),
@@ -232,9 +232,9 @@ class IndexTest(tests.Test):
             'var_3': IndexedProperty('var_3', 3, 'C', boolean=True, full_text=True),
             })
 
-        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'}, True)
-        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'}, True)
-        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'}, True)
+        db.store('1', {'var_1': '1', 'var_2': 'у', 'var_3': 'г'})
+        db.store('2', {'var_1': '2', 'var_2': 'у', 'var_3': 'ю'})
+        db.store('3', {'var_1': '3', 'var_2': 'б', 'var_3': 'ю'})
 
         self.assertEqual(
                 ([{'guid': '1', 'var_1': '1'}], 1),
@@ -251,9 +251,9 @@ class IndexTest(tests.Test):
     def test_find_ExactQuery(self):
         db = Index({'key': IndexedProperty('key', 1, 'K', full_text=True)})
 
-        db.store('1', {'key': 'фу'}, True)
-        db.store('2', {'key': 'фу бар'}, True)
-        db.store('3', {'key': 'фу бар тест'}, True)
+        db.store('1', {'key': 'фу'})
+        db.store('2', {'key': 'фу бар'})
+        db.store('3', {'key': 'фу бар тест'})
 
         self.assertEqual(
                 ([{'guid': '1', 'key': u'фу'}, {'guid': '2', 'key': u'фу бар'}, {'guid': '3', 'key': u'фу бар тест'}], 3),
@@ -277,8 +277,8 @@ class IndexTest(tests.Test):
 
         db = Index({term: IndexedProperty(term, 1, 'T', full_text=True)})
 
-        db.store('1', {term: 'test'}, True)
-        db.store('2', {term: 'test fail'}, True)
+        db.store('1', {term: 'test'})
+        db.store('2', {term: 'test fail'})
 
         self.assertEqual(
                 ([{'guid': '1'}], 1),
@@ -287,9 +287,9 @@ class IndexTest(tests.Test):
     def test_find_ReturnPortions(self):
         db = Index({'key': IndexedProperty('key', 1, 'K')})
 
-        db.store('1', {'key': '1'}, True)
-        db.store('2', {'key': '2'}, True)
-        db.store('3', {'key': '3'}, True)
+        db.store('1', {'key': '1'})
+        db.store('2', {'key': '2'})
+        db.store('3', {'key': '3'})
 
         self.assertEqual(
                 ([{'guid': '1', 'key': '1'}], 3),
@@ -310,9 +310,9 @@ class IndexTest(tests.Test):
             'var_2': IndexedProperty('var_2', 2, 'B'),
             })
 
-        db.store('1', {'var_1': '1', 'var_2': '3'}, True)
-        db.store('2', {'var_1': '2', 'var_2': '2'}, True)
-        db.store('3', {'var_1': '3', 'var_2': '1'}, True)
+        db.store('1', {'var_1': '1', 'var_2': '3'})
+        db.store('2', {'var_1': '2', 'var_2': '2'})
+        db.store('3', {'var_1': '3', 'var_2': '1'})
 
         self.assertEqual(
                 ([{'guid': '1'}, {'guid': '2'}, {'guid': '3'}], 3),
@@ -342,9 +342,9 @@ class IndexTest(tests.Test):
             'var_4': IndexedProperty('var_4', 4, 'D'),
             })
 
-        db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '3', 'var_4': 0}, True)
-        db.store('2', {'var_1': '2', 'var_2': '1', 'var_3': '4', 'var_4': 0}, True)
-        db.store('3', {'var_1': '3', 'var_2': '2', 'var_3': '4', 'var_4': 0}, True)
+        db.store('1', {'var_1': '1', 'var_2': '1', 'var_3': '3', 'var_4': 0})
+        db.store('2', {'var_1': '2', 'var_2': '1', 'var_3': '4', 'var_4': 0})
+        db.store('3', {'var_1': '3', 'var_2': '2', 'var_3': '4', 'var_4': 0})
 
         self.assertEqual(
                 [{'guid': '1', 'var_1': '1'}, {'guid': '3', 'var_1': '3'}],
@@ -363,8 +363,8 @@ class IndexTest(tests.Test):
         db = Index({
             'prop': IndexedProperty('prop', prefix='B', typecast=[1, 2], full_text=True),
             })
-        db.store('1', {'prop': [1, 2]}, True)
-        db.store('2', {'prop': [2, 3]}, True)
+        db.store('1', {'prop': [1, 2]})
+        db.store('2', {'prop': [2, 3]})
         self.assertEqual(
                 [{'guid': '1'}],
                 db._find(prop=1, reply=['guid'])[0])
@@ -382,8 +382,8 @@ class IndexTest(tests.Test):
         db = Index({
             'prop': IndexedProperty('prop', prefix='B', typecast=[], full_text=True),
             })
-        db.store('1', {'prop': ['a', 'b']}, True)
-        db.store('2', {'prop': ['b', 'c']}, True)
+        db.store('1', {'prop': ['a', 'b']})
+        db.store('2', {'prop': ['b', 'c']})
         self.assertEqual(
                 [{'guid': '1'}],
                 db._find(prop='a', reply=['guid'])[0])
@@ -405,13 +405,13 @@ class IndexTest(tests.Test):
         post_stored = []
         deleted = []
 
-        db.store('1', {}, True,
+        db.store('1', {},
                 lambda *args: pre_stored.append(args),
                 lambda *args: post_stored.append(args))
         self.assertEqual(1, len(pre_stored))
         self.assertEqual(1, len(post_stored))
 
-        db.store('1', {}, False,
+        db.store('1', {},
                 lambda *args: pre_stored.append(args),
                 lambda *args: post_stored.append(args))
         self.assertEqual(2, len(pre_stored))
@@ -424,7 +424,7 @@ class IndexTest(tests.Test):
         # No index at start; checkpoint didn't happen
         db = Index({})
         self.assertEqual(0, db.mtime)
-        db.store('1', {}, True)
+        db.store('1', {})
         db.commit()
         db.close()
 
@@ -437,7 +437,7 @@ class IndexTest(tests.Test):
         os.utime('index/mtime', (1, 1))
         db = Index({})
         self.assertEqual(1, db.mtime)
-        db.store('3', {}, True)
+        db.store('3', {})
         db.commit()
         self.assertNotEqual(1, db.mtime)
         db.close()
@@ -445,9 +445,9 @@ class IndexTest(tests.Test):
     def test_find_OrderByGUIDAllTime(self):
         db = Index({'prop': IndexedProperty('prop', 1, 'P')})
 
-        db.store('3', {'prop': '1'}, True)
-        db.store('2', {'prop': '1'}, True)
-        db.store('1', {'prop': '3'}, True)
+        db.store('3', {'prop': '1'})
+        db.store('2', {'prop': '1'})
+        db.store('1', {'prop': '3'})
 
         self.assertEqual(
                 ([{'guid': '1', 'prop': '3'}, {'guid': '2', 'prop': '1'}, {'guid': '3', 'prop': '1'}], 3),
@@ -466,8 +466,8 @@ class IndexTest(tests.Test):
 
         db = Index({term: IndexedProperty(term, 1, 'T', full_text=True)})
 
-        db.store('1', {term: 'test'}, True)
-        db.store('2', {term: 'test fail'}, True)
+        db.store('1', {term: 'test'})
+        db.store('2', {term: 'test fail'})
 
         self.assertEqual(
                 ([{'guid': '1'}], 1),
@@ -476,9 +476,9 @@ class IndexTest(tests.Test):
     def test_find_WithListProps(self):
         db = Index({'prop': IndexedProperty('prop', None, 'A', full_text=True, typecast=[])})
 
-        db.store('1', {'prop': ('a', )}, True)
-        db.store('2', {'prop': ('a', 'aa')}, True)
-        db.store('3', {'prop': ('aa', 'aaa')}, True)
+        db.store('1', {'prop': ('a', )})
+        db.store('2', {'prop': ('a', 'aa')})
+        db.store('3', {'prop': ('aa', 'aaa')})
 
         self.assertEqual(
                 ([{'guid': '1'}, {'guid': '2'}], 2),
@@ -498,11 +498,11 @@ class IndexTest(tests.Test):
         db = Index({}, lambda: commits.append(True))
         coroutine.dispatch()
         env.index_flush_threshold.value = 1
-        db.store('1', {}, True)
+        db.store('1', {})
         coroutine.dispatch()
-        db.store('2', {}, True)
+        db.store('2', {})
         coroutine.dispatch()
-        db.store('3', {}, True)
+        db.store('3', {})
         coroutine.dispatch()
         self.assertEqual(3, len(commits))
         db.close()
@@ -511,15 +511,15 @@ class IndexTest(tests.Test):
         db = Index({}, lambda: commits.append(True))
         coroutine.dispatch()
         env.index_flush_threshold.value = 2
-        db.store('4', {}, True)
+        db.store('4', {})
         coroutine.dispatch()
-        db.store('5', {}, True)
+        db.store('5', {})
         coroutine.dispatch()
-        db.store('6', {}, True)
+        db.store('6', {})
         coroutine.dispatch()
-        db.store('7', {}, True)
+        db.store('7', {})
         coroutine.dispatch()
-        db.store('8', {}, True)
+        db.store('8', {})
         coroutine.dispatch()
         self.assertEqual(2, len(commits))
         db.close()
@@ -533,20 +533,20 @@ class IndexTest(tests.Test):
         db = Index({}, lambda: commits.append(True))
         coroutine.dispatch()
 
-        db.store('1', {}, True)
+        db.store('1', {})
         coroutine.dispatch()
         self.assertEqual(0, len(commits))
-        db.store('2', {}, True)
+        db.store('2', {})
         coroutine.dispatch()
         self.assertEqual(0, len(commits))
 
         coroutine.sleep(1.5)
         self.assertEqual(1, len(commits))
 
-        db.store('1', {}, True)
+        db.store('1', {})
         coroutine.dispatch()
         self.assertEqual(1, len(commits))
-        db.store('2', {}, True)
+        db.store('2', {})
         coroutine.dispatch()
         self.assertEqual(1, len(commits))
 
@@ -561,7 +561,7 @@ class IndexTest(tests.Test):
         commits = []
         db = Index({}, lambda: commits.append(True))
 
-        db.store('1', {}, True)
+        db.store('1', {})
         coroutine.dispatch()
         self.assertEqual(1, len(commits))
 
@@ -571,10 +571,10 @@ class IndexTest(tests.Test):
 
         db = Index({'prop': IndexedProperty('prop', 1, 'A', localized=True)})
 
-        db.store('0', {'prop': {'foo': '5'}}, True)
-        db.store('1', {'prop': {current_lang: '4', 'default_lang': '1', 'foo': '3'}}, True)
-        db.store('2', {'prop': {'default_lang': '2', 'foo': '2'}}, True)
-        db.store('3', {'prop': {current_lang: '3', 'foo': '6'}}, True)
+        db.store('0', {'prop': {'foo': '5'}})
+        db.store('1', {'prop': {current_lang: '4', 'default_lang': '1', 'foo': '3'}})
+        db.store('2', {'prop': {'default_lang': '2', 'foo': '2'}})
+        db.store('3', {'prop': {current_lang: '3', 'foo': '6'}})
 
         self.assertEqual([
             {'guid': '1'},
@@ -595,9 +595,9 @@ class IndexTest(tests.Test):
     def test_find_MultipleFilter(self):
         db = Index({'prop': IndexedProperty('prop', 1, 'A')})
 
-        db.store('1', {'prop': 'a'}, True)
-        db.store('2', {'prop': 'b'}, True)
-        db.store('3', {'prop': 'c'}, True)
+        db.store('1', {'prop': 'a'})
+        db.store('2', {'prop': 'b'})
+        db.store('3', {'prop': 'c'})
 
         self.assertEqual(
                 sorted([
@@ -637,9 +637,9 @@ class IndexTest(tests.Test):
     def test_find_NotFilter(self):
         db = Index({'prop': IndexedProperty('prop', 1, 'A')})
 
-        db.store('1', {'prop': 'a'}, True)
-        db.store('2', {'prop': 'b'}, True)
-        db.store('3', {'prop': 'c'}, True)
+        db.store('1', {'prop': 'a'})
+        db.store('2', {'prop': 'b'})
+        db.store('3', {'prop': 'c'})
 
         self.assertEqual(
                 sorted([
@@ -676,9 +676,9 @@ class IndexTest(tests.Test):
     def test_find_AndNotFilter(self):
         db = Index({'prop': IndexedProperty('prop', 1, 'A')})
 
-        db.store('1', {'prop': 'a'}, True)
-        db.store('2', {'prop': 'b'}, True)
-        db.store('3', {'prop': 'c'}, True)
+        db.store('1', {'prop': 'a'})
+        db.store('2', {'prop': 'b'})
+        db.store('3', {'prop': 'c'})
 
         self.assertEqual(
                 sorted([
