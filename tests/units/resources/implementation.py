@@ -1,17 +1,20 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import os
 import zipfile
 
 import xapian
 
 from __init__ import tests
 
+from sugar_network import db
+from sugar_network.db.router import Router, route
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.implementation import _encode_version, Implementation
 from sugar_network.node.commands import NodeCommands
 from sugar_network.client import IPCClient
-from sugar_network.toolkit import http
+from sugar_network.toolkit import http, coroutine
 
 
 class ImplementationTest(tests.Test):
@@ -64,7 +67,7 @@ class ImplementationTest(tests.Test):
                 xapian.sortable_serialise(eval('1''0000''0000''6''001')),
                 _encode_version('1-post1.2-3'))
 
-    def test_Activities(self):
+    def test_ActivitityFiles(self):
         self.start_online_client()
         client = IPCClient()
 
@@ -94,6 +97,48 @@ class ImplementationTest(tests.Test):
         self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
         self.assertNotEqual(5, data['blob_size'])
         self.assertEqual(5, data.get('uncompressed_size'))
+
+    def test_ActivityUrls(self):
+        bundle = zipfile.ZipFile('blob', 'w')
+        bundle.writestr('topdir/probe', 'probe')
+        bundle.close()
+        bundle = file('blob', 'rb').read()
+        bundle_size = os.stat('blob').st_size
+        uncompressed_size = 5
+
+        class Files(db.CommandsProcessor):
+
+            @route('GET', '/bundle')
+            def bundle(self, request, response):
+                return bundle
+
+        self.start_online_client()
+        client = IPCClient()
+        files_server = coroutine.WSGIServer(('127.0.0.1', 9999), Router(Files()))
+        coroutine.spawn(files_server.serve_forever)
+        coroutine.dispatch()
+
+        context = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            })
+        client.put(['implementation', impl, 'data'], {'url': 'http://127.0.0.1:9999/bundle'})
+
+        data = self.node_volume['implementation'].get(impl).meta('data')
+        self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
+        self.assertEqual(bundle_size, data['blob_size'])
+        self.assertEqual(uncompressed_size, data.get('uncompressed_size'))
+        self.assertEqual('http://127.0.0.1:9999/bundle', data['url'])
+        assert 'blob' not in data
 
     def test_WrongAuthor(self):
         self.start_online_client()

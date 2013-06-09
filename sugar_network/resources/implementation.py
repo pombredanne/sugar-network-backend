@@ -15,6 +15,8 @@
 
 # pylint: disable-msg=E1101,E0102,E0202
 
+import os
+
 import xapian
 
 from sugar_network import db, resources
@@ -95,11 +97,23 @@ class Implementation(Resource):
     @data.setter
     def data(self, value):
         context = self.volume['context'].get(self['context'])
-        if 'activity' in context['type']:
+        if 'activity' not in context['type']:
+            return value
+
+        def calc_uncompressed_size(path):
             uncompressed_size = 0
-            with Bundle(value['blob'], mime_type='application/zip') as bundle:
+            with Bundle(path, mime_type='application/zip') as bundle:
                 for arcname in bundle.get_names():
                     uncompressed_size += bundle.getmember(arcname).size
             value['uncompressed_size'] = uncompressed_size
-            value['mime_type'] = 'application/vnd.olpc-sugar'
+
+        if 'blob' in value:
+            calc_uncompressed_size(value['blob'])
+        elif 'url' in value:
+            with util.NamedTemporaryFile() as f:
+                http.download(value['url'], f.name)
+                value['blob_size'] = os.stat(f.name).st_size
+                calc_uncompressed_size(f.name)
+
+        value['mime_type'] = 'application/vnd.olpc-sugar'
         return value

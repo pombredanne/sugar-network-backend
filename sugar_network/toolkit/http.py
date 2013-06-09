@@ -89,6 +89,11 @@ class ServiceUnavailable(Status):
     status_code = 503
 
 
+def download(url, dst_path):
+    # TODO (?) Reuse HTTP session
+    return Client().download(url, dst_path)
+
+
 class Client(object):
 
     def __init__(self, api_url='', creds=None, trust_env=True, max_retries=0):
