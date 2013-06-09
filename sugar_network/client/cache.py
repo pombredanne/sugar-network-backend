@@ -18,7 +18,7 @@ import shutil
 from os.path import exists, join
 
 from sugar_network.client import IPCClient, local_root
-from sugar_network.client.bundle import Bundle
+from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit import pipe, util
 
 

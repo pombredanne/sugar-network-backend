@@ -14,11 +14,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import tarfile
-import zipfile
 from os.path import join
 
-from sugar_network.client.spec import Spec
+from sugar_network.toolkit.spec import Spec
 
 
 class BundleError(Exception):
@@ -34,11 +32,13 @@ class Bundle(object):
             mime_type = _detect_mime_type(bundle) or ''
 
         if mime_type == 'application/zip':
+            import zipfile
             self._bundle = zipfile.ZipFile(bundle)
             self._do_get_names = self._bundle.namelist
             self._do_extractfile = self._bundle.open
             self._do_extract = self._bundle.extract
         elif mime_type.split('/')[-1].endswith('-tar'):
+            import tarfile
             self._bundle = tarfile.open(bundle)
             self._do_get_names = self._bundle.getnames
             self._do_extractfile = self._bundle.extractfile

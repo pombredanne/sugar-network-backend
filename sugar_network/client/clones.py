@@ -21,12 +21,11 @@ import logging
 from os.path import join, exists, lexists, relpath, dirname, basename, isdir
 from os.path import abspath, islink
 
-from sugar_network import db
-from sugar_network.client.spec import Spec
+from sugar_network import db, client
+from sugar_network.toolkit.spec import Spec
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
         IN_MOVED_TO, IN_MOVED_FROM
-from sugar_network import client
 from sugar_network.toolkit import coroutine, util, exception
 
 

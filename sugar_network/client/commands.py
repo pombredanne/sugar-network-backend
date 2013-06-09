@@ -21,9 +21,9 @@ from os.path import join
 from sugar_network import db, client, node, toolkit
 from sugar_network.toolkit import netlink, mountpoints
 from sugar_network.client import journal, clones, injector
-from sugar_network.client.spec import Spec
 from sugar_network.resources.volume import Volume, Commands
 from sugar_network.node.slave import SlaveCommands
+from sugar_network.toolkit.spec import Spec
 from sugar_network.toolkit import zeroconf, coroutine, util, http
 from sugar_network.toolkit import exception, enforce
 
