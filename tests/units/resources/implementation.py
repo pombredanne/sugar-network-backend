@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import zipfile
+
 import xapian
 
 from __init__ import tests
@@ -62,7 +64,7 @@ class ImplementationTest(tests.Test):
                 xapian.sortable_serialise(eval('1''0000''0000''6''001')),
                 _encode_version('1-post1.2-3'))
 
-    def test_SetMimeTypeForActivities(self):
+    def test_Activities(self):
         self.start_online_client()
         client = IPCClient()
 
@@ -83,8 +85,15 @@ class ImplementationTest(tests.Test):
         self.assertEqual('image/png', self.node_volume['implementation'].get(impl).meta('data')['mime_type'])
 
         client.put(['context', context, 'type'], 'activity')
-        client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
-        self.assertEqual('application/vnd.olpc-sugar', self.node_volume['implementation'].get(impl).meta('data')['mime_type'])
+        bundle = zipfile.ZipFile('blob', 'w')
+        bundle.writestr('topdir/probe', 'probe')
+        bundle.close()
+        client.request('PUT', ['implementation', impl, 'data'], file('blob', 'rb').read())
+
+        data = self.node_volume['implementation'].get(impl).meta('data')
+        self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
+        self.assertNotEqual(5, data['blob_size'])
+        self.assertEqual(5, data.get('uncompressed_size'))
 
     def test_WrongAuthor(self):
         self.start_online_client()

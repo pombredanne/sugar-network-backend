@@ -418,6 +418,7 @@ class VolumeTest(tests.Test):
                 {'guid': guid, 'blob_size': len('payload'), 'diff': {
                     'prop': {
                         'digest': hashlib.sha1('payload').hexdigest(),
+                        'blob_size': len('payload'),
                         'mime_type': 'application/octet-stream',
                         'mtime': 0,
                         },

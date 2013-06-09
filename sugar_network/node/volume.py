@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import logging
 
 from sugar_network.toolkit import BUFFER_SIZE, http, util, coroutine, enforce
@@ -51,7 +50,7 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
                         blob_path = meta.pop('blob')
                         yield {'guid': guid,
                                'diff': {prop: meta},
-                               'blob_size': os.stat(blob_path).st_size,
+                               'blob_size': meta['blob_size'],
                                'blob': util.iter_file(blob_path),
                                }
                     elif fetch_blobs and 'url' in meta:

@@ -20,6 +20,7 @@ import xapian
 from sugar_network import db, resources
 from sugar_network.resources.volume import Resource
 from sugar_network.toolkit.licenses import GOOD_LICENSES
+from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit import http, util, enforce
 
 
@@ -95,5 +96,10 @@ class Implementation(Resource):
     def data(self, value):
         context = self.volume['context'].get(self['context'])
         if 'activity' in context['type']:
+            uncompressed_size = 0
+            with Bundle(value['blob'], mime_type='application/zip') as bundle:
+                for arcname in bundle.get_names():
+                    uncompressed_size += bundle.getmember(arcname).size
+            value['uncompressed_size'] = uncompressed_size
             value['mime_type'] = 'application/vnd.olpc-sugar'
         return value

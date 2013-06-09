@@ -317,7 +317,6 @@ class NodeCommands(db.VolumeCommands, Commands):
         db.VolumeCommands.on_update(self, request, props, event)
         if 'deleted' in props.get('layer', []):
             event['event'] = 'delete'
-        print '1>>>', request, props, event
 
     @db.directory_command_pre(method='GET')
     def _NodeCommands_find_pre(self, request):

@@ -4,6 +4,7 @@
 import os
 import time
 import json
+import zipfile
 from email.utils import formatdate, parsedate
 from os.path import exists
 
@@ -434,9 +435,13 @@ class NodeTest(tests.Test):
             'notes': '',
             'requires': ['foo', 'bar'],
             })
-        client.request('PUT', ['implementation', impl, 'data'], 'bundle')
+        bundle = zipfile.ZipFile('blob', 'w')
+        bundle.writestr('topdir/probe', 'probe')
+        bundle.close()
+        blob = file('blob', 'rb').read()
+        client.request('PUT', ['implementation', impl, 'data'], blob)
 
-        self.assertEqual('bundle', client.get(['context', context], cmd='clone', version='1', stability='stable', requires=['foo', 'bar']))
+        self.assertEqual(blob, client.get(['context', context], cmd='clone', version='1', stability='stable', requires=['foo', 'bar']))
 
 
 def call(cp, principal=None, content=None, **kwargs):

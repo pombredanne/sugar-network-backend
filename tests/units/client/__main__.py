@@ -9,7 +9,6 @@ from journal import *
 from offline_commands import *
 from online_commands import *
 from server_commands import *
-from spec import *
 from solver import *
 
 if __name__ == '__main__':

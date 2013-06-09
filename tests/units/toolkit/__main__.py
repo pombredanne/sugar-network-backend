@@ -8,6 +8,7 @@ from mountpoints import *
 from rrd import *
 from util import *
 from options import *
+from spec import *
 
 if __name__ == '__main__':
     tests.main()

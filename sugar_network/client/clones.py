@@ -168,7 +168,7 @@ class _Inotify(Inotify):
 
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):
-                with file(icon_path, 'b') as f:
+                with file(icon_path, 'rb') as f:
                     self._contexts.update(context,
                             {'artifact_icon': {'blob': f}})
                 with util.NamedTemporaryFile() as f:

@@ -37,12 +37,16 @@ class Bundle(object):
             self._do_get_names = self._bundle.namelist
             self._do_extractfile = self._bundle.open
             self._do_extract = self._bundle.extract
+            self._do_getmember = self._bundle.getinfo
+            self._cast_info = _ZipInfo
         elif mime_type.split('/')[-1].endswith('-tar'):
             import tarfile
             self._bundle = tarfile.open(bundle)
             self._do_get_names = self._bundle.getnames
             self._do_extractfile = self._bundle.extractfile
             self._do_extract = self._bundle.extract
+            self._do_getmember = self._bundle.getmember
+            self._cast_info = lambda x: x
         else:
             raise BundleError('Unsupported bundle type for "%s" file, '
                     'it can be either tar or zip.' % bundle)
@@ -65,6 +69,9 @@ class Bundle(object):
 
     def extractall(self, path, members=None):
         self._bundle.extractall(path=path, members=members)
+
+    def getmember(self, name):
+        return self._cast_info(self._do_getmember(name))
 
     @property
     def rootdir(self):
@@ -122,3 +129,17 @@ def _detect_mime_type(filename):
         return 'application/x-xz-compressed-tar'
     if filename.endswith('.tar'):
         return 'application/x-tar'
+
+
+class _ZipInfo(object):
+
+    def __init__(self, info):
+        self._info = info
+
+    @property
+    def name(self):
+        return self._info.filename
+
+    @property
+    def size(self):
+        return self._info.file_size

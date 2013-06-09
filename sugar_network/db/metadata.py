@@ -123,8 +123,10 @@ class PropertyMetadata(dict):
         if path_:
             with file(path_) as f:
                 meta.update(json.load(f))
-            if exists(path_ + PropertyMetadata.BLOB_SUFFIX):
-                meta['blob'] = path_ + PropertyMetadata.BLOB_SUFFIX
+            blob_path = path_ + PropertyMetadata.BLOB_SUFFIX
+            if exists(blob_path):
+                meta['blob'] = blob_path
+                meta['blob_size'] = os.stat(blob_path).st_size
             meta['mtime'] = int(os.stat(path_).st_mtime)
         dict.__init__(self, meta)
 

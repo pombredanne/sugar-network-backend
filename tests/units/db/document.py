@@ -371,6 +371,7 @@ class DocumentTest(tests.Test):
                 'blob': {
                     'mtime': 1,
                     'blob': tests.tmpdir + '/1/1/blob.blob',
+                    'blob_size': 1,
                     },
                 }},
             {'guid': '2', 'diff': {
@@ -381,6 +382,7 @@ class DocumentTest(tests.Test):
                 'blob': {
                     'mtime': 2,
                     'blob': tests.tmpdir + '/2/2/blob.blob',
+                    'blob_size': 1,
                     },
                 }},
             {'guid': '3', 'diff': {
@@ -403,6 +405,7 @@ class DocumentTest(tests.Test):
                 'blob': {
                     'mtime': 2,
                     'blob': tests.tmpdir + '/2/2/blob.blob',
+                    'blob_size': 1,
                     },
                 }},
             ],

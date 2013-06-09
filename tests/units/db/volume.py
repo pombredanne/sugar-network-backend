@@ -266,6 +266,7 @@ class VolumeTest(tests.Test):
         blob_meta = {
                 'seqno': 2,
                 'blob': blob_path + '.blob',
+                'blob_size': 4,
                 'digest': hashlib.sha1('blob').hexdigest(),
                 'mime_type': 'application/octet-stream',
                 'mtime': int(os.stat(blob_path).st_mtime),
