@@ -263,6 +263,11 @@ class Application(application.Application):
         node.online_sync(no_pull=True)
 
     def sync_activities(self, addon_id=None):
+        directory = self.volume['context']
+        items, __ = directory.find(type='activity', layer='public',
+                limit=db.MAX_LIMIT)
+        existing_activities = set([i.guid for i in items])
+
         sql = """
             SELECT
                 id,
@@ -284,8 +289,19 @@ class Application(application.Application):
                 self.sync_reviews(addon_id, bundle_id)
             except Exception, error:
                 print '-- Cannot sync %r addon: %s' % (addon_id, error)
+            if bundle_id in existing_activities:
+                existing_activities.remove(bundle_id)
+
+        for guid in existing_activities:
+            print '-- Hide %r addon deleted on ASLO' % guid
+            directory.update(guid, {'layer': ['deleted']})
 
     def sync_reviews(self, addon_id, bundle_id):
+        directory = self.volume['review']
+        items, __ = directory.find(context=bundle_id, layer='public',
+                limit=db.MAX_LIMIT)
+        existing_reviews = set([i.guid for i in items])
+
         sql = """
             SELECT
                 reviews.id,
@@ -304,13 +320,14 @@ class Application(application.Application):
             WHERE
                 reply_to IS NULL AND versions.addon_id = %s
             """ % addon_id
-        directory = self.volume['review']
         for guid, created, title, content, rating, nickname, author in \
                 self.sqlexec(sql):
-            if directory.exists(str(guid)):
+            guid = str(guid)
+            if directory.exists(guid):
+                existing_reviews.remove(guid)
                 continue
             directory.create({
-                    'guid': str(guid),
+                    'guid': guid,
                     'ctime': int(time.mktime(created.timetuple())),
                     'mtime': int(time.mktime(created.timetuple())),
                     'context': bundle_id,
@@ -320,7 +337,16 @@ class Application(application.Application):
                     'author': self.authors(nickname, author),
                     })
 
+        for guid in existing_reviews:
+            print '-- Hide %r review deleted on ASLO' % guid
+            directory.update(guid, {'layer': ['deleted']})
+
     def sync_versions(self, addon_id, bundle_id):
+        directory = self.volume['implementation']
+        items, __ = directory.find(context=bundle_id, layer='public',
+                limit=db.MAX_LIMIT)
+        existing_versions = set([i.guid for i in items])
+
         sql = """
             SELECT
                 versions.id,
@@ -395,8 +421,11 @@ class Application(application.Application):
                             (alicense, filename, addon_id)
                     continue
 
-            if self.volume['implementation'].find(
-                    context=bundle_id, version=version, limit=1)[1]:
+            items, __ = directory.find(context=bundle_id,
+                    version=version, limit=1)
+            if items:
+                for i in items:
+                    existing_versions.remove(i.guid)
                 continue
 
             try:
@@ -418,6 +447,10 @@ class Application(application.Application):
 
         if recent_version:
             self.sync_context_metadata(bundle_id, addon_id, recent_filename)
+
+        for guid in existing_versions:
+            print '-- Hide %s %r version deleted on ASLO' % (bundle_id, guid)
+            directory.update(guid, {'layer': ['deleted']})
 
     def sync_context_metadata(self, bundle_id, addon_id, filename):
         bundle = Bundle(join(ACTIVITIES_PATH, str(addon_id), filename))
