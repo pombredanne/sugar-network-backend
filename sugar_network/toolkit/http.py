@@ -89,7 +89,7 @@ class ServiceUnavailable(Status):
     status_code = 503
 
 
-def download(url, dst_path):
+def download(url, dst_path=None):
     # TODO (?) Reuse HTTP session
     return Client().download(url, dst_path)
 
@@ -146,13 +146,18 @@ class Client(object):
         response = self.request('DELETE', path_, params=kwargs)
         return self._decode_reply(response)
 
-    def download(self, path, dst):
+    def download(self, path, dst=None):
         response = self.request('GET', path, allow_redirects=True)
+
         content_length = response.headers.get('Content-Length')
         if content_length:
             chunk_size = min(int(content_length), BUFFER_SIZE)
         else:
             chunk_size = BUFFER_SIZE
+
+        if dst is None:
+            return response.iter_content(chunk_size=chunk_size)
+
         f = file(dst, 'wb') if isinstance(dst, basestring) else dst
         try:
             for chunk in response.iter_content(chunk_size=chunk_size):

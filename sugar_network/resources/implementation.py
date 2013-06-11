@@ -100,20 +100,20 @@ class Implementation(Resource):
         if 'activity' not in context['type']:
             return value
 
-        def calc_uncompressed_size(path):
-            uncompressed_size = 0
+        def calc_unpack_size(path):
+            unpack_size = 0
             with Bundle(path, mime_type='application/zip') as bundle:
                 for arcname in bundle.get_names():
-                    uncompressed_size += bundle.getmember(arcname).size
-            value['uncompressed_size'] = uncompressed_size
+                    unpack_size += bundle.getmember(arcname).size
+            value['unpack_size'] = unpack_size
 
         if 'blob' in value:
-            calc_uncompressed_size(value['blob'])
+            calc_unpack_size(value['blob'])
         elif 'url' in value:
             with util.NamedTemporaryFile() as f:
                 http.download(value['url'], f.name)
                 value['blob_size'] = os.stat(f.name).st_size
-                calc_uncompressed_size(f.name)
+                calc_unpack_size(f.name)
 
         value['mime_type'] = 'application/vnd.olpc-sugar'
         return value

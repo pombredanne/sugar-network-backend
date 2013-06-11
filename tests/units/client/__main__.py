@@ -10,6 +10,7 @@ from offline_commands import *
 from online_commands import *
 from server_commands import *
 from solver import *
+from cache import *
 
 if __name__ == '__main__':
     tests.main()

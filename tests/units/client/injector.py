@@ -85,8 +85,8 @@ Can't find all required implementations:
                 'error_type': 'NotFound',
                 'solution': [{'name': 'title', 'prefix': 'topdir', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'}],
                 },
-            ],
-            [i for i in pipe])
+            ][-1],
+            [i for i in pipe][-1])
         assert not exists('cache/implementation/%s' % impl)
 
         blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)

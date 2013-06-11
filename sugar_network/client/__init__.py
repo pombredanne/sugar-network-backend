@@ -128,6 +128,20 @@ accept_language = Option(
         default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
         name='accept-language', short_option='-l')
 
+cache_limit = Option(
+        'the minimal disk free space, in percents, to preserve '
+        'while recycling disk cache',
+        default=10, type_cast=int, name='cache-limit')
+
+cache_lifetime = Option(
+        'the number of days to keep unused objects on disk cache '
+        'before recycling',
+        default=7, type_cast=int, name='cache-lifetime')
+
+cache_timeout = Option(
+        'check disk cache for recycling in specified delay in seconds',
+        default=3600, type_cast=int, name='cache-timeout')
+
 
 def path(*args):
     """Calculate a path from the root.

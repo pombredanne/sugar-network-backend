@@ -2,7 +2,6 @@
 # sugar-lint: disable
 
 import os
-import zipfile
 
 import xapian
 
@@ -88,23 +87,16 @@ class ImplementationTest(tests.Test):
         self.assertEqual('image/png', self.node_volume['implementation'].get(impl).meta('data')['mime_type'])
 
         client.put(['context', context, 'type'], 'activity')
-        bundle = zipfile.ZipFile('blob', 'w')
-        bundle.writestr('topdir/probe', 'probe')
-        bundle.close()
-        client.request('PUT', ['implementation', impl, 'data'], file('blob', 'rb').read())
+        client.request('PUT', ['implementation', impl, 'data'], self.zips(('topdir/probe', 'probe')))
 
         data = self.node_volume['implementation'].get(impl).meta('data')
         self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
         self.assertNotEqual(5, data['blob_size'])
-        self.assertEqual(5, data.get('uncompressed_size'))
+        self.assertEqual(5, data.get('unpack_size'))
 
     def test_ActivityUrls(self):
-        bundle = zipfile.ZipFile('blob', 'w')
-        bundle.writestr('topdir/probe', 'probe')
-        bundle.close()
-        bundle = file('blob', 'rb').read()
-        bundle_size = os.stat('blob').st_size
-        uncompressed_size = 5
+        bundle = self.zips(('topdir/probe', 'probe'))
+        unpack_size = len('probe')
 
         class Files(db.CommandsProcessor):
 
@@ -135,8 +127,8 @@ class ImplementationTest(tests.Test):
 
         data = self.node_volume['implementation'].get(impl).meta('data')
         self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
-        self.assertEqual(bundle_size, data['blob_size'])
-        self.assertEqual(uncompressed_size, data.get('uncompressed_size'))
+        self.assertEqual(len(bundle), data['blob_size'])
+        self.assertEqual(unpack_size, data.get('unpack_size'))
         self.assertEqual('http://127.0.0.1:9999/bundle', data['url'])
         assert 'blob' not in data
 

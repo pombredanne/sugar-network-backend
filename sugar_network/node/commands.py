@@ -243,9 +243,10 @@ class NodeCommands(db.VolumeCommands, Commands):
     def feed(self, document, guid, layer, distro, request):
         enforce(document == 'context')
         context = self.volume['context'].get(guid)
-
+        implementations = self.volume['implementation']
         versions = []
-        impls, __ = self.volume['implementation'].find(limit=db.MAX_LIMIT,
+
+        impls, __ = implementations.find(limit=db.MAX_LIMIT,
                 context=context.guid, layer=layer)
         for impl in impls:
             for arch, spec in impl['spec'].items():
@@ -257,6 +258,11 @@ class NodeCommands(db.VolumeCommands, Commands):
                     requires = spec.setdefault('requires', {})
                     for i in context['dependencies']:
                         requires.setdefault(i, {})
+                blob = implementations.get(impl.guid).meta('data')
+                if blob:
+                    spec['mime_type'] = blob.get('mime_type')
+                    spec['blob_size'] = blob.get('blob_size')
+                    spec['unpack_size'] = blob.get('unpack_size')
                 versions.append(spec)
 
         result = {

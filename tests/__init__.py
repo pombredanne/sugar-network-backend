@@ -7,6 +7,7 @@ import signal
 import shutil
 import hashlib
 import logging
+import zipfile
 import unittest
 import tempfile
 import subprocess
@@ -15,7 +16,7 @@ from os.path import dirname, join, exists, abspath, isfile
 from M2Crypto import DSA
 from gevent import monkey
 
-from sugar_network.toolkit import coroutine, http, mountpoints, util, Option
+from sugar_network.toolkit import coroutine, http, mountpoints, util, Option, pipe
 from sugar_network.db.router import Router
 from sugar_network.client import journal, IPCRouter, commands
 from sugar_network.client.commands import ClientCommands
@@ -93,6 +94,8 @@ class Test(unittest.TestCase):
         client.mounts_root.value = None
         client.ipc_port.value = 5555
         client.layers.value = None
+        client.cache_limit.value = 0
+        client.cache_lifetime.value = 0
         commands._RECONNECT_TIMEOUT = 0
         mountpoints._connects.clear()
         mountpoints._found.clear()
@@ -113,6 +116,8 @@ class Test(unittest.TestCase):
         journal._ds_root = tmpdir + '/datastore'
         solver.nodeps = False
         downloads._POOL_SIZE = 256
+        pipe._pipe = None
+        pipe._trace = None
 
         Volume.RESOURCES = [
                 'sugar_network.resources.user',
@@ -217,6 +222,14 @@ class Test(unittest.TestCase):
             for root, __, files in os.walk(path):
                 for i in files:
                     os.utime(join(root, i), (ts, ts))
+
+    def zips(self, *items):
+        with util.NamedTemporaryFile() as f:
+            bundle = zipfile.ZipFile(f.name, 'w')
+            for arcname, data in items:
+                bundle.writestr(arcname, data)
+            bundle.close()
+            return file(f.name, 'rb').read()
 
     def fork(self, cb, *args):
         pid = os.fork()

@@ -104,9 +104,7 @@ def _make(context):
     for impl in solution:
         if 'path' in impl or impl['stability'] == 'packaged':
             continue
-
-        # TODO Process different mountpoints
-        impl_path = cache.get(impl['id'])
+        impl_path = cache.get(impl['id'], impl)
         if 'prefix' in impl:
             impl_path = join(impl_path, impl['prefix'])
         impl['path'] = impl_path
@@ -163,7 +161,7 @@ def _clone_impl(context_guid, params):
     impl = impls[0]
 
     spec = impl['spec']['*-*']
-    src_path = cache.get(impl['guid'])
+    src_path = cache.get(impl['guid'], impl)
     if 'extract' in spec:
         src_path = join(src_path, spec['extract'])
     dst_path = util.unique_filename(

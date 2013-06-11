@@ -161,6 +161,12 @@ def _impl_new(config, iface, sel):
             'name': feed.title,
             'stability': sel.impl.upstream_stability.name,
             }
+    if sel.impl.hints:
+        for key in ('mime_type', 'blob_size', 'unpack_size'):
+            value = sel.impl.hints.get(key)
+            if value is not None:
+                impl[key] = value
+
     if isabs(sel.id):
         impl['spec'] = join(sel.id, 'activity', 'activity.info')
     if sel.local_path:
@@ -265,6 +271,7 @@ class _Feed(model.ZeroInstallFeed):
         impl.arch = release['arch']
         impl.upstream_stability = model.stability_levels[release['stability']]
         impl.requires.extend(_read_requires(release.get('requires')))
+        impl.hints = release
 
         if isabs(impl_id):
             impl.local_path = impl_id
@@ -295,6 +302,7 @@ class _Feed(model.ZeroInstallFeed):
 class _Implementation(model.ZeroInstallImplementation):
 
     to_install = None
+    hints = None
 
 
 class _Dependency(model.InterfaceDependency):
