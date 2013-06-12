@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
+# sugar-lint: disable
 
-# Copyright (C) l013 Aleksey Lim
+# Copyright (C) 2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

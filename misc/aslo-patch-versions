@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+# sugar-lint: disable
+
+# Copyright (C) 2013 Aleksey Lim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import os
+from optparse import OptionParser
+from os.path import exists
+
+from sugar_network import db
+from sugar_network.node import data_root
+from sugar_network.resources.volume import Volume
+from sugar_network.toolkit.bundle import Bundle
+from sugar_network.toolkit import Option
+
+
+DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
+
+
+Option.seek('node', [data_root])
+Option.parse_args(OptionParser(), config_files=['~/.config/sweets/config'])
+
+db.index_write_queue.value = 1024 * 10
+db.index_flush_threshold.value = 0
+db.index_flush_timeout.value = 0
+
+volume = Volume(data_root.value)
+volume.populate()
+directory = volume['implementation']
+try:
+    items, __ = directory.find(limit=db.MAX_LIMIT)
+    for impl in items:
+        data = impl['data']
+        url = data.get('url')
+        if not url or not url.startswith(DOWNLOAD_URL):
+            continue
+        blob_path = '/upload/activities' + url[len(DOWNLOAD_URL):]
+        if not exists(blob_path):
+            if 'deleted' not in impl['layer']:
+                print '-- Cannot find %r' % blob_path
+            continue
+        unpack_size = 0
+        with Bundle(blob_path, mime_type='application/zip') as bundle:
+            for arcname in bundle.get_names():
+                unpack_size += bundle.getmember(arcname).size
+        data['unpack_size'] = unpack_size
+        data['blob_size'] = os.stat(blob_path).st_size
+        data['mime_type'] = 'application/vnd.olpc-sugar'
+        data.pop('seqno')
+        directory.update(impl.guid, {'data': data})
+finally:
+    volume.close()
