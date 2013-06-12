@@ -9,6 +9,7 @@ from __init__ import tests
 
 from sugar_network import db
 from sugar_network.db.router import Router, route
+from sugar_network.resources import implementation
 from sugar_network.resources.volume import Volume
 from sugar_network.resources.implementation import _encode_version, Implementation
 from sugar_network.node.commands import NodeCommands
@@ -130,6 +131,38 @@ class ImplementationTest(tests.Test):
         self.assertEqual(len(bundle), data['blob_size'])
         self.assertEqual(unpack_size, data.get('unpack_size'))
         self.assertEqual('http://127.0.0.1:9999/bundle', data['url'])
+        assert 'blob' not in data
+
+    def test_ActivityASLOUrls(self):
+        implementation._ASLO_PATH = '.'
+        bundle = self.zips(('topdir/probe', 'probe'))
+        with file('bundle', 'w') as f:
+            f.write(bundle)
+        unpack_size = len('probe')
+
+        self.start_online_client()
+        client = IPCClient()
+
+        context = client.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            })
+        client.put(['implementation', impl, 'data'], {'url': 'http://download.sugarlabs.org/activities/bundle'})
+
+        data = self.node_volume['implementation'].get(impl).meta('data')
+        self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
+        self.assertEqual(len(bundle), data['blob_size'])
+        self.assertEqual(unpack_size, data.get('unpack_size'))
+        self.assertEqual('http://download.sugarlabs.org/activities/bundle', data['url'])
         assert 'blob' not in data
 
     def test_WrongAuthor(self):

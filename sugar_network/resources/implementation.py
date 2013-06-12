@@ -16,6 +16,7 @@
 # pylint: disable-msg=E1101,E0102,E0202
 
 import os
+from os.path import exists
 
 import xapian
 
@@ -24,6 +25,10 @@ from sugar_network.resources.volume import Resource
 from sugar_network.toolkit.licenses import GOOD_LICENSES
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit import http, util, enforce
+
+
+_ASLO_URL = 'http://download.sugarlabs.org/activities'
+_ASLO_PATH = '/upload/activities'
 
 
 def _encode_version(version):
@@ -107,13 +112,21 @@ class Implementation(Resource):
                     unpack_size += bundle.getmember(arcname).size
             value['unpack_size'] = unpack_size
 
-        if 'blob' in value:
-            calc_unpack_size(value['blob'])
-        elif 'url' in value:
-            with util.NamedTemporaryFile() as f:
-                http.download(value['url'], f.name)
-                value['blob_size'] = os.stat(f.name).st_size
-                calc_unpack_size(f.name)
+        if 'unpack_size' not in value:
+            if 'blob' in value:
+                calc_unpack_size(value['blob'])
+            elif 'url' in value:
+                url = value['url']
+                if url.startswith(_ASLO_URL):
+                    local_path = _ASLO_PATH + url[len(_ASLO_URL):]
+                    if exists(local_path):
+                        calc_unpack_size(local_path)
+                        value['blob_size'] = os.stat(local_path).st_size
+                if 'unpack_size' not in value:
+                    with util.NamedTemporaryFile() as f:
+                        http.download(url, f.name)
+                        value['blob_size'] = os.stat(f.name).st_size
+                        calc_unpack_size(f.name)
 
         value['mime_type'] = 'application/vnd.olpc-sugar'
         return value
