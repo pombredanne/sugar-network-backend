@@ -331,23 +331,24 @@ class IndexWriter(IndexReader):
 
             if prop.slot is not None:
                 if prop.typecast in [int, float, bool]:
-                    add_value = xapian.sortable_serialise(value)
+                    value_ = xapian.sortable_serialise(value)
                 else:
                     if prop.localized:
-                        value = env.gettext(value) or ''
-                    add_value = prop.to_string(value)[0]
-                document.add_value(prop.slot, add_value)
+                        value_ = env.gettext(value) or ''
+                    else:
+                        value_ = prop.to_string(value)[0]
+                document.add_value(prop.slot, value_)
 
             if prop.prefix or prop.full_text:
-                for value in prop.to_string(value):
+                for value_ in prop.to_string(value):
                     if prop.prefix:
                         if prop.boolean:
                             document.add_boolean_term(
-                                    _term(prop.prefix, value))
+                                    _term(prop.prefix, value_))
                         else:
-                            document.add_term(_term(prop.prefix, value))
+                            document.add_term(_term(prop.prefix, value_))
                     if prop.full_text:
-                        term_generator.index_text(value, 1, prop.prefix or '')
+                        term_generator.index_text(value_, 1, prop.prefix or '')
                     term_generator.increase_termpos()
 
         self._db.replace_document(_term(GUID_PREFIX, guid), document)

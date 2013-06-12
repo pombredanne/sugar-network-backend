@@ -592,6 +592,43 @@ class IndexTest(tests.Test):
             ],
             db._find(order_by='-prop')[0])
 
+    def test_SearchByLocalizedProps(self):
+        db = Index({'prop': IndexedProperty('prop', 1, 'A', localized=True, full_text=True)})
+
+        db.store('1', {'prop': {'a': 'ё'}})
+        db.store('2', {'prop': {'a': 'ё', 'b': 'ю'}})
+        db.store('3', {'prop': {'a': 'ю', 'b': 'ё', 'c': 'я'}})
+
+        self.assertEqual(
+                sorted([{'guid': '1'}, {'guid': '2'}, {'guid': '3'}]),
+                sorted(db._find(prop='ё')[0]))
+        self.assertEqual(
+                sorted([{'guid': '2'}, {'guid': '3'}]),
+                sorted(db._find(prop='ю')[0]))
+        self.assertEqual(
+                sorted([{'guid': '3'}]),
+                sorted(db._find(prop='я')[0]))
+
+        self.assertEqual(
+                sorted([{'guid': '1'}, {'guid': '2'}, {'guid': '3'}]),
+                sorted(db._find(query='ё')[0]))
+        self.assertEqual(
+                sorted([{'guid': '2'}, {'guid': '3'}]),
+                sorted(db._find(query='ю')[0]))
+        self.assertEqual(
+                sorted([{'guid': '3'}]),
+                sorted(db._find(query='я')[0]))
+
+        self.assertEqual(
+                sorted([{'guid': '1'}, {'guid': '2'}, {'guid': '3'}]),
+                sorted(db._find(query='prop:ё')[0]))
+        self.assertEqual(
+                sorted([{'guid': '2'}, {'guid': '3'}]),
+                sorted(db._find(query='prop:ю')[0]))
+        self.assertEqual(
+                sorted([{'guid': '3'}]),
+                sorted(db._find(query='prop:я')[0]))
+
     def test_find_MultipleFilter(self):
         db = Index({'prop': IndexedProperty('prop', 1, 'A')})
 
