@@ -37,8 +37,9 @@ class Option(object):
     sections = {}
     #: Configure files used to form current configuration
     config_files = []
+    #: `Option` value for --config setting
+    config = None
 
-    _config = None
     _config_to_save = None
 
     def __init__(self, description=None, default=None, short_option=None,
@@ -191,7 +192,7 @@ class Option(object):
 
         # Update default values accoriding to current values
         # to expose them while processing --help
-        for prop in [Option._config] + Option.items.values():
+        for prop in [Option.config] + Option.items.values():
             if prop is None:
                 continue
             parser.set_default(prop.name.replace('-', '_'), prop)
@@ -279,20 +280,19 @@ class Option(object):
         import re
 
         if config_files:
-            Option._config = Option()
-            Option._config.name = 'config'
-            Option._config.attr_name = 'config'
-            Option._config.description = \
-                    'colon separated list of paths to alternative ' \
-                    'configuration file(s)'
-            Option._config.short_option = '-c'
-            Option._config.type_cast = \
+            Option.config = Option()
+            Option.config.name = 'config'
+            Option.config.attr_name = 'config'
+            Option.config.description = \
+                    'colon separated list of paths to configuration file(s)'
+            Option.config.short_option = '-c'
+            Option.config.type_cast = \
                     lambda x: [i for i in re.split('[\\s:;,]+', x) if i]
-            Option._config.type_repr = \
+            Option.config.type_repr = \
                     lambda x: ':'.join(x)
-            Option._config.value = ':'.join(config_files)
+            Option.config.value = ':'.join(config_files)
 
-        for prop in [Option._config] + Option.items.values():
+        for prop in [Option.config] + Option.items.values():
             if prop is None:
                 continue
             desc = prop.description
@@ -308,8 +308,8 @@ class Option(object):
     def _merge(options, config_files):
         from ConfigParser import ConfigParser
 
-        if not config_files and Option._config is not None:
-            config_files = Option._config.value
+        if not config_files and Option.config is not None:
+            config_files = Option.config.value
 
         configs = [ConfigParser()]
         for config in config_files or []:
