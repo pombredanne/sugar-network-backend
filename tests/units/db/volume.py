@@ -43,10 +43,12 @@ class VolumeTest(tests.Test):
                 return value
 
         self.volume = db.Volume(tests.tmpdir, [Document])
-        guid = self.call('POST', document='document', content={})
 
+        self.assertRaises(RuntimeError, self.call, 'POST', document='document', content={})
+
+        guid = self.call('POST', document='document', content={'wo_default': 'wo_default'})
         self.assertEqual('default', self.call('GET', document='document', guid=guid, prop='w_default'))
-        self.assertEqual(None, self.call('GET', document='document', guid=guid, prop='wo_default'))
+        self.assertEqual('wo_default', self.call('GET', document='document', guid=guid, prop='wo_default'))
         self.assertEqual('not_stored_default', self.call('GET', document='document', guid=guid, prop='not_stored_default'))
 
     def test_Populate(self):
@@ -1044,6 +1046,31 @@ class VolumeTest(tests.Test):
         self.assertEqual(
                 'default',
                 self.call('GET', document='testdocument', guid=guid, prop='prop'))
+
+    def test_PopulateNonDefualtPropsInSetters(self):
+
+        class TestDocument(db.Document):
+
+            @db.indexed_property(slot=1)
+            def prop1(self, value):
+                return value
+
+            @db.indexed_property(slot=2, default='default')
+            def prop2(self, value):
+                return all
+
+            @prop2.setter
+            def prop2(self, value):
+                if value != 'default':
+                    self['prop1'] = value
+                return value
+
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
+
+        self.assertRaises(RuntimeError, self.call, 'POST', document='testdocument', content={})
+
+        guid = self.call('POST', document='testdocument', content={'prop2': 'value2'})
+        self.assertEqual('value2', self.call('GET', document='testdocument', guid=guid, prop='prop1'))
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,

@@ -343,10 +343,11 @@ class Directory(object):
                     record.set(name, seqno=seqno, **value)
             elif isinstance(prop, StoredProperty):
                 if value is None:
-                    if existed:
-                        meta = record.get(name)
-                        if meta is not None:
-                            value = meta['value']
+                    enforce(existed or prop.default is not None,
+                            'Value is not specified for %r property', name)
+                    meta = record.get(name)
+                    if meta is not None:
+                        value = meta['value']
                     changes[name] = prop.default if value is None else value
                 else:
                     if prop.localized:
