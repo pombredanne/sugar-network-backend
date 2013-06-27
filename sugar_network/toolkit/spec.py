@@ -20,12 +20,10 @@ from os.path import join, exists, dirname
 from ConfigParser import ConfigParser
 
 from sugar_network.toolkit.licenses import GOOD_LICENSES
-from sugar_network.toolkit import util, enforce
+from sugar_network.toolkit import exception, enforce
 
 
-_LIST_SEPARATOR = ';'
-
-_POLICY_URL = 'http://wiki.sugarlabs.org/go/Sugar_Network/Policy'
+EMPTY_LICENSE = 'License is not specified'
 
 _FIELDS = {
         # name: (required, typecast)
@@ -43,10 +41,109 @@ _FIELDS = {
         }
 _ARCHES = ['all', 'any']
 _STABILITIES = ('insecure', 'buggy', 'developer', 'testing', 'stable')
+_POLICY_URL = 'http://wiki.sugarlabs.org/go/Sugar_Network/Policy'
+_LIST_SEPARATOR = ';'
 
 _RESTRICTION_RE = re.compile('(>=|<|=)\\s*([0-9.]+)')
 
+_VERSION_RE = re.compile('-([a-z]*)')
+_VERSION_MOD_TO_VALUE = {
+        'pre': -2,
+        'rc': -1,
+        '': 0,
+        'r': 1,
+        'post': 2,
+        }
+_VERSION_VALUE_TO_MOD = {}
+
 _logger = logging.getLogger('sweets-recipe')
+
+
+def parse_version(version_string):
+    """Convert a version string to an internal representation.
+
+    The parsed format can be compared quickly using the standard Python
+    functions. Adapted Zero Install version.
+
+    :param version_string:
+        version in format supported by 0install
+    :returns:
+        array of arrays of integers
+
+    """
+    if version_string is None:
+        return None
+
+    parts = _VERSION_RE.split(version_string)
+    if parts[-1] == '':
+        del parts[-1]  # Ends with a modifier
+    else:
+        parts.append('')
+    enforce(parts, ValueError, 'Empty version string')
+
+    length = len(parts)
+    try:
+        for x in range(0, length, 2):
+            part = parts[x]
+            if part:
+                parts[x] = [int(i) for i in part.split('.')]
+            else:
+                parts[x] = []  # (because ''.split('.') == [''], not [])
+        for x in range(1, length, 2):
+            parts[x] = _VERSION_MOD_TO_VALUE[parts[x]]
+        return parts
+    except ValueError as error:
+        exception()
+        raise ValueError('Invalid version format in "%s": %s' %
+                (version_string, error))
+    except KeyError as error:
+        raise ValueError('Invalid version modifier in "%s": %s' %
+                (version_string, error))
+
+
+def format_version(version):
+    """Convert version to string representation.
+
+    If string value is passed, it will be parsed to procuduce
+    canonicalized string representation.
+
+    """
+    if version is None:
+        return None
+    if isinstance(version, basestring):
+        version = parse_version(version)
+
+    if not _VERSION_VALUE_TO_MOD:
+        for mod, value in _VERSION_MOD_TO_VALUE.items():
+            _VERSION_VALUE_TO_MOD[value] = mod
+
+    version = version[:]
+    length = len(version)
+
+    for x in range(0, length, 2):
+        version[x] = '.'.join([str(i) for i in version[x]])
+    for x in range(1, length, 2):
+        version[x] = '-' + _VERSION_VALUE_TO_MOD[version[x]]
+    if version[-1] == '-':
+        del version[-1]
+
+    return ''.join(version)
+
+
+def format_next_version(version):
+    """Convert incremented version to string representation.
+
+    Before convertation, the last version's rank will be incremented.
+    If string value is passed, it will be parsed to procuduce
+    canonicalized string representation.
+
+    """
+    if version is None:
+        return None
+    if isinstance(version, basestring):
+        version = parse_version(version)
+    version[-2][-1] += 1
+    return format_version(version)
 
 
 class Spec(object):
@@ -189,7 +286,7 @@ class Spec(object):
             if not self['icon'].lower().endswith('.svg'):
                 self._fields['icon'] = join('activity', self['icon'] + '.svg')
             if not self['license']:
-                self._fields['license'] = 'license is not specified'
+                self._fields['license'] = EMPTY_LICENSE
 
         for key, (required, __) in _FIELDS.items():
             enforce(not required or key in self._fields,
@@ -200,8 +297,7 @@ class Spec(object):
 
         if not self['description']:
             self._fields['description'] = self['summary']
-        self._fields['version'] = \
-                util.format_version(util.parse_version(self['version']))
+        self._fields['version'] = format_version(self['version'])
 
         if not self.archives:
             self.archives.append(_Archive(self._config, 'DEFAULT'))
@@ -303,6 +399,21 @@ class _Command(dict):
         self.requires = {}
 
 
+class _Dependency(dict):
+
+    def versions_range(self):
+        for not_before, before in self.get('restrictions') or []:
+            i = parse_version(not_before)[0]
+            yield format_version([i, 0])
+            end = parse_version(before)[0]
+            i = i[:min(len(i), len(end))]
+            while True:
+                i[-1] += 1
+                if i >= end:
+                    break
+                yield format_version([i, 0])
+
+
 def _parse_bindings(text):
     result = set()
 
@@ -330,7 +441,7 @@ def _parse_requires(requires):
     result = {}
 
     for dep_str in _parse_list(requires):
-        dep = {}
+        dep = _Dependency()
 
         if dep_str.startswith('[') and dep_str.endswith(']'):
             dep_str = dep_str[1:-1]
@@ -348,17 +459,18 @@ def _parse_requires(requires):
 
         not_before = None
         before = None
-
         while len(parts) >= 3:
-            if parts[0] == '>=':
-                not_before = util.format_version(util.parse_version(parts[1]))
-            elif parts[0] == '<':
-                before = util.format_version(util.parse_version(parts[1]))
+            if parts[0] == '<':
+                before = format_version(parts[1])
+            elif parts[0] == '<=':
+                before = format_next_version(parts[1])
+            elif parts[0] == '>':
+                not_before = format_next_version(parts[1])
+            elif parts[0] == '>=':
+                not_before = format_version(parts[1])
             elif parts[0] == '=':
-                not_before = util.format_version(util.parse_version(parts[1]))
-                before = util.parse_version(parts[1])
-                before[-2][-1] += 1
-                before = util.format_version(before)
+                not_before = format_version(parts[1])
+                before = format_next_version(parts[1])
             del parts[:3]
 
         enforce(not parts or not parts[0].strip(),

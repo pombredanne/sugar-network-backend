@@ -16,7 +16,6 @@
 """Swiss knife module."""
 
 import os
-import re
 import json
 import logging
 import hashlib
@@ -25,18 +24,8 @@ import collections
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
 from os.path import lexists, isfile
 
-from sugar_network.toolkit import BUFFER_SIZE, cachedir, exception, enforce
+from sugar_network.toolkit import BUFFER_SIZE, cachedir, enforce
 
-
-_VERSION_RE = re.compile('-([a-z]*)')
-_VERSION_MOD_TO_VALUE = {
-        'pre': -2,
-        'rc': -1,
-        '': 0,
-        'post': 1,
-        'r': 1,
-        }
-_VERSION_VALUE_TO_MOD = {}
 
 _logger = logging.getLogger('toolkit.util')
 
@@ -98,70 +87,6 @@ def iter_file(*path):
             if not chunk:
                 return
             yield chunk
-
-
-def parse_version(version_string):
-    """Convert a version string to an internal representation.
-
-    The parsed format can be compared quickly using the standard Python
-    functions. Adapted Zero Install version.
-
-    :param version_string:
-        version in format supported by 0install
-    :returns:
-        array of arrays of integers
-
-    """
-    if version_string is None:
-        return None
-
-    parts = _VERSION_RE.split(version_string)
-    if parts[-1] == '':
-        del parts[-1]  # Ends with a modifier
-    else:
-        parts.append('')
-    enforce(parts, ValueError, 'Empty version string')
-
-    length = len(parts)
-    try:
-        for x in range(0, length, 2):
-            part = parts[x]
-            if part:
-                parts[x] = [int(i or '0') for i in part.split('.')]
-            else:
-                parts[x] = []  # (because ''.split('.') == [''], not [])
-        for x in range(1, length, 2):
-            parts[x] = _VERSION_MOD_TO_VALUE[parts[x]]
-        return parts
-    except ValueError as error:
-        exception()
-        raise RuntimeError('Invalid version format in "%s": %s' %
-                (version_string, error))
-    except KeyError as error:
-        raise RuntimeError('Invalid version modifier in "%s": %s' %
-                (version_string, error))
-
-
-def format_version(version):
-    """Convert internal version representation back to string."""
-    if version is None:
-        return None
-
-    if not _VERSION_VALUE_TO_MOD:
-        for mod, value in _VERSION_MOD_TO_VALUE.items():
-            _VERSION_VALUE_TO_MOD[value] = mod
-
-    version = version[:]
-    length = len(version)
-
-    for x in range(0, length, 2):
-        version[x] = '.'.join([str(i) for i in version[x]])
-    for x in range(1, length, 2):
-        version[x] = '-' + _VERSION_VALUE_TO_MOD[version[x]]
-    if version[-1] == '-':
-        del version[-1]
-
-    return ''.join(version)
 
 
 def readline(stream, limit=None):

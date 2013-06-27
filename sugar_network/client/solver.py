@@ -18,7 +18,8 @@ import logging
 from os.path import isabs, join, dirname
 
 from sugar_network.client import packagekit, SUGAR_API_COMPATIBILITY
-from sugar_network.toolkit import http, util, lsb_release, pipe, exception
+from sugar_network.toolkit.spec import parse_version
+from sugar_network.toolkit import http, lsb_release, pipe, exception
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'zeroinstall'))
 
@@ -253,7 +254,7 @@ class _Feed(model.ZeroInstallFeed):
         top_package = packages[0]
 
         impl = _Implementation(self, self.context, None)
-        impl.version = util.parse_version(top_package['version'])
+        impl.version = parse_version(top_package['version'])
         impl.released = 0
         impl.arch = '*-%s' % top_package['arch']
         impl.upstream_stability = model.stability_levels['packaged']
@@ -266,7 +267,7 @@ class _Feed(model.ZeroInstallFeed):
         impl_id = release['guid']
 
         impl = _Implementation(self, impl_id, None)
-        impl.version = util.parse_version(release['version'])
+        impl.version = parse_version(release['version'])
         impl.released = 0
         impl.arch = release['arch']
         impl.upstream_stability = model.stability_levels[release['stability']]
@@ -291,7 +292,7 @@ class _Feed(model.ZeroInstallFeed):
     def implement_sugar(self, sugar_version):
         impl_id = 'sugar-%s' % sugar_version
         impl = _Implementation(self, impl_id, None)
-        impl.version = util.parse_version(sugar_version)
+        impl.version = parse_version(sugar_version)
         impl.released = 0
         impl.arch = '*-*'
         impl.upstream_stability = model.stability_levels['packaged']
@@ -317,8 +318,8 @@ class _Dependency(model.InterfaceDependency):
 
         for not_before, before in data.get('restrictions') or []:
             restriction = model.VersionRangeRestriction(
-                    not_before=util.parse_version(not_before),
-                    before=util.parse_version(before))
+                    not_before=parse_version(not_before),
+                    before=parse_version(before))
             self.restrictions.append(restriction)
 
     @property
