@@ -60,16 +60,17 @@ rundir = Option(
 _LOGFILE_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
-def command(description='', name=None, args=None, hidden=False, **options):
+def command(description='', name=None, args=None, hidden=False,
+        interspersed_args=True, **options):
 
     def decorator(func):
-        # pylint: disable-msg=W0212
-        func._is_command = True
+        func.is_command = True
         func.name = name
         func.description = description
         func.args = args
         func.options = options
         func.hidden = hidden
+        func.interspersed_args = interspersed_args
         return func
 
     return decorator
@@ -78,17 +79,22 @@ def command(description='', name=None, args=None, hidden=False, **options):
 class Application(object):
 
     def __init__(self, name, description=None, version=None, epilog=None,
-            where=None, **parse_args):
+            where=None, **kwargs):
         self._rundir = None
         self.args = None
         self.name = name
-
         self._commands = {}
+
+        stop_args = []
         for name in dir(self.__class__):
             attr = getattr(self.__class__, name)
-            if hasattr(attr, '_is_command') and \
-                    (attr.name != 'config' or 'config_files' in parse_args):
-                self._commands[attr.name or name] = getattr(self, name)
+            if not hasattr(attr, 'is_command') or \
+                    (attr.name == 'config' and 'config_files' not in kwargs):
+                continue
+            cmd_name = attr.name or name
+            cmd = self._commands[cmd_name] = getattr(self, name)
+            if not cmd.interspersed_args:
+                stop_args.append(cmd_name)
 
         parser = OptionParser(usage='%prog [OPTIONS]', description=description,
                 add_help_option=False)
@@ -103,7 +109,8 @@ class Application(object):
                 help=_('show this help message and exit'),
                 action='store_true')
 
-        options, self.args = Option.parse_args(parser, **parse_args)
+        options, self.args = Option.parse_args(parser, stop_args=stop_args,
+                **kwargs)
 
         def print_desc(term, desc):
             text = []
