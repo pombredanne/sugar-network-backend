@@ -943,6 +943,65 @@ class VolumeTest(tests.Test):
         self.assertEqual(4, self.call('GET', document='testdocument', guid=guid, prop='prop1'))
         self.assertEqual(1, self.call('GET', document='testdocument', guid=guid, prop='prop2'))
 
+    def test_properties_PopulateRequiredPropsInSetters(self):
+
+        class TestDocument(db.Document):
+
+            @db.indexed_property(slot=1, typecast=int)
+            def prop1(self, value):
+                return value
+
+            @prop1.setter
+            def prop1(self, value):
+                self['prop2'] = value + 1
+                return value
+
+            @db.indexed_property(slot=2, typecast=int)
+            def prop2(self, value):
+                return value
+
+            @db.blob_property()
+            def prop3(self, value):
+                return value
+
+            @prop3.setter
+            def prop3(self, value):
+                self['prop1'] = -1
+                self['prop2'] = -2
+                return value
+
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={'prop1': 1})
+        self.assertEqual(1, self.call('GET', document='testdocument', guid=guid, prop='prop1'))
+        self.assertEqual(2, self.call('GET', document='testdocument', guid=guid, prop='prop2'))
+
+    def test_properties_PopulateRequiredPropsInBlobSetter(self):
+
+        class TestDocument(db.Document):
+
+            @db.blob_property()
+            def blob(self, value):
+                return value
+
+            @blob.setter
+            def blob(self, value):
+                self['prop1'] = 1
+                self['prop2'] = 2
+                return value
+
+            @db.indexed_property(slot=1, typecast=int)
+            def prop1(self, value):
+                return value
+
+            @db.indexed_property(slot=2, typecast=int)
+            def prop2(self, value):
+                return value
+
+        self.volume = db.Volume(tests.tmpdir, [TestDocument])
+        guid = self.call('POST', document='testdocument', content={'blob': ''})
+        self.assertEqual(1, self.call('GET', document='testdocument', guid=guid, prop='prop1'))
+        self.assertEqual(2, self.call('GET', document='testdocument', guid=guid, prop='prop2'))
+
     def test_SubCall(self):
 
         class TestDocument(db.Document):
