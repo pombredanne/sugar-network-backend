@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-03-11 00:33-0400\n"
-"PO-Revision-Date: 2013-03-11 21:54+0200\n"
+"POT-Creation-Date: 2013-06-23 00:33-0400\n"
+"PO-Revision-Date: 2013-06-24 02:37+0200\n"
 "Last-Translator: Chris <cjl@laptop.org>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: en\n"
@@ -17,23 +17,21 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Generator: Pootle 2.0.5\n"
 
-#: sugar_network/client/mounts.py:109
-msgid "Local Network"
-msgstr "Local Network"
+#: sugar_network/client/packagekit.py:44
+#, python-format
+msgid "Resolving %s package name(s)"
+msgstr "Resolving %s package name(s)"
 
-#: sugar_network/client/mounts.py:122
-msgid "Home"
-msgstr "Home"
+#: sugar_network/client/packagekit.py:71
+#, python-format
+msgid "Installing %s package(s)"
+msgstr "Installing %s package(s)"
 
-#: sugar_network/client/mounts.py:204
-msgid "Network"
-msgstr "Network"
-
-#: sugar_network/node/slave.py:117
+#: sugar_network/node/slave.py:131
 msgid "Reading sneakernet packages"
 msgstr "Reading sneakernet packages"
 
-#: sugar_network/node/slave.py:127
+#: sugar_network/node/slave.py:141
 msgid "Generating new sneakernet package"
 msgstr "Generating new sneakernet package"
 
@@ -73,32 +71,35 @@ msgstr "Where"
 msgid "Aborted"
 msgstr "Aborted"
 
-#: sugar_network/zerosugar/packagekit.py:44
-#, python-format
-msgid "Resolving %s package name(s)"
-msgstr "Resolving %s package name(s)"
-
-#: sugar_network/zerosugar/packagekit.py:71
-#, python-format
-msgid "Installing %s package(s)"
-msgstr "Installing %s package(s)"
-
-#: tests/units/db/env.py:17 tests/units/db/env.py:18 tests/units/db/env.py:23
-#: tests/units/db/env.py:24 tests/units/db/env.py:25
+#: tests/units/db/env.py:18 tests/units/db/env.py:19 tests/units/db/env.py:24
+#: tests/units/db/env.py:25 tests/units/db/env.py:26
 msgid "lang"
 msgstr "lang"
 
-#: tests/units/db/env.py:22
+#: tests/units/db/env.py:23
 msgid "foo"
 msgstr "foo"
 
-#: tests/units/db/env.py:28 tests/units/db/env.py:31
+#: tests/units/db/env.py:29 tests/units/db/env.py:32
 msgid "1"
 msgstr "1"
 
-#: tests/units/db/env.py:34 tests/units/db/env.py:35
+#: tests/units/db/env.py:35 tests/units/db/env.py:36
 msgid "1-a"
 msgstr "1-a"
+
+#: tests/units/db/env.py:40 tests/units/db/env.py:41
+msgid "a"
+msgstr "a"
+
+#~ msgid "Local Network"
+#~ msgstr "Local Network"
+
+#~ msgid "Home"
+#~ msgstr "Home"
+
+#~ msgid "Network"
+#~ msgstr "Network"
 
 #, python-format
 #~ msgid "Generating %r packet"
