@@ -4,6 +4,7 @@
 import os
 import sys
 import time
+import json
 import shutil
 import hashlib
 from cStringIO import StringIO
@@ -1130,6 +1131,58 @@ class VolumeTest(tests.Test):
 
         guid = self.call('POST', document='testdocument', content={'prop2': 'value2'})
         self.assertEqual('value2', self.call('GET', document='testdocument', guid=guid, prop='prop1'))
+
+    def test_prop_meta(self):
+
+        class TestDocument(db.Document):
+
+            @db.indexed_property(slot=1, default='')
+            def prop(self, value):
+                return value
+
+            @db.blob_property()
+            def blob1(self, value):
+                return value
+
+            @db.blob_property()
+            def blob2(self, value):
+                return value
+
+            @blob2.setter
+            def blob2(self, value):
+                return {'url': 'http://new', 'foo': 'bar', 'blob_size': 100}
+
+        volume = db.Volume(tests.tmpdir, [TestDocument])
+        cp = VolumeCommands(volume)
+
+        request = db.Request(method='POST', document='testdocument')
+        request.content = {'prop': 'prop', 'blob1': 'blob', 'blob2': ''}
+        guid = cp.call(request, db.Response())
+
+        request = db.Request(method='HEAD', document='testdocument', guid=guid, prop='prop')
+        response = db.Response()
+        assert cp.call(request, response) is None
+        meta = volume['testdocument'].get(guid).meta('prop')
+        meta.pop('value')
+        self.assertEqual(meta, json.loads(response['SN-property']))
+
+        request = db.Request(method='HEAD', document='testdocument', guid=guid, prop='blob1')
+        request.static_prefix = 'http://localhost'
+        request.path = ['path']
+        response = db.Response()
+        assert cp.call(request, response) is None
+        meta = volume['testdocument'].get(guid).meta('blob1')
+        meta.pop('blob')
+        meta['url'] = 'http://localhost/path'
+        self.assertEqual(meta, json.loads(response['SN-property']))
+        self.assertEqual(len('blob'), response.content_length)
+
+        request = db.Request(method='HEAD', document='testdocument', guid=guid, prop='blob2')
+        response = db.Response()
+        assert cp.call(request, response) is None
+        meta = volume['testdocument'].get(guid).meta('blob2')
+        self.assertEqual(meta, json.loads(response['SN-property']))
+        self.assertEqual(100, response.content_length)
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,

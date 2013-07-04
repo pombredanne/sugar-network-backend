@@ -203,6 +203,9 @@ class Response(dict):
         args = ['%s=%r' % i for i in self.items()]
         return '<Response %s>' % ' '.join(args)
 
+    def __contains__(self, key):
+        dict.__contains__(self, key.lower())
+
     def __getitem__(self, key):
         return self.get(key.lower())
 

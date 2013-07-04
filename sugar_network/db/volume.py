@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import time
+import json
 import hashlib
 import logging
 from contextlib import contextmanager
@@ -201,7 +202,7 @@ class VolumeCommands(CommandsProcessor):
         return self._get_props(doc, request, reply)
 
     @property_command(method='GET', mime_type='application/json')
-    def get_prop(self, document, guid, prop, request, response, part=None):
+    def get_prop(self, document, guid, prop, request, response):
         directory = self.volume[document]
         prop = directory.metadata[prop]
         doc = directory.get(guid)
@@ -220,6 +221,29 @@ class VolumeCommands(CommandsProcessor):
             enforce(meta is not None and ('blob' in meta or 'url' in meta),
                     http.NotFound, 'BLOB does not exist')
             return meta
+
+    @property_command(method='HEAD')
+    def get_prop_meta(self, document, guid, prop, request, response):
+        directory = self.volume[document]
+        prop = directory.metadata[prop]
+        doc = directory.get(guid)
+        doc.request = request
+
+        prop.assert_access(env.ACCESS_READ)
+
+        if isinstance(prop, StoredProperty):
+            meta = doc.meta(prop.name)
+            value = meta.pop('value')
+            response.content_length = len(json.dumps(value))
+        else:
+            meta = prop.on_get(doc, doc.meta(prop.name))
+            enforce(meta is not None and ('blob' in meta or 'url' in meta),
+                    http.NotFound, 'BLOB does not exist')
+            if 'blob' in meta:
+                meta.pop('blob')
+                meta['url'] = '/'.join([request.static_prefix] + request.path)
+            response.content_length = meta['blob_size']
+        response['SN-property'] = json.dumps(meta)
 
     def on_create(self, request, props, event):
         if 'guid' in props:

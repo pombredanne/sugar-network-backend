@@ -184,7 +184,8 @@ class Router(object):
         elif not result_streamed:
             if response.content_type == 'application/json':
                 result = json.dumps(result)
-            response.content_length = len(result) if result else 0
+            if 'content-length' not in response:
+                response.content_length = len(result) if result else 0
 
         _logger.trace('Called %s: response=%r result=%r streamed=%r',
                 request_repr, response, result, result_streamed)
