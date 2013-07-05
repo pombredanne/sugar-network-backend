@@ -175,17 +175,21 @@ class Router(object):
 
         result_streamed = isinstance(result, types.GeneratorType)
 
-        if js_callback:
-            if result_streamed:
-                result = ''.join(result)
-                result_streamed = False
-            result = '%s(%s);' % (js_callback, json.dumps(result))
-            response.content_length = len(result)
-        elif not result_streamed:
-            if response.content_type == 'application/json':
-                result = json.dumps(result)
-            if 'content-length' not in response:
-                response.content_length = len(result) if result else 0
+        if request['method'] != 'HEAD':
+            if js_callback:
+                if result_streamed:
+                    result = ''.join(result)
+                    result_streamed = False
+                result = '%s(%s);' % (js_callback, json.dumps(result))
+                response.content_length = len(result)
+            elif not result_streamed:
+                if response.content_type == 'application/json':
+                    result = json.dumps(result)
+                if 'content-length' not in response:
+                    response.content_length = len(result) if result else 0
+
+        for key, value in response.meta.items():
+            response.set('X-SN-%s' % str(key), json.dumps(value))
 
         _logger.trace('Called %s: response=%r result=%r streamed=%r',
                 request_repr, response, result, result_streamed)

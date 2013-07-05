@@ -4,11 +4,11 @@
 import os
 import sys
 import time
-import json
 import shutil
 import hashlib
 from cStringIO import StringIO
 from email.message import Message
+from email.utils import formatdate
 from os.path import dirname, join, abspath, exists
 
 src_root = abspath(dirname(__file__))
@@ -1164,7 +1164,8 @@ class VolumeTest(tests.Test):
         assert cp.call(request, response) is None
         meta = volume['testdocument'].get(guid).meta('prop')
         meta.pop('value')
-        self.assertEqual(meta, json.loads(response['SN-property']))
+        self.assertEqual(meta, response.meta)
+        self.assertEqual(formatdate(meta['mtime'], localtime=False, usegmt=True), response.last_modified)
 
         request = db.Request(method='HEAD', document='testdocument', guid=guid, prop='blob1')
         request.static_prefix = 'http://localhost'
@@ -1174,15 +1175,17 @@ class VolumeTest(tests.Test):
         meta = volume['testdocument'].get(guid).meta('blob1')
         meta.pop('blob')
         meta['url'] = 'http://localhost/path'
-        self.assertEqual(meta, json.loads(response['SN-property']))
+        self.assertEqual(meta, response.meta)
         self.assertEqual(len('blob'), response.content_length)
+        self.assertEqual(formatdate(meta['mtime'], localtime=False, usegmt=True), response.last_modified)
 
         request = db.Request(method='HEAD', document='testdocument', guid=guid, prop='blob2')
         response = db.Response()
         assert cp.call(request, response) is None
         meta = volume['testdocument'].get(guid).meta('blob2')
-        self.assertEqual(meta, json.loads(response['SN-property']))
+        self.assertEqual(meta, response.meta)
         self.assertEqual(100, response.content_length)
+        self.assertEqual(formatdate(meta['mtime'], localtime=False, usegmt=True), response.last_modified)
 
     def call(self, method, document=None, guid=None, prop=None,
             accept_language=None, content=None, content_stream=None,

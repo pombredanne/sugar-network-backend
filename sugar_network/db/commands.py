@@ -160,6 +160,7 @@ class Response(dict):
     def __init__(self, **kwargs):
         """Initialize parameters dictionary using named arguments."""
         dict.__init__(self, kwargs)
+        self.meta = {}
 
     @property
     def content_length(self):

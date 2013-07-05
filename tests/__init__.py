@@ -227,6 +227,8 @@ class Test(unittest.TestCase):
         with util.NamedTemporaryFile() as f:
             bundle = zipfile.ZipFile(f.name, 'w')
             for arcname, data in items:
+                if not isinstance(data, basestring):
+                    data = '\n'.join(data)
                 bundle.writestr(arcname, data)
             bundle.close()
             return file(f.name, 'rb').read()

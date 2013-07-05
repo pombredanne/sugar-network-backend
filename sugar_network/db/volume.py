@@ -243,7 +243,9 @@ class VolumeCommands(CommandsProcessor):
                 meta.pop('blob')
                 meta['url'] = '/'.join([request.static_prefix] + request.path)
             response.content_length = meta['blob_size']
-        response['SN-property'] = json.dumps(meta)
+
+        response.meta.update(meta)
+        response.last_modified = meta['mtime']
 
     def on_create(self, request, props, event):
         if 'guid' in props:

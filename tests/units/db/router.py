@@ -505,6 +505,29 @@ class RouterTest(tests.Test):
             ],
             response)
 
+    def test_DoNotOverrideContentLengthForHEAD(self):
+
+        class CommandsProcessor(db.CommandsProcessor):
+
+            @db.route('HEAD', '/')
+            def head(self, request, response):
+                response.content_length = 100
+
+        router = Router(CommandsProcessor())
+
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'HEAD',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        self.assertEqual([], [i for i in reply])
+        self.assertEqual([
+            '200 OK',
+            {'content-length': '100'},
+            ],
+            response)
+
 
 if __name__ == '__main__':
     tests.main()
