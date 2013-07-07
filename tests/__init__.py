@@ -37,7 +37,7 @@ root = abspath(dirname(__file__))
 tmproot = '/tmp/sugar_network.tests'
 tmpdir = None
 
-monkey.patch_socket(dns=False)
+monkey.patch_socket()
 monkey.patch_select()
 monkey.patch_ssl()
 monkey.patch_time()
@@ -226,7 +226,11 @@ class Test(unittest.TestCase):
     def zips(self, *items):
         with util.NamedTemporaryFile() as f:
             bundle = zipfile.ZipFile(f.name, 'w')
-            for arcname, data in items:
+            for i in items:
+                if isinstance(i, basestring):
+                    arcname = data = i
+                else:
+                    arcname, data = i
                 if not isinstance(data, basestring):
                     data = '\n'.join(data)
                 bundle.writestr(arcname, data)

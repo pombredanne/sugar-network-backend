@@ -36,11 +36,6 @@ class Context(Resource):
             self['layer'] = tuple(self['layer']) + ('common',)
         return value
 
-    @db.indexed_property(prefix='M',
-            full_text=True, default=[], typecast=[])
-    def implement(self, value):
-        return value
-
     @db.indexed_property(slot=1, prefix='S', full_text=True, localized=True)
     def title(self, value):
         return value

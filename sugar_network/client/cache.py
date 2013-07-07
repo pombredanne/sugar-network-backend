@@ -23,7 +23,7 @@ from os.path import exists, join, isdir
 from sugar_network.client import IPCClient, local_root
 from sugar_network.client import cache_limit, cache_lifetime
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import pipe, util, enforce
+from sugar_network.toolkit import pipe, util, exception, enforce
 
 
 _logger = logging.getLogger('cache')
@@ -122,7 +122,7 @@ def _list():
             # Negative `unpack_size` to process large impls at first
             result.append((os.stat(path).st_mtime, -unpack_size, path))
         except Exception:
-            util.exception('Cannot list %r cached implementation', path)
+            exception('Cannot list %r cached implementation', path)
             result.append((0, 0, path))
     return total, sorted(result)
 

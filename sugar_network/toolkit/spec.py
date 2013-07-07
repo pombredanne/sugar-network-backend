@@ -15,6 +15,7 @@
 
 import re
 import os
+import sys
 import logging
 from os.path import join, exists, dirname
 from ConfigParser import ConfigParser
@@ -27,7 +28,7 @@ EMPTY_LICENSE = 'License is not specified'
 
 _FIELDS = {
         # name: (required, typecast)
-        'implement': (True, None),
+        'context': (True, None),
         'name': (True, None),
         'summary': (True, None),
         'description': (False, None),
@@ -44,7 +45,7 @@ _STABILITIES = ('insecure', 'buggy', 'developer', 'testing', 'stable')
 _POLICY_URL = 'http://wiki.sugarlabs.org/go/Sugar_Network/Policy'
 _LIST_SEPARATOR = ';'
 
-_RESTRICTION_RE = re.compile('(>=|<|=)\\s*([0-9.]+)')
+_RESTRICTION_RE = re.compile('(<|<=|=|>|>=)\\s*([0-9.]+)')
 
 _VERSION_RE = re.compile('-([a-z]*)')
 _VERSION_MOD_TO_VALUE = {
@@ -130,7 +131,7 @@ def format_version(version):
     return ''.join(version)
 
 
-def format_next_version(version):
+def format_next_version(version, deep=True):
     """Convert incremented version to string representation.
 
     Before convertation, the last version's rank will be incremented.
@@ -142,8 +143,78 @@ def format_next_version(version):
         return None
     if isinstance(version, basestring):
         version = parse_version(version)
-    version[-2][-1] += 1
+    if deep:
+        version[-2] += [1]
+    else:
+        version[-2][-1] += 1
     return format_version(version)
+
+
+def parse_requires(requires):
+    result = {}
+
+    for dep_str in _parse_list(requires):
+        dep = _Dependency()
+
+        if dep_str.startswith('[') and dep_str.endswith(']'):
+            dep_str = dep_str[1:-1]
+            dep['importance'] = 'recommended'
+
+        parts = _RESTRICTION_RE.split(dep_str)
+        enforce(parts[0], 'Can parse dependency from "%s" string', dep_str)
+
+        dep_name = parts.pop(0).strip()
+        if dep_name in result:
+            result[dep_name].update(dep)
+            dep = result[dep_name]
+        else:
+            result[dep_name] = dep
+
+        not_before = None
+        before = None
+        while len(parts) >= 3:
+            if parts[0] == '<':
+                before = format_version(parts[1])
+            elif parts[0] == '<=':
+                before = format_next_version(parts[1])
+            elif parts[0] == '>':
+                not_before = format_next_version(parts[1])
+            elif parts[0] == '>=':
+                not_before = format_version(parts[1])
+            elif parts[0] == '=':
+                not_before = format_version(parts[1])
+                before = format_next_version(parts[1], False)
+            del parts[:3]
+
+        enforce(not parts or not parts[0].strip(),
+                'Cannot parse "%s", it should be in format '
+                '"<dependency> (>=|<|=) <version>"', dep_str)
+
+        if before or not_before:
+            dep.setdefault('restrictions', [])
+            dep['restrictions'].append((not_before, before))
+
+    return result
+
+
+def ensure_requires(to_consider, to_apply):
+
+    def intersect(x, y):
+        l = max([parse_version(i) for i, __ in (x + y)])
+        r = min([[[sys.maxint]] if i is None else parse_version(i) \
+                for __, i in [x + y]])
+        return l is None or r is None or l < r
+
+    for name, cond in to_apply.items():
+        dep = to_consider.get(name)
+        if dep is None:
+            return False
+        if 'restrictions' not in dep or 'restrictions' not in cond:
+            continue
+        if not intersect(dep['restrictions'], cond['restrictions']):
+            return False
+
+    return True
 
 
 class Spec(object):
@@ -217,7 +288,7 @@ class Spec(object):
         return self._get(section, key)
 
     def __repr__(self):
-        return '<Spec %s>' % self['implement']
+        return '<Spec %s>' % self['context']
 
     def _get(self, section, key):
         if self._config.has_option(section, key):
@@ -227,7 +298,7 @@ class Spec(object):
         for section in sorted(self._config.sections()):
             bindings = _parse_bindings(self._get(section, 'binding'))
             self.bindings.update(bindings)
-            requires = _parse_requires(self._get(section, 'requires'))
+            requires = parse_requires(self._get(section, 'requires'))
 
             section_type = section.split(':')[0]
             if section_type == 'Activity':
@@ -270,8 +341,8 @@ class Spec(object):
                 self._fields[key] = value
 
         if self.activity is not None:
-            # TODO Switch to `implement` tag at the end
-            self._fields['implement'] = self.activity['bundle_id']
+            # TODO Switch to `context` tag at the end
+            self._fields['context'] = self.activity['bundle_id']
             # Do some backwards compatibility expansions for activities
             if not self['summary'] and self['name']:
                 self._fields['summary'] = self['name']
@@ -403,6 +474,8 @@ class _Dependency(dict):
 
     def versions_range(self):
         for not_before, before in self.get('restrictions') or []:
+            if not_before is None or before is None:
+                continue
             i = parse_version(not_before)[0]
             yield format_version([i, 0])
             end = parse_version(before)[0]
@@ -435,53 +508,6 @@ def _parse_bindings(text):
         parse_str(i)
 
     return sorted(result)
-
-
-def _parse_requires(requires):
-    result = {}
-
-    for dep_str in _parse_list(requires):
-        dep = _Dependency()
-
-        if dep_str.startswith('[') and dep_str.endswith(']'):
-            dep_str = dep_str[1:-1]
-            dep['importance'] = 'recommended'
-
-        parts = _RESTRICTION_RE.split(dep_str)
-        enforce(parts[0], 'Can parse dependency from "%s" string', dep_str)
-
-        dep_name = parts.pop(0).strip()
-        if dep_name in result:
-            result[dep_name].update(dep)
-            dep = result[dep_name]
-        else:
-            result[dep_name] = dep
-
-        not_before = None
-        before = None
-        while len(parts) >= 3:
-            if parts[0] == '<':
-                before = format_version(parts[1])
-            elif parts[0] == '<=':
-                before = format_next_version(parts[1])
-            elif parts[0] == '>':
-                not_before = format_next_version(parts[1])
-            elif parts[0] == '>=':
-                not_before = format_version(parts[1])
-            elif parts[0] == '=':
-                not_before = format_version(parts[1])
-                before = format_next_version(parts[1])
-            del parts[:3]
-
-        enforce(not parts or not parts[0].strip(),
-                'Cannot parse "%s", it should be in format '
-                '"<dependency> (>=|<|=) <version>"', dep_str)
-
-        if before or not_before:
-            dep.setdefault('restrictions', [])
-            dep['restrictions'].append((not_before, before))
-
-    return result
 
 
 def _parse_list(str_list):

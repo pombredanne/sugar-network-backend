@@ -13,39 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# pylint: disable-msg=E1101,E0102,E0202
-
-import os
-from os.path import exists
-
 import xapian
 
 from sugar_network import db, resources
 from sugar_network.resources.volume import Resource
 from sugar_network.toolkit.licenses import GOOD_LICENSES
-from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import http, util, enforce
-
-
-_ASLO_URL = 'http://download.sugarlabs.org/activities'
-_ASLO_PATH = '/upload/activities'
-
-
-def _encode_version(version):
-    version = util.parse_version(version)
-    # Convert to [(`version`, `modifier`)]
-    version = zip(*([iter(version)] * 2))
-    major, modifier = version.pop(0)
-
-    result = sum([(rank % 10000) * pow(10000, 3 - i)
-            for i, rank in enumerate((major + [0, 0])[:3])])
-    result += (5 + modifier) * 1000
-    if modifier and version:
-        minor, __ = version.pop(0)
-        if minor:
-            result += (minor[0] % 1000)
-
-    return xapian.sortable_serialise(result)
+from sugar_network.toolkit.spec import parse_version
+from sugar_network.toolkit import http, enforce
 
 
 class Implementation(Resource):
@@ -67,7 +41,8 @@ class Implementation(Resource):
     def license(self, value):
         return value
 
-    @db.indexed_property(slot=1, prefix='V', reprcast=_encode_version,
+    @db.indexed_property(slot=1, prefix='V',
+            reprcast=lambda x: _encode_version(x),
             permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def version(self, value):
         return value
@@ -78,55 +53,28 @@ class Implementation(Resource):
     def stability(self, value):
         return value
 
-    @db.indexed_property(prefix='R', typecast=[], default=[],
-            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
-    def requires(self, value):
-        return value
-
     @db.indexed_property(prefix='N', full_text=True, localized=True,
-            permissions=db.ACCESS_CREATE | db.ACCESS_READ)
+            default='', permissions=db.ACCESS_CREATE | db.ACCESS_READ)
     def notes(self, value):
-        return value
-
-    @db.stored_property(typecast=dict, default={})
-    def spec(self, value):
         return value
 
     @db.blob_property()
     def data(self, value):
-        if value:
-            context = self.volume['context'].get(self['context'])
-            value['name'] = [context['title'], self['version']]
         return value
 
-    @data.setter
-    def data(self, value):
-        context = self.volume['context'].get(self['context'])
-        if 'activity' not in context['type']:
-            return value
 
-        def calc_unpack_size(path):
-            unpack_size = 0
-            with Bundle(path, mime_type='application/zip') as bundle:
-                for arcname in bundle.get_names():
-                    unpack_size += bundle.getmember(arcname).size
-            value['unpack_size'] = unpack_size
+def _encode_version(version):
+    version = parse_version(version)
+    # Convert to [(`version`, `modifier`)]
+    version = zip(*([iter(version)] * 2))
+    major, modifier = version.pop(0)
 
-        if 'unpack_size' not in value:
-            if 'blob' in value:
-                calc_unpack_size(value['blob'])
-            elif 'url' in value:
-                url = value['url']
-                if url.startswith(_ASLO_URL):
-                    local_path = _ASLO_PATH + url[len(_ASLO_URL):]
-                    if exists(local_path):
-                        calc_unpack_size(local_path)
-                        value['blob_size'] = os.stat(local_path).st_size
-                if 'unpack_size' not in value:
-                    with util.NamedTemporaryFile() as f:
-                        http.download(url, f.name)
-                        value['blob_size'] = os.stat(f.name).st_size
-                        calc_unpack_size(f.name)
+    result = sum([(rank % 10000) * pow(10000, 3 - i)
+            for i, rank in enumerate((major + [0, 0])[:3])])
+    result += (5 + modifier) * 1000
+    if modifier and version:
+        minor, __ = version.pop(0)
+        if minor:
+            result += (minor[0] % 1000)
 
-        value['mime_type'] = 'application/vnd.olpc-sugar'
-        return value
+    return xapian.sortable_serialise(result)

@@ -17,6 +17,7 @@
 
 import os
 import json
+import errno
 import logging
 import hashlib
 import tempfile
@@ -55,6 +56,8 @@ def init_logging(debug_level):
                 self._log(9, message, args, **kwargs)
         _disable_logger(['sugar_stats'])
     else:
+        logging.Logger.trace = lambda self, message, *args, **kwargs: \
+                self._log(9, message, args, **kwargs)
         logging.Logger.heartbeat = lambda self, message, *args, **kwargs: \
                 self._log(8, message, args, **kwargs)
 
@@ -320,12 +323,30 @@ def TemporaryFile(*args, **kwargs):
     return tempfile.TemporaryFile(*args, **kwargs)
 
 
-def NamedTemporaryFile(*args, **kwargs):
-    if cachedir.value:
-        if not exists(cachedir.value):
-            os.makedirs(cachedir.value)
-        kwargs['dir'] = cachedir.value
-    return tempfile.NamedTemporaryFile(*args, **kwargs)
+class NamedTemporaryFile(object):
+
+    def __init__(self, *args, **kwargs):
+        if cachedir.value:
+            if not exists(cachedir.value):
+                os.makedirs(cachedir.value)
+            kwargs['dir'] = cachedir.value
+        self._file = tempfile.NamedTemporaryFile(*args, **kwargs)
+
+    def close(self):
+        try:
+            self._file.close()
+        except OSError, error:
+            if error.errno != errno.ENOENT:
+                raise
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def __getattr__(self, name):
+        return getattr(self._file, name)
 
 
 class Seqno(object):

@@ -5,6 +5,7 @@ import os
 import time
 import json
 from email.utils import formatdate, parsedate
+from cStringIO import StringIO
 from os.path import exists
 
 from __init__ import tests
@@ -432,12 +433,125 @@ class NodeTest(tests.Test):
             'version': '1',
             'stability': 'stable',
             'notes': '',
-            'requires': ['foo', 'bar'],
             })
-        blob = self.zips(('topdir/probe', 'probe'))
-        client.request('PUT', ['implementation', impl, 'data'], blob)
+        blob1 = self.zips(('topdir/probe', 'probe1'))
+        volume['implementation'].update(impl, {'data': {
+            'blob': StringIO(blob1),
+            'spec': {
+                '*-*': {
+                    'requires': {
+                        'dep1': {},
+                        },
+                    },
+                },
+            }})
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '2',
+            'stability': 'stable',
+            'notes': '',
+            })
+        blob2 = self.zips(('topdir/probe', 'probe2'))
+        volume['implementation'].update(impl, {'data': {
+            'blob': StringIO(blob2),
+            'spec': {
+                '*-*': {
+                    'requires': {
+                        'dep2': {'restrictions': [[None, '2']]},
+                        'dep3': {},
+                        },
+                    },
+                },
+            }})
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '3',
+            'stability': 'stable',
+            'notes': '',
+            })
+        blob3 = self.zips(('topdir/probe', 'probe3'))
+        volume['implementation'].update(impl, {'data': {
+            'blob': StringIO(blob3),
+            'spec': {
+                '*-*': {
+                    'requires': {
+                        'dep2': {'restrictions': [['2', None]]},
+                        },
+                    },
+                },
+            }})
+        impl = client.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '4',
+            'stability': 'developer',
+            'notes': '',
+            })
+        blob4 = self.zips(('topdir/probe', 'probe4'))
+        volume['implementation'].update(impl, {'data': {
+            'blob': StringIO(blob4),
+            'spec': {
+                '*-*': {
+                    'requires': {},
+                    },
+                },
+            }})
 
-        self.assertEqual(blob, client.get(['context', context], cmd='clone', version='1', stability='stable', requires=['foo', 'bar']))
+        self.assertEqual(blob3, client.get(['context', context], cmd='clone'))
+        self.assertEqual(blob4, client.get(['context', context], cmd='clone', stability='developer'))
+        self.assertEqual(blob1, client.get(['context', context], cmd='clone', version='1'))
+
+        self.assertEqual(blob1, client.get(['context', context], cmd='clone', requires='dep1'))
+        self.assertEqual(blob3, client.get(['context', context], cmd='clone', requires='dep2'))
+        self.assertEqual(blob2, client.get(['context', context], cmd='clone', requires='dep2=1'))
+        self.assertEqual(blob3, client.get(['context', context], cmd='clone', requires='dep2=2'))
+        self.assertEqual(blob2, client.get(['context', context], cmd='clone', requires='dep3'))
+
+        self.assertRaises(http.NotFound, client.get, ['context', context], cmd='clone', requires='dep4')
+        self.assertRaises(http.NotFound, client.get, ['context', context], cmd='clone', stability='foo')
+
+    def test_release(self):
+        volume = self.start_master()
+        conn = Client()
+
+        conn.post(['context'], {
+            'guid': 'bundle_id',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        activity_info = '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = bundle_id',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = developer',
+            'requires = sugar>=0.88; dep'
+            ])
+        bundle = self.zips(('topdir/activity/activity.info', activity_info))
+        guid = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release'}).raw)
+
+        impl = volume['implementation'].get(guid)
+        self.assertEqual('bundle_id', impl['context'])
+        self.assertEqual('1', impl['version'])
+        self.assertEqual('developer', impl['stability'])
+        self.assertEqual(['Public Domain'], impl['license'])
+        self.assertEqual('developer', impl['stability'])
+
+        data = impl.meta('data')
+        self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
+        self.assertEqual(len(bundle), data['blob_size'])
+        self.assertEqual(len(activity_info), data.get('unpack_size'))
+
+
+
+
 
 
 def call(cp, principal=None, content=None, **kwargs):

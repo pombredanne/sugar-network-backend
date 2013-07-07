@@ -60,6 +60,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -67,12 +69,10 @@ Can't find all required implementations:
                             'exec': 'echo',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'topdir',
                     },
                 },
-            })
+            }})
 
         pipe = injector.clone(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_1.log' % context
@@ -126,6 +126,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -133,17 +135,13 @@ Can't find all required implementations:
                             'exec': 'true',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'topdir',
                     },
                 },
-            })
-        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, json.dumps({})))
-        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('topdir/probe', 'probe')
-        bundle.close()
+            'blob': StringIO(self.zips(['topdir/probe', [
+                'probe',
+                ]])),
+            }})
 
         pipe = injector.clone_impl(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s.log' % context
@@ -175,6 +173,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -182,17 +182,13 @@ Can't find all required implementations:
                             'exec': 'echo',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'topdir',
                     },
                 },
-            })
-        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, json.dumps({})))
-        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('topdir/probe', 'probe')
-        bundle.close()
+            'blob': StringIO(self.zips(['topdir/probe', [
+                'probe',
+                ]])),
+            }})
 
         for event in injector.clone(context):
             pass
@@ -216,6 +212,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -223,26 +221,19 @@ Can't find all required implementations:
                             'exec': 'true',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'TestActivitry',
                     },
                 },
-            })
-
-        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, json.dumps({})))
-        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
-            '[Activity]',
-            'name = TestActivitry',
-            'bundle_id = %s' % context,
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license=Public Domain',
-            ]))
-        bundle.close()
+            'blob': StringIO(self.zips(['TestActivitry/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivitry',
+                'bundle_id = %s' % context,
+                'exec = true',
+                'icon = icon',
+                'activity_version = 1',
+                'license=Public Domain',
+                ]])),
+            }})
 
         self.override(journal, 'create_activity_id', lambda: 'activity_id')
         pipe = injector.launch(context)
@@ -265,6 +256,8 @@ Can't find all required implementations:
             'version': '2',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl_2, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -272,26 +265,19 @@ Can't find all required implementations:
                             'exec': 'true',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'TestActivitry',
                     },
                 },
-            })
-
-        blob_path = 'master/implementation/%s/%s/data' % (impl_2[:2], impl_2)
-        self.touch((blob_path, json.dumps({})))
-        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
-            '[Activity]',
-            'name = TestActivitry',
-            'bundle_id = %s' % context,
-            'exec = true',
-            'icon = icon',
-            'activity_version = 2',
-            'license=Public Domain',
-            ]))
-        bundle.close()
+            'blob': StringIO(self.zips(['TestActivitry/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivitry',
+                'bundle_id = %s' % context,
+                'exec = true',
+                'icon = icon',
+                'activity_version = 2',
+                'license=Public Domain',
+                ]])),
+            }})
 
         shutil.rmtree('cache', ignore_errors=True)
         pipe = injector.launch(context)
@@ -353,6 +339,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -360,8 +348,6 @@ Can't find all required implementations:
                             'exec': 'true',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'topdir',
                     'requires': {
                         'dep1': {},
@@ -369,12 +355,10 @@ Can't find all required implementations:
                         },
                     },
                 },
-            })
-        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, json.dumps({})))
-        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('topdir/probe', 'probe')
-        bundle.close()
+            'blob': StringIO(self.zips(['topdir/probe', [
+                'probe',
+                ]])),
+            }})
 
         conn.post(['context'], {
             'guid': 'dep1',
@@ -553,6 +537,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -560,21 +546,17 @@ Can't find all required implementations:
                             'exec': 'echo',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'topdir',
                     },
                 },
-            })
-        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, json.dumps({})))
-        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('topdir/activity/foo', '')
-        bundle.writestr('topdir/bin/bar', '')
-        bundle.writestr('topdir/bin/probe', '')
-        bundle.writestr('topdir/file1', '')
-        bundle.writestr('topdir/test/file2', '')
-        bundle.close()
+            'blob': StringIO(self.zips(
+                'topdir/activity/foo',
+                'topdir/bin/bar',
+                'topdir/bin/probe',
+                'topdir/file1',
+                'topdir/test/file2',
+                )),
+            }})
 
         pipe = injector.clone(context)
         log_path = tests.tmpdir +  '/.sugar/default/logs/%s_2.log' % context
@@ -601,6 +583,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -608,17 +592,13 @@ Can't find all required implementations:
                             'exec': 'echo',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'topdir',
                     },
                 },
-            })
-        blob_path = 'master/implementation/%s/%s/data' % (impl[:2], impl)
-        self.touch((blob_path, json.dumps({})))
-        bundle = zipfile.ZipFile(blob_path + '.blob', 'w')
-        bundle.writestr('topdir/probe', 'probe')
-        bundle.close()
+            'blob': StringIO(self.zips(['topdir/probe', [
+                'probe',
+                ]])),
+            }})
 
         for event in injector.clone(context):
             pass
@@ -663,6 +643,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -673,6 +655,7 @@ Can't find all required implementations:
                     'requires': {
                         'dep2': {'restrictions': [['1', '2']]},
                         'dep3': {},
+                        },
                     },
                 },
             }})
@@ -740,12 +723,14 @@ Can't find all required implementations:
             'summary': 'summary',
             'description': 'description',
             })
-        conn.post(['implementation'], {
+        impl = conn.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -755,6 +740,7 @@ Can't find all required implementations:
                         },
                     'requires': {
                         'dep': {},
+                        },
                     },
                 },
             }})
@@ -824,6 +810,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -833,6 +821,7 @@ Can't find all required implementations:
                         },
                     'requires': {
                         'sugar': {},
+                        },
                     },
                 },
             }})
@@ -842,7 +831,7 @@ Can't find all required implementations:
             ],
             solver.solve(conn, context))
 
-        conn.put(['implementation', impl], {
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -852,6 +841,7 @@ Can't find all required implementations:
                         },
                     'requires': {
                         'sugar': {'restrictions': [['0.80', '0.87']]},
+                        },
                     },
                 },
             }})
@@ -890,6 +880,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -899,6 +891,7 @@ Can't find all required implementations:
                         },
                     'requires': {
                         'sugar': {},
+                        },
                     },
                 },
             }})

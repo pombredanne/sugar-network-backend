@@ -464,7 +464,7 @@ class ClientCommands(db.CommandsProcessor, Commands, journal.Commands):
         else:
             copy = self._node_call(method='GET', document='context', guid=guid,
                     reply=[
-                        'type', 'implement', 'title', 'summary', 'description',
+                        'type', 'title', 'summary', 'description',
                         'homepage', 'mime_types', 'dependencies',
                         ])
             copy.update(props)

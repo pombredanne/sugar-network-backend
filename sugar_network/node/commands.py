@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ from os.path import join, isdir, exists
 from sugar_network import db, node, static
 from sugar_network.node import auth, stats_node
 from sugar_network.resources.volume import Commands
+from sugar_network.toolkit.spec import parse_requires, ensure_requires
 from sugar_network.toolkit import http, util, coroutine, exception, enforce
 
 
@@ -51,17 +52,13 @@ class NodeCommands(db.VolumeCommands, Commands):
     @db.route('GET', '/robots.txt')
     def robots(self, request, response):
         response.content_type = 'text/plain'
-        return _ROBOTS_TXT
+        return 'User-agent: *\nDisallow: /\n'
 
     @db.route('GET', '/favicon.ico')
     def favicon(self, request, response):
         return db.PropertyMetadata(
                 blob=join(static.PATH, 'favicon.ico'),
                 mime_type='image/x-icon')
-
-    @db.volume_command(method='GET', mime_type='text/html')
-    def hello(self):
-        return _HELLO_HTML
 
     @db.route('GET', '/packages')
     def route_packages(self, request, response):
@@ -91,6 +88,10 @@ class NodeCommands(db.VolumeCommands, Commands):
                 return os.listdir(path)
             else:
                 return util.iter_file(path)
+
+    @db.volume_command(method='GET')
+    def hello(self, request, response):
+        raise http.Redirect('http://wiki.sugarlabs.org/go/Sugar_Network/API')
 
     @db.volume_command(method='GET', cmd='stat',
             mime_type='application/json')
@@ -190,17 +191,18 @@ class NodeCommands(db.VolumeCommands, Commands):
 
     @db.document_command(method='GET', cmd='clone',
             arguments={'requires': db.to_list})
-    def clone(self, document, guid, version, requires, stability='stable'):
-        enforce(document == 'context', 'No way to clone')
-        request = db.Request(method='GET', document='implementation',
-                context=guid, version=version, stability=stability,
-                requires=requires, order_by='-version', limit=1,
-                reply=['guid'])
-        impls = self.call(request, db.Response())['result']
-        enforce(impls, http.NotFound, 'No implementations found')
-        request = db.Request(method='GET', document='implementation',
-                guid=impls[0]['guid'], prop='data')
-        return self.call(request, db.Response())
+    def clone(self, request, response):
+        impl = self._clone(request)
+        return self.get_prop('implementation', impl.guid, 'data',
+                request, response)
+
+    @db.document_command(method='HEAD', cmd='clone',
+            arguments={'requires': db.to_list})
+    def meta_clone(self, request, response):
+        impl = self._clone(request)
+        props = impl.properties(['guid', 'license', 'version', 'stability'])
+        response.meta.update(props)
+        response.meta.update(impl.meta('data')['spec']['*-*'])
 
     @db.document_command(method='GET', cmd='deplist',
             mime_type='application/json', arguments={'requires': db.to_list})
@@ -249,7 +251,7 @@ class NodeCommands(db.VolumeCommands, Commands):
         impls, __ = implementations.find(limit=db.MAX_LIMIT,
                 context=context.guid, layer=layer)
         for impl in impls:
-            for arch, spec in impl['spec'].items():
+            for arch, spec in impl.meta('data')['spec'].items():
                 spec['guid'] = impl.guid
                 spec['version'] = impl['version']
                 spec['arch'] = arch
@@ -260,7 +262,6 @@ class NodeCommands(db.VolumeCommands, Commands):
                         requires.setdefault(i, {})
                 blob = implementations.get(impl.guid).meta('data')
                 if blob:
-                    spec['mime_type'] = blob.get('mime_type')
                     spec['blob_size'] = blob.get('blob_size')
                     spec['unpack_size'] = blob.get('unpack_size')
                 versions.append(spec)
@@ -352,6 +353,33 @@ class NodeCommands(db.VolumeCommands, Commands):
             coroutine.sleep(stats_node.stats_node_step.value)
             self._stats.commit()
 
+    def _clone(self, request):
+        enforce(request['document'] == 'context', 'No way to clone')
+
+        requires = {}
+        if 'requires' in request.query:
+            for i in request['requires']:
+                requires.update(parse_requires(i))
+            request.query.pop('requires')
+        else:
+            request.query['limit'] = 1
+
+        if 'stability' not in request.query:
+            request.query['stability'] = 'stable'
+
+        impls, __ = self.volume['implementation'].find(
+                context=request['guid'], order_by='-version', **request.query)
+        impl = None
+        for impl in impls:
+            if requires:
+                impl_deps = impl.meta('data')['spec']['*-*']['requires']
+                if not ensure_requires(impl_deps, requires):
+                    continue
+            break
+        else:
+            raise http.NotFound('No implementations found')
+        return impl
+
 
 def _load_pubkey(pubkey):
     pubkey = pubkey.strip()
@@ -374,15 +402,3 @@ def _load_pubkey(pubkey):
             raise http.Forbidden(message)
 
     return str(hashlib.sha1(pubkey.split()[1]).hexdigest()), pubkey_pkcs8
-
-
-_HELLO_HTML = """\
-<h2>Welcome to Sugar Network API!</h2>
-Consult <a href="http://wiki.sugarlabs.org/go/Platform_Team/Sugar_Network/API">
-Sugar Labs Wiki</a> to learn how it can be used.
-"""
-
-_ROBOTS_TXT = """\
-User-agent: *
-Disallow: /
-"""

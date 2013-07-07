@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# pylint: disable-msg=W0611,F0401,W0201,E1101,W0232
+
 import sys
 import logging
 from os.path import isabs, join, dirname
@@ -28,7 +30,6 @@ from zeroinstall.injector.config import Config
 from zeroinstall.injector.driver import Driver
 from zeroinstall.injector.requirements import Requirements
 from zeroinstall.injector.arch import machine_ranks
-# pylint: disable-msg=W0611
 from zeroinstall.injector.distro import try_cleanup_distro_version
 
 

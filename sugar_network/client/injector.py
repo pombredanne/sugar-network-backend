@@ -21,7 +21,7 @@ from os.path import join, exists, basename, dirname
 
 from sugar_network import client
 from sugar_network.client import journal, cache
-from sugar_network.toolkit import http, pipe, lsb_release, util, enforce
+from sugar_network.toolkit import pipe, lsb_release, util
 
 
 _PMS_PATHS = {
@@ -152,18 +152,11 @@ def _clone_impl(context_guid, params):
     conn = client.IPCClient()
 
     context = conn.get(['context', context_guid], reply=['title'])
+    impl = conn.meta(['context', context_guid], cmd='clone', **params)
 
-    impls = conn.get(['implementation'], context=context_guid,
-            order_by='-version', limit=1,
-            reply=['guid', 'version', 'stability', 'spec'],
-            **params)['result']
-    enforce(impls, http.NotFound, 'No implementations')
-    impl = impls[0]
-
-    spec = impl['spec']['*-*']
     src_path = cache.get(impl['guid'], impl)
-    if 'extract' in spec:
-        src_path = join(src_path, spec['extract'])
+    if 'extract' in impl:
+        src_path = join(src_path, impl['extract'])
     dst_path = util.unique_filename(
             client.activity_dirs.value[0], basename(src_path))
 
@@ -178,7 +171,7 @@ def _clone_impl(context_guid, params):
         'stability': impl['stability'],
         'spec': join(dst_path, 'activity', 'activity.info'),
         'path': dst_path,
-        'command': spec['commands']['activity']['exec'].split(),
+        'command': impl['commands']['activity']['exec'].split(),
         }])
 
 

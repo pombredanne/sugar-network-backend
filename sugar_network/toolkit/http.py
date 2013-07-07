@@ -132,6 +132,16 @@ class Client(object):
         response = self.request('GET', path_, params=kwargs)
         return self._decode_reply(response)
 
+    def meta(self, path_=None, **kwargs):
+        response = self.request('HEAD', path_, params=kwargs)
+        result = {}
+        for key, value in response.headers.items():
+            if key.startswith('x-sn-'):
+                result[key[5:]] = json.loads(value)
+            else:
+                result[key] = value
+        return result
+
     def post(self, path_=None, data_=None, **kwargs):
         response = self.request('POST', path_, json.dumps(data_),
                 headers={'Content-Type': 'application/json'}, params=kwargs)
@@ -196,7 +206,7 @@ class Client(object):
                     return response
                 content = response.content
                 try:
-                    error = json.loads(content)
+                    error = json.loads(content)['error']
                 except Exception:
                     # On non-JSONified fail response, assume that the error
                     # was not sent by the application level server code, i.e.,
@@ -204,18 +214,13 @@ class Client(object):
                     # If so, try to resend request.
                     if a_try <= self._max_retries and method == 'GET':
                         continue
-                    _logger.trace('Request failed, '
-                            'method=%s path=%r params=%r headers=%r '
-                            'status_code=%s content=%s',
-                            method, path, params, headers,
-                            response.status_code,
-                            '\n' + content if content else None)
-                    response.raise_for_status()
-                else:
-                    for cls in _FORWARD_STATUSES:
-                        if response.status_code == cls.status_code:
-                            raise cls(error['error'])
-                    raise RuntimeError(error['error'])
+                    error = content or 'No error message provided'
+                _logger.trace('Request failed, method=%s path=%r params=%r '
+                        'headers=%r status_code=%s error=%s',
+                        method, path, params, headers, response.status_code,
+                        '\n' + error)
+                cls = _FORWARD_STATUSES.get(response.status_code, RuntimeError)
+                raise cls(error)
 
             return response
 
@@ -277,10 +282,11 @@ class Client(object):
                 del reply.headers['transfer-encoding']
             response.update(reply.headers)
 
-        if reply.headers.get('Content-Type') == 'application/json':
-            return json.loads(reply.content)
-        else:
-            return reply.raw
+        if method != 'HEAD':
+            if reply.headers.get('Content-Type') == 'application/json':
+                return json.loads(reply.content)
+            else:
+                return reply.raw
 
     def subscribe(self, **condition):
         return _Subscription(self, condition)
@@ -349,9 +355,9 @@ def _sign(key_path, data):
     return key.sign_asn1(hashlib.sha1(data).digest()).encode('hex')
 
 
-_FORWARD_STATUSES = [
-        BadRequest,
-        Forbidden,
-        NotFound,
-        ServiceUnavailable,
-        ]
+_FORWARD_STATUSES = {
+        BadRequest.status_code: BadRequest,
+        Forbidden.status_code: Forbidden,
+        NotFound.status_code: NotFound,
+        ServiceUnavailable.status_code: ServiceUnavailable,
+        }

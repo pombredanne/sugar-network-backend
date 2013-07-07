@@ -352,7 +352,6 @@ class VolumeTest(tests.Test):
 
         context = call(cp, method='POST', document='context', principal='principal', content={
                 'guid': 'context',
-                'implement': 'guid',
                 'type': 'package',
                 'title': 'title',
                 'summary': 'summary',

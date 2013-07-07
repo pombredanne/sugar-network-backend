@@ -48,7 +48,7 @@ class ImplementationTest(tests.Test):
                 _encode_version('1-'))
         self.assertEqual(
                 xapian.sortable_serialise(eval('1''0000''0000''6''000')),
-                _encode_version('1-post'))
+                _encode_version('1-r'))
 
         self.assertEqual(
                 xapian.sortable_serialise(eval('1''0000''0000''3''001')),
@@ -58,112 +58,14 @@ class ImplementationTest(tests.Test):
                 _encode_version('1-rc2'))
         self.assertEqual(
                 xapian.sortable_serialise(eval('1''0000''0000''6''003')),
-                _encode_version('1-post3'))
+                _encode_version('1-r3'))
 
         self.assertEqual(
                 xapian.sortable_serialise(eval('1''0000''0000''6''000')),
-                _encode_version('1-post-2-3'))
+                _encode_version('1-r-2-3'))
         self.assertEqual(
                 xapian.sortable_serialise(eval('1''0000''0000''6''001')),
-                _encode_version('1-post1.2-3'))
-
-    def test_ActivitityFiles(self):
-        self.start_online_client()
-        client = IPCClient()
-
-        context = client.post(['context'], {
-            'type': 'content',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        impl = client.post(['implementation'], {
-            'context': context,
-            'license': 'GPLv3+',
-            'version': '1',
-            'stability': 'stable',
-            'notes': '',
-            })
-        client.request('PUT', ['implementation', impl, 'data'], 'blob', {'Content-Type': 'image/png'})
-        self.assertEqual('image/png', self.node_volume['implementation'].get(impl).meta('data')['mime_type'])
-
-        client.put(['context', context, 'type'], 'activity')
-        client.request('PUT', ['implementation', impl, 'data'], self.zips(('topdir/probe', 'probe')))
-
-        data = self.node_volume['implementation'].get(impl).meta('data')
-        self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
-        self.assertNotEqual(5, data['blob_size'])
-        self.assertEqual(5, data.get('unpack_size'))
-
-    def test_ActivityUrls(self):
-        bundle = self.zips(('topdir/probe', 'probe'))
-        unpack_size = len('probe')
-
-        class Files(db.CommandsProcessor):
-
-            @route('GET', '/bundle')
-            def bundle(self, request, response):
-                return bundle
-
-        self.start_online_client()
-        client = IPCClient()
-        files_server = coroutine.WSGIServer(('127.0.0.1', 9999), Router(Files()))
-        coroutine.spawn(files_server.serve_forever)
-        coroutine.dispatch()
-
-        context = client.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        impl = client.post(['implementation'], {
-            'context': context,
-            'license': 'GPLv3+',
-            'version': '1',
-            'stability': 'stable',
-            'notes': '',
-            })
-        client.put(['implementation', impl, 'data'], {'url': 'http://127.0.0.1:9999/bundle'})
-
-        data = self.node_volume['implementation'].get(impl).meta('data')
-        self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
-        self.assertEqual(len(bundle), data['blob_size'])
-        self.assertEqual(unpack_size, data.get('unpack_size'))
-        self.assertEqual('http://127.0.0.1:9999/bundle', data['url'])
-        assert 'blob' not in data
-
-    def test_ActivityASLOUrls(self):
-        implementation._ASLO_PATH = '.'
-        bundle = self.zips(('topdir/probe', 'probe'))
-        with file('bundle', 'w') as f:
-            f.write(bundle)
-        unpack_size = len('probe')
-
-        self.start_online_client()
-        client = IPCClient()
-
-        context = client.post(['context'], {
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        impl = client.post(['implementation'], {
-            'context': context,
-            'license': 'GPLv3+',
-            'version': '1',
-            'stability': 'stable',
-            'notes': '',
-            })
-        client.put(['implementation', impl, 'data'], {'url': 'http://download.sugarlabs.org/activities/bundle'})
-
-        data = self.node_volume['implementation'].get(impl).meta('data')
-        self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
-        self.assertEqual(len(bundle), data['blob_size'])
-        self.assertEqual(unpack_size, data.get('unpack_size'))
-        self.assertEqual('http://download.sugarlabs.org/activities/bundle', data['url'])
-        assert 'blob' not in data
+                _encode_version('1-r1.2-3'))
 
     def test_WrongAuthor(self):
         self.start_online_client()

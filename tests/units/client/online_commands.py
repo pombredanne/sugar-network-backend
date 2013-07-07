@@ -6,6 +6,7 @@ import json
 import time
 import shutil
 import zipfile
+from cStringIO import StringIO
 from os.path import exists
 
 from __init__ import tests, src_root
@@ -13,6 +14,7 @@ from __init__ import tests, src_root
 from sugar_network import client, db
 from sugar_network.client import IPCClient, journal, clones, injector, commands
 from sugar_network.toolkit import coroutine, http
+from sugar_network.toolkit.spec import Spec
 from sugar_network.client.commands import ClientCommands
 from sugar_network.resources.volume import Volume, Resource
 from sugar_network.resources.user import User
@@ -71,6 +73,8 @@ class OnlineCommandsTest(tests.Test):
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -78,24 +82,19 @@ class OnlineCommandsTest(tests.Test):
                             'exec': 'true',
                             },
                         },
-                    'stability': 'stable',
-                    'size': 0,
                     'extract': 'TestActivitry',
                     },
                 },
-            })
-        bundle = zipfile.ZipFile('bundle', 'w')
-        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
-            '[Activity]',
-            'name = TestActivitry',
-            'bundle_id = %s' % context,
-            'exec = false',
-            'icon = icon',
-            'activity_version = 1',
-            'license=Public Domain',
-            ]))
-        bundle.close()
-        ipc.request('PUT', ['implementation', impl, 'data'], file('bundle', 'rb').read())
+            'blob': StringIO(self.zips(['TestActivitry/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivitry',
+                'bundle_id = %s' % context,
+                'exec = false',
+                'icon = icon',
+                'activity_version = 1',
+                'license=Public Domain',
+                ]])),
+            }})
 
         assert not exists('Activities/TestActivitry/activity/activity.info')
         assert not exists('Activities/TestActivitry_1/activity/activity.info')
@@ -174,8 +173,27 @@ class OnlineCommandsTest(tests.Test):
             'version': '1',
             'stability': 'stable',
             'notes': '',
-            'requires': ['foo'],
             })
+        self.node_volume['implementation'].update(impl1, {'data': {
+            'blob': StringIO(self.zips(('TestActivity/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivity',
+                'bundle_id = %s' % context,
+                'exec = true',
+                'icon = icon',
+                'activity_version = 1',
+                'license=GPLv3+',
+                ]))),
+            'spec': {
+                '*-*': {
+                    'extract': 'TestActivity',
+                    'commands': {'activity': {'exec': 'true'}},
+                    'requires': {
+                        'dep1': {},
+                        },
+                    },
+                },
+            }})
 
         impl2 = ipc.post(['implementation'], {
             'context': context,
@@ -183,33 +201,27 @@ class OnlineCommandsTest(tests.Test):
             'version': '2',
             'stability': 'stable',
             'notes': '',
-            'requires': ['bar'],
+            })
+        self.node_volume['implementation'].update(impl2, {'data': {
+            'blob': StringIO(self.zips(('TestActivity/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivity',
+                'bundle_id = %s' % context,
+                'exec = true',
+                'icon = icon',
+                'activity_version = 2',
+                'license=GPLv3+',
+                ]))),
             'spec': {
                 '*-*': {
-                    'commands': {
-                        'activity': {
-                            'exec': 'true',
-                            },
+                    'extract': 'TestActivity',
+                    'commands': {'activity': {'exec': 'true'}},
+                    'requires': {
+                        'dep2': {},
                         },
-                    'stability': 'stable',
-                    'size': 0,
-                    'extract': 'TestActivitry',
-                    'requires': {'dep': {}},
                     },
                 },
-            })
-        bundle = zipfile.ZipFile('bundle', 'w')
-        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
-            '[Activity]',
-            'name = TestActivitry',
-            'bundle_id = %s' % context,
-            'exec = false',
-            'icon = icon',
-            'activity_version = 1',
-            'license=Public Domain',
-            ]))
-        bundle.close()
-        ipc.request('PUT', ['implementation', impl2, 'data'], file('bundle', 'rb').read())
+            }})
 
         impl3 = ipc.post(['implementation'], {
             'context': context,
@@ -217,21 +229,57 @@ class OnlineCommandsTest(tests.Test):
             'version': '3',
             'stability': 'developer',
             'notes': '',
-            'requires': ['bar'],
             })
+        self.node_volume['implementation'].update(impl3, {'data': {
+            'blob': StringIO(self.zips(('TestActivity/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivity',
+                'bundle_id = %s' % context,
+                'exec = true',
+                'icon = icon',
+                'activity_version = 3',
+                'license=GPLv3+',
+                ]))),
+            'spec': {
+                '*-*': {
+                    'extract': 'TestActivity',
+                    'commands': {'activity': {'exec': 'true'}},
+                    'requires': {
+                        'dep3': {},
+                        },
+                    },
+                },
+            }})
 
-        assert not exists('Activities/TestActivitry/activity/activity.info')
-        self.assertEqual(
-                {'clone': 0, 'type': ['activity']},
-                ipc.get(['context', context], reply=['clone']))
+        ipc.put(['context', context], 2, cmd='clone', nodeps=1, requires='dep4')
+        coroutine.sleep(.1)
+        self.assertEqual({'clone': 0}, ipc.get(['context', context], reply=['clone']))
+        assert not exists('Activities/TestActivity/activity/activity.info')
 
-        ipc.put(['context', context], 2, cmd='clone', nodeps=1, stability='stable', requires='bar')
-        coroutine.sleep(.5)
+        ipc.put(['context', context], 2, cmd='clone', nodeps=1)
+        coroutine.sleep(.1)
+        self.assertEqual({'clone': 2}, ipc.get(['context', context], reply=['clone']))
+        self.assertEqual('2', Spec('Activities/TestActivity/activity/activity.info')['version'])
 
-        assert exists('Activities/TestActivitry/activity/activity.info')
-        self.assertEqual(
-                {'clone': 2},
-                ipc.get(['context', context], reply=['clone']))
+        ipc.put(['context', context], 0, cmd='clone')
+        coroutine.sleep(.1)
+        self.assertEqual({'clone': 0}, ipc.get(['context', context], reply=['clone']))
+        assert not exists('Activities/TestActivity/activity/activity.info')
+
+        ipc.put(['context', context], 2, cmd='clone', nodeps=1, stability='developer')
+        coroutine.sleep(.1)
+        self.assertEqual({'clone': 2}, ipc.get(['context', context], reply=['clone']))
+        self.assertEqual('3', Spec('Activities/TestActivity/activity/activity.info')['version'])
+
+        ipc.put(['context', context], 0, cmd='clone')
+        coroutine.sleep(.1)
+        self.assertEqual({'clone': 0}, ipc.get(['context', context], reply=['clone']))
+        assert not exists('Activities/TestActivity/activity/activity.info')
+
+        ipc.put(['context', context], 2, cmd='clone', nodeps=1, requires='dep1')
+        coroutine.sleep(.1)
+        self.assertEqual({'clone': 2}, ipc.get(['context', context], reply=['clone']))
+        self.assertEqual('1', Spec('Activities/TestActivity/activity/activity.info')['version'])
 
     def test_clone_Content(self):
         self.start_online_client()
@@ -528,14 +576,18 @@ class OnlineCommandsTest(tests.Test):
             'version': '1',
             'stability': 'stable',
             'notes': '',
-            'spec': {'*-*': {}},
             })
+        self.node_volume['implementation'].update(impl1, {'data': {
+            'spec': {'*-*': {}},
+            }})
         impl2 = ipc.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl2, {'data': {
             'spec': {'*-*': {
                 'requires': {
                     'dep1': {},
@@ -544,7 +596,7 @@ class OnlineCommandsTest(tests.Test):
                     'dep4': {'restrictions': [['3', None]]},
                     },
                 }},
-            })
+            }})
 
         self.assertEqual({
             'name': 'title',
@@ -554,6 +606,8 @@ class OnlineCommandsTest(tests.Test):
                     'arch': '*-*',
                     'stability': 'stable',
                     'guid': impl1,
+                    'unpack_size': None,
+                    'blob_size': None,
                     },
                 {
                     'version': '2',
@@ -566,6 +620,8 @@ class OnlineCommandsTest(tests.Test):
                         'dep3': {'restrictions': [[None, '2']]},
                         'dep4': {'restrictions': [['3', None]]},
                         },
+                    'unpack_size': None,
+                    'blob_size': None,
                     },
                 ],
             },
@@ -587,8 +643,10 @@ class OnlineCommandsTest(tests.Test):
             'version': '1',
             'stability': 'stable',
             'notes': '',
-            'spec': {'*-*': {}},
             })
+        self.node_volume['implementation'].update(impl, {'data': {
+            'spec': {'*-*': {}},
+            }})
         artifact = ipc.post(['artifact'], {
             'type': 'instance',
             'context': 'context',
@@ -628,7 +686,14 @@ class OnlineCommandsTest(tests.Test):
 
         self.assertEqual({
             'name': 'title',
-            'implementations': [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+            'implementations': [{
+                'stability': 'stable',
+                'guid': impl,
+                'arch': '*-*',
+                'version': '1',
+                'unpack_size': None,
+                'blob_size': None,
+                }],
             },
             ipc.get(['context', context], cmd='feed'))
         self.assertEqual({
@@ -638,7 +703,14 @@ class OnlineCommandsTest(tests.Test):
             ipc.get(['context', context], cmd='feed', layer='foo'))
         self.assertEqual({
             'name': 'title',
-            'implementations': [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+            'implementations': [{
+                'stability': 'stable',
+                'guid': impl,
+                'arch': '*-*',
+                'version': '1',
+                'unpack_size': None,
+                'blob_size': None,
+                }],
             },
             ipc.get(['context', context], cmd='feed', layer='public'))
 
@@ -686,7 +758,14 @@ class OnlineCommandsTest(tests.Test):
             ipc.get(['context', context], cmd='feed', layer='foo'))
         self.assertEqual({
             'name': 'title',
-            'implementations': [{'stability': 'stable', 'guid': impl, 'arch': '*-*', 'version': '1'}],
+            'implementations': [{
+                'stability': 'stable',
+                'guid': impl,
+                'arch': '*-*',
+                'version': '1',
+                'unpack_size': None,
+                'blob_size': None,
+                }],
             },
             ipc.get(['context', context], cmd='feed', layer='public'))
 
@@ -706,8 +785,10 @@ class OnlineCommandsTest(tests.Test):
             'version': '2',
             'stability': 'stable',
             'notes': '',
-            'spec': {'*-*': {}},
             })
+        self.node_volume['implementation'].update(impl, {'data': {
+            'spec': {'*-*': {}},
+            }})
 
         self.assertEqual({
             'name': 'title',
@@ -717,6 +798,8 @@ class OnlineCommandsTest(tests.Test):
                     'arch': '*-*',
                     'stability': 'stable',
                     'guid': impl,
+                    'unpack_size': None,
+                    'blob_size': None,
                     },
                 ],
             },
@@ -775,8 +858,10 @@ class OnlineCommandsTest(tests.Test):
             'version': '1',
             'stability': 'stable',
             'notes': '',
-            'spec': {'*-*': {}},
             })
+        self.node_volume['implementation'].update(impl1, {'data': {
+            'spec': {'*-*': {}},
+            }})
         coroutine.sleep(.5)
         assert injector._mtime > mtime
 
@@ -789,6 +874,8 @@ class OnlineCommandsTest(tests.Test):
             'version': '2',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl2, {'data': {
             'spec': {'*-*': {
                 'requires': {
                     'dep1': {},
@@ -797,7 +884,7 @@ class OnlineCommandsTest(tests.Test):
                     'dep4': {'restrictions': [['3', None]]},
                     },
                 }},
-            })
+            }})
         assert injector._mtime > mtime
 
     def test_ContentDisposition(self):
@@ -984,6 +1071,8 @@ class OnlineCommandsTest(tests.Test):
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            })
+        self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -996,19 +1085,17 @@ class OnlineCommandsTest(tests.Test):
                     'extract': 'TestActivitry',
                     },
                 },
-            })
-        bundle = zipfile.ZipFile('bundle', 'w')
-        bundle.writestr('TestActivitry/activity/activity.info', '\n'.join([
-            '[Activity]',
-            'name = TestActivitry',
-            'bundle_id = %s' % context1,
-            'exec = false',
-            'icon = icon',
-            'activity_version = 1',
-            'license=Public Domain',
-            ]))
-        bundle.close()
-        ipc.request('PUT', ['implementation', impl, 'data'], file('bundle', 'rb').read())
+            'blob': StringIO(self.zips(['TestActivitry/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivitry',
+                'bundle_id = %s' % context1,
+                'exec = false',
+                'icon = icon',
+                'activity_version = 1',
+                'license=Public Domain',
+                ]])),
+
+            }})
 
         trigger = self.wait_for_events(ipc, event='update', document='context', guid=context1)
         ipc.put(['context', context1], 2, cmd='clone')

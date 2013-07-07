@@ -10,13 +10,19 @@ from sugar_network.toolkit import spec
 
 class SpecTest(tests.Test):
 
-    def test_Dependency(self):
+    def test_Dependency_versions_range(self):
         self.assertEqual(
                 [],
                 [i for i in spec._Dependency().versions_range()])
         self.assertEqual(
                 [],
                 [i for i in spec._Dependency({'restrictions': []}).versions_range()])
+        self.assertEqual(
+                [],
+                [i for i in spec._Dependency({'restrictions': [(None, '2')]}).versions_range()])
+        self.assertEqual(
+                [],
+                [i for i in spec._Dependency({'restrictions': [('1', None)]}).versions_range()])
         self.assertEqual(
                 ['1'],
                 [i for i in spec._Dependency({'restrictions': [('1', '2')]}).versions_range()])
@@ -36,7 +42,7 @@ class SpecTest(tests.Test):
     def test_parse_requires(self):
         self.assertEqual(
                 {'a': {}, 'b': {}, 'c': {}},
-                spec._parse_requires('a; b; c'))
+                spec.parse_requires('a; b; c'))
 
         self.assertEqual(
                 {
@@ -44,8 +50,10 @@ class SpecTest(tests.Test):
                     'b': {'restrictions': [('1.2', '1.3')]},
                     'c': {'restrictions': [('2.2', None)]},
                     'd': {'restrictions': [(None, '3')]},
+                    'e': {'restrictions': [('4.1', None)]},
+                    'f': {'restrictions': [(None, '5.1')]},
                     },
-                spec._parse_requires('a = 1; b=1.2; c>= 2.2; d <3-3'))
+                spec.parse_requires('a = 1; b=1.2; c>= 2.2; d <3-3; e > 4; f<=5'))
 
         self.assertEqual(
                 {
@@ -53,7 +61,7 @@ class SpecTest(tests.Test):
                     'b': {},
                     'c': {'importance': 'recommended', 'restrictions': [(None, '1')]},
                     },
-                spec._parse_requires('[a]; b; [c<1]'))
+                spec.parse_requires('[a]; b; [c<1]'))
 
     def test_parse_bindings(self):
         self.assertEqual(
@@ -167,6 +175,39 @@ class SpecTest(tests.Test):
         assert pv('2.1.9-pre-1') > pv('2.1.9-pre')
 
         assert pv('2-r999') < pv('3-pre1')
+
+    def test_ensure_requires(self):
+        assert spec.ensure_requires(spec.parse_requires(''), spec.parse_requires(''))
+
+        assert not spec.ensure_requires(spec.parse_requires(''), spec.parse_requires('d1'))
+        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires(''))
+        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1'))
+
+        assert not spec.ensure_requires(spec.parse_requires(''), spec.parse_requires('d1; d2'))
+        assert spec.ensure_requires(spec.parse_requires('d1; d2'), spec.parse_requires(''))
+        assert not spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1; d2'))
+        assert spec.ensure_requires(spec.parse_requires('d1; d2'), spec.parse_requires('d1'))
+        assert spec.ensure_requires(spec.parse_requires('d1; d2'), spec.parse_requires('d1; d2'))
+
+        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1 < 1'))
+        assert spec.ensure_requires(spec.parse_requires('d1 < 1'), spec.parse_requires('d1'))
+        assert spec.ensure_requires(spec.parse_requires('d1 < 1'), spec.parse_requires('d1 < 2'))
+        assert spec.ensure_requires(spec.parse_requires('d1 < 2'), spec.parse_requires('d1 < 1'))
+
+        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1 > 1'))
+        assert spec.ensure_requires(spec.parse_requires('d1 > 1'), spec.parse_requires('d1'))
+        assert spec.ensure_requires(spec.parse_requires('d1 > 1'), spec.parse_requires('d1 > 2'))
+        assert spec.ensure_requires(spec.parse_requires('d1 > 2'), spec.parse_requires('d1 > 1'))
+
+        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1 > 1; d1 < 2'))
+        assert spec.ensure_requires(spec.parse_requires('d1 > 1; d1 < 2'), spec.parse_requires('d1'))
+        assert spec.ensure_requires(spec.parse_requires('d1 > 1; d1 < 2'), spec.parse_requires('d1 > 0; d1 < 3'))
+        assert spec.ensure_requires(spec.parse_requires('d1 > 0; d1 < 3'), spec.parse_requires('d1 > 1; d1 < 2'))
+
+        assert spec.ensure_requires(spec.parse_requires('d1 > 1; d1 <= 2'), spec.parse_requires('d1 >= 2; d1 < 3'))
+        assert spec.ensure_requires(spec.parse_requires('d1 >= 1; d1 < 2'), spec.parse_requires('d1 > 0; d1 <= 1'))
+        assert not spec.ensure_requires(spec.parse_requires('d1 > 1; d1 < 2'), spec.parse_requires('d1 > 2; d1 < 3'))
+        assert not spec.ensure_requires(spec.parse_requires('d1 > 1; d1 < 2'), spec.parse_requires('d1 > 0; d1 < 1'))
 
 
 if __name__ == '__main__':
