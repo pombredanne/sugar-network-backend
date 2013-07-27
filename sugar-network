@@ -33,7 +33,7 @@ from sugar_network.client.routes import ClientRoutes
 from sugar_network.node.routes import load_bundle
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit.spec import Spec
-from sugar_network.toolkit import application, coroutine, util
+from sugar_network.toolkit import application, coroutine
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
 
@@ -90,7 +90,7 @@ class Application(application.Application):
         application.Application.__init__(self, **kwargs)
 
         application.rundir.value = join(client.local_root.value, 'run')
-        util.init_logging(application.debug.value)
+        toolkit.init_logging(application.debug.value)
 
         if not exists(toolkit.cachedir.value):
             os.makedirs(toolkit.cachedir.value)
@@ -243,7 +243,7 @@ class Application(application.Application):
             else:
                 pid_path = self.new_instance()
                 if not client.anonymous.value:
-                    util.ensure_key(client.key_path())
+                    toolkit.ensure_key(client.key_path())
                 cp = ClientRouter()
             result = cp.call(request, response)
         finally:
@@ -274,7 +274,7 @@ class Application(application.Application):
                 print dumps(result, indent=2)
         elif response.content_type == 'text/event-stream':
             while True:
-                chunk = util.readline(result)
+                chunk = toolkit.readline(result)
                 if not chunk:
                     break
                 sys.stdout.write(chunk)

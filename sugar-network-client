@@ -31,7 +31,7 @@ from sugar_network.client.routes import CachedClientRoutes
 from sugar_network.node import stats_node, stats_user
 from sugar_network.model import RESOURCES
 from sugar_network.toolkit.router import Router
-from sugar_network.toolkit import mountpoints, util, printf, application
+from sugar_network.toolkit import mountpoints, printf, application
 from sugar_network.toolkit import Option, coroutine
 
 
@@ -43,7 +43,7 @@ class Application(application.Daemon):
         node.sync_layers.value = client.layers.value
 
         self.jobs = coroutine.Pool()
-        util.init_logging(application.debug.value)
+        toolkit.init_logging(application.debug.value)
 
         new_root = (client.local_root.value != client.local_root.default)
         client.local_root.value = abspath(client.local_root.value)
@@ -104,7 +104,7 @@ class Application(application.Daemon):
         self.cmd_start()
 
     def run(self):
-        util.ensure_key(client.key_path())
+        toolkit.ensure_key(client.key_path())
         volume = db.Volume(client.path('db'), RESOURCES)
         routes = CachedClientRoutes(volume,
                 client.api_url.value if not client.server_mode.value else None)
@@ -153,7 +153,7 @@ class Application(application.Daemon):
         try:
             self.jobs.join()
         except KeyboardInterrupt:
-            util.exception('%s interrupted', self.name)
+            toolkit.exception('%s interrupted', self.name)
         finally:
             self.jobs.kill()
             routes.close()

@@ -28,7 +28,7 @@ from sugar_network.toolkit.router import ACL, fallbackroute
 from sugar_network.toolkit.spec import EMPTY_LICENSE
 from sugar_network.toolkit.spec import parse_requires, ensure_requires
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import http, coroutine, util, enforce
+from sugar_network.toolkit import http, coroutine, enforce
 
 
 _MAX_STATS_LENGTH = 100
@@ -138,7 +138,7 @@ class NodeRoutes(db.Routes, model.Routes):
     @route('POST', ['implementation'], cmd='release',
             mime_type='application/json')
     def release(self, request, document):
-        with util.NamedTemporaryFile() as blob:
+        with toolkit.NamedTemporaryFile() as blob:
             shutil.copyfileobj(request.content_stream, blob)
             blob.flush()
             with load_bundle(self.volume, blob.name, request) as impl:
