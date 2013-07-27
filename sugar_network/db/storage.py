@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,8 +20,12 @@ import shutil
 import cPickle as pickle
 from os.path import exists, join, isdir, basename
 
-from sugar_network.db.metadata import PropertyMetadata, BlobProperty
-from sugar_network.toolkit import util, exception
+from sugar_network import toolkit
+from sugar_network.toolkit.router import Blob
+from sugar_network.db.metadata import BlobProperty
+
+
+_BLOB_SUFFIX = '.blob'
 
 
 class Storage(object):
@@ -55,7 +59,7 @@ class Storage(object):
         try:
             shutil.rmtree(path)
         except Exception, error:
-            exception()
+            toolkit.exception()
             raise RuntimeError('Cannot delete %r document from %r: %s' %
                     (guid, self.metadata.name, error))
 
@@ -126,8 +130,16 @@ class Record(object):
 
     def get(self, prop):
         path = join(self._root, prop)
-        if exists(path):
-            return PropertyMetadata(path)
+        if not exists(path):
+            return None
+        with file(path) as f:
+            meta = Blob(json.load(f))
+        blob_path = path + _BLOB_SUFFIX
+        if exists(blob_path):
+            meta['blob'] = blob_path
+            meta['blob_size'] = os.stat(blob_path).st_size
+        meta['mtime'] = int(os.stat(path).st_mtime)
+        return meta
 
     def set(self, prop, mtime=None, **meta):
         if not exists(self._root):
@@ -135,17 +147,17 @@ class Record(object):
         meta_path = join(self._root, prop)
 
         if 'blob' in meta:
-            dst_blob_path = meta_path + PropertyMetadata.BLOB_SUFFIX
+            dst_blob_path = meta_path + _BLOB_SUFFIX
             blob = meta.pop('blob')
             if hasattr(blob, 'read'):
-                with util.new_file(dst_blob_path) as f:
+                with toolkit.new_file(dst_blob_path) as f:
                     shutil.copyfileobj(blob, f)
             elif blob is not None:
                 os.rename(blob, dst_blob_path)
             elif exists(dst_blob_path):
                 os.unlink(dst_blob_path)
 
-        with util.new_file(meta_path) as f:
+        with toolkit.new_file(meta_path) as f:
             json.dump(meta, f)
         if mtime:
             os.utime(meta_path, (mtime, mtime))

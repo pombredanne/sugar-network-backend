@@ -17,9 +17,9 @@ from __init__ import tests
 from sugar_network.client import journal
 from sugar_network.toolkit import coroutine, enforce, pipe as pipe_, lsb_release
 from sugar_network.node import obs
-from sugar_network.resources.user import User
-from sugar_network.resources.context import Context
-from sugar_network.resources.implementation import Implementation
+from sugar_network.model.user import User
+from sugar_network.model.context import Context
+from sugar_network.model.implementation import Implementation
 from sugar_network.client import IPCClient, packagekit, injector, clones, solver
 from sugar_network import client
 

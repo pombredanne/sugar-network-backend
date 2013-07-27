@@ -6,8 +6,8 @@ import select
 
 from __init__ import tests
 
-from sugar_network import db, client as local
-from sugar_network.db import router
+from sugar_network import client as local
+from sugar_network.toolkit.router import route, Router, Request
 from sugar_network.toolkit import coroutine, http
 
 
@@ -15,18 +15,17 @@ class HTTPTest(tests.Test):
 
     def test_Subscribe(self):
 
-        class CommandsProcessor(db.CommandsProcessor):
+        class CommandsProcessor(object):
 
             events = []
 
-            @router.route('GET', '/')
+            @route('GET', cmd='subscribe')
             def subscribe(self, request, response):
-                assert request.get('cmd') == 'subscribe'
                 while CommandsProcessor.events:
-                    coroutine.sleep(.3)
+                    coroutine.sleep(.1)
                     yield CommandsProcessor.events.pop(0) + '\n'
 
-        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), router.Router(CommandsProcessor()))
+        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), Router(CommandsProcessor()))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
         client = http.Client('http://127.0.0.1:%s' % local.ipc_port.value)
@@ -57,29 +56,33 @@ class HTTPTest(tests.Test):
 
     def test_call_ReturnStream(self):
 
-        class Commands(db.CommandsProcessor):
+        class Commands(object):
 
-            @db.volume_command(method='GET', cmd='f1', mime_type='application/json')
+            @route('GET', cmd='f1', mime_type='application/json')
             def f1(self):
                 yield json.dumps('result')
 
-            @db.volume_command(method='GET', cmd='f2', mime_type='foo/bar')
+            @route('GET', cmd='f2', mime_type='foo/bar')
             def f2(self):
                 yield json.dumps('result')
 
-        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), router.Router(Commands()))
+        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), Router(Commands()))
         coroutine.spawn(self.server.serve_forever)
         coroutine.dispatch()
         client = http.Client('http://127.0.0.1:%s' % local.ipc_port.value)
 
-        request = db.Request()
-        request['method'] = 'GET'
-        request['cmd'] = 'f1'
+        request = Request({
+            'REQUEST_METHOD': 'GET',
+            'PATH_INFO': '/',
+            'QUERY_STRING': 'cmd=f1',
+            })
         self.assertEqual('result', client.call(request))
 
-        request = db.Request()
-        request['method'] = 'GET'
-        request['cmd'] = 'f2'
+        request = Request({
+            'REQUEST_METHOD': 'GET',
+            'PATH_INFO': '/',
+            'QUERY_STRING': 'cmd=f2',
+            })
         self.assertEqual('result', json.load(client.call(request)))
 
 

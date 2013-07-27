@@ -20,10 +20,11 @@ import logging
 from Cookie import SimpleCookie
 from os.path import join
 
-from sugar_network import db, node
+from sugar_network import node, toolkit
 from sugar_network.node import sync, stats_user, files, volume, downloads, obs
-from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import http, cachedir, coroutine, util, enforce
+from sugar_network.node.routes import NodeRoutes
+from sugar_network.toolkit.router import route, ACL
+from sugar_network.toolkit import http, coroutine, enforce
 
 
 _ONE_WAY_DOCUMENTS = ['report']
@@ -31,10 +32,10 @@ _ONE_WAY_DOCUMENTS = ['report']
 _logger = logging.getLogger('node.master')
 
 
-class MasterCommands(NodeCommands):
+class MasterRoutes(NodeRoutes):
 
     def __init__(self, guid, volume_):
-        NodeCommands.__init__(self, guid, volume_)
+        NodeRoutes.__init__(self, guid, volume_)
 
         self._pulls = {
             'pull': lambda **kwargs:
@@ -44,15 +45,16 @@ class MasterCommands(NodeCommands):
                 ('files_diff', None, self._files.diff(**kwargs)),
             }
 
-        self._pull_queue = downloads.Pool(join(cachedir.value, 'pulls'))
+        self._pull_queue = downloads.Pool(
+                join(toolkit.cachedir.value, 'pulls'))
         self._files = None
 
         if node.files_root.value:
             self._files = files.Index(node.files_root.value,
                     join(volume_.root, 'files.index'), volume_.seqno)
 
-    @db.volume_command(method='POST', cmd='sync',
-            permissions=db.ACCESS_AUTH)
+    @route('POST', cmd='sync',
+            acl=ACL.AUTH)
     def sync(self, request):
         reply, cookie = self._push(sync.decode(request.content_stream))
         exclude_seq = None
@@ -63,7 +65,7 @@ class MasterCommands(NodeCommands):
                 exclude_seq=exclude_seq, layer=layer))
         return sync.encode(reply, src=self.guid)
 
-    @db.volume_command(method='POST', cmd='push')
+    @route('POST', cmd='push')
     def push(self, request, response):
         reply, cookie = self._push(sync.package_decode(request.content_stream))
         # Read passed cookie only after excluding `merged_seq`.
@@ -73,19 +75,19 @@ class MasterCommands(NodeCommands):
         cookie.store(response)
         return sync.package_encode(reply, src=self.guid)
 
-    @db.volume_command(method='GET', cmd='pull',
+    @route('GET', cmd='pull',
             mime_type='application/octet-stream',
-            arguments={'accept_length': db.to_int})
+            arguments={'accept_length': int})
     def pull(self, request, response, accept_length=None):
         cookie = _Cookie(request)
         if not cookie:
             _logger.warning('Requested full dump in pull command')
-            cookie.append(('pull', None, util.Sequence([[1, None]])))
-            cookie.append(('files_pull', None, util.Sequence([[1, None]])))
+            cookie.append(('pull', None, toolkit.Sequence([[1, None]])))
+            cookie.append(('files_pull', None, toolkit.Sequence([[1, None]])))
 
         exclude_seq = None
         if len(cookie.sent) == 1:
-            exclude_seq = util.Sequence(cookie.sent.values()[0])
+            exclude_seq = toolkit.Sequence(cookie.sent.values()[0])
 
         reply = None
         for pull_key in cookie:
@@ -110,7 +112,7 @@ class MasterCommands(NodeCommands):
                 _logger.debug('Existing %r is too big, will recreate', pull)
                 self._pull_queue.remove(pull_key)
 
-            out_seq = util.Sequence()
+            out_seq = toolkit.Sequence()
             pull = self._pull_queue.set(pull_key, out_seq,
                     sync.sneakernet_encode,
                     [self._pulls[op](in_seq=seq, out_seq=out_seq,
@@ -130,15 +132,13 @@ class MasterCommands(NodeCommands):
         cookie.store(response)
         return reply
 
-    @db.document_command(method='PUT', cmd='presolve',
-            permissions=db.ACCESS_AUTH, mime_type='application/json')
-    def presolve(self, request, document, guid):
-        enforce(document == 'context', http.BadRequest,
-                'Only Contexts can be presolved')
+    @route('PUT', ['context', None], cmd='presolve',
+            acl=ACL.AUTH, mime_type='application/json')
+    def presolve(self, request):
         enforce(node.files_root.value, http.BadRequest, 'Disabled')
-        package = self.volume[document].get(guid)
-        enforce(package['aliases'], http.BadRequest, 'Nothing to presolve')
-        return obs.presolve(package['aliases'], node.files_root.value)
+        aliases = self.volume['context'].get(request.guid)['aliases']
+        enforce(aliases, http.BadRequest, 'Nothing to presolve')
+        return obs.presolve(aliases, node.files_root.value)
 
     def after_post(self, doc):
         if doc.metadata.name == 'context':
@@ -150,7 +150,7 @@ class MasterCommands(NodeCommands):
             if shift_implementations and not doc.is_new:
                 # Shift mtime to invalidate solutions
                 self.volume['implementation'].mtime = int(time.time())
-        NodeCommands.after_post(self, doc)
+        NodeRoutes.after_post(self, doc)
 
     def _push(self, stream):
         reply = []
@@ -163,7 +163,7 @@ class MasterCommands(NodeCommands):
             if packet.name == 'pull':
                 pull_seq = cookie['pull', packet['layer'] or None]
                 pull_seq.include(packet['sequence'])
-                cookie.sent.setdefault(src, util.Sequence())
+                cookie.sent.setdefault(src, toolkit.Sequence())
             elif packet.name == 'files_pull':
                 if self._files is not None:
                     cookie['files_pull'].include(packet['sequence'])
@@ -174,7 +174,7 @@ class MasterCommands(NodeCommands):
                     'sequence': seq,
                     'dst': src,
                     }, None))
-                sent_seq = cookie.sent.setdefault(src, util.Sequence())
+                sent_seq = cookie.sent.setdefault(src, toolkit.Sequence())
                 sent_seq.include(ack_seq)
             elif packet.name == 'stats_diff':
                 reply.append(('stats_ack', {
@@ -216,8 +216,7 @@ class MasterCommands(NodeCommands):
                     package['status'] = 'no packages to resolve'
 
         if packages != doc['packages']:
-            doc.request.call('PUT', document='context', guid=doc.guid,
-                    content={'packages': packages})
+            self.volume['context'].update(doc.guid, {'packages': packages})
 
         if node.files_root.value:
             obs.presolve(doc['aliases'], node.files_root.value)
@@ -262,7 +261,7 @@ class _Cookie(list):
         for op, layer, seq in self:
             if (op, layer) == key:
                 return seq
-        seq = util.Sequence()
+        seq = toolkit.Sequence()
         self.append(key + (seq,))
         return seq
 

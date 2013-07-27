@@ -15,7 +15,9 @@
 
 import logging
 
-from sugar_network.toolkit import BUFFER_SIZE, http, util, coroutine, enforce
+from sugar_network import toolkit
+from sugar_network.toolkit.router import Request
+from sugar_network.toolkit import http, coroutine, enforce
 
 
 # Apply node level layer for these documents
@@ -28,7 +30,7 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
         fetch_blobs=False, ignore_documents=None, **kwargs):
     connection = http.Client()
     if out_seq is None:
-        out_seq = util.Sequence([])
+        out_seq = toolkit.Sequence([])
     is_the_only_seq = not out_seq
     if layer:
         if isinstance(layer, basestring):
@@ -40,18 +42,18 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
                 continue
             coroutine.dispatch()
             directory.commit()
-            yield {'document': document}
+            yield {'resource': document}
             for guid, patch in directory.diff(in_seq, exclude_seq,
                     layer=layer if document in _LIMITED_RESOURCES else None):
                 adiff = {}
-                adiff_seq = util.Sequence()
+                adiff_seq = toolkit.Sequence()
                 for prop, meta, seqno in patch:
                     if 'blob' in meta:
                         blob_path = meta.pop('blob')
                         yield {'guid': guid,
                                'diff': {prop: meta},
                                'blob_size': meta['blob_size'],
-                               'blob': util.iter_file(blob_path),
+                               'blob': toolkit.iter_file(blob_path),
                                }
                     elif fetch_blobs and 'url' in meta:
                         url = meta.pop('url')
@@ -69,7 +71,7 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
                                'diff': {prop: meta},
                                'blob_size':
                                     int(blob.headers['Content-Length']),
-                               'blob': blob.iter_content(BUFFER_SIZE),
+                               'blob': blob.iter_content(toolkit.BUFFER_SIZE),
                                }
                     else:
                         adiff[prop] = meta
@@ -89,12 +91,12 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
 def merge(volume, records, shift_seqno=True, node_stats=None):
     document = None
     directory = None
-    commit_seq = util.Sequence()
-    merged_seq = util.Sequence()
+    commit_seq = toolkit.Sequence()
+    merged_seq = toolkit.Sequence()
     synced = False
 
     for record in records:
-        document_ = record.get('document')
+        document_ = record.get('resource')
         if document_:
             document = document_
             directory = volume[document_]
@@ -109,9 +111,7 @@ def merge(volume, records, shift_seqno=True, node_stats=None):
                 merged_seq.include(seqno, seqno)
 
             if node_stats is not None and document == 'review':
-                request = _Request()
-                request['document'] = document
-                request['method'] = 'POST'
+                request = Request(method='POST', path=[document])
                 patch = record['diff']
                 request.content = {
                         'context': patch['context']['value'],
@@ -128,12 +128,6 @@ def merge(volume, records, shift_seqno=True, node_stats=None):
             continue
 
     if synced:
-        volume.notify({'event': 'sync'})
+        volume.broadcast({'event': 'sync'})
 
     return commit_seq, merged_seq
-
-
-class _Request(dict):
-
-    principal = None
-    content = None

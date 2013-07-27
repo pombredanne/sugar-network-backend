@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2012 Aleksey Lim
+# Copyright (C) 2010-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,7 +22,8 @@ import logging
 import threading
 from os.path import exists, dirname, basename
 
-from sugar_network.toolkit import coroutine, util
+from sugar_network import toolkit
+from sugar_network.toolkit import coroutine
 
 
 _logger = logging.getLogger('pipe')
@@ -176,7 +177,7 @@ def _setup_logging(path):
     log_dir = dirname(path)
     if not exists(log_dir):
         os.makedirs(log_dir)
-    path = util.unique_filename(log_dir, basename(path) + '.log')
+    path = toolkit.unique_filename(log_dir, basename(path) + '.log')
 
     logfile = file(path, 'a+')
     os.dup2(logfile.fileno(), sys.stdout.fileno())

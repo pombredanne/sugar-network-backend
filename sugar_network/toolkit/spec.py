@@ -202,7 +202,7 @@ def ensure_requires(to_consider, to_apply):
     def intersect(x, y):
         l = max([parse_version(i) for i, __ in (x + y)])
         r = min([[[sys.maxint]] if i is None else parse_version(i) \
-                for __, i in [x + y]])
+                for __, i in (x + y)])
         return l is None or r is None or l < r
 
     for name, cond in to_apply.items():

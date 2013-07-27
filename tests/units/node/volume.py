@@ -9,18 +9,11 @@ from cStringIO import StringIO
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, toolkit, model
 from sugar_network.node.volume import diff, merge
 from sugar_network.node.stats_node import stats_node_step, Sniffer
-from sugar_network.node.commands import NodeCommands
-from sugar_network.resources.user import User
-from sugar_network.resources.volume import Volume, Resource
-from sugar_network.resources.review import Review
-from sugar_network.resources.context import Context
-from sugar_network.resources.artifact import Artifact
-from sugar_network.resources.feedback import Feedback
-from sugar_network.resources.solution import Solution
-from sugar_network.toolkit import util
+from sugar_network.node.routes import NodeRoutes
+from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, Blob, ACL, route
 
 
 class VolumeTest(tests.Test):
@@ -28,32 +21,36 @@ class VolumeTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
         self.override(time, 'time', lambda: 0)
+        self.override(NodeRoutes, 'authorize', lambda self, user, role: True)
 
     def test_diff(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(slot=1)
             def prop(self, value):
                 return value
 
-        volume = Volume('db', [Document])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', [Document])
+        cp = NodeRoutes('guid', volume)
 
-        guid1 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'a'})
+        guid1 = call(cp, method='POST', document='document', content={'prop': 'a'})
         self.utime('db/document/%s/%s' % (guid1[:2], guid1), 1)
-        guid2 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'b'})
+        guid2 = call(cp, method='POST', document='document', content={'prop': 'b'})
         self.utime('db/document/%s/%s' % (guid2[:2], guid2), 2)
 
-        in_seq = util.Sequence([[1, None]])
+        in_seq = toolkit.Sequence([[1, None]])
         self.assertEqual([
-            {'document': 'document'},
+            {'resource': 'document'},
             {'guid': guid1,
                 'diff': {
                     'guid': {'value': guid1, 'mtime': 1},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
                     'prop': {'value': 'a', 'mtime': 1},
+                    'author': {'mtime': 1, 'value': {}},
+                    'layer': {'mtime': 1, 'value': ['public']},
+                    'tags': {'mtime': 1, 'value': []},
                     },
                 },
             {'guid': guid2,
@@ -62,6 +59,9 @@ class VolumeTest(tests.Test):
                     'mtime': {'value': 0, 'mtime': 2},
                     'ctime': {'value': 0, 'mtime': 2},
                     'prop': {'value': 'b', 'mtime': 2},
+                    'author': {'mtime': 2, 'value': {}},
+                    'layer': {'mtime': 2, 'value': ['public']},
+                    'tags': {'mtime': 2, 'value': []},
                     },
                 },
             {'commit': [[1, 2]]},
@@ -71,23 +71,23 @@ class VolumeTest(tests.Test):
 
     def test_diff_Partial(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(slot=1)
             def prop(self, value):
                 return value
 
-        volume = Volume('db', [Document])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', [Document])
+        cp = NodeRoutes('guid', volume)
 
-        guid1 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'a'})
+        guid1 = call(cp, method='POST', document='document', content={'prop': 'a'})
         self.utime('db/document/%s/%s' % (guid1[:2], guid1), 1)
-        guid2 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'b'})
+        guid2 = call(cp, method='POST', document='document', content={'prop': 'b'})
         self.utime('db/document/%s/%s' % (guid2[:2], guid2), 2)
 
-        in_seq = util.Sequence([[1, None]])
+        in_seq = toolkit.Sequence([[1, None]])
         patch = diff(volume, in_seq)
-        self.assertEqual({'document': 'document'}, next(patch))
+        self.assertEqual({'resource': 'document'}, next(patch))
         self.assertEqual(guid1, next(patch)['guid'])
         self.assertEqual({'commit': []}, patch.throw(StopIteration()))
         try:
@@ -97,7 +97,7 @@ class VolumeTest(tests.Test):
             pass
 
         patch = diff(volume, in_seq)
-        self.assertEqual({'document': 'document'}, next(patch))
+        self.assertEqual({'resource': 'document'}, next(patch))
         self.assertEqual(guid1, next(patch)['guid'])
         self.assertEqual(guid2, next(patch)['guid'])
         self.assertEqual({'commit': [[1, 1]]}, patch.throw(StopIteration()))
@@ -109,29 +109,29 @@ class VolumeTest(tests.Test):
 
     def test_diff_Stretch(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(slot=1)
             def prop(self, value):
                 return value
 
-        volume = Volume('db', [Document])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', [Document])
+        cp = NodeRoutes('guid', volume)
 
-        guid1 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'a'})
+        guid1 = call(cp, method='POST', document='document', content={'prop': 'a'})
         self.utime('db/document/%s/%s' % (guid1[:2], guid1), 1)
-        guid2 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'b'})
+        guid2 = call(cp, method='POST', document='document', content={'prop': 'b'})
         volume['document'].delete(guid2)
-        guid3 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'c'})
+        guid3 = call(cp, method='POST', document='document', content={'prop': 'c'})
         self.utime('db/document/%s/%s' % (guid3[:2], guid3), 2)
-        guid4 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'd'})
+        guid4 = call(cp, method='POST', document='document', content={'prop': 'd'})
         volume['document'].delete(guid4)
-        guid5 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'f'})
+        guid5 = call(cp, method='POST', document='document', content={'prop': 'f'})
         self.utime('db/document/%s/%s' % (guid5[:2], guid5), 2)
 
-        in_seq = util.Sequence([[1, None]])
+        in_seq = toolkit.Sequence([[1, None]])
         patch = diff(volume, in_seq)
-        self.assertEqual({'document': 'document'}, patch.send(None))
+        self.assertEqual({'resource': 'document'}, patch.send(None))
         self.assertEqual(guid1, patch.send(None)['guid'])
         self.assertEqual(guid3, patch.send(None)['guid'])
         self.assertEqual(guid5, patch.send(None)['guid'])
@@ -143,7 +143,7 @@ class VolumeTest(tests.Test):
             pass
 
         patch = diff(volume, in_seq)
-        self.assertEqual({'document': 'document'}, patch.send(None))
+        self.assertEqual({'resource': 'document'}, patch.send(None))
         self.assertEqual(guid1, patch.send(None)['guid'])
         self.assertEqual(guid3, patch.send(None)['guid'])
         self.assertEqual(guid5, patch.send(None)['guid'])
@@ -156,29 +156,29 @@ class VolumeTest(tests.Test):
 
     def test_diff_DoNotStretchContinuesPacket(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(slot=1)
             def prop(self, value):
                 return value
 
-        volume = Volume('db', [Document])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', [Document])
+        cp = NodeRoutes('guid', volume)
 
-        guid1 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'a'})
+        guid1 = call(cp, method='POST', document='document', content={'prop': 'a'})
         volume['document'].delete(guid1)
-        guid2 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'b'})
+        guid2 = call(cp, method='POST', document='document', content={'prop': 'b'})
         volume['document'].delete(guid2)
-        guid3 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'c'})
+        guid3 = call(cp, method='POST', document='document', content={'prop': 'c'})
         self.utime('db/document/%s/%s' % (guid3[:2], guid3), 2)
-        guid4 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'd'})
+        guid4 = call(cp, method='POST', document='document', content={'prop': 'd'})
         volume['document'].delete(guid4)
-        guid5 = call(cp, method='POST', document='document', principal='principal', content={'prop': 'f'})
+        guid5 = call(cp, method='POST', document='document', content={'prop': 'f'})
         self.utime('db/document/%s/%s' % (guid5[:2], guid5), 2)
 
-        in_seq = util.Sequence([[1, None]])
-        patch = diff(volume, in_seq, util.Sequence([[1, 1]]))
-        self.assertEqual({'document': 'document'}, patch.send(None))
+        in_seq = toolkit.Sequence([[1, None]])
+        patch = diff(volume, in_seq, toolkit.Sequence([[1, 1]]))
+        self.assertEqual({'resource': 'document'}, patch.send(None))
         self.assertEqual(guid3, patch.send(None)['guid'])
         self.assertEqual(guid5, patch.send(None)['guid'])
         self.assertEqual({'commit': [[1, 1], [3, 3], [5, 5]]}, patch.send(None))
@@ -190,32 +190,32 @@ class VolumeTest(tests.Test):
 
     def test_diff_TheSameInSeqForAllDocuments(self):
 
-        class Document1(db.Document):
+        class Document1(db.Resource):
             pass
 
-        class Document2(db.Document):
+        class Document2(db.Resource):
             pass
 
-        class Document3(db.Document):
+        class Document3(db.Resource):
             pass
 
-        volume = Volume('db', [Document1, Document2, Document3])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', [Document1, Document2, Document3])
+        cp = NodeRoutes('guid', volume)
 
-        guid3 = call(cp, method='POST', document='document1', principal='principal', content={})
+        guid3 = call(cp, method='POST', document='document1', content={})
         self.utime('db/document/%s/%s' % (guid3[:2], guid3), 3)
-        guid2 = call(cp, method='POST', document='document2', principal='principal', content={})
+        guid2 = call(cp, method='POST', document='document2', content={})
         self.utime('db/document/%s/%s' % (guid2[:2], guid2), 2)
-        guid1 = call(cp, method='POST', document='document3', principal='principal', content={})
+        guid1 = call(cp, method='POST', document='document3', content={})
         self.utime('db/document/%s/%s' % (guid1[:2], guid1), 1)
 
-        in_seq = util.Sequence([[1, None]])
+        in_seq = toolkit.Sequence([[1, None]])
         patch = diff(volume, in_seq)
-        self.assertEqual({'document': 'document1'}, patch.send(None))
+        self.assertEqual({'resource': 'document1'}, patch.send(None))
         self.assertEqual(guid3, patch.send(None)['guid'])
-        self.assertEqual({'document': 'document2'}, patch.send(None))
+        self.assertEqual({'resource': 'document2'}, patch.send(None))
         self.assertEqual(guid2, patch.send(None)['guid'])
-        self.assertEqual({'document': 'document3'}, patch.send(None))
+        self.assertEqual({'resource': 'document3'}, patch.send(None))
         self.assertEqual(guid1, patch.send(None)['guid'])
         self.assertEqual({'commit': [[1, 3]]}, patch.send(None))
         try:
@@ -226,27 +226,27 @@ class VolumeTest(tests.Test):
 
     def test_merge_Create(self):
 
-        class Document1(db.Document):
+        class Document1(db.Resource):
 
             @db.indexed_property(slot=1)
             def prop(self, value):
                 return value
 
-        class Document2(db.Document):
+        class Document2(db.Resource):
             pass
 
         self.touch(('db/seqno', '100'))
-        volume = Volume('db', [Document1, Document2])
+        volume = db.Volume('db', [Document1, Document2])
 
         records = [
-                {'document': 'document1'},
+                {'resource': 'document1'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 1.0},
                     'ctime': {'value': 2, 'mtime': 2.0},
                     'mtime': {'value': 3, 'mtime': 3.0},
                     'prop': {'value': '4', 'mtime': 4.0},
                     }},
-                {'document': 'document2'},
+                {'resource': 'document2'},
                 {'guid': '5', 'diff': {
                     'guid': {'value': '5', 'mtime': 5.0},
                     'ctime': {'value': 6, 'mtime': 6.0},
@@ -273,20 +273,20 @@ class VolumeTest(tests.Test):
 
     def test_merge_Update(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(slot=1)
             def prop(self, value):
                 return value
 
         self.touch(('db/seqno', '100'))
-        volume = Volume('db', [Document])
+        volume = db.Volume('db', [Document])
         volume['document'].create({'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1})
         for i in os.listdir('db/document/1/1'):
             os.utime('db/document/1/1/%s' % i, (2, 2))
 
         records = [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {'prop': {'value': '2', 'mtime': 1.0}}},
                 {'commit': [[1, 1]]},
                 ]
@@ -297,7 +297,7 @@ class VolumeTest(tests.Test):
         self.assertEqual(2, os.stat('db/document/1/1/prop').st_mtime)
 
         records = [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {'prop': {'value': '3', 'mtime': 2.0}}},
                 {'commit': [[2, 2]]},
                 ]
@@ -308,7 +308,7 @@ class VolumeTest(tests.Test):
         self.assertEqual(2, os.stat('db/document/1/1/prop').st_mtime)
 
         records = [
-            {'document': 'document'},
+            {'resource': 'document'},
             {'guid': '1', 'diff': {'prop': {'value': '4', 'mtime': 3.0}}},
             {'commit': [[3, 3]]},
             ]
@@ -320,15 +320,15 @@ class VolumeTest(tests.Test):
 
     def test_merge_MultipleCommits(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
             pass
 
         self.touch(('db/seqno', '100'))
-        volume = Volume('db', [Document])
+        volume = db.Volume('db', [Document])
 
         def generator():
             for i in [
-                    {'document': 'document'},
+                    {'resource': 'document'},
                     {'commit': [[1, 1]]},
                     {'guid': '1', 'diff': {
                         'guid': {'value': '1', 'mtime': 1.0},
@@ -346,18 +346,18 @@ class VolumeTest(tests.Test):
 
     def test_merge_UpdateReviewStats(self):
         stats_node_step.value = 1
-        volume = Volume('db', [User, Context, Review, Feedback, Solution, Artifact])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', model.RESOURCES)
+        cp = NodeRoutes('guid', volume)
         stats = Sniffer(volume)
 
-        context = call(cp, method='POST', document='context', principal='principal', content={
+        context = call(cp, method='POST', document='context', content={
                 'guid': 'context',
                 'type': 'package',
                 'title': 'title',
                 'summary': 'summary',
                 'description': 'description',
                 })
-        artifact = call(cp, method='POST', document='artifact', principal='principal', content={
+        artifact = call(cp, method='POST', document='artifact', content={
                 'guid': 'artifact',
                 'type': 'instance',
                 'context': context,
@@ -366,7 +366,7 @@ class VolumeTest(tests.Test):
                 })
 
         records = [
-                {'document': 'review'},
+                {'resource': 'review'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 1.0},
                     'ctime': {'value': 1, 'mtime': 1.0},
@@ -374,6 +374,9 @@ class VolumeTest(tests.Test):
                     'context': {'value': context, 'mtime': 1.0},
                     'artifact': {'value': artifact, 'mtime': 4.0},
                     'rating': {'value': 1, 'mtime': 1.0},
+                    'author': {'mtime': 1, 'value': {}},
+                    'layer': {'mtime': 1, 'value': ['public']},
+                    'tags': {'mtime': 1, 'value': []},
                     }},
                 {'guid': '2', 'diff': {
                     'guid': {'value': '2', 'mtime': 2.0},
@@ -381,6 +384,9 @@ class VolumeTest(tests.Test):
                     'mtime': {'value': 2, 'mtime': 2.0},
                     'context': {'value': context, 'mtime': 2.0},
                     'rating': {'value': 2, 'mtime': 2.0},
+                    'author': {'mtime': 2, 'value': {}},
+                    'layer': {'mtime': 2, 'value': ['public']},
+                    'tags': {'mtime': 2, 'value': []},
                     }},
                 {'commit': [[1, 2]]},
                 ]
@@ -394,22 +400,22 @@ class VolumeTest(tests.Test):
 
     def test_diff_Blobs(self):
 
-        class Document(Resource):
+        class Document(db.Resource):
 
             @db.blob_property()
             def prop(self, value):
                 return value
 
-        volume = Volume('db', [User, Document])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', [Document])
+        cp = NodeRoutes('guid', volume)
 
-        guid = call(cp, method='POST', document='document', principal='principal', content={})
-        call(cp, method='PUT', document='document', guid=guid, principal='principal', content={'prop': 'payload'})
+        guid = call(cp, method='POST', document='document', content={})
+        call(cp, method='PUT', document='document', guid=guid, content={'prop': 'payload'})
         self.utime('db', 0)
 
-        patch = diff(volume, util.Sequence([[1, None]]))
+        patch = diff(volume, toolkit.Sequence([[1, None]]))
         self.assertEqual(
-                {'document': 'document'},
+                {'resource': 'document'},
                 next(patch))
         record = next(patch)
         self.assertEqual('payload', ''.join([i for i in record.pop('blob')]))
@@ -426,15 +432,12 @@ class VolumeTest(tests.Test):
         self.assertEqual(
                 {'guid': guid, 'diff': {
                     'guid': {'value': guid, 'mtime': 0},
-                    'author': {'value': {'principal': {'order': 0, 'role': 2}}, 'mtime': 0},
+                    'author': {'mtime': 0, 'value': {}},
                     'layer': {'mtime': 0, 'value': ['public']},
                     'tags': {'mtime': 0, 'value': []},
                     'mtime': {'value': 0, 'mtime': 0},
                     'ctime': {'value': 0, 'mtime': 0},
                     }},
-                next(patch))
-        self.assertEqual(
-                {'document': 'user'},
                 next(patch))
         self.assertEqual(
                 {'commit': [[1, 2]]},
@@ -445,25 +448,25 @@ class VolumeTest(tests.Test):
         url = 'http://src.sugarlabs.org/robots.txt'
         blob = urllib2.urlopen(url).read()
 
-        class Document(Resource):
+        class Document(db.Resource):
 
             @db.blob_property()
             def prop(self, value):
                 return value
 
-        volume = Volume('db', [User, Document])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', [Document])
+        cp = NodeRoutes('guid', volume)
 
-        guid = call(cp, method='POST', document='document', principal='principal', content={})
-        call(cp, method='PUT', document='document', guid=guid, principal='principal', content={'prop': {'url': url}})
+        guid = call(cp, method='POST', document='document', content={})
+        call(cp, method='PUT', document='document', guid=guid, content={'prop': {'url': url}})
         self.utime('db', 1)
 
         self.assertEqual([
-            {'document': 'document'},
+            {'resource': 'document'},
             {'guid': guid,
                 'diff': {
                     'guid': {'value': guid, 'mtime': 1},
-                    'author': {'value': {'principal': {'order': 0, 'role': 2}}, 'mtime': 1},
+                    'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': ['public']},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
@@ -471,14 +474,13 @@ class VolumeTest(tests.Test):
                     'prop': {'url': url, 'mtime': 1},
                     },
                 },
-            {'document': 'user'},
             {'commit': [[1, 2]]},
             ],
-            [i for i in diff(volume, util.Sequence([[1, None]]))])
+            [i for i in diff(volume, toolkit.Sequence([[1, None]]))])
 
-        patch = diff(volume, util.Sequence([[1, None]]), fetch_blobs=True)
+        patch = diff(volume, toolkit.Sequence([[1, None]]), fetch_blobs=True)
         self.assertEqual(
-                {'document': 'document'},
+                {'resource': 'document'},
                 next(patch))
         record = next(patch)
         self.assertEqual(blob, ''.join([i for i in record.pop('blob')]))
@@ -488,15 +490,12 @@ class VolumeTest(tests.Test):
         self.assertEqual(
                 {'guid': guid, 'diff': {
                     'guid': {'value': guid, 'mtime': 1},
-                    'author': {'value': {'principal': {'order': 0, 'role': 2}}, 'mtime': 1},
+                    'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': ['public']},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
                     }},
-                next(patch))
-        self.assertEqual(
-                {'document': 'user'},
                 next(patch))
         self.assertEqual(
                 {'commit': [[1, 2]]},
@@ -505,26 +504,26 @@ class VolumeTest(tests.Test):
 
     def test_diff_SkipBrokenBlobUrls(self):
 
-        class Document(Resource):
+        class Document(db.Resource):
 
             @db.blob_property()
             def prop(self, value):
                 return value
 
-        volume = Volume('db', [User, Document])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', [Document])
+        cp = NodeRoutes('guid', volume)
 
-        guid1 = call(cp, method='POST', document='document', principal='principal', content={})
-        call(cp, method='PUT', document='document', guid=guid1, principal='principal', content={'prop': {'url': 'http://foo/bar'}})
-        guid2 = call(cp, method='POST', document='document', principal='principal', content={})
+        guid1 = call(cp, method='POST', document='document', content={})
+        call(cp, method='PUT', document='document', guid=guid1, content={'prop': {'url': 'http://foo/bar'}})
+        guid2 = call(cp, method='POST', document='document', content={})
         self.utime('db', 1)
 
         self.assertEqual([
-            {'document': 'document'},
+            {'resource': 'document'},
             {'guid': guid1,
                 'diff': {
                     'guid': {'value': guid1, 'mtime': 1},
-                    'author': {'value': {'principal': {'order': 0, 'role': 2}}, 'mtime': 1},
+                    'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': ['public']},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
@@ -535,24 +534,23 @@ class VolumeTest(tests.Test):
             {'guid': guid2,
                 'diff': {
                     'guid': {'value': guid2, 'mtime': 1},
-                    'author': {'value': {'principal': {'order': 0, 'role': 2}}, 'mtime': 1},
+                    'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': ['public']},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
                     },
                 },
-            {'document': 'user'},
             {'commit': [[1, 3]]},
             ],
-            [i for i in diff(volume, util.Sequence([[1, None]]), fetch_blobs=False)])
+            [i for i in diff(volume, toolkit.Sequence([[1, None]]), fetch_blobs=False)])
 
         self.assertEqual([
-            {'document': 'document'},
+            {'resource': 'document'},
             {'guid': guid1,
                 'diff': {
                     'guid': {'value': guid1, 'mtime': 1},
-                    'author': {'value': {'principal': {'order': 0, 'role': 2}}, 'mtime': 1},
+                    'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': ['public']},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
@@ -562,30 +560,29 @@ class VolumeTest(tests.Test):
             {'guid': guid2,
                 'diff': {
                     'guid': {'value': guid2, 'mtime': 1},
-                    'author': {'value': {'principal': {'order': 0, 'role': 2}}, 'mtime': 1},
+                    'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': ['public']},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
                     },
                 },
-            {'document': 'user'},
             {'commit': [[1, 3]]},
             ],
-            [i for i in diff(volume, util.Sequence([[1, None]]), fetch_blobs=True)])
+            [i for i in diff(volume, toolkit.Sequence([[1, None]]), fetch_blobs=True)])
 
     def test_merge_Blobs(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
 
             @db.blob_property()
             def prop(self, value):
                 return value
 
-        volume = Volume('db', [Document])
+        volume = db.Volume('db', [Document])
 
         merge(volume, [
-            {'document': 'document'},
+            {'resource': 'document'},
             {'guid': '1', 'diff': {
                 'guid': {'value': '1', 'mtime': 1.0},
                 'ctime': {'value': 2, 'mtime': 2.0},
@@ -611,16 +608,16 @@ class VolumeTest(tests.Test):
 
     def test_diff_ByLayers(self):
 
-        class Context(Resource):
+        class Context(db.Resource):
             pass
 
-        class Implementation(Resource):
+        class Implementation(db.Resource):
             pass
 
-        class Review(Resource):
+        class Review(db.Resource):
             pass
 
-        volume = Volume('db', [Context, Implementation, Review])
+        volume = db.Volume('db', [Context, Implementation, Review])
         volume['context'].create({'guid': '0', 'ctime': 1, 'mtime': 1, 'layer': ['layer0', 'common']})
         volume['context'].create({'guid': '1', 'ctime': 1, 'mtime': 1, 'layer': 'layer1'})
         volume['implementation'].create({'guid': '2', 'ctime': 2, 'mtime': 2, 'layer': 'layer2'})
@@ -633,56 +630,65 @@ class VolumeTest(tests.Test):
         self.utime('db', 0)
 
         self.assertEqual(sorted([
-            {'document': 'context'},
+            {'resource': 'context'},
             {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
             {'guid': '1', 'diff': {'tags': {'value': '1', 'mtime': 0}}},
-            {'document': 'implementation'},
+            {'resource': 'implementation'},
             {'guid': '2', 'diff': {'tags': {'value': '2', 'mtime': 0}}},
-            {'document': 'review'},
+            {'resource': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
             {'commit': [[5, 8]]},
             ]),
-            sorted([i for i in diff(volume, util.Sequence([[5, None]]))]))
+            sorted([i for i in diff(volume, toolkit.Sequence([[5, None]]))]))
 
         self.assertEqual(sorted([
-            {'document': 'context'},
+            {'resource': 'context'},
             {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
             {'guid': '1', 'diff': {'tags': {'value': '1', 'mtime': 0}}},
-            {'document': 'implementation'},
-            {'document': 'review'},
+            {'resource': 'implementation'},
+            {'resource': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
             {'commit': [[5, 8]]},
             ]),
-            sorted([i for i in diff(volume, util.Sequence([[5, None]]), layer='layer1')]))
+            sorted([i for i in diff(volume, toolkit.Sequence([[5, None]]), layer='layer1')]))
 
         self.assertEqual(sorted([
-            {'document': 'context'},
+            {'resource': 'context'},
             {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
-            {'document': 'implementation'},
+            {'resource': 'implementation'},
             {'guid': '2', 'diff': {'tags': {'value': '2', 'mtime': 0}}},
-            {'document': 'review'},
+            {'resource': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
             {'commit': [[5, 8]]},
             ]),
-            sorted([i for i in diff(volume, util.Sequence([[5, None]]), layer='layer2')]))
+            sorted([i for i in diff(volume, toolkit.Sequence([[5, None]]), layer='layer2')]))
 
         self.assertEqual(sorted([
-            {'document': 'context'},
+            {'resource': 'context'},
             {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
-            {'document': 'implementation'},
-            {'document': 'review'},
+            {'resource': 'implementation'},
+            {'resource': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
             {'commit': [[5, 8]]},
             ]),
-            sorted([i for i in diff(volume, util.Sequence([[5, None]]), layer='foo')]))
+            sorted([i for i in diff(volume, toolkit.Sequence([[5, None]]), layer='foo')]))
 
 
-def call(cp, principal=None, content=None, **kwargs):
-    request = db.Request(**kwargs)
-    request.principal = principal
+def call(routes, method, document=None, guid=None, prop=None, cmd=None, content=None, **kwargs):
+    path = []
+    if document:
+        path.append(document)
+    if guid:
+        path.append(guid)
+    if prop:
+        path.append(prop)
+    request = Request(method=method, path=path)
+    request.update(kwargs)
+    request.cmd = cmd
     request.content = content
     request.environ = {'HTTP_HOST': '127.0.0.1'}
-    return cp.call(request, db.Response())
+    router = Router(routes)
+    return router.call(request, Response())
 
 
 if __name__ == '__main__':

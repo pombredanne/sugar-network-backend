@@ -523,25 +523,25 @@
     </dia:object>
     <dia:object type="UML - Class" version="0" id="O1">
       <dia:attribute name="obj_pos">
-        <dia:point val="-2,6"/>
+        <dia:point val="3,6"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="-2.015,5.985;9.5475,33.615"/>
+        <dia:rectangle val="2.985,5.985;14.5475,28.015"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
-        <dia:point val="-2,6"/>
+        <dia:point val="3,6"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
         <dia:real val="11.532500000000001"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="27.600000000000001"/>
+        <dia:real val="22.000000000000004"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#User#</dia:string>
       </dia:attribute>
       <dia:attribute name="stereotype">
-        <dia:string>##</dia:string>
+        <dia:string>#Resource#</dia:string>
       </dia:attribute>
       <dia:attribute name="comment">
         <dia:string>#Represents real people#</dia:string>
@@ -630,29 +630,6 @@
       <dia:attribute name="attributes">
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#guid#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#str [R]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>##</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#Hashed value of Sugar profile public SSH key (the same as JID value in Sugar Shell but without the domain part)#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
             <dia:string>#pubkey#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
@@ -709,29 +686,6 @@
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Sugar colors pair in format "#RRGGBB,#RRGGBB"#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#tags#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#[str] [R WA F]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#[]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#List of tags#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -844,13 +798,13 @@
     </dia:object>
     <dia:object type="UML - Class" version="0" id="O2">
       <dia:attribute name="obj_pos">
-        <dia:point val="12,6"/>
+        <dia:point val="-13,6"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="11.985,5.985;23.77,26.015"/>
+        <dia:rectangle val="-13.015,5.985;-1.23,26.015"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
-        <dia:point val="12,6"/>
+        <dia:point val="-13,6"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
         <dia:real val="11.754999999999999"/>

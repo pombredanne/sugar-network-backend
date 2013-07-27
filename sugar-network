@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import shlex
+import types
 import locale
 from json import dumps, loads
 from os.path import join, exists
@@ -26,9 +27,9 @@ from os.path import join, exists
 from gevent import monkey
 
 from sugar_network import db, client, toolkit
-from sugar_network.resources.volume import Volume
-from sugar_network.client import IPCRouter
-from sugar_network.client.commands import ClientCommands
+from sugar_network.model import RESOURCES
+from sugar_network.client.routes import ClientRoutes
+from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit import application, coroutine, util
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
@@ -68,6 +69,25 @@ uri = Option(
 _ESCAPE_VALUE_RE = re.compile('([^\\[\\]\\{\\}0-9][^\\]\\[\\{\\}]+)')
 
 
+class Client(ClientRoutes, Router):
+
+    def __init__(self):
+        home = db.Volume(client.path('db'), RESOURCES)
+        ClientRoutes.__init__(self, home,
+                client.api_url.value if not offline.value else None,
+                no_subscription=True)
+        Router.__init__(self, self)
+
+        if not offline.value:
+            for __ in self.subscribe(event='inline', state='online'):
+                break
+            coroutine.dispatch()
+        server = coroutine.WSGIServer(
+                ('localhost', client.ipc_port.value), self)
+        coroutine.spawn(server.serve_forever)
+        coroutine.dispatch()
+
+
 class Application(application.Application):
 
     def __init__(self, **kwargs):
@@ -81,7 +101,7 @@ class Application(application.Application):
 
     @application.command(
             'launch Sugar activity',
-            args='BUNDLE_ID [COMMAND-LINE-ARGS]',
+            args='BUNDLE_ID [COMMAND-LINE-ARGS]', interspersed_args=False,
             )
     def launch(self):
         enforce(self.check_for_instance(), 'No sugar-network-client session')
@@ -134,9 +154,10 @@ class Application(application.Application):
         self._request('GET', False)
 
     def _request(self, method, post):
-        request = db.Request(method=method)
+        request = Request(method=method)
         request.allow_redirects = True
-        response = db.Response()
+        request.accept_encoding = ''
+        response = Response()
         reply = []
 
         if post:
@@ -161,12 +182,7 @@ class Application(application.Application):
                     pass
 
         if self.args and self.args[0].startswith('/'):
-            path = self.args.pop(0).strip('/').split('/')
-            request['document'] = path.pop(0)
-            if path:
-                request['guid'] = path.pop(0)
-            if path:
-                request['prop'] = path.pop(0)
+            request.path = self.args.pop(0).strip('/').split('/')
 
         for arg in self.args:
             arg = shlex.split(arg)
@@ -196,18 +212,7 @@ class Application(application.Application):
                 pid_path = self.new_instance()
                 if not client.anonymous.value:
                     util.ensure_key(client.key_path())
-                home = Volume(client.path('db'))
-                cp = ClientCommands(home,
-                        client.api_url.value if not offline.value else None,
-                        no_subscription=True)
-                if not offline.value:
-                    for __ in cp.subscribe(event='inline', state='online'):
-                        break
-                    coroutine.dispatch()
-                server = coroutine.WSGIServer(
-                        ('localhost', client.ipc_port.value), IPCRouter(cp))
-                coroutine.spawn(server.serve_forever)
-                coroutine.dispatch()
+                cp = Client()
             result = cp.call(request, response)
         finally:
             if server is not None:
@@ -247,6 +252,9 @@ class Application(application.Application):
                 if not chunk:
                     break
                 sys.stdout.write(chunk)
+        elif isinstance(result, types.GeneratorType):
+            for chunk in result:
+                sys.stdout.write(chunk)
         else:
             sys.stdout.write(result)
 
@@ -284,5 +292,5 @@ app = Application(
             '~/.config/sweets/config',
             client.profile_path('sweets.conf'),
             ],
-        stop_args=['launch'])
+        )
 app.start()

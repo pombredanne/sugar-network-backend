@@ -56,22 +56,22 @@ class Sniffer(object):
         for cls in (_UserStats, _ContextStats, _ImplementationStats,
                 _ReportStats, _ReviewStats, _FeedbackStats, _SolutionStats,
                 _ArtifactStats, _CommentStats):
-            self._stats[cls.DOCUMENT] = cls(self._stats, volume)
+            self._stats[cls.RESOURCE] = cls(self._stats, volume)
 
     def log(self, request):
-        if 'cmd' in request:
+        if request.cmd:
             return
-        stats = self._stats.get(request.get('document'))
+        stats = self._stats.get(request.resource)
         if stats is not None:
             stats.log(request)
 
     def commit(self, timestamp=None):
         _logger.heartbeat('Commit node stats')
 
-        for document, stats in self._stats.items():
+        for resource, stats in self._stats.items():
             values = stats.commit()
             if values is not None:
-                self.rrd[document].put(values, timestamp=timestamp)
+                self.rrd[resource].put(values, timestamp=timestamp)
 
 
 class _ObjectStats(object):
@@ -82,7 +82,7 @@ class _ObjectStats(object):
 
 class _Stats(object):
 
-    DOCUMENT = None
+    RESOURCE = None
     OWNERS = []
 
     active = None
@@ -90,6 +90,7 @@ class _Stats(object):
     def __init__(self, stats, volume):
         self._stats = stats
         self._volume = volume
+        self._directory = volume[self.RESOURCE]
 
     def log(self, request):
         context = None
@@ -104,30 +105,26 @@ class _Stats(object):
                 else:
                     return self._volume[owner].get(guid)['context']
 
-        method = request['method']
-        if method == 'GET':
-            if 'guid' in request:
-                if self.DOCUMENT == 'context':
-                    context = request['guid']
-                elif self.DOCUMENT != 'user':
-                    doc = self._volume[self.DOCUMENT].get(request['guid'])
-                    context = doc['context']
-            else:
+        if request.method == 'GET':
+            if not request.guid:
                 context = parse_context(request)
-        elif method == 'PUT':
-            guid = request['guid']
-            if self.DOCUMENT == 'context':
-                context = guid
+            elif self.RESOURCE == 'context':
+                context = request.guid
+            elif self.RESOURCE != 'user':
+                context = self._directory.get(request.guid)['context']
+        elif request.method == 'PUT':
+            if self.RESOURCE == 'context':
+                context = request.guid
             else:
                 context = request.content.get('context')
                 if not context:
-                    context = self._volume[self.DOCUMENT].get(guid)['context']
-        elif method == 'POST':
+                    context = self._directory.get(request.guid)['context']
+        elif request.method == 'POST':
             context = parse_context(request.content)
 
         if request.principal:
             stats = self._stats['user']
-            if method in ('POST', 'PUT', 'DELETE'):
+            if request.method in ('POST', 'PUT', 'DELETE'):
                 stats.effective.add(request.principal)
             stats.active.add(request.principal)
 
@@ -154,21 +151,20 @@ class _ResourceStats(_Stats):
 
     def __init__(self, stats, volume):
         _Stats.__init__(self, stats, volume)
-        self.total = volume[self.DOCUMENT].find(limit=0)[1]
+        self.total = volume[self.RESOURCE].find(limit=0)[1]
 
     def log(self, request):
         result = _Stats.log(self, request)
 
-        method = request['method']
-        if method == 'GET':
-            if 'guid' in request and 'prop' not in request:
+        if request.method == 'GET':
+            if request.guid and not request.prop:
                 self.viewed += 1
-        elif method == 'PUT':
+        elif request.method == 'PUT':
             self.updated += 1
-        elif method == 'POST':
+        elif request.method == 'POST':
             self.total += 1
             self.created += 1
-        elif method == 'DELETE':
+        elif request.method == 'DELETE':
             self.total -= 1
             self.deleted += 1
 
@@ -176,14 +172,13 @@ class _ResourceStats(_Stats):
 
     def commit(self):
         if type(self.active) is dict:
-            directory = self._volume[self.DOCUMENT]
             for guid, stats in self.active.items():
                 if not stats.reviews:
                     continue
-                reviews, rating = directory.get(guid)['reviews']
+                reviews, rating = self._directory.get(guid)['reviews']
                 reviews += stats.reviews
                 rating += stats.rating
-                directory.update(guid, {
+                self._directory.update(guid, {
                     'reviews': [reviews, rating],
                     'rating': int(round(float(rating) / reviews)),
                     })
@@ -208,7 +203,7 @@ class _ResourceStats(_Stats):
 
 class _UserStats(_ResourceStats):
 
-    DOCUMENT = 'user'
+    RESOURCE = 'user'
 
     def __init__(self, stats, volume):
         _ResourceStats.__init__(self, stats, volume)
@@ -224,7 +219,7 @@ class _UserStats(_ResourceStats):
 
 class _ContextStats(_ResourceStats):
 
-    DOCUMENT = 'context'
+    RESOURCE = 'context'
 
     released = 0
     failed = 0
@@ -247,35 +242,34 @@ class _ContextStats(_ResourceStats):
 
 class _ImplementationStats(_Stats):
 
-    DOCUMENT = 'implementation'
+    RESOURCE = 'implementation'
     OWNERS = ['context']
 
     def log(self, request):
         _Stats.log(self, request)
 
-        method = request['method']
-        if method == 'GET':
-            if request.get('prop') == 'data':
+        if request.method == 'GET':
+            if request.prop == 'data':
                 self._stats['context'].downloaded += 1
-        elif method == 'POST':
+        elif request.method == 'POST':
             self._stats['context'].released += 1
 
 
 class _ReportStats(_Stats):
 
-    DOCUMENT = 'report'
+    RESOURCE = 'report'
     OWNERS = ['context', 'implementation']
 
     def log(self, request):
         _Stats.log(self, request)
 
-        if request['method'] == 'POST':
+        if request.method == 'POST':
             self._stats['context'].failed += 1
 
 
 class _ReviewStats(_ResourceStats):
 
-    DOCUMENT = 'review'
+    RESOURCE = 'review'
     OWNERS = ['artifact', 'context']
 
     commented = 0
@@ -283,7 +277,7 @@ class _ReviewStats(_ResourceStats):
     def log(self, request):
         context = _ResourceStats.log(self, request)
 
-        if request['method'] == 'POST':
+        if request.method == 'POST':
             if request.content.get('artifact'):
                 artifact = self._stats['artifact']
                 stats = artifact.active_object(request.content['artifact'])
@@ -302,7 +296,7 @@ class _ReviewStats(_ResourceStats):
 
 class _FeedbackStats(_ResourceStats):
 
-    DOCUMENT = 'feedback'
+    RESOURCE = 'feedback'
     OWNERS = ['context']
 
     solutions = 0
@@ -320,7 +314,7 @@ class _FeedbackStats(_ResourceStats):
     def log(self, request):
         _ResourceStats.log(self, request)
 
-        if request['method'] in ('POST', 'PUT'):
+        if request.method in ('POST', 'PUT'):
             if 'solution' in request.content:
                 if request.content['solution'] is None:
                     self.rejected += 1
@@ -339,7 +333,7 @@ class _FeedbackStats(_ResourceStats):
 
 class _SolutionStats(_ResourceStats):
 
-    DOCUMENT = 'solution'
+    RESOURCE = 'solution'
     OWNERS = ['feedback']
 
     commented = 0
@@ -352,7 +346,7 @@ class _SolutionStats(_ResourceStats):
 
 class _ArtifactStats(_ResourceStats):
 
-    DOCUMENT = 'artifact'
+    RESOURCE = 'artifact'
     OWNERS = ['context']
 
     reviewed = 0
@@ -365,8 +359,8 @@ class _ArtifactStats(_ResourceStats):
     def log(self, request):
         _ResourceStats.log(self, request)
 
-        if request['method'] == 'GET':
-            if request.get('prop') == 'data':
+        if request.method == 'GET':
+            if request.prop == 'data':
                 self.downloaded += 1
 
     def commit(self):
@@ -379,13 +373,13 @@ class _ArtifactStats(_ResourceStats):
 
 class _CommentStats(_Stats):
 
-    DOCUMENT = 'comment'
+    RESOURCE = 'comment'
     OWNERS = ['solution', 'feedback', 'review']
 
     def log(self, request):
         _Stats.log(self, request)
 
-        if request['method'] == 'POST':
+        if request.method == 'POST':
             for owner in ('solution', 'feedback', 'review'):
                 if request.content.get(owner):
                     self._stats[owner].commented += 1

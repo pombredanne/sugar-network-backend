@@ -24,12 +24,12 @@ from gevent import monkey
 
 import sugar_network_webui as webui
 from sugar_network import db, node, client, toolkit
-from sugar_network.db.router import Router
 from sugar_network.node import stats_node, stats_user, obs
-from sugar_network.node.master import MasterCommands
-from sugar_network.node.slave import SlaveCommands
-from sugar_network.resources.volume import Volume
+from sugar_network.node.master import MasterRoutes
+from sugar_network.node.slave import SlaveRoutes
+from sugar_network.model import RESOURCES
 from sugar_network.toolkit.http import Client
+from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import coroutine, application, util, Option, enforce
 
 
@@ -55,7 +55,7 @@ class Application(application.Daemon):
         if node.certfile.value:
             ssl_args['certfile'] = node.certfile.value
 
-        volume = Volume(node.data_root.value)
+        volume = db.Volume(node.data_root.value, RESOURCES)
         self.jobs.spawn(volume.populate)
 
         master_path = join(node.data_root.value, 'master')
@@ -63,10 +63,10 @@ class Application(application.Daemon):
             with file(master_path) as f:
                 guid = f.read().strip()
             logging.info('Start %s node in master mode', guid)
-            cp = MasterCommands(guid, volume)
+            cp = MasterRoutes(guid, volume)
         else:
             logging.info('Start slave node')
-            cp = SlaveCommands(join(node.data_root.value, 'node.key'), volume)
+            cp = SlaveRoutes(join(node.data_root.value, 'node.key'), volume)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)
@@ -88,8 +88,8 @@ class Application(application.Daemon):
             client.sugar_uid = lambda: 'demo'
             # Point client API to volume directly
             client.mounts_root.value = None
-            home_volume = Volume(join(application.rundir.value, 'db'))
-            client_commands = _ClientCommands(home_volume,
+            home = db.Volume(join(application.rundir.value, 'db'), RESOURCES)
+            client_commands = _ClientCommands(home,
                     api_url='http://localhost:%s' % node.port.value,
                     static_prefix=client.api_url.value)
             host = (node.host.value, webui.webui_port.value)

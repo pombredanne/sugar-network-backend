@@ -20,10 +20,11 @@ import shutil
 import logging
 from os.path import exists, join, isdir
 
+from sugar_network import toolkit
 from sugar_network.client import IPCClient, local_root
 from sugar_network.client import cache_limit, cache_lifetime
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import pipe, util, exception, enforce
+from sugar_network.toolkit import pipe, enforce
 
 
 _logger = logging.getLogger('cache')
@@ -92,7 +93,7 @@ def get(guid, hints=None):
     ensure(hints.get('unpack_size') or 0, hints.get('bundle_size') or 0)
     blob = IPCClient().download(['implementation', guid, 'data'])
     _unpack_stream(blob, path)
-    with util.new_file(join(path, '.unpack_size')) as f:
+    with toolkit.new_file(join(path, '.unpack_size')) as f:
         json.dump(hints.get('unpack_size') or 0, f)
 
     topdir = os.listdir(path)[-1:]
@@ -122,13 +123,13 @@ def _list():
             # Negative `unpack_size` to process large impls at first
             result.append((os.stat(path).st_mtime, -unpack_size, path))
         except Exception:
-            exception('Cannot list %r cached implementation', path)
+            toolkit.exception('Cannot list %r cached implementation', path)
             result.append((0, 0, path))
     return total, sorted(result)
 
 
 def _unpack_stream(stream, dst):
-    with util.NamedTemporaryFile() as tmp_file:
+    with toolkit.NamedTemporaryFile() as tmp_file:
         for chunk in stream:
             tmp_file.write(chunk)
         tmp_file.flush()

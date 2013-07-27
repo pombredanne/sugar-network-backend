@@ -15,7 +15,7 @@ from __init__ import tests, src_root
 
 from sugar_network.client import Client
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import util, coroutine
+from sugar_network.toolkit import coroutine
 
 
 # /tmp might be on tmpfs wich returns 0 bytes for free mem all time

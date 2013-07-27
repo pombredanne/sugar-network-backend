@@ -26,10 +26,11 @@ from gevent import monkey
 
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
-from sugar_network.client import IPCRouter, clones, cache
-from sugar_network.client.commands import CachedClientCommands
+from sugar_network.client import clones, cache
+from sugar_network.client.routes import CachedClientRoutes
 from sugar_network.node import stats_node, stats_user
-from sugar_network.resources.volume import Volume
+from sugar_network.model import RESOURCES
+from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import mountpoints, util, printf, application
 from sugar_network.toolkit import Option, coroutine
 
@@ -69,7 +70,7 @@ class Application(application.Daemon):
 
         printf.info('Index database in %r', client.local_root.value)
 
-        volume = Volume(client.path('db'))
+        volume = db.Volume(client.path('db'), RESOURCES)
         try:
             volume.populate()
             clones.populate(volume['context'], client.activity_dirs.value)
@@ -104,14 +105,14 @@ class Application(application.Daemon):
 
     def run(self):
         util.ensure_key(client.key_path())
-        volume = Volume(client.path('db'))
-        commands = CachedClientCommands(volume,
+        volume = db.Volume(client.path('db'), RESOURCES)
+        routes = CachedClientRoutes(volume,
                 client.api_url.value if not client.server_mode.value else None)
 
         logging.info('Listening for IPC requests on %s port',
                 client.ipc_port.value)
         server = coroutine.WSGIServer(('localhost', client.ipc_port.value),
-                IPCRouter(commands))
+                Router(routes))
         self.jobs.spawn(server.serve_forever)
         coroutine.dispatch()
 
@@ -125,7 +126,7 @@ class Application(application.Daemon):
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
-                server = coroutine.WSGIServer(host, webui.get_app(commands,
+                server = coroutine.WSGIServer(host, webui.get_app(routes,
                         'http://localhost:%s' % client.ipc_port.value))
                 self.jobs.spawn(server.serve_forever)
 
@@ -139,7 +140,7 @@ class Application(application.Daemon):
                 self.jobs.spawn(self._recycle_cache)
 
         def delayed_start(event=None):
-            for __ in commands.subscribe(event='delayed-start'):
+            for __ in routes.subscribe(event='delayed-start'):
                 break
             logging.info('Proceed delayed start')
             final_start()
@@ -155,7 +156,7 @@ class Application(application.Daemon):
             util.exception('%s interrupted', self.name)
         finally:
             self.jobs.kill()
-            commands.close()
+            routes.close()
 
     def shutdown(self):
         self.jobs.kill()

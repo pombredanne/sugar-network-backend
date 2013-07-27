@@ -8,7 +8,6 @@ from os.path import exists, lexists
 from __init__ import tests
 
 from sugar_network import db
-from sugar_network.db import document, env
 from sugar_network.db import directory as directory_
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
@@ -18,7 +17,7 @@ class MigrateTest(tests.Test):
 
     def test_MissedProps(self):
 
-        class Document(document.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(prefix='P')
             def prop1(self, value):
@@ -52,7 +51,7 @@ class MigrateTest(tests.Test):
 
     def test_ConvertToJson(self):
 
-        class Document(document.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(prefix='P', default='value')
             def prop(self, value):

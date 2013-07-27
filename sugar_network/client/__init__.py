@@ -17,7 +17,8 @@ import os
 import logging
 from os.path import join, expanduser, exists
 
-from sugar_network.toolkit import Option, util
+from sugar_network import toolkit
+from sugar_network.toolkit import Option
 
 
 SUGAR_API_COMPATIBILITY = {
@@ -123,9 +124,7 @@ anonymous = Option(
         name='anonymous')
 
 accept_language = Option(
-        'space separated list of languages to request localized content '
-        'from the server; by default, reuse system locale',
-        default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
+        'specify HTTP Accept-Language header field value manually',
         name='accept-language', short_option='-l')
 
 cache_limit = Option(
@@ -192,22 +191,6 @@ def IPCClient():
             )
 
 
-def IPCRouter(*args, **kwargs):
-    from sugar_network import db
-    from sugar_network.db.router import Router
-
-    class _IPCRouter(Router):
-
-        def authenticate(self, request):
-            pass
-
-        def call(self, request, response):
-            request.access_level = db.ACCESS_LOCAL
-            return Router.call(self, request, response)
-
-    return _IPCRouter(*args, **kwargs)
-
-
 def logger_level():
     """Current Sugar logger level as --debug value."""
     _LEVELS = {
@@ -229,7 +212,7 @@ def sugar_uid():
     global _sugar_uid
     if _sugar_uid is None:
         import hashlib
-        pubkey = util.pubkey(key_path()).split()[1]
+        pubkey = toolkit.pubkey(key_path()).split()[1]
         _sugar_uid = str(hashlib.sha1(pubkey).hexdigest())
     return _sugar_uid
 
@@ -241,7 +224,7 @@ def sugar_profile():
             'color': conf.get_string(_COLOR_GCONF) or '#000000,#000000',
             'machine_sn': _read_XO_value(_XO_SERIAL_PATH) or '',
             'machine_uuid': _read_XO_value(_XO_UUID_PATH) or '',
-            'pubkey': util.pubkey(key_path()),
+            'pubkey': toolkit.pubkey(key_path()),
             }
 
 

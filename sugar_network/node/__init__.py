@@ -47,10 +47,6 @@ find_limit = Option(
         'limit the resulting list for search requests',
         default=32, type_cast=int, name='find-limit')
 
-static_url = Option(
-        'url prefix to use for static files that should be served via API '
-        'server; if omited, HTTP_HOST request value will be used')
-
 stats_root = Option(
         'path to the root directory for placing stats',
         default='/var/lib/sugar-network/stats', name='stats_root')

@@ -21,42 +21,41 @@ from urlparse import urlsplit
 from os.path import join, dirname, exists, isabs
 from gettext import gettext as _
 
-from sugar_network import db, node, toolkit
+from sugar_network import node, toolkit
 from sugar_network.client import api_url
 from sugar_network.node import sync, stats_user, files, volume
-from sugar_network.node.commands import NodeCommands
-from sugar_network.toolkit import util, http
-from sugar_network.toolkit import exception, enforce
+from sugar_network.node.routes import NodeRoutes
+from sugar_network.toolkit.router import route, ACL
+from sugar_network.toolkit import http, enforce
 
 
 _logger = logging.getLogger('node.slave')
 
 
-class SlaveCommands(NodeCommands):
+class SlaveRoutes(NodeRoutes):
 
     def __init__(self, key_path, volume_):
-        guid = util.ensure_key(key_path)
-        NodeCommands.__init__(self, guid, volume_)
+        guid = toolkit.ensure_key(key_path)
+        NodeRoutes.__init__(self, guid, volume_)
 
         self._key_path = key_path
-        self._push_seq = util.PersistentSequence(
+        self._push_seq = toolkit.PersistentSequence(
                 join(volume_.root, 'push.sequence'), [1, None])
-        self._pull_seq = util.PersistentSequence(
+        self._pull_seq = toolkit.PersistentSequence(
                 join(volume_.root, 'pull.sequence'), [1, None])
-        self._files_seq = util.PersistentSequence(
+        self._files_seq = toolkit.PersistentSequence(
                 join(volume_.root, 'files.sequence'), [1, None])
         self._master_guid = urlsplit(api_url.value).netloc
         self._offline_session = None
 
-    @db.volume_command(method='POST', cmd='online-sync',
-            permissions=db.ACCESS_LOCAL)
+    @route('POST', cmd='online-sync', acl=ACL.LOCAL)
     def online_sync(self, no_pull=False):
         profile = {
                 'name': self.guid,
                 'color': '#000000,#000000',
                 'machine_sn': '',
                 'machine_uuid': '',
-                'pubkey': util.pubkey(self._key_path),
+                'pubkey': toolkit.pubkey(self._key_path),
                 }
         conn = http.Client(api_url.value,
                 creds=(self.guid, self._key_path, lambda: profile))
@@ -82,8 +81,7 @@ class SlaveCommands(NodeCommands):
                 headers={'Transfer-Encoding': 'chunked'})
         self._import(sync.decode(response.raw), None)
 
-    @db.volume_command(method='POST', cmd='offline-sync',
-            permissions=db.ACCESS_LOCAL)
+    @route('POST', cmd='offline-sync', acl=ACL.LOCAL)
     def offline_sync(self, path):
         enforce(node.sync_layers.value and
                 'public' not in node.sync_layers.value,
@@ -101,7 +99,7 @@ class SlaveCommands(NodeCommands):
             self._offline_session = self._offline_sync(path,
                     **(self._offline_session or {}))
         except Exception:
-            exception(_logger, 'Failed to complete synchronization')
+            toolkit.exception(_logger, 'Failed to complete synchronization')
             self._offline_session = None
             raise
 
@@ -115,7 +113,7 @@ class SlaveCommands(NodeCommands):
         push = []
 
         if push_seq is None:
-            push_seq = util.Sequence(self._push_seq)
+            push_seq = toolkit.Sequence(self._push_seq)
         if stats_seq is None:
             stats_seq = {}
         if session is None:
@@ -141,7 +139,7 @@ class SlaveCommands(NodeCommands):
             'progress': _('Generating new sneakernet package'),
             })
 
-        diff_seq = util.Sequence([])
+        diff_seq = toolkit.Sequence([])
         push.append(('diff', None,
                 volume.diff(self.volume, push_seq, diff_seq)))
         if stats_user.stats_user.value:

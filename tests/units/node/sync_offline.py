@@ -15,9 +15,9 @@ from sugar_network import db, node, toolkit
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.client import api_url
 from sugar_network.node import sync, stats_user, files_root
-from sugar_network.node.slave import SlaveCommands
-from sugar_network.resources.volume import Volume
-from sugar_network.toolkit import coroutine, util
+from sugar_network.node.slave import SlaveRoutes
+from sugar_network.db import Volume
+from sugar_network.toolkit import coroutine
 
 
 class statvfs(object):
@@ -44,12 +44,12 @@ class SyncOfflineTest(tests.Test):
 
     def test_FailOnFullDump(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
             pass
 
         volume = Volume('node', [Document])
-        util.ensure_key('node/key')
-        cp = SlaveCommands('node/key', volume)
+        toolkit.ensure_key('node/key')
+        cp = SlaveRoutes('node/key', volume)
 
         node.sync_layers.value = None
         self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
@@ -62,12 +62,12 @@ class SyncOfflineTest(tests.Test):
 
     def test_Export(self):
 
-        class Document(db.Document):
+        class Document(db.Resource):
             pass
 
         volume = Volume('node', [Document])
-        util.ensure_key('node/key')
-        cp = SlaveCommands('node/key', volume)
+        toolkit.ensure_key('node/key')
+        cp = SlaveRoutes('node/key', volume)
         stats_user.stats_user.value = True
 
         volume['document'].create({'guid': '1', 'prop': 'value1', 'ctime': 1, 'mtime': 1})
@@ -83,7 +83,7 @@ class SyncOfflineTest(tests.Test):
 
         self.assertEqual([
             ({'packet': 'diff', 'src': cp.guid, 'dst': '127.0.0.1:8888', 'api_url': 'http://127.0.0.1:8888', 'session': '1', 'filename': '2.sneakernet'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 0},
                     'ctime': {'value': 1, 'mtime': 0},
@@ -111,15 +111,15 @@ class SyncOfflineTest(tests.Test):
     def test_ContinuesExport(self):
         payload = ''.join([str(uuid.uuid4()) for i in xrange(5000)])
 
-        class Document(db.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(slot=1)
             def prop(self, value):
                 return value
 
         volume = Volume('node', [Document])
-        util.ensure_key('node/key')
-        cp = SlaveCommands('node/key', volume)
+        toolkit.ensure_key('node/key')
+        cp = SlaveRoutes('node/key', volume)
         stats_user.stats_user.value = True
 
         volume['document'].create({'guid': '1', 'prop': payload, 'ctime': 1, 'mtime': 1})
@@ -136,7 +136,7 @@ class SyncOfflineTest(tests.Test):
 
         self.assertEqual([
             ({'packet': 'diff', 'src': cp.guid, 'dst': '127.0.0.1:8888', 'api_url': 'http://127.0.0.1:8888', 'session': '1', 'filename': '2.sneakernet'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 0},
                     'ctime': {'value': 1, 'mtime': 0},
@@ -156,7 +156,7 @@ class SyncOfflineTest(tests.Test):
 
         self.assertEqual([
             ({'packet': 'diff', 'src': cp.guid, 'dst': '127.0.0.1:8888', 'api_url': 'http://127.0.0.1:8888', 'session': '1', 'filename': '3.sneakernet'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '2', 'diff': {
                     'guid': {'value': '2', 'mtime': 0},
                     'ctime': {'value': 2, 'mtime': 0},
@@ -179,7 +179,7 @@ class SyncOfflineTest(tests.Test):
 
         self.assertEqual([
             ({'packet': 'diff', 'src': cp.guid, 'dst': '127.0.0.1:8888', 'api_url': 'http://127.0.0.1:8888', 'session': '4', 'filename': '5.sneakernet'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 0},
                     'ctime': {'value': 1, 'mtime': 0},
@@ -205,19 +205,19 @@ class SyncOfflineTest(tests.Test):
             sorted([(packet.props, [i for i in packet]) for packet in sync.sneakernet_decode('3')]))
 
     def test_Import(self):
-        class Document(db.Document):
+        class Document(db.Resource):
             pass
 
         volume = Volume('node', [Document])
-        util.ensure_key('node/key')
-        cp = SlaveCommands('node/key', volume)
+        toolkit.ensure_key('node/key')
+        cp = SlaveRoutes('node/key', volume)
         stats_user.stats_user.value = True
         files_root.value = 'files'
 
         ts = int(time.time())
         sync.sneakernet_encode([
             ('diff', {'src': '127.0.0.1:8888'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 0},
                     'ctime': {'value': 1, 'mtime': 0},

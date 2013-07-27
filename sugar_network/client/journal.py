@@ -23,7 +23,8 @@ import logging
 from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
 
-from sugar_network import db, client
+from sugar_network import client
+from sugar_network.toolkit.router import Blob, route, Request
 from sugar_network.toolkit import enforce
 
 
@@ -51,7 +52,7 @@ def get(guid, prop):
         return f.read()
 
 
-class Commands(object):
+class Routes(object):
 
     _ds = None
 
@@ -68,43 +69,93 @@ class Commands(object):
                     'Cannot connect to sugar-datastore, '
                     'Journal integration is disabled')
 
-    @db.route('GET', '/journal')
-    def journal(self, request, response):
+    @route('GET', ['journal'], mime_type='application/json', arguments={
+            'offset': int,
+            'limit': int,
+            'reply': ('uid', 'title', 'description', 'preview'),
+            'order_by': list,
+            })
+    def journal_find(self, request, response):
         enforce(self._ds is not None, 'Journal is inaccessible')
-        enforce(len(request.path) <= 3, 'Invalid request')
 
-        if len(request.path) == 1:
-            return self._find(request, response)
-        elif len(request.path) == 2:
-            return self._get(request, response)
-        elif len(request.path) == 3:
-            return self._get_prop(request, response)
+        import dbus
 
-    @db.route('PUT', '/journal')
+        reply = request.pop('reply')
+        if 'preview' in reply:
+            reply.remove('preview')
+            has_preview = True
+        else:
+            has_preview = False
+        for key in ('timestamp', 'filesize', 'creation_time'):
+            value = request.get(key)
+            if not value or '..' not in value:
+                continue
+            start, end = value.split('..', 1)
+            value = {'start': start or '0', 'end': end or str(sys.maxint)}
+            request[key] = dbus.Dictionary(value)
+        if 'uid' not in reply:
+            reply.append('uid')
+
+        result, total = self._ds.find(request, reply, byte_arrays=True)
+
+        for item in result:
+            # Do not break SN like API
+            guid = item['guid'] = item.pop('uid')
+            if has_preview:
+                item['preview'] = _preview_url(guid)
+
+        return {'result': result, 'total': int(total)}
+
+    @route('GET', ['journal', None], mime_type='application/json')
+    def journal_get(self, request, response):
+        guid = request.guid
+        return {'guid': guid,
+                'title': get(guid, 'title'),
+                'description': get(guid, 'description'),
+                'preview': _preview_url(guid),
+                }
+
+    @route('GET', ['journal', None, 'preview'])
+    def journal_get_preview(self, request, response):
+        return Blob({
+            'blob': _prop_path(request.guid, 'preview'),
+            'mime_type': 'image/png',
+            })
+
+    @route('GET', ['journal', None, 'data'])
+    def journal_get_data(self, request, response):
+        return Blob({
+            'blob': _ds_path(request.guid, 'data'),
+            'mime_type': get(request.guid, 'mime_type') or 'application/octet',
+            })
+
+    @route('GET', ['journal', None, None], mime_type='application/json')
+    def journal_get_prop(self, request, response):
+        return get(request.guid, request.prop)
+
+    @route('PUT', ['journal', None], cmd='share')
     def journal_share(self, request, response):
         enforce(self._ds is not None, 'Journal is inaccessible')
-        enforce(len(request.path) == 2 and request.get('cmd') == 'share',
-                'Invalid request')
 
-        guid = request.path[1]
+        guid = request.guid
         preview_path = _prop_path(guid, 'preview')
         enforce(os.access(preview_path, os.R_OK), 'No preview')
         data_path = _ds_path(guid, 'data')
         enforce(os.access(data_path, os.R_OK), 'No data')
 
-        subrequest = db.Request(method='POST', document='artifact')
+        subrequest = Request(method='POST', document='artifact')
         subrequest.content = request.content
         subrequest.content_type = 'application/json'
         # pylint: disable-msg=E1101
         subguid = self.call(subrequest, response)
 
-        subrequest = db.Request(method='PUT', document='artifact',
+        subrequest = Request(method='PUT', document='artifact',
                 guid=subguid, prop='preview')
         subrequest.content_type = 'image/png'
         with file(preview_path, 'rb') as subrequest.content_stream:
             self.call(subrequest, response)
 
-        subrequest = db.Request(method='PUT', document='artifact',
+        subrequest = Request(method='PUT', document='artifact',
                 guid=subguid, prop='data')
         subrequest.content_type = get(guid, 'mime_type') or 'application/octet'
         with file(data_path, 'rb') as subrequest.content_stream:
@@ -144,67 +195,6 @@ class Commands(object):
     def journal_delete(self, guid):
         enforce(self._ds is not None, 'Journal is inaccessible')
         self._ds.delete(guid)
-
-    def _find(self, request, response):
-        import dbus
-
-        if 'order_by' in request:
-            request['order_by'] = [request['order_by']]
-        for key in ('offset', 'limit'):
-            if key in request:
-                request[key] = int(request[key])
-        if 'reply' in request:
-            reply = db.to_list(request.pop('reply'))
-        else:
-            reply = ['uid', 'title', 'description', 'preview']
-        if 'preview' in reply:
-            reply.remove('preview')
-            has_preview = True
-        else:
-            has_preview = False
-        for key in ('timestamp', 'filesize', 'creation_time'):
-            value = request.get(key)
-            if not value or '..' not in value:
-                continue
-            start, end = value.split('..', 1)
-            value = {'start': start or '0', 'end': end or str(sys.maxint)}
-            request[key] = dbus.Dictionary(value)
-        if 'uid' not in reply:
-            reply.append('uid')
-
-        result, total = self._ds.find(request, reply, byte_arrays=True)
-
-        for item in result:
-            # Do not break SN like API
-            guid = item['guid'] = item.pop('uid')
-            if has_preview:
-                item['preview'] = _preview_url(guid)
-
-        response.content_type = 'application/json'
-        return {'result': result, 'total': int(total)}
-
-    def _get(self, request, response):
-        guid = request.path[1]
-        response.content_type = 'application/json'
-        return {'guid': guid,
-                'title': get(guid, 'title'),
-                'description': get(guid, 'description'),
-                'preview': _preview_url(guid),
-                }
-
-    def _get_prop(self, request, response):
-        guid = request.path[1]
-        prop = request.path[2]
-
-        if prop == 'preview':
-            return db.PropertyMetadata(blob=_prop_path(guid, prop),
-                    mime_type='image/png')
-        elif prop == 'data':
-            return db.PropertyMetadata(blob=_ds_path(guid, 'data'),
-                    mime_type=get(guid, 'mime_type') or 'application/octet')
-        else:
-            response.content_type = 'application/json'
-            return get(guid, prop)
 
 
 def _ds_path(guid, *args):

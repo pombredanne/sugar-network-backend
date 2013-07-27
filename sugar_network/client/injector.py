@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2012 Aleksey Lim
+# Copyright (C) 2010-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,9 +19,9 @@ import shutil
 import logging
 from os.path import join, exists, basename, dirname
 
-from sugar_network import client
+from sugar_network import client, toolkit
 from sugar_network.client import journal, cache
-from sugar_network.toolkit import pipe, lsb_release, util
+from sugar_network.toolkit import pipe, lsb_release
 
 
 _PMS_PATHS = {
@@ -134,11 +134,11 @@ def _clone(context):
             if not path or \
                     path == '/':  # Fake path set by "sugar" dependency
                 continue
-            dst_path = util.unique_filename(
+            dst_path = toolkit.unique_filename(
                     client.activity_dirs.value[0], basename(path))
             cloned.append(dst_path)
             _logger.info('Clone implementation to %r', dst_path)
-            util.cptree(path, dst_path)
+            toolkit.cptree(path, dst_path)
             impl['path'] = dst_path
     except Exception:
         while cloned:
@@ -157,11 +157,11 @@ def _clone_impl(context_guid, params):
     src_path = cache.get(impl['guid'], impl)
     if 'extract' in impl:
         src_path = join(src_path, impl['extract'])
-    dst_path = util.unique_filename(
+    dst_path = toolkit.unique_filename(
             client.activity_dirs.value[0], basename(src_path))
 
     _logger.info('Clone implementation to %r', dst_path)
-    util.cptree(src_path, dst_path)
+    toolkit.cptree(src_path, dst_path)
 
     _set_cached_solution(context_guid, [{
         'id': dst_path,

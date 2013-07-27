@@ -23,7 +23,7 @@ from types import GeneratorType
 from os.path import exists, join, dirname, basename, splitext
 
 from sugar_network import toolkit
-from sugar_network.toolkit import coroutine, util, BUFFER_SIZE, enforce
+from sugar_network.toolkit import coroutine, enforce
 
 
 # Filename suffix to use for sneakernet synchronization files
@@ -109,7 +109,7 @@ def sneakernet_encode(packets, root=None, limit=None, path=None, **header):
         if not exists(root):
             os.makedirs(root)
         filename = toolkit.uuid() + _SNEAKERNET_SUFFIX
-        path = util.unique_filename(root, filename)
+        path = toolkit.unique_filename(root, filename)
     else:
         filename = splitext(basename(path))[0] + _SNEAKERNET_SUFFIX
     if 'filename' not in header:
@@ -212,7 +212,7 @@ class _PacketsIterator(object):
 
     def __init__(self, stream):
         if not hasattr(stream, 'readline'):
-            stream.readline = lambda: util.readline(stream)
+            stream.readline = lambda: toolkit.readline(stream)
         if hasattr(stream, 'seek'):
             self._seek = stream.seek
         self._stream = stream
@@ -268,7 +268,7 @@ class _PacketsIterator(object):
     # pylint: disable-msg=E0202
     def _seek(self, distance, where):
         while distance:
-            chunk = self._stream.read(min(distance, BUFFER_SIZE))
+            chunk = self._stream.read(min(distance, toolkit.BUFFER_SIZE))
             distance -= len(chunk)
 
 
@@ -278,7 +278,7 @@ class _Blob(object):
         self._stream = stream
         self.size_to_read = size
 
-    def read(self, size=BUFFER_SIZE):
+    def read(self, size=toolkit.BUFFER_SIZE):
         chunk = self._stream.read(min(size, self.size_to_read))
         self.size_to_read -= len(chunk)
         return chunk
@@ -304,4 +304,4 @@ class _GzipStream(object):
             self._buffer += self._zip.decompress(chunk)
 
     def readline(self):
-        return util.readline(self)
+        return toolkit.readline(self)

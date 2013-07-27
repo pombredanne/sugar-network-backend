@@ -18,10 +18,11 @@ from __init__ import tests
 from sugar_network.db.directory import Directory
 from sugar_network import db, node, toolkit
 from sugar_network.node import sync
-from sugar_network.node.master import MasterCommands
-from sugar_network.resources.volume import Volume
-from sugar_network.toolkit import coroutine, util
+from sugar_network.node.master import MasterRoutes
+from sugar_network.db.volume import Volume
+from sugar_network.toolkit import coroutine
 from sugar_network.toolkit.rrd import Rrd
+from sugar_network.toolkit.router import Response
 
 
 class statvfs(object):
@@ -40,7 +41,7 @@ class SyncMasterTest(tests.Test):
         self.override(os, 'statvfs', lambda *args: statvfs())
         statvfs.f_bfree = 999999999
 
-        class Document(db.Document):
+        class Document(db.Resource):
 
             @db.indexed_property(slot=1, default='')
             def prop(self, value):
@@ -48,7 +49,7 @@ class SyncMasterTest(tests.Test):
 
         node.files_root.value = 'sync'
         self.volume = Volume('master', [Document])
-        self.master = MasterCommands('127.0.0.1:8888', self.volume)
+        self.master = MasterRoutes('127.0.0.1:8888', self.volume)
 
     def next_uuid(self):
         self.uuid += 1
@@ -58,7 +59,7 @@ class SyncMasterTest(tests.Test):
         request = Request()
         for chunk in sync.encode([
                 ('diff', None, [
-                    {'document': 'document'},
+                    {'resource': 'document'},
                     {'guid': '1', 'diff': {
                         'guid': {'value': '1', 'mtime': 1},
                         'ctime': {'value': 1, 'mtime': 1},
@@ -78,7 +79,7 @@ class SyncMasterTest(tests.Test):
         response.seek(0)
         self.assertEqual([
             ({'packet': 'ack', 'ack': [[1, 1]], 'src': '127.0.0.1:8888', 'sequence': [[1, 1]], 'dst': None}, []),
-            ({'packet': 'diff', 'src': '127.0.0.1:8888'}, [{'document': 'document'}, {'commit': []}]),
+            ({'packet': 'diff', 'src': '127.0.0.1:8888'}, [{'resource': 'document'}, {'commit': []}]),
             ],
             [(packet.props, [i for i in packet]) for packet in sync.decode(response)])
 
@@ -86,7 +87,7 @@ class SyncMasterTest(tests.Test):
         for chunk in sync.encode([
                 ('pull', {'sequence': [[1, None]]}, None),
                 ('diff', None, [
-                    {'document': 'document'},
+                    {'resource': 'document'},
                     {'guid': '2', 'diff': {
                         'guid': {'value': '2', 'mtime': 2},
                         'ctime': {'value': 2, 'mtime': 2},
@@ -106,7 +107,7 @@ class SyncMasterTest(tests.Test):
         self.assertEqual([
             ({'packet': 'ack', 'ack': [[2, 2]], 'src': '127.0.0.1:8888', 'sequence': [[2, 2]], 'dst': None}, []),
             ({'packet': 'diff', 'src': '127.0.0.1:8888'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {
                     'guid': {'value': '1', 'mtime': 1},
                     'ctime': {'value': 1, 'mtime': 1},
@@ -143,7 +144,7 @@ class SyncMasterTest(tests.Test):
         request = Request()
         for chunk in sync.package_encode([
                 ('diff', None, [
-                    {'document': 'document'},
+                    {'resource': 'document'},
                     {'guid': '1', 'diff': {
                         'guid': {'value': '1', 'mtime': 1},
                         'ctime': {'value': 1, 'mtime': 1},
@@ -161,7 +162,7 @@ class SyncMasterTest(tests.Test):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.push(request, response):
             reply.write(chunk)
@@ -186,7 +187,7 @@ class SyncMasterTest(tests.Test):
                 ('pull', {'sequence': [[1, None]]}, None),
                 ('files_pull', {'sequence': [[1, None]]}, None),
                 ('diff', None, [
-                    {'document': 'document'},
+                    {'resource': 'document'},
                     {'guid': '2', 'diff': {
                         'guid': {'value': '2', 'mtime': 2},
                         'ctime': {'value': 2, 'mtime': 2},
@@ -204,7 +205,7 @@ class SyncMasterTest(tests.Test):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.push(request, response):
             reply.write(chunk)
@@ -235,7 +236,7 @@ class SyncMasterTest(tests.Test):
                 ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.push(request, response):
             reply.write(chunk)
@@ -259,7 +260,7 @@ class SyncMasterTest(tests.Test):
                 ], dst='127.0.0.1:8888'):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.push(request, response):
             reply.write(chunk)
@@ -281,7 +282,7 @@ class SyncMasterTest(tests.Test):
         for chunk in sync.package_encode([
                 ('pull', {'sequence': [[1, None]]}, None),
                 ('diff', None, [
-                    {'document': 'document'},
+                    {'resource': 'document'},
                     {'guid': '1', 'diff': {
                         'guid': {'value': '1', 'mtime': 1},
                         'ctime': {'value': 1, 'mtime': 1},
@@ -294,7 +295,7 @@ class SyncMasterTest(tests.Test):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.push(request, response):
             reply.write(chunk)
@@ -322,7 +323,7 @@ class SyncMasterTest(tests.Test):
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_pull=%s' % \
                 base64.b64encode(json.dumps([('pull', None, [[1, None]]), ('files_pull', None, [[1, None]])]))
-        response = db.Response()
+        response = Response()
         self.assertEqual(None, self.master.pull(request, response))
         self.assertEqual([
             'sugar_network_pull=%s; Max-Age=3600; HttpOnly' % \
@@ -336,14 +337,14 @@ class SyncMasterTest(tests.Test):
 
         request = Request()
         request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.pull(request, response):
             reply.write(chunk)
         reply.seek(0)
         self.assertEqual([
             ({'packet': 'diff'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {
                     'prop': {'value': '1', 'mtime': 0},
                     'guid': {'value': '1', 'mtime': 0},
@@ -371,7 +372,7 @@ class SyncMasterTest(tests.Test):
 
         request = Request()
         request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.pull(request, response):
             reply.write(chunk)
@@ -401,7 +402,7 @@ class SyncMasterTest(tests.Test):
         request = Request()
         request.environ['HTTP_COOKIE'] = 'sugar_network_pull=%s' % \
                 base64.b64encode(json.dumps([('pull', None, [[1, None]])]))
-        response = db.Response()
+        response = Response()
         self.assertEqual(None, self.master.pull(request, response))
         self.assertEqual([
             'sugar_network_pull=%s; Max-Age=3600; HttpOnly' % \
@@ -416,7 +417,7 @@ class SyncMasterTest(tests.Test):
 
         request = Request()
         request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
-        response = db.Response()
+        response = Response()
         self.assertEqual(None, self.master.pull(request, response))
         self.assertEqual([
             'sugar_network_pull=unset_sugar_network_pull; Max-Age=0; HttpOnly',
@@ -438,7 +439,7 @@ class SyncMasterTest(tests.Test):
             }
 
         request = Request()
-        response = db.Response()
+        response = Response()
         self.assertEqual(None, self.master.pull(request, response))
         self.assertEqual([
             'sugar_network_pull=%s; Max-Age=3600; HttpOnly' % \
@@ -452,7 +453,7 @@ class SyncMasterTest(tests.Test):
 
         request = Request()
         request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.pull(request, response):
             reply.write(chunk)
@@ -472,7 +473,7 @@ class SyncMasterTest(tests.Test):
 
         request = Request()
         request.environ['HTTP_COOKIE'] = response.get('set-cookie')[0]
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.pull(request, response):
             reply.write(chunk)
@@ -496,7 +497,7 @@ class SyncMasterTest(tests.Test):
                 ('pull', {'src': '2', 'sequence': [[2, None]], 'layer': '2'}, None),
                 ('pull', {'src': '2', 'sequence': [[22, None]], 'layer': '2'}, None),
                 ('diff', {'src': '3'}, [
-                    {'document': 'document'},
+                    {'resource': 'document'},
                     {'guid': '1', 'diff': {
                         'guid': {'value': '1', 'mtime': 1},
                         'ctime': {'value': 1, 'mtime': 1},
@@ -506,7 +507,7 @@ class SyncMasterTest(tests.Test):
                     {'commit': [[1, 1]]},
                     ]),
                 ('diff', {'src': '3'}, [
-                    {'document': 'document'},
+                    {'resource': 'document'},
                     {'guid': '2', 'diff': {
                         'guid': {'value': '2', 'mtime': 2},
                         'ctime': {'value': 2, 'mtime': 2},
@@ -519,7 +520,7 @@ class SyncMasterTest(tests.Test):
             request.content_stream.write(chunk)
         request.content_stream.seek(0)
 
-        response = db.Response()
+        response = Response()
         reply = StringIO()
         for chunk in self.master.push(request, response):
             reply.write(chunk)
@@ -548,7 +549,7 @@ class SyncMasterTest(tests.Test):
                 'sugar_network_pull': base64.b64encode(json.dumps([('pull', None, [[1, None]])])),
                 'sugar_network_sent': base64.b64encode(json.dumps({'slave': [[2, 2]]})),
                 }
-        response = db.Response()
+        response = Response()
         self.assertEqual(None, self.master.pull(request, response))
         self.assertEqual([
             'sugar_network_pull=%s; Max-Age=3600; HttpOnly' % \
@@ -568,7 +569,7 @@ class SyncMasterTest(tests.Test):
         reply.seek(0)
         self.assertEqual([
             ({'packet': 'diff'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {
                     'prop': {'value': '1', 'mtime': 0},
                     'guid': {'value': '1', 'mtime': 0},
@@ -596,7 +597,7 @@ class SyncMasterTest(tests.Test):
                 'sugar_network_pull': base64.b64encode(json.dumps([('pull', None, [[1, None]])])),
                 'sugar_network_sent': base64.b64encode(json.dumps({'slave': [[2, 2]], 'other': []})),
                 }
-        response = db.Response()
+        response = Response()
         self.assertEqual(None, self.master.pull(request, response))
         self.assertEqual([
             'sugar_network_pull=%s; Max-Age=3600; HttpOnly' % \
@@ -616,7 +617,7 @@ class SyncMasterTest(tests.Test):
         reply.seek(0)
         self.assertEqual([
             ({'packet': 'diff'}, [
-                {'document': 'document'},
+                {'resource': 'document'},
                 {'guid': '1', 'diff': {
                     'prop': {'value': '1', 'mtime': 0},
                     'guid': {'value': '1', 'mtime': 0},

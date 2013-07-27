@@ -10,22 +10,22 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network import db, node
+from sugar_network import db, node, model
 from sugar_network.client import Client
 from sugar_network.toolkit import http, coroutine
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.node import stats_user, stats_node, obs
-from sugar_network.node.commands import NodeCommands
-from sugar_network.node.master import MasterCommands
-from sugar_network.resources.volume import Volume, Resource
-from sugar_network.resources.user import User
-from sugar_network.resources.context import Context
-from sugar_network.resources.implementation import Implementation
-from sugar_network.resources.review import Review
-from sugar_network.resources.feedback import Feedback
-from sugar_network.resources.artifact import Artifact
-from sugar_network.resources.solution import Solution
-from sugar_network.resources.user import User
+from sugar_network.node.routes import NodeRoutes
+from sugar_network.node.master import MasterRoutes
+from sugar_network.model.user import User
+from sugar_network.model.context import Context
+from sugar_network.model.implementation import Implementation
+from sugar_network.model.review import Review
+from sugar_network.model.feedback import Feedback
+from sugar_network.model.artifact import Artifact
+from sugar_network.model.solution import Solution
+from sugar_network.model.user import User
+from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, Blob, ACL, route
 
 
 class NodeTest(tests.Test):
@@ -37,8 +37,8 @@ class NodeTest(tests.Test):
         stats_user.stats_user_rras.value = ['RRA:AVERAGE:0.5:1:100']
 
     def test_UserStats(self):
-        volume = Volume('db')
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', model.RESOURCES)
+        cp = NodeRoutes('guid', volume)
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
             'name': 'user',
@@ -110,8 +110,8 @@ class NodeTest(tests.Test):
         for i in range(100):
             rrd['user'].put({'total': i}, ts + i)
 
-        volume = Volume('db', [User, Context, Review, Feedback, Solution, Artifact])
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', model.RESOURCES)
+        cp = NodeRoutes('guid', volume)
 
         self.assertEqual({
             'user': [
@@ -134,10 +134,11 @@ class NodeTest(tests.Test):
             cp.stats(ts, ts + 12, 3, ['user.total']))
 
     def test_HandleDeletes(self):
-        volume = Volume('db')
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = NodeRoutes('guid', volume)
 
-        guid = call(cp, method='POST', document='context', principal='principal', content={
+        guid = call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
@@ -154,43 +155,44 @@ class NodeTest(tests.Test):
             call(cp, method='GET', document='context', guid=guid, reply=['guid', 'title', 'layer']))
         self.assertEqual(['public'], volume['context'].get(guid)['layer'])
 
+        def subscribe():
+            for event in cp.subscribe():
+                events.append(json.loads(event[6:]))
         events = []
-        volume.connect(lambda event: events.append(event))
-        call(cp, method='DELETE', document='context', guid=guid, principal='principal')
+        coroutine.spawn(subscribe)
         coroutine.dispatch()
 
+        call(cp, method='DELETE', document='context', guid=guid, principal=tests.UID)
+        coroutine.dispatch()
         self.assertRaises(http.NotFound, call, cp, method='GET', document='context', guid=guid, reply=['guid', 'title'])
         self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
-        self.assertEqual([
-            {'event': 'delete', 'document': 'context', 'guid': guid},
-            {'event': 'commit', 'document': 'context', 'mtime': int(os.stat('db/context/index/mtime').st_mtime)},
-            ],
-            events)
+        self.assertEqual({'event': 'delete', 'resource': 'context', 'guid': guid}, events[0])
 
     def test_SimulateDeleteEvents(self):
-        volume = Volume('db')
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = NodeRoutes('guid', volume)
 
-        guid = call(cp, method='POST', document='context', principal='principal', content={
+        guid = call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
 
+        def subscribe():
+            for event in cp.subscribe():
+                events.append(json.loads(event[6:]))
         events = []
-        volume.connect(lambda event: events.append(event))
-        call(cp, method='PUT', document='context', guid=guid, principal='principal', content={'layer': ['deleted']})
+        coroutine.spawn(subscribe)
         coroutine.dispatch()
 
-        self.assertEqual([
-            {'event': 'delete', 'document': 'context', 'guid': guid},
-            {'event': 'commit', 'document': 'context', 'mtime': int(os.stat('db/context/index/mtime').st_mtime)},
-            ],
-            events)
+        call(cp, method='PUT', document='context', guid=guid, principal=tests.UID, content={'layer': ['deleted']})
+        coroutine.dispatch()
+        self.assertEqual({'event': 'delete', 'resource': 'context', 'guid': guid}, events[0])
 
     def test_RegisterUser(self):
-        cp = NodeCommands('guid', Volume('db', [User]))
+        cp = NodeRoutes('guid', db.Volume('db', [User]))
 
         guid = call(cp, method='POST', document='user', principal='fake', content={
             'name': 'user',
@@ -203,50 +205,57 @@ class NodeTest(tests.Test):
         self.assertEqual('user', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
     def test_UnauthorizedCommands(self):
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
 
-        class Document(Resource):
+        class Routes(NodeRoutes):
 
-            @db.document_command(method='GET', cmd='probe1',
-                    permissions=db.ACCESS_AUTH)
+            @route('GET', [None, None], cmd='probe1', acl=ACL.AUTH)
             def probe1(self, directory):
                 pass
 
-            @db.document_command(method='GET', cmd='probe2')
+            @route('GET', [None, None], cmd='probe2')
             def probe2(self, directory):
                 pass
 
-        cp = NodeCommands('guid', Volume('db', [User, Document]))
-        guid = call(cp, method='POST', document='document', principal='user', content={})
+        class Document(db.Resource):
+            pass
+
+        cp = Routes('guid', db.Volume('db', [User, Document]))
+        guid = call(cp, method='POST', document='document', principal=tests.UID, content={})
+
         self.assertRaises(http.Unauthorized, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
-        call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal='user')
+        call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal=tests.UID)
         call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
     def test_ForbiddenCommands(self):
 
-        class Document(Resource):
+        class Routes(NodeRoutes):
 
-            @db.document_command(method='GET', cmd='probe1',
-                    permissions=db.ACCESS_AUTHOR)
+            @route('GET', [None, None], cmd='probe1', acl=ACL.AUTHOR)
             def probe1(self):
                 pass
 
-            @db.document_command(method='GET', cmd='probe2')
+            @route('GET', [None, None], cmd='probe2')
             def probe2(self):
                 pass
 
-        class User(db.Document):
+        class Document(db.Resource):
             pass
 
-        cp = NodeCommands('guid', Volume('db', [User, Document]))
-        guid = call(cp, method='POST', document='document', principal='principal', content={})
+        volume = db.Volume('db', [User, Document])
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = Routes('guid', volume)
+
+        guid = call(cp, method='POST', document='document', principal=tests.UID, content={})
 
         self.assertRaises(http.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
-        self.assertRaises(http.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid, principal='fake')
-        call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal='principal')
+        self.assertRaises(http.Unauthorized, call, cp, method='GET', cmd='probe1', document='document', guid=guid, principal='fake')
+        call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal=tests.UID)
         call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
     def test_ForbiddenCommandsForUserResource(self):
-        cp = NodeCommands('guid', Volume('db', [User]))
+        cp = NodeRoutes('guid', db.Volume('db', [User]))
 
         call(cp, method='POST', document='user', principal='fake', content={
             'name': 'user1',
@@ -258,39 +267,134 @@ class NodeTest(tests.Test):
         self.assertEqual('user1', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
         self.assertRaises(http.Unauthorized, call, cp, method='PUT', document='user', guid=tests.UID, content={'name': 'user2'})
-        self.assertRaises(http.Forbidden, call, cp, method='PUT', document='user', guid=tests.UID, principal='fake', content={'name': 'user2'})
+        self.assertRaises(http.Unauthorized, call, cp, method='PUT', document='user', guid=tests.UID, principal='fake', content={'name': 'user2'})
         call(cp, method='PUT', document='user', guid=tests.UID, principal=tests.UID, content={'name': 'user2'})
         self.assertEqual('user2', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
-    def test_SetUser(self):
-        cp = NodeCommands('guid', Volume('db'))
+    def test_authorize_Config(self):
+        self.touch(('authorization.conf', [
+            '[%s]' % tests.UID,
+            'root = True',
+            ]))
 
-        guid = call(cp, method='POST', document='context', principal='principal', content={
+        class Routes(NodeRoutes):
+
+            @route('PROBE', acl=ACL.SUPERUSER)
+            def probe(self):
+                return 'ok'
+
+        volume = db.Volume('db', [User])
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID2, 'name': 'test', 'color': '', 'pubkey': tests.PUBKEY2})
+        cp = Routes('guid', volume)
+
+        self.assertRaises(http.Forbidden, call, cp, method='PROBE')
+        self.assertRaises(http.Forbidden, call, cp, method='PROBE', principal=tests.UID2)
+        self.assertEqual('ok', call(cp, method='PROBE', principal=tests.UID))
+
+    def test_authorize_FullWriteForRoot(self):
+        self.touch(('authorization.conf', [
+            '[%s]' % tests.UID2,
+            'root = True',
+            ]))
+
+        class Routes(NodeRoutes):
+
+            @route('PROBE', [None, None], acl=ACL.AUTHOR)
+            def probe(self):
+                pass
+
+        class Document(db.Resource):
+            pass
+
+        volume = db.Volume('db', [User, Document])
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY2})
+        cp = Routes('guid', volume)
+
+        guid = call(cp, method='POST', document='document', principal=tests.UID, content={})
+
+        call(cp, 'PROBE', document='document', guid=guid, principal=tests.UID)
+        call(cp, 'PROBE', document='document', guid=guid, principal=tests.UID2)
+
+    def test_authorize_LiveConfigUpdates(self):
+
+        class Routes(NodeRoutes):
+
+            @route('PROBE', acl=ACL.SUPERUSER)
+            def probe(self):
+                pass
+
+        volume = db.Volume('db', [User])
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = Routes('guid', volume)
+
+        self.assertRaises(http.Forbidden, call, cp, 'PROBE', principal=tests.UID)
+        self.touch(('authorization.conf', [
+            '[%s]' % tests.UID,
+            'root = True',
+            ]))
+        call(cp, 'PROBE', principal=tests.UID)
+
+    def test_authorize_Anonymous(self):
+
+        class Routes(NodeRoutes):
+
+            @route('PROBE1', acl=ACL.AUTH)
+            def probe1(self, request):
+                pass
+
+            @route('PROBE2', acl=ACL.SUPERUSER)
+            def probe2(self, request):
+                pass
+
+        volume = db.Volume('db', [User])
+        cp = Routes('guid', volume)
+
+        self.assertRaises(http.Unauthorized, call, cp, 'PROBE1')
+        self.assertRaises(http.Forbidden, call, cp, 'PROBE2')
+
+        self.touch(('authorization.conf', [
+            '[anonymous]',
+            'user = True',
+            'root = True',
+            ]))
+        call(cp, 'PROBE1')
+        call(cp, 'PROBE2')
+
+    def test_SetUser(self):
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = NodeRoutes('guid', volume)
+
+        guid = call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
         self.assertEqual(
-                [{'name': 'principal', 'role': 2}],
+                [{'guid': tests.UID, 'name': 'user', 'role': 3}],
                 call(cp, method='GET', document='context', guid=guid, prop='author'))
 
     def test_find_MaxLimit(self):
-        cp = NodeCommands('guid', Volume('db'))
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = NodeRoutes('guid', volume)
 
-        call(cp, method='POST', document='context', principal='principal', content={
+        call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
             'title': 'title1',
             'summary': 'summary',
             'description': 'description',
             })
-        call(cp, method='POST', document='context', principal='principal', content={
+        call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
             'title': 'title2',
             'summary': 'summary',
             'description': 'description',
             })
-        call(cp, method='POST', document='context', principal='principal', content={
+        call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
             'title': 'title3',
             'summary': 'summary',
@@ -305,10 +409,11 @@ class NodeTest(tests.Test):
         self.assertEqual(1, len(call(cp, method='GET', document='context', limit=1024)['result']))
 
     def test_DeletedDocuments(self):
-        volume = Volume('db')
-        cp = NodeCommands('guid', volume)
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = NodeRoutes('guid', volume)
 
-        guid = call(cp, method='POST', document='context', principal='principal', content={
+        guid = call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
             'title': 'title1',
             'summary': 'summary',
@@ -325,9 +430,10 @@ class NodeTest(tests.Test):
 
     def test_CreateGUID(self):
         # TODO Temporal security hole, see TODO
-        volume2 = Volume('db2')
-        cp2 = MasterCommands('guid', volume2)
-        call(cp2, method='POST', document='context', principal='principal', content={
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = NodeRoutes('guid', volume)
+        call(cp, method='POST', document='context', principal=tests.UID, content={
             'guid': 'foo',
             'type': 'activity',
             'title': 'title',
@@ -336,12 +442,14 @@ class NodeTest(tests.Test):
             })
         self.assertEqual(
                 {'guid': 'foo', 'title': 'title'},
-                call(cp2, method='GET', document='context', guid='foo', reply=['guid', 'title']))
+                call(cp, method='GET', document='context', guid='foo', reply=['guid', 'title']))
 
     def test_CreateMalformedGUID(self):
-        cp = MasterCommands('guid', Volume('db2'))
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = MasterRoutes('guid', volume)
 
-        self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal='principal', content={
+        self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal=tests.UID, content={
             'guid': '!?',
             'type': 'activity',
             'title': 'title',
@@ -350,16 +458,18 @@ class NodeTest(tests.Test):
             })
 
     def test_FailOnExistedGUID(self):
-        cp = MasterCommands('guid', Volume('db2'))
+        volume = db.Volume('db', model.RESOURCES)
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        cp = MasterRoutes('guid', volume)
 
-        guid = call(cp, method='POST', document='context', principal='principal', content={
+        guid = call(cp, method='POST', document='context', principal=tests.UID, content={
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
 
-        self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal='principal', content={
+        self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal=tests.UID, content={
             'guid': guid,
             'type': 'activity',
             'title': 'title',
@@ -550,16 +660,23 @@ class NodeTest(tests.Test):
         self.assertEqual(len(activity_info), data.get('unpack_size'))
 
 
-
-
-
-
-def call(cp, principal=None, content=None, **kwargs):
-    request = db.Request(**kwargs)
-    request.principal = principal
+def call(routes, method, document=None, guid=None, prop=None, principal=None, cmd=None, content=None, **kwargs):
+    path = []
+    if document:
+        path.append(document)
+    if guid:
+        path.append(guid)
+    if prop:
+        path.append(prop)
+    request = Request(method=method, path=path)
+    request.update(kwargs)
+    request.cmd = cmd
     request.content = content
     request.environ = {'HTTP_HOST': '127.0.0.1'}
-    return cp.call(request, db.Response())
+    if principal:
+        request.environ['HTTP_X_SN_LOGIN'] = principal
+    router = Router(routes)
+    return router.call(request, Response())
 
 
 if __name__ == '__main__':

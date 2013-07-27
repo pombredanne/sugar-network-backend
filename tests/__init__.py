@@ -16,19 +16,17 @@ from os.path import dirname, join, exists, abspath, isfile
 from M2Crypto import DSA
 from gevent import monkey
 
-from sugar_network.toolkit import coroutine, http, mountpoints, util, Option, pipe
-from sugar_network.db.router import Router
-from sugar_network.client import journal, IPCRouter, commands
-from sugar_network.client.commands import ClientCommands
+from sugar_network.toolkit import coroutine, http, mountpoints, Option, pipe
+from sugar_network.toolkit.router import Router
+from sugar_network.client import journal, routes as client_routes
+from sugar_network.client.routes import ClientRoutes
 from sugar_network import db, client, node, toolkit
-from sugar_network.db import env
 from sugar_network.client import injector, solver
-from sugar_network.resources.user import User
-from sugar_network.resources.context import Context
-from sugar_network.resources.implementation import Implementation
-from sugar_network.node.master import MasterCommands
-from sugar_network.node import stats_user, stats_node, obs, auth, slave, downloads
-from sugar_network.resources.volume import Volume
+from sugar_network.model.user import User
+from sugar_network.model.context import Context
+from sugar_network.model.implementation import Implementation
+from sugar_network.node.master import MasterRoutes
+from sugar_network.node import stats_user, stats_node, obs, slave, downloads
 
 
 root = abspath(dirname(__file__))
@@ -84,7 +82,6 @@ class Test(unittest.TestCase):
         db.index_flush_threshold.value = 1
         node.find_limit.value = 1024
         node.data_root.value = tmpdir
-        node.static_url.value = None
         node.files_root.value = None
         node.sync_layers.value = None
         db.index_write_queue.value = 10
@@ -96,7 +93,7 @@ class Test(unittest.TestCase):
         client.layers.value = None
         client.cache_limit.value = 0
         client.cache_lifetime.value = 0
-        commands._RECONNECT_TIMEOUT = 0
+        client_routes._RECONNECT_TIMEOUT = 0
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
@@ -109,7 +106,6 @@ class Test(unittest.TestCase):
         obs._client = None
         obs._repos = {'base': [], 'presolve': []}
         http._RECONNECTION_NUMBER = 0
-        auth.reset()
         toolkit.cachedir.value = tmpdir + '/tmp'
         injector.invalidate_solutions(None)
         injector._pms_path = None
@@ -119,12 +115,12 @@ class Test(unittest.TestCase):
         pipe._pipe = None
         pipe._trace = None
 
-        Volume.RESOURCES = [
-                'sugar_network.resources.user',
-                'sugar_network.resources.context',
-                'sugar_network.resources.artifact',
-                'sugar_network.resources.implementation',
-                'sugar_network.resources.report',
+        db.Volume.model = [
+                'sugar_network.model.user',
+                'sugar_network.model.context',
+                'sugar_network.model.artifact',
+                'sugar_network.model.implementation',
+                'sugar_network.model.report',
                 ]
 
         if tmp_root is None:
@@ -146,8 +142,8 @@ class Test(unittest.TestCase):
 
     def tearDown(self):
         self.stop_nodes()
-        while Volume._flush_pool:
-            Volume._flush_pool.pop().close()
+        while db.Volume._flush_pool:
+            db.Volume._flush_pool.pop().close()
         while self._overriden:
             mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
@@ -224,7 +220,7 @@ class Test(unittest.TestCase):
                     os.utime(join(root, i), (ts, ts))
 
     def zips(self, *items):
-        with util.NamedTemporaryFile() as f:
+        with toolkit.NamedTemporaryFile() as f:
             bundle = zipfile.ZipFile(f.name, 'w')
             for i in items:
                 if isinstance(i, basestring):
@@ -269,20 +265,21 @@ class Test(unittest.TestCase):
     def start_master(self, classes=None):
         if classes is None:
             classes = [User, Context, Implementation]
-        self.node_volume = Volume('master', classes)
-        cp = MasterCommands('guid', self.node_volume)
+        self.node_volume = db.Volume('master', classes)
+        cp = MasterRoutes('guid', self.node_volume)
+        r = Router(cp)
         self.node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
         coroutine.spawn(self.node.serve_forever)
         coroutine.dispatch(.1)
         return self.node_volume
 
-    def fork_master(self, classes=None):
+    def fork_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
             classes = [User, Context, Implementation]
 
         def node():
-            volume = Volume('master', classes)
-            cp = MasterCommands('guid', volume)
+            volume = db.Volume('master', classes)
+            cp = routes('guid', volume)
             node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
             node.serve_forever()
 
@@ -290,13 +287,13 @@ class Test(unittest.TestCase):
         coroutine.sleep(.1)
         return pid
 
-    def start_client(self, classes=None):
+    def start_client(self, classes=None, routes=ClientRoutes):
         if classes is None:
             classes = [User, Context, Implementation]
-        volume = Volume('client', classes)
-        commands = ClientCommands(volume, client.api_url.value)
+        volume = db.Volume('client', classes)
+        commands = routes(volume, client.api_url.value)
         self.client = coroutine.WSGIServer(
-                ('127.0.0.1', client.ipc_port.value), IPCRouter(commands))
+                ('127.0.0.1', client.ipc_port.value), Router(commands))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
         return volume
@@ -305,11 +302,11 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context, Implementation]
         self.start_master(classes)
-        volume = Volume('client', classes)
-        commands = ClientCommands(volume, client.api_url.value)
+        volume = db.Volume('client', classes)
+        commands = ClientRoutes(volume, client.api_url.value)
         self.wait_for_events(commands, event='inline', state='online').wait()
         self.client = coroutine.WSGIServer(
-                ('127.0.0.1', client.ipc_port.value), IPCRouter(commands))
+                ('127.0.0.1', client.ipc_port.value), Router(commands))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
         return volume
@@ -317,10 +314,10 @@ class Test(unittest.TestCase):
     def start_offline_client(self, classes=None):
         if classes is None:
             classes = [User, Context, Implementation]
-        volume = Volume('client', classes)
-        commands = ClientCommands(volume)
+        volume = db.Volume('client', classes)
+        commands = ClientRoutes(volume)
         self.client = coroutine.WSGIServer(
-                ('127.0.0.1', client.ipc_port.value), IPCRouter(commands))
+                ('127.0.0.1', client.ipc_port.value), Router(commands))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
         return volume
@@ -341,8 +338,8 @@ class Test(unittest.TestCase):
         node.find_limit.value = 1024
         db.index_write_queue.value = 10
 
-        volume = Volume('remote', classes or [User, Context, Implementation])
-        cp = MasterCommands('guid', volume)
+        volume = db.Volume('remote', classes or [User, Context, Implementation])
+        cp = MasterRoutes('guid', volume)
         httpd = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
         try:
             coroutine.joinall([
@@ -380,7 +377,7 @@ class Test(unittest.TestCase):
         logging.basicConfig(level=logging.DEBUG,
                 filename=join(tmpdir, '%s.log' % fork_num),
                 format='%(asctime)s %(levelname)s %(name)s: %(message)s')
-        util.init_logging(10)
+        toolkit.init_logging(10)
 
         sys.stdout.flush()
         sys.stderr.flush()

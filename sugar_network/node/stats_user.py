@@ -17,9 +17,9 @@ import os
 import logging
 from os.path import join, exists, isdir
 
-from sugar_network import node
+from sugar_network import node, toolkit
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import Option, util, pylru, enforce
+from sugar_network.toolkit import Option, pylru, enforce
 
 
 stats_user = Option(
@@ -66,11 +66,13 @@ def diff(in_info=None):
 
                 in_seq = in_info[user].get(db.name)
                 if in_seq is None:
-                    in_seq = in_info[user][db.name] = util.PersistentSequence(
+                    in_seq = toolkit.PersistentSequence(
                             join(rrd.root, db.name + '.push'), [1, None])
-                elif in_seq is not util.Sequence:
-                    in_seq = in_info[user][db.name] = util.Sequence(in_seq)
-                out_seq = out_info[user].setdefault(db.name, util.Sequence())
+                    in_info[user][db.name] = in_seq
+                elif in_seq is not toolkit.Sequence:
+                    in_seq = in_info[user][db.name] = toolkit.Sequence(in_seq)
+                out_seq = out_info[user].setdefault(db.name,
+                        toolkit.Sequence())
 
                 for start, end in in_seq:
                     for timestamp, values in \
@@ -104,7 +106,7 @@ def merge(packet):
 def commit(info):
     for user, dbs in info.items():
         for db_name, merged in dbs.items():
-            seq = util.PersistentSequence(
+            seq = toolkit.PersistentSequence(
                     _rrd_path(user, db_name + '.push'), [1, None])
             seq.exclude(merged)
             seq.commit()

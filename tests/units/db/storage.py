@@ -11,11 +11,10 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network.db import env
 from sugar_network.db.metadata import Metadata, StoredProperty
 from sugar_network.db.metadata import BlobProperty
 from sugar_network.db.storage import Storage
-from sugar_network.toolkit import BUFFER_SIZE, util
+from sugar_network.toolkit import BUFFER_SIZE
 
 
 class StorageTest(tests.Test):

@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012 Aleksey Lim
+# Copyright (C) 2011-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,12 +19,14 @@ import logging
 from os.path import exists, join
 
 from sugar_network import toolkit
-from sugar_network.db import env
+from sugar_network.toolkit.router import ACL
 from sugar_network.db.storage import Storage
 from sugar_network.db.metadata import BlobProperty, Metadata, GUID_PREFIX
 from sugar_network.db.metadata import IndexedProperty, StoredProperty
-from sugar_network.toolkit import http, util, exception, enforce
+from sugar_network.toolkit import http, exception, enforce
 
+
+MAX_LIMIT = 2147483648
 
 # To invalidate existed index on stcuture changes
 _LAYOUT_VERSION = 4
@@ -35,7 +37,7 @@ _logger = logging.getLogger('db.directory')
 class Directory(object):
 
     def __init__(self, root, document_class, index_class,
-            notification_cb=None, seqno=None):
+            broadcast=None, seqno=None):
         """
         :param index_class:
             what class to use to access to indexes, for regular casses
@@ -50,14 +52,13 @@ class Directory(object):
             # Metadata cannot be recreated
             document_class.metadata = Metadata(document_class)
             document_class.metadata['guid'] = IndexedProperty('guid',
-                    slot=0, prefix=GUID_PREFIX,
-                    permissions=env.ACCESS_CREATE | env.ACCESS_READ)
+                    slot=0, prefix=GUID_PREFIX, acl=ACL.CREATE | ACL.READ)
         self.metadata = document_class.metadata
 
         self.document_class = document_class
+        self.broadcast = broadcast or (lambda event: None)
         self._index_class = index_class
         self._root = root
-        self._notification_cb = notification_cb
         self._seqno = _SessionSeqno() if seqno is None else seqno
         self._storage = None
         self._index = None
@@ -71,7 +72,7 @@ class Directory(object):
     @mtime.setter
     def mtime(self, value):
         self._index.mtime = value
-        self._notify({'event': 'populate', 'mtime': value})
+        self.broadcast({'event': 'populate', 'mtime': value})
 
     def wipe(self):
         self.close()
@@ -239,7 +240,7 @@ class Directory(object):
             self._index.checkpoint()
             self._save_layout()
             self.commit()
-            self._notify({'event': 'populate', 'mtime': self.mtime})
+            self.broadcast({'event': 'populate', 'mtime': self.mtime})
 
     def diff(self, seq, exclude_seq=None, **params):
         if exclude_seq is None:
@@ -250,7 +251,7 @@ class Directory(object):
         else:
             params['order_by'] = 'seqno'
         # TODO On big requests, xapian can raise an exception on edits
-        params['limit'] = env.MAX_LIMIT
+        params['limit'] = MAX_LIMIT
         params['no_cache'] = True
 
         for start, end in seq:
@@ -263,8 +264,7 @@ class Directory(object):
 
                 def patch():
                     for name, prop in self.metadata.items():
-                        if name == 'seqno' or \
-                                prop.permissions & env.ACCESS_CALC:
+                        if name == 'seqno' or prop.acl & ACL.CALC:
                             continue
                         meta = doc.meta(name)
                         if meta is None:
@@ -364,24 +364,19 @@ class Directory(object):
 
     def _post_store(self, guid, changes, event=None):
         if event is not None:
-            self._notify(event)
+            self.broadcast(event)
 
     def _post_delete(self, guid, event):
         self._storage.delete(guid)
-        self._notify(event)
+        self.broadcast(event)
 
     def _post_commit(self):
         self._seqno.commit()
-        self._notify({'event': 'commit', 'mtime': self.mtime})
-
-    def _notify(self, event):
-        if self._notification_cb is not None:
-            event['document'] = self.metadata.name
-            self._notification_cb(event)
+        self.broadcast({'event': 'commit', 'mtime': self.mtime})
 
     def _save_layout(self):
         path = join(self._root, 'layout')
-        with util.new_file(path) as f:
+        with toolkit.new_file(path) as f:
             f.write(str(_LAYOUT_VERSION))
 
     def _is_layout_stale(self):

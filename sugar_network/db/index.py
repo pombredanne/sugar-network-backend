@@ -22,9 +22,24 @@ from os.path import exists, join
 
 import xapian
 
-from sugar_network.db import env
-from sugar_network.db.metadata import IndexedProperty, GUID_PREFIX
-from sugar_network.toolkit import coroutine, exception, enforce
+from sugar_network import toolkit
+from sugar_network.db.metadata import IndexedProperty, GUID_PREFIX, LIST_TYPES
+from sugar_network.toolkit import Option, coroutine, exception, enforce
+
+
+index_flush_timeout = Option(
+        'flush index index after specified seconds since the last change',
+        default=5, type_cast=int)
+
+index_flush_threshold = Option(
+        'flush index every specified changes',
+        default=32, type_cast=int)
+
+index_write_queue = Option(
+        'if active-document is being used for the scheme with one writer '
+            'process and multiple reader processes, this option specifies '
+            'the writer\'s queue size',
+        default=256, type_cast=int)
 
 # Additional Xapian term prefix for exact search terms
 _EXACT_PREFIX = 'X'
@@ -113,7 +128,7 @@ class IndexReader(object):
     def find(self, query):
         """Search documents within the index.
 
-        Function interface is the same as for `db.Document.find`.
+        Function interface is the same as for `db.Resource.find`.
 
         """
         start_timestamp = time.time()
@@ -181,7 +196,9 @@ class IndexReader(object):
             for needle in value if type(value) in (tuple, list) else [value]:
                 if needle is None:
                     continue
-                needle = prop.to_string(needle)[0]
+                if prop.parse is not None:
+                    needle = prop.parse(needle)
+                needle = next(_fmt_prop_value(prop, needle))
                 if needle.startswith('!'):
                     term = _term(prop.prefix, needle[1:])
                     not_queries.append(xapian.Query(term))
@@ -334,13 +351,13 @@ class IndexWriter(IndexReader):
                     value_ = xapian.sortable_serialise(value)
                 else:
                     if prop.localized:
-                        value_ = env.gettext(value) or ''
+                        value_ = toolkit.gettext(value) or ''
                     else:
-                        value_ = prop.to_string(value)[0]
+                        value_ = next(_fmt_prop_value(prop, value))
                 document.add_value(prop.slot, value_)
 
             if prop.prefix or prop.full_text:
-                for value_ in prop.to_string(value):
+                for value_ in _fmt_prop_value(prop, value):
                     if prop.prefix:
                         if prop.boolean:
                             document.add_boolean_term(
@@ -418,14 +435,14 @@ class IndexWriter(IndexReader):
             self._commit_cb()
 
     def _check_for_commit(self):
-        if env.index_flush_threshold.value > 0 and \
-                self._pending_updates >= env.index_flush_threshold.value:
+        if index_flush_threshold.value > 0 and \
+                self._pending_updates >= index_flush_threshold.value:
             # Avoid processing heavy commits in the same coroutine
             self._commit_cond.set()
 
     def _commit_handler(self):
-        if env.index_flush_timeout.value > 0:
-            timeout = env.index_flush_timeout.value
+        if index_flush_timeout.value > 0:
+            timeout = index_flush_timeout.value
         else:
             timeout = None
 
@@ -437,3 +454,20 @@ class IndexWriter(IndexReader):
 
 def _term(prefix, value):
     return _EXACT_PREFIX + prefix + str(value).split('\n')[0][:243]
+
+
+def _fmt_prop_value(prop, value):
+
+    def fmt(value):
+        if type(value) is unicode:
+            yield value.encode('utf8')
+        elif isinstance(value, basestring):
+            yield value
+        elif type(value) in LIST_TYPES:
+            for i in value:
+                for j in fmt(i):
+                    yield j
+        else:
+            yield str(value)
+
+    return fmt(value if prop.fmt is None else prop.fmt(value))

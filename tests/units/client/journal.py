@@ -12,6 +12,7 @@ from __init__ import tests
 
 from sugar_network import db
 from sugar_network.client import journal, ipc_port
+from sugar_network.toolkit.router import Request, Response
 
 
 class JournalTest(tests.Test):
@@ -76,7 +77,7 @@ class JournalTest(tests.Test):
         self.assertEqual('data', file(self.ds.get_filename(guid)).read())
 
     def test_Update(self):
-        ds = journal.Commands()
+        ds = journal.Routes()
         self.touch(('preview', 'preview1'))
         ds.journal_update('guid', StringIO('data1'), title='title1', description='description1', preview={'blob': 'preview'})
 
@@ -97,76 +98,73 @@ class JournalTest(tests.Test):
     def test_FindRequest(self):
         url = 'http://127.0.0.1:%s/journal/' % ipc_port.value
 
-        ds = journal.Commands()
+        ds = journal.Routes()
         ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
         ds.journal_update('guid2', StringIO('data2'), title='title2', description='description2', preview=StringIO('preview2'))
         ds.journal_update('guid3', StringIO('data3'), title='title3', description='description3', preview=StringIO('preview3'))
 
-        request = db.Request()
+        request = Request(reply=['uid', 'title', 'description', 'preview'])
         request.path = ['journal']
-        response = db.Response()
+        response = Response()
         self.assertEqual([
             {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
             {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
             {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
             ],
-            ds.journal(request, response)['result'])
-        self.assertEqual('application/json', response.content_type)
+            ds.journal_find(request, response)['result'])
 
-        request = db.Request(offset=1, limit=1)
+        request = Request(offset=1, limit=1, reply=['uid', 'title', 'description', 'preview'])
         request.path = ['journal']
         self.assertEqual([
             {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
             ],
-            ds.journal(request, response)['result'])
+            ds.journal_find(request, response)['result'])
 
-        request = db.Request(query='title3')
+        request = Request(query='title3', reply=['uid', 'title', 'description', 'preview'])
         request.path = ['journal']
         self.assertEqual([
             {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
             ],
-            ds.journal(request, response)['result'])
+            ds.journal_find(request, response)['result'])
 
-        request = db.Request(order_by='+title')
+        request = Request(order_by=['+title'], reply=['uid', 'title', 'description', 'preview'])
         request.path = ['journal']
         self.assertEqual([
             {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
             {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
             {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
             ],
-            ds.journal(request, response)['result'])
+            ds.journal_find(request, response)['result'])
 
     def test_GetRequest(self):
         url = 'http://127.0.0.1:%s/journal/' % ipc_port.value
 
-        ds = journal.Commands()
+        ds = journal.Routes()
         ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
 
-        request = db.Request()
+        request = Request()
         request.path = ['journal', 'guid1']
-        response = db.Response()
+        response = Response()
         self.assertEqual(
             {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
-            ds.journal(request, response))
-        self.assertEqual('application/json', response.content_type)
+            ds.journal_get(request, response))
 
     def test_GetPropRequest(self):
-        ds = journal.Commands()
+        ds = journal.Routes()
         ds.journal_update('guid1', StringIO('data1'), title='title1', description='description1', preview=StringIO('preview1'))
 
-        request = db.Request()
+        request = Request()
         request.path = ['journal', 'guid1', 'title']
-        response = db.Response()
-        self.assertEqual('title1', ds.journal(request, response))
-        self.assertEqual('application/json', response.content_type)
+        response = Response()
+        self.assertEqual('title1', ds.journal_get_prop(request, response))
 
-        request = db.Request()
+        request = Request()
         request.path = ['journal', 'guid1', 'preview']
-        response = db.Response()
+        response = Response()
         self.assertEqual({
             'mime_type': 'image/png',
             'blob': '.sugar/default/datastore/gu/guid1/metadata/preview',
-            }, ds.journal(request, response))
+            }, ds.journal_get_preview(request, response))
         self.assertEqual(None, response.content_type)
 
 

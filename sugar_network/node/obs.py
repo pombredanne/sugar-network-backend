@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,8 @@ import logging
 from xml.etree import cElementTree as ElementTree
 from os.path import join, exists, basename
 
-from sugar_network.toolkit import Option, http, util, exception, enforce
+from sugar_network import toolkit
+from sugar_network.toolkit import Option, http, enforce
 
 
 obs_url = Option(
@@ -81,7 +82,7 @@ def presolve(aliases, dst_path):
                             binaries.append(dict(pkg.items()))
                         presolves.append((package, binaries))
             except Exception:
-                exception(_logger, 'Failed to presolve %r on %s',
+                toolkit.exception(_logger, 'Failed to presolve %r on %s',
                         names, repo['name'])
                 continue
 
@@ -107,7 +108,7 @@ def presolve(aliases, dst_path):
                     files.append(binary)
 
             for package, info in result.items():
-                with util.new_file(join(dst_dir, package)) as f:
+                with toolkit.new_file(join(dst_dir, package)) as f:
                     json.dump(info, f)
 
             return {'repo': repo['name'], 'packages': result}

@@ -20,7 +20,8 @@ from bisect import bisect_left
 from shutil import copyfileobj
 from os.path import join, exists, relpath, lexists, dirname
 
-from sugar_network.toolkit import util, coroutine
+from sugar_network import toolkit
+from sugar_network.toolkit import coroutine
 
 
 _logger = logging.getLogger('node.sync_files')
@@ -38,7 +39,7 @@ def merge(files_path, packet):
             path = join(files_path, record['path'])
             if not exists(dirname(path)):
                 os.makedirs(dirname(path))
-            with util.new_file(path) as f:
+            with toolkit.new_file(path) as f:
                 copyfileobj(record['blob'], f)
         elif op == 'delete':
             path = join(files_path, record['path'])
@@ -73,7 +74,7 @@ class Index(object):
 
     def diff(self, in_seq, out_seq=None, **kwargs):
         if out_seq is None:
-            out_seq = util.Sequence([])
+            out_seq = toolkit.Sequence([])
         is_initial_diff = not out_seq
 
         # Below calls will trigger coroutine switches, thius,
@@ -103,7 +104,7 @@ class Index(object):
                             yield {'op': 'update',
                                    'path': path,
                                    'blob_size': os.stat(blob_path).st_size,
-                                   'blob': util.iter_file(blob_path),
+                                   'blob': toolkit.iter_file(blob_path),
                                    }
                         out_seq.include(start, seqno)
                         start = seqno
@@ -176,7 +177,7 @@ class Index(object):
 
         self._stamp = os.stat(self._files_path).st_mtime
         if self._seqno.commit():
-            with util.new_file(self._index_path) as f:
+            with toolkit.new_file(self._index_path) as f:
                 json.dump((self._index, self._stamp), f)
 
         return True

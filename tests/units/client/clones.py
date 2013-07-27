@@ -8,18 +8,18 @@ from os.path import abspath, lexists, exists
 
 from __init__ import tests
 
-from sugar_network.resources.user import User
-from sugar_network.resources.context import Context
+from sugar_network import db, model
+from sugar_network.model.user import User
+from sugar_network.model.context import Context
 from sugar_network.client import clones
-from sugar_network.toolkit import coroutine, util
-from sugar_network.resources.volume import Volume
+from sugar_network.toolkit import coroutine
 
 
 class CloneTest(tests.Test):
 
     def setUp(self):
         tests.Test.setUp(self)
-        self.volume = Volume('local', [User, Context])
+        self.volume = db.Volume('local', [User, Context])
         self.job = None
 
     def tearDown(self):
@@ -371,7 +371,7 @@ class CloneTest(tests.Test):
         assert not lexists('share/mime/application/x-foo-bar.xml')
 
     def test_Sync(self):
-        volume = Volume('client')
+        volume = db.Volume('client', model.RESOURCES)
         volume['context'].create({
             'guid': 'context1',
             'type': 'activity',
@@ -409,7 +409,7 @@ class CloneTest(tests.Test):
         self.assertEqual(0, volume['context'].get('context3')['clone'])
 
     def test_SyncByMtime(self):
-        volume = Volume('client')
+        volume = db.Volume('client', model.RESOURCES)
         volume['context'].create({
             'guid': 'context',
             'type': 'activity',

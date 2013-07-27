@@ -13,20 +13,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import types
-import json
-from os.path import exists
 
 from sugar_network import toolkit
-from sugar_network.db import env
+from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit import http, enforce
 
 
 #: Xapian term prefix for GUID value
 GUID_PREFIX = 'I'
 
-_LIST_TYPES = (list, tuple, frozenset, types.GeneratorType)
+LIST_TYPES = (list, tuple, frozenset, types.GeneratorType)
 
 
 def indexed_property(property_class=None, *args, **kwargs):
@@ -71,7 +68,7 @@ class Metadata(dict):
     def __init__(self, cls):
         """
         :param cls:
-            class inherited from `db.Document`
+            class inherited from `db.Resource`
 
         """
         self._name = cls.__name__.lower()
@@ -106,7 +103,7 @@ class Metadata(dict):
 
     @property
     def name(self):
-        """Document type name."""
+        """Resource type name."""
         return self._name
 
     def __getitem__(self, prop_name):
@@ -115,34 +112,24 @@ class Metadata(dict):
         return dict.__getitem__(self, prop_name)
 
 
-class PropertyMetadata(dict):
-
-    BLOB_SUFFIX = '.blob'
-
-    def __init__(self, path_=None, **meta):
-        if path_:
-            with file(path_) as f:
-                meta.update(json.load(f))
-            blob_path = path_ + PropertyMetadata.BLOB_SUFFIX
-            if exists(blob_path):
-                meta['blob'] = blob_path
-                meta['blob_size'] = os.stat(blob_path).st_size
-            meta['mtime'] = int(os.stat(path_).st_mtime)
-        dict.__init__(self, meta)
-
-
 class Property(object):
     """Basic class to collect information about document property."""
 
-    def __init__(self, name, permissions=env.ACCESS_PUBLIC, typecast=None,
-            reprcast=None, default=None):
+    def __init__(self, name, acl=ACL.PUBLIC, typecast=None,
+            parse=None, fmt=None, default=None):
+        if typecast is bool:
+            if fmt is None:
+                fmt = lambda x: '1' if x else '0'
+            if parse is None:
+                parse = lambda x: str(x).lower() in ('true', '1', 'on', 'yes')
         self.setter = None
         self.on_get = lambda self, x: x
         self.on_set = None
         self._name = name
-        self._permissions = permissions
+        self._acl = acl
         self._typecast = typecast
-        self._reprcast = reprcast
+        self._parse = parse
+        self._fmt = fmt
         self._default = default
 
     @property
@@ -151,14 +138,14 @@ class Property(object):
         return self._name
 
     @property
-    def permissions(self):
+    def acl(self):
         """Specify access to the property.
 
         Value might be ORed composition of `db.ACCESS_*`
         constants.
 
         """
-        return self._permissions
+        return self._acl
 
     @property
     def typecast(self):
@@ -177,39 +164,19 @@ class Property(object):
         return self._typecast
 
     @property
-    def composite(self):
-        """Is property value a list of values."""
-        is_composite, __ = _is_composite(self.typecast)
-        return is_composite
+    def parse(self):
+        """Parse property value from a string."""
+        return self._parse
+
+    @property
+    def fmt(self):
+        """Format property value to a string or a list of strings."""
+        return self._fmt
 
     @property
     def default(self):
         """Default property value or None."""
         return self._default
-
-    def decode(self, value):
-        """Convert property value according to its `typecast`."""
-        if self.typecast is None:
-            return value
-        return _decode(self.typecast, value)
-
-    def to_string(self, value):
-        """Convert value to list of strings ready to index."""
-        result = []
-
-        if self._reprcast is not None:
-            value = self._reprcast(value)
-
-        for subvalue in (value if type(value) in _LIST_TYPES else [value]):
-            if type(subvalue) is bool:
-                subvalue = int(subvalue)
-            if type(subvalue) is unicode:
-                subvalue = unicode(subvalue).encode('utf8')
-            else:
-                subvalue = str(subvalue)
-            result.append(subvalue)
-
-        return result
 
     def assert_access(self, mode):
         """Is access to the property permitted.
@@ -222,15 +189,15 @@ class Property(object):
             to specify the access mode
 
         """
-        enforce(mode & self.permissions, http.Forbidden,
+        enforce(mode & self.acl, http.Forbidden,
                 '%s access is disabled for %r property',
-                env.ACCESS_NAMES[mode], self.name)
+                ACL.NAMES[mode], self.name)
 
 
 class StoredProperty(Property):
     """Property to save only in persistent storage, no index."""
 
-    def __init__(self, name, localized=False, typecast=None, reprcast=None,
+    def __init__(self, name, localized=False, typecast=None, fmt=None,
             **kwargs):
         """
         :param: **kwargs
@@ -242,13 +209,12 @@ class StoredProperty(Property):
         if localized:
             enforce(typecast is None,
                     'typecast should be None for localized properties')
-            enforce(reprcast is None,
-                    'reprcast should be None for localized properties')
+            enforce(fmt is None,
+                    'fmt should be None for localized properties')
             typecast = _localized_typecast
-            reprcast = _localized_reprcast
+            fmt = _localized_fmt
 
-        Property.__init__(self, name, typecast=typecast, reprcast=reprcast,
-                **kwargs)
+        Property.__init__(self, name, typecast=typecast, fmt=fmt, **kwargs)
 
     @property
     def localized(self):
@@ -310,16 +276,15 @@ class IndexedProperty(StoredProperty):
 class BlobProperty(Property):
     """Binary large objects which needs to be fetched alone, no index."""
 
-    def __init__(self, name, permissions=env.ACCESS_PUBLIC,
-            mime_type='application/octet-stream', composite=False):
+    def __init__(self, name, acl=ACL.PUBLIC,
+            mime_type='application/octet-stream'):
         """
         :param: **kwargs
             :class:`.Property` arguments
 
         """
-        Property.__init__(self, name, permissions=permissions)
+        Property.__init__(self, name, acl=acl)
         self._mime_type = mime_type
-        self._composite = composite
 
     @property
     def mime_type(self):
@@ -330,63 +295,11 @@ class BlobProperty(Property):
         """
         return self._mime_type
 
-    @property
-    def composite(self):
-        """Property is a list of BLOBs."""
-        return self._composite
-
-
-def _is_composite(typecast):
-    if type(typecast) in _LIST_TYPES:
-        if typecast:
-            first = iter(typecast).next()
-            if type(first) is not type and \
-                    type(first) not in _LIST_TYPES:
-                return False, True
-        return True, False
-    return False, False
-
-
-def _decode(typecast, value):
-    enforce(value is not None, ValueError, 'Property value cannot be None')
-
-    is_composite, is_enum = _is_composite(typecast)
-
-    if is_composite:
-        enforce(len(typecast) <= 1, ValueError,
-                'List values should contain values of the same type')
-        if type(value) not in _LIST_TYPES:
-            value = (value,)
-        typecast, = typecast or [str]
-        value = tuple([_decode(typecast, i) for i in value])
-    elif is_enum:
-        enforce(value in typecast, ValueError,
-                "Value %r is not in '%s' list",
-                value, ', '.join([str(i) for i in typecast]))
-    elif isinstance(typecast, types.FunctionType):
-        value = typecast(value)
-    elif typecast is str:
-        if isinstance(value, unicode):
-            value = value.encode('utf-8')
-        else:
-            value = str(value)
-    elif typecast is int:
-        value = int(value)
-    elif typecast is float:
-        value = float(value)
-    elif typecast is bool:
-        value = bool(value)
-    elif typecast is dict:
-        value = dict(value)
-    else:
-        raise ValueError('Unknown typecast')
-    return value
-
 
 def _is_sloted_prop(typecast):
     if typecast in [None, int, float, bool, str]:
         return True
-    if type(typecast) in _LIST_TYPES:
+    if type(typecast) in LIST_TYPES:
         if typecast and [i for i in typecast
                 if type(i) in [None, int, float, bool, str]]:
             return True
@@ -399,7 +312,7 @@ def _localized_typecast(value):
         return {toolkit.default_lang(): value}
 
 
-def _localized_reprcast(value):
+def _localized_fmt(value):
     if isinstance(value, dict):
         return value.values()
     else:

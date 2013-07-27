@@ -11,9 +11,11 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network import toolkit
-from sugar_network.db import index, env
-from sugar_network.db.metadata import Metadata, IndexedProperty, GUID_PREFIX
+from sugar_network.db import index
+from sugar_network.db.index import _fmt_prop_value
+from sugar_network.db.metadata import Metadata, IndexedProperty, GUID_PREFIX, Property
 from sugar_network.db.directory import _Query
+from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit import coroutine
 
 
@@ -69,8 +71,8 @@ class IndexTest(tests.Test):
                 ([], 0),
                 db._find(reply=['key']))
 
-    def test_IndexByReprcast(self):
-        db = Index({'key': IndexedProperty('key', 1, 'K', reprcast=lambda x: "foo" + x)})
+    def test_IndexByFmt(self):
+        db = Index({'key': IndexedProperty('key', 1, 'K', fmt=lambda x: "foo" + x)})
 
         db.store('1', {'key': 'bar'})
 
@@ -87,7 +89,7 @@ class IndexTest(tests.Test):
                 [],
                 db._find(key='fake', reply=['key'])[0])
 
-    def test_IndexByReprcastGenerator(self):
+    def test_IndexByFmtGenerator(self):
 
         def iterate(value):
             if value != 'fake':
@@ -95,7 +97,7 @@ class IndexTest(tests.Test):
                 yield 'bar'
             yield value
 
-        db = Index({'key': IndexedProperty('key', 1, 'K', reprcast=iterate)})
+        db = Index({'key': IndexedProperty('key', 1, 'K', fmt=iterate)})
         db.store('1', {'key': 'value'})
 
         self.assertEqual(
@@ -497,7 +499,7 @@ class IndexTest(tests.Test):
 
         db = Index({}, lambda: commits.append(True))
         coroutine.dispatch()
-        env.index_flush_threshold.value = 1
+        index.index_flush_threshold.value = 1
         db.store('1', {})
         coroutine.dispatch()
         db.store('2', {})
@@ -510,7 +512,7 @@ class IndexTest(tests.Test):
         del commits[:]
         db = Index({}, lambda: commits.append(True))
         coroutine.dispatch()
-        env.index_flush_threshold.value = 2
+        index.index_flush_threshold.value = 2
         db.store('4', {})
         coroutine.dispatch()
         db.store('5', {})
@@ -525,8 +527,8 @@ class IndexTest(tests.Test):
         db.close()
 
     def test_FlushTimeout(self):
-        env.index_flush_threshold.value = 0
-        env.index_flush_timeout.value = 1
+        index.index_flush_threshold.value = 0
+        index.index_flush_timeout.value = 1
 
         commits = []
 
@@ -557,7 +559,7 @@ class IndexTest(tests.Test):
         self.assertEqual(2, len(commits))
 
     def test_DoNotMissImmediateCommitEvent(self):
-        env.index_flush_threshold.value = 1
+        index.index_flush_threshold.value = 1
         commits = []
         db = Index({}, lambda: commits.append(True))
 
@@ -748,6 +750,25 @@ class IndexTest(tests.Test):
                     ]),
                 db._find(prop=['a', '-b', 'c'], reply=['guid'])[0])
 
+    def test_fmt_prop_value(self):
+        prop = Property('prop')
+        self.assertEqual(['0'], [i for i in _fmt_prop_value(prop, 0)])
+        self.assertEqual(['1'], [i for i in _fmt_prop_value(prop, 1)])
+        self.assertEqual(['0'], [i for i in _fmt_prop_value(prop, 0)])
+        self.assertEqual(['1.1'], [i for i in _fmt_prop_value(prop, 1.1)])
+        self.assertEqual(['0', '1'], [i for i in _fmt_prop_value(prop, [0, 1])])
+        self.assertEqual(['2', '1'], [i for i in _fmt_prop_value(prop, [2, 1])])
+        self.assertEqual(['probe', 'True', '0'], [i for i in _fmt_prop_value(prop, ['probe', True, 0])])
+        self.assertEqual(['True'], [i for i in _fmt_prop_value(prop, True)])
+        self.assertEqual(['False'], [i for i in _fmt_prop_value(prop, False)])
+
+        prop = Property('prop', typecast=bool)
+        self.assertEqual(['1'], [i for i in _fmt_prop_value(prop, True)])
+        self.assertEqual(['0'], [i for i in _fmt_prop_value(prop, False)])
+
+        prop = Property('prop', fmt=lambda x: x.keys())
+        self.assertEqual(['a', '2'], [i for i in _fmt_prop_value(prop, {'a': 1, 2: 'b'})])
+
 
 class Index(index.IndexWriter):
 
@@ -759,7 +780,7 @@ class Index(index.IndexWriter):
         metadata = Metadata(Index)
         metadata.update(props)
         metadata['guid'] = IndexedProperty('guid',
-                permissions=env.ACCESS_CREATE | env.ACCESS_READ, slot=0,
+                acl=ACL.CREATE | ACL.READ, slot=0,
                 prefix=GUID_PREFIX)
 
         index.IndexWriter.__init__(self, tests.tmpdir + '/index', metadata, *args)

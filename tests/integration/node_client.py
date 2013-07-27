@@ -10,8 +10,9 @@ from os.path import exists, join
 
 from __init__ import tests, src_root
 
+from sugar_network import toolkit
 from sugar_network.client import IPCClient, Client
-from sugar_network.toolkit import coroutine, util
+from sugar_network.toolkit import coroutine
 
 
 class NodeClientTest(tests.Test):
@@ -20,7 +21,7 @@ class NodeClientTest(tests.Test):
         tests.Test.setUp(self)
 
         os.makedirs('mnt')
-        util.cptree(src_root + '/tests/data/node', 'node')
+        toolkit.cptree(src_root + '/tests/data/node', 'node')
         self.client_pid = None
 
         self.node_pid = self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
@@ -122,7 +123,7 @@ class NodeClientTest(tests.Test):
             if ipc.get(cmd='status')['route'] == 'offline':
                 self.wait_for_events(ipc, event='inline', state='online').wait()
 
-        result = util.assert_call(cmd, stdin=json.dumps(stdin))
+        result = toolkit.assert_call(cmd, stdin=json.dumps(stdin))
         if result and '--porcelain' not in cmd:
             result = json.loads(result)
         return result

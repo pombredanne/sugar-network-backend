@@ -349,29 +349,12 @@ Volume
 
 """
 
-from sugar_network.db.env import \
-        ACCESS_CREATE, ACCESS_WRITE, ACCESS_READ, ACCESS_DELETE, \
-        ACCESS_AUTHOR, ACCESS_AUTH, ACCESS_PUBLIC, ACCESS_LEVELS, \
-        ACCESS_SYSTEM, ACCESS_LOCAL, ACCESS_REMOTE, ACCESS_CALC, \
-        MAX_LIMIT, CommandNotFound, gettext, \
-        index_flush_timeout, index_flush_threshold, index_write_queue
-
-from sugar_network.db.router import route, Router
-
 from sugar_network.db.metadata import \
         indexed_property, stored_property, blob_property, \
-        Property, StoredProperty, BlobProperty, IndexedProperty, \
-        PropertyMetadata
-
-from sugar_network.db.commands import \
-        volume_command, volume_command_pre, volume_command_post, \
-        directory_command, directory_command_pre, directory_command_post, \
-        document_command, document_command_pre, document_command_post, \
-        property_command, property_command_pre, property_command_post, \
-        to_int, to_list, to_bool, Request, Response, CommandsProcessor
-
-from sugar_network.db.document import Document
-
-from sugar_network.db.directory import Directory
-
-from sugar_network.db.volume import Volume, VolumeCommands
+        Property, StoredProperty, BlobProperty, IndexedProperty
+from sugar_network.db.index import index_flush_timeout, \
+        index_flush_threshold, index_write_queue
+from sugar_network.db.resource import Resource
+from sugar_network.db.directory import Directory, MAX_LIMIT
+from sugar_network.db.volume import Volume
+from sugar_network.db.routes import Routes

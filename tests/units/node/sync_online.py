@@ -7,16 +7,16 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network import db
-from sugar_network.db.router import Router
+from sugar_network import db, toolkit
 from sugar_network.client import Client, api_url
 from sugar_network.node import sync, stats_user, files_root
-from sugar_network.node.master import MasterCommands
-from sugar_network.node.slave import SlaveCommands
-from sugar_network.resources.volume import Volume
-from sugar_network.resources.user import User
-from sugar_network.resources.feedback import Feedback
-from sugar_network.toolkit import util, coroutine
+from sugar_network.node.master import MasterRoutes
+from sugar_network.node.slave import SlaveRoutes
+from sugar_network.db.volume import Volume
+from sugar_network.model.user import User
+from sugar_network.model.feedback import Feedback
+from sugar_network.toolkit.router import Router
+from sugar_network.toolkit import coroutine
 
 
 class SyncOnlineTest(tests.Test):
@@ -42,14 +42,14 @@ class SyncOnlineTest(tests.Test):
 
         files_root.value = 'master/files'
         self.master_volume = Volume('master', [User, Document])
-        self.master_server = coroutine.WSGIServer(('127.0.0.1', 9000), Router(MasterCommands('127.0.0.1:9000', self.master_volume)))
+        self.master_server = coroutine.WSGIServer(('127.0.0.1', 9000), Router(MasterRoutes('127.0.0.1:9000', self.master_volume)))
         coroutine.spawn(self.master_server.serve_forever)
         coroutine.dispatch()
 
         files_root.value = 'slave/files'
         self.slave_volume = Volume('slave', [User, Document])
-        util.ensure_key('slave/node')
-        self.slave_server = coroutine.WSGIServer(('127.0.0.1', 9001), Router(SlaveCommands('slave/node', self.slave_volume)))
+        toolkit.ensure_key('slave/node')
+        self.slave_server = coroutine.WSGIServer(('127.0.0.1', 9001), Router(SlaveRoutes('slave/node', self.slave_volume)))
         coroutine.spawn(self.slave_server.serve_forever)
         coroutine.dispatch()
 

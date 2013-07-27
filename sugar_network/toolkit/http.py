@@ -26,8 +26,7 @@ from requests import Session
 from requests.exceptions import SSLError, ConnectionError, HTTPError
 
 from sugar_network import client, toolkit
-from sugar_network.toolkit import coroutine, util
-from sugar_network.toolkit import BUFFER_SIZE, exception, enforce
+from sugar_network.toolkit import coroutine, enforce
 
 
 _logger = logging.getLogger('http')
@@ -37,7 +36,6 @@ class Status(Exception):
 
     status = None
     headers = None
-    result = None
 
 
 class StatusPass(Status):
@@ -108,8 +106,8 @@ class Client(object):
             session.verify = False
         if creds:
             uid, keyfile, self._get_profile = creds
-            session.headers['sugar_user'] = uid
-            session.headers['sugar_user_signature'] = _sign(keyfile, uid)
+            session.headers['X-SN-login'] = uid
+            session.headers['X-SN-signature'] = _sign(keyfile, uid)
         session.headers['accept-language'] = toolkit.default_lang()
 
     def __repr__(self):
@@ -161,9 +159,9 @@ class Client(object):
 
         content_length = response.headers.get('Content-Length')
         if content_length:
-            chunk_size = min(int(content_length), BUFFER_SIZE)
+            chunk_size = min(int(content_length), toolkit.BUFFER_SIZE)
         else:
-            chunk_size = BUFFER_SIZE
+            chunk_size = toolkit.BUFFER_SIZE
 
         if dst is None:
             return response.iter_content(chunk_size=chunk_size)
@@ -182,6 +180,9 @@ class Client(object):
             path = ['']
         if not isinstance(path, basestring):
             path = '/'.join([i.strip('/') for i in [self.api_url] + path])
+        if isinstance(params, basestring):
+            path += '?' + params
+            params = None
 
         a_try = 0
         while True:
@@ -214,7 +215,8 @@ class Client(object):
                     # If so, try to resend request.
                     if a_try <= self._max_retries and method == 'GET':
                         continue
-                    error = content or 'No error message provided'
+                    error = content or response.headers.get('x-sn-error') or \
+                            'No error message provided'
                 _logger.trace('Request failed, method=%s path=%r params=%r '
                         'headers=%r status_code=%s error=%s',
                         method, path, params, headers, response.status_code,
@@ -225,23 +227,6 @@ class Client(object):
             return response
 
     def call(self, request, response=None):
-        params = request.copy()
-        method = params.pop('method')
-        document = params.pop('document') if 'document' in params else None
-        guid = params.pop('guid') if 'guid' in params else None
-        prop = params.pop('prop') if 'prop' in params else None
-
-        if request.path is not None:
-            path = request.path
-        else:
-            path = []
-            if document:
-                path.append(document)
-            if guid:
-                path.append(guid)
-            if prop:
-                path.append(prop)
-
         if request.content_type == 'application/json':
             request.content = json.dumps(request.content)
 
@@ -259,22 +244,20 @@ class Client(object):
             else:
                 request.content = request.content_stream.read()
             headers['content-length'] = str(len(request.content))
-        if request.accept_language:
-            headers['accept-language'] = request.accept_language[0]
-        if hasattr(request, 'environ'):
-            for env_key, key in (
-                    ('HTTP_IF_MODIFIED_SINCE', 'if-modified-since'),
-                    ):
+        for env_key, key, value in (
+                ('HTTP_IF_MODIFIED_SINCE', 'if-modified-since', None),
+                ('HTTP_ACCEPT_LANGUAGE', 'accept-language',
+                    client.accept_language.value),
+                ('HTTP_ACCEPT_ENCODING', 'accept-encoding', None),
+                ):
+            if value is None:
                 value = request.environ.get(env_key)
-                if value:
-                    headers[key] = value
+            if value is not None:
+                headers[key] = value
 
-        reply = self.request(method, path, data=request.content,
-                params=params, headers=headers, allowed=[303],
-                allow_redirects=request.allow_redirects)
-
-        if reply.status_code == 303:
-            raise Redirect(reply.headers.get('location'))
+        reply = self.request(request.method, request.path,
+                data=request.content, params=request.query or request,
+                headers=headers, allow_redirects=True)
 
         if response is not None:
             if 'transfer-encoding' in reply.headers:
@@ -282,7 +265,7 @@ class Client(object):
                 del reply.headers['transfer-encoding']
             response.update(reply.headers)
 
-        if method != 'HEAD':
+        if request.method != 'HEAD':
             if reply.headers.get('Content-Type') == 'application/json':
                 return json.loads(reply.content)
             else:
@@ -319,13 +302,13 @@ class _Subscription(object):
         for a_try in (1, 0):
             stream = self._handshake()
             try:
-                line = util.readline(stream)
+                line = toolkit.readline(stream)
                 enforce(line, 'Subscription aborted')
                 break
             except Exception:
                 if a_try == 0:
                     raise
-                exception('Failed to read from %r subscription, '
+                toolkit.exception('Failed to read from %r subscription, '
                         'will resubscribe', self._client.api_url)
                 self._content = None
 
@@ -333,7 +316,8 @@ class _Subscription(object):
             try:
                 return json.loads(line.split(' ', 1)[1])
             except Exception:
-                exception('Failed to parse %r event from %r subscription',
+                toolkit.exception(
+                        'Failed to parse %r event from %r subscription',
                         line, self._client.api_url)
 
     def _handshake(self, **params):

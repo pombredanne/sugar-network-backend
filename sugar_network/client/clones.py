@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,12 +21,12 @@ import logging
 from os.path import join, exists, lexists, relpath, dirname, basename, isdir
 from os.path import abspath, islink
 
-from sugar_network import db, client
+from sugar_network import db, client, toolkit
 from sugar_network.toolkit.spec import Spec
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
         IN_MOVED_TO, IN_MOVED_FROM
-from sugar_network.toolkit import coroutine, util, exception
+from sugar_network.toolkit import coroutine
 
 
 _logger = logging.getLogger('client.clones')
@@ -123,7 +123,7 @@ class _Inotify(Inotify):
                 try:
                     cb(filename, event)
                 except Exception:
-                    exception('Cannot dispatch 0x%X event for %r',
+                    toolkit.exception('Cannot dispatch 0x%X event for %r',
                             event, filename)
                 coroutine.dispatch()
 
@@ -137,7 +137,7 @@ class _Inotify(Inotify):
         try:
             spec = Spec(root=clone_path)
         except Exception:
-            exception(_logger, 'Cannot read %r spec', clone_path)
+            toolkit.exception(_logger, 'Cannot read %r spec', clone_path)
             return
 
         context = spec['context']
@@ -171,8 +171,8 @@ class _Inotify(Inotify):
                 with file(icon_path, 'rb') as f:
                     self._contexts.update(context,
                             {'artifact_icon': {'blob': f}})
-                with util.NamedTemporaryFile() as f:
-                    util.svg_to_png(icon_path, f.name, 32, 32)
+                with toolkit.NamedTemporaryFile() as f:
+                    toolkit.svg_to_png(icon_path, f.name, 32, 32)
                     self._contexts.update(context, {'icon': {'blob': f.name}})
 
         self._checkin_activity(spec)
@@ -187,8 +187,8 @@ class _Inotify(Inotify):
 
         _logger.debug('Update MIME database to process found %r', src_path)
 
-        util.symlink(src_path, dst_path)
-        util.spawn('update-mime-database', self._mime_dir)
+        toolkit.symlink(src_path, dst_path)
+        toolkit.spawn('update-mime-database', self._mime_dir)
 
     def lost(self, clone_path):
         __, checkin_path = _checkin_path(clone_path)
@@ -222,7 +222,7 @@ class _Inotify(Inotify):
         _logger.debug('Update MIME database to process lost %r', impl_path)
 
         os.unlink(dst_path)
-        util.spawn('update-mime-database', self._mime_dir)
+        toolkit.spawn('update-mime-database', self._mime_dir)
 
     def _checkin_activity(self, spec):
         icon_path = join(spec.root, spec['icon'])
@@ -232,7 +232,7 @@ class _Inotify(Inotify):
             if not exists(self._icons_dir):
                 os.makedirs(self._icons_dir)
             for mime_type in spec['mime_types']:
-                util.symlink(icon_path,
+                toolkit.symlink(icon_path,
                         join(self._icons_dir,
                             mime_type.replace('/', '-') + '.svg'))
 

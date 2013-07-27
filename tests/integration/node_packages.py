@@ -16,10 +16,10 @@ from __init__ import tests, src_root
 
 from sugar_network import db, client
 from sugar_network.client import Client, IPCClient
-from sugar_network.db.router import Router, route
 from sugar_network.node.obs import obs_url
+from sugar_network.toolkit.router import Router, route, fallbackroute
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import util, coroutine
+from sugar_network.toolkit import coroutine
 
 
 # /tmp might be on tmpfs wich returns 0 bytes for free mem all time
@@ -39,11 +39,10 @@ class NodePackagesSlaveTest(tests.Test):
 
     def test_packages(self):
 
-        class OBS(db.CommandsProcessor):
+        class OBS(object):
 
-            @route('GET', '/build')
+            @fallbackroute('GET', ['build'], mime_type='text/xml')
             def build(self, request, response):
-                response.content_type = 'text/xml'
                 if request.path == ['build', 'base']:
                     return '<directory><entry name="Fedora-14"/></directory>'
                 elif request.path == ['build', 'base', 'Fedora-14']:
@@ -53,12 +52,11 @@ class NodePackagesSlaveTest(tests.Test):
                 elif request.path == ['build', 'presolve', 'OLPC-11.3.1']:
                     return '<directory><entry name="i586"/></directory>'
 
-            @route('GET', '/resolve')
+            @fallbackroute('GET', ['resolve'], mime_type='text/xml')
             def resolve(self, request, response):
-                response.content_type = 'text/xml'
                 return '<resolve><binary name="rpm" url="http://127.0.0.1:9999/packages/rpm" arch="arch"/></resolve>'
 
-            @route('GET', '/packages')
+            @fallbackroute('GET', ['packages'], mime_type='text/plain')
             def packages(self, request, response):
                 return 'package_content'
 
