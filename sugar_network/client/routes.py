@@ -74,7 +74,7 @@ class ClientRoutes(model.Routes, journal.Routes):
         self._got_offline()
         self._local.volume.close()
 
-    @route('GET', ['hub'])
+    @fallbackroute('GET', ['hub'])
     def hub(self, request, response):
         """Serve Hub via HTTP instead of file:// for IPC users.
 
