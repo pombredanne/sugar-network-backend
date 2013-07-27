@@ -12,7 +12,7 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import client, db, model
-from sugar_network.client import IPCClient, journal, clones, injector, routes
+from sugar_network.client import IPCConnection, journal, clones, injector, routes
 from sugar_network.toolkit import coroutine, http
 from sugar_network.toolkit.spec import Spec
 from sugar_network.client.routes import ClientRoutes, Request, Response
@@ -52,7 +52,7 @@ class OnlineRoutes(tests.Test):
 
     def test_whoami(self):
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         self.assertEqual(
                 {'guid': tests.UID, 'roles': []},
@@ -60,7 +60,7 @@ class OnlineRoutes(tests.Test):
 
     def test_clone_Activities(self):
         self.home_volume = self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
         coroutine.spawn(clones.monitor, self.home_volume['context'], ['Activities'])
 
         context = ipc.post(['context'], {
@@ -159,7 +159,7 @@ class OnlineRoutes(tests.Test):
 
     def test_clone_ActivityImpl(self):
         self.home_volume = self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
         coroutine.spawn(clones.monitor, self.home_volume['context'], ['Activities'])
 
         context = ipc.post(['context'], {
@@ -296,7 +296,7 @@ class OnlineRoutes(tests.Test):
         self.override(journal.Routes, 'journal_update', journal_update)
         self.override(journal.Routes, 'journal_delete', lambda self, guid: updates.append((guid,)))
 
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         context = ipc.post(['context'], {
             'type': 'content',
@@ -374,7 +374,7 @@ class OnlineRoutes(tests.Test):
         self.override(journal.Routes, 'journal_update', journal_update)
         self.override(journal.Routes, 'journal_delete', lambda self, guid: updates.append((guid,)))
 
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         artifact = ipc.post(['artifact'], {
             'context': 'context',
@@ -433,7 +433,7 @@ class OnlineRoutes(tests.Test):
 
     def test_favorite(self):
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         context = ipc.post(['context'], {
             'type': 'activity',
@@ -474,7 +474,7 @@ class OnlineRoutes(tests.Test):
 
     def test_subscribe(self):
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
         events = []
 
         def read_events():
@@ -532,7 +532,7 @@ class OnlineRoutes(tests.Test):
 
     def test_BLOBs(self):
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'activity',
@@ -564,7 +564,7 @@ class OnlineRoutes(tests.Test):
 
     def test_Feeds(self):
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         context = ipc.post(['context'], {
             'type': 'activity',
@@ -631,7 +631,7 @@ class OnlineRoutes(tests.Test):
 
     def test_Feeds_RestrictLayers(self):
         self.start_online_client([User, Context, Implementation, Artifact])
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         context = ipc.post(['context'], {
             'type': 'activity',
@@ -773,7 +773,7 @@ class OnlineRoutes(tests.Test):
 
     def test_Feeds_PreferLocalFeeds(self):
         home_volume = self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         context = ipc.post(['context'], {
             'type': 'activity',
@@ -840,7 +840,7 @@ class OnlineRoutes(tests.Test):
 
     def test_InvalidateSolutions(self):
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
         self.assertNotEqual(None, injector._mtime)
 
         mtime = injector._mtime
@@ -891,7 +891,7 @@ class OnlineRoutes(tests.Test):
 
     def test_ContentDisposition(self):
         self.start_online_client([User, Context, Implementation, Artifact])
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         artifact = ipc.post(['artifact'], {
             'type': 'instance',
@@ -916,7 +916,7 @@ class OnlineRoutes(tests.Test):
                 raise http.Redirect(URL)
 
         self.start_online_client([User, Document])
-        ipc = IPCClient()
+        ipc = IPCConnection()
         guid = ipc.post(['document'], {})
 
         response = requests.request('GET', client.api_url.value + '/document/' + guid + '/blob', allow_redirects=False)
@@ -925,7 +925,7 @@ class OnlineRoutes(tests.Test):
 
     def test_Proxy_Activities(self):
         home_volume = self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         context = ipc.post(['context'], {
             'type': 'activity',
@@ -960,7 +960,7 @@ class OnlineRoutes(tests.Test):
 
     def test_Proxy_Content(self):
         self.start_online_client([User, Context, Implementation, Artifact])
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'content',
@@ -996,7 +996,7 @@ class OnlineRoutes(tests.Test):
 
     def test_Proxy_Artifacts(self):
         self.start_online_client([User, Context, Implementation, Artifact])
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['artifact'], {
             'type': 'instance',
@@ -1032,7 +1032,7 @@ class OnlineRoutes(tests.Test):
 
     def test_Proxy_NoNeedlessRemoteRequests(self):
         home_volume = self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'content',
@@ -1058,7 +1058,7 @@ class OnlineRoutes(tests.Test):
 
     def test_HomeVolumeEvents(self):
         self.home_volume = self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
         coroutine.spawn(clones.monitor, self.home_volume['context'], ['Activities'])
 
         context1 = ipc.post(['context'], {
@@ -1139,7 +1139,7 @@ class OnlineRoutes(tests.Test):
 
         self.override(routes, '_LocalRoutes', LocalRoutes)
         home_volume = self.start_client([User])
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         self.assertEqual('local', ipc.get(cmd='sleep'))
         self.assertEqual('local', ipc.get(cmd='yield_raw_and_sleep'))
@@ -1208,7 +1208,7 @@ class OnlineRoutes(tests.Test):
 
         node_pid = self.fork_master([User])
         self.start_client([User])
-        ipc = IPCClient()
+        ipc = IPCConnection()
         self.wait_for_events(ipc, event='inline', state='online').wait()
 
         def shutdown():

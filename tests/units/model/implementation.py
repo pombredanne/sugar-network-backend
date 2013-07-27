@@ -10,7 +10,7 @@ from __init__ import tests
 from sugar_network import db
 from sugar_network.model import implementation
 from sugar_network.model.implementation import _fmt_version, Implementation
-from sugar_network.client import IPCClient
+from sugar_network.client import IPCConnection
 from sugar_network.toolkit import http, coroutine
 
 
@@ -66,7 +66,7 @@ class ImplementationTest(tests.Test):
 
     def test_WrongAuthor(self):
         self.start_online_client()
-        client = IPCClient()
+        client = IPCConnection()
 
         self.node_volume['context'].create({
                 'guid': 'context',

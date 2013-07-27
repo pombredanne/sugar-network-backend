@@ -11,7 +11,7 @@ from os.path import exists, join, dirname, abspath
 from __init__ import tests, src_root
 
 from sugar_network import toolkit
-from sugar_network.client import IPCClient, Client
+from sugar_network.client import Connection
 from sugar_network.toolkit import coroutine
 
 
@@ -146,7 +146,7 @@ class NodeClientTest(tests.Test):
                 '--api-url=http://127.0.0.1:8100',
                 ])
             coroutine.sleep(2)
-            ipc = Client('http://127.0.0.1:5101')
+            ipc = Connection('http://127.0.0.1:5101')
             if ipc.get(cmd='status')['route'] == 'offline':
                 self.wait_for_events(ipc, event='inline', state='online').wait()
 

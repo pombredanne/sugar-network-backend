@@ -8,7 +8,7 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import db, client, model
-from sugar_network.client import IPCClient
+from sugar_network.client import IPCConnection
 from sugar_network.client.routes import ClientRoutes
 from sugar_network.db import Volume
 from sugar_network.toolkit.router import Router
@@ -65,7 +65,7 @@ class ServerCommandsTest(tests.Test):
 
     def test_whoami(self):
         self.start_node()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         self.assertEqual(
                 {'guid': tests.UID, 'roles': []},
@@ -73,7 +73,7 @@ class ServerCommandsTest(tests.Test):
 
     def test_subscribe(self):
         self.start_node()
-        ipc = IPCClient()
+        ipc = IPCConnection()
         events = []
 
         def read_events():
@@ -104,7 +104,7 @@ class ServerCommandsTest(tests.Test):
 
     def test_BLOBs(self):
         self.start_node()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'activity',

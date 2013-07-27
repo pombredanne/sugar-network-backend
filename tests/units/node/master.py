@@ -6,7 +6,7 @@ import os
 from __init__ import tests
 
 from sugar_network.node import obs
-from sugar_network.client import IPCClient
+from sugar_network.client import IPCConnection
 from sugar_network.toolkit import coroutine, enforce
 
 
@@ -21,7 +21,7 @@ class MasterTest(tests.Test):
         self.override(obs, 'resolve', lambda repo, arch, names: ['fake'])
 
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'activity',
@@ -57,7 +57,7 @@ class MasterTest(tests.Test):
         self.override(obs, 'resolve', lambda repo, arch, names: enforce(False, 'resolve failed'))
 
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'activity',
@@ -96,7 +96,7 @@ class MasterTest(tests.Test):
         self.override(obs, 'resolve', resolve)
 
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'activity',
@@ -148,7 +148,7 @@ class MasterTest(tests.Test):
         self.override(obs, 'resolve', lambda repo, arch, names: ['fake'])
 
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         events = []
         def read_events():
@@ -184,7 +184,7 @@ class MasterTest(tests.Test):
 
     def test_InvalidateSolutionsOnDependenciesChanges(self):
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         events = []
         def read_events():

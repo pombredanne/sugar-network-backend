@@ -6,7 +6,7 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import client, model
-from sugar_network.client import IPCClient, clones
+from sugar_network.client import IPCConnection, clones
 from sugar_network.client.routes import ClientRoutes
 from sugar_network.db import Volume
 from sugar_network.toolkit.router import Router
@@ -24,7 +24,7 @@ class OfflineRoutes(tests.Test):
         coroutine.dispatch()
 
     def test_NoAuthors(self):
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'activity',
@@ -40,7 +40,7 @@ class OfflineRoutes(tests.Test):
                 ipc.get(['context', guid, 'author']))
 
     def test_HandleDeletes(self):
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'activity',
@@ -57,14 +57,14 @@ class OfflineRoutes(tests.Test):
         assert not exists(guid_path)
 
     def test_whoami(self):
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         self.assertEqual(
                 {'guid': tests.UID, 'roles': []},
                 ipc.get(cmd='whoami'))
 
     def test_clone(self):
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         context = ipc.post(['context'], {
             'type': 'activity',
@@ -76,7 +76,7 @@ class OfflineRoutes(tests.Test):
         self.assertRaises(RuntimeError, ipc.put, ['context', context], 1, cmd='clone')
 
     def test_favorite(self):
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         context = ipc.post(['context'], {
             'type': 'activity',
@@ -102,7 +102,7 @@ class OfflineRoutes(tests.Test):
                 ipc.get(['context', context], reply=['favorite']))
 
     def test_subscribe(self):
-        ipc = IPCClient()
+        ipc = IPCConnection()
         events = []
 
         def read_events():
@@ -134,7 +134,7 @@ class OfflineRoutes(tests.Test):
             events)
 
     def test_BLOBs(self):
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'activity',
@@ -185,7 +185,7 @@ class OfflineRoutes(tests.Test):
             'requires = dep1; dep2 = 1; dep3 < 2; dep4 >= 3',
             ]))
 
-        ipc = IPCClient()
+        ipc = IPCConnection()
         monitor = coroutine.spawn(clones.monitor, self.home_volume['context'], ['Activities'])
         coroutine.dispatch()
 
@@ -226,7 +226,7 @@ class OfflineRoutes(tests.Test):
             ipc.get(['context', 'bundle_id'], cmd='feed'))
 
     def test_LocalAPIShouldDuplicateNodeButWith503Response(self):
-        ipc = IPCClient()
+        ipc = IPCConnection()
         self.assertRaises(http.ServiceUnavailable, ipc.get, ['context', 'foo'], cmd='feed')
         self.assertRaises(http.ServiceUnavailable, ipc.get, ['packages', 'foo', 'bar'])
 

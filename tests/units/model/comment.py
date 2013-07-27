@@ -3,7 +3,7 @@
 
 from __init__ import tests
 
-from sugar_network.client import Client
+from sugar_network.client import Connection
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.review import Review
@@ -18,7 +18,7 @@ class CommentTest(tests.Test):
 
     def test_SetContext(self):
         volume = self.start_master([User, Context, Review, Feedback, Solution, Comment, Implementation])
-        client = Client()
+        client = Connection()
 
         self.assertRaises(http.NotFound, client.post, ['comment'], {'message': '', 'review': 'absent'})
         self.assertRaises(http.NotFound, client.post, ['comment'], {'message': '', 'feedback': 'absent'})

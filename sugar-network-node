@@ -28,7 +28,7 @@ from sugar_network.node import stats_node, stats_user, obs
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node.slave import SlaveRoutes
 from sugar_network.model import RESOURCES
-from sugar_network.toolkit.http import Client
+from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import coroutine, application, util, Option, enforce
 
@@ -123,7 +123,8 @@ class Application(application.Daemon):
 
     def _ensure_instance(self):
         enforce(self.check_for_instance(), 'Node is not started')
-        return Client('http://localhost:%s' % node.port.value, trust_env=False)
+        return Connection('http://localhost:%s' %
+                node.port.value, trust_env=False)
 
 
 # Let toolkit.http work in concurrence

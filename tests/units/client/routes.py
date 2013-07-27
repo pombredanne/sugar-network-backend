@@ -6,7 +6,7 @@ import json
 from __init__ import tests
 
 from sugar_network import db, client, model
-from sugar_network.client import journal, injector, IPCClient
+from sugar_network.client import journal, injector, IPCConnection
 from sugar_network.client.routes import ClientRoutes, CachedClientRoutes
 from sugar_network.model.user import User
 from sugar_network.model.report import Report
@@ -67,7 +67,7 @@ class RoutesTest(tests.Test):
 
     def test_InlineSwitchInFind(self):
         self.home_volume = self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid1 = ipc.post(['context'], {
             'type': 'activity',

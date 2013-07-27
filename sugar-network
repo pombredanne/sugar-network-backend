@@ -28,7 +28,7 @@ from gevent import monkey
 
 from sugar_network import db, client, toolkit
 from sugar_network.model import RESOURCES
-from sugar_network.client import IPCClient, Client
+from sugar_network.client import IPCConnection, Connection
 from sugar_network.client.routes import ClientRoutes
 from sugar_network.node.routes import load_bundle
 from sugar_network.toolkit.router import Router, Request, Response
@@ -103,7 +103,7 @@ class Application(application.Application):
             )
     def launch(self):
         enforce(self.check_for_instance(), 'No sugar-network-client session')
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         enforce(self.args, 'BUNDLE_ID was not specified')
         bundle_id = self.args.pop(0)
@@ -120,7 +120,7 @@ class Application(application.Application):
             )
     def clone(self):
         enforce(self.check_for_instance(), 'No sugar-network-client session')
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         enforce(self.args, 'BUNDLE_ID was not specified')
         bundle_id = self.args.pop(0)
@@ -197,9 +197,9 @@ class Application(application.Application):
 
     def _connect(self):
         if self.check_for_instance():
-            return IPCClient()
+            return IPCConnection()
         else:
-            return Client(client.api_url.value)
+            return Connection(client.api_url.value)
 
     def _request(self, method, post):
         request = Request(method=method)
@@ -239,7 +239,7 @@ class Application(application.Application):
         cp = None
         try:
             if self.check_for_instance():
-                cp = IPCClient()
+                cp = IPCConnection()
             else:
                 pid_path = self.new_instance()
                 if not client.anonymous.value:

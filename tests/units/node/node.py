@@ -11,7 +11,7 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network import db, node, model
-from sugar_network.client import Client
+from sugar_network.client import Connection
 from sugar_network.toolkit import http, coroutine
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.node import stats_user, stats_node, obs
@@ -481,7 +481,7 @@ class NodeTest(tests.Test):
         node.files_root.value = '.'
         self.touch(('packages/repo/arch/package', 'file'))
         volume = self.start_master()
-        client = Client()
+        client = Connection()
 
         self.assertEqual(['repo'], client.get(['packages']))
         self.assertEqual(['arch'], client.get(['packages', 'repo']))
@@ -497,7 +497,7 @@ class NodeTest(tests.Test):
                 ('packages/repo/2.2', '', 2),
                 )
         volume = self.start_master()
-        ipc = Client()
+        ipc = Connection()
 
         self.assertEqual(
                 sorted(['1', '2']),
@@ -529,7 +529,7 @@ class NodeTest(tests.Test):
 
     def test_Clone(self):
         volume = self.start_master()
-        client = Client()
+        client = Connection()
 
         context = client.post(['context'], {
             'type': 'activity',
@@ -624,7 +624,7 @@ class NodeTest(tests.Test):
 
     def test_release(self):
         volume = self.start_master()
-        conn = Client()
+        conn = Connection()
 
         conn.post(['context'], {
             'guid': 'bundle_id',

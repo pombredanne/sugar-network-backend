@@ -15,7 +15,7 @@ import rrdtool
 from __init__ import tests, src_root
 
 from sugar_network import db, client
-from sugar_network.client import Client, IPCClient
+from sugar_network.client import Connection, IPCConnection
 from sugar_network.node.obs import obs_url
 from sugar_network.toolkit.router import Router, route, fallbackroute
 from sugar_network.toolkit.rrd import Rrd
@@ -74,8 +74,8 @@ class NodePackagesSlaveTest(tests.Test):
             '--index-flush-threshold=1', '--pull-timeout=1',
             '--obs-url=http://127.0.0.1:9999',
             ]))
-        coroutine.sleep(2)
-        conn = Client('http://127.0.0.1:8100')
+        coroutine.sleep(3)
+        conn = Connection('http://127.0.0.1:8100')
 
         conn.post(['/context'], {
             'guid': 'package',
@@ -104,7 +104,7 @@ class NodePackagesSlaveTest(tests.Test):
             '--index-flush-threshold=1', '--ipc-port=8200',
             ])
         client.ipc_port.value = 8200
-        ipc = IPCClient()
+        ipc = IPCConnection()
         coroutine.sleep(2)
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
@@ -124,7 +124,7 @@ class NodePackagesSlaveTest(tests.Test):
             '--index-flush-threshold=1', '--sync-layers=pilot',
             ]))
         coroutine.sleep(2)
-        conn = Client('http://127.0.0.1:8101')
+        conn = Connection('http://127.0.0.1:8101')
 
         conn.post(cmd='online-sync')
 
@@ -142,7 +142,7 @@ class NodePackagesSlaveTest(tests.Test):
             '--index-flush-threshold=1', '--ipc-port=8200',
             ])
         client.ipc_port.value = 8200
-        ipc = IPCClient()
+        ipc = IPCConnection()
         coroutine.sleep(2)
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
@@ -162,9 +162,9 @@ class NodePackagesSlaveTest(tests.Test):
             '--mounts-root=client/mnt', '--ipc-port=8202',
             ]))
         coroutine.sleep(2)
-        conn = Client('http://127.0.0.1:8102')
+        conn = Connection('http://127.0.0.1:8102')
         client.ipc_port.value = 8202
-        ipc = IPCClient()
+        ipc = IPCConnection()
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
 

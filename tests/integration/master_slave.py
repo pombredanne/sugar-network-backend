@@ -13,7 +13,7 @@ import rrdtool
 
 from __init__ import tests, src_root
 
-from sugar_network.client import Client
+from sugar_network.client import Connection
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import coroutine
 
@@ -55,8 +55,8 @@ class MasterSlaveTest(tests.Test):
 
     def test_OnlineSync(self):
         ts = int(time.time())
-        master = Client('http://127.0.0.1:8100')
-        slave = Client('http://127.0.0.1:8101')
+        master = Connection('http://127.0.0.1:8100')
+        slave = Connection('http://127.0.0.1:8101')
 
         # Initial data
 
@@ -174,8 +174,8 @@ class MasterSlaveTest(tests.Test):
         self.assertEqual('file2', file('slave/files/file2').read())
 
     def test_OfflineSync(self):
-        master = Client('http://127.0.0.1:8100')
-        slave = Client('http://127.0.0.1:8101')
+        master = Connection('http://127.0.0.1:8100')
+        slave = Connection('http://127.0.0.1:8101')
 
         # Create shared files on master
         self.touch(('master/files/1/1', '1'))

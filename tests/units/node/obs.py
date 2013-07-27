@@ -18,7 +18,7 @@ class ObsTest(tests.Test):
         obs._repos = {}
 
     def test_get_repos(self):
-        self.override(http, 'Client', Client(self, [
+        self.override(http, 'Connection', Client(self, [
             (('GET', ['build', 'base']), {'allowed': (400, 404)}, [
                 '<directory>',
                 '   <entry name="Debian-6.0" />',
@@ -45,7 +45,7 @@ class ObsTest(tests.Test):
             obs.get_repos())
 
     def test_resolve(self):
-        self.override(http, 'Client', Client(self, [
+        self.override(http, 'Connection', Client(self, [
             (('GET', ['resolve']),
                 {'allowed': (400, 404), 'params': {
                     'project': 'base',
@@ -75,7 +75,7 @@ class ObsTest(tests.Test):
         obs.resolve('repo', 'arch', ['pkg1', 'pkg2'])
 
     def test_presolve(self):
-        self.override(http, 'Client', lambda *args: Client(self, [
+        self.override(http, 'Connection', lambda *args: Client(self, [
             (('GET', ['build', 'presolve']), {'allowed': (400, 404)}, [
                 '<directory>',
                 '   <entry name="OLPC-11.3.1" />',

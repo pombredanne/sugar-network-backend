@@ -20,9 +20,7 @@ import shutil
 import logging
 from os.path import exists, join, isdir
 
-from sugar_network import toolkit
-from sugar_network.client import IPCClient, local_root
-from sugar_network.client import cache_limit, cache_lifetime
+from sugar_network import toolkit, client
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit import pipe, enforce
 
@@ -31,10 +29,10 @@ _logger = logging.getLogger('cache')
 
 
 def recycle():
-    stat = os.statvfs(local_root.value)
+    stat = os.statvfs(client.local_root.value)
     total = stat.f_blocks * stat.f_frsize
     free = stat.f_bfree * stat.f_frsize
-    to_free = cache_limit.value * total / 100 - free
+    to_free = client.cache_limit.value * total / 100 - free
     ts = time.time()
 
     __, items = _list()
@@ -46,8 +44,8 @@ def recycle():
         elif mtime == 0:
             shutil.rmtree(path, ignore_errors=True)
             _logger.debug('Recycled malformed cache item %r', path)
-        elif cache_lifetime.value and \
-                cache_lifetime.value < (ts - mtime) / 86400.0:
+        elif client.cache_lifetime.value and \
+                client.cache_lifetime.value < (ts - mtime) / 86400.0:
             shutil.rmtree(path, ignore_errors=True)
             _logger.debug('Recycled stale %r to get %s bytes', path, -neg_size)
         else:
@@ -55,14 +53,14 @@ def recycle():
 
 
 def ensure(requested_size=0, temp_size=0):
-    stat = os.statvfs(local_root.value)
+    stat = os.statvfs(client.local_root.value)
     if stat.f_blocks == 0:
         # TODO Sonds like a tmpfs or so
         return
     total = stat.f_blocks * stat.f_frsize
     free = stat.f_bfree * stat.f_frsize
 
-    to_free = max(cache_limit.value * total / 100, temp_size) - \
+    to_free = max(client.cache_limit.value * total / 100, temp_size) - \
             (free - requested_size)
     if to_free <= 0:
         return
@@ -82,7 +80,7 @@ def ensure(requested_size=0, temp_size=0):
 
 
 def get(guid, hints=None):
-    path = join(local_root.value, 'cache', 'implementation', guid)
+    path = join(client.local_root.value, 'cache', 'implementation', guid)
     if exists(path):
         pipe.trace('Reuse cached %s implementation from %r', guid, path)
         ts = time.time()
@@ -94,7 +92,7 @@ def get(guid, hints=None):
     pipe.feedback('download')
 
     ensure(hints.get('unpack_size') or 0, hints.get('bundle_size') or 0)
-    blob = IPCClient().download(['implementation', guid, 'data'])
+    blob = client.IPCConnection().download(['implementation', guid, 'data'])
     _unpack_stream(blob, path)
     with toolkit.new_file(join(path, '.unpack_size')) as f:
         json.dump(hints.get('unpack_size') or 0, f)
@@ -114,7 +112,7 @@ def get(guid, hints=None):
 def _list():
     total = 0
     result = []
-    root = join(local_root.value, 'cache', 'implementation')
+    root = join(client.local_root.value, 'cache', 'implementation')
 
     if not exists(root):
         os.makedirs(root)

@@ -149,7 +149,7 @@ def _clone(context):
 
 
 def _clone_impl(context_guid, params):
-    conn = client.IPCClient()
+    conn = client.IPCConnection()
 
     context = conn.get(['context', context_guid], reply=['title'])
     impl = conn.meta(['context', context_guid], cmd='clone', **params)
@@ -183,7 +183,7 @@ def _solve(context):
         pipe.trace('Reuse cached solution')
         return solution
 
-    conn = client.IPCClient()
+    conn = client.IPCConnection()
     if solution is not None and conn.get(cmd='status')['route'] == 'offline':
         pipe.trace('Reuse stale cached solution in offline mode')
         return solution

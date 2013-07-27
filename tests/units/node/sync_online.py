@@ -8,7 +8,7 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network import db, toolkit
-from sugar_network.client import Client, api_url
+from sugar_network.client import Connection, api_url
 from sugar_network.node import sync, stats_user, files_root
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node.slave import SlaveRoutes
@@ -59,7 +59,7 @@ class SyncOnlineTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_Push(self):
-        client = Client('http://127.0.0.1:9001')
+        client = Connection('http://127.0.0.1:9001')
 
         # Sync users
         client.post(cmd='online-sync')
@@ -129,14 +129,14 @@ class SyncOnlineTest(tests.Test):
 
     def test_PushStats(self):
         stats_user.stats_user.value = True
-        client = Client('http://127.0.0.1:9001')
+        client = Connection('http://127.0.0.1:9001')
         client.post(cmd='online-sync')
         self.assertEqual(['ok'], self.stats_commit)
         self.assertEqual([{'stats': 'probe'}], self.stats_merge)
 
     def test_Pull(self):
-        client = Client('http://127.0.0.1:9000')
-        slave_client = Client('http://127.0.0.1:9001')
+        client = Connection('http://127.0.0.1:9000')
+        slave_client = Connection('http://127.0.0.1:9001')
 
         # Sync users
         slave_client.post(cmd='online-sync')
@@ -210,7 +210,7 @@ class SyncOnlineTest(tests.Test):
         self.touch(('master/files/3/3/3', 'ccc', 3))
         os.utime('master/files', (1, 1))
 
-        client = Client('http://127.0.0.1:9001')
+        client = Connection('http://127.0.0.1:9001')
         client.post(cmd='online-sync')
 
         files, stamp = json.load(file('master/files.index'))
@@ -228,8 +228,8 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual('ccc', file('slave/files/3/3/3').read())
 
     def test_PullFromPreviouslyMergedRecord(self):
-        master = Client('http://127.0.0.1:9000')
-        slave = Client('http://127.0.0.1:9001')
+        master = Connection('http://127.0.0.1:9000')
+        slave = Connection('http://127.0.0.1:9001')
 
         # Sync users
         slave.post(cmd='online-sync')

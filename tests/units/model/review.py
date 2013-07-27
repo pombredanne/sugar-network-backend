@@ -3,7 +3,7 @@
 
 from __init__ import tests
 
-from sugar_network.client import Client
+from sugar_network.client import Connection
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.review import Review
@@ -15,7 +15,7 @@ class ReviewTest(tests.Test):
 
     def test_SetContext(self):
         volume = self.start_master([User, Context, Review, Artifact, Implementation])
-        client = Client()
+        client = Connection()
 
         context = client.post(['context'], {
             'type': 'package',

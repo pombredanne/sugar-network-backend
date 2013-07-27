@@ -28,7 +28,7 @@ class CacheTest(tests.Test):
         cache_limit.value = 0
 
     def test_get(self):
-        self.override(http.Client, 'download', lambda self_, path: StringIO(self.zips(('topdir/probe', '/'.join(path)))))
+        self.override(http.Connection, 'download', lambda self_, path: StringIO(self.zips(('topdir/probe', '/'.join(path)))))
         cache.get('impl', {'unpack_size': 100})
         self.assertEqual(100, json.load(file('cache/implementation/impl/.unpack_size')))
         self.assertEqual('implementation/impl/data', file('cache/implementation/impl/topdir/probe').read())

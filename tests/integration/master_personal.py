@@ -13,7 +13,7 @@ import rrdtool
 
 from __init__ import tests, src_root
 
-from sugar_network.client import Client, sugar_uid
+from sugar_network.client import Connection, sugar_uid
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import coroutine
 
@@ -49,11 +49,11 @@ class MasterPersonalTest(tests.Test):
         os.makedirs('client/mnt/disk/sugar-network')
 
         coroutine.sleep(2)
-        ipc = Client('http://127.0.0.1:8102')
+        ipc = Connection('http://127.0.0.1:8102')
         if ipc.get(cmd='status')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
-        Client('http://127.0.0.1:8100').get(cmd='whoami')
-        Client('http://127.0.0.1:8101').get(cmd='whoami')
+        Connection('http://127.0.0.1:8100').get(cmd='whoami')
+        Connection('http://127.0.0.1:8101').get(cmd='whoami')
 
     def tearDown(self):
         self.waitpid(self.master_pid, signal.SIGINT)
@@ -61,8 +61,8 @@ class MasterPersonalTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_SyncMounts(self):
-        master = Client('http://127.0.0.1:8100')
-        client = Client('http://127.0.0.1:8102')
+        master = Connection('http://127.0.0.1:8100')
+        client = Connection('http://127.0.0.1:8102')
         uid = sugar_uid()
 
         # Create shared files on master

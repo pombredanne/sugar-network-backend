@@ -5,7 +5,7 @@ import os
 
 from __init__ import tests
 
-from sugar_network.client import IPCClient, packagekit, solver, clones
+from sugar_network.client import IPCConnection, packagekit, solver, clones
 from sugar_network.toolkit import lsb_release
 
 
@@ -48,7 +48,7 @@ class SolverTest(tests.Test):
 
         home_volume = self.start_online_client()
         clones.populate(home_volume['context'], ['Activities'])
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         ipc.post(['context'], {
             'guid': 'dep',

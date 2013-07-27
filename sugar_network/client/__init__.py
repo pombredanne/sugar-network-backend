@@ -161,7 +161,7 @@ def path(*args):
     return str(result)
 
 
-def Client(url=None):
+def Connection(url=None):
     from sugar_network.toolkit import http
     if url is None:
         url = api_url.value
@@ -172,13 +172,13 @@ def Client(url=None):
         else:
             _logger.warning('Sugar session was never started (no DSA key),'
                     'fallback to anonymous mode')
-    return http.Client(url, creds=creds)
+    return http.Connection(url, creds=creds)
 
 
-def IPCClient():
+def IPCConnection():
     from sugar_network.toolkit import http
 
-    return http.Client(
+    return http.Connection(
             api_url='http://127.0.0.1:%s' % ipc_port.value,
             creds=None,
             # No need in proxy for localhost

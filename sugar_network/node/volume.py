@@ -28,7 +28,7 @@ _logger = logging.getLogger('node.volume')
 
 def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
         fetch_blobs=False, ignore_documents=None, **kwargs):
-    connection = http.Client()
+    connection = http.Connection()
     if out_seq is None:
         out_seq = toolkit.Sequence([])
     is_the_only_seq = not out_seq

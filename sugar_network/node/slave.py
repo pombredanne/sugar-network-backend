@@ -57,11 +57,11 @@ class SlaveRoutes(NodeRoutes):
                 'machine_uuid': '',
                 'pubkey': toolkit.pubkey(self._key_path),
                 }
-        conn = http.Client(api_url.value,
+        conn = http.Connection(api_url.value,
                 creds=(self.guid, self._key_path, lambda: profile))
 
         # TODO In case if slave user is not created on master
-        # `http.Client` should handle re-POSTing without loosing payload
+        # `http.Connection` should handle re-POSTing without loosing payload
         conn.get(cmd='whoami')
 
         push = [('diff', None, volume.diff(self.volume, self._push_seq))]

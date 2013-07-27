@@ -89,10 +89,10 @@ class ServiceUnavailable(Status):
 
 def download(url, dst_path=None):
     # TODO (?) Reuse HTTP session
-    return Client().download(url, dst_path)
+    return Connection().download(url, dst_path)
 
 
-class Client(object):
+class Connection(object):
 
     def __init__(self, api_url='', creds=None, trust_env=True, max_retries=0):
         self.api_url = api_url

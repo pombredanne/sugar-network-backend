@@ -118,7 +118,7 @@ def _request(*args, **kwargs):
     global _client
 
     if _client is None:
-        _client = http.Client(obs_url.value)
+        _client = http.Connection(obs_url.value)
 
     response = _client.request(*args, allowed=(400, 404), **kwargs)
     enforce(response.headers.get('Content-Type') == 'text/xml',

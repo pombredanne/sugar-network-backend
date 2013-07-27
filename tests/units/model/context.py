@@ -4,7 +4,7 @@
 from __init__ import tests
 
 from sugar_network.node import obs
-from sugar_network.client import IPCClient, Client
+from sugar_network.client import IPCConnection
 from sugar_network.toolkit import coroutine, enforce
 
 
@@ -12,7 +12,7 @@ class ContextTest(tests.Test):
 
     def test_SetCommonLayerForPackages(self):
         self.start_online_client()
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
             'type': 'package',

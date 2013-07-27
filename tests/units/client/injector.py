@@ -20,7 +20,7 @@ from sugar_network.node import obs
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.implementation import Implementation
-from sugar_network.client import IPCClient, packagekit, injector, clones, solver
+from sugar_network.client import IPCConnection, packagekit, injector, clones, solver
 from sugar_network import client
 
 
@@ -34,7 +34,7 @@ class InjectorTest(tests.Test):
 
     def test_clone(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -112,7 +112,7 @@ Can't find all required implementations:
 
     def test_clone_impl(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -159,7 +159,7 @@ Can't find all required implementations:
 
     def test_clone_CachedSolutionPointsToClonedPath(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -198,7 +198,7 @@ Can't find all required implementations:
 
     def test_launch_Online(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -325,7 +325,7 @@ Can't find all required implementations:
 
     def test_InstallDeps(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -415,7 +415,7 @@ Can't find all required implementations:
 
     def test_SolutionsCache_Set(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
+        self.override(client, 'IPCConnection', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
 
         self.assertEqual(solution, injector._solve('context'))
@@ -423,7 +423,7 @@ Can't find all required implementations:
 
     def test_SolutionsCache_InvalidateByAPIUrl(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
+        self.override(client, 'IPCConnection', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/co/context'
 
@@ -438,7 +438,7 @@ Can't find all required implementations:
 
     def test_SolutionsCache_InvalidateByMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
+        self.override(client, 'IPCConnection', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/co/context'
 
@@ -459,7 +459,7 @@ Can't find all required implementations:
 
     def test_SolutionsCache_InvalidateByPMSMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
+        self.override(client, 'IPCConnection', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/co/context'
 
@@ -486,13 +486,13 @@ Can't find all required implementations:
         self.override(solver, 'solve', lambda *args: solution1)
         cached_path = 'cache/solutions/co/context'
 
-        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
+        self.override(client, 'IPCConnection', lambda: _FakeConnection(True))
         self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         injector.invalidate_solutions(2)
         self.assertEqual(solution1, injector._solve('context'))
 
-        self.override(client, 'IPCClient', lambda: _FakeConnection(False))
+        self.override(client, 'IPCConnection', lambda: _FakeConnection(False))
         self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
         os.utime(cached_path, (1, 1))
         injector.invalidate_solutions(2)
@@ -501,7 +501,7 @@ Can't find all required implementations:
 
     def test_SolutionsCache_InvalidateBySpecMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
-        self.override(client, 'IPCClient', lambda: _FakeConnection(True))
+        self.override(client, 'IPCConnection', lambda: _FakeConnection(True))
         self.override(solver, 'solve', lambda *args: solution)
         cached_path = 'cache/solutions/co/context'
 
@@ -523,7 +523,7 @@ Can't find all required implementations:
 
     def test_clone_SetExecPermissionsForActivities(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -569,7 +569,7 @@ Can't find all required implementations:
 
     def test_clone_InvalidateSolutionByAbsentImpls(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -628,7 +628,7 @@ Can't find all required implementations:
 
     def test_ProcessCommonDependencies(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -715,7 +715,7 @@ Can't find all required implementations:
 
     def test_LoadFeed_SetPackages(self):
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -788,7 +788,7 @@ Can't find all required implementations:
         imp.load_module('jarabe', file_, pathname_, description_)
 
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -858,7 +858,7 @@ Can't find all required implementations:
         imp.load_module('jarabe', file_, pathname_, description_)
 
         self.start_online_client([User, Context, Implementation])
-        conn = IPCClient()
+        conn = IPCConnection()
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -915,7 +915,7 @@ Can't find all required implementations:
 
         home_volume = self.start_client()
         clones.populate(home_volume['context'], ['Activities'])
-        ipc = IPCClient()
+        ipc = IPCConnection()
 
         self.assertEqual([
             {'context': 'context', 'state': 'fork'},

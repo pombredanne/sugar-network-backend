@@ -342,7 +342,7 @@ class ClientRoutes(model.Routes, journal.Routes):
 
         def handshake(url):
             _logger.debug('Connecting to %r node', url)
-            self._node = client.Client(url)
+            self._node = client.Connection(url)
             info = self._node.get(cmd='info')
             impl_info = info['documents'].get('implementation')
             if impl_info:
