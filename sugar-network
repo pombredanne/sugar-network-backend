@@ -22,14 +22,17 @@ import shlex
 import types
 import locale
 from json import dumps, loads
-from os.path import join, exists
+from os.path import join, exists, isfile
 
 from gevent import monkey
 
 from sugar_network import db, client, toolkit
 from sugar_network.model import RESOURCES
+from sugar_network.client import IPCClient, Client
 from sugar_network.client.routes import ClientRoutes
+from sugar_network.node.routes import load_bundle
 from sugar_network.toolkit.router import Router, Request, Response
+from sugar_network.toolkit.spec import Spec
 from sugar_network.toolkit import application, coroutine, util
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
@@ -57,19 +60,12 @@ offline = Option(
         default=False, type_cast=Option.bool_cast, action='store_true',
         name='offline')
 
-object_id = Option(
-        'for launch command, identifier of the associated datastore object',
-        name='object-id', short_option='-o')
 
-uri = Option(
-        'for launch command, URI to load',
-        name='uri', short_option='-u')
+_ESCAPE_VALUE_RE = re.compile(r'([^\[\]\{\}0-9][^\]\[\{\}]+)')
+_LIST_RE = re.compile(r'\s*[;,:]+\s*')
 
 
-_ESCAPE_VALUE_RE = re.compile('([^\\[\\]\\{\\}0-9][^\\]\\[\\{\\}]+)')
-
-
-class Client(ClientRoutes, Router):
+class ClientRouter(ClientRoutes, Router):
 
     def __init__(self):
         home = db.Volume(client.path('db'), RESOURCES)
@@ -100,12 +96,14 @@ class Application(application.Application):
             os.makedirs(toolkit.cachedir.value)
 
     @application.command(
-            'launch Sugar activity',
-            args='BUNDLE_ID [COMMAND-LINE-ARGS]', interspersed_args=False,
+            'launch a Sugar activity; the COMMAND-LINE-ARGUMENTS might '
+            'include arguments supported by sugar-activity application',
+            args='BUNDLE_ID [COMMAND-LINE-ARGUMENTS]',
+            interspersed_args=False,
             )
     def launch(self):
         enforce(self.check_for_instance(), 'No sugar-network-client session')
-        ipc = client.IPCClient()
+        ipc = IPCClient()
 
         enforce(self.args, 'BUNDLE_ID was not specified')
         bundle_id = self.args.pop(0)
@@ -113,20 +111,16 @@ class Application(application.Application):
         params = {}
         if self.args:
             params['args'] = self.args
-        if object_id.value:
-            params['object_id'] = object_id.value
-        if uri.value:
-            params['uri'] = uri.value
 
         ipc.get(['context', bundle_id], cmd='launch', **params)
 
     @application.command(
-            'clone Sugar activity to ~/Activities directory',
+            'clone Sugar activities to ~/Activities directory',
             args='BUNDLE_ID',
             )
     def clone(self):
         enforce(self.check_for_instance(), 'No sugar-network-client session')
-        ipc = client.IPCClient()
+        ipc = IPCClient()
 
         enforce(self.args, 'BUNDLE_ID was not specified')
         bundle_id = self.args.pop(0)
@@ -134,31 +128,84 @@ class Application(application.Application):
         ipc.put(['context', bundle_id], 1, cmd='clone')
 
     @application.command(
-            'send POST API request')
-    def POST(self):
+            'upload new implementaion for a context; if BUNDLE_PATH points '
+            'not to a .xo bundle, specify all implementaion PROPERTYs for the '
+            'new release (at least context and version)',
+            args='BUNDLE_PATH [PROPERTY=VALUE]',
+            )
+    def release(self):
+        enforce(self.args, 'BUNDLE_PATH was not specified')
+        path = self.args.pop(0)
+        enforce(isfile(path), 'Cannot open bundle')
+
+        props = {'tags': []}
+        self._parse_args(props['tags'], props)
+        if 'license' in props:
+            value = [i for i in _LIST_RE.split(props['license'].strip()) if i]
+            props['license'] = value
+
+        guid = self._connect().upload(['implementation'], path, cmd='release')
+
+        if porcelain.value:
+            print 'Uploaded new release, %s' % guid
+        else:
+            print dumps(guid)
+
+    @application.command(
+            'send raw API POST request; '
+            'specifies all ARGUMENTs the particular API call requires',
+            args='PATH [ARGUMENT=VALUE]')
+    def post(self):
         self._request('POST', True)
 
+    @application.command(hidden=True)
+    def POST(self):
+        self.post()
+
+
     @application.command(
-            'send PUT API request')
-    def PUT(self):
+            'send raw API PUT request; '
+            'specifies all ARGUMENTs the particular API call requires',
+            args='PATH [ARGUMENT=VALUE]')
+    def put(self):
         self._request('PUT', True)
 
-    @application.command(
-            'send DELETE API request')
-    def DELETE(self):
-        self._request('DELETE', False)
+    @application.command(hidden=True)
+    def PUT(self):
+        self.put()
 
     @application.command(
-            'send GET API request')
-    def GET(self):
+            'send raw API DELETE request',
+            args='PATH')
+    def delete(self):
+        self._request('DELETE', False)
+
+    @application.command(hidden=True)
+    def DELETE(self):
+        self.delete()
+
+    @application.command(
+            'send raw API GET request; '
+            'specifies all ARGUMENTs the particular API call requires',
+            args='PATH [ARGUMENT=VALUE]')
+    def get(self):
         self._request('GET', False)
+
+    @application.command(hidden=True)
+    def GET(self):
+        self.get()
+
+    def _connect(self):
+        if self.check_for_instance():
+            return IPCClient()
+        else:
+            return Client(client.api_url.value)
 
     def _request(self, method, post):
         request = Request(method=method)
         request.allow_redirects = True
         request.accept_encoding = ''
         response = Response()
-        reply = []
 
         if post:
             if post_data.value is None and post_file.value is None:
@@ -184,35 +231,20 @@ class Application(application.Application):
         if self.args and self.args[0].startswith('/'):
             request.path = self.args.pop(0).strip('/').split('/')
 
-        for arg in self.args:
-            arg = shlex.split(arg)
-            if not arg:
-                continue
-            arg = arg[0]
-            if '=' not in arg:
-                reply.append(arg)
-                continue
-            arg, value = arg.split('=', 1)
-            arg = arg.strip()
-            enforce(arg, 'No argument name in %r expression', arg)
-            if arg in request:
-                if isinstance(request[arg], basestring):
-                    request[arg] = [request[arg]]
-                request[arg].append(value)
-            else:
-                request[arg] = value
+        reply = []
+        self._parse_args(reply, request)
 
         pid_path = None
         server = None
         cp = None
         try:
             if self.check_for_instance():
-                cp = client.IPCClient()
+                cp = IPCClient()
             else:
                 pid_path = self.new_instance()
                 if not client.anonymous.value:
                     util.ensure_key(client.key_path())
-                cp = Client()
+                cp = ClientRouter()
             result = cp.call(request, response)
         finally:
             if server is not None:
@@ -258,6 +290,26 @@ class Application(application.Application):
         else:
             sys.stdout.write(result)
 
+    def _parse_args(self, tags, props):
+        for arg in self.args:
+            arg = shlex.split(arg)
+            if not arg:
+                continue
+            arg = arg[0]
+            if '=' not in arg:
+                tags.append(arg)
+                continue
+            arg, value = arg.split('=', 1)
+            arg = arg.strip()
+            enforce(arg, 'No argument name in %r expression', arg)
+            if arg in props:
+                if isinstance(props[arg], basestring):
+                    props[arg] = [props[arg]]
+                props[arg].append(value)
+            else:
+                props[arg] = value
+
+
 # Let toolkit.http work in concurrence
 monkey.patch_socket()
 monkey.patch_select()
@@ -272,7 +324,6 @@ toolkit.cachedir.value = client.profile_path('tmp')
 
 Option.seek('main', [
     application.debug, porcelain, post_data, post_file, json, offline,
-    object_id, uri,
     ])
 Option.seek('client', [
     client.api_url, client.layers, client.ipc_port, client.local_root,

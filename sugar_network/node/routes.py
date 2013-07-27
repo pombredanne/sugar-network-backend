@@ -14,8 +14,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import shutil
 import logging
 import hashlib
+from contextlib import contextmanager
 from ConfigParser import ConfigParser
 from os.path import join, isdir, exists
 
@@ -23,8 +25,10 @@ from sugar_network import db, node, toolkit, model
 from sugar_network.node import stats_node, stats_user
 from sugar_network.toolkit.router import route, preroute, postroute
 from sugar_network.toolkit.router import ACL, fallbackroute
+from sugar_network.toolkit.spec import EMPTY_LICENSE
 from sugar_network.toolkit.spec import parse_requires, ensure_requires
-from sugar_network.toolkit import http, coroutine, enforce
+from sugar_network.toolkit.bundle import Bundle
+from sugar_network.toolkit import http, coroutine, util, enforce
 
 
 _MAX_STATS_LENGTH = 100
@@ -130,6 +134,16 @@ class NodeRoutes(db.Routes, model.Routes):
                 return os.listdir(path)
             else:
                 return toolkit.iter_file(path)
+
+    @route('POST', ['implementation'], cmd='release',
+            mime_type='application/json')
+    def release(self, request, document):
+        with util.NamedTemporaryFile() as blob:
+            shutil.copyfileobj(request.content_stream, blob)
+            blob.flush()
+            with load_bundle(self.volume, blob.name, request) as impl:
+                impl['data']['blob'] = blob.name
+            return impl['guid']
 
     @route('DELETE', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def delete(self, request):
@@ -377,6 +391,8 @@ class NodeRoutes(db.Routes, model.Routes):
 
         if 'stability' not in request:
             request['stability'] = 'stable'
+        if 'layer' not in request:
+            request['layer'] = 'public'
 
         impls, __ = self.volume['implementation'].find(
                 context=request.guid, order_by='-version', **request)
@@ -390,6 +406,62 @@ class NodeRoutes(db.Routes, model.Routes):
         else:
             raise http.NotFound('No implementations found')
         return impl
+
+
+@contextmanager
+def load_bundle(volume, bundle_path, impl=None):
+    if impl is None:
+        impl = {}
+    data = impl.setdefault('data', {})
+    data['blob'] = bundle_path
+
+    try:
+        bundle = Bundle(bundle_path, mime_type='application/zip')
+    except Exception:
+        _logger.debug('Load unrecognized bundle from %r', bundle_path)
+        context_type = 'content'
+    else:
+        _logger.debug('Load Sugar Activity bundle from %r', bundle_path)
+        context_type = 'activity'
+        unpack_size = 0
+        with bundle:
+            for arcname in bundle.get_names():
+                unpack_size += bundle.getmember(arcname).size
+            spec = bundle.get_spec()
+            extract = bundle.rootdir
+        if 'requires' in impl:
+            spec.requires.update(parse_requires(impl.pop('requires')))
+        impl['context'] = spec['context']
+        impl['version'] = spec['version']
+        impl['stability'] = spec['stability']
+        impl['license'] = spec['license']
+        data['spec'] = {'*-*': {
+            'commands': spec.commands,
+            'requires': spec.requires,
+            'extract': extract,
+            }}
+        data['unpack_size'] = unpack_size
+        data['mime_type'] = 'application/vnd.olpc-sugar'
+
+    enforce('context' in impl, 'Context is not specified')
+    enforce('version' in impl, 'Version is not specified')
+    enforce(volume['context'].exists(impl['context']),
+            http.BadRequest, 'No such activity')
+    enforce(context_type in volume['context'].get(spec['context'])['type'],
+            http.BadRequest, 'Inappropriate bundle type')
+    if impl.get('license') in (None, EMPTY_LICENSE):
+        existing, total = volume['implementation'].find(
+                context=impl['context'], order_by='-version')
+        enforce(total, 'License is not specified')
+        impl['license'] = next(existing)['license']
+
+    yield impl
+
+    existing, __ = volume['implementation'].find(
+            context=impl['context'], version=impl['version'])
+    for i in existing:
+        volume['implementation'].update(i.guid, {'layer': ['deleted']})
+    impl['guid'] = volume['implementation'].create(impl)
 
 
 def _load_pubkey(pubkey):

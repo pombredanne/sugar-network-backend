@@ -46,9 +46,8 @@ class Implementation(db.Resource):
     def version(self, value):
         return value
 
-    @db.indexed_property(prefix='S',
-            acl=ACL.CREATE | ACL.READ,
-            typecast=model.STABILITIES)
+    @db.indexed_property(prefix='S', default='stabile',
+            acl=ACL.CREATE | ACL.READ, typecast=model.STABILITIES)
     def stability(self, value):
         return value
 

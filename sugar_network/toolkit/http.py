@@ -174,6 +174,14 @@ class Client(object):
             if isinstance(dst, basestring):
                 f.close()
 
+    def upload(self, path, data, **kwargs):
+        with file(data, 'rb') as f:
+            response = self.request('POST', path, f, params=kwargs)
+        if response.headers.get('Content-Type') == 'application/json':
+            return json.loads(response.content)
+        else:
+            return response.raw
+
     def request(self, method, path=None, data=None, headers=None, allowed=None,
             params=None, **kwargs):
         if not path:

@@ -56,6 +56,9 @@ def recycle():
 
 def ensure(requested_size=0, temp_size=0):
     stat = os.statvfs(local_root.value)
+    if stat.f_blocks == 0:
+        # TODO Sonds like a tmpfs or so
+        return
     total = stat.f_blocks * stat.f_frsize
     free = stat.f_bfree * stat.f_frsize
 
@@ -112,6 +115,11 @@ def _list():
     total = 0
     result = []
     root = join(local_root.value, 'cache', 'implementation')
+
+    if not exists(root):
+        os.makedirs(root)
+        return 0, []
+
     for filename in os.listdir(root):
         path = join(root, filename)
         if not isdir(path):
@@ -125,6 +133,7 @@ def _list():
         except Exception:
             toolkit.exception('Cannot list %r cached implementation', path)
             result.append((0, 0, path))
+
     return total, sorted(result)
 
 

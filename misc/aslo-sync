@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,7 +30,8 @@ from sugar_network.node import data_root
 from sugar_network.client.bundle import Bundle
 from sugar_network.resources.volume import Volume
 from sugar_network.node.slave import SlaveCommands
-from sugar_network.toolkit import util, licenses, application, Option
+from sugar_network.node.commands import load_activity_bundle
+from sugar_network.toolkit import util, licenses, application, spec, Option
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
@@ -351,7 +352,6 @@ class Application(application.Application):
             SELECT
                 versions.id,
                 versions.version,
-                addons.status,
                 licenses.name,
                 (select max(localized_string) from translations where
                     id=licenses.text),
@@ -377,7 +377,7 @@ class Application(application.Application):
         recent_version = None
         recent_filename = None
 
-        for version_id, version, status, license_id, alicense, release_date, \
+        for version_id, version, license_id, alicense, release_date, \
                 releasenotes, filename, sugar_min, sugar_max \
                 in self.sqlexec(sql):
             if version_id in IGNORE_VERSIONS:
@@ -430,11 +430,9 @@ class Application(application.Application):
 
             try:
                 self.sync_implementaiton(bundle_id, addon_id, filename,
-                        sugar_min, sugar_max,
-                        stability='stable' if status == 4 else 'developer',
-                        date=int(time.mktime(release_date.timetuple())),
-                        notes=self.get_i18n_field(releasenotes),
-                        license=alicense if alicense else [],
+                        sugar_min, sugar_max, status, alicense,
+                        self.get_i18n_field(releasenotes),
+                        int(time.mktime(release_date.timetuple())),
                         )
             except Exception, error:
                 print '-- Failed to sync %s for %s: %s' % \
@@ -601,52 +599,27 @@ class Application(application.Application):
                 })
 
     def sync_implementaiton(self, context, addon_id, filename,
-            sugar_min, sugar_max, **impl_props):
-        bundle = Bundle(join(ACTIVITIES_PATH, str(addon_id), filename))
-        spec = bundle.get_spec()
-        if spec is None:
-            raise Exception('Bundle does not contain spec file')
+            sugar_min, sugar_max, status, license, notes, date):
+        bundle_path = join(ACTIVITIES_PATH, str(addon_id), filename)
+        with load_activity_bundle(self.volume, bundle_path,
+                'sugar>=%s; sugar<=%s' % (sugar_min, sugar_max)) as impl:
+            if impl['license'] == spec.EMPTY_LICENSE:
+                if not license and context in LICENSES_MAP:
+                    license = LICENSES_MAP[context]
+                if not license:
+                    raise Exception('No licenses for %r' % filename)
+                impl['license'] = license
+            if 'notes' not in impl:
+                impl['notes'] = notes
+            impl['stability'] = 'stable' if status == 4 else 'developer'
+            impl['ctime'] = date
+            impl['mtime'] = time.time()
+            impl['author'] = self.authors()
+            impl['data']['url'] = \
+                    '/'.join([DOWNLOAD_URL, str(addon_id), filename])
+            impl['data']['blob_size'] = os.stat(bundle_path).st_size
 
-        if not impl_props['license']:
-            impl_props['license'] = self.parse_license(spec['license'])
-            if not impl_props['license']:
-                if context in LICENSES_MAP:
-                    impl_props['license'] = LICENSES_MAP[context]
-                else:
-                    raise Exception('Skip bad license %r' % spec['license'])
-
-        print '-- Add %r version to %r activity' % (spec['version'], context)
-
-        spec.requires[SUGAR_GUID] = {
-                'restrictions': [
-                    (sugar_min, None),
-                    (None, '0.%s' % (int(sugar_max.split('.')[-1]) + 1)),
-                    ],
-                }
-
-        requires = []
-        sugar_min = tuple(util.parse_version(sugar_min)[0])
-        sugar_max = tuple(util.parse_version(sugar_max)[0])
-        for release, name in SUGAR_RELEASES.items():
-            if release >= sugar_min and release <= sugar_max:
-                requires.append(name)
-
-        impl = {'context': context,
-                'version': spec['version'],
-                'requires': requires,
-                'spec': {'*-*': {
-                    'commands': spec.commands,
-                    'requires': spec.requires,
-                    'extract': bundle.rootdir,
-                    }},
-                'ctime': time.time(),
-                'mtime': time.time(),
-                'author': self.authors(),
-                }
-        impl.update(impl_props)
-        impl = self.volume['implementation'].create(impl)
-        self.volume['implementation'].set_blob(impl, 'data',
-                url='/'.join([DOWNLOAD_URL, str(addon_id), filename]))
+        print '-- Add %r version to %r activity' % (impl['version'], context)
 
     def parse_license(self, alicense):
         for good in licenses.GOOD_LICENSES:

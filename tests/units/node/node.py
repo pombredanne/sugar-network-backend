@@ -644,10 +644,10 @@ class NodeTest(tests.Test):
             'stability = developer',
             'requires = sugar>=0.88; dep'
             ])
-        bundle = self.zips(('topdir/activity/activity.info', activity_info))
-        guid = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release'}).raw)
+        bundle1 = self.zips(('topdir/activity/activity.info', activity_info))
+        guid1 = json.load(conn.request('POST', ['implementation'], bundle1, params={'cmd': 'release'}).raw)
 
-        impl = volume['implementation'].get(guid)
+        impl = volume['implementation'].get(guid1)
         self.assertEqual('bundle_id', impl['context'])
         self.assertEqual('1', impl['version'])
         self.assertEqual('developer', impl['stability'])
@@ -655,9 +655,82 @@ class NodeTest(tests.Test):
         self.assertEqual('developer', impl['stability'])
 
         data = impl.meta('data')
+        self.assertEqual({
+            '*-*': {
+                'extract': 'topdir',
+                'commands': {'activity': {'exec': 'true'}},
+                'requires': {'dep': {}, 'sugar': {'restrictions': [['0.88', None]]}},
+                },
+            },
+            data['spec'])
+
         self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
-        self.assertEqual(len(bundle), data['blob_size'])
+        self.assertEqual(len(bundle1), data['blob_size'])
         self.assertEqual(len(activity_info), data.get('unpack_size'))
+        self.assertEqual(bundle1, conn.get(['context', 'bundle_id'], cmd='clone', stability='developer'))
+
+        activity_info = '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = bundle_id',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            'stability = stable',
+            ])
+        bundle2 = self.zips(('topdir/activity/activity.info', activity_info))
+        guid2 = json.load(conn.request('POST', ['implementation'], bundle2, params={'cmd': 'release'}).raw)
+
+        self.assertEqual('1', volume['implementation'].get(guid1)['version'])
+        self.assertEqual(['public'], volume['implementation'].get(guid1)['layer'])
+        self.assertEqual('2', volume['implementation'].get(guid2)['version'])
+        self.assertEqual(['public'], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual(bundle2, conn.get(['context', 'bundle_id'], cmd='clone'))
+
+        activity_info = '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = bundle_id',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ])
+        bundle3 = self.zips(('topdir/activity/activity.info', activity_info))
+        guid3 = json.load(conn.request('POST', ['implementation'], bundle3, params={'cmd': 'release'}).raw)
+
+        self.assertEqual('1', volume['implementation'].get(guid1)['version'])
+        self.assertEqual(['deleted'], volume['implementation'].get(guid1)['layer'])
+        self.assertEqual('2', volume['implementation'].get(guid2)['version'])
+        self.assertEqual(['public'], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual('1', volume['implementation'].get(guid3)['version'])
+        self.assertEqual(['public'], volume['implementation'].get(guid3)['layer'])
+        self.assertEqual(bundle2, conn.get(['context', 'bundle_id'], cmd='clone'))
+
+        activity_info = '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = bundle_id',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            'stability = buggy',
+            ])
+        bundle4 = self.zips(('topdir/activity/activity.info', activity_info))
+        guid4 = json.load(conn.request('POST', ['implementation'], bundle4, params={'cmd': 'release'}).raw)
+
+        self.assertEqual('1', volume['implementation'].get(guid1)['version'])
+        self.assertEqual(['deleted'], volume['implementation'].get(guid1)['layer'])
+        self.assertEqual('2', volume['implementation'].get(guid2)['version'])
+        self.assertEqual(['deleted'], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual('1', volume['implementation'].get(guid3)['version'])
+        self.assertEqual(['public'], volume['implementation'].get(guid3)['layer'])
+        self.assertEqual('2', volume['implementation'].get(guid4)['version'])
+        self.assertEqual(['public'], volume['implementation'].get(guid4)['layer'])
+        self.assertEqual(bundle3, conn.get(['context', 'bundle_id'], cmd='clone'))
 
 
 def call(routes, method, document=None, guid=None, prop=None, principal=None, cmd=None, content=None, **kwargs):

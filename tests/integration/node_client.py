@@ -6,7 +6,7 @@ import json
 import signal
 import shutil
 import zipfile
-from os.path import exists, join
+from os.path import exists, join, dirname, abspath
 
 from __init__ import tests, src_root
 
@@ -36,6 +36,42 @@ class NodeClientTest(tests.Test):
             self.waitpid(self.client_pid, signal.SIGINT)
         tests.Test.tearDown(self)
 
+    def test_ReleaseActivity(self):
+        with file('bundle', 'wb') as f:
+            f.write(self.zips(['TestActivitry/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivitry',
+                'bundle_id = activity2',
+                'exec = true',
+                'icon = icon',
+                'activity_version = 1',
+                'license = Public Domain',
+                'stability = developper',
+                ]]))
+        self.cli(['release', 'bundle', '--porcelain'])
+
+        self.assertEqual([
+            {'version': '1', 'stability': 'developper', 'license': ['Public Domain']},
+            ],
+            self.cli(['GET', '/implementation', 'context=activity2', 'reply=version,stability,license', 'order_by=version'])['result'])
+
+        with file('bundle', 'wb') as f:
+            f.write(self.zips(['TestActivitry/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivitry',
+                'bundle_id = activity2',
+                'exec = true',
+                'icon = icon',
+                'activity_version = 2',
+                ]]))
+        self.cli(['release', 'bundle', '--porcelain'])
+
+        self.assertEqual([
+            {'version': '1', 'stability': 'developper', 'license': ['Public Domain']},
+            {'version': '2', 'stability': 'stable', 'license': ['Public Domain']},
+            ],
+            self.cli(['GET', '/implementation', 'context=activity2', 'reply=version,stability,license', 'order_by=version'])['result'])
+
     def test_CloneContext(self):
         context = self.cli(['POST', '/context'], stdin={
             'type': 'activity',
@@ -43,31 +79,22 @@ class NodeClientTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        impl = self.cli(['POST', '/implementation'], stdin={
-            'context': context,
-            'license': 'GPLv3+',
-            'version': '1',
-            'stability': 'stable',
-            'notes': '',
-            'spec': {
-                '*-*': {
-                    'commands': {
-                        'activity': {
-                            'exec': 'true',
-                            },
-                        },
-                    'extract': 'topdir',
-                    },
-                },
-            })
-        bundle = zipfile.ZipFile('bundle', 'w')
-        bundle.writestr('/topdir/probe', 'ok')
-        bundle.close()
-        self.cli(['PUT', '/implementation/%s/data' % impl, '--post-file=bundle'])
+
+        spec = ['[Activity]',
+                'name = TestActivitry',
+                'bundle_id = %s' % context,
+                'exec = true',
+                'icon = icon',
+                'activity_version = 1',
+                'license = Public Domain',
+                ]
+        with file('bundle', 'wb') as f:
+            f.write(self.zips(['TestActivitry/activity/activity.info', spec]))
+        impl = self.cli(['release', 'bundle'])
 
         self.cli(['PUT', '/context/%s' % context, 'cmd=clone', '-jd1'])
-        assert exists('client/Activities/topdir/probe')
-        self.assertEqual('ok', file('client/Activities/topdir/probe').read())
+        assert exists('client/Activities/TestActivitry/activity/activity.info')
+        self.assertEqual('\n'.join(spec), file('client/Activities/TestActivitry/activity/activity.info').read())
 
     def test_FavoriteContext(self):
         context = self.cli(['POST', '/context'], stdin={
