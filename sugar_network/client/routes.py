@@ -360,6 +360,7 @@ class ClientRoutes(model.Routes, journal.Routes):
                     while True:
                         try:
                             handshake(url)
+                            timeout = _RECONNECT_TIMEOUT
                             if self._no_subscription:
                                 return
                             pull_events()
