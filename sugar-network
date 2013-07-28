@@ -195,6 +195,21 @@ class Application(application.Application):
     def GET(self):
         self.get()
 
+    @application.command(
+            'send raw API HEAD request; '
+            'specifies all ARGUMENTs the particular API call requires',
+            args='PATH [ARGUMENT=VALUE]')
+    def head(self):
+        request = Request()
+        self._parse_path(request)
+        self._parse_args([], request)
+        result = self._connect().meta(request.path, **request)
+        self._dump(result, [])
+
+    @application.command(hidden=True)
+    def HEAD(self):
+        self.head()
+
     def _connect(self):
         if self.check_for_instance():
             return IPCConnection()
@@ -228,9 +243,7 @@ class Application(application.Application):
                     # TODO
                     pass
 
-        if self.args and self.args[0].startswith('/'):
-            request.path = self.args.pop(0).strip('/').split('/')
-
+        self._parse_path(request)
         reply = []
         self._parse_args(reply, request)
 
@@ -258,20 +271,7 @@ class Application(application.Application):
             return
 
         if response.content_type == 'application/json':
-            if porcelain.value:
-                if type(result) in (list, tuple):
-                    for i in result:
-                        # TODO
-                        print i
-                else:
-                    # TODO
-                    print result
-            elif reply:
-                for key in reply:
-                    key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
-                    print eval('result%s' % key)
-            else:
-                print dumps(result, indent=2)
+            self._dump(result, reply)
         elif response.content_type == 'text/event-stream':
             while True:
                 chunk = toolkit.readline(result)
@@ -289,6 +289,10 @@ class Application(application.Application):
                 sys.stdout.write(chunk)
         else:
             sys.stdout.write(result)
+
+    def _parse_path(self, request):
+        if self.args and self.args[0].startswith('/'):
+            request.path = self.args.pop(0).strip('/').split('/')
 
     def _parse_args(self, tags, props):
         for arg in self.args:
@@ -308,6 +312,22 @@ class Application(application.Application):
                 props[arg].append(value)
             else:
                 props[arg] = value
+
+    def _dump(self, result, reply):
+        if porcelain.value:
+            if type(result) in (list, tuple):
+                for i in result:
+                    # TODO
+                    print i
+            else:
+                # TODO
+                print result
+        elif reply:
+            for key in reply:
+                key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
+                print eval('result%s' % key)
+        else:
+            print dumps(result, indent=2)
 
 
 # Let toolkit.http work in concurrence
