@@ -29,7 +29,7 @@ from sugar_network.node.master import MasterRoutes
 from sugar_network.node.slave import SlaveRoutes
 from sugar_network.model import RESOURCES
 from sugar_network.toolkit.http import Connection
-from sugar_network.toolkit.router import Router
+from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit import coroutine, application, Option, enforce
 
 
@@ -77,25 +77,30 @@ class Application(application.Daemon):
 
         if webui.webui.value:
             # XXX Until implementing regular web users
-            from sugar_network.client.commands import ClientCommands
-
-            class _ClientCommands(ClientCommands):
-
-                def call(self, request, response=None):
-                    request.principal = 'demo'
-                    return ClientCommands.call(self, request, response)
+            from sugar_network.client.routes import ClientRoutes
 
             client.sugar_uid = lambda: 'demo'
             # Point client API to volume directly
             client.mounts_root.value = None
+
             home = db.Volume(join(application.rundir.value, 'db'), RESOURCES)
-            client_commands = _ClientCommands(home,
-                    api_url='http://localhost:%s' % node.port.value,
-                    static_prefix=client.api_url.value)
+            client_routes  = ClientRoutes(home,
+                    api_url='http://localhost:%s' % node.port.value)
+            client_app = Router(client_routes)
+
+            def webui_call(method, path=None, cmd=None,
+                    content_type=None, content=None, **kwargs):
+                request = Request(method=method, path=path, cmd=cmd)
+                request.content_type = content_type or 'application/json'
+                request.content = content
+                request.principal = 'demo'
+                request.update(kwargs)
+                return client_app.call(request, Response())
+
             host = (node.host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)
             server = coroutine.WSGIServer(host,
-                    webui.get_app(client_commands, client.api_url.value, True))
+                    webui.get_app(webui_call, client.api_url.value, True))
             self.jobs.spawn(server.serve_forever)
 
         try:

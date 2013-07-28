@@ -30,7 +30,7 @@ from sugar_network.client import clones, cache
 from sugar_network.client.routes import CachedClientRoutes
 from sugar_network.node import stats_node, stats_user
 from sugar_network.model import RESOURCES
-from sugar_network.toolkit.router import Router
+from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit import mountpoints, printf, application
 from sugar_network.toolkit import Option, coroutine
 
@@ -108,11 +108,12 @@ class Application(application.Daemon):
         volume = db.Volume(client.path('db'), RESOURCES)
         routes = CachedClientRoutes(volume,
                 client.api_url.value if not client.server_mode.value else None)
+        router = Router(routes)
 
         logging.info('Listening for IPC requests on %s port',
                 client.ipc_port.value)
-        server = coroutine.WSGIServer(('localhost', client.ipc_port.value),
-                Router(routes))
+        server = coroutine.WSGIServer(
+                ('localhost', client.ipc_port.value), router)
         self.jobs.spawn(server.serve_forever)
         coroutine.dispatch()
 
@@ -126,8 +127,19 @@ class Application(application.Daemon):
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
-                server = coroutine.WSGIServer(host, webui.get_app(routes,
-                        'http://localhost:%s' % client.ipc_port.value))
+
+                def webui_call(method, path=None, cmd=None,
+                        content_type=None, content=None, **kwargs):
+                    request = Request(method=method, path=path, cmd=cmd)
+                    request.content_type = content_type or 'application/json'
+                    request.content = content
+                    request.principal = client.sugar_uid()
+                    request.update(kwargs)
+                    return router.call(request, Response())
+
+                webui_app = webui.get_app(webui_call,
+                        'http://localhost:%s' % client.ipc_port.value)
+                server = coroutine.WSGIServer(host, webui_app)
                 self.jobs.spawn(server.serve_forever)
 
             if client.mounts_root.value:
