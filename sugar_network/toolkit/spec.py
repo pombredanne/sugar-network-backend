@@ -60,7 +60,7 @@ _VERSION_VALUE_TO_MOD = {}
 _logger = logging.getLogger('sweets-recipe')
 
 
-def parse_version(version_string):
+def parse_version(version_string, ignore_errors=False):
     """Convert a version string to an internal representation.
 
     The parsed format can be compared quickly using the standard Python
@@ -75,24 +75,35 @@ def parse_version(version_string):
     if version_string is None:
         return None
 
-    parts = _VERSION_RE.split(version_string)
+    parts = _VERSION_RE.split(version_string.lower())
     if parts[-1] == '':
         del parts[-1]  # Ends with a modifier
     else:
         parts.append('')
     enforce(parts, ValueError, 'Empty version string')
 
+    def to_int(x):
+        pos = 0
+        for i in x:
+            if not i.isdigit():
+                enforce(ignore_errors, ValueError,
+                        'Only numbers are allowed in version category')
+                break
+            pos += 1
+        if pos:
+            return int(x[:pos])
+        else:
+            enforce(ignore_errors, ValueError, 'Empty version category')
+            return 0
+
     length = len(parts)
     try:
         for x in range(0, length, 2):
             part = parts[x]
             if part:
-                parts[x] = [int(i) for i in part.split('.')]
+                parts[x] = [to_int(i) for i in part.split('.')]
             else:
                 parts[x] = []  # (because ''.split('.') == [''], not [])
-        for x in range(1, length, 2):
-            parts[x] = _VERSION_MOD_TO_VALUE[parts[x]]
-        return parts
     except ValueError as error:
         exception()
         raise ValueError('Invalid version format in "%s": %s' %
@@ -100,6 +111,10 @@ def parse_version(version_string):
     except KeyError as error:
         raise ValueError('Invalid version modifier in "%s": %s' %
                 (version_string, error))
+
+    for x in range(1, length, 2):
+        parts[x] = _VERSION_MOD_TO_VALUE[parts[x]]
+    return parts
 
 
 def format_version(version):
@@ -201,7 +216,7 @@ def ensure_requires(to_consider, to_apply):
 
     def intersect(x, y):
         l = max([parse_version(i) for i, __ in (x + y)])
-        r = min([[[sys.maxint]] if i is None else parse_version(i) \
+        r = min([[[sys.maxint]] if i is None else parse_version(i)
                 for __, i in (x + y)])
         return l is None or r is None or l < r
 

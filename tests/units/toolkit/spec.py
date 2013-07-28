@@ -128,7 +128,7 @@ class SpecTest(tests.Test):
                     },
                 recipe.requires)
 
-    def testVersions(self):
+    def test_parse_version(self):
 
         def pv(v):
             parsed = spec.parse_version(v)
@@ -175,6 +175,9 @@ class SpecTest(tests.Test):
         assert pv('2.1.9-pre-1') > pv('2.1.9-pre')
 
         assert pv('2-r999') < pv('3-pre1')
+
+    def test_parse_version_IgnoreErrors(self):
+        self.assertEqual([[1, 2], 0], spec.parse_version('1.2foo', ignore_errors=True))
 
     def test_ensure_requires(self):
         assert spec.ensure_requires(spec.parse_requires(''), spec.parse_requires(''))
