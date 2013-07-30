@@ -84,7 +84,7 @@ class Application(application.Daemon):
             client.mounts_root.value = None
 
             home = db.Volume(join(application.rundir.value, 'db'), RESOURCES)
-            client_routes  = ClientRoutes(home,
+            client_routes = ClientRoutes(home,
                     api_url='http://localhost:%s' % node.port.value)
             client_app = Router(client_routes)
 
@@ -156,9 +156,8 @@ app = Application(
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
                'for details.',
         config_files=[
-            '/etc/sugar-network/config',    # Deprecated
-            '/etc/sugar-network.conf',
             '/etc/sugar-network.d',
+            '/etc/sugar-network.conf',
             '~/.config/sugar-network/config',
             ])
 app.start()

@@ -229,8 +229,8 @@ app = Application(
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
                'for details.',
         config_files=[
-            '/etc/sweets.conf',
             '/etc/sweets.d',
+            '/etc/sweets.conf',
             '~/.config/sweets/config',
             client.profile_path('sweets.conf'),
             ])

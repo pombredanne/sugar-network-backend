@@ -30,9 +30,7 @@ from sugar_network import db, client, toolkit
 from sugar_network.model import RESOURCES
 from sugar_network.client import IPCConnection, Connection
 from sugar_network.client.routes import ClientRoutes
-from sugar_network.node.routes import load_bundle
 from sugar_network.toolkit.router import Router, Request, Response
-from sugar_network.toolkit.spec import Spec
 from sugar_network.toolkit import application, coroutine
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
@@ -161,7 +159,6 @@ class Application(application.Application):
     @application.command(hidden=True)
     def POST(self):
         self.post()
-
 
     @application.command(
             'send raw API PUT request; '
@@ -358,8 +355,8 @@ app = Application(
         epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
                'for details.',
         config_files=[
-            '/etc/sweets.conf',
             '/etc/sweets.d',
+            '/etc/sweets.conf',
             '~/.config/sweets/config',
             client.profile_path('sweets.conf'),
             ],
