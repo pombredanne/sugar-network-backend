@@ -172,22 +172,21 @@ class NodeRoutes(db.Routes, model.Routes):
     @route('GET', ['context', None], cmd='clone',
             arguments={'requires': list})
     def clone(self, request, response):
-        impl = self._clone(request)
+        impl = self._solve(request)
         request.path = ['implementation', impl.guid, 'data']
         return self.get_prop(request)
 
     @route('HEAD', ['context', None], cmd='clone',
             arguments={'requires': list})
     def meta_clone(self, request, response):
-        impl = self._clone(request)
+        impl = self._solve(request)
         props = impl.properties(['guid', 'license', 'version', 'stability'])
         response.meta.update(props)
         response.meta.update(impl.meta('data')['spec']['*-*'])
 
     @route('GET', ['context', None], cmd='deplist',
             mime_type='application/json', arguments={'requires': list})
-    def deplist(self, request, repo, layer, requires,
-            stability='stable'):
+    def deplist(self, request, repo):
         """List of native packages context is dependening on.
 
         Command return only GNU/Linux package names and ignores
@@ -202,14 +201,9 @@ class NodeRoutes(db.Routes, model.Routes):
         """
         enforce(repo, 'Argument %r should be set', 'repo')
 
-        impls, total = self.volume['implementation'].find(context=request.guid,
-                layer=layer, stability=stability, requires=requires,
-                order_by='-version', limit=1)
-        enforce(total, http.NotFound, 'No implementations')
-
-        result = []
+        spec = self._solve(request).meta('data')['spec']['*-*']
         common_deps = self.volume['context'].get(request.guid)['dependencies']
-        spec = next(impls).meta('data')['spec']['*-*']
+        result = []
 
         for package in set(spec.get('requires') or []) | set(common_deps):
             if package == 'sugar':
@@ -380,7 +374,7 @@ class NodeRoutes(db.Routes, model.Routes):
             coroutine.sleep(stats_node.stats_node_step.value)
             self._stats.commit()
 
-    def _clone(self, request):
+    def _solve(self, request):
         requires = {}
         if 'requires' in request:
             for i in request['requires']:
