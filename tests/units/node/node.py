@@ -292,30 +292,47 @@ class NodeTest(tests.Test):
         self.assertRaises(http.Forbidden, call, cp, method='PROBE', principal=tests.UID2)
         self.assertEqual('ok', call(cp, method='PROBE', principal=tests.UID))
 
+    def test_authorize_OnlyAuthros(self):
+
+        class Document(db.Resource):
+
+            @db.indexed_property(slot=1, acl=ACL.PUBLIC | ACL.AUTHOR)
+            def prop(self, value):
+                return value
+
+        volume = db.Volume('db', [User, Document])
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY2})
+        cp = NodeRoutes('guid', volume)
+
+        guid = call(cp, method='POST', document='document', principal=tests.UID, content={'prop': '1'})
+        self.assertRaises(http.Forbidden, call, cp, 'PUT', document='document', guid=guid, content={'prop': '2'}, principal=tests.UID2)
+        self.assertEqual('1', volume['document'].get(guid)['prop'])
+
     def test_authorize_FullWriteForRoot(self):
         self.touch(('authorization.conf', [
             '[%s]' % tests.UID2,
             'root = True',
             ]))
 
-        class Routes(NodeRoutes):
-
-            @route('PROBE', [None, None], acl=ACL.AUTHOR)
-            def probe(self):
-                pass
-
         class Document(db.Resource):
-            pass
+
+            @db.indexed_property(slot=1, acl=ACL.PUBLIC | ACL.AUTHOR)
+            def prop(self, value):
+                return value
 
         volume = db.Volume('db', [User, Document])
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY2})
-        cp = Routes('guid', volume)
+        cp = NodeRoutes('guid', volume)
 
-        guid = call(cp, method='POST', document='document', principal=tests.UID, content={})
+        guid = call(cp, method='POST', document='document', principal=tests.UID, content={'prop': '1'})
 
-        call(cp, 'PROBE', document='document', guid=guid, principal=tests.UID)
-        call(cp, 'PROBE', document='document', guid=guid, principal=tests.UID2)
+        call(cp, 'PUT', document='document', guid=guid, content={'prop': '2'}, principal=tests.UID)
+        self.assertEqual('2', volume['document'].get(guid)['prop'])
+
+        call(cp, 'PUT', document='document', guid=guid, content={'prop': '3'}, principal=tests.UID2)
+        self.assertEqual('3', volume['document'].get(guid)['prop'])
 
     def test_authorize_LiveConfigUpdates(self):
 
