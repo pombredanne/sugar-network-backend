@@ -87,20 +87,12 @@ class Application(application.Daemon):
             client_routes = ClientRoutes(home,
                     api_url='http://localhost:%s' % node.port.value)
             client_app = Router(client_routes)
-
-            def webui_call(method, path=None, cmd=None,
-                    content_type=None, content=None, **kwargs):
-                request = Request(method=method, path=path, cmd=cmd)
-                request.content_type = content_type or 'application/json'
-                request.content = content
-                request.principal = 'demo'
-                request.update(kwargs)
-                return client_app.call(request, Response())
-
             host = (node.host.value, webui.webui_port.value)
             logging.info('Start Web server on %s:%s port', *host)
             server = coroutine.WSGIServer(host,
-                    webui.get_app(webui_call, client.api_url.value, True))
+                    webui.get_app(
+                        lambda x: client_app.call(Request(x), Response()),
+                        client.api_url.value, True))
             self.jobs.spawn(server.serve_forever)
 
         try:

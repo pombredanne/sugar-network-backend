@@ -127,17 +127,8 @@ class Application(application.Daemon):
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
-
-                def webui_call(method, path=None, cmd=None,
-                        content_type=None, content=None, **kwargs):
-                    request = Request(method=method, path=path, cmd=cmd)
-                    request.content_type = content_type or 'application/json'
-                    request.content = content
-                    request.principal = client.sugar_uid()
-                    request.update(kwargs)
-                    return router.call(request, Response())
-
-                webui_app = webui.get_app(webui_call,
+                webui_app = webui.get_app(
+                        lambda x: router.call(Request(x), Response()),
                         'http://localhost:%s' % client.ipc_port.value)
                 server = coroutine.WSGIServer(host, webui_app)
                 self.jobs.spawn(server.serve_forever)

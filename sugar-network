@@ -324,7 +324,7 @@ class Application(application.Application):
                 key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
                 print eval('result%s' % key)
         else:
-            print dumps(result, indent=2)
+            print dumps(result, indent=2, ensure_ascii=False)
 
 
 # Let toolkit.http work in concurrence
