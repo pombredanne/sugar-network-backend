@@ -73,7 +73,7 @@ class Resource(object):
                     })
         return result
 
-    @indexed_property(prefix='RL', typecast=[], default=['public'])
+    @indexed_property(prefix='RL', typecast=[], default=[])
     def layer(self, value):
         return value
 

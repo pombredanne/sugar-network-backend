@@ -152,42 +152,8 @@ class Directory(object):
                 guid, self.metadata.name)
         return self.document_class(guid, record, cached_props)
 
-    def find(self, *args, **kwargs):
-        """Search documents.
-
-        The result will be an array of dictionaries with found documents'
-        properties.
-
-        :param offset:
-            the resulting list should start with this offset;
-            0 by default
-        :param limit:
-            the resulting list will be at least `limit` size;
-            the `--find-limit` will be used by default
-        :param query:
-            a string in Xapian serach format, empty to avoid text search
-        :param reply:
-            an array of property names to use only in the resulting list;
-            only GUID property will be used by default
-        :param order_by:
-            property name to sort resulting list; might be prefixed with ``+``
-            (or without any prefixes) for ascending order, and ``-`` for
-            descending order
-        :param group_by:
-            property name to group resulting list by; no groupping by default
-        :param kwargs:
-            a dictionary with property values to restrict the search
-        :returns:
-            a tuple of (`documents`, `total_count`); where the `total_count` is
-            the total number of documents conforming the search parameters,
-            i.e., not only documents that are included to the resulting list
-
-        """
-        # XXX Hardcode SN layers switch; Remove in 0.9
-        if kwargs.get('layer') in ('peruvian-pilot', ['peruvian-pilot']):
-            kwargs['layer'] = 'pilot'
-
-        mset = self._index.find(_Query(*args, **kwargs))
+    def find(self, **kwargs):
+        mset = self._index.find(**kwargs)
 
         def iterate():
             for hit in mset:
@@ -403,33 +369,3 @@ class _SessionSeqno(object):
 
     def commit(self):
         pass
-
-
-class _Query(object):
-
-    def __init__(self, offset=None, limit=None, query='', reply=None,
-            order_by=None, no_cache=False, group_by=None, **kwargs):
-        self.query = query
-        self.no_cache = no_cache
-        self.group_by = group_by
-
-        if offset is None:
-            offset = 0
-        self.offset = offset
-
-        self.limit = limit or 16
-
-        if reply is None:
-            reply = ['guid']
-        self.reply = reply
-
-        if order_by is None:
-            order_by = 'ctime'
-        self.order_by = order_by
-
-        self.request = kwargs
-
-    def __repr__(self):
-        return 'offset=%s limit=%s request=%r query=%r order_by=%s ' \
-               'group_by=%s' % (self.offset, self.limit, self.request,
-                       self.query, self.order_by, self.group_by)

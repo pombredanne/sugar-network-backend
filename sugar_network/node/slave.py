@@ -83,10 +83,9 @@ class SlaveRoutes(NodeRoutes):
 
     @route('POST', cmd='offline-sync', acl=ACL.LOCAL)
     def offline_sync(self, path):
-        enforce(node.sync_layers.value and
-                'public' not in node.sync_layers.value,
-                '--layers is not specified, the full master dump might be '
-                'too big and should be limited')
+        enforce(node.sync_layers.value,
+                '--sync-layers is not specified, the full master dump '
+                'might be too big and should be limited')
         enforce(isabs(path), 'Argument \'path\' should be an absolute path')
 
         _logger.debug('Start %r synchronization session in %r',

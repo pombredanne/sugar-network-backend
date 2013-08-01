@@ -82,6 +82,9 @@ class IndexReader(object):
             pass
         os.utime(self._mtime_path, (value, value))
 
+    def ensure_open(self):
+        pass
+
     def get_cached(self, guid):
         """Return cached document.
 
@@ -125,20 +128,46 @@ class IndexReader(object):
         """
         raise NotImplementedError()
 
-    def find(self, query):
-        """Search documents within the index.
+    def find(self, offset=0, limit=64, query='', reply=('guid',),
+            order_by=None, no_cache=False, group_by=None, **request):
+        """Search resources within the index.
 
-        Function interface is the same as for `db.Resource.find`.
+        The result will be an array of dictionaries with found documents'
+        properties.
+
+        :param offset:
+            the resulting list should start with this offset;
+            0 by default
+        :param limit:
+            the resulting list will be at least `limit` size;
+            the `--find-limit` will be used by default
+        :param query:
+            a string in Xapian serach format, empty to avoid text search
+        :param reply:
+            an array of property names to use only in the resulting list;
+            only GUID property will be used by default
+        :param order_by:
+            property name to sort resulting list; might be prefixed with ``+``
+            (or without any prefixes) for ascending order, and ``-`` for
+            descending order
+        :param group_by:
+            property name to group resulting list by; no groupping by default
+        :param request:
+            a dictionary with property values to restrict the search
+        :returns:
+            a tuple of (`documents`, `total_count`); where the `total_count` is
+            the total number of documents conforming the search parameters,
+            i.e., not only documents that are included to the resulting list
 
         """
+        self.ensure_open()
+
         start_timestamp = time.time()
         # This will assure that the results count is exact.
-        check_at_least = query.offset + query.limit + 1
+        check_at_least = offset + limit + 1
 
-        enquire = self._enquire(query.request, query.query, query.order_by,
-                query.group_by)
-        mset = self._call_db(enquire.get_mset, query.offset, query.limit,
-                check_at_least)
+        enquire = self._enquire(request, query, order_by, group_by)
+        mset = self._call_db(enquire.get_mset, offset, limit, check_at_least)
 
         _logger.debug('Found in %s: %s time=%s total=%s parsed=%s',
                 self.metadata.name, query, time.time() - start_timestamp,
@@ -152,7 +181,7 @@ class IndexReader(object):
 
     def _enquire(self, request, query, order_by, group_by):
         enquire = xapian.Enquire(self._db)
-        queries = []
+        all_queries = []
         and_not_queries = []
         boolean_queries = []
 
@@ -184,50 +213,37 @@ class IndexReader(object):
                     xapian.QueryParser.FLAG_WILDCARD |
                     xapian.QueryParser.FLAG_PURE_NOT,
                     '')
-            queries.append(query)
+            all_queries.append(query)
 
         for name, value in request.items():
+            queries = sub_queries = []
+            if name.startswith('!'):
+                queries = and_not_queries
+                name = name[1:]
+            elif name.startswith('not_'):
+                queries = and_not_queries
+                name = name[4:]
             prop = self._props.get(name)
             if prop is None or not prop.prefix:
                 continue
-
-            sub_queries = []
-            not_queries = []
             for needle in value if type(value) in (tuple, list) else [value]:
                 if needle is None:
                     continue
                 if prop.parse is not None:
                     needle = prop.parse(needle)
                 needle = next(_fmt_prop_value(prop, needle))
-                if needle.startswith('!'):
-                    term = _term(prop.prefix, needle[1:])
-                    not_queries.append(xapian.Query(term))
-                elif needle.startswith('-'):
-                    term = _term(prop.prefix, needle[1:])
-                    and_not_queries.append(xapian.Query(term))
-                else:
-                    term = _term(prop.prefix, needle)
-                    sub_queries.append(xapian.Query(term))
-
-            if not_queries:
-                not_query = xapian.Query(xapian.Query.OP_AND_NOT,
-                        [xapian.Query(''),
-                            xapian.Query(xapian.Query.OP_OR, not_queries)])
-                sub_queries.append(not_query)
-
-            if sub_queries:
-                if len(sub_queries) == 1:
-                    query = sub_queries[0]
-                else:
-                    query = xapian.Query(xapian.Query.OP_OR, sub_queries)
-                if prop.boolean:
-                    boolean_queries.append(query)
-                else:
-                    queries.append(query)
+                queries.append(xapian.Query(_term(prop.prefix, needle)))
+            if len(sub_queries) == 1:
+                all_queries.append(sub_queries[0])
+            elif sub_queries:
+                all_queries.append(
+                        xapian.Query(xapian.Query.OP_OR, sub_queries))
 
         final = None
-        if queries:
-            final = xapian.Query(xapian.Query.OP_AND, queries)
+        if len(all_queries) == 1:
+            final = all_queries[0]
+        elif all_queries:
+            final = xapian.Query(xapian.Query.OP_AND, all_queries)
         if boolean_queries:
             query = xapian.Query(xapian.Query.OP_AND, boolean_queries)
             if final is None:
@@ -313,8 +329,7 @@ class IndexWriter(IndexReader):
 
         # Let `_commit_handler()` call `wait()` to not miss immediate commit
         coroutine.dispatch()
-
-        self._do_open()
+        self.ensure_open()
 
     def close(self):
         """Flush index write pending queue and close the index."""
@@ -325,14 +340,8 @@ class IndexWriter(IndexReader):
         self._commit_job = None
         self._db = None
 
-    def find(self, query):
-        if self._db is None:
-            self._do_open()
-        return IndexReader.find(self, query)
-
     def store(self, guid, properties, pre_cb=None, post_cb=None, *args):
-        if self._db is None:
-            self._do_open()
+        self.ensure_open()
 
         if pre_cb is not None:
             pre_cb(guid, properties, *args)
@@ -377,8 +386,7 @@ class IndexWriter(IndexReader):
         self._check_for_commit()
 
     def delete(self, guid, post_cb=None, *args):
-        if self._db is None:
-            self._do_open()
+        self.ensure_open()
 
         _logger.debug('Delete %r document from %r',
                 guid, self.metadata.name)
@@ -402,7 +410,9 @@ class IndexWriter(IndexReader):
         with file(self._mtime_path, 'w'):
             pass
 
-    def _do_open(self):
+    def ensure_open(self):
+        if self._db is not None:
+            return
         try:
             self._db = xapian.WritableDatabase(self._path,
                     xapian.DB_CREATE_OR_OPEN)

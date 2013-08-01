@@ -14,7 +14,6 @@ from sugar_network import toolkit
 from sugar_network.db import index
 from sugar_network.db.index import _fmt_prop_value
 from sugar_network.db.metadata import Metadata, IndexedProperty, GUID_PREFIX, Property
-from sugar_network.db.directory import _Query
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit import coroutine
 
@@ -673,45 +672,6 @@ class IndexTest(tests.Test):
                     ]),
                 db._find(prop=['b', 'foo', 'bar'], reply=['guid'])[0])
 
-    def test_find_NotFilter(self):
-        db = Index({'prop': IndexedProperty('prop', 1, 'A')})
-
-        db.store('1', {'prop': 'a'})
-        db.store('2', {'prop': 'b'})
-        db.store('3', {'prop': 'c'})
-
-        self.assertEqual(
-                sorted([
-                    {'guid': '2'},
-                    {'guid': '3'},
-                    ]),
-                db._find(prop='!a', reply=['guid'])[0])
-
-        self.assertEqual(
-                sorted([
-                    {'guid': '3'},
-                    ]),
-                db._find(prop=['!a', '!b'], reply=['guid'])[0])
-
-        self.assertEqual(
-                sorted([
-                    ]),
-                db._find(prop=['!a', '!b', '!c'], reply=['guid'])[0])
-
-        self.assertEqual(
-                sorted([
-                    {'guid': '1'},
-                    {'guid': '3'},
-                    ]),
-                db._find(prop=['!b', 'c'], reply=['guid'])[0])
-
-        self.assertEqual(
-                sorted([
-                    {'guid': '1'},
-                    {'guid': '3'},
-                    ]),
-                db._find(prop=['a', '!b', 'c'], reply=['guid'])[0])
-
     def test_find_AndNotFilter(self):
         db = Index({'prop': IndexedProperty('prop', 1, 'A')})
 
@@ -724,31 +684,38 @@ class IndexTest(tests.Test):
                     {'guid': '2'},
                     {'guid': '3'},
                     ]),
-                db._find(prop='-a', reply=['guid'])[0])
+                sorted(db._find(reply=['guid'], not_prop='a')[0]))
+
+        self.assertEqual(
+                sorted([
+                    {'guid': '2'},
+                    {'guid': '3'},
+                    ]),
+                sorted(db._find(reply=['guid'], **{'!prop': 'a'})[0]))
 
         self.assertEqual(
                 sorted([
                     {'guid': '3'},
                     ]),
-                db._find(prop=['-a', '-b'], reply=['guid'])[0])
+                sorted(db._find(reply=['guid'], **{'!prop': ['a', 'b']})[0]))
 
         self.assertEqual(
                 sorted([
                     ]),
-                db._find(prop=['-a', '-b', '-c'], reply=['guid'])[0])
+                sorted(db._find(reply=['guid'], **{'!prop': ['a', 'b', 'c']})[0]))
 
         self.assertEqual(
                 sorted([
                     {'guid': '3'},
                     ]),
-                db._find(prop=['-b', 'c'], reply=['guid'])[0])
+                sorted(db._find(prop='c', reply=['guid'], **{'!prop': 'b'})[0]))
 
         self.assertEqual(
                 sorted([
                     {'guid': '1'},
                     {'guid': '3'},
                     ]),
-                db._find(prop=['a', '-b', 'c'], reply=['guid'])[0])
+                sorted(db._find(prop=['a', 'c'], reply=['guid'], **{'!prop': 'b'})[0]))
 
     def test_fmt_prop_value(self):
         prop = Property('prop')
@@ -785,18 +752,13 @@ class Index(index.IndexWriter):
 
         index.IndexWriter.__init__(self, tests.tmpdir + '/index', metadata, *args)
 
-    def _find(self, *args, **kwargs):
-        if 'reply' not in kwargs:
-            kwargs['reply'] = {}
-        if 'order_by' not in kwargs:
-            kwargs['order_by'] = 'guid'
-
-        mset = self.find(_Query(*args, **kwargs))
+    def _find(self, reply=None, **kwargs):
+        mset = self.find(**kwargs)
         result = []
 
-        for hit in self.find(_Query(*args, **kwargs)):
+        for hit in mset:
             props = {}
-            for name in kwargs['reply']:
+            for name in (reply or []):
                 prop = self.metadata[name]
                 if prop.slot is not None:
                     props[name] = hit.document.get_value(prop.slot).decode('utf8')

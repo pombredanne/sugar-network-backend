@@ -409,28 +409,28 @@ class RoutesTest(tests.Test):
         self.assertEqual({'en': 'value_raw'}, directory.get(guid)['localized_prop'])
         self.assertEqual(
                 [guid],
-                [i.guid for i in directory.find(0, 100, localized_prop='value_raw')[0]])
+                [i.guid for i in directory.find(localized_prop='value_raw')[0]])
 
         directory.update(guid, {'localized_prop': 'value_raw2'})
         self.assertEqual({'en': 'value_raw2'}, directory.get(guid)['localized_prop'])
         self.assertEqual(
                 [guid],
-                [i.guid for i in directory.find(0, 100, localized_prop='value_raw2')[0]])
+                [i.guid for i in directory.find(localized_prop='value_raw2')[0]])
 
         guid = self.call('POST', path=['testdocument'], accept_language=['ru'], content={'localized_prop': 'value_ru'})
         self.assertEqual({'ru': 'value_ru'}, directory.get(guid)['localized_prop'])
         self.assertEqual(
                 [guid],
-                [i.guid for i in directory.find(0, 100, localized_prop='value_ru')[0]])
+                [i.guid for i in directory.find(localized_prop='value_ru')[0]])
 
         self.call('PUT', path=['testdocument', guid], accept_language=['en'], content={'localized_prop': 'value_en'})
         self.assertEqual({'ru': 'value_ru', 'en': 'value_en'}, directory.get(guid)['localized_prop'])
         self.assertEqual(
                 [guid],
-                [i.guid for i in directory.find(0, 100, localized_prop='value_ru')[0]])
+                [i.guid for i in directory.find(localized_prop='value_ru')[0]])
         self.assertEqual(
                 [guid],
-                [i.guid for i in directory.find(0, 100, localized_prop='value_en')[0]])
+                [i.guid for i in directory.find(localized_prop='value_en')[0]])
 
     def test_LocalizedGet(self):
 
@@ -1571,6 +1571,24 @@ class RoutesTest(tests.Test):
 
         prop = Property('prop', typecast=lambda x: x + 1)
         self.assertEqual(1, _typecast_prop_value(prop.typecast, 0))
+
+    def test_DefaultOrder(self):
+
+        class Document(db.Resource):
+            pass
+
+        self.volume = db.Volume('db', [Document])
+
+        self.volume['document'].create({'guid': '3', 'ctime': 3})
+        self.volume['document'].create({'guid': '2', 'ctime': 2})
+        self.volume['document'].create({'guid': '1', 'ctime': 1})
+
+        self.assertEqual([
+            {'guid': '1'},
+            {'guid': '2'},
+            {'guid': '3'},
+            ],
+            self.call('GET', ['document'])['result'])
 
     def call(self, method=None, path=None,
             accept_language=None, content=None, content_stream=None, cmd=None,

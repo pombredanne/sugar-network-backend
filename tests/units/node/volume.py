@@ -49,7 +49,7 @@ class VolumeTest(tests.Test):
                     'ctime': {'value': 0, 'mtime': 1},
                     'prop': {'value': 'a', 'mtime': 1},
                     'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': ['public']},
+                    'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     },
                 },
@@ -60,7 +60,7 @@ class VolumeTest(tests.Test):
                     'ctime': {'value': 0, 'mtime': 2},
                     'prop': {'value': 'b', 'mtime': 2},
                     'author': {'mtime': 2, 'value': {}},
-                    'layer': {'mtime': 2, 'value': ['public']},
+                    'layer': {'mtime': 2, 'value': []},
                     'tags': {'mtime': 2, 'value': []},
                     },
                 },
@@ -375,7 +375,7 @@ class VolumeTest(tests.Test):
                     'artifact': {'value': artifact, 'mtime': 4.0},
                     'rating': {'value': 1, 'mtime': 1.0},
                     'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': ['public']},
+                    'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     }},
                 {'guid': '2', 'diff': {
@@ -385,7 +385,7 @@ class VolumeTest(tests.Test):
                     'context': {'value': context, 'mtime': 2.0},
                     'rating': {'value': 2, 'mtime': 2.0},
                     'author': {'mtime': 2, 'value': {}},
-                    'layer': {'mtime': 2, 'value': ['public']},
+                    'layer': {'mtime': 2, 'value': []},
                     'tags': {'mtime': 2, 'value': []},
                     }},
                 {'commit': [[1, 2]]},
@@ -433,7 +433,7 @@ class VolumeTest(tests.Test):
                 {'guid': guid, 'diff': {
                     'guid': {'value': guid, 'mtime': 0},
                     'author': {'mtime': 0, 'value': {}},
-                    'layer': {'mtime': 0, 'value': ['public']},
+                    'layer': {'mtime': 0, 'value': []},
                     'tags': {'mtime': 0, 'value': []},
                     'mtime': {'value': 0, 'mtime': 0},
                     'ctime': {'value': 0, 'mtime': 0},
@@ -467,7 +467,7 @@ class VolumeTest(tests.Test):
                 'diff': {
                     'guid': {'value': guid, 'mtime': 1},
                     'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': ['public']},
+                    'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
@@ -491,7 +491,7 @@ class VolumeTest(tests.Test):
                 {'guid': guid, 'diff': {
                     'guid': {'value': guid, 'mtime': 1},
                     'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': ['public']},
+                    'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
@@ -524,7 +524,7 @@ class VolumeTest(tests.Test):
                 'diff': {
                     'guid': {'value': guid1, 'mtime': 1},
                     'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': ['public']},
+                    'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
@@ -535,7 +535,7 @@ class VolumeTest(tests.Test):
                 'diff': {
                     'guid': {'value': guid2, 'mtime': 1},
                     'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': ['public']},
+                    'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
@@ -551,7 +551,7 @@ class VolumeTest(tests.Test):
                 'diff': {
                     'guid': {'value': guid1, 'mtime': 1},
                     'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': ['public']},
+                    'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},
@@ -561,7 +561,7 @@ class VolumeTest(tests.Test):
                 'diff': {
                     'guid': {'value': guid2, 'mtime': 1},
                     'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': ['public']},
+                    'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     'mtime': {'value': 0, 'mtime': 1},
                     'ctime': {'value': 0, 'mtime': 1},

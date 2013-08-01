@@ -23,6 +23,7 @@ from os.path import join, isdir, exists
 
 from sugar_network import db, node, toolkit, model
 from sugar_network.node import stats_node, stats_user
+# pylint: disable-msg=W0611
 from sugar_network.toolkit.router import route, preroute, postroute
 from sugar_network.toolkit.router import ACL, fallbackroute
 from sugar_network.toolkit.spec import EMPTY_LICENSE
@@ -223,7 +224,7 @@ class NodeRoutes(db.Routes, model.Routes):
         versions = []
 
         impls, __ = implementations.find(limit=db.MAX_LIMIT,
-                context=context.guid, layer=layer)
+                context=context.guid, layer=layer, not_layer='deleted')
         for impl in impls:
             for arch, spec in impl.meta('data')['spec'].items():
                 spec['guid'] = impl.guid
@@ -334,11 +335,11 @@ class NodeRoutes(db.Routes, model.Routes):
             _logger.warning('The find limit is restricted to %s',
                     node.find_limit.value)
             request['limit'] = node.find_limit.value
-        layer = request.get('layer', ['public'])
+        layer = request.setdefault('layer', [])
         if 'deleted' in layer:
             _logger.warning('Requesting "deleted" layer')
             layer.remove('deleted')
-        request['layer'] = layer
+        request.add('not_layer', 'deleted')
         return db.Routes.find(self, request, reply)
 
     def get(self, request, reply):
@@ -385,11 +386,10 @@ class NodeRoutes(db.Routes, model.Routes):
 
         if 'stability' not in request:
             request['stability'] = 'stable'
-        if 'layer' not in request:
-            request['layer'] = 'public'
 
         impls, __ = self.volume['implementation'].find(
-                context=request.guid, order_by='-version', **request)
+                context=request.guid, order_by='-version', not_layer='deleted',
+                **request)
         impl = None
         for impl in impls:
             if requires:
@@ -445,16 +445,19 @@ def load_bundle(volume, bundle_path, impl=None):
             http.BadRequest, 'Inappropriate bundle type')
     if impl.get('license') in (None, EMPTY_LICENSE):
         existing, total = volume['implementation'].find(
-                context=impl['context'], order_by='-version')
+                context=impl['context'], order_by='-version',
+                not_layer='deleted')
         enforce(total, 'License is not specified')
         impl['license'] = next(existing)['license']
 
     yield impl
 
     existing, __ = volume['implementation'].find(
-            context=impl['context'], version=impl['version'])
+            context=impl['context'], version=impl['version'],
+            not_layer='deleted')
     for i in existing:
-        volume['implementation'].update(i.guid, {'layer': ['deleted']})
+        layer = i['layer'] + ['deleted']
+        volume['implementation'].update(i.guid, {'layer': layer})
     impl['guid'] = volume['implementation'].create(impl)
 
 

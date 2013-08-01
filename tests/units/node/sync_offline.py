@@ -54,11 +54,7 @@ class SyncOfflineTest(tests.Test):
         node.sync_layers.value = None
         self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
         node.sync_layers.value = 'public'
-        self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
-        node.sync_layers.value = ['public']
-        self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
-        node.sync_layers.value = ['public', 'foo']
-        self.assertRaises(RuntimeError, cp.offline_sync, tests.tmpdir + '/mnt')
+        cp.offline_sync(tests.tmpdir + '/mnt')
 
     def test_Export(self):
 

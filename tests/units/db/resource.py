@@ -45,13 +45,13 @@ class ResourceTest(tests.Test):
 
         directory.create({'slotted': 'slotted', 'not_slotted': 'not_slotted'})
 
-        docs, total = directory.find(0, 100, order_by='slotted')
+        docs, total = directory.find(order_by='slotted')
         self.assertEqual(1, total)
         self.assertEqual(
                 [('slotted', 'not_slotted')],
                 [(i.slotted, i.not_slotted) for i in docs])
 
-        self.assertRaises(RuntimeError, directory.find, 0, 100, order_by='not_slotted')
+        self.assertRaises(RuntimeError, directory.find, order_by='not_slotted')
 
     def test_ActiveProperty_SlottedIUnique(self):
 
@@ -84,14 +84,14 @@ class ResourceTest(tests.Test):
 
         guid = directory.create({'term': 'term', 'not_term': 'not_term'})
 
-        docs, total = directory.find(0, 100, term='term')
+        docs, total = directory.find(term='term')
         self.assertEqual(1, total)
         self.assertEqual(
                 [('term', 'not_term')],
                 [(i.term, i.not_term) for i in docs])
 
-        self.assertEqual(0, directory.find(0, 100, query='not_term:not_term')[-1])
-        self.assertEqual(1, directory.find(0, 100, query='not_term:=not_term')[-1])
+        self.assertEqual(0, directory.find(query='not_term:not_term')[-1])
+        self.assertEqual(1, directory.find(query='not_term:=not_term')[-1])
 
     def test_ActiveProperty_TermsUnique(self):
 
@@ -125,8 +125,8 @@ class ResourceTest(tests.Test):
 
         guid = directory.create({'no': 'foo', 'yes': 'bar'})
 
-        self.assertEqual(0, directory.find(0, 100, query='foo')[-1])
-        self.assertEqual(1, directory.find(0, 100, query='bar')[-1])
+        self.assertEqual(0, directory.find(query='foo')[-1])
+        self.assertEqual(1, directory.find(query='bar')[-1])
 
     def test_update(self):
 
@@ -145,12 +145,12 @@ class ResourceTest(tests.Test):
         guid = directory.create({'prop_1': '1', 'prop_2': '2'})
         self.assertEqual(
                 [('1', '2')],
-                [(i.prop_1, i.prop_2) for i in directory.find(0, 1024)[0]])
+                [(i.prop_1, i.prop_2) for i in directory.find()[0]])
 
         directory.update(guid, {'prop_1': '3', 'prop_2': '4'})
         self.assertEqual(
                 [('3', '4')],
-                [(i.prop_1, i.prop_2) for i in directory.find(0, 1024)[0]])
+                [(i.prop_1, i.prop_2) for i in directory.find()[0]])
 
     def test_delete(self):
 
@@ -168,22 +168,22 @@ class ResourceTest(tests.Test):
 
         self.assertEqual(
                 ['1', '2', '3'],
-                [i.prop for i in directory.find(0, 1024)[0]])
+                [i.prop for i in directory.find()[0]])
 
         directory.delete(guid_2)
         self.assertEqual(
                 ['1', '3'],
-                [i.prop for i in directory.find(0, 1024)[0]])
+                [i.prop for i in directory.find()[0]])
 
         directory.delete(guid_3)
         self.assertEqual(
                 ['1'],
-                [i.prop for i in directory.find(0, 1024)[0]])
+                [i.prop for i in directory.find()[0]])
 
         directory.delete(guid_1)
         self.assertEqual(
                 [],
-                [i.prop for i in directory.find(0, 1024)[0]])
+                [i.prop for i in directory.find()[0]])
 
     def test_populate(self):
 
@@ -229,7 +229,7 @@ class ResourceTest(tests.Test):
                     (1, 1, 'prop-1'),
                     (2, 2, 'prop-2'),
                     ],
-                [(i.ctime, i.mtime, i.prop) for i in directory.find(0, 10)[0]])
+                [(i.ctime, i.mtime, i.prop) for i in directory.find()[0]])
 
     def test_populate_IgnoreBadDocuments(self):
 
@@ -267,7 +267,7 @@ class ResourceTest(tests.Test):
         self.assertEqual(1, populated)
         self.assertEqual(
                 sorted(['1']),
-                sorted([i.guid for i in directory.find(0, 10)[0]]))
+                sorted([i.guid for i in directory.find()[0]]))
         assert exists('1/1/guid')
         assert not exists('2/2/guid')
         assert not exists('3/3/guid')
@@ -285,12 +285,12 @@ class ResourceTest(tests.Test):
         guid = directory.create({'guid': 'guid', 'prop': 'foo'})
         self.assertEqual(
                 [('guid', 'foo')],
-                [(i.guid, i.prop) for i in directory.find(0, 1024)[0]])
+                [(i.guid, i.prop) for i in directory.find()[0]])
 
         directory.update(guid, {'prop': 'probe'})
         self.assertEqual(
                 [('guid', 'probe')],
-                [(i.guid, i.prop) for i in directory.find(0, 1024)[0]])
+                [(i.guid, i.prop) for i in directory.find()[0]])
 
     def test_seqno(self):
 
@@ -623,7 +623,7 @@ class ResourceTest(tests.Test):
                     (2, '2', 2, '2'),
                     (3, '3', 3, '3'),
                     ]),
-                sorted([(i['ctime'], i['prop'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]]))
+                sorted([(i['ctime'], i['prop'], i['mtime'], i['guid']) for i in directory2.find()[0]]))
 
         doc = directory2.get('1')
         self.assertEqual(1, doc.get('seqno'))
@@ -675,7 +675,7 @@ class ResourceTest(tests.Test):
 
         self.assertEqual(
                 [(2, 2, 'guid')],
-                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find()[0]])
         doc = directory2.get('guid')
         self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
@@ -689,7 +689,7 @@ class ResourceTest(tests.Test):
 
         self.assertEqual(
                 [(2, 2, 'guid')],
-                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find()[0]])
         doc = directory2.get('guid')
         self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
@@ -704,7 +704,7 @@ class ResourceTest(tests.Test):
 
         self.assertEqual(
                 [(2, 1, 'guid')],
-                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find()[0]])
         doc = directory2.get('guid')
         self.assertEqual(3, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
@@ -719,7 +719,7 @@ class ResourceTest(tests.Test):
 
         self.assertEqual(
                 [(2, 1, 'guid')],
-                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory2.find()[0]])
         doc = directory2.get('guid')
         self.assertEqual(4, doc.get('seqno'))
         self.assertEqual(2, doc.meta('guid')['mtime'])
@@ -744,7 +744,7 @@ class ResourceTest(tests.Test):
             directory2.merge(shift_seqno=False, **patch)
         self.assertEqual(
                 [(1, 1, '1', '1')],
-                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory2.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory2.find()[0]])
         doc = directory2.get('1')
         self.assertEqual(0, doc.get('seqno'))
         self.assertEqual(0, doc.meta('guid')['seqno'])
@@ -755,7 +755,7 @@ class ResourceTest(tests.Test):
             directory3.merge(**patch)
         self.assertEqual(
                 [(1, 1, '1', '1')],
-                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find()[0]])
         doc = directory3.get('1')
         self.assertEqual(1, doc.get('seqno'))
         self.assertEqual(1, doc.meta('guid')['seqno'])
@@ -768,7 +768,7 @@ class ResourceTest(tests.Test):
             directory3.merge(shift_seqno=False, **patch)
         self.assertEqual(
                 [(2, 2, '1', '2')],
-                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find()[0]])
         doc = directory3.get('1')
         self.assertEqual(1, doc.get('seqno'))
         self.assertEqual(1, doc.meta('guid')['seqno'])
@@ -781,7 +781,7 @@ class ResourceTest(tests.Test):
             directory3.merge(**patch)
         self.assertEqual(
                 [(3, 3, '1', '3')],
-                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find()[0]])
         doc = directory3.get('1')
         self.assertEqual(2, doc.get('seqno'))
         self.assertEqual(1, doc.meta('guid')['seqno'])
@@ -828,7 +828,7 @@ class ResourceTest(tests.Test):
 
         self.assertEqual(
                 [(2, 3, '1')],
-                [(i['ctime'], i['mtime'], i['guid']) for i in directory.find(0, 1024)[0]])
+                [(i['ctime'], i['mtime'], i['guid']) for i in directory.find()[0]])
 
         doc = directory.get('1')
         self.assertEqual(1, doc.get('seqno'))
@@ -853,12 +853,12 @@ class ResourceTest(tests.Test):
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
         guid = directory.create({'prop': '1'})
-        self.assertEqual([guid], [i.guid for i in directory.find(0, 1024)[0]])
+        self.assertEqual([guid], [i.guid for i in directory.find()[0]])
         directory.commit()
         assert directory.mtime != 0
 
         directory.wipe()
-        self.assertEqual([], [i.guid for i in directory.find(0, 1024)[0]])
+        self.assertEqual([], [i.guid for i in directory.find()[0]])
         assert directory.mtime == 0
 
 

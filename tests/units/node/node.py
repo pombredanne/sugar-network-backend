@@ -150,10 +150,10 @@ class NodeTest(tests.Test):
         self.assertEqual({
             'guid': guid,
             'title': 'title',
-            'layer': ['public'],
+            'layer': [],
             },
             call(cp, method='GET', document='context', guid=guid, reply=['guid', 'title', 'layer']))
-        self.assertEqual(['public'], volume['context'].get(guid)['layer'])
+        self.assertEqual([], volume['context'].get(guid)['layer'])
 
         def subscribe():
             for event in cp.subscribe():
@@ -700,9 +700,9 @@ class NodeTest(tests.Test):
         guid2 = json.load(conn.request('POST', ['implementation'], bundle2, params={'cmd': 'release'}).raw)
 
         self.assertEqual('1', volume['implementation'].get(guid1)['version'])
-        self.assertEqual(['public'], volume['implementation'].get(guid1)['layer'])
+        self.assertEqual([], volume['implementation'].get(guid1)['layer'])
         self.assertEqual('2', volume['implementation'].get(guid2)['version'])
-        self.assertEqual(['public'], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual([], volume['implementation'].get(guid2)['layer'])
         self.assertEqual(bundle2, conn.get(['context', 'bundle_id'], cmd='clone'))
 
         activity_info = '\n'.join([
@@ -721,9 +721,9 @@ class NodeTest(tests.Test):
         self.assertEqual('1', volume['implementation'].get(guid1)['version'])
         self.assertEqual(['deleted'], volume['implementation'].get(guid1)['layer'])
         self.assertEqual('2', volume['implementation'].get(guid2)['version'])
-        self.assertEqual(['public'], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual([], volume['implementation'].get(guid2)['layer'])
         self.assertEqual('1', volume['implementation'].get(guid3)['version'])
-        self.assertEqual(['public'], volume['implementation'].get(guid3)['layer'])
+        self.assertEqual([], volume['implementation'].get(guid3)['layer'])
         self.assertEqual(bundle2, conn.get(['context', 'bundle_id'], cmd='clone'))
 
         activity_info = '\n'.join([
@@ -744,9 +744,9 @@ class NodeTest(tests.Test):
         self.assertEqual('2', volume['implementation'].get(guid2)['version'])
         self.assertEqual(['deleted'], volume['implementation'].get(guid2)['layer'])
         self.assertEqual('1', volume['implementation'].get(guid3)['version'])
-        self.assertEqual(['public'], volume['implementation'].get(guid3)['layer'])
+        self.assertEqual([], volume['implementation'].get(guid3)['layer'])
         self.assertEqual('2', volume['implementation'].get(guid4)['version'])
-        self.assertEqual(['public'], volume['implementation'].get(guid4)['layer'])
+        self.assertEqual([], volume['implementation'].get(guid4)['layer'])
         self.assertEqual(bundle3, conn.get(['context', 'bundle_id'], cmd='clone'))
 
 

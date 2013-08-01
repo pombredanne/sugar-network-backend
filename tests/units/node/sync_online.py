@@ -103,8 +103,8 @@ class SyncOnlineTest(tests.Test):
         client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['deleted']},
-            {'guid': guid2, 'content': {'en-us': '22'}, 'layer': ['public']},
-            {'guid': guid3, 'content': {'en-us': '3'}, 'layer': ['public']},
+            {'guid': guid2, 'content': {'en-us': '22'}, 'layer': []},
+            {'guid': guid3, 'content': {'en-us': '3'}, 'layer': []},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
         self.assertEqual([[8, None]], json.load(file('slave/pull.sequence')))
@@ -120,8 +120,8 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': 'a'}, 'layer': ['deleted']},
             {'guid': guid2, 'content': {'en-us': 'b'}, 'layer': ['deleted']},
-            {'guid': guid3, 'content': {'en-us': 'c'}, 'layer': ['public']},
-            {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
+            {'guid': guid3, 'content': {'en-us': 'c'}, 'layer': []},
+            {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': []},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
         self.assertEqual([[12, None]], json.load(file('slave/pull.sequence')))
@@ -180,8 +180,8 @@ class SyncOnlineTest(tests.Test):
         slave_client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['deleted']},
-            {'guid': guid2, 'content': {'en-us': '22'}, 'layer': ['public']},
-            {'guid': guid3, 'content': {'en-us': '3'}, 'layer': ['public']},
+            {'guid': guid2, 'content': {'en-us': '22'}, 'layer': []},
+            {'guid': guid3, 'content': {'en-us': '3'}, 'layer': []},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
         self.assertEqual([[8, None]], json.load(file('slave/pull.sequence')))
@@ -197,8 +197,8 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([
             {'guid': guid1, 'content': {'en-us': 'a'}, 'layer': ['deleted']},
             {'guid': guid2, 'content': {'en-us': 'b'}, 'layer': ['deleted']},
-            {'guid': guid3, 'content': {'en-us': 'c'}, 'layer': ['public']},
-            {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': ['public']},
+            {'guid': guid3, 'content': {'en-us': 'c'}, 'layer': []},
+            {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': []},
             ],
             [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
         self.assertEqual([[13, None]], json.load(file('slave/pull.sequence')))

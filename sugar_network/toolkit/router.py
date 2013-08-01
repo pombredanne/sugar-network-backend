@@ -229,6 +229,15 @@ class Request(dict):
         self._pos += len(result)
         return result
 
+    def add(self, key, value):
+        existing_value = self.get(key)
+        if existing_value is None:
+            self[key] = value
+        elif type(existing_value) is list:
+            existing_value.append(value)
+        else:
+            self[key] = [existing_value, value]
+
     def __repr__(self):
         return '<Request method=%s path=%r cmd=%s query=%r>' % \
                 (self.method, self.path, self.cmd, dict(self))
@@ -336,7 +345,7 @@ class Router(object):
                 fallback, method, path, cmd, kwargs = attr.route
                 routes = self._routes
                 for i, part in enumerate(path):
-                    enforce(i == 0 or not routes.fallback_ops or \
+                    enforce(i == 0 or not routes.fallback_ops or
                             (fallback and i == len(path) - 1),
                             'Fallback route should not have sub-routes')
                     if part is None:
