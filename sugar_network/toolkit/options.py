@@ -29,17 +29,14 @@ class Option(object):
     all services.
 
     """
-    #: Collected by `Option.seek()` options in original order.
-    unsorted_items = []
     #: Collected by `Option.seek()` options by name.
     items = {}
-    #: Collected by `Option.seek()` options by section.
-    sections = {}
     #: Configure files used to form current configuration
     config_files = []
     #: `Option` value for --config setting
     config = None
 
+    _parser = None
     _config_to_save = None
 
     def __init__(self, description=None, default=None, short_option=None,
@@ -108,9 +105,8 @@ class Option(object):
     def seek(section, mod=None):
         """Collect `Option` objects.
 
-        Function will populate `Option.unsorted_items`, `Option.items` and
-        `Option.sections` values. Call this function before any usage
-        of `Option` objects.
+        Call this function before any usage of `Option` objects to scan
+        module(s) for option objects.
 
         :param section:
             arbitrary name to group options per section
@@ -134,17 +130,11 @@ class Option(object):
             if not (type(attr).__name__ == 'Option' and
                     type(attr).__module__.split('.')[-1] == 'options'):
                 continue
-
             attr.attr_name = name
             attr.name = name.replace('_', '-')
             attr.module = mod
             attr.section = section
-
-            Option.unsorted_items.append(attr)
             Option.items[attr.name] = attr
-            if section not in Option.sections:
-                Option.sections[section] = {}
-            Option.sections[section][attr.name] = attr
 
     @staticmethod
     def load(config_files):
@@ -158,7 +148,7 @@ class Option(object):
             option values; this value will initiate `Option.config` variable
 
         """
-        Option._merge(None, config_files)
+        Option._load(None, config_files)
 
     @staticmethod
     def parse_args(parser, config_files=None, stop_args=None, notice=None):
@@ -188,7 +178,7 @@ class Option(object):
             parser.enable_interspersed_args()
             options, args = parser.parse_args(args, options)
 
-        Option._merge(options, None)
+        Option._load(options, None)
 
         # Update default values accoriding to current values
         # to expose them while processing --help
@@ -200,39 +190,54 @@ class Option(object):
         return options, args
 
     @staticmethod
-    def export():
+    def help():
         """Current configuration in human readable form.
 
         :returns:
             list of lines
 
         """
-        import textwrap
+        from textwrap import wrap
+
+        sections = {}
+        for prop in sorted(Option.items):
+            prop = Option.items[prop]
+            section = sections.setdefault(prop.section, [])
+            section.append(prop)
 
         lines = []
-        sections = set()
+        for section, props in sections.items():
+            lines.append('[%s]' % section)
+            for prop in props:
+                lines.append('\n'.join(
+                        ['# %s' % i for i in wrap(prop.description, 78)]))
+                value = '\n\t'.join(str(prop).split('\n'))
+                lines.append('%s = %s' % (prop.name, value))
+            lines.append('')
 
-        for prop in Option.unsorted_items:
-            if prop.section not in sections:
-                if sections:
-                    lines.append('')
-                lines.append('[%s]' % prop.section)
-                sections.add(prop.section)
-            lines.append('\n'.join(
-                    ['# %s' % i for i in textwrap.wrap(prop.description, 78)]))
-            value = '\n\t'.join(str(prop).split('\n'))
-            lines.append('%s = %s' % (prop.name, value))
-
-        return lines
+        return '\n'.join(lines)
 
     @staticmethod
     def save(path=None):
+        from cStringIO import StringIO
+        from sugar_network.toolkit import new_file
+
+        if Option._parser is None:
+            raise RuntimeError('No configure files to save')
         if not path:
             if not Option._config_to_save:
                 raise RuntimeError('No configure files to save')
             path = Option._config_to_save
-        with file(path, 'w') as f:
-            f.write('\n'.join(Option.export()))
+
+        for prop in Option.items.values():
+            if not Option._parser.has_section(prop.section):
+                Option._parser.add_section(prop.section)
+            Option._parser.set(prop.section, prop.name, prop.value)
+        result = StringIO()
+        Option._parser.write(result)
+
+        with new_file(path) as f:
+            f.write(result.getvalue())
 
     @staticmethod
     def bool_cast(x):
@@ -305,36 +310,33 @@ class Option(object):
                         action=prop.action, help=desc)
 
     @staticmethod
-    def _merge(options, config_files):
+    def _load(options, config_files):
         from ConfigParser import ConfigParser
+        Option._parser = ConfigParser()
+
+        def load_config(path):
+            if Option._config_to_save is None:
+                Option._config_to_save = path
+            Option.config_files.append(path)
+            Option._parser.read(path)
 
         if not config_files and Option.config is not None:
             config_files = Option.config.value
 
-        configs = [ConfigParser()]
-        for config in config_files or []:
-            if isinstance(config, ConfigParser):
-                configs.append(config)
-                continue
-            config = expanduser(config)
-            if isdir(config):
-                for path in sorted(os.listdir(config)):
-                    path = join(config, path)
-                    Option.config_files.append(path)
-                    configs[0].read(path)
-            elif exists(config):
-                Option.config_files.append(config)
-                configs[0].read(config)
-                Option._config_to_save = config
+        for config_path in config_files or []:
+            config_path = expanduser(config_path)
+            if isdir(config_path):
+                for path in sorted(os.listdir(config_path)):
+                    load_config(join(config_path, path))
+            elif exists(config_path):
+                load_config(config_path)
 
         for prop in Option.items.values():
             if hasattr(options, prop.attr_name) and \
                     getattr(options, prop.attr_name) is not None:
                 prop.value = getattr(options, prop.attr_name)
-            else:
-                for config in configs:
-                    if config.has_option(prop.section, prop.name):
-                        prop.value = config.get(prop.section, prop.name)
+            elif Option._parser.has_option(prop.section, prop.name):
+                prop.value = Option._parser.get(prop.section, prop.name)
 
 
 def _get_frame(frame_no):

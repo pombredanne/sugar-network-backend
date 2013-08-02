@@ -25,6 +25,55 @@ class OptionsTest(tests.Test):
         self.assertEqual('22', p2.value)
         self.assertEqual('33', p3.value)
 
+    def test_SaveChangedOptions(self):
+        option = Option(name='option')
+        Option.seek('section', [option])
+
+        self.touch(('config', [
+            '[section]',
+            'option = 1',
+            ]))
+        Option.load(['config'])
+        self.assertEqual('1', option.value)
+
+        option.value = '2'
+        Option.save()
+
+        option.value = ''
+        Option.load(['config'])
+        self.assertEqual('2', option.value)
+
+    def test_PreserveNonSeekConfigOnSave(self):
+        option = Option(name='option')
+        Option.seek('section', [option])
+
+        self.touch(('config', [
+            '[foo]',
+            'o1 = 1  # foo',
+            '[section]',
+            'option = 1',
+            '[bar]',
+            'o2 = 2  # bar',
+            ]))
+        Option.load(['config'])
+        self.assertEqual('1', option.value)
+
+        option.value = '2'
+        Option.save()
+
+        self.assertEqual('\n'.join([
+            '[foo]',
+            'o1 = 1  # foo',
+            '',
+            '[section]',
+            'option = 2',
+            '',
+            '[bar]',
+            'o2 = 2  # bar',
+            '\n',
+            ]),
+            file('config').read())
+
 
 if __name__ == '__main__':
     tests.main()

@@ -247,7 +247,7 @@ class Application(object):
             enforce(opt in Option.items, 'Unknown option "%s"', opt)
             exit(0 if bool(Option.items[opt].value) else 1)
         else:
-            print '\n'.join(Option.export())
+            print Option.help()
 
     def _keep_stdout(self):
         log_dir = abspath(logdir.value)
