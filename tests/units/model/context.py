@@ -20,7 +20,7 @@ class ContextTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        self.assertEqual(['public', 'common'], ipc.get(['context', guid, 'layer']))
+        self.assertEqual(['common'], ipc.get(['context', guid, 'layer']))
 
         guid = ipc.post(['context'], {
             'type': 'package',

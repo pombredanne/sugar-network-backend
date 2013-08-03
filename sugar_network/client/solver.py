@@ -19,6 +19,7 @@ import sys
 import logging
 from os.path import isabs, join, dirname
 
+from sugar_network import client
 from sugar_network.client import packagekit, SUGAR_API_COMPATIBILITY
 from sugar_network.toolkit.spec import parse_version
 from sugar_network.toolkit import http, lsb_release, pipe, exception
@@ -203,7 +204,7 @@ def _load_feed(conn, context):
     feed_content = None
     try:
         feed_content = conn.get(['context', context], cmd='feed',
-                # TODO stability='stable'
+                stability=client.stability(context),
                 distro=lsb_release.distributor_id())
         pipe.trace('Found %s feed: %r', context, feed_content)
     except http.ServiceUnavailable:
@@ -271,7 +272,7 @@ class _Feed(model.ZeroInstallFeed):
         impl.version = parse_version(release['version'])
         impl.released = 0
         impl.arch = release['arch']
-        impl.upstream_stability = model.stability_levels[release['stability']]
+        impl.upstream_stability = model.stability_levels['stable']
         impl.requires.extend(_read_requires(release.get('requires')))
         impl.hints = release
 

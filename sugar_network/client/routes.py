@@ -179,6 +179,8 @@ class ClientRoutes(model.Routes, journal.Routes):
 
         context_type = self._node_call(method='GET',
                 path=['context', request.guid, 'type'])
+        if 'stability' not in request:
+            request['stability'] = client.stability(request.guid)
 
         if 'activity' in context_type:
             self._clone_activity(request)
@@ -187,8 +189,8 @@ class ClientRoutes(model.Routes, journal.Routes):
             def get_props():
                 impls = self._node_call(method='GET',
                         path=['implementation'], context=request.guid,
-                        stability='stable', order_by='-version', limit=1,
-                        reply=['guid'])['result']
+                        stability=request['stability'], order_by='-version',
+                        limit=1, reply=['guid'])['result']
                 enforce(impls, http.NotFound, 'No implementations')
                 impl_id = impls[0]['guid']
                 props = self._node_call(method='GET',
@@ -279,10 +281,9 @@ class ClientRoutes(model.Routes, journal.Routes):
             request = Request(method=method, path=path)
         request.update(kwargs)
         if self._inline.is_set():
-            if client.layers.value and request.resource in \
-                    ('context', 'implementation') and \
-                    'layer' not in request:
-                request['layer'] = client.layers.value
+            if client.layers.value and \
+                    request.resource in ('context', 'implementation'):
+                request.add('layer', *client.layers.value)
             try:
                 reply = self._node.call(request, response)
                 if hasattr(reply, 'read'):
@@ -503,7 +504,7 @@ class ClientRoutes(model.Routes, journal.Routes):
         self._checkin_context(request.guid, {'clone': 1})
         if request.get('nodeps'):
             pipe = injector.clone_impl(request.guid,
-                    stability=request.get('stability'),
+                    stability=request['stability'],
                     requires=request.get('requires'))
         else:
             pipe = injector.clone(request.guid)

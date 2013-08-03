@@ -229,14 +229,15 @@ class Request(dict):
         self._pos += len(result)
         return result
 
-    def add(self, key, value):
+    def add(self, key, *values):
         existing_value = self.get(key)
-        if existing_value is None:
-            self[key] = value
-        elif type(existing_value) is list:
-            existing_value.append(value)
-        else:
-            self[key] = [existing_value, value]
+        for value in values:
+            if existing_value is None:
+                existing_value = self[key] = value
+            elif type(existing_value) is list:
+                existing_value.append(value)
+            else:
+                existing_value = self[key] = [existing_value, value]
 
     def __repr__(self):
         return '<Request method=%s path=%r cmd=%s query=%r>' % \

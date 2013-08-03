@@ -174,7 +174,7 @@ class RoutesTest(tests.Test):
                 }
 
         guid = call(cp, post)
-        self.assertEqual(['public', 'local'], call(cp, Request(method='GET', path=['context', guid, 'layer'])))
+        self.assertEqual(['local'], call(cp, Request(method='GET', path=['context', guid, 'layer'])))
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
         node_volume = self.start_master()
@@ -182,7 +182,7 @@ class RoutesTest(tests.Test):
         trigger.wait()
 
         guid = call(cp, post)
-        self.assertEqual(['public'], call(cp, Request(method='GET', path=['context', guid, 'layer'])))
+        self.assertEqual([], call(cp, Request(method='GET', path=['context', guid, 'layer'])))
 
     def test_CachedClientCommands(self):
         volume = db.Volume('client', model.RESOURCES)

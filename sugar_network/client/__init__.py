@@ -228,6 +228,13 @@ def sugar_profile():
             }
 
 
+def stability(context):
+    value = Option.get('stabilities', context) or \
+            Option.get('stabilities', 'default') or \
+            'stable'
+    return value.split()
+
+
 def _read_XO_value(paths):
     for value_path in paths:
         if exists(value_path):

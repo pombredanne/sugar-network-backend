@@ -218,13 +218,13 @@ class NodeRoutes(db.Routes, model.Routes):
 
     @route('GET', ['context', None], cmd='feed',
             mime_type='application/json')
-    def feed(self, request, layer, distro):
+    def feed(self, request, distro):
         context = self.volume['context'].get(request.guid)
         implementations = self.volume['implementation']
         versions = []
 
         impls, __ = implementations.find(limit=db.MAX_LIMIT,
-                context=context.guid, layer=layer, not_layer='deleted')
+                context=context.guid, not_layer='deleted', **request)
         for impl in impls:
             for arch, spec in impl.meta('data')['spec'].items():
                 spec['guid'] = impl.guid

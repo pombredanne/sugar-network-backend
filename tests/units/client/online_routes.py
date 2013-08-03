@@ -23,6 +23,7 @@ from sugar_network.model.context import Context
 from sugar_network.model.implementation import Implementation
 from sugar_network.model.artifact import Artifact
 from sugar_network.toolkit.router import route
+from sugar_network.toolkit import Option
 
 import requests
 
@@ -156,6 +157,94 @@ class OnlineRoutes(tests.Test):
         self.assertEqual(
                 {'clone': 2},
                 ipc.get(['context', context], reply=['clone']))
+
+    def test_clone_ActivitiesWithStabilityPreferences(self):
+        self.home_volume = self.start_online_client()
+        ipc = IPCConnection()
+        coroutine.spawn(clones.monitor, self.home_volume['context'], ['Activities'])
+
+        context = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        impl1 = ipc.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            })
+        info1 = '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = %s' % context,
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license=Public Domain',
+            ])
+        self.node_volume['implementation'].update(impl1, {'data': {
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'extract': 'TestActivitry',
+                    },
+                },
+            'blob': StringIO(self.zips(['TestActivitry/activity/activity.info', info1])),
+            }})
+
+        impl2 = ipc.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '2',
+            'stability': 'testing',
+            'notes': '',
+            })
+        info2 = '\n'.join([
+            '[Activity]',
+            'name = TestActivitry',
+            'bundle_id = %s' % context,
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license=Public Domain',
+            ])
+        self.node_volume['implementation'].update(impl2, {'data': {
+            'spec': {
+                '*-*': {
+                    'commands': {
+                        'activity': {
+                            'exec': 'true',
+                            },
+                        },
+                    'extract': 'TestActivitry2',
+                    },
+                },
+            'blob': StringIO(self.zips(['TestActivitry2/activity/activity.info', info2])),
+            }})
+
+        ipc.put(['context', context], 2, cmd='clone')
+        coroutine.sleep(.5)
+        not exists('Activities/TestActivitry2/activity/activity.info')
+        self.assertEqual(info1, file('Activities/TestActivitry/activity/activity.info').read())
+
+        self.touch(('config', [
+            '[stabilities]',
+            '%s = testing stable' % context,
+            ]))
+        Option.load(['config'])
+
+        shutil.rmtree('cache/solutions')
+        ipc.put(['context', context], 2, cmd='clone', force=1)
+        coroutine.sleep(.5)
+        self.assertEqual(info2, file('Activities/TestActivitry2/activity/activity.info').read())
 
     def test_clone_ActivityImpl(self):
         self.home_volume = self.start_online_client()
@@ -638,6 +727,7 @@ class OnlineRoutes(tests.Test):
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
+            'layer': 'public',
             })
         impl = ipc.post(['implementation'], {
             'context': context,
@@ -645,6 +735,7 @@ class OnlineRoutes(tests.Test):
             'version': '1',
             'stability': 'stable',
             'notes': '',
+            'layer': 'public',
             })
         self.node_volume['implementation'].update(impl, {'data': {
             'spec': {'*-*': {}},
@@ -654,6 +745,7 @@ class OnlineRoutes(tests.Test):
             'context': 'context',
             'title': 'title',
             'description': 'description',
+            'layer': 'public',
             })
 
         self.assertEqual(

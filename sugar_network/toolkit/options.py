@@ -102,6 +102,13 @@ class Option(object):
             self._value = str(x) or None
 
     @staticmethod
+    def get(section, key):
+        if Option._parser is None or \
+                not Option._parser.has_option(section, key):
+            return None
+        return Option._parser.get(section, key)
+
+    @staticmethod
     def seek(section, mod=None):
         """Collect `Option` objects.
 

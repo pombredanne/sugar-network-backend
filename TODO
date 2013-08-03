@@ -1,6 +1,7 @@
 - 0.10
   - i18n searches
 
+- invalidate solutions cache on config changes (layers ans stabilities might be changed)
 - delete outdated impls on PUTing new one
 
 - (!) Editors' workflows:

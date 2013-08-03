@@ -27,6 +27,7 @@ from sugar_network.model.context import Context
 from sugar_network.model.implementation import Implementation
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node import stats_user, stats_node, obs, slave, downloads
+from requests import adapters
 
 
 root = abspath(dirname(__file__))
@@ -72,6 +73,7 @@ class Test(unittest.TestCase):
         shutil.copy(join(root, 'data', 'owner.key'), join(profile_dir, 'owner.key'))
         shutil.copy(join(root, 'data', 'owner.key.pub'), profile_dir)
 
+        adapters.DEFAULT_RETRIES = 5
         Option.unsorted_items = []
         Option.items = {}
         Option.sections = {}
