@@ -25,7 +25,8 @@ from optparse import OptionParser
 from os.path import join, abspath, exists, basename
 from gettext import gettext as _
 
-from sugar_network.toolkit import Option, coroutine, printf, enforce
+from sugar_network.toolkit import Option
+from sugar_network.toolkit import coroutine, printf, init_logging, enforce
 
 
 debug = Option(
@@ -55,9 +56,6 @@ logdir = Option(
 rundir = Option(
         'path to a directory to place pid files',
         name='rundir')
-
-
-_LOGFILE_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
 def command(description='', name=None, args=None, hidden=False,
@@ -168,21 +166,7 @@ class Application(object):
                 print epilog
             exit(0)
 
-        if not debug.value:
-            logging_level = logging.WARNING
-        elif debug.value == 1:
-            logging_level = logging.INFO
-        elif debug.value == 2:
-            logging_level = logging.DEBUG
-        elif debug.value > 2:
-            logging_level = 0
-        logging_format = _LOGFILE_FORMAT
-
-        root_logger = logging.getLogger('')
-        for i in root_logger.handlers:
-            root_logger.removeHandler(i)
-
-        logging.basicConfig(level=logging_level, format=logging_format)
+        init_logging(debug.value)
 
     def epilog(self):
         pass

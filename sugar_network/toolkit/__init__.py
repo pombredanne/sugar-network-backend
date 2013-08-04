@@ -187,17 +187,48 @@ def uuid():
     return ''.join(str(uuid1()).split('-'))
 
 
-def init_logging(debug_level):
+def init_logging(debug_level=None, **kwargs):
     # pylint: disable-msg=W0212
 
     logging.addLevelName(9, 'TRACE')
     logging.addLevelName(8, 'HEARTBEAT')
 
+    if debug_level is None:
+        logging_level = logging.getLogger().level
+    else:
+        logging_level = 0
+        if debug_level < 3:
+            if logging_level <= 0:
+                logging_level = logging.WARNING
+            elif debug_level == 1:
+                logging_level = logging.INFO
+            elif debug_level == 2:
+                logging_level = logging.DEBUG
+        elif debug_level < 4:
+            logging_level = 9
+        else:
+            logging_level = 8
+
+    def disable_logger(loggers):
+        for log_name in loggers:
+            logger = logging.getLogger(log_name)
+            logger.propagate = False
+            logger.addHandler(_NullHandler())
+
     logging.Logger.trace = lambda self, message, *args, **kwargs: None
     logging.Logger.heartbeat = lambda self, message, *args, **kwargs: None
 
-    if debug_level < 3:
-        _disable_logger([
+    if logging_level <= 8:
+        logging.Logger.trace = lambda self, message, *args, **kwargs: \
+                self._log(9, message, args, **kwargs)
+        logging.Logger.heartbeat = lambda self, message, *args, **kwargs: \
+                self._log(8, message, args, **kwargs)
+    elif logging_level == 9:
+        logging.Logger.trace = lambda self, message, *args, **kwargs: \
+                self._log(9, message, args, **kwargs)
+        disable_logger(['sugar_stats'])
+    else:
+        disable_logger([
             'requests.packages.urllib3.connectionpool',
             'requests.packages.urllib3.poolmanager',
             'requests.packages.urllib3.response',
@@ -207,15 +238,13 @@ def init_logging(debug_level):
             'sugar_stats',
             '0install',
             ])
-    elif debug_level < 4:
-        logging.Logger.trace = lambda self, message, *args, **kwargs: \
-                self._log(9, message, args, **kwargs)
-        _disable_logger(['sugar_stats'])
-    else:
-        logging.Logger.trace = lambda self, message, *args, **kwargs: \
-                self._log(9, message, args, **kwargs)
-        logging.Logger.heartbeat = lambda self, message, *args, **kwargs: \
-                self._log(8, message, args, **kwargs)
+
+    root_logger = logging.getLogger('')
+    for i in root_logger.handlers:
+        root_logger.removeHandler(i)
+    logging.basicConfig(level=logging_level,
+            format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+            **kwargs)
 
 
 def ensure_key(path):
@@ -829,13 +858,6 @@ def _nb_read(stream):
         return ''
     finally:
         fcntl.fcntl(fd, fcntl.F_SETFL, orig_flags)
-
-
-def _disable_logger(loggers):
-    for log_name in loggers:
-        logger = logging.getLogger(log_name)
-        logger.propagate = False
-        logger.addHandler(_NullHandler())
 
 
 _default_lang = None

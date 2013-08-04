@@ -41,9 +41,7 @@ class Application(application.Daemon):
         application.Daemon.__init__(self, **kwargs)
 
         node.sync_layers.value = client.layers.value
-
         self.jobs = coroutine.Pool()
-        toolkit.init_logging(application.debug.value)
 
         new_root = (client.local_root.value != client.local_root.default)
         client.local_root.value = abspath(client.local_root.value)

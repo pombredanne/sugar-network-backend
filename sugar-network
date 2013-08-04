@@ -88,7 +88,6 @@ class Application(application.Application):
         application.Application.__init__(self, **kwargs)
 
         application.rundir.value = join(client.local_root.value, 'run')
-        toolkit.init_logging(application.debug.value)
 
         if not exists(toolkit.cachedir.value):
             os.makedirs(toolkit.cachedir.value)
