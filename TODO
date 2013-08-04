@@ -1,5 +1,6 @@
 - 0.10
   - i18n searches
+  - rebuild SN repo to update "name"
 
 - invalidate solutions cache on config changes (layers ans stabilities might be changed)
 - delete outdated impls on PUTing new one

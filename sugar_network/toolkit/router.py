@@ -406,7 +406,7 @@ class Router(object):
                 result = _stream_reader(result)
         finally:
             _logger.trace('%s call: request=%s response=%r result=%r',
-                    self, request, response, result)
+                    self, request.environ, response, result)
         return result
 
     def __repr__(self):
