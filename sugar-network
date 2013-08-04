@@ -199,7 +199,7 @@ class Application(application.Application):
         request = Request()
         self._parse_path(request)
         self._parse_args([], request)
-        result = self._connect().meta(request.path, **request)
+        result = self._connect().meta(request.path, request.query)
         self._dump(result, [])
 
     @application.command(hidden=True)

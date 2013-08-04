@@ -374,12 +374,7 @@ class Test(unittest.TestCase):
         return trigger
 
     def _setup_logging(self, fork_num):
-        for handler in logging.getLogger().handlers:
-            logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG,
-                filename=join(tmpdir, '%s.log' % fork_num),
-                format='%(asctime)s %(levelname)s %(name)s: %(message)s')
-        toolkit.init_logging(10)
+        toolkit.init_logging(10, filename=join(tmpdir, '%s.log' % fork_num))
 
         sys.stdout.flush()
         sys.stderr.flush()

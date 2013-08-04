@@ -126,12 +126,12 @@ class Connection(object):
         response = self.request('GET', path, allowed=[404])
         return response.status_code != 404
 
-    def get(self, path_=None, **kwargs):
+    def get(self, path_=None, query_=None, **kwargs):
         response = self.request('GET', path_, params=kwargs)
         return self._decode_reply(response)
 
-    def meta(self, path_=None, **kwargs):
-        response = self.request('HEAD', path_, params=kwargs)
+    def meta(self, path_=None, query_=None, **kwargs):
+        response = self.request('HEAD', path_, params=query_ or kwargs)
         result = {}
         for key, value in response.headers.items():
             if key.startswith('x-sn-'):
@@ -140,18 +140,20 @@ class Connection(object):
                 result[key] = value
         return result
 
-    def post(self, path_=None, data_=None, **kwargs):
+    def post(self, path_=None, data_=None, query_=None, **kwargs):
         response = self.request('POST', path_, json.dumps(data_),
-                headers={'Content-Type': 'application/json'}, params=kwargs)
+                headers={'Content-Type': 'application/json'},
+                params=query_ or kwargs)
         return self._decode_reply(response)
 
-    def put(self, path_=None, data_=None, **kwargs):
+    def put(self, path_=None, data_=None, query_=None, **kwargs):
         response = self.request('PUT', path_, json.dumps(data_),
-                headers={'Content-Type': 'application/json'}, params=kwargs)
+                headers={'Content-Type': 'application/json'},
+                params=query_ or kwargs)
         return self._decode_reply(response)
 
-    def delete(self, path_=None, **kwargs):
-        response = self.request('DELETE', path_, params=kwargs)
+    def delete(self, path_=None, query_=None, **kwargs):
+        response = self.request('DELETE', path_, params=query_ or kwargs)
         return self._decode_reply(response)
 
     def download(self, path, dst=None):
