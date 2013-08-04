@@ -20,7 +20,6 @@ import os
 import time
 import bisect
 import logging
-from datetime import datetime
 from os.path import exists, join
 
 
@@ -113,7 +112,7 @@ class _DbSet(object):
             self._field_names.sort()
 
         if not timestamp:
-            timestamp = int(time.mktime(datetime.utcnow().utctimetuple()))
+            timestamp = int(time.time())
         timestamp = timestamp / self._step * self._step
 
         db = self._get_db(timestamp)

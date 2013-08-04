@@ -16,9 +16,9 @@
 import os
 import cgi
 import json
-import time
 import types
 import logging
+import calendar
 import mimetypes
 from bisect import bisect_left
 from urllib import urlencode
@@ -105,6 +105,8 @@ class Request(dict):
     content_type = None
     content_length = 0
     principal = None
+    _if_modified_since = None
+    _accept_language = None
 
     def __init__(self, environ=None, method=None, path=None, cmd=None,
             **kwargs):
@@ -190,13 +192,20 @@ class Request(dict):
 
     @property
     def if_modified_since(self):
-        value = parsedate(self.environ.get('HTTP_IF_MODIFIED_SINCE'))
-        if value is not None:
-            return time.mktime(value)
+        if self._if_modified_since is None:
+            value = parsedate(self.environ.get('HTTP_IF_MODIFIED_SINCE'))
+            if value is not None:
+                self._if_modified_since = calendar.timegm(value)
+            else:
+                self._if_modified_since = 0
+        return self._if_modified_since
 
     @property
     def accept_language(self):
-        return _parse_accept_language(self.environ.get('HTTP_ACCEPT_LANGUAGE'))
+        if self._accept_language is None:
+            self._accept_language = _parse_accept_language(
+                    self.environ.get('HTTP_ACCEPT_LANGUAGE'))
+        return self._accept_language
 
     @property
     def accept_encoding(self):

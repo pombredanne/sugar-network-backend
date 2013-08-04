@@ -526,7 +526,7 @@
         <dia:point val="3,6"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="2.985,5.985;14.5475,28.015"/>
+        <dia:rectangle val="2.985,5.985;14.5475,28.815"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="3,6"/>
@@ -535,7 +535,7 @@
         <dia:real val="11.532500000000001"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="22.000000000000004"/>
+        <dia:real val="22.800000000000004"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#User#</dia:string>
@@ -777,7 +777,7 @@
             <dia:string>#0#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#User's birthday in UNIX seconds#</dia:string>
+            <dia:string>#User's birthday in seconds from UNIX epoch#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -801,16 +801,16 @@
         <dia:point val="-13,6"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="-13.015,5.985;-1.23,26.015"/>
+        <dia:rectangle val="-13.015,5.985;-0.9725,24.415"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="-13,6"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
-        <dia:real val="11.754999999999999"/>
+        <dia:real val="12.012499999999999"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="20"/>
+        <dia:real val="18.400000000000002"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Resource#</dia:string>
@@ -937,7 +937,7 @@
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#The UNIX seconds in UTC timezone of the time when object was created#</dia:string>
+            <dia:string>#Seconds from UNIX epoch when the object was created#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -960,7 +960,7 @@
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#The UNIX seconds in UTC timezone of the time when object was modified#</dia:string>
+            <dia:string>#Seconds from UNIX epoch when the object was modified#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
