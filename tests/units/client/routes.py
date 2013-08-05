@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # sugar-lint: disable
 
 import json
@@ -284,6 +285,44 @@ class RoutesTest(tests.Test):
 
         assert not self.node_volume['context'].exists(guid)
         self.assertEqual('title', call(cp, Request(method='GET', path=['context', guid, 'title'])))
+
+    def test_I18nQuery(self):
+        client.accept_language.value = 'foo'
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        guid1 = self.node_volume['context'].create({
+            'type': 'activity',
+            'title': {'en-US': 'qwe', 'ru-RU': 'йцу'},
+            'summary': 'summary',
+            'description': 'description',
+            })
+        guid2 = self.node_volume['context'].create({
+            'type': 'activity',
+            'title': {'en-US': 'qwerty', 'ru-RU': 'йцукен'},
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertEqual([
+            {'guid': guid1},
+            {'guid': guid2},
+            ],
+            ipc.get(['context'], query='йцу')['result'])
+        self.assertEqual([
+            {'guid': guid1},
+            {'guid': guid2},
+            ],
+            ipc.get(['context'], query='qwe')['result'])
+
+        self.assertEqual([
+            {'guid': guid2},
+            ],
+            ipc.get(['context'], query='йцукен')['result'])
+        self.assertEqual([
+            {'guid': guid2},
+            ],
+            ipc.get(['context'], query='qwerty')['result'])
 
 
 def call(routes, request):
