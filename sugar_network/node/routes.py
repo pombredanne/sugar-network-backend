@@ -15,6 +15,7 @@
 
 import os
 import shutil
+import gettext
 import logging
 import hashlib
 from contextlib import contextmanager
@@ -23,13 +24,14 @@ from os.path import join, isdir, exists
 
 from sugar_network import db, node, toolkit, model
 from sugar_network.node import stats_node, stats_user
+from sugar_network.model.context import Context
 # pylint: disable-msg=W0611
 from sugar_network.toolkit.router import route, preroute, postroute
 from sugar_network.toolkit.router import ACL, fallbackroute
 from sugar_network.toolkit.spec import EMPTY_LICENSE
 from sugar_network.toolkit.spec import parse_requires, ensure_requires
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import http, coroutine, enforce
+from sugar_network.toolkit import http, coroutine, exception, enforce
 
 
 _MAX_STATS_LENGTH = 100
@@ -312,8 +314,8 @@ class NodeRoutes(db.Routes, model.Routes):
                     'Operation is permitted only for superusers')
 
     @postroute
-    def postroute(self, request, response, result, exception):
-        if exception is None or isinstance(exception, http.StatusPass):
+    def postroute(self, request, response, result, error):
+        if error is None or isinstance(error, http.StatusPass):
             if self._stats is not None:
                 self._stats.log(request)
 
@@ -408,6 +410,7 @@ def load_bundle(volume, bundle_path, impl=None):
         impl = {}
     data = impl.setdefault('data', {})
     data['blob'] = bundle_path
+    context_updates = {}
 
     try:
         bundle = Bundle(bundle_path, mime_type='application/zip')
@@ -423,6 +426,7 @@ def load_bundle(volume, bundle_path, impl=None):
                 unpack_size += bundle.getmember(arcname).size
             spec = bundle.get_spec()
             extract = bundle.rootdir
+            context_updates = _load_context_metadata(bundle, spec)
         if 'requires' in impl:
             spec.requires.update(parse_requires(impl.pop('requires')))
         impl['context'] = spec['context']
@@ -460,6 +464,52 @@ def load_bundle(volume, bundle_path, impl=None):
         volume['implementation'].update(i.guid, {'layer': layer})
     impl['guid'] = volume['implementation'].create(impl)
 
+    if context_updates:
+        volume['context'].update(impl['context'], context_updates)
+
+
+def _load_context_metadata(bundle, spec):
+    result = {}
+    for prop in ('homepage', 'mime_types'):
+        if spec[prop]:
+            result[prop] = spec[prop]
+
+    try:
+        with bundle.extractfile(join(bundle.rootdir, spec['icon'])) as svg:
+            result.update(Context.image_props(svg))
+    except Exception:
+        exception(_logger, 'Failed to load icon')
+
+    msgids = {}
+    for prop, confname in [
+            ('title', 'name'),
+            ('summary', 'summary'),
+            ('description', 'description'),
+            ]:
+        if spec[confname]:
+            msgids[prop] = spec[confname]
+            result[prop] = {'en': spec[confname]}
+    with toolkit.mkdtemp() as tmpdir:
+        for path in bundle.get_names():
+            if not path.endswith('.mo'):
+                continue
+            mo_path = path.strip(os.sep).split(os.sep)
+            if len(mo_path) != 5 or mo_path[1] != 'locale':
+                continue
+            lang = mo_path[2]
+            bundle.extract(path, tmpdir)
+            try:
+                i18n = gettext.translation(spec['context'],
+                        join(tmpdir, *mo_path[:2]), [lang])
+                for prop, value in msgids.items():
+                    msgstr = i18n.gettext(value)
+                    if msgstr != value or lang == 'en':
+                        result[prop][lang] = msgstr
+            except Exception:
+                exception(_logger, 'Gettext failed to read %r', mo_path[-1])
+
+    return result
+
 
 def _load_pubkey(pubkey):
     pubkey = pubkey.strip()
@@ -472,7 +522,7 @@ def _load_pubkey(pubkey):
                     ['ssh-keygen', '-f', key_file.name, '-e', '-m', 'PKCS8'])
     except Exception:
         message = 'Cannot read DSS public key gotten for registeration'
-        toolkit.exception(message)
+        exception(_logger, message)
         if node.trust_users.value:
             logging.warning('Failed to read registration pubkey, '
                     'but we trust users')

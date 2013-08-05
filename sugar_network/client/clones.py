@@ -22,6 +22,7 @@ from os.path import join, exists, lexists, relpath, dirname, basename, isdir
 from os.path import abspath, islink
 
 from sugar_network import db, client, toolkit
+from sugar_network.model.context import Context
 from sugar_network.toolkit.spec import Spec
 from sugar_network.toolkit.inotify import Inotify, \
         IN_DELETE_SELF, IN_CREATE, IN_DELETE, IN_CLOSE_WRITE, \
@@ -168,12 +169,8 @@ class _Inotify(Inotify):
 
             icon_path = join(spec.root, spec['icon'])
             if exists(icon_path):
-                with file(icon_path, 'rb') as f:
-                    self._contexts.update(context,
-                            {'artifact_icon': {'blob': f}})
-                with toolkit.NamedTemporaryFile() as f:
-                    toolkit.svg_to_png(icon_path, f.name, 32, 32)
-                    self._contexts.update(context, {'icon': {'blob': f.name}})
+                with file(icon_path, 'rb') as svg:
+                    self._contexts.update(context, Context.image_props(svg))
 
         self._checkin_activity(spec)
 

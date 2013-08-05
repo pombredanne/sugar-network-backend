@@ -1,9 +1,11 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # sugar-lint: disable
 
 import os
 import time
 import json
+import base64
 from email.utils import formatdate, parsedate
 from cStringIO import StringIO
 from os.path import exists
@@ -748,6 +750,75 @@ class NodeTest(tests.Test):
         self.assertEqual('2', volume['implementation'].get(guid4)['version'])
         self.assertEqual([], volume['implementation'].get(guid4)['layer'])
         self.assertEqual(bundle3, conn.get(['context', 'bundle_id'], cmd='clone'))
+
+    def test_release_LoadMetadata(self):
+        volume = self.start_master()
+        conn = Connection()
+
+        conn.post(['context'], {
+            'guid': 'org.laptop.ImageViewerActivity',
+            'type': 'activity',
+            'title': {'en': ''},
+            'summary': {'en': ''},
+            'description': {'en': ''},
+            })
+        svg = '\n'.join([
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" [',
+            '  <!ENTITY fill_color "#FFFFFF">',
+            '  <!ENTITY stroke_color "#010101">',
+            ']>',
+            '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">',
+            '    <rect x="3" y="7" width="44" height="36" style="fill:&fill_color;;stroke:&stroke_color;;stroke-width:3"/>',
+            '    <polyline points="15,7 25,1 35,7" style="fill:none;;stroke:&stroke_color;;stroke-width:1.25"/>',
+            '    <circle cx="14" cy="19" r="4.5" style="fill:&stroke_color;;stroke:&stroke_color;;stroke-width:1.5"/>',
+            '    <polyline points="3,36 16,32 26,35" style="fill:none;;stroke:&stroke_color;;stroke-width:2.5"/>',
+            '    <polyline points="15,43 37,28 47,34 47,43" style="fill:&stroke_color;;stroke:&stroke_color;;stroke-width:3"/>',
+            '    <polyline points="22,41.5 35,30 27,41.5" style="fill:&fill_color;;stroke:none;;stroke-width:0"/>',
+            '    <polyline points="26,23 28,25 30,23" style="fill:none;;stroke:&stroke_color;;stroke-width:.9"/>',
+            '    <polyline points="31.2,20 33.5,17.7 35.8,20" style="fill:none;;stroke:&stroke_color;;stroke-width:1"/>',
+            '    <polyline points="36,13 38.5,15.5 41,13" style="fill:none;;stroke:&stroke_color;;stroke-width:1"/>',
+            '</svg>',
+            ])
+        bundle = self.zips(
+                ('ImageViewer.activity/activity/activity.info', '\n'.join([
+                    '[Activity]',
+                    'bundle_id = org.laptop.ImageViewerActivity',
+                    'name      = Image Viewer',
+                    'summary   = The Image Viewer activity is a simple and fast image viewer tool',
+                    'description = It has features one would expect of a standard image viewer, like zoom, rotate, etc.',
+                    'homepage  = http://wiki.sugarlabs.org/go/Activities/Image_Viewer',
+                    'activity_version = 22',
+                    'license   = GPLv2+',
+                    'icon      = activity-imageviewer',
+                    'exec      = true',
+                    'mime_types = image/bmp;image/gif',
+                    ])),
+                ('ImageViewer.activity/locale/ru/LC_MESSAGES/org.laptop.ImageViewerActivity.mo',
+                    base64.b64decode('3hIElQAAAAAMAAAAHAAAAHwAAAARAAAA3AAAAAAAAAAgAQAADwAAACEBAAAOAAAAMQEAAA0AAABAAQAACgAAAE4BAAAMAAAAWQEAAA0AAABmAQAAJwAAAHQBAAAUAAAAnAEAABAAAACxAQAABwAAAMIBAAAIAAAAygEAANEBAADTAQAAIQAAAKUDAAATAAAAxwMAABwAAADbAwAAFwAAAPgDAAAhAAAAEAQAAB0AAAAyBAAAQAAAAFAEAAA9AAAAkQQAADUAAADPBAAAFAAAAAUFAAAQAAAAGgUAAAEAAAACAAAABwAAAAAAAAADAAAAAAAAAAwAAAAJAAAAAAAAAAoAAAAEAAAAAAAAAAAAAAALAAAABgAAAAgAAAAFAAAAAENob29zZSBkb2N1bWVudABEb3dubG9hZGluZy4uLgBGaXQgdG8gd2luZG93AEZ1bGxzY3JlZW4ASW1hZ2UgVmlld2VyAE9yaWdpbmFsIHNpemUAUmV0cmlldmluZyBzaGFyZWQgaW1hZ2UsIHBsZWFzZSB3YWl0Li4uAFJvdGF0ZSBhbnRpY2xvY2t3aXNlAFJvdGF0ZSBjbG9ja3dpc2UAWm9vbSBpbgBab29tIG91dABQcm9qZWN0LUlkLVZlcnNpb246IFBBQ0tBR0UgVkVSU0lPTgpSZXBvcnQtTXNnaWQtQnVncy1UbzogClBPVC1DcmVhdGlvbi1EYXRlOiAyMDEyLTA5LTI3IDE0OjU3LTA0MDAKUE8tUmV2aXNpb24tRGF0ZTogMjAxMC0wOS0yMiAxMzo1MCswMjAwCkxhc3QtVHJhbnNsYXRvcjoga3JvbTlyYSA8a3JvbTlyYUBnbWFpbC5jb20+Ckxhbmd1YWdlLVRlYW06IExBTkdVQUdFIDxMTEBsaS5vcmc+Ckxhbmd1YWdlOiAKTUlNRS1WZXJzaW9uOiAxLjAKQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PVVURi04CkNvbnRlbnQtVHJhbnNmZXItRW5jb2Rpbmc6IDhiaXQKUGx1cmFsLUZvcm1zOiBucGx1cmFscz0zOyBwbHVyYWw9KG4lMTA9PTEgJiYgbiUxMDAhPTExID8gMCA6IG4lMTA+PTIgJiYgbiUxMDw9NCAmJiAobiUxMDA8MTAgfHwgbiUxMDA+PTIwKSA/IDEgOiAyKTsKWC1HZW5lcmF0b3I6IFBvb3RsZSAyLjAuMwoA0JLRi9Cx0LXRgNC40YLQtSDQtNC+0LrRg9C80LXQvdGCANCX0LDQs9GA0YPQt9C60LAuLi4A0KPQvNC10YHRgtC40YLRjCDQsiDQvtC60L3QtQDQn9C+0LvQvdGL0Lkg0Y3QutGA0LDQvQDQn9GA0L7RgdC80L7RgtGAINC60LDRgNGC0LjQvdC+0LoA0JjRgdGC0LjQvdC90YvQuSDRgNCw0LfQvNC10YAA0J/QvtC70YPRh9C10L3QuNC1INC40LfQvtCx0YDQsNC20LXQvdC40LksINC/0L7QtNC+0LbQtNC40YLQtS4uLgDQn9C+0LLQtdGA0L3Rg9GC0Ywg0L/RgNC+0YLQuNCyINGH0LDRgdC+0LLQvtC5INGB0YLRgNC10LvQutC4ANCf0L7QstC10YDQvdGD0YLRjCDQv9C+INGH0LDRgdC+0LLQvtC5INGB0YLRgNC10LvQutC1ANCf0YDQuNCx0LvQuNC30LjRgtGMANCe0YLQtNCw0LvQuNGC0YwA')),
+                ('ImageViewer.activity/activity/activity-imageviewer.svg', svg),
+                )
+        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release'}).raw)
+
+        context = volume['context'].get('org.laptop.ImageViewerActivity')
+        self.assertEqual({
+            'en': 'Image Viewer',
+            'ru': u'Просмотр картинок',
+            },
+            context['title'])
+        self.assertEqual({
+            'en': 'The Image Viewer activity is a simple and fast image viewer tool',
+            },
+            context['summary'])
+        self.assertEqual({
+            'en': 'It has features one would expect of a standard image viewer, like zoom, rotate, etc.',
+            },
+            context['description'])
+        self.assertEqual(svg, file(context['artifact_icon']['blob']).read())
+        assert 'blob' in context['icon']
+        assert 'blob' in context['preview']
+        self.assertEqual('http://wiki.sugarlabs.org/go/Activities/Image_Viewer', context['homepage'])
+        self.assertEqual(['image/bmp', 'image/gif'], context['mime_types'])
 
 
 def call(routes, method, document=None, guid=None, prop=None, principal=None, cmd=None, content=None, **kwargs):

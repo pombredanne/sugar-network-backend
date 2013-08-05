@@ -30,7 +30,7 @@ from sugar_network.node import data_root
 from sugar_network.client.bundle import Bundle
 from sugar_network.resources.volume import Volume
 from sugar_network.node.slave import SlaveCommands
-from sugar_network.node.commands import load_activity_bundle
+from sugar_network.node.routes import load_bundle
 from sugar_network.toolkit import util, licenses, application, spec, Option
 
 
@@ -40,19 +40,6 @@ ACTIVITIES_PATH = '/upload/activities'
 SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
 PACKAGES_GUID = 'packages'
-
-SUGAR_RELEASES = {
-        (0, 82): 'sugar-0.82',
-        (0, 84): 'sugar-0.84',
-        (0, 86): 'sugar-0.86',
-        (0, 88): 'sugar-0.88',
-        (0, 90): 'sugar-0.90',
-        (0, 92): 'sugar-0.92',
-        (0, 94): 'sugar-0.94',
-        (0, 96): 'sugar-0.96',
-        (0, 98): 'sugar-0.98',
-        (0, 100): 'sugar-0.100',
-        }
 
 CATEGIORIES_TO_TAGS = {
         'Search & Discovery': 'discovery',
@@ -218,45 +205,6 @@ class Application(application.Application):
             self.sync_activities()
 
     @application.command(
-            'pull activities metadata from activities.sugarlabs.org')
-    def pull_metadata(self):
-        sql = """
-            SELECT
-                id,
-                guid
-            FROM
-                addons
-            WHERE
-                status > 0 AND status < 5
-            """
-        for addon_id in self.args:
-            sql += ' AND id = %s' % addon_id
-
-        for addon_id, bundle_id in self.sqlexec(sql):
-            impls, __ = self.volume['implementation'].find(
-                    context=bundle_id, order_by='-version', limit=1)
-            for impl in impls:
-                version = impl['version']
-                break
-            else:
-                continue
-            rows = self.sqlexec("""
-                    SELECT
-                        files.filename
-                    FROM versions
-                        INNER JOIN files ON files.version_id = versions.id
-                    WHERE
-                        versions.addon_id = %s AND versions.version = '%s'
-                    ORDER BY
-                        versions.id DESC
-                    LIMIT
-                        1
-                    """ % (addon_id, version))
-            if not rows:
-                continue
-            self.sync_context_metadata(bundle_id, addon_id, rows[0][0])
-
-    @application.command(
             'submit pulled activities.sugarlabs.org content to '
             'Sugar Network server')
     def push(self):
@@ -374,9 +322,6 @@ class Application(application.Application):
                 versions.id DESC
             """ % addon_id
 
-        recent_version = None
-        recent_filename = None
-
         for version_id, version, license_id, alicense, release_date, \
                 releasenotes, filename, sugar_min, sugar_max \
                 in self.sqlexec(sql):
@@ -439,87 +384,9 @@ class Application(application.Application):
                         (version, bundle_id, error)
                 continue
 
-            if parsed_version > recent_version:
-                recent_version = parsed_version
-                recent_filename = filename
-
-        if recent_version:
-            self.sync_context_metadata(bundle_id, addon_id, recent_filename)
-
         for guid in existing_versions:
             print '-- Hide %s %r version deleted on ASLO' % (bundle_id, guid)
             directory.update(guid, {'layer': ['deleted']})
-
-    def sync_context_metadata(self, bundle_id, addon_id, filename):
-        bundle = Bundle(join(ACTIVITIES_PATH, str(addon_id), filename))
-        spec = bundle.get_spec()
-
-        props = {}
-        for prop in ('homepage', 'mime_types'):
-            if spec[prop]:
-                props[prop] = spec[prop]
-
-        try:
-            svg = bundle.extractfile(join(bundle.rootdir, spec['icon']))
-            icon = props['artifact_icon'] = svg.read()
-            png = svg_to_png(icon, '--width=55', '--height=55')
-            if png:
-                props['icon'] = png
-            png = svg_to_png(icon, '--width=160', '--height=120')
-            if png:
-                props['preview'] = png
-        except Exception, error:
-            print '-- Cannot find activity icon in %r: %s' % (filename, error)
-
-        msgids = {}
-        for prop, confname in [
-                ('title', 'name'),
-                ('summary', 'summary'),
-                ('description', 'description'),
-                ]:
-            if spec[confname]:
-                msgids[prop] = spec[confname]
-
-        title, summary, description = self.sqlexec("""
-                SELECT
-                    addons.name,
-                    addons.summary,
-                    addons.description
-                FROM
-                    addons
-                WHERE
-                    addons.id = %s
-                """ % addon_id)[0]
-        if 'title' not in msgids:
-            props['title'] = AbsDict(self.get_i18n_field(title))
-        if 'summary' not in msgids:
-            props['summary'] = AbsDict(self.get_i18n_field(summary))
-        if 'description' not in msgids:
-            props['description'] = AbsDict(self.get_i18n_field(description))
-
-        tmpdir = tempfile.mkdtemp()
-        try:
-            for path in bundle.get_names():
-                if not path.endswith('.mo'):
-                    continue
-                locale_path = path.strip(os.sep).split(os.sep)
-                if len(locale_path) != 5 or locale_path[1] != 'locale':
-                    continue
-                lang = locale_path[2]
-                bundle.extract(path, tmpdir)
-                i18n = gettext.translation(bundle_id,
-                        join(tmpdir, *locale_path[:2]), [lang])
-                for prop, value in msgids.items():
-                    msgstr = i18n.gettext(value)
-                    if msgstr != value or lang == 'en':
-                        props.setdefault(prop, AbsDict())[lang] = msgstr
-        except Exception, error:
-            print '-- Failed to read locales from %r: %s' % (filename, error)
-        finally:
-            shutil.rmtree(tmpdir)
-
-        print '-- Update %r metadata from %r' % (bundle_id, filename)
-        self.volume['context'].update(bundle_id, props)
 
     def sync_context(self, addon_id, bundle_id):
         if not self.volume['context'].exists(bundle_id):
@@ -601,8 +468,9 @@ class Application(application.Application):
     def sync_implementaiton(self, context, addon_id, filename,
             sugar_min, sugar_max, status, license, notes, date):
         bundle_path = join(ACTIVITIES_PATH, str(addon_id), filename)
-        with load_activity_bundle(self.volume, bundle_path,
-                'sugar>=%s; sugar<=%s' % (sugar_min, sugar_max)) as impl:
+        with load_bundle(self.volume, bundle_path, {
+                'requires': 'sugar>=%s; sugar<=%s' % (sugar_min, sugar_max),
+                }) as impl:
             if impl['license'] == spec.EMPTY_LICENSE:
                 if not license and context in LICENSES_MAP:
                     license = LICENSES_MAP[context]
@@ -678,15 +546,6 @@ class Application(application.Application):
                     'role': 2, 'order': 1, 'name': original,
                     }
         return result
-
-
-def svg_to_png(svg, *args):
-    try:
-        return util.assert_call(
-                ('rsvg-convert', '--keep-aspect-ratio') + args,
-                stdin=svg)
-    except Exception, error:
-        print '-- Cannot convert SVG icon: %s' % error
 
 
 mysql_server = Option(

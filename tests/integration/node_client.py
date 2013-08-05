@@ -123,7 +123,7 @@ class NodeClientTest(tests.Test):
         assert not exists(pubkey_path)
         self.assertEqual(
                 sorted(['dep1.rpm', 'dep2.rpm', 'dep3.rpm']),
-                sorted(deplist.split('\n')))
+                sorted([i.strip() for i in deplist.split('\n')]))
 
         self.cli(['PUT', '/context/context', '--anonymous', 'cmd=clone', 'nodeps=1', 'stability=stable', '-jd', '1'])
         assert not exists(privkey_path)

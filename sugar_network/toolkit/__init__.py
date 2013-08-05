@@ -17,6 +17,7 @@ import os
 import sys
 import json
 import errno
+import shutil
 import logging
 import tempfile
 import collections
@@ -328,23 +329,6 @@ def symlink(src, dst):
     os.symlink(src, dst)
 
 
-def svg_to_png(src_path, dst_path, width, height):
-    import rsvg
-    import cairo
-
-    svg = rsvg.Handle(src_path)
-
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
-    context = cairo.Context(surface)
-    scale = min(
-            float(width) / svg.props.width,
-            float(height) / svg.props.height)
-    context.scale(scale, scale)
-    svg.render_cairo(context)
-
-    surface.write_to_png(dst_path)
-
-
 def assert_call(cmd, stdin=None, **kwargs):
     """Variant of `call` method with raising exception of errors.
 
@@ -423,8 +407,6 @@ def cptree(src, dst):
         path to the new directory
 
     """
-    import shutil
-
     if abspath(src) == abspath(dst):
         return
 
@@ -502,6 +484,23 @@ def unique_filename(root, filename):
             raise RuntimeError('Cannot find unique filename for %r' %
                     join(root, filename))
     return path
+
+
+class mkdtemp(str):
+
+    def __new__(cls, **kwargs):
+        if cachedir.value:
+            if not exists(cachedir.value):
+                os.makedirs(cachedir.value)
+            kwargs['dir'] = cachedir.value
+        result = tempfile.mkdtemp(**kwargs)
+        return str.__new__(cls, result)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        shutil.rmtree(self)
 
 
 def TemporaryFile(*args, **kwargs):
