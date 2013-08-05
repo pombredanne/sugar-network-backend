@@ -145,7 +145,7 @@ def _clone(context):
             shutil.rmtree(cloned.pop(), ignore_errors=True)
         raise
 
-    _set_cached_solution(context, solution)
+    _set_cached_solution(context, None, solution)
 
 
 def _clone_impl(context_guid, params):
@@ -163,7 +163,7 @@ def _clone_impl(context_guid, params):
     _logger.info('Clone implementation to %r', dst_path)
     toolkit.cptree(src_path, dst_path)
 
-    _set_cached_solution(context_guid, [{
+    _set_cached_solution(context_guid, None, [{
         'id': dst_path,
         'context': context_guid,
         'version': impl['version'],
@@ -177,8 +177,9 @@ def _clone_impl(context_guid, params):
 
 def _solve(context):
     pipe.trace('Start solving %s feed', context)
+    stability = client.stability(context)
 
-    solution, stale = _get_cached_solution(context)
+    solution, stale = _get_cached_solution(context, stability)
     if stale is False:
         pipe.trace('Reuse cached solution')
         return solution
@@ -190,8 +191,8 @@ def _solve(context):
 
     from sugar_network.client import solver
 
-    solution = solver.solve(conn, context)
-    _set_cached_solution(context, solution)
+    solution = solver.solve(conn, context, stability)
+    _set_cached_solution(context, stability, solution)
 
     return solution
 
@@ -225,19 +226,21 @@ def _cached_solution_path(guid):
     return client.path('cache', 'solutions', guid[:2], guid)
 
 
-def _get_cached_solution(guid):
+def _get_cached_solution(guid, stability):
     path = _cached_solution_path(guid)
     solution = None
     if exists(path):
         try:
             with file(path) as f:
-                api_url, solution = json.load(f)
+                cached_api_url, cached_stability, solution = json.load(f)
         except Exception, error:
             _logger.debug('Cannot open %r solution: %s', path, error)
     if solution is None:
         return None, None
 
-    stale = (api_url != client.api_url.value)
+    stale = (cached_api_url != client.api_url.value)
+    if not stale and cached_stability is not None:
+        stale = set(cached_stability) != set(stability)
     if not stale and _mtime is not None:
         stale = (_mtime > os.stat(path).st_mtime)
     if not stale and _pms_path is not None:
@@ -256,9 +259,9 @@ def _get_cached_solution(guid):
     return solution, stale
 
 
-def _set_cached_solution(guid, solution):
+def _set_cached_solution(guid, stability, solution):
     path = _cached_solution_path(guid)
     if not exists(dirname(path)):
         os.makedirs(dirname(path))
     with file(path, 'w') as f:
-        json.dump([client.api_url.value, solution], f)
+        json.dump([client.api_url.value, stability, solution], f)

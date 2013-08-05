@@ -21,6 +21,7 @@ from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.implementation import Implementation
 from sugar_network.client import IPCConnection, packagekit, injector, clones, solver
+from sugar_network.toolkit import Option
 from sugar_network import client
 
 
@@ -153,7 +154,7 @@ Can't find all required implementations:
             [i for i in pipe])
         assert exists('cache/implementation/%s' % impl)
         assert exists('Activities/topdir/probe')
-        __, (solution,) = json.load(file('cache/solutions/%s/%s' % (context[:2], context)))
+        __, __, (solution,) = json.load(file('cache/solutions/%s/%s' % (context[:2], context)))
         self.assertEqual(tests.tmpdir + '/Activities/topdir', solution['path'])
         self.assertEqual('probe', file('Activities/topdir/probe').read())
 
@@ -193,7 +194,7 @@ Can't find all required implementations:
         for event in injector.clone(context):
             pass
         self.assertEqual('exit', event['state'])
-        __, (solution,) = json.load(file('cache/solutions/%s/%s' % (context[:2], context)))
+        __, __, (solution,) = json.load(file('cache/solutions/%s/%s' % (context[:2], context)))
         self.assertEqual(tests.tmpdir + '/Activities/topdir', solution['path'])
 
     def test_launch_Online(self):
@@ -419,7 +420,7 @@ Can't find all required implementations:
         self.override(solver, 'solve', lambda *args: solution)
 
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution], json.load(file('cache/solutions/co/context')))
+        self.assertEqual([client.api_url.value, ['stable'], solution], json.load(file('cache/solutions/co/context')))
 
     def test_SolutionsCache_InvalidateByAPIUrl(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
@@ -428,13 +429,13 @@ Can't find all required implementations:
         cached_path = 'cache/solutions/co/context'
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
-        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, ['stable'], solution2])))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution2], json.load(file(cached_path)))
 
         client.api_url.value = 'fake'
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual(['fake', solution], json.load(file(cached_path)))
+        self.assertEqual(['fake', ['stable'], solution], json.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
@@ -444,18 +445,18 @@ Can't find all required implementations:
 
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         injector.invalidate_solutions(1)
-        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, ['stable'], solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution2], json.load(file(cached_path)))
 
         injector.invalidate_solutions(3)
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution], json.load(file(cached_path)))
 
     def test_SolutionsCache_InvalidateByPMSMtime(self):
         solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
@@ -467,18 +468,18 @@ Can't find all required implementations:
         self.touch('pms')
         os.utime('pms', (1, 1))
         solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
-        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, ['stable'], solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution2], json.load(file(cached_path)))
 
         os.utime('pms', (3, 3))
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution], json.load(file(cached_path)))
 
     def test_SolutionsCache_DeliberateReuseInOffline(self):
         solution1 = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
@@ -487,13 +488,13 @@ Can't find all required implementations:
         cached_path = 'cache/solutions/co/context'
 
         self.override(client, 'IPCConnection', lambda: _FakeConnection(True))
-        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, ['stable'], solution2])))
         os.utime(cached_path, (1, 1))
         injector.invalidate_solutions(2)
         self.assertEqual(solution1, injector._solve('context'))
 
         self.override(client, 'IPCConnection', lambda: _FakeConnection(False))
-        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, ['stable'], solution2])))
         os.utime(cached_path, (1, 1))
         injector.invalidate_solutions(2)
         self.assertEqual(solution2, injector._solve('context'))
@@ -508,18 +509,18 @@ Can't find all required implementations:
         solution2 = [{'spec': 'spec', 'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
         self.touch('spec')
         os.utime('spec', (1, 1))
-        self.touch((cached_path, json.dumps([client.api_url.value, solution2])))
+        self.touch((cached_path, json.dumps([client.api_url.value, ['stable'], solution2])))
         os.utime(cached_path, (1, 1))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution2], json.load(file(cached_path)))
 
         os.utime(cached_path, (2, 2))
         self.assertEqual(solution2, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution2], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution2], json.load(file(cached_path)))
 
         os.utime('spec', (3, 3))
         self.assertEqual(solution, injector._solve('context'))
-        self.assertEqual([client.api_url.value, solution], json.load(file(cached_path)))
+        self.assertEqual([client.api_url.value, ['stable'], solution], json.load(file(cached_path)))
 
     def test_clone_SetExecPermissionsForActivities(self):
         self.start_online_client([User, Context, Implementation])
@@ -711,7 +712,7 @@ Can't find all required implementations:
                     {'version': '1', 'id': 'dep3', 'context': 'dep3', 'name': 'title3', 'stability': 'packaged'},
                     {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
                     ]),
-                sorted(solver.solve(conn, context)))
+                sorted(solver.solve(conn, context, ['stable'])))
 
     def test_LoadFeed_SetPackages(self):
         self.start_online_client([User, Context, Implementation])
@@ -756,7 +757,7 @@ Can't find all required implementations:
             return dict([(i, {'name': i, 'pk_id': i, 'version': '1', 'arch': '*', 'installed': True}) for i in names])
         self.override(packagekit, 'resolve', resolve)
 
-        self.assertRaises(RuntimeError, solver.solve, conn, context)
+        self.assertRaises(RuntimeError, solver.solve, conn, context, ['stable'])
 
         conn.put(['context', 'dep', 'aliases'], {
             lsb_release.distributor_id(): {
@@ -764,7 +765,7 @@ Can't find all required implementations:
                 'binary': [['bin']],
                 },
             })
-        self.assertEqual('dep', solver.solve(conn, context)[-1]['context'])
+        self.assertEqual('dep', solver.solve(conn, context, ['stable'])[-1]['context'])
 
         conn.put(['context', 'dep', 'aliases'], {
             'foo': {
@@ -772,14 +773,14 @@ Can't find all required implementations:
                 'binary': [['bin']],
                 },
             })
-        self.assertRaises(RuntimeError, solver.solve, conn, context)
+        self.assertRaises(RuntimeError, solver.solve, conn, context, ['stable'])
 
         conn.put(['context', 'dep', 'aliases'], {
             lsb_release.distributor_id(): {
                 'binary': [['bin']],
                 },
             })
-        self.assertEqual('dep', solver.solve(conn, context)[-1]['context'])
+        self.assertEqual('dep', solver.solve(conn, context, ['stable'])[-1]['context'])
 
     def test_SolveSugar(self):
         self.touch(('__init__.py', ''))
@@ -829,7 +830,7 @@ Can't find all required implementations:
             {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
             {'name': 'sugar', 'version': '0.94', 'context': 'sugar', 'path': '/', 'id': 'sugar-0.94', 'stability': 'packaged'},
             ],
-            solver.solve(conn, context))
+            solver.solve(conn, context, ['stable']))
 
         self.node_volume['implementation'].update(impl, {'data': {
             'spec': {
@@ -849,7 +850,7 @@ Can't find all required implementations:
             {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
             {'name': 'sugar', 'version': '0.86', 'context': 'sugar', 'path': '/', 'id': 'sugar-0.86', 'stability': 'packaged'},
             ],
-            solver.solve(conn, context))
+            solver.solve(conn, context, ['stable']))
 
     def test_StripSugarVersion(self):
         self.touch(('__init__.py', ''))
@@ -899,7 +900,7 @@ Can't find all required implementations:
             {'name': 'title', 'version': '1', 'command': ['echo'], 'context': context, 'id': impl, 'stability': 'stable'},
             {'name': 'sugar', 'version': '0.94', 'context': 'sugar', 'path': '/', 'id': 'sugar-0.94', 'stability': 'packaged'},
             ],
-            solver.solve(conn, context))
+            solver.solve(conn, context, ['stable']))
 
     def test_PopupServiceUnavailableInOffline(self):
         self.touch(('Activities/Activity/activity/activity.info', [
@@ -925,6 +926,100 @@ Can't find all required implementations:
                 'log_path': tests.tmpdir +  '/.sugar/default/logs/context.log'},
             ],
             [i for i in injector.make('context')])
+
+    def test_StabilityPreferences(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+        data = {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'extract': 'topdir'}}}
+
+        context = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        impl1 = ipc.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            })
+        self.node_volume['implementation'].update(impl1, {'data': data})
+        impl2 = ipc.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '2',
+            'stability': 'testing',
+            'notes': '',
+            })
+        self.node_volume['implementation'].update(impl2, {'data': data})
+        impl3 = ipc.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '3',
+            'stability': 'buggy',
+            'notes': '',
+            })
+        self.node_volume['implementation'].update(impl3, {'data': data})
+        impl4 = ipc.post(['implementation'], {
+            'context': context,
+            'license': 'GPLv3+',
+            'version': '4',
+            'stability': 'insecure',
+            'notes': '',
+            })
+        self.node_volume['implementation'].update(impl4, {'data': data})
+
+        self.assertEqual('1', injector._solve(context)[0]['version'])
+
+        self.touch(('config', [
+            '[stabilities]',
+            '%s = testing' % context,
+            ]))
+        Option.load(['config'])
+        self.assertEqual('2', injector._solve(context)[0]['version'])
+
+        self.touch(('config', [
+            '[stabilities]',
+            '%s = testing buggy' % context,
+            ]))
+        Option.load(['config'])
+        self.assertEqual('3', injector._solve(context)[0]['version'])
+
+        self.touch(('config', [
+            '[stabilities]',
+            'default = insecure',
+            '%s = stable' % context,
+            ]))
+        Option.load(['config'])
+        self.assertEqual('1', injector._solve(context)[0]['version'])
+
+        self.touch(('config', [
+            '[stabilities]',
+            'default = insecure',
+            ]))
+        Option.load(['config'])
+        self.assertEqual('4', injector._solve(context)[0]['version'])
+
+    def test_SolutionsCache_InvalidateByStabilityPreferences(self):
+        solution = [{'name': 'name', 'context': 'context', 'id': 'id', 'version': 'version'}]
+        self.override(client, 'IPCConnection', lambda: _FakeConnection(True))
+        self.override(solver, 'solve', lambda *args: solution)
+        cached_path = 'cache/solutions/co/context'
+
+        solution2 = [{'name': 'name2', 'context': 'context2', 'id': 'id2', 'version': 'version2'}]
+        self.touch((cached_path, json.dumps([client.api_url.value, ['stable'], solution2])))
+        self.assertEqual(solution2, injector._solve('context'))
+        self.assertEqual([client.api_url.value, ['stable'], solution2], json.load(file(cached_path)))
+
+        self.touch(('config', [
+            '[stabilities]',
+            'context = buggy',
+            ]))
+        Option.load(['config'])
+        self.assertEqual(solution, injector._solve('context'))
+        self.assertEqual([client.api_url.value, ['buggy'], solution], json.load(file(cached_path)))
 
 
 class _FakeConnection(object):

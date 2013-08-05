@@ -19,7 +19,6 @@ import sys
 import logging
 from os.path import isabs, join, dirname
 
-from sugar_network import client
 from sugar_network.client import packagekit, SUGAR_API_COMPATIBILITY
 from sugar_network.toolkit.spec import parse_version
 from sugar_network.toolkit import http, lsb_release, pipe, exception
@@ -34,16 +33,14 @@ from zeroinstall.injector.arch import machine_ranks
 from zeroinstall.injector.distro import try_cleanup_distro_version
 
 
-def _interface_init(self, url):
-    self.uri = url
-    self.reset()
-
-
-model.Interface.__init__ = _interface_init
-reader.check_readable = lambda * args, ** kwargs: True
-reader.update_from_cache = lambda * args, ** kwargs: None
+model.Interface.__init__ = lambda *args: _interface_init(*args)
+reader.check_readable = lambda *args, **kwargs: True
+reader.update_from_cache = lambda *args, **kwargs: None
+reader.load_feed_from_cache = lambda url, **kwargs: _load_feed(url)
 
 _logger = logging.getLogger('zeroinstall')
+_stability = None
+_conn = None
 
 
 def canonicalize_machine(arch):
@@ -70,9 +67,11 @@ def select_architecture(arches):
     return result_arch
 
 
-def solve(conn, context):
-    reader.load_feed_from_cache = lambda url, *args, **kwargs: \
-            _load_feed(conn, url)
+def solve(conn, context, stability):
+    global _conn, _stability
+
+    _conn = conn
+    _stability = stability
 
     req = Requirements(context)
     # TODO
@@ -156,6 +155,11 @@ def solve(conn, context):
     return solution
 
 
+def _interface_init(self, url):
+    self.uri = url
+    self.reset()
+
+
 def _impl_new(config, iface, sel):
     feed = config.iface_cache.get_feed(iface)
     impl = {'id': sel.id,
@@ -186,7 +190,7 @@ def _impl_new(config, iface, sel):
     return impl
 
 
-def _load_feed(conn, context):
+def _load_feed(context):
     feed = _Feed(context)
 
     if context == 'sugar':
@@ -203,9 +207,8 @@ def _load_feed(conn, context):
 
     feed_content = None
     try:
-        feed_content = conn.get(['context', context], cmd='feed',
-                stability=client.stability(context),
-                distro=lsb_release.distributor_id())
+        feed_content = _conn.get(['context', context], cmd='feed',
+                stability=_stability, distro=lsb_release.distributor_id())
         pipe.trace('Found %s feed: %r', context, feed_content)
     except http.ServiceUnavailable:
         pipe.trace('Failed to fetch %s feed', context)

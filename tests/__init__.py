@@ -74,11 +74,10 @@ class Test(unittest.TestCase):
         shutil.copy(join(root, 'data', 'owner.key.pub'), profile_dir)
 
         adapters.DEFAULT_RETRIES = 5
-        Option.unsorted_items = []
         Option.items = {}
-        Option.sections = {}
         Option.config_files = []
-        Option._config = None
+        Option.config = None
+        Option._parser = None
         Option._config_to_save = None
         db.index_flush_timeout.value = 0
         db.index_flush_threshold.value = 1
@@ -113,6 +112,8 @@ class Test(unittest.TestCase):
         injector._pms_path = None
         journal._ds_root = tmpdir + '/datastore'
         solver.nodeps = False
+        solver._stability = None
+        solver._conn = None
         downloads._POOL_SIZE = 256
         pipe._pipe = None
         pipe._trace = None
