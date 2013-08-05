@@ -38,7 +38,7 @@ from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 porcelain = Option(
         'give the output in an easy-to-parse format for scripts',
         default=False, type_cast=Option.bool_cast, action='store_true',
-        name='porcelain')
+        short_option='-p', name='porcelain')
 
 post_data = Option(
         'send content as a string from POST or PUT command',
@@ -144,7 +144,7 @@ class Application(application.Application):
         guid = self._connect().upload(['implementation'], path, cmd='release')
 
         if porcelain.value:
-            print 'Uploaded new release, %s' % guid
+            print guid
         else:
             print dumps(guid)
 
@@ -310,14 +310,28 @@ class Application(application.Application):
                 props[arg] = value
 
     def _dump(self, result, reply):
+
+        def porcelain_dump(value):
+            if type(value) not in (list, tuple):
+                value = [value]
+            for n, i in enumerate(value):
+                if n:
+                    print '\t',
+                if type(i) is dict and len(i) == 1:
+                    i = i.values()[0]
+                print i,
+            print ''
+
         if porcelain.value:
             if type(result) in (list, tuple):
                 for i in result:
-                    # TODO
-                    print i
+                    porcelain_dump(i)
+            elif type(result) is dict and \
+                    'total' in result and 'result' in result:
+                for i in result['result']:
+                    porcelain_dump(i)
             else:
-                # TODO
-                print result
+                porcelain_dump(i)
         elif reply:
             for key in reply:
                 key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
