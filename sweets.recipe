@@ -13,7 +13,7 @@ stability = developer
 
 requires  = xapian-bindings-python; m2crypto; rrdtool-python; gevent >= 1
             dbus-python; openssh-client; sugar-network-webui; sugar-network-hub
-            rsvg; cairo
+            librsvg-python; pycairo
 replaces  = sugar-network-server; sweets-recipe; active-document
             pylru; requests
 
