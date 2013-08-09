@@ -135,18 +135,21 @@ class Application(application.Application):
         path = self.args.pop(0)
         enforce(isfile(path), 'Cannot open bundle')
 
-        props = {'tags': []}
-        self._parse_args(props['tags'], props)
+        props = {}
+        self._parse_args(props)
         if 'license' in props:
             value = [i for i in _LIST_RE.split(props['license'].strip()) if i]
             props['license'] = value
 
-        guid = self._connect().upload(['implementation'], path, cmd='release')
+        conn = self._connect()
+        # XXX Have to proceed auth before uploading data
+        conn.get(cmd='whoami')
+        guid = conn.upload(['implementation'], path, cmd='release', **props)
 
         if porcelain.value:
             print guid
         else:
-            print dumps(guid)
+            print '-- Uploaded %s implementaion' % guid
 
     @application.command(
             'send raw API POST request; '
@@ -198,7 +201,7 @@ class Application(application.Application):
     def head(self):
         request = Request()
         self._parse_path(request)
-        self._parse_args([], request)
+        self._parse_args(request)
         result = self._connect().meta(request.path, request.query)
         self._dump(result, [])
 
@@ -240,8 +243,7 @@ class Application(application.Application):
                     pass
 
         self._parse_path(request)
-        reply = []
-        self._parse_args(reply, request)
+        self._parse_args(request)
 
         pid_path = None
         server = None
@@ -267,7 +269,7 @@ class Application(application.Application):
             return
 
         if response.content_type == 'application/json':
-            self._dump(result, reply)
+            self._dump(result, reply.get('reply') or ['guid'])
         elif response.content_type == 'text/event-stream':
             while True:
                 chunk = toolkit.readline(result)
@@ -290,16 +292,16 @@ class Application(application.Application):
         if self.args and self.args[0].startswith('/'):
             request.path = self.args.pop(0).strip('/').split('/')
 
-    def _parse_args(self, tags, props):
+    def _parse_args(self, props):
         for arg in self.args:
             arg = shlex.split(arg)
             if not arg:
                 continue
-            arg = arg[0]
-            if '=' not in arg:
-                tags.append(arg)
-                continue
-            arg, value = arg.split('=', 1)
+            if '=' in arg:
+                arg, value = arg[0].split('=', 1)
+            else:
+                arg = arg[0]
+                value = 1
             arg = arg.strip()
             enforce(arg, 'No argument name in %r expression', arg)
             if arg in props:

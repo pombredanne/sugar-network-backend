@@ -12,7 +12,7 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network import db, node, model
+from sugar_network import db, node, model, client
 from sugar_network.client import Connection
 from sugar_network.toolkit import http, coroutine
 from sugar_network.toolkit.rrd import Rrd
@@ -672,6 +672,9 @@ class NodeTest(tests.Test):
         self.assertEqual('developer', impl['stability'])
         self.assertEqual(['Public Domain'], impl['license'])
         self.assertEqual('developer', impl['stability'])
+        assert impl['ctime'] > 0
+        assert impl['mtime'] > 0
+        self.assertEqual({tests.UID: {'role': 3, 'name': 'test', 'order': 0}}, impl['author'])
 
         data = impl.meta('data')
         self.assertEqual({
@@ -751,7 +754,7 @@ class NodeTest(tests.Test):
         self.assertEqual([], volume['implementation'].get(guid4)['layer'])
         self.assertEqual(bundle3, conn.get(['context', 'bundle_id'], cmd='clone'))
 
-    def test_release_LoadMetadata(self):
+    def test_release_UpdateContext(self):
         volume = self.start_master()
         conn = Connection()
 
@@ -819,6 +822,75 @@ class NodeTest(tests.Test):
         assert 'blob' in context['preview']
         self.assertEqual('http://wiki.sugarlabs.org/go/Activities/Image_Viewer', context['homepage'])
         self.assertEqual(['image/bmp', 'image/gif'], context['mime_types'])
+
+    def test_release_CreateContext(self):
+        volume = self.start_master()
+        conn = Connection()
+
+        bundle = self.zips(
+                ('ImageViewer.activity/activity/activity.info', '\n'.join([
+                    '[Activity]',
+                    'bundle_id = org.laptop.ImageViewerActivity',
+                    'name      = Image Viewer',
+                    'summary   = The Image Viewer activity is a simple and fast image viewer tool',
+                    'description = It has features one would expect of a standard image viewer, like zoom, rotate, etc.',
+                    'homepage  = http://wiki.sugarlabs.org/go/Activities/Image_Viewer',
+                    'activity_version = 22',
+                    'license   = GPLv2+',
+                    'icon      = activity-imageviewer',
+                    'exec      = true',
+                    'mime_types = image/bmp;image/gif',
+                    ])),
+                ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
+                )
+        self.assertRaises(http.NotFound, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'release'})
+        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release', 'initial': 1}).raw)
+
+        context = volume['context'].get('org.laptop.ImageViewerActivity')
+        self.assertEqual({'en': 'Image Viewer'}, context['title'])
+        self.assertEqual({'en': 'The Image Viewer activity is a simple and fast image viewer tool'}, context['summary'])
+        self.assertEqual({'en': 'It has features one would expect of a standard image viewer, like zoom, rotate, etc.'}, context['description'])
+        self.assertEqual('http://wiki.sugarlabs.org/go/Activities/Image_Viewer', context['homepage'])
+        self.assertEqual(['image/bmp', 'image/gif'], context['mime_types'])
+        assert context['ctime'] > 0
+        assert context['mtime'] > 0
+        self.assertEqual({tests.UID: {'role': 3, 'name': 'test', 'order': 0}}, context['author'])
+
+    def test_release_AuthorsOnly(self):
+        volume = self.start_master()
+        bundle = self.zips(
+                ('ImageViewer.activity/activity/activity.info', '\n'.join([
+                    '[Activity]',
+                    'bundle_id = org.laptop.ImageViewerActivity',
+                    'name      = Image Viewer',
+                    'activity_version = 1',
+                    'license   = GPLv2+',
+                    'icon      = activity-imageviewer',
+                    'exec      = true',
+                    ])),
+                ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
+                )
+
+        self.override(client, 'sugar_uid', lambda: tests.UID)
+        conn = Connection()
+        impl1 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release', 'initial': 1}).raw)
+        impl2 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release'}).raw)
+        self.assertEqual(['deleted'], volume['implementation'].get(impl1)['layer'])
+        self.assertEqual([], volume['implementation'].get(impl2)['layer'])
+
+        self.override(client, 'sugar_uid', lambda: tests.UID2)
+        self.override(client, 'sugar_profile', lambda: {
+            'name': 'test',
+            'color': '#000000,#000000',
+            'machine_sn': '',
+            'machine_uuid': '',
+            'pubkey': tests.PUBKEY2,
+            })
+        conn = Connection()
+        conn.get(cmd='whoami')
+        self.assertRaises(http.Forbidden, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'release'})
+        self.assertEqual(['deleted'], volume['implementation'].get(impl1)['layer'])
+        self.assertEqual([], volume['implementation'].get(impl2)['layer'])
 
 
 def call(routes, method, document=None, guid=None, prop=None, principal=None, cmd=None, content=None, **kwargs):

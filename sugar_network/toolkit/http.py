@@ -206,6 +206,9 @@ class Connection(object):
 
             if response.status_code != 200:
                 if response.status_code == 401:
+                    enforce(method not in ('PUT', 'POST') or
+                            not hasattr(data, 'read'),
+                            'Cannot resend data after authentication')
                     enforce(self._get_profile is not None,
                             'Operation is not available in anonymous mode')
                     _logger.info('User is not registered on the server, '

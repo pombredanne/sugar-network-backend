@@ -215,14 +215,13 @@ class Routes(object):
                         else access)
                 if value is None:
                     value = {'blob': None}
-                elif isinstance(value, dict):
-                    enforce('url' in value,
-                            'Key %r is not specified in %r blob property',
-                            'url', name)
-                    value = {'url': value['url']}
-                else:
+                elif isinstance(value, basestring) or hasattr(value, 'read'):
                     value = _read_blob(request, prop, value)
                     blobs.append(value['blob'])
+                elif isinstance(value, dict):
+                    enforce('url' in value or 'blob' in value, 'No bundle')
+                else:
+                    raise RuntimeError('Incorrect BLOB value')
             else:
                 prop.assert_access(access)
                 if prop.localized and isinstance(value, basestring):

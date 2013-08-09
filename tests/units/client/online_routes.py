@@ -342,12 +342,13 @@ class OnlineRoutes(tests.Test):
                 },
             }})
 
-        ipc.put(['context', context], 2, cmd='clone', nodeps=1, requires='dep4')
+        self.assertRaises(RuntimeError, ipc.put, ['context', context], 2, cmd='clone', nodeps=1, requires='foo')
         coroutine.sleep(.1)
         self.assertEqual({'clone': 0}, ipc.get(['context', context], reply=['clone']))
         assert not exists('Activities/TestActivity/activity/activity.info')
 
         ipc.put(['context', context], 2, cmd='clone', nodeps=1)
+        # XXX seems to be an ugly low level bug, removing the following sleep means not reasing HTTP response for the next request
         coroutine.sleep(.1)
         self.assertEqual({'clone': 2}, ipc.get(['context', context], reply=['clone']))
         self.assertEqual('2', Spec('Activities/TestActivity/activity/activity.info')['version'])

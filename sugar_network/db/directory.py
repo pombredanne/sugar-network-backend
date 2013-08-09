@@ -148,7 +148,7 @@ class Directory(object):
         cached_props = self._index.get_cached(guid)
         record = self._storage.get(guid)
         enforce(cached_props or record.exists, http.NotFound,
-                'Document %r does not exist in %r',
+                'Resource %r does not exist in %r',
                 guid, self.metadata.name)
         return self.document_class(guid, record, cached_props)
 

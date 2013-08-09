@@ -139,14 +139,15 @@ class NodeRoutes(db.Routes, model.Routes):
                 return toolkit.iter_file(path)
 
     @route('POST', ['implementation'], cmd='release',
-            mime_type='application/json')
+            arguments={'initial': False},
+            mime_type='application/json', acl=ACL.AUTH | ACL.AUTHOR)
     def release(self, request, document):
         with toolkit.NamedTemporaryFile() as blob:
             shutil.copyfileobj(request.content_stream, blob)
             blob.flush()
-            with load_bundle(self.volume, blob.name, request) as impl:
+            with load_bundle(self.volume, request, blob.name) as impl:
                 impl['data']['blob'] = blob.name
-            return impl['guid']
+        return impl['guid']
 
     @route('DELETE', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def delete(self, request):
@@ -405,12 +406,15 @@ class NodeRoutes(db.Routes, model.Routes):
 
 
 @contextmanager
-def load_bundle(volume, bundle_path, impl=None):
-    if impl is None:
-        impl = {}
+def load_bundle(volume, request, bundle_path):
+    impl = request.copy()
+    initial = False
+    if 'initial' in impl:
+        initial = impl.pop('initial')
     data = impl.setdefault('data', {})
     data['blob'] = bundle_path
-    context_updates = {}
+    contexts = volume['context']
+    context = None
 
     try:
         bundle = Bundle(bundle_path, mime_type='application/zip')
@@ -421,14 +425,16 @@ def load_bundle(volume, bundle_path, impl=None):
         _logger.debug('Load Sugar Activity bundle from %r', bundle_path)
         context_type = 'activity'
         unpack_size = 0
+
         with bundle:
             for arcname in bundle.get_names():
                 unpack_size += bundle.getmember(arcname).size
             spec = bundle.get_spec()
             extract = bundle.rootdir
-            context_updates = _load_context_metadata(bundle, spec)
+            context = _load_context_metadata(bundle, spec)
         if 'requires' in impl:
             spec.requires.update(parse_requires(impl.pop('requires')))
+
         impl['context'] = spec['context']
         impl['version'] = spec['version']
         impl['stability'] = spec['stability']
@@ -441,11 +447,15 @@ def load_bundle(volume, bundle_path, impl=None):
         data['unpack_size'] = unpack_size
         data['mime_type'] = 'application/vnd.olpc-sugar'
 
+        if initial and not contexts.exists(impl['context']):
+            context['guid'] = impl['context']
+            context['type'] = 'activity'
+            request.call(method='POST', path=['context'], content=context)
+            context = None
+
     enforce('context' in impl, 'Context is not specified')
     enforce('version' in impl, 'Version is not specified')
-    enforce(volume['context'].exists(impl['context']),
-            http.BadRequest, 'No such activity')
-    enforce(context_type in volume['context'].get(spec['context'])['type'],
+    enforce(context_type in contexts.get(spec['context'])['type'],
             http.BadRequest, 'Inappropriate bundle type')
     if impl.get('license') in (None, EMPTY_LICENSE):
         existing, total = volume['implementation'].find(
@@ -459,13 +469,15 @@ def load_bundle(volume, bundle_path, impl=None):
     existing, __ = volume['implementation'].find(
             context=impl['context'], version=impl['version'],
             not_layer='deleted')
+    impl['guid'] = \
+            request.call(method='POST', path=['implementation'], content=impl)
     for i in existing:
         layer = i['layer'] + ['deleted']
         volume['implementation'].update(i.guid, {'layer': layer})
-    impl['guid'] = volume['implementation'].create(impl)
 
-    if context_updates:
-        volume['context'].update(impl['context'], context_updates)
+    if context:
+        request.call(method='PUT', path=['context', impl['context']],
+                content=context)
 
 
 def _load_context_metadata(bundle, spec):

@@ -122,6 +122,9 @@ class Resource(object):
     def modified(self, prop):
         return prop in self._modifies
 
+    def __contains__(self, prop):
+        return self.get(prop)
+
     def __getitem__(self, prop):
         return self.get(prop)
 

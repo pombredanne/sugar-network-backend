@@ -508,14 +508,13 @@ class ClientRoutes(model.Routes, journal.Routes):
                     requires=request.get('requires'))
         else:
             pipe = injector.clone(request.guid)
+        event = {}
         for event in pipe:
             event['event'] = 'clone'
             self.broadcast(event)
-        for __ in clones.walk(request.guid):
-            break
-        else:
-            # Cloning was failed
+        if event.get('state') == 'failure':
             self._checkin_context(request.guid, {'clone': 0})
+            raise RuntimeError(event['error'])
 
     def _clone_jobject(self, request, get_props):
         if request.content:

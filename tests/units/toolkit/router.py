@@ -594,26 +594,40 @@ class RouterTest(tests.Test):
                 self.value = value
 
             def read(self, size):
+                print self.pos, size, len(self.value)
                 assert self.pos + size <= len(self.value)
                 result = self.value[self.pos:self.pos + size]
                 self.pos += size
                 return result
 
-        request = Request({'PATH_INFO': '/', 'REQUEST_METHOD': 'GET', 'wsgi.input': Stream('123')})
-        request.content_length = len(request.content_stream.value)
-        self.assertEqual('123', request.read())
-        self.assertEqual('', request.read())
-        self.assertEqual('', request.read(10))
+        request = Request({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'CONTENT_LENGTH': '3',
+            'wsgi.input': Stream('123'),
+            })
+        self.assertEqual('123', request.content_stream.read())
+        self.assertEqual('', request.content_stream.read())
+        self.assertEqual('', request.content_stream.read(10))
 
-        request = Request({'PATH_INFO': '/', 'REQUEST_METHOD': 'GET', 'wsgi.input': Stream('123')})
-        request.content_length = len(request.content_stream.value)
-        self.assertEqual('123', request.read(10))
+        request = Request({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'CONTENT_LENGTH': '3',
+            'wsgi.input': Stream('123'),
+            })
+        self.assertEqual('123', request.content_stream.read(10))
 
-        request = Request({'PATH_INFO': '/', 'REQUEST_METHOD': 'GET', 'wsgi.input': Stream('123')})
-        request.content_length = len(request.content_stream.value)
-        self.assertEqual('1', request.read(1))
-        self.assertEqual('2', request.read(1))
-        self.assertEqual('3', request.read())
+        request = Request({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'CONTENT_LENGTH': '3',
+            'wsgi.input': Stream('123'),
+            })
+        self.assertEqual('1', request.content_stream.read(1))
+        self.assertEqual('2', request.content_stream.read(1))
+        self.assertEqual('3', request.content_stream.read())
+        self.assertEqual('', request.content_stream.read())
 
     def test_IntArguments(self):
 

@@ -1605,8 +1605,8 @@ class RoutesTest(tests.Test):
             request.cmd = cmd
             request.content = content
             request.content_type = content_type
-            if request.content_stream is not None:
-                request.content_length = len(request.content_stream.getvalue())
+            if content_stream is not None:
+                request.content_length = len(content_stream.getvalue())
             request.update(kwargs)
         request.principal = principal
         router = Router(routes(self.volume))

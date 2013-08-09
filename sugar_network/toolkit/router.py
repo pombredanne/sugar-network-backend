@@ -103,16 +103,17 @@ class Request(dict):
     cmd = None
     content = None
     content_type = None
+    content_stream = None
     content_length = 0
     principal = None
-    _if_modified_since = None
-    _accept_language = None
+    subcall = lambda *args: enforce(False)
 
     def __init__(self, environ=None, method=None, path=None, cmd=None,
-            **kwargs):
+            content=None, **kwargs):
         dict.__init__(self)
-        self._pos = 0
         self._dirty_query = False
+        self._if_modified_since = None
+        self._accept_language = None
 
         if environ is None:
             self.environ = {}
@@ -120,6 +121,7 @@ class Request(dict):
             self.path = path
             self.cmd = cmd
             self.update(kwargs)
+            self.content = content
             return
 
         self.environ = environ
@@ -145,7 +147,7 @@ class Request(dict):
         if query:
             self.url += '?' + query
 
-        content_length = self.environ.get('CONTENT_LENGTH')
+        content_length = environ.get('CONTENT_LENGTH')
         if content_length is not None:
             self.content_length = int(content_length)
 
@@ -153,6 +155,10 @@ class Request(dict):
         self.content_type = content_type.lower()
         if self.content_type == 'application/json':
             self.content = json.load(environ['wsgi.input'])
+
+        stream = environ.get('wsgi.input')
+        if stream is not None:
+            self.content_stream = _ContentStream(stream, self.content_length)
 
     def __setitem__(self, key, value):
         self._dirty_query = True
@@ -179,10 +185,6 @@ class Request(dict):
     def prop(self):
         if len(self.path) > 2:
             return self.path[2]
-
-    @property
-    def content_stream(self):
-        return self.environ.get('wsgi.input')
 
     @property
     def static_prefix(self):
@@ -227,17 +229,6 @@ class Request(dict):
             self._dirty_query = False
         return self.environ.get('QUERY_STRING')
 
-    def read(self, size=None):
-        if self.content_stream is None:
-            return ''
-        rest = max(0, self.content_length - self._pos)
-        size = rest if size is None else min(rest, size)
-        result = self.content_stream.read(size)
-        if not result:
-            return ''
-        self._pos += len(result)
-        return result
-
     def add(self, key, *values):
         existing_value = self.get(key)
         for value in values:
@@ -247,6 +238,15 @@ class Request(dict):
                 existing_value.append(value)
             else:
                 existing_value = self[key] = [existing_value, value]
+
+    def call(self, request=None, response=None, **kwargs):
+        if request is None:
+            request = Request(**kwargs)
+        if response is None:
+            response = Response()
+        request.principal = self.principal
+        request.environ = self.environ
+        return self.subcall(request, response)
 
     def __repr__(self):
         return '<Request method=%s path=%r cmd=%s query=%r>' % \
@@ -300,7 +300,7 @@ class Response(dict):
         return result
 
     def __repr__(self):
-        items = ['%s=%r' % i for i in self.items()]
+        items = ['%s=%r' % i for i in self.items() + self.meta.items()]
         return '<Response %s>' % ' '.join(items)
 
     def __contains__(self, key):
@@ -375,47 +375,44 @@ class Router(object):
             cls = cls.__base__
 
     def call(self, request, response):
-        result = None
-        try:
-            result = self._call(request, response)
+        request.subcall = self.call
+        result = self._call(request, response)
 
-            if isinstance(result, Blob):
-                if 'url' in result:
-                    raise http.Redirect(result['url'])
+        if isinstance(result, Blob):
+            if 'url' in result:
+                raise http.Redirect(result['url'])
 
-                path = result['blob']
-                enforce(isfile(path), 'No such file')
+            path = result['blob']
+            enforce(isfile(path), 'No such file')
 
-                mtime = result.get('mtime') or os.stat(path).st_mtime
-                if request.if_modified_since and mtime and \
-                        mtime <= request.if_modified_since:
-                    raise http.NotModified()
-                response.last_modified = mtime
+            mtime = result.get('mtime') or os.stat(path).st_mtime
+            if request.if_modified_since and mtime and \
+                    mtime <= request.if_modified_since:
+                raise http.NotModified()
+            response.last_modified = mtime
 
-                response.content_type = result.get('mime_type') or \
-                        'application/octet-stream'
+            response.content_type = result.get('mime_type') or \
+                    'application/octet-stream'
 
-                filename = result.get('filename')
-                if not filename:
-                    filename = _filename(result.get('name') or
-                            splitext(split(path)[-1])[0],
-                        response.content_type)
-                response['Content-Disposition'] = \
-                        'attachment; filename="%s"' % filename
+            filename = result.get('filename')
+            if not filename:
+                filename = _filename(result.get('name') or
+                        splitext(split(path)[-1])[0],
+                    response.content_type)
+            response['Content-Disposition'] = \
+                    'attachment; filename="%s"' % filename
 
-                result = file(path, 'rb')
+            result = file(path, 'rb')
 
-            if hasattr(result, 'read'):
-                if hasattr(result, 'fileno'):
-                    response.content_length = os.fstat(result.fileno()).st_size
-                elif hasattr(result, 'seek'):
-                    result.seek(0, 2)
-                    response.content_length = result.tell()
-                    result.seek(0)
-                result = _stream_reader(result)
-        finally:
-            _logger.trace('%s call: request=%s response=%r result=%r',
-                    self, request.environ, response, result)
+        if hasattr(result, 'read'):
+            if hasattr(result, 'fileno'):
+                response.content_length = os.fstat(result.fileno()).st_size
+            elif hasattr(result, 'seek'):
+                result.seek(0, 2)
+                response.content_length = result.tell()
+                result.seek(0)
+            result = _stream_reader(result)
+
         return result
 
     def __repr__(self):
@@ -478,11 +475,15 @@ class Router(object):
         for key, value in response.meta.items():
             response.set('X-SN-%s' % str(key), json.dumps(value))
 
+        if request.method == 'HEAD' and result is not None:
+            _logger.warning('Content from HEAD response is ignored')
+            result = None
+
+        _logger.trace('%s call: request=%s response=%r result=%r',
+                self, request.environ, response, result)
         start_response(response.status, response.items())
 
-        if request.method == 'HEAD':
-            enforce(result is None, 'HEAD responses should not contain body')
-        elif result_streamed:
+        if result_streamed:
             for i in result:
                 yield i
         elif result is not None:
@@ -592,6 +593,24 @@ class Router(object):
             _logger.info('%s disallow cross-site for %r origin', self, origin)
             self._invalid_origins.add(origin)
         return valid
+
+
+class _ContentStream(object):
+
+    def __init__(self, stream, length):
+        self._stream = stream
+        self._length = length
+        self._pos = 0
+
+    def read(self, size=None):
+        if self._length:
+            the_rest = max(0, self._length - self._pos)
+            size = the_rest if size is None else min(the_rest, size)
+        result = self._stream.read(size)
+        if not result:
+            return ''
+        self._pos += len(result)
+        return result
 
 
 def _filename(names, mime_type):
