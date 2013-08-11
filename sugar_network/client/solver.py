@@ -44,8 +44,9 @@ _conn = None
 
 
 def canonicalize_machine(arch):
-    result = _arch.canonicalize_machine(arch)
-    return None if arch in ('noarch', 'all') else result
+    if arch in ('noarch', 'all'):
+        return None
+    return _arch.canonicalize_machine(arch)
 
 
 def select_architecture(arches):
@@ -195,15 +196,15 @@ def _load_feed(context):
 
     if context == 'sugar':
         try:
-            # pylint: disable-msg=F0401
             from jarabe import config
-            host_versin = '.'.join(config.version.split('.', 2)[:2])
-            for version in SUGAR_API_COMPATIBILITY.get(host_versin) or []:
-                feed.implement_sugar(version)
-            feed.name = feed.title = context
-            return feed
+            host_version = '.'.join(config.version.split('.', 2)[:2])
         except ImportError:
-            pass
+            # XXX sweets-sugar binding might be not sourced
+            host_version = '0.94'
+        for version in SUGAR_API_COMPATIBILITY.get(host_version) or []:
+            feed.implement_sugar(version)
+        feed.name = feed.title = context
+        return feed
 
     feed_content = None
     try:
@@ -261,7 +262,7 @@ class _Feed(model.ZeroInstallFeed):
         impl = _Implementation(self, self.context, None)
         impl.version = parse_version(top_package['version'])
         impl.released = 0
-        impl.arch = '*-%s' % top_package['arch']
+        impl.arch = '*-%s' % (top_package['arch'] or '*')
         impl.upstream_stability = model.stability_levels['packaged']
         impl.to_install = [i for i in packages if not i['installed']]
         impl.add_download_source(self.context, 0, None)
