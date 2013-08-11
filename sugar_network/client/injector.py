@@ -88,13 +88,13 @@ def invalidate_solutions(mtime):
 
 def _make(context):
     pipe.feedback('analyze')
-    solution = _solve(context)
+    solution, stability = _solve(context)
     pipe.feedback('solved', environ={'solution': solution})
 
     to_install = []
     for impl in solution:
         if 'install' in impl:
-            to_install.extend(impl['install'])
+            to_install.extend(impl.pop('install'))
     if to_install:
         pipe.trace('Install %s package(s)',
                 ', '.join([i['name'] for i in to_install]))
@@ -108,6 +108,9 @@ def _make(context):
         if 'prefix' in impl:
             impl_path = join(impl_path, impl['prefix'])
         impl['path'] = impl_path
+
+    if stability is not None:
+        _set_cached_solution(context, stability, solution)
 
     pipe.feedback('ready')
     return solution
@@ -182,19 +185,16 @@ def _solve(context):
     solution, stale = _get_cached_solution(context, stability)
     if stale is False:
         pipe.trace('Reuse cached solution')
-        return solution
+        return solution, None
 
     conn = client.IPCConnection()
     if solution is not None and conn.get(cmd='status')['route'] == 'offline':
         pipe.trace('Reuse stale cached solution in offline mode')
-        return solution
+        return solution, None
 
     from sugar_network.client import solver
 
-    solution = solver.solve(conn, context, stability)
-    _set_cached_solution(context, stability, solution)
-
-    return solution
+    return solver.solve(conn, context, stability), stability
 
 
 def _activity_env(impl, environ):
