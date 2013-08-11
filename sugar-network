@@ -297,10 +297,11 @@ class Application(application.Application):
             arg = shlex.split(arg)
             if not arg:
                 continue
+            arg = arg[0]
             if '=' in arg:
-                arg, value = arg[0].split('=', 1)
+                arg, value = arg.split('=', 1)
             else:
-                arg = arg[0]
+                arg = arg
                 value = 1
             arg = arg.strip()
             enforce(arg, 'No argument name in %r expression', arg)
