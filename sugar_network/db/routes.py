@@ -94,13 +94,14 @@ class Routes(object):
     def delete(self, request):
         self.volume[request.resource].delete(request.guid)
 
-    @route('GET', [None, None], arguments={'reply': ('guid',)},
+    @route('GET', [None, None], arguments={'reply': list},
             mime_type='application/json')
     def get(self, request, reply):
         if not reply:
             reply = []
             for prop in self.volume[request.resource].metadata.values():
-                if prop.acl & ACL.READ and not (prop.acl & ACL.LOCAL):
+                if isinstance(prop, StoredProperty) and \
+                        prop.acl & ACL.READ and not (prop.acl & ACL.LOCAL):
                     reply.append(prop.name)
         self._preget(request)
         doc = self.volume[request.resource].get(request.guid)
@@ -256,7 +257,7 @@ class Routes(object):
         self.after_post(doc)
 
     def _preget(self, request):
-        reply = request['reply']
+        reply = request.get('reply')
         if not reply:
             request['reply'] = ('guid',)
         else:

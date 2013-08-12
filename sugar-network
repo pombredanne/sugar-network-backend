@@ -203,7 +203,7 @@ class Application(application.Application):
         self._parse_path(request)
         self._parse_args(request)
         result = self._connect().meta(request.path, request.query)
-        self._dump(result, [])
+        self._dump(result)
 
     @application.command(hidden=True)
     def HEAD(self):
@@ -269,7 +269,7 @@ class Application(application.Application):
             return
 
         if response.content_type == 'application/json':
-            self._dump(result, reply.get('reply') or ['guid'])
+            self._dump(result)
         elif response.content_type == 'text/event-stream':
             while True:
                 chunk = toolkit.readline(result)
@@ -312,35 +312,35 @@ class Application(application.Application):
             else:
                 props[arg] = value
 
-    def _dump(self, result, reply):
+    def _dump(self, result):
+        if not porcelain.value:
+            print dumps(result, indent=2, ensure_ascii=False)
+            return
 
         def porcelain_dump(value):
-            if type(value) not in (list, tuple):
-                value = [value]
-            for n, i in enumerate(value):
-                if n:
-                    print '\t',
-                if type(i) is dict and len(i) == 1:
-                    i = i.values()[0]
-                print i,
+            if type(value) is dict:
+                for i in value.items():
+                    print '%-18s%s' % i
+            else:
+                if type(value) not in (list, tuple):
+                    value = [value]
+                for n, i in enumerate(value):
+                    if n:
+                        print '\t',
+                    if type(i) is dict and len(i) == 1:
+                        i = i.values()[0]
+                    print i,
             print ''
 
-        if porcelain.value:
-            if type(result) in (list, tuple):
-                for i in result:
-                    porcelain_dump(i)
-            elif type(result) is dict and \
-                    'total' in result and 'result' in result:
-                for i in result['result']:
-                    porcelain_dump(i)
-            else:
+        if type(result) in (list, tuple):
+            for i in result:
                 porcelain_dump(i)
-        elif reply:
-            for key in reply:
-                key = _ESCAPE_VALUE_RE.sub("'\\1'", key)
-                print eval('result%s' % key)
+        elif type(result) is dict and \
+                'total' in result and 'result' in result:
+            for i in result['result']:
+                porcelain_dump(i)
         else:
-            print dumps(result, indent=2, ensure_ascii=False)
+            porcelain_dump(result)
 
 
 # Let toolkit.http work in concurrence
