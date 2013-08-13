@@ -226,8 +226,8 @@ class NodeRoutes(db.Routes, model.Routes):
         implementations = self.volume['implementation']
         versions = []
 
-        impls, __ = implementations.find(limit=db.MAX_LIMIT,
-                context=context.guid, not_layer='deleted', **request)
+        impls, __ = implementations.find(context=context.guid,
+                not_layer='deleted', **request)
         for impl in impls:
             for arch, spec in impl.meta('data')['spec'].items():
                 spec['guid'] = impl.guid

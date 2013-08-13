@@ -122,7 +122,7 @@ volume.populate()
 
 try:
     for document in ('context', 'review'):
-        documents, __ = volume[document].find(limit=db.MAX_LIMIT)
+        documents, __ = volume[document].find()
         for doc in documents:
             authors = new_authors(doc)
             if authors:

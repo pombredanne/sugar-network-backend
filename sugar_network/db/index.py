@@ -128,7 +128,7 @@ class IndexReader(object):
         """
         raise NotImplementedError()
 
-    def find(self, offset=0, limit=64, query='', reply=('guid',),
+    def find(self, offset=0, limit=None, query='', reply=('guid',),
             order_by=None, no_cache=False, group_by=None, **request):
         """Search resources within the index.
 
@@ -139,8 +139,7 @@ class IndexReader(object):
             the resulting list should start with this offset;
             0 by default
         :param limit:
-            the resulting list will be at least `limit` size;
-            the `--find-limit` will be used by default
+            the resulting list will be at least `limit` size
         :param query:
             a string in Xapian serach format, empty to avoid text search
         :param reply:
@@ -163,6 +162,8 @@ class IndexReader(object):
         self.ensure_open()
 
         start_timestamp = time.time()
+        if limit is None:
+            limit = self._db.get_doccount()
         # This will assure that the results count is exact.
         check_at_least = offset + limit + 1
 

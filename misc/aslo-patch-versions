@@ -41,7 +41,7 @@ volume = Volume(data_root.value)
 volume.populate()
 directory = volume['implementation']
 try:
-    items, __ = directory.find(limit=db.MAX_LIMIT)
+    items, __ = directory.find()
     for impl in items:
         data = impl['data']
         url = data.get('url')

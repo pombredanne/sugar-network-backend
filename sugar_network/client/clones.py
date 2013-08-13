@@ -21,7 +21,7 @@ import logging
 from os.path import join, exists, lexists, relpath, dirname, basename, isdir
 from os.path import abspath, islink
 
-from sugar_network import db, client, toolkit
+from sugar_network import client, toolkit
 from sugar_network.model.context import Context
 from sugar_network.toolkit.spec import Spec
 from sugar_network.toolkit.inotify import Inotify, \
@@ -96,7 +96,7 @@ class _Inotify(Inotify):
         if mtime <= self._contexts.mtime:
             return
 
-        docs, __ = self._contexts.find(limit=db.MAX_LIMIT, clone=[1, 2])
+        docs, __ = self._contexts.find(clone=[1, 2])
         for context in docs:
             root = _context_path(context.guid, '')
             found = False

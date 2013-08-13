@@ -26,8 +26,6 @@ from sugar_network.db.metadata import IndexedProperty, StoredProperty
 from sugar_network.toolkit import http, exception, enforce
 
 
-MAX_LIMIT = 2147483648
-
 # To invalidate existed index on stcuture changes
 _LAYOUT_VERSION = 4
 
@@ -216,8 +214,6 @@ class Directory(object):
             params['order_by'] = '-seqno'
         else:
             params['order_by'] = 'seqno'
-        # TODO On big requests, xapian can raise an exception on edits
-        params['limit'] = MAX_LIMIT
         params['no_cache'] = True
 
         for start, end in seq:

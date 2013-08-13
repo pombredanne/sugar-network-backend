@@ -213,8 +213,7 @@ class Application(application.Application):
 
     def sync_activities(self, addon_id=None):
         directory = self.volume['context']
-        items, __ = directory.find(type='activity', layer='public',
-                limit=db.MAX_LIMIT)
+        items, __ = directory.find(type='activity', layer='public')
         existing_activities = set([i.guid for i in items])
 
         sql = """
@@ -247,8 +246,7 @@ class Application(application.Application):
 
     def sync_reviews(self, addon_id, bundle_id):
         directory = self.volume['review']
-        items, __ = directory.find(context=bundle_id, layer='public',
-                limit=db.MAX_LIMIT)
+        items, __ = directory.find(context=bundle_id, layer='public')
         existing_reviews = set([i.guid for i in items])
 
         sql = """
@@ -292,8 +290,7 @@ class Application(application.Application):
 
     def sync_versions(self, addon_id, bundle_id):
         directory = self.volume['implementation']
-        items, __ = directory.find(context=bundle_id, layer='public',
-                limit=db.MAX_LIMIT)
+        items, __ = directory.find(context=bundle_id, layer='public')
         existing_versions = set([i.guid for i in items])
 
         sql = """
@@ -468,9 +465,9 @@ class Application(application.Application):
     def sync_implementaiton(self, context, addon_id, filename,
             sugar_min, sugar_max, status, license, notes, date):
         bundle_path = join(ACTIVITIES_PATH, str(addon_id), filename)
-        with load_bundle(self.volume, bundle_path, {
-                'requires': 'sugar>=%s; sugar<=%s' % (sugar_min, sugar_max),
-                }) as impl:
+        with load_bundle(self.volume, ASLO_GUID, bundle_path,
+                requires='sugar>=%s; sugar<=%s' % (sugar_min, sugar_max),
+                ) as impl:
             if impl['license'] == spec.EMPTY_LICENSE:
                 if not license and context in LICENSES_MAP:
                     license = LICENSES_MAP[context]

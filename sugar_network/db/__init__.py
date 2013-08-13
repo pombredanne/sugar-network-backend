@@ -355,6 +355,6 @@ from sugar_network.db.metadata import \
 from sugar_network.db.index import index_flush_timeout, \
         index_flush_threshold, index_write_queue
 from sugar_network.db.resource import Resource
-from sugar_network.db.directory import Directory, MAX_LIMIT
+from sugar_network.db.directory import Directory
 from sugar_network.db.volume import Volume
 from sugar_network.db.routes import Routes
