@@ -54,13 +54,13 @@ class NodePackagesSlaveTest(tests.Test):
 
             @fallbackroute('GET', ['resolve'], mime_type='text/xml')
             def resolve(self, request, response):
-                return '<resolve><binary name="rpm" url="http://127.0.0.1:9999/packages/rpm" arch="arch"/></resolve>'
+                return '<resolve><binary name="rpm" url="http://127.0.0.1:1999/packages/rpm" arch="arch"/></resolve>'
 
             @fallbackroute('GET', ['packages'], mime_type='text/plain')
             def packages(self, request, response):
                 return 'package_content'
 
-        obs = coroutine.WSGIServer(('127.0.0.1', 9999), Router(OBS()))
+        obs = coroutine.WSGIServer(('127.0.0.1', 1999), Router(OBS()))
         coroutine.spawn(obs.serve_forever)
 
         # From master
@@ -72,7 +72,7 @@ class NodePackagesSlaveTest(tests.Test):
             '--stats-root=master/stats', '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
             '--index-flush-threshold=1', '--pull-timeout=1',
-            '--obs-url=http://127.0.0.1:9999',
+            '--obs-url=http://127.0.0.1:1999',
             ]))
         coroutine.sleep(3)
         conn = Connection('http://127.0.0.1:8100')
@@ -100,7 +100,7 @@ class NodePackagesSlaveTest(tests.Test):
         pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://127.0.0.1:8100', '--cachedir=master.client/tmp',
             '-DDD', '--rundir=master.client/run', '--layers=pilot',
-            '--local-root=master.client', '--activity-dirs=master.client/activities',
+            '--local-root=master.client',
             '--index-flush-threshold=1', '--ipc-port=8200',
             ])
         client.ipc_port.value = 8200
@@ -138,7 +138,7 @@ class NodePackagesSlaveTest(tests.Test):
         pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://127.0.0.1:8101', '--cachedir=master.client/tmp',
             '-DDD', '--rundir=master.client/run', '--layers=pilot',
-            '--local-root=master.client', '--activity-dirs=master.client/activities',
+            '--local-root=master.client',
             '--index-flush-threshold=1', '--ipc-port=8200',
             ])
         client.ipc_port.value = 8200
@@ -157,7 +157,7 @@ class NodePackagesSlaveTest(tests.Test):
         self.pids.append(self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://127.0.0.1:8100', '--cachedir=client/tmp',
             '-DDD', '--rundir=client/run', '--server-mode', '--layers=pilot',
-            '--local-root=client', '--activity-dirs=client/activities',
+            '--local-root=client',
             '--port=8102', '--index-flush-threshold=1',
             '--mounts-root=client/mnt', '--ipc-port=8202',
             ]))

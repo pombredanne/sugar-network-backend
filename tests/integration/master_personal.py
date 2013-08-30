@@ -40,7 +40,7 @@ class MasterPersonalTest(tests.Test):
         self.client_pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
             '--api-url=http://127.0.0.1:8100', '--cachedir=client/tmp',
             '-DDD', '--rundir=client/run', '--server-mode', '--layers=pilot',
-            '--local-root=client', '--activity-dirs=client/activities',
+            '--local-root=client',
             '--port=8101', '--index-flush-threshold=1',
             '--mounts-root=client/mnt', '--ipc-port=8102',
             '--stats-user', '--stats-user-step=1',

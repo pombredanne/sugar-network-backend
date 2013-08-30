@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from sugar_network.model.routes import Routes
+from sugar_network.model.routes import VolumeRoutes, FrontRoutes
 
 
 CONTEXT_TYPES = ['activity', 'project', 'package', 'content']

@@ -18,7 +18,7 @@ import logging
 import mimetypes
 from os.path import join, split
 
-from sugar_network import static
+from sugar_network import static, db
 from sugar_network.toolkit.router import route, fallbackroute, Blob, ACL
 from sugar_network.toolkit import coroutine
 
@@ -26,7 +26,44 @@ from sugar_network.toolkit import coroutine
 _logger = logging.getLogger('model.routes')
 
 
-class Routes(object):
+class VolumeRoutes(db.Routes):
+
+    @route('GET', ['context', None], cmd='feed',
+            mime_type='application/json')
+    def feed(self, request, distro):
+        context = self.volume['context'].get(request.guid)
+        implementations = self.volume['implementation']
+        versions = []
+
+        impls, __ = implementations.find(context=context.guid,
+                not_layer='deleted', **request)
+        for impl in impls:
+            for arch, spec in impl.meta('data')['spec'].items():
+                spec['guid'] = impl.guid
+                spec['version'] = impl['version']
+                spec['arch'] = arch
+                spec['stability'] = impl['stability']
+                spec['license'] = impl['license']
+                if context['dependencies']:
+                    requires = spec.setdefault('requires', {})
+                    for i in context['dependencies']:
+                        requires.setdefault(i, {})
+                blob = implementations.get(impl.guid).meta('data')
+                if blob:
+                    for key in ('blob_size', 'unpack_size', 'extract'):
+                        if key in blob:
+                            spec[key] = blob[key]
+                versions.append(spec)
+
+        result = {'implementations': versions}
+        if distro:
+            aliases = context['aliases'].get(distro)
+            if aliases and 'binary' in aliases:
+                result['packages'] = aliases['binary']
+        return result
+
+
+class FrontRoutes(object):
 
     def __init__(self):
         self._pooler = _Pooler()
@@ -74,7 +111,6 @@ class Routes(object):
             event = request.content
         _logger.debug('Broadcast event: %r', event)
         self._pooler.notify_all(event)
-        coroutine.dispatch()
 
     @fallbackroute('GET', ['static'])
     def get_static(self, request):

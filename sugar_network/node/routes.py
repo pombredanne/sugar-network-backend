@@ -22,12 +22,12 @@ from contextlib import contextmanager
 from ConfigParser import ConfigParser
 from os.path import join, isdir, exists
 
-from sugar_network import db, node, toolkit, model
+from sugar_network import node, toolkit, model
 from sugar_network.node import stats_node, stats_user
 from sugar_network.model.context import Context
 # pylint: disable-msg=W0611
 from sugar_network.toolkit.router import route, preroute, postroute
-from sugar_network.toolkit.router import ACL, fallbackroute
+from sugar_network.toolkit.router import Request, ACL, fallbackroute
 from sugar_network.toolkit.spec import EMPTY_LICENSE
 from sugar_network.toolkit.spec import parse_requires, ensure_requires
 from sugar_network.toolkit.bundle import Bundle
@@ -39,11 +39,11 @@ _MAX_STATS_LENGTH = 100
 _logger = logging.getLogger('node.routes')
 
 
-class NodeRoutes(db.Routes, model.Routes):
+class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
 
     def __init__(self, guid, volume):
-        db.Routes.__init__(self, volume)
-        model.Routes.__init__(self)
+        model.VolumeRoutes.__init__(self, volume)
+        model.FrontRoutes.__init__(self)
         volume.broadcast = self.broadcast
 
         self._guid = guid
@@ -153,9 +153,8 @@ class NodeRoutes(db.Routes, model.Routes):
     def delete(self, request):
         # Servers data should not be deleted immediately
         # to let master-slave synchronization possible
-        request.method = 'PUT'
-        request.content = {'layer': ['deleted']}
-        self.update(request)
+        request.call(method='PUT', path=request.path,
+                content={'layer': ['deleted']})
 
     @route('PUT', [None, None], cmd='attach', acl=ACL.AUTH | ACL.SUPERUSER)
     def attach(self, request):
@@ -175,18 +174,13 @@ class NodeRoutes(db.Routes, model.Routes):
 
     @route('GET', ['context', None], cmd='clone',
             arguments={'requires': list})
-    def clone(self, request, response):
-        impl = self._solve(request)
-        request.path = ['implementation', impl.guid, 'data']
-        return self.get_prop(request)
+    def get_clone(self, request, response):
+        return self._get_clone(request, response)
 
     @route('HEAD', ['context', None], cmd='clone',
             arguments={'requires': list})
-    def meta_clone(self, request, response):
-        impl = self._solve(request)
-        props = impl.properties(['guid', 'license', 'version', 'stability'])
-        response.meta.update(props)
-        response.meta.update(impl.meta('data')['spec']['*-*'])
+    def head_clone(self, request, response):
+        self._get_clone(request, response)
 
     @route('GET', ['context', None], cmd='deplist',
             mime_type='application/json', arguments={'requires': list})
@@ -216,43 +210,6 @@ class NodeRoutes(db.Routes, model.Routes):
             enforce(repo in dep['packages'],
                     'No packages for %r on %r', package, repo)
             result.extend(dep['packages'][repo].get('binary') or [])
-
-        return result
-
-    @route('GET', ['context', None], cmd='feed',
-            mime_type='application/json')
-    def feed(self, request, distro):
-        context = self.volume['context'].get(request.guid)
-        implementations = self.volume['implementation']
-        versions = []
-
-        impls, __ = implementations.find(context=context.guid,
-                not_layer='deleted', **request)
-        for impl in impls:
-            for arch, spec in impl.meta('data')['spec'].items():
-                spec['guid'] = impl.guid
-                spec['version'] = impl['version']
-                spec['arch'] = arch
-                spec['stability'] = impl['stability']
-                if context['dependencies']:
-                    requires = spec.setdefault('requires', {})
-                    for i in context['dependencies']:
-                        requires.setdefault(i, {})
-                blob = implementations.get(impl.guid).meta('data')
-                if blob:
-                    spec['blob_size'] = blob.get('blob_size')
-                    spec['unpack_size'] = blob.get('unpack_size')
-                versions.append(spec)
-
-        result = {
-                'name': context.get('title',
-                    accept_language=request.accept_language),
-                'implementations': versions,
-                }
-        if distro:
-            aliases = context['aliases'].get(distro)
-            if aliases and 'binary' in aliases:
-                result['packages'] = aliases['binary']
 
         return result
 
@@ -323,10 +280,10 @@ class NodeRoutes(db.Routes, model.Routes):
     def on_create(self, request, props, event):
         if request.resource == 'user':
             props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
-        db.Routes.on_create(self, request, props, event)
+        model.VolumeRoutes.on_create(self, request, props, event)
 
     def on_update(self, request, props, event):
-        db.Routes.on_update(self, request, props, event)
+        model.VolumeRoutes.on_update(self, request, props, event)
         if 'deleted' in props.get('layer', []):
             event['event'] = 'delete'
 
@@ -343,13 +300,13 @@ class NodeRoutes(db.Routes, model.Routes):
             _logger.warning('Requesting "deleted" layer')
             layer.remove('deleted')
         request.add('not_layer', 'deleted')
-        return db.Routes.find(self, request, reply)
+        return model.VolumeRoutes.find(self, request, reply)
 
     def get(self, request, reply):
         doc = self.volume[request.resource].get(request.guid)
         enforce('deleted' not in doc['layer'], http.NotFound,
                 'Resource deleted')
-        return db.Routes.get(self, request, reply)
+        return model.VolumeRoutes.get(self, request, reply)
 
     def authorize(self, user, role):
         if role == 'user' and user:
@@ -404,6 +361,17 @@ class NodeRoutes(db.Routes, model.Routes):
             raise http.NotFound('No implementations found')
         return impl
 
+    def _get_clone(self, request, response):
+        impl = self._solve(request)
+        result = request.call(method=request.method,
+                path=['implementation', impl['guid'], 'data'],
+                response=response)
+        props = impl.properties(
+                ['guid', 'context', 'license', 'version', 'stability'])
+        props['data'] = response.meta
+        response.meta = props
+        return result
+
 
 @contextmanager
 def load_bundle(volume, request, bundle_path):
@@ -442,10 +410,10 @@ def load_bundle(volume, request, bundle_path):
         data['spec'] = {'*-*': {
             'commands': spec.commands,
             'requires': spec.requires,
-            'extract': extract,
             }}
         data['unpack_size'] = unpack_size
         data['mime_type'] = 'application/vnd.olpc-sugar'
+        data['extract'] = extract
 
         if initial and not contexts.exists(impl['context']):
             context['guid'] = impl['context']
@@ -455,7 +423,7 @@ def load_bundle(volume, request, bundle_path):
 
     enforce('context' in impl, 'Context is not specified')
     enforce('version' in impl, 'Version is not specified')
-    enforce(context_type in contexts.get(spec['context'])['type'],
+    enforce(context_type in contexts.get(impl['context'])['type'],
             http.BadRequest, 'Inappropriate bundle type')
     if impl.get('license') in (None, EMPTY_LICENSE):
         existing, total = volume['implementation'].find(

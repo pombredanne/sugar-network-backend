@@ -29,6 +29,8 @@ from sugar_network import client, toolkit
 from sugar_network.toolkit import coroutine, enforce
 
 
+_REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
+
 _logger = logging.getLogger('http')
 
 
@@ -45,11 +47,13 @@ class StatusPass(Status):
 class NotModified(StatusPass):
 
     status = '304 Not Modified'
+    status_code = 304
 
 
 class Redirect(StatusPass):
 
     status = '303 See Other'
+    status_code = 303
 
     def __init__(self, location):
         StatusPass.__init__(self)
@@ -123,66 +127,66 @@ class Connection(object):
         self._session.close()
 
     def exists(self, path):
-        response = self.request('GET', path, allowed=[404])
-        return response.status_code != 404
+        reply = self.request('GET', path, allowed=[404])
+        return reply.status_code != 404
+
+    def head(self, path_=None, **kwargs):
+        from sugar_network.toolkit.router import Request, Response
+        request = Request(method='HEAD', path=path_, **kwargs)
+        response = Response()
+        self.call(request, response)
+        return response.meta
 
     def get(self, path_=None, query_=None, **kwargs):
-        response = self.request('GET', path_, params=kwargs)
-        return self._decode_reply(response)
-
-    def meta(self, path_=None, query_=None, **kwargs):
-        response = self.request('HEAD', path_, params=query_ or kwargs)
-        result = {}
-        for key, value in response.headers.items():
-            if key.startswith('x-sn-'):
-                result[key[5:]] = json.loads(value)
-            else:
-                result[key] = value
-        return result
+        reply = self.request('GET', path_, params=query_ or kwargs)
+        return self._decode_reply(reply)
 
     def post(self, path_=None, data_=None, query_=None, **kwargs):
-        response = self.request('POST', path_, json.dumps(data_),
+        reply = self.request('POST', path_, json.dumps(data_),
                 headers={'Content-Type': 'application/json'},
                 params=query_ or kwargs)
-        return self._decode_reply(response)
+        return self._decode_reply(reply)
 
     def put(self, path_=None, data_=None, query_=None, **kwargs):
-        response = self.request('PUT', path_, json.dumps(data_),
+        reply = self.request('PUT', path_, json.dumps(data_),
                 headers={'Content-Type': 'application/json'},
                 params=query_ or kwargs)
-        return self._decode_reply(response)
+        return self._decode_reply(reply)
 
     def delete(self, path_=None, query_=None, **kwargs):
-        response = self.request('DELETE', path_, params=query_ or kwargs)
-        return self._decode_reply(response)
+        reply = self.request('DELETE', path_, params=query_ or kwargs)
+        return self._decode_reply(reply)
 
     def download(self, path, dst=None):
-        response = self.request('GET', path, allow_redirects=True)
+        reply = self.request('GET', path, allow_redirects=True)
 
-        content_length = response.headers.get('Content-Length')
+        content_length = reply.headers.get('Content-Length')
         if content_length:
             chunk_size = min(int(content_length), toolkit.BUFFER_SIZE)
         else:
             chunk_size = toolkit.BUFFER_SIZE
 
         if dst is None:
-            return response.iter_content(chunk_size=chunk_size)
+            return reply.iter_content(chunk_size=chunk_size)
 
         f = file(dst, 'wb') if isinstance(dst, basestring) else dst
         try:
-            for chunk in response.iter_content(chunk_size=chunk_size):
+            for chunk in reply.iter_content(chunk_size=chunk_size):
                 f.write(chunk)
         finally:
             if isinstance(dst, basestring):
                 f.close()
 
     def upload(self, path, data, **kwargs):
-        with file(data, 'rb') as f:
-            response = self.request('POST', path, f, params=kwargs)
-        if response.headers.get('Content-Type') == 'application/json':
-            return json.loads(response.content)
+        if isinstance(data, basestring):
+            with file(data, 'rb') as f:
+                reply = self.request('POST', path, f, params=kwargs)
         else:
-            return response.raw
+            reply = self.request('POST', path, data, params=kwargs)
+        if reply.headers.get('Content-Type') == 'application/json':
+            return json.loads(reply.content)
+        else:
+            return reply.raw
 
     def request(self, method, path=None, data=None, headers=None, allowed=None,
             params=None, **kwargs):
@@ -198,14 +202,13 @@ class Connection(object):
         while True:
             a_try += 1
             try:
-                response = self._session.request(method, path, data=data,
+                reply = self._session.request(method, path, data=data,
                         headers=headers, params=params, **kwargs)
             except SSLError:
                 _logger.warning('Use --no-check-certificate to avoid checks')
                 raise
-
-            if response.status_code != 200:
-                if response.status_code == 401:
+            if reply.status_code != 200:
+                if reply.status_code == 401:
                     enforce(method not in ('PUT', 'POST') or
                             not hasattr(data, 'read'),
                             'Cannot resend data after authentication')
@@ -216,9 +219,9 @@ class Connection(object):
                     self.post(['user'], self._get_profile())
                     a_try = 0
                     continue
-                if allowed and response.status_code in allowed:
-                    return response
-                content = response.content
+                if allowed and reply.status_code in allowed:
+                    break
+                content = reply.content
                 try:
                     error = json.loads(content)['error']
                 except Exception:
@@ -228,16 +231,17 @@ class Connection(object):
                     # If so, try to resend request.
                     if a_try <= self._max_retries and method == 'GET':
                         continue
-                    error = content or response.headers.get('x-sn-error') or \
+                    error = content or reply.headers.get('x-sn-error') or \
                             'No error message provided'
-                _logger.trace('Request failed, method=%s path=%r params=%r '
+                _logger.debug('Request failed, method=%s path=%r params=%r '
                         'headers=%r status_code=%s error=%s',
-                        method, path, params, headers, response.status_code,
+                        method, path, params, headers, reply.status_code,
                         '\n' + error)
-                cls = _FORWARD_STATUSES.get(response.status_code, RuntimeError)
+                cls = _FORWARD_STATUSES.get(reply.status_code, RuntimeError)
                 raise cls(error)
+            break
 
-            return response
+        return reply
 
     def call(self, request, response=None):
         if request.content_type == 'application/json':
@@ -268,15 +272,27 @@ class Connection(object):
             if value is not None:
                 headers[key] = value
 
-        reply = self.request(request.method, request.path,
-                data=request.content, params=request.query or request,
-                headers=headers, allow_redirects=True)
-
-        if response is not None:
-            if 'transfer-encoding' in reply.headers:
-                # `requests` library handles encoding on its own
-                del reply.headers['transfer-encoding']
-            response.update(reply.headers)
+        path = request.path
+        while True:
+            reply = self.request(request.method, path,
+                    data=request.content, params=request.query or request,
+                    headers=headers, allowed=_REDIRECT_CODES,
+                    allow_redirects=False)
+            resend = reply.status_code in _REDIRECT_CODES
+            if response is not None:
+                if 'transfer-encoding' in reply.headers:
+                    # `requests` library handles encoding on its own
+                    del reply.headers['transfer-encoding']
+                for key, value in reply.headers.items():
+                    if key.startswith('x-sn-'):
+                        response.meta[key[5:]] = json.loads(value)
+                    elif not resend:
+                        response[key] = value
+            if not resend:
+                break
+            path = reply.headers['location']
+            if path.startswith('/'):
+                path = self.api_url + path
 
         if request.method != 'HEAD':
             if reply.headers.get('Content-Type') == 'application/json':
@@ -287,11 +303,11 @@ class Connection(object):
     def subscribe(self, **condition):
         return _Subscription(self, condition)
 
-    def _decode_reply(self, response):
-        if response.headers.get('Content-Type') == 'application/json':
-            return json.loads(response.content)
+    def _decode_reply(self, reply):
+        if reply.headers.get('Content-Type') == 'application/json':
+            return json.loads(reply.content)
         else:
-            return response.content
+            return reply.content
 
 
 class _Subscription(object):

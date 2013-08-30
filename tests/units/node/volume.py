@@ -682,11 +682,9 @@ def call(routes, method, document=None, guid=None, prop=None, cmd=None, content=
         path.append(guid)
     if prop:
         path.append(prop)
-    request = Request(method=method, path=path)
+    request = Request(method=method, path=path, cmd=cmd, content=content)
     request.update(kwargs)
-    request.cmd = cmd
-    request.content = content
-    request.environ = {'HTTP_HOST': '127.0.0.1'}
+    request.environ['HTTP_HOST'] = '127.0.0.1'
     router = Router(routes)
     return router.call(request, Response())
 

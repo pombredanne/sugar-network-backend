@@ -102,15 +102,12 @@ class Context(db.Resource):
         else:
             return value[0]
 
-    @db.indexed_property(prefix='K', typecast=bool, default=False,
-            acl=ACL.READ | ACL.LOCAL)
-    def favorite(self, value):
-        return value
-
-    @db.indexed_property(prefix='L', typecast=[0, 1, 2], default=0,
-            acl=ACL.READ | ACL.LOCAL)
-    def clone(self, value):
-        return value
+    @reviews.setter
+    def reviews(self, value):
+        if isinstance(value, int):
+            return [value, 0]
+        else:
+            return value
 
     @db.stored_property(typecast=[], default=[], acl=ACL.PUBLIC | ACL.LOCAL)
     def dependencies(self, value):

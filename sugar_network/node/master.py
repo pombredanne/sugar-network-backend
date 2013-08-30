@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
 import json
 import base64
 import logging
@@ -148,8 +147,8 @@ class MasterRoutes(NodeRoutes):
                 coroutine.spawn(self._resolve_aliases, doc)
                 shift_implementations = True
             if shift_implementations and not doc.is_new:
-                # Shift mtime to invalidate solutions
-                self.volume['implementation'].mtime = int(time.time())
+                # Shift checkpoint to invalidate solutions
+                self.volume['implementation'].checkpoint()
         NodeRoutes.after_post(self, doc)
 
     def _push(self, stream):

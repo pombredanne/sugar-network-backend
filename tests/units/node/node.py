@@ -556,7 +556,7 @@ class NodeTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        impl = client.post(['implementation'], {
+        impl1 = client.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -564,7 +564,7 @@ class NodeTest(tests.Test):
             'notes': '',
             })
         blob1 = self.zips(('topdir/probe', 'probe1'))
-        volume['implementation'].update(impl, {'data': {
+        volume['implementation'].update(impl1, {'data': {
             'blob': StringIO(blob1),
             'spec': {
                 '*-*': {
@@ -574,7 +574,7 @@ class NodeTest(tests.Test):
                     },
                 },
             }})
-        impl = client.post(['implementation'], {
+        impl2 = client.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
@@ -582,7 +582,7 @@ class NodeTest(tests.Test):
             'notes': '',
             })
         blob2 = self.zips(('topdir/probe', 'probe2'))
-        volume['implementation'].update(impl, {'data': {
+        volume['implementation'].update(impl2, {'data': {
             'blob': StringIO(blob2),
             'spec': {
                 '*-*': {
@@ -593,7 +593,7 @@ class NodeTest(tests.Test):
                     },
                 },
             }})
-        impl = client.post(['implementation'], {
+        impl3 = client.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '3',
@@ -601,7 +601,7 @@ class NodeTest(tests.Test):
             'notes': '',
             })
         blob3 = self.zips(('topdir/probe', 'probe3'))
-        volume['implementation'].update(impl, {'data': {
+        volume['implementation'].update(impl3, {'data': {
             'blob': StringIO(blob3),
             'spec': {
                 '*-*': {
@@ -611,7 +611,7 @@ class NodeTest(tests.Test):
                     },
                 },
             }})
-        impl = client.post(['implementation'], {
+        impl4 = client.post(['implementation'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '4',
@@ -619,7 +619,7 @@ class NodeTest(tests.Test):
             'notes': '',
             })
         blob4 = self.zips(('topdir/probe', 'probe4'))
-        volume['implementation'].update(impl, {'data': {
+        volume['implementation'].update(impl4, {'data': {
             'blob': StringIO(blob4),
             'spec': {
                 '*-*': {
@@ -640,6 +640,31 @@ class NodeTest(tests.Test):
 
         self.assertRaises(http.NotFound, client.get, ['context', context], cmd='clone', requires='dep4')
         self.assertRaises(http.NotFound, client.get, ['context', context], cmd='clone', stability='foo')
+
+        response = Response()
+        client.call(Request(method='GET', path=['context', context], cmd='clone'), response)
+        self.assertEqual({
+            'context': context,
+            'stability': 'stable',
+            'guid': impl3,
+            'version': '3',
+            'license': ['GPLv3+'],
+            'data': {
+                'seqno': 8,
+                'mtime': int(os.stat('master/implementation/%s/%s/data.blob' % (impl3[:2], impl3)).st_mtime),
+                'blob_size': len(blob3),
+                'spec': {
+                    '*-*': {
+                        'requires': {
+                            'dep2': {
+                                'restrictions': [['2', None]],
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            response.meta)
 
     def test_release(self):
         volume = self.start_master()
@@ -679,7 +704,6 @@ class NodeTest(tests.Test):
         data = impl.meta('data')
         self.assertEqual({
             '*-*': {
-                'extract': 'topdir',
                 'commands': {'activity': {'exec': 'true'}},
                 'requires': {'dep': {}, 'sugar': {'restrictions': [['0.88', None]]}},
                 },
@@ -901,13 +925,12 @@ def call(routes, method, document=None, guid=None, prop=None, principal=None, cm
         path.append(guid)
     if prop:
         path.append(prop)
-    request = Request(method=method, path=path)
+    request = Request(method=method, path=path, cmd=cmd, content=content)
     request.update(kwargs)
-    request.cmd = cmd
-    request.content = content
-    request.environ = {'HTTP_HOST': '127.0.0.1'}
+    request.environ['HTTP_HOST'] = '127.0.0.1'
     if principal:
         request.environ['HTTP_X_SN_LOGIN'] = principal
+        request.principal = principal
     router = Router(routes)
     return router.call(request, Response())
 

@@ -31,8 +31,9 @@ class Implementation(db.Resource):
 
     @context.setter
     def context(self, value):
-        context = self.volume['context'].get(value)
-        enforce(self.request.principal in context['author'], http.Forbidden,
+        authors = self.volume['context'].get(value)['author']
+        enforce(not self.request.principal and not authors or
+                self.request.principal in authors, http.Forbidden,
                 'Only Context authors can submit new Implementations')
         return value
 

@@ -21,7 +21,7 @@ from os.path import isabs, join, dirname
 
 from sugar_network.client import packagekit, SUGAR_API_COMPATIBILITY
 from sugar_network.toolkit.spec import parse_version
-from sugar_network.toolkit import http, lsb_release, pipe, exception
+from sugar_network.toolkit import http, lsb_release
 
 sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'zeroinstall'))
 
@@ -38,9 +38,9 @@ reader.check_readable = lambda *args, **kwargs: True
 reader.update_from_cache = lambda *args, **kwargs: None
 reader.load_feed_from_cache = lambda url, **kwargs: _load_feed(url)
 
-_logger = logging.getLogger('zeroinstall')
+_logger = logging.getLogger('solver')
 _stability = None
-_conn = None
+_call = None
 
 
 def canonicalize_machine(arch):
@@ -68,10 +68,10 @@ def select_architecture(arches):
     return result_arch
 
 
-def solve(conn, context, stability):
-    global _conn, _stability
+def solve(call, context, stability):
+    global _call, _stability
 
-    _conn = conn
+    _call = call
     _stability = stability
 
     req = Requirements(context)
@@ -102,7 +102,7 @@ def solve(conn, context, stability):
                     if feed.to_resolve:
                         continue
                     if status is None:
-                        status = conn.get(cmd='status')
+                        status = call(method='GET', cmd='status')
                     if status['route'] == 'offline':
                         raise http.ServiceUnavailable(str(error))
                     else:
@@ -136,7 +136,8 @@ def solve(conn, context, stability):
         else:
             summary.append('  (no versions)')
             missed.append(iface.uri)
-    pipe.trace('\n  '.join(['Solving results:'] + top_summary + dep_summary))
+    _logger.debug('[%s] Solving results:\n%s',
+            context, '\n'.join(top_summary + dep_summary))
 
     if not ready:
         # pylint: disable-msg=W0212
@@ -145,7 +146,7 @@ def solve(conn, context, stability):
             reason = reason_exception.message
         else:
             reason = 'Cannot find implementations for %s' % ', '.join(missed)
-        raise RuntimeError(reason)
+        raise http.NotFound(reason)
 
     solution = []
     solution.append(_impl_new(config, context, selections[context]))
@@ -162,29 +163,21 @@ def _interface_init(self, url):
 
 
 def _impl_new(config, iface, sel):
-    feed = config.iface_cache.get_feed(iface)
-    impl = {'id': sel.id,
+    impl = {'guid': sel.id,
             'context': iface,
+            'license': sel.impl.license,
             'version': sel.version,
-            'name': feed.title,
             'stability': sel.impl.upstream_stability.name,
             }
-    if sel.impl.hints:
-        for key in ('mime_type', 'blob_size', 'unpack_size'):
-            value = sel.impl.hints.get(key)
-            if value is not None:
-                impl[key] = value
 
-    if isabs(sel.id):
-        impl['spec'] = join(sel.id, 'activity', 'activity.info')
     if sel.local_path:
         impl['path'] = sel.local_path
     if sel.impl.to_install:
         impl['install'] = sel.impl.to_install
     if sel.impl.download_sources:
-        prefix = sel.impl.download_sources[0].extract
-        if prefix:
-            impl['prefix'] = prefix
+        extract = sel.impl.download_sources[0].extract
+        if extract:
+            impl['extract'] = extract
     commands = sel.get_commands()
     if commands:
         impl['command'] = commands.values()[0].path.split()
@@ -203,32 +196,31 @@ def _load_feed(context):
             host_version = '0.94'
         for version in SUGAR_API_COMPATIBILITY.get(host_version) or []:
             feed.implement_sugar(version)
-        feed.name = feed.title = context
+        feed.name = context
         return feed
 
     feed_content = None
     try:
-        feed_content = _conn.get(['context', context], cmd='feed',
-                stability=_stability, distro=lsb_release.distributor_id())
-        pipe.trace('Found %s feed: %r', context, feed_content)
+        feed_content = _call(method='GET', path=['context', context],
+                cmd='feed', stability=_stability,
+                distro=lsb_release.distributor_id())
+        _logger.trace('[%s] Found feed: %r', context, feed_content)
     except http.ServiceUnavailable:
-        pipe.trace('Failed to fetch %s feed', context)
+        _logger.trace('[%s] Failed to fetch the feed', context)
         raise
     except Exception:
-        exception(_logger, 'Failed to fetch %r feed', context)
-        pipe.trace('No feeds for %s', context)
+        _logger.exception('[%s] Failed to fetch the feed', context)
         return None
 
     # XXX 0install fails on non-ascii `name` values
     feed.name = context
-    feed.title = feed_content['name']
     feed.to_resolve = feed_content.get('packages')
     if not feed.to_resolve:
-        pipe.trace('No compatible packages for %s', context)
+        _logger.trace('[%s] No compatible packages', context)
     for impl in feed_content['implementations']:
         feed.implement(impl)
     if not feed.to_resolve and not feed.implementations:
-        pipe.trace('No implementations for %s', context)
+        _logger.trace('[%s] No implementations', context)
 
     return feed
 
@@ -246,7 +238,6 @@ class _Feed(model.ZeroInstallFeed):
         self.last_checked = None
         self.to_resolve = None
         self._package_implementations = []
-        self.title = None
 
     @property
     def url(self):
@@ -279,12 +270,12 @@ class _Feed(model.ZeroInstallFeed):
         impl.upstream_stability = model.stability_levels['stable']
         impl.requires.extend(_read_requires(release.get('requires')))
         impl.hints = release
+        impl.license = release.get('license') or []
 
         if isabs(impl_id):
             impl.local_path = impl_id
         else:
-            impl.add_download_source(impl_id,
-                    release.get('size') or 0, release.get('extract'))
+            impl.add_download_source(impl_id, 0, release.get('extract'))
 
         for name, command in release['commands'].items():
             impl.commands[name] = _Command(name, command)
@@ -302,7 +293,6 @@ class _Feed(model.ZeroInstallFeed):
         impl.released = 0
         impl.arch = '*-*'
         impl.upstream_stability = model.stability_levels['packaged']
-        impl.local_path = '/'
         self.implementations[impl_id] = impl
 
 
@@ -310,6 +300,11 @@ class _Implementation(model.ZeroInstallImplementation):
 
     to_install = None
     hints = None
+    license = None
+
+    def is_available(self, stores):
+        # Simplify solving
+        return True
 
 
 class _Dependency(model.InterfaceDependency):
@@ -385,5 +380,4 @@ def _read_requires(data):
 if __name__ == '__main__':
     from pprint import pprint
     logging.basicConfig(level=logging.DEBUG)
-    pipe.trace = logging.info
     pprint(solve(*sys.argv[1:]))

@@ -15,10 +15,6 @@
 
 import os
 import sys
-import time
-import uuid
-import random
-import hashlib
 import logging
 from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
@@ -30,14 +26,6 @@ from sugar_network.toolkit import enforce
 
 _logger = logging.getLogger('client.journal')
 _ds_root = client.profile_path('datastore')
-
-
-def create_activity_id():
-    data = '%s%s%s' % (
-            time.time(),
-            random.randint(10000, 100000),
-            uuid.getnode())
-    return hashlib.sha1(data).hexdigest()
 
 
 def exists(guid):
@@ -147,19 +135,19 @@ class Routes(object):
         subrequest.content = request.content
         subrequest.content_type = 'application/json'
         # pylint: disable-msg=E1101
-        subguid = self.call(subrequest, response)
+        subguid = self.fallback(subrequest, response)
 
         subrequest = Request(method='PUT', document='artifact',
                 guid=subguid, prop='preview')
         subrequest.content_type = 'image/png'
         with file(preview_path, 'rb') as subrequest.content_stream:
-            self.call(subrequest, response)
+            self.fallback(subrequest, response)
 
         subrequest = Request(method='PUT', document='artifact',
                 guid=subguid, prop='data')
         subrequest.content_type = get(guid, 'mime_type') or 'application/octet'
         with file(data_path, 'rb') as subrequest.content_stream:
-            self.call(subrequest, response)
+            self.fallback(subrequest, response)
 
     def journal_update(self, guid, data=None, **kwargs):
         enforce(self._ds is not None, 'Journal is inaccessible')

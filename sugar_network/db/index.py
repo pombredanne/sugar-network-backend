@@ -71,19 +71,19 @@ class IndexReader(object):
     @property
     def mtime(self):
         """UNIX seconds of the last `commit()` call."""
-        if exists(self._mtime_path):
-            return int(os.stat(self._mtime_path).st_mtime)
-        else:
-            return 0
+        return int(os.stat(self._mtime_path).st_mtime)
 
-    @mtime.setter
-    def mtime(self, value):
-        with file(self._mtime_path, 'w'):
-            pass
-        os.utime(self._mtime_path, (value, value))
+    def checkpoint(self):
+        ts = time.time()
+        os.utime(self._mtime_path, (ts, ts))
+        return int(ts)
 
     def ensure_open(self):
-        pass
+        if not exists(self._mtime_path):
+            with file(self._mtime_path, 'w'):
+                pass
+            # Outter code should understand the initial state
+            os.utime(self._mtime_path, (0, 0))
 
     def get_cached(self, guid):
         """Return cached document.
@@ -407,22 +407,18 @@ class IndexWriter(IndexReader):
         # Trigger condition to reset waiting for `index_flush_timeout` timeout
         self._commit_cond.set()
 
-    def checkpoint(self):
-        with file(self._mtime_path, 'w'):
-            pass
-
     def ensure_open(self):
-        if self._db is not None:
-            return
-        try:
-            self._db = xapian.WritableDatabase(self._path,
-                    xapian.DB_CREATE_OR_OPEN)
-        except xapian.DatabaseError:
-            exception('Cannot open Xapian index in %r, will rebuild it',
-                    self.metadata.name)
-            shutil.rmtree(self._path, ignore_errors=True)
-            self._db = xapian.WritableDatabase(self._path,
-                    xapian.DB_CREATE_OR_OPEN)
+        if self._db is None:
+            try:
+                self._db = xapian.WritableDatabase(self._path,
+                        xapian.DB_CREATE_OR_OPEN)
+            except xapian.DatabaseError:
+                exception('Cannot open Xapian index in %r, will rebuild it',
+                        self.metadata.name)
+                shutil.rmtree(self._path, ignore_errors=True)
+                self._db = xapian.WritableDatabase(self._path,
+                        xapian.DB_CREATE_OR_OPEN)
+        IndexReader.ensure_open(self)
 
     def _commit(self):
         if self._pending_updates <= 0:
@@ -436,11 +432,10 @@ class IndexWriter(IndexReader):
             self._db.commit()
         else:
             self._db.flush()
-        self.checkpoint()
+        ts = self.checkpoint() - ts
         self._pending_updates = 0
 
-        _logger.debug('Commit %r changes took %s seconds',
-                self.metadata.name, time.time() - ts)
+        _logger.debug('Commit to %r took %s seconds', self.metadata.name, ts)
 
         if self._commit_cb is not None:
             self._commit_cb()

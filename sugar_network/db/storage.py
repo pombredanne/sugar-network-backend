@@ -123,6 +123,12 @@ class Record(object):
     def consistent(self):
         return exists(join(self._root, 'guid'))
 
+    def path(self, *args):
+        return join(self._root, *args)
+
+    def blob_path(self, prop):
+        return join(self._root, prop + _BLOB_SUFFIX)
+
     def invalidate(self):
         guid_path = join(self._root, 'guid')
         if exists(guid_path):
@@ -137,7 +143,8 @@ class Record(object):
         blob_path = path + _BLOB_SUFFIX
         if exists(blob_path):
             meta['blob'] = blob_path
-            meta['blob_size'] = os.stat(blob_path).st_size
+            if 'blob_size' not in meta:
+                meta['blob_size'] = os.stat(blob_path).st_size
         meta['mtime'] = int(os.stat(path).st_mtime)
         return meta
 

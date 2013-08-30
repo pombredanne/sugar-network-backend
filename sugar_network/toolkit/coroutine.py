@@ -17,11 +17,14 @@
 
 # pylint: disable-msg=W0621
 
+import os
 import logging
 
 import gevent
 import gevent.pool
 import gevent.hub
+
+from sugar_network.toolkit import enforce
 
 
 #: Process one events loop round.
@@ -79,6 +82,12 @@ def signal(*args, **kwargs):
     return gevent.signal(*args, **kwargs)
 
 
+def fork():
+    pid = os.fork()
+    if pid:
+        return _Child(pid)
+
+
 def Server(*args, **kwargs):
     import gevent.server
     kwargs['spawn'] = spawn
@@ -131,16 +140,31 @@ def RLock(*args, **kwargs):
     return gevent.lock.RLock(*args, **kwargs)
 
 
-class AsyncEvent(object):
+class ThreadEvent(object):
 
     def __init__(self):
         self._async = gevent.get_hub().loop.async()
 
+    def set(self):
+        self._async.send()
+
     def wait(self):
         gevent.get_hub().wait(self._async)
 
-    def send(self):
+
+class ThreadResult(object):
+
+    def __init__(self):
+        self._async = gevent.get_hub().loop.async()
+        self._value = None
+
+    def set(self, value):
+        self._value = value
         self._async.send()
+
+    def get(self):
+        gevent.get_hub().wait(self._async)
+        return self._value
 
 
 class Empty(Exception):
@@ -226,6 +250,34 @@ class Pool(gevent.pool.Pool):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.kill()
+
+
+class _Child(object):
+
+    def __init__(self, pid):
+        self.pid = pid
+        self._watcher = None
+
+    def watch(self, cb, *args, **kwargs):
+        enforce(self._watcher is None, 'Watching already started')
+        loop = gevent.get_hub().loop
+        loop.install_sigchld()
+        self._watcher = loop.child(self.pid)
+        self._watcher.start(self.__sigchld_cb, cb, args, kwargs)
+
+    def wait(self):
+        result = AsyncResult()
+        self.watch(result.set)
+        return result.get()
+
+    def __sigchld_cb(self, cb, args, kwargs):
+        self._watcher.stop()
+        status = self._watcher.rstatus
+        if os.WIFSIGNALED(status):
+            returncode = -os.WTERMSIG(status)
+        else:
+            returncode = os.WEXITSTATUS(status)
+        cb(returncode, *args, **kwargs)
 
 
 def _print_exception(context, klass, value, tb):

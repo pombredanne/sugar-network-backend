@@ -18,7 +18,7 @@ from sugar_network.toolkit import coroutine
 class RoutesTest(tests.Test):
 
     def test_StaticFiles(self):
-        router = Router(model.Routes())
+        router = Router(model.FrontRoutes())
         local_path = src_root + '/sugar_network/static/httpdocs/images/missing.png'
 
         response = []
@@ -48,7 +48,7 @@ class RoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        routes = model.Routes()
+        routes = model.FrontRoutes()
         volume = db.Volume('db', [Document], routes.broadcast)
         events = []
 
@@ -81,7 +81,7 @@ class RoutesTest(tests.Test):
             events)
 
     def test_SubscribeWithPong(self):
-        routes = model.Routes()
+        routes = model.FrontRoutes()
         for event in routes.subscribe(ping=True):
             break
         self.assertEqual('data: {"event": "pong"}\n\n', event)

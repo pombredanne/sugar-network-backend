@@ -63,14 +63,14 @@ _ESCAPE_VALUE_RE = re.compile(r'([^\[\]\{\}0-9][^\]\[\{\}]+)')
 _LIST_RE = re.compile(r'\s*[;,:]+\s*')
 
 
-class ClientRouter(ClientRoutes, Router):
+class ClientRouter(Router, ClientRoutes):
 
     def __init__(self):
         home = db.Volume(client.path('db'), RESOURCES)
+        Router.__init__(self, self)
         ClientRoutes.__init__(self, home,
                 client.api_url.value if not offline.value else None,
                 no_subscription=True)
-        Router.__init__(self, self)
 
         if not offline.value:
             for __ in self.subscribe(event='inline', state='online'):
@@ -199,10 +199,14 @@ class Application(application.Application):
             'specifies all ARGUMENTs the particular API call requires',
             args='PATH [ARGUMENT=VALUE]')
     def head(self):
-        request = Request()
+        request = Request(method='HEAD')
         self._parse_path(request)
         self._parse_args(request)
-        result = self._connect().meta(request.path, request.query)
+        response = Response()
+        self._connect().call(request, response)
+        result = {}
+        result.update(response)
+        result.update(response.meta)
         self._dump(result)
 
     @application.command(hidden=True)
@@ -319,7 +323,7 @@ class Application(application.Application):
 
         def porcelain_dump(value):
             if type(value) is dict:
-                for i in value.items():
+                for i in sorted(value.items()):
                     print '%-18s%s' % i
             else:
                 if type(value) not in (list, tuple):
@@ -330,7 +334,7 @@ class Application(application.Application):
                     if type(i) is dict and len(i) == 1:
                         i = i.values()[0]
                     print i,
-            print ''
+                print ''
 
         if type(result) in (list, tuple):
             for i in result:

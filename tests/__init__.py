@@ -16,12 +16,12 @@ from os.path import dirname, join, exists, abspath, isfile
 from M2Crypto import DSA
 from gevent import monkey
 
-from sugar_network.toolkit import coroutine, http, mountpoints, Option, pipe
+from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus
 from sugar_network.toolkit.router import Router
-from sugar_network.client import journal, routes as client_routes
+from sugar_network.client import IPCConnection, journal, routes as client_routes
 from sugar_network.client.routes import ClientRoutes
-from sugar_network import db, client, node, toolkit
-from sugar_network.client import injector, solver
+from sugar_network import db, client, node, toolkit, model
+from sugar_network.client import solver
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.implementation import Implementation
@@ -87,7 +87,6 @@ class Test(unittest.TestCase):
         node.sync_layers.value = None
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
-        client.activity_dirs.value = [tmpdir + '/Activities']
         client.api_url.value = 'http://127.0.0.1:8888'
         client.mounts_root.value = None
         client.ipc_port.value = 5555
@@ -108,15 +107,12 @@ class Test(unittest.TestCase):
         obs._repos = {'base': [], 'presolve': []}
         http._RECONNECTION_NUMBER = 0
         toolkit.cachedir.value = tmpdir + '/tmp'
-        injector.invalidate_solutions(None)
-        injector._pms_path = None
         journal._ds_root = tmpdir + '/datastore'
         solver.nodeps = False
         solver._stability = None
         solver._conn = None
         downloads._POOL_SIZE = 256
-        pipe._pipe = None
-        pipe._trace = None
+        gbus.join()
 
         db.Volume.model = [
                 'sugar_network.model.user',
@@ -306,24 +302,21 @@ class Test(unittest.TestCase):
             classes = [User, Context, Implementation]
         self.start_master(classes)
         volume = db.Volume('client', classes)
-        commands = ClientRoutes(volume, client.api_url.value)
-        self.wait_for_events(commands, event='inline', state='online').wait()
+        self.client_routes = ClientRoutes(volume, client.api_url.value)
+        self.wait_for_events(self.client_routes, event='inline', state='online').wait()
         self.client = coroutine.WSGIServer(
-                ('127.0.0.1', client.ipc_port.value), Router(commands))
+                ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
         return volume
 
-    def start_offline_client(self, classes=None):
-        if classes is None:
-            classes = [User, Context, Implementation]
-        volume = db.Volume('client', classes)
-        commands = ClientRoutes(volume)
-        self.client = coroutine.WSGIServer(
-                ('127.0.0.1', client.ipc_port.value), Router(commands))
-        coroutine.spawn(self.client.serve_forever)
+    def start_offline_client(self):
+        self.home_volume = db.Volume('db', model.RESOURCES)
+        commands = ClientRoutes(self.home_volume)
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(commands))
+        coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
-        return volume
+        return IPCConnection()
 
     def restful_server(self, classes=None):
         if not exists('remote'):

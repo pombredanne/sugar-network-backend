@@ -31,6 +31,7 @@ from sugar_network.toolkit import http, coroutine, enforce
 
 
 _logger = logging.getLogger('router')
+_NOT_SET = object()
 
 
 def route(method, path=None, cmd=None, **kwargs):
@@ -96,69 +97,58 @@ class ACL(object):
 
 class Request(dict):
 
-    environ = None
-    url = None
-    method = None
-    path = None
-    cmd = None
-    content = None
-    content_type = None
-    content_stream = None
-    content_length = 0
     principal = None
     subcall = lambda *args: enforce(False)
 
     def __init__(self, environ=None, method=None, path=None, cmd=None,
-            content=None, **kwargs):
+            content=None, content_type=None, **kwargs):
         dict.__init__(self)
+
+        self.path = []
+        self.cmd = None
+        self.environ = {}
+        self.session = {}
+        self._content = _NOT_SET
+
         self._dirty_query = False
-        self._if_modified_since = None
-        self._accept_language = None
+        self._if_modified_since = _NOT_SET
+        self._accept_language = _NOT_SET
+        self._content_stream = _NOT_SET
+        self._content_type = content_type or _NOT_SET
 
-        if environ is None:
-            self.environ = {}
-            self.method = method
+        if environ:
+            url = environ.get('PATH_INFO', '').strip('/')
+            self.path = [i for i in url.split('/') if i]
+            query = environ.get('QUERY_STRING') or ''
+            for key, value in parse_qsl(query, keep_blank_values=True):
+                key = str(key)
+                param = self.get(key)
+                if type(param) is list:
+                    param.append(value)
+                else:
+                    if param is not None:
+                        value = [param, value]
+                    if key == 'cmd':
+                        self.cmd = value
+                    else:
+                        dict.__setitem__(self, key, value)
+            self.environ = environ
+
+        if method:
+            self.environ['REQUEST_METHOD'] = method
+        if path:
+            self.environ['PATH_INFO'] = '/' + '/'.join(path)
             self.path = path
+        if cmd:
             self.cmd = cmd
+            self._dirty_query = True
+        if content is not None:
+            self._content = content
+        if kwargs:
             self.update(kwargs)
-            self.content = content
-            return
-
-        self.environ = environ
-        self.url = '/' + environ['PATH_INFO'].strip('/')
-        self.path = [i for i in self.url[1:].split('/') if i]
-        self.method = environ['REQUEST_METHOD']
+            self._dirty_query = True
 
         enforce('..' not in self.path, 'Relative url path')
-
-        query = environ.get('QUERY_STRING') or ''
-        for key, value in parse_qsl(query, keep_blank_values=True):
-            key = str(key)
-            param = self.get(key)
-            if type(param) is list:
-                param.append(value)
-            else:
-                if param is not None:
-                    value = [param, value]
-                if key == 'cmd':
-                    self.cmd = value
-                else:
-                    dict.__setitem__(self, key, value)
-        if query:
-            self.url += '?' + query
-
-        content_length = environ.get('CONTENT_LENGTH')
-        if content_length is not None:
-            self.content_length = int(content_length)
-
-        content_type, __ = cgi.parse_header(environ.get('CONTENT_TYPE', ''))
-        self.content_type = content_type.lower()
-        if self.content_type == 'application/json':
-            self.content = json.load(environ['wsgi.input'])
-
-        stream = environ.get('wsgi.input')
-        if stream is not None:
-            self.content_stream = _ContentStream(stream, self.content_length)
 
     def __setitem__(self, key, value):
         self._dirty_query = True
@@ -170,6 +160,58 @@ class Request(dict):
     def __getitem__(self, key):
         enforce(key in self, 'Cannot find %r request argument', key)
         return self.get(key)
+
+    @property
+    def method(self):
+        return self.environ.get('REQUEST_METHOD')
+
+    @property
+    def url(self):
+        result = self.environ['PATH_INFO']
+        if self.query:
+            result += '?' + self.query
+        return result
+
+    @property
+    def content_type(self):
+        if self._content_type is _NOT_SET:
+            value, __ = cgi.parse_header(
+                    self.environ.get('CONTENT_TYPE', ''))
+            self._content_type = value.lower()
+        return self._content_type
+
+    @content_type.setter
+    def content_type(self, value):
+        self._content_type = value
+
+    @property
+    def content(self):
+        if self._content is _NOT_SET:
+            if self.content_type == 'application/json':
+                self._content = json.load(self.environ['wsgi.input'])
+            else:
+                self._content = None
+        return self._content
+
+    @content.setter
+    def content(self, value):
+        self._content = value
+
+    @property
+    def content_length(self):
+        value = self.environ.get('CONTENT_LENGTH')
+        if value is not None:
+            return int(value)
+
+    @property
+    def content_stream(self):
+        if self._content_stream is _NOT_SET:
+            s = self.environ.get('wsgi.input')
+            if s is None:
+                self._content_stream = None
+            else:
+                self._content_stream = _ContentStream(s, self.content_length)
+        return self._content_stream
 
     @property
     def resource(self):
@@ -194,7 +236,7 @@ class Request(dict):
 
     @property
     def if_modified_since(self):
-        if self._if_modified_since is None:
+        if self._if_modified_since is _NOT_SET:
             value = parsedate(self.environ.get('HTTP_IF_MODIFIED_SINCE'))
             if value is not None:
                 self._if_modified_since = calendar.timegm(value)
@@ -204,7 +246,7 @@ class Request(dict):
 
     @property
     def accept_language(self):
-        if self._accept_language is None:
+        if self._accept_language is _NOT_SET:
             self._accept_language = _parse_accept_language(
                     self.environ.get('HTTP_ACCEPT_LANGUAGE'))
         return self._accept_language
@@ -239,13 +281,21 @@ class Request(dict):
             else:
                 existing_value = self[key] = [existing_value, value]
 
-    def call(self, request=None, response=None, **kwargs):
-        if request is None:
-            request = Request(**kwargs)
+    def call(self, response=None, **kwargs):
+        environ = {}
+        for key in ('HTTP_HOST',
+                    'HTTP_ACCEPT_LANGUAGE',
+                    'HTTP_ACCEPT_ENCODING',
+                    'HTTP_IF_MODIFIED_SINCE',
+                    'HTTP_X_SN_LOGIN',
+                    'HTTP_X_SN_SIGNATURE'):
+            if key in self.environ:
+                environ[key] = self.environ[key]
+        request = Request(environ, **kwargs)
         if response is None:
             response = Response()
         request.principal = self.principal
-        request.environ = self.environ
+        request.subcall = self.subcall
         return self.subcall(request, response)
 
     def __repr__(self):
@@ -334,8 +384,8 @@ class Router(object):
         self._host = None
         self._routes = _Routes()
         self._routes_model = routes_model
-        self._preroutes = []
-        self._postroutes = []
+        self._preroutes = set()
+        self._postroutes = set()
 
         processed = set()
         cls = type(routes_model)
@@ -345,10 +395,10 @@ class Router(object):
                 if name in processed:
                     continue
                 if hasattr(attr, 'is_preroute'):
-                    self._preroutes.append(getattr(routes_model, name))
+                    self._preroutes.add(getattr(routes_model, name))
                     continue
                 elif hasattr(attr, 'is_postroute'):
-                    self._postroutes.append(getattr(routes_model, name))
+                    self._postroutes.add(getattr(routes_model, name))
                     continue
                 elif not hasattr(attr, 'route'):
                     continue
@@ -376,7 +426,7 @@ class Router(object):
 
     def call(self, request, response):
         request.subcall = self.call
-        result = self._call(request, response)
+        result = self._call_route(request, response)
 
         if isinstance(result, Blob):
             if 'url' in result:
@@ -489,8 +539,8 @@ class Router(object):
         elif result is not None:
             yield result
 
-    def _call(self, request, response):
-        route_ = self._resolve(request)
+    def _call_route(self, request, response):
+        route_ = self._resolve_route(request)
         request.routes = self._routes_model
 
         for arg, cast in route_.arguments.items():
@@ -535,7 +585,7 @@ class Router(object):
 
         return result
 
-    def _resolve(self, request):
+    def _resolve_route(self, request):
         found_path = [False]
 
         def resolve_path(routes, path):

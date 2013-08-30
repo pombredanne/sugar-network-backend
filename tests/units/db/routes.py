@@ -186,16 +186,10 @@ class RoutesTest(tests.Test):
                 content={}, content_type='application/json')
         self.assertRaises(http.NotFound, self.call, 'GET', path=['testdocument', guid, 'blob'])
 
-        self.touch('file')
-        self.assertRaises(RuntimeError, self.call, 'PUT', path=['testdocument', guid, 'blob'],
-                content={'blob': 'file'}, content_type='application/json')
-        self.assertRaises(http.NotFound, self.call, 'GET', path=['testdocument', guid, 'blob'])
-
         self.call('PUT', path=['testdocument', guid, 'blob'],
                 content={'url': 'foo', 'bar': 'probe'}, content_type='application/json')
         blob = self.call('GET', path=['testdocument', guid, 'blob'])
         self.assertEqual('foo', blob['url'])
-        assert 'bar' not in blob
 
     def test_RemoveBLOBs(self):
 
@@ -1150,7 +1144,6 @@ class RoutesTest(tests.Test):
         assert self.call('HEAD', ['testdocument', guid, 'blob1'], host='localhost') is None
         meta = self.volume['testdocument'].get(guid).meta('blob1')
         meta.pop('blob')
-        meta['url'] = 'http://localhost/testdocument/%s/blob1' % guid
         self.assertEqual(meta, self.response.meta)
         self.assertEqual(len('blob'), self.response.content_length)
         self.assertEqual(formatdate(meta['mtime'], localtime=False, usegmt=True), self.response.last_modified)
@@ -1159,6 +1152,11 @@ class RoutesTest(tests.Test):
         meta = self.volume['testdocument'].get(guid).meta('blob2')
         self.assertEqual(meta, self.response.meta)
         self.assertEqual(100, self.response.content_length)
+        self.assertEqual(formatdate(meta['mtime'], localtime=False, usegmt=True), self.response.last_modified)
+
+        assert self.call('GET', ['testdocument', guid, 'blob2']) is not None
+        meta = self.volume['testdocument'].get(guid).meta('blob2')
+        self.assertEqual(meta, self.response.meta)
         self.assertEqual(formatdate(meta['mtime'], localtime=False, usegmt=True), self.response.last_modified)
 
     def test_DefaultAuthor(self):
@@ -1315,6 +1313,29 @@ class RoutesTest(tests.Test):
             'user3': {'name': 'User3', 'role': 1, 'order': 4},
             },
             self.volume['document'].get(guid)['author'])
+
+    def test_CopyAthors(self):
+
+        class User(db.Resource):
+
+            @db.indexed_property(slot=1)
+            def name(self, value):
+                return value
+
+        class Document(db.Resource):
+            pass
+
+        self.volume = db.Volume('db', [User, Document])
+        self.volume['user'].create({'guid': 'user', 'color': '', 'pubkey': '', 'name': 'User'})
+
+        guid1 = self.call('POST', ['document'], content={}, principal='user')
+        self.assertEqual({'user': {'name': 'User', 'role': 3, 'order': 0}}, self.volume['document'].get(guid1)['author'])
+        author = self.call('GET', ['document', guid1, 'author'])
+        self.assertEqual([{'guid': 'user', 'role': 3, 'name': 'User'}], author)
+
+        guid2 = self.volume['document'].create({'author': author}, setters=True)
+        author = self.call('GET', ['document', guid1, 'author'])
+        self.assertEqual({'user': {'name': 'User', 'role': 3, 'order': 0}}, self.volume['document'].get(guid2)['author'])
 
     def test_AddUser(self):
 
@@ -1595,23 +1616,23 @@ class RoutesTest(tests.Test):
             content_type=None, host=None, request=None, routes=db.Routes, principal=None,
             **kwargs):
         if request is None:
-            request = Request({
-                'REQUEST_METHOD': method,
-                'PATH_INFO': '/'.join([''] + path),
-                'HTTP_ACCEPT_LANGUAGE': ','.join(accept_language or []),
-                'HTTP_HOST': host,
-                'wsgi.input': content_stream,
-                })
-            request.cmd = cmd
-            request.content = content
-            request.content_type = content_type
+            environ = {
+                    'REQUEST_METHOD': method,
+                    'PATH_INFO': '/'.join([''] + path),
+                    'HTTP_ACCEPT_LANGUAGE': ','.join(accept_language or []),
+                    'HTTP_HOST': host,
+                    'wsgi.input': content_stream,
+                    }
+            if content_type:
+                environ['CONTENT_TYPE'] = content_type
             if content_stream is not None:
-                request.content_length = len(content_stream.getvalue())
+                environ['CONTENT_LENGTH'] = str(len(content_stream.getvalue()))
+            request = Request(environ, cmd=cmd, content=content)
             request.update(kwargs)
         request.principal = principal
         router = Router(routes(self.volume))
         self.response = Response()
-        return router._call(request, self.response)
+        return router._call_route(request, self.response)
 
 
 if __name__ == '__main__':

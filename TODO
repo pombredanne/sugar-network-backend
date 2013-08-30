@@ -1,3 +1,7 @@
+- on launch failures, upload system logs
+- do failure upload in background
+- show only packages in /packages API call
+
 - (!) Editors' workflows:
   - (?) log all (including editros) posters of particular document to minimize conflicts about why somthing was changed
     or better, detailed log for every editor's change
@@ -11,4 +15,3 @@
 - increase granularity for sync.chunked_encode()
 - slave._Pooler might leak events if pullers are not in time to call wait()
 - revert per-document "downloads" property as "launches", a part of unpersonizalied user_stats
-- reuse "layer" for home volume instead of "clone" and "favorite"

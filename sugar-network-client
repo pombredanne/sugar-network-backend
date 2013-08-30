@@ -26,7 +26,6 @@ from gevent import monkey
 
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
-from sugar_network.client import clones, cache
 from sugar_network.client.routes import CachedClientRoutes
 from sugar_network.node import stats_node, stats_user
 from sugar_network.model import RESOURCES
@@ -71,7 +70,6 @@ class Application(application.Daemon):
         volume = db.Volume(client.path('db'), RESOURCES)
         try:
             volume.populate()
-            clones.populate(volume['context'], client.activity_dirs.value)
         finally:
             volume.close()
 
@@ -103,7 +101,7 @@ class Application(application.Daemon):
 
     def run(self):
         toolkit.ensure_key(client.key_path())
-        volume = db.Volume(client.path('db'), RESOURCES)
+        volume = db.Volume(client.path('db'), RESOURCES, lazy_open=True)
         routes = CachedClientRoutes(volume,
                 client.api_url.value if not client.server_mode.value else None)
         router = Router(routes)
@@ -119,14 +117,13 @@ class Application(application.Daemon):
 
         def final_start():
             volume.populate()
-            self.jobs.spawn(clones.monitor, volume['context'],
-                    client.activity_dirs.value)
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
                 logging.info('Start Web server on %s:%s', *host)
                 webui_app = webui.get_app(
-                        lambda x: router.call(Request(x), Response()),
+                        lambda **kwargs: router.call(Request(**kwargs),
+                            Response()),
                         'http://localhost:%s' % client.ipc_port.value)
                 server = coroutine.WSGIServer(host, webui_app)
                 self.jobs.spawn(server.serve_forever)
@@ -138,7 +135,7 @@ class Application(application.Daemon):
                 self.jobs.spawn(mountpoints.monitor, mounts_root)
 
             if client.cache_timeout.value:
-                self.jobs.spawn(self._recycle_cache)
+                self.jobs.spawn(self._recycle_cache, routes)
 
         def delayed_start(event=None):
             for __ in routes.subscribe(event='delayed-start'):
@@ -162,12 +159,12 @@ class Application(application.Daemon):
     def shutdown(self):
         self.jobs.kill()
 
-    def _recycle_cache(self):
+    def _recycle_cache(self, routes):
         while True:
             logging.debug('Start cache recycling in %d seconds',
                     client.cache_timeout.value)
             coroutine.sleep(client.cache_timeout.value)
-            cache.recycle()
+            routes.recycle()
 
     def __SIGCHLD_cb(self):
         while True:

@@ -68,13 +68,3 @@ class Artifact(db.Resource):
         if value:
             value['name'] = self['title']
         return value
-
-    @db.indexed_property(prefix='K', typecast=bool, default=False,
-            acl=ACL.READ | ACL.LOCAL)
-    def favorite(self, value):
-        return value
-
-    @db.indexed_property(prefix='L', typecast=[0, 1, 2], default=0,
-            acl=ACL.READ | ACL.LOCAL)
-    def clone(self, value):
-        return value

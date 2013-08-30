@@ -44,6 +44,11 @@ _DERIVATES = {
                     (int(float(x)) + 6, 4 if float(x) == int(float(x)) else 10)
                 ],
             ),
+        'Debian': (
+            'Debian', [
+                lambda x: '%d.0' % int(float(x)),
+                ],
+            ),
         }
 
 

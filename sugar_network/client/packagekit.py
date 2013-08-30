@@ -1,5 +1,4 @@
-# Copyright (C) 2010-2012 Aleksey Lim
-# Copyright (C) 2010 Thomas Leonard
+# Copyright (C) 2010-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,155 +14,96 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import locale
 import logging
-from ConfigParser import ConfigParser
-from os.path import exists
-from gettext import gettext as _
 
-import dbus
-import gobject
-from dbus.mainloop.glib import threads_init, DBusGMainLoop
-
-from sugar_network.toolkit import pipe, enforce
+from sugar_network.toolkit import lsb_release, gbus, enforce
 
 
-_PK_CONFILE = '/etc/PackageKit/PackageKit.conf'
+_PK_MAX_RESOLVE = 100
+_PK_MAX_INSTALL = 2500
 
-_logger = logging.getLogger('client.packagekit')
+_PMS_PATHS = {
+        'Debian': '/var/lib/dpkg/status',
+        'Fedora': '/var/lib/rpm/Packages',
+        'Ubuntu': '/var/lib/dpkg/status',
+        }
 
-_pk = None
-_pk_max_resolve = 100
-_pk_max_install = 2500
+_logger = logging.getLogger('packagekit')
+_pms_path = _PMS_PATHS.get(lsb_release.distributor_id())
+
+
+def mtime():
+    if _pms_path:
+        return os.stat(_pms_path).st_mtime
 
 
 def resolve(names):
-    enforce(_get_pk() is not None, 'Cannot connect to PackageKit')
-
-    pipe.feedback('resolve',
-            message=_('Resolving %s package name(s)') % len(names))
-    _logger.debug('Resolve names %r', names)
     result = {}
 
-    mainloop = gobject.MainLoop()
     while names:
-        chunk = names[:min(len(names), _pk_max_resolve)]
+        chunk = names[:min(len(names), _PK_MAX_RESOLVE)]
         del names[:len(chunk)]
 
-        transaction = _Transaction(mainloop.quit)
-        transaction.resolve(chunk)
-        mainloop.run()
+        _logger.debug('Resolve %r', chunk)
 
-        missed = set(chunk) - set([i['name'] for i in transaction.packages])
-        enforce(not missed,
-                'Failed to resolve %s package(s)', ', '.join(missed))
-        for pkg in transaction.packages:
-            result[pkg['name']] = pkg
+        resp = gbus.call(_pk, 'Resolve', 'none', chunk)
+        missed = set(chunk) - set(resp.packages.keys())
+        enforce(not missed, 'Failed to resolve %s', ', '.join(missed))
+        result.update(resp.packages)
 
     return result
 
 
 def install(packages):
-    enforce(_get_pk() is not None, 'Cannot connect to PackageKit')
-
     ids = [i['pk_id'] for i in packages]
-    pipe.feedback('install',
-            message=_('Installing %s package(s)') % len(packages))
-    _logger.debug('Ask PackageKit to install %r packages', ids)
-
-    mainloop = gobject.MainLoop()
     while ids:
-        chunk = ids[:min(len(ids), _pk_max_install)]
+        chunk = ids[:min(len(ids), _PK_MAX_INSTALL)]
         del ids[:len(chunk)]
 
-        transaction = _Transaction(mainloop.quit)
-        transaction.install(chunk)
-        mainloop.run()
+        _logger.debug('Install %r', chunk)
 
-        enforce(transaction.error_code is None or
-                transaction.error_code in ('package-already-installed',
-                    'all-packages-already-installed'),
-                'PackageKit install failed: %s (%s)',
-                transaction.error_details, transaction.error_code)
+        resp = gbus.call(_pk, 'InstallPackages', True, chunk)
+        enforce(resp.error_code in (
+                    'package-already-installed',
+                    'all-packages-already-installed', None),
+                'Installation failed: %s (%s)',
+                resp.error_details, resp.error_code)
 
 
-class _Transaction(object):
+class _Response(object):
 
-    def __init__(self, finished_cb):
-        self._finished_cb = finished_cb
+    def __init__(self):
         self.error_code = None
         self.error_details = None
-        self.packages = []
+        self.packages = {}
 
-        self._object = dbus.SystemBus().get_object(
-                'org.freedesktop.PackageKit', _get_pk().GetTid(), False)
-        self._proxy = dbus.Interface(self._object,
-                'org.freedesktop.PackageKit.Transaction')
-        self._props = dbus.Interface(self._object, dbus.PROPERTIES_IFACE)
 
-        self._signals = []
-        for signal, cb in [
-                ('Finished', self.__finished_cb),
-                ('ErrorCode', self.__error_code_cb),
-                ('Package', self.__package_cb),
-                ]:
-            self._signals.append(self._proxy.connect_to_signal(signal, cb))
+def _pk(result, op, *args):
+    import dbus
 
-        defaultlocale = locale.getdefaultlocale()[0]
-        if defaultlocale is not None:
-            self._compat_call([
-                    ('SetLocale', defaultlocale),
-                    ('SetHints', ['locale=%s' % defaultlocale]),
-                    ])
+    bus = dbus.SystemBus()
+    pk = dbus.Interface(
+            bus.get_object(
+                'org.freedesktop.PackageKit', '/org/freedesktop/PackageKit',
+                False),
+            'org.freedesktop.PackageKit')
+    txn = dbus.Interface(
+            bus.get_object('org.freedesktop.PackageKit', pk.GetTid(), False),
+            'org.freedesktop.PackageKit.Transaction')
+    resp = _Response()
+    signals = []
 
-    def resolve(self, names):
-        self._proxy.Resolve('none', names)
-
-    def install(self, names):
-        _auth_wrapper('org.freedesktop.packagekit.package-install',
-                self._compat_call, [
-                    ('InstallPackages', names),
-                    ('InstallPackages', True, names),
-                    ])
-
-    def get_percentage(self):
-        if self._object is None:
-            return None
-        try:
-            return self._props.Get('org.freedesktop.PackageKit.Transaction',
-                    'Percentage')
-        except Exception:
-            result, __, __, __ = self._proxy.GetProgress()
-            return result
-
-    def _compat_call(self, calls):
-        for call in calls:
-            method = call[0]
-            args = call[1:]
-            try:
-                dbus_method = self._proxy.get_dbus_method(method)
-                return dbus_method(*args)
-            except dbus.exceptions.DBusException, e:
-                if e.get_dbus_name() not in [
-                        'org.freedesktop.DBus.Error.UnknownMethod',
-                        'org.freedesktop.DBus.Error.InvalidArgs']:
-                    raise
-        raise Exception('Cannot call %r DBus method' % calls)
-
-    def __finished_cb(self, status, runtime):
+    def Finished_cb(status, runtime):
         _logger.debug('Transaction finished: %s', status)
-        for i in self._signals:
+        for i in signals:
             i.remove()
-        self._finished_cb()
-        self._props = None
-        self._proxy = None
-        self._object = None
+        result.set(resp)
 
-    def __error_code_cb(self, code, details):
-        self.error_code = code
-        self.error_details = details
+    def ErrorCode_cb(code, details):
+        resp.error_code = code
+        resp.error_details = details
 
-    def __package_cb(self, status, pk_id, summary):
+    def Package_cb(status, pk_id, summary):
         from sugar_network.client import solver
 
         package_name, version, arch, __ = pk_id.split(';')
@@ -171,6 +111,8 @@ class _Transaction(object):
         if not clean_version:
             _logger.warn('Cannot parse distribution version "%s" '
                     'for package "%s"', version, package_name)
+        if package_name in resp.packages:
+            return
         package = {
                 'pk_id': str(pk_id),
                 'version': clean_version,
@@ -178,73 +120,32 @@ class _Transaction(object):
                 'arch': solver.canonicalize_machine(arch),
                 'installed': (status == 'installed'),
                 }
-        _logger.debug('Resolved PackageKit name: %r', package)
-        self.packages.append(package)
+        _logger.debug('Found: %r', package)
+        resp.packages[package_name] = package
 
+    for signal, cb in [
+            ('Finished', Finished_cb),
+            ('ErrorCode', ErrorCode_cb),
+            ('Package', Package_cb),
+            ]:
+        signals.append(txn.connect_to_signal(signal, cb))
 
-def _get_pk():
-    global _pk, _pk_max_resolve, _pk_max_install
-
-    if _pk is not None:
-        if _pk is False:
-            return None
-        else:
-            return _pk
-
-    gobject.threads_init()
-    threads_init()
-    DBusGMainLoop(set_as_default=True)
+    op = txn.get_dbus_method(op)
     try:
-        bus = dbus.SystemBus()
-        pk_object = bus.get_object('org.freedesktop.PackageKit',
-                '/org/freedesktop/PackageKit', False)
-        _pk = dbus.Interface(pk_object, 'org.freedesktop.PackageKit')
-        _logger.info('PackageKit dbus service found')
-    except Exception, error:
-        _pk = False
-        _logger.info('PackageKit dbus service not found: %s', error)
-        return None
-
-    if exists(_PK_CONFILE):
-        conf = ConfigParser()
-        conf.read(_PK_CONFILE)
-        if conf.has_option('Daemon', 'MaximumItemsToResolve'):
-            _pk_max_resolve = \
-                    int(conf.get('Daemon', 'MaximumItemsToResolve'))
-        if conf.has_option('Daemon', 'MaximumPackagesToProcess'):
-            _pk_max_install = \
-                    int(conf.get('Daemon', 'MaximumPackagesToProcess'))
-
-    return _pk
-
-
-def _auth_wrapper(iface, method, *args):
-    _logger.info('Obtain authentication for %s', iface)
-
-    def obtain():
-        pk_auth = dbus.SessionBus().get_object(
+        op(*args)
+    except dbus.exceptions.DBusException, error:
+        if error.get_dbus_name() != \
+                'org.freedesktop.PackageKit.Transaction.RefusedByPolicy':
+            raise
+        iface, auth = error.get_dbus_message().split()
+        if not auth.startswith('auth_'):
+            raise
+        auth = dbus.SessionBus().get_object(
                 'org.freedesktop.PolicyKit.AuthenticationAgent', '/',
                 'org.freedesktop.PolicyKit.AuthenticationAgent')
-        pk_auth.ObtainAuthorization(iface, dbus.UInt32(0),
+        auth.ObtainAuthorization(iface, dbus.UInt32(0),
                 dbus.UInt32(os.getpid()), timeout=300)
-
-    try:
-        # PK on f11 needs to obtain authentication at first
-        obtain()
-        return method(*args)
-    except Exception:
-        # It seems doesn't work for recent PK
-        try:
-            return method(*args)
-        except dbus.exceptions.DBusException, e:
-            if e.get_dbus_name() != \
-                    'org.freedesktop.PackageKit.Transaction.RefusedByPolicy':
-                raise
-            iface, auth = e.get_dbus_message().split()
-            if not auth.startswith('auth_'):
-                raise
-            obtain()
-            return method(*args)
+        op(*args)
 
 
 if __name__ == '__main__':

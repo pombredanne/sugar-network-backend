@@ -67,10 +67,19 @@ class Directory(object):
     def mtime(self):
         return self._index.mtime
 
-    @mtime.setter
-    def mtime(self, value):
-        self._index.mtime = value
-        self.broadcast({'event': 'populate', 'mtime': value})
+    def checkpoint(self):
+        ts = self._index.checkpoint()
+        self.broadcast({'event': 'populate', 'mtime': ts})
+
+    def path(self, guid, prop=None):
+        record = self._storage.get(guid)
+        if not prop:
+            return record.path()
+        if prop in self.metadata and \
+                isinstance(self.metadata[prop], BlobProperty):
+            return record.blob_path(prop)
+        else:
+            return record.path(prop)
 
     def wipe(self):
         self.close()
@@ -90,7 +99,7 @@ class Directory(object):
         """Flush pending chnages to disk."""
         self._index.commit()
 
-    def create(self, props, event=None):
+    def create(self, props, event=None, setters=False):
         """Create new document.
 
         If `guid` property is not specified, it will be auto set.
@@ -104,6 +113,15 @@ class Directory(object):
         guid = props.get('guid')
         if not guid:
             guid = props['guid'] = toolkit.uuid()
+        if setters:
+            # XXX Setters are being proccessed on routes level, but,
+            # while creating resources gotten from routes, it is important
+            # to call setters as well, e.g., `author` property
+            doc = self.document_class(guid, None, props)
+            for key, value in props.items():
+                prop = self.metadata.get(key)
+                if prop is not None and prop.on_set is not None:
+                    props[key] = prop.on_set(doc, value)
         _logger.debug('Create %s[%s]: %r', self.metadata.name, guid, props)
         post_event = {'event': 'create', 'guid': guid}
         if event:
@@ -201,10 +219,9 @@ class Directory(object):
                 record.invalidate()
 
         if found:
-            self._index.checkpoint()
             self._save_layout()
             self.commit()
-            self.broadcast({'event': 'populate', 'mtime': self.mtime})
+            self.checkpoint()
 
     def diff(self, seq, exclude_seq=None, **params):
         if exclude_seq is None:
@@ -288,7 +305,7 @@ class Directory(object):
         self._storage = Storage(self._root, self.metadata)
         self._index = self._index_class(index_path, self.metadata,
                 self._post_commit)
-        _logger.debug('Initiated %r document', self.document_class)
+        _logger.debug('Open %r resource', self.document_class)
 
     def _pre_store(self, guid, changes, event=None):
         seqno = changes.get('seqno')

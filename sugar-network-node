@@ -89,7 +89,8 @@ class Application(application.Daemon):
             logging.info('Start Web server on %s:%s port', *host)
             server = coroutine.WSGIServer(host,
                     webui.get_app(
-                        lambda x: client_app.call(Request(x), Response()),
+                        lambda **kwargs: client_app.call(Request(**kwargs),
+                            Response()),
                         client.api_url.value, True))
             self.jobs.spawn(server.serve_forever)
 

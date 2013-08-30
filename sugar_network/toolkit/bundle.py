@@ -14,7 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-from os.path import join
+import shutil
+from os.path import join, exists, dirname
 
 from sugar_network.toolkit.spec import Spec
 
@@ -67,8 +68,25 @@ class Bundle(object):
     def extractfile(self, name):
         return self._do_extractfile(name)
 
-    def extractall(self, path, members=None):
-        self._bundle.extractall(path=path, members=members)
+    def extractall(self, dst_root, members=None, extract=None):
+        if not extract:
+            self._bundle.extractall(path=dst_root, members=members)
+            return
+        try:
+            extract = extract.strip(os.sep) + os.sep
+            for arcname in self.get_names():
+                dst_path = arcname.strip(os.sep)
+                if dst_path.startswith(extract):
+                    dst_path = dst_path[len(extract):]
+                dst_path = join(dst_root, dst_path)
+                if not exists(dirname(dst_path)):
+                    os.makedirs(dirname(dst_path))
+                with file(dst_path, 'wb') as dst:
+                    shutil.copyfileobj(self.extractfile(arcname), dst)
+        except Exception:
+            if exists(dst_root):
+                shutil.rmtree(dst_root)
+            raise
 
     def getmember(self, name):
         return self._cast_info(self._do_getmember(name))

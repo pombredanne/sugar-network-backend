@@ -70,14 +70,6 @@ local_root = Option(
         'path to the directory to keep all local data',
         default=profile_path('network'), name='local_root')
 
-activity_dirs = Option(
-        'colon separated list of paths to directories with Sugar '
-        'activities; first path will be used to keep check-in activities',
-        type_cast=Option.paths_cast, type_repr=Option.paths_repr, default=[
-            expanduser('~/Activities'),
-            '/usr/share/sugar/activities',
-            ])
-
 server_mode = Option(
         'start server to share local documents',
         default=False, type_cast=Option.bool_cast,

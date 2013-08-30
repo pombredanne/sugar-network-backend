@@ -199,7 +199,7 @@ def init_logging(debug_level=None, **kwargs):
     else:
         logging_level = 0
         if debug_level < 3:
-            if logging_level <= 0:
+            if debug_level <= 0:
                 logging_level = logging.WARNING
             elif debug_level == 1:
                 logging_level = logging.INFO
@@ -753,6 +753,8 @@ class PersistentSequence(Sequence):
     def mtime(self):
         if exists(self._path):
             return os.stat(self._path).st_mtime
+        else:
+            return 0
 
     def commit(self):
         dir_path = dirname(self._path)

@@ -4,12 +4,17 @@
 import os
 import time
 import json
+import shutil
 from cStringIO import StringIO
 from os.path import exists
 
 from __init__ import tests
 
-from sugar_network.client import cache, cache_limit, cache_lifetime
+from sugar_network import db
+from sugar_network.model.context import Context
+from sugar_network.model.implementation import Implementation
+from sugar_network.client import cache_limit, cache_lifetime, IPCConnection
+from sugar_network.client.cache import Cache
 from sugar_network.toolkit import http
 
 
@@ -27,118 +32,260 @@ class CacheTest(tests.Test):
         self.override(os, 'statvfs', lambda *args: statvfs())
         cache_limit.value = 0
 
-    def test_get(self):
-        self.override(http.Connection, 'download', lambda self_, path: StringIO(self.zips(('topdir/probe', '/'.join(path)))))
-        cache.get('impl', {'unpack_size': 100})
-        self.assertEqual(100, json.load(file('cache/implementation/impl/.unpack_size')))
-        self.assertEqual('implementation/impl/data', file('cache/implementation/impl/topdir/probe').read())
+    def test_open(self):
+        volume = db.Volume('db', [Context, Implementation])
+
+        volume['implementation'].create({
+            'guid': '1',
+            'context': 'context',
+            'license': ['GPL'],
+            'version': '1',
+            'stability': 'stable',
+            'data': {'blob_size': 1},
+            })
+        os.utime('db/implementation/1/1', (1, 1))
+        volume['implementation'].create({
+            'guid': '5',
+            'context': 'context',
+            'license': ['GPL'],
+            'version': '5',
+            'stability': 'stable',
+            'data': {'blob_size': 5},
+            })
+        os.utime('db/implementation/5/5', (5, 5))
+        volume['implementation'].create({
+            'guid': '2',
+            'context': 'context',
+            'license': ['GPL'],
+            'version': '2',
+            'stability': 'stable',
+            'data': {},
+            })
+        os.utime('db/implementation/2/2', (2, 2))
+        volume['implementation'].create({
+            'guid': '3',
+            'context': 'context',
+            'license': ['GPL'],
+            'version': '3',
+            'stability': 'stable',
+            })
+        os.utime('db/implementation/3/3', (3, 3))
+        volume['implementation'].create({
+            'guid': '4',
+            'context': 'context',
+            'license': ['GPL'],
+            'version': '4',
+            'stability': 'stable',
+            'data': {'blob_size': 4, 'unpack_size': 44},
+            })
+        os.utime('db/implementation/4/4', (4, 4))
+
+        cache = Cache(volume)
+        self.assertEqual(['5', '4', '1'], [i for i in cache])
+
+    def test_open_IgnoreClones(self):
+        volume = db.Volume('db', [Context, Implementation])
+
+        volume['context'].create({
+            'guid': 'context',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        volume['implementation'].create({
+            'guid': 'impl',
+            'context': 'context',
+            'license': ['GPL'],
+            'version': '1',
+            'stability': 'stable',
+            'data': {'blob_size': 1},
+            })
+
+        cache = Cache(volume)
+        self.assertEqual(['impl'], [i for i in cache])
+
+        with file('db/context/co/context/clone', 'w') as f:
+            json.dump('impl', f)
+        cache = Cache(volume)
+        self.assertEqual([], [i for i in cache])
 
     def test_ensure(self):
-        self.touch(('cache/implementation/1/.unpack_size', '1', 1))
-        self.touch(('cache/implementation/2/.unpack_size', '1', 2))
-        self.touch(('cache/implementation/3/.unpack_size', '1', 3))
+        volume = db.Volume('db', [Context, Implementation])
+
+        volume['implementation'].create({'data': {'blob_size': 1}, 'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        os.utime('db/implementation/1/1', (1, 1))
+        volume['implementation'].create({'data': {'blob_size': 2}, 'guid': '2', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        os.utime('db/implementation/2/2', (2, 2))
+        volume['implementation'].create({'data': {'blob_size': 3}, 'guid': '3', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        os.utime('db/implementation/3/3', (3, 3))
+        cache = Cache(volume)
         cache_limit.value = 10
-
         self.statvfs.f_bfree = 11
+
+        self.assertRaises(RuntimeError, cache.ensure, 100, 0)
+        assert volume['implementation'].exists('1')
+        assert volume['implementation'].exists('2')
+        assert volume['implementation'].exists('3')
+
         cache.ensure(1, 0)
-        assert exists('cache/implementation/1')
-        assert exists('cache/implementation/2')
-        assert exists('cache/implementation/3')
+        assert volume['implementation'].exists('1')
+        assert volume['implementation'].exists('2')
+        assert volume['implementation'].exists('3')
 
-        self.statvfs.f_bfree = 10
-        cache.ensure(1, 0)
-        assert not exists('cache/implementation/1')
-        assert exists('cache/implementation/2')
-        assert exists('cache/implementation/3')
+        cache.ensure(2, 0)
+        assert not volume['implementation'].exists('1')
+        assert volume['implementation'].exists('2')
+        assert volume['implementation'].exists('3')
 
-        self.statvfs.f_bfree = 11
-        cache.ensure(3, 0)
-        assert not exists('cache/implementation/1')
-        assert not exists('cache/implementation/2')
-        assert not exists('cache/implementation/3')
-
-        self.statvfs.f_bfree = 10
-        self.assertRaises(RuntimeError, cache.ensure, 1, 0)
-
-    def test_ensure_FailRightAway(self):
-        self.touch(('cache/implementation/1/.unpack_size', '1', 1))
-        cache_limit.value = 10
-        self.statvfs.f_bfree = 10
+        cache.ensure(4, 0)
+        assert not volume['implementation'].exists('2')
+        assert not volume['implementation'].exists('3')
 
         self.assertRaises(RuntimeError, cache.ensure, 2, 0)
-        assert exists('cache/implementation/1')
-
-        cache.ensure(1, 0)
-        assert not exists('cache/implementation/1')
 
     def test_ensure_ConsiderTmpSize(self):
-        self.touch(('cache/implementation/1/.unpack_size', '1', 1))
+        volume = db.Volume('db', [Context, Implementation])
+        volume['implementation'].create({'data': {'blob_size': 1}, 'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+
+        cache = Cache(volume)
         cache_limit.value = 10
         self.statvfs.f_bfree = 10
 
-        self.assertRaises(RuntimeError, cache.ensure, 2, 0)
-        assert exists('cache/implementation/1')
+        self.assertRaises(RuntimeError, cache.ensure, 1, 11)
+        assert volume['implementation'].exists('1')
 
-        cache.ensure(1, 0)
-        assert not exists('cache/implementation/1')
+        cache.ensure(1, 10)
+        assert not volume['implementation'].exists('1')
 
     def test_recycle(self):
         ts = time.time()
-        self.touch(('cache/implementation/1/.unpack_size', '1'))
-        os.utime('cache/implementation/1', (ts - 1.5 * 86400, ts - 1.5 * 86400))
-        self.touch(('cache/implementation/2/.unpack_size', '1'))
-        os.utime('cache/implementation/2', (ts - 2.5 * 86400, ts - 2.5 * 86400))
-        self.touch(('cache/implementation/3/.unpack_size', '1'))
-        os.utime('cache/implementation/3', (ts - 3.5 * 86400, ts - 3.5 * 86400))
+
+        volume = db.Volume('db', [Context, Implementation])
+        volume['implementation'].create({'data': {'blob_size': 1}, 'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        os.utime('db/implementation/1/1', (ts - 1.5 * 86400, ts - 1.5 * 86400))
+        volume['implementation'].create({'data': {'blob_size': 1}, 'guid': '2', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        os.utime('db/implementation/2/2', (ts - 2.5 * 86400, ts - 2.5 * 86400))
+        volume['implementation'].create({'data': {'blob_size': 1}, 'guid': '3', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        os.utime('db/implementation/3/3', (ts - 3.5 * 86400, ts - 3.5 * 86400))
+        cache = Cache(volume)
 
         cache_lifetime.value = 4
         cache.recycle()
-        assert exists('cache/implementation/1')
-        assert exists('cache/implementation/2')
-        assert exists('cache/implementation/3')
+        assert volume['implementation'].exists('1')
+        assert volume['implementation'].exists('2')
+        assert volume['implementation'].exists('3')
 
         cache_lifetime.value = 3
         cache.recycle()
-        assert exists('cache/implementation/1')
-        assert exists('cache/implementation/2')
-        assert not exists('cache/implementation/3')
+        assert volume['implementation'].exists('1')
+        assert volume['implementation'].exists('2')
+        assert not volume['implementation'].exists('3')
 
         cache_lifetime.value = 1
         cache.recycle()
-        assert not exists('cache/implementation/1')
-        assert not exists('cache/implementation/2')
-        assert not exists('cache/implementation/3')
+        assert not volume['implementation'].exists('1')
+        assert not volume['implementation'].exists('2')
+        assert not volume['implementation'].exists('3')
 
-    def test_recycle_CallEnsure(self):
-        self.touch(('cache/implementation/1/.unpack_size', '1', 100))
-        cache_limit.value = 10
-        cache_lifetime.value = 0
-
-        self.statvfs.f_bfree = 100
         cache.recycle()
-        assert exists('cache/implementation/1')
 
-        self.statvfs.f_bfree = 0
-        cache.recycle()
-        assert not exists('cache/implementation/1')
+    def test_checkin(self):
+        local_volume = self.start_online_client()
+        conn = IPCConnection()
+        self.statvfs.f_blocks = 0
 
-    def test_RecycleBadDirs(self):
-        cache_limit.value = 10
-        self.statvfs.f_bfree = 10
-        self.touch('cache/implementation/1/foo')
-        self.touch('cache/implementation/2/bar')
-        self.touch(('cache/implementation/3/.unpack_size', '1'))
-        cache.ensure(1, 0)
-        assert not exists('cache/implementation/1')
-        assert not exists('cache/implementation/2')
-        assert not exists('cache/implementation/3')
+        impl1 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = context1',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='release', initial=True)
+        impl2 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = context2',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='release', initial=True)
+        impl3 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = context3',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='release', initial=True)
 
-        self.statvfs.f_bfree = 100
-        self.touch('cache/implementation/1/foo')
-        self.touch('cache/implementation/2/bar')
-        cache.recycle()
-        assert not exists('cache/implementation/1')
-        assert not exists('cache/implementation/2')
+        conn.get(['context', 'context1'], cmd='launch')
+        self.assertEqual([impl1], [i for i in self.client_routes._cache])
+        assert local_volume['implementation'].exists(impl1)
+
+        conn.get(['context', 'context2'], cmd='launch')
+        self.assertEqual([impl2, impl1], [i for i in self.client_routes._cache])
+        assert local_volume['implementation'].exists(impl1)
+        assert local_volume['implementation'].exists(impl2)
+
+        conn.get(['context', 'context3'], cmd='launch')
+        self.assertEqual([impl3, impl2, impl1], [i for i in self.client_routes._cache])
+        assert local_volume['implementation'].exists(impl1)
+        assert local_volume['implementation'].exists(impl2)
+        assert local_volume['implementation'].exists(impl3)
+
+    def test_checkout(self):
+        local_volume = self.start_online_client()
+        conn = IPCConnection()
+        self.statvfs.f_blocks = 0
+
+        impl1 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = context',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='release', initial=True)
+
+        conn.put(['context', 'context'], True, cmd='clone')
+        self.assertEqual([], [i for i in self.client_routes._cache])
+        assert local_volume['implementation'].exists(impl1)
+
+        conn.put(['context', 'context'], False, cmd='clone')
+        self.assertEqual([impl1], [i for i in self.client_routes._cache])
+        assert local_volume['implementation'].exists(impl1)
+
+        impl2 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = TestActivity',
+            'bundle_id = context',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='release', initial=True)
+
+        shutil.rmtree('cache')
+        conn.put(['context', 'context'], True, cmd='clone')
+        self.assertEqual([impl1], [i for i in self.client_routes._cache])
+        assert local_volume['implementation'].exists(impl1)
+        assert local_volume['implementation'].exists(impl2)
+
+        conn.put(['context', 'context'], False, cmd='clone')
+        self.assertEqual([impl2, impl1], [i for i in self.client_routes._cache])
+        assert local_volume['implementation'].exists(impl1)
+        assert local_volume['implementation'].exists(impl2)
 
 
 if __name__ == '__main__':

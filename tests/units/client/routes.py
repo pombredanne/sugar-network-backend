@@ -3,11 +3,12 @@
 # sugar-lint: disable
 
 import json
+from cStringIO import StringIO
 
 from __init__ import tests
 
 from sugar_network import db, client, model
-from sugar_network.client import journal, injector, IPCConnection
+from sugar_network.client import journal, IPCConnection
 from sugar_network.client.routes import ClientRoutes, CachedClientRoutes
 from sugar_network.model.user import User
 from sugar_network.model.report import Report
@@ -43,124 +44,86 @@ class RoutesTest(tests.Test):
         response = requests.request('GET', url + '/hub/', allow_redirects=False)
         self.assertEqual(index_html, response.content)
 
-    def test_launch(self):
-        self.override(injector, 'launch', lambda *args, **kwargs: [{'args': args, 'kwargs': kwargs}])
-        volume = db.Volume('db', model.RESOURCES)
-        cp = ClientRoutes(volume)
-
-        trigger = self.wait_for_events(cp, event='launch')
-        cp.launch(Request(path=['context', 'app']), [])
-        self.assertEqual(
-                {'event': 'launch', 'args': ['app', []], 'kwargs': {'color': None, 'activity_id': None, 'uri': None, 'object_id': None}},
-                trigger.wait())
-
-    def test_launch_ResumeJobject(self):
-        self.override(injector, 'launch', lambda *args, **kwargs: [{'args': args, 'kwargs': kwargs}])
-        self.override(journal, 'exists', lambda *args: True)
-        volume = db.Volume('db', model.RESOURCES)
-        cp = ClientRoutes(volume)
-
-        trigger = self.wait_for_events(cp, event='launch')
-        cp.launch(Request(path=['context', 'app']), [], object_id='object_id')
-        self.assertEqual(
-                {'event': 'launch', 'args': ['app', []], 'kwargs': {'color': None, 'activity_id': None, 'uri': None, 'object_id': 'object_id'}},
-                trigger.wait())
-
-    def test_InlineSwitchInFind(self):
+    def test_LocalLayers(self):
         self.home_volume = self.start_online_client()
         ipc = IPCConnection()
 
         guid1 = ipc.post(['context'], {
+            'guid': 'context1',
             'type': 'activity',
             'title': '1',
             'summary': 'summary',
             'description': 'description',
             })
-        guid2 = ipc.post(['context'], {
+        ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = 2',
+            'bundle_id = context2',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='release', initial=True)
+        guid2 = 'context2'
+        ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = 3',
+            'bundle_id = context3',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='release', initial=True)
+        guid3 = 'context3'
+        guid4 = ipc.post(['context'], {
+            'guid': 'context4',
             'type': 'activity',
-            'title': '2',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        guid3 = ipc.post(['context'], {
-            'type': 'activity',
-            'title': '3',
+            'title': '4',
             'summary': 'summary',
             'description': 'description',
             })
 
         self.assertEqual([
-            {'guid': guid1, 'title': '1'},
-            {'guid': guid2, 'title': '2'},
-            {'guid': guid3, 'title': '3'},
+            {'guid': guid1, 'title': '1', 'layer': []},
+            {'guid': guid2, 'title': '2', 'layer': []},
+            {'guid': guid3, 'title': '3', 'layer': []},
+            {'guid': guid4, 'title': '4', 'layer': []},
             ],
-            ipc.get(['context'], reply=['guid', 'title'])['result'])
-        self.assertEqual([
-            {'guid': guid1, 'title': '1'},
-            {'guid': guid2, 'title': '2'},
-            {'guid': guid3, 'title': '3'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], clone=0)['result'])
-        self.assertEqual([
-            {'guid': guid1, 'title': '1'},
-            {'guid': guid2, 'title': '2'},
-            {'guid': guid3, 'title': '3'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], favorite=False)['result'])
+            ipc.get(['context'], reply=['guid', 'title', 'layer'])['result'])
         self.assertEqual([
             ],
-            ipc.get(['context'], reply=['guid', 'title'], favorite=True)['result'])
+            ipc.get(['context'], reply=['guid', 'title'], layer='favorite')['result'])
         self.assertEqual([
             ],
-            ipc.get(['context'], reply=['guid', 'title'], clone=2)['result'])
-
-        ipc.put(['context', guid2], True, cmd='favorite')
-        self.home_volume['context'].update(guid2, {'title': '2_'})
-        self.assertEqual([
-            {'guid': guid2, 'title': '2_'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], favorite=True)['result'])
-        self.assertEqual([
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], clone=2)['result'])
+            ipc.get(['context'], reply=['guid', 'title'], layer='clone')['result'])
 
         ipc.put(['context', guid1], True, cmd='favorite')
-        ipc.put(['context', guid3], True, cmd='favorite')
-        self.home_volume['context'].update(guid1, {'clone': 1, 'title': '1_'})
-        self.home_volume['context'].update(guid3, {'clone': 2, 'title': '3_'})
+        ipc.put(['context', guid2], True, cmd='favorite')
+        ipc.put(['context', guid2], True, cmd='clone')
+        ipc.put(['context', guid3], True, cmd='clone')
+        self.home_volume['context'].update(guid1, {'title': '1_'})
+        self.home_volume['context'].update(guid2, {'title': '2_'})
+        self.home_volume['context'].update(guid3, {'title': '3_'})
+
+        self.assertEqual([
+            {'guid': guid1, 'title': '1', 'layer': ['favorite']},
+            {'guid': guid2, 'title': '2', 'layer': ['clone', 'favorite']},
+            {'guid': guid3, 'title': '3', 'layer': ['clone']},
+            {'guid': guid4, 'title': '4', 'layer': []},
+            ],
+            ipc.get(['context'], reply=['guid', 'title', 'layer'])['result'])
         self.assertEqual([
             {'guid': guid1, 'title': '1_'},
             {'guid': guid2, 'title': '2_'},
+            ],
+            ipc.get(['context'], reply=['guid', 'title'], layer='favorite')['result'])
+        self.assertEqual([
+            {'guid': guid2, 'title': '2_'},
             {'guid': guid3, 'title': '3_'},
             ],
-            ipc.get(['context'], reply=['guid', 'title'], favorite=True)['result'])
-        self.assertEqual([
-            {'guid': guid1, 'title': '1_'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], clone=1)['result'])
-        self.assertEqual([
-            {'guid': guid3, 'title': '3_'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], clone=2)['result'])
-
-        self.assertEqual([
-            {'guid': guid1, 'title': '1'},
-            {'guid': guid2, 'title': '2'},
-            {'guid': guid3, 'title': '3'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'])['result'])
-        self.assertEqual([
-            {'guid': guid1, 'title': '1'},
-            {'guid': guid2, 'title': '2'},
-            {'guid': guid3, 'title': '3'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], clone=0)['result'])
-        self.assertEqual([
-            {'guid': guid1, 'title': '1'},
-            {'guid': guid2, 'title': '2'},
-            {'guid': guid3, 'title': '3'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], favorite=False)['result'])
+            ipc.get(['context'], reply=['guid', 'title'], layer='clone')['result'])
 
     def test_SetLocalLayerInOffline(self):
         volume = db.Volume('client', model.RESOURCES)
@@ -185,8 +148,8 @@ class RoutesTest(tests.Test):
         guid = call(cp, post)
         self.assertEqual([], call(cp, Request(method='GET', path=['context', guid, 'layer'])))
 
-    def test_CachedClientCommands(self):
-        volume = db.Volume('client', model.RESOURCES)
+    def test_CachedClientRoutes(self):
+        volume = db.Volume('client', model.RESOURCES, lazy_open=True)
         cp = CachedClientRoutes(volume, client.api_url.value)
 
         post = Request(method='POST', path=['context'])
@@ -196,6 +159,7 @@ class RoutesTest(tests.Test):
                 'title': 'title',
                 'summary': 'summary',
                 'description': 'description',
+                'layer': ['foo', 'clone', 'favorite'],
                 }
         guid1 = call(cp, post)
         guid2 = call(cp, post)
@@ -207,12 +171,16 @@ class RoutesTest(tests.Test):
 
         self.assertEqual([[3, None]], json.load(file('client/push.sequence')))
         self.assertEqual({'en-us': 'title'}, volume['context'].get(guid1)['title'])
+        self.assertEqual(['foo', 'clone', 'favorite', 'local'], volume['context'].get(guid1)['layer'])
         self.assertEqual({'en-us': 'title'}, self.node_volume['context'].get(guid1)['title'])
+        self.assertEqual(['foo'], self.node_volume['context'].get(guid1)['layer'])
         self.assertEqual(
                 {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
                 self.node_volume['context'].get(guid1)['author'])
         self.assertEqual({'en-us': 'title'}, volume['context'].get(guid2)['title'])
+        self.assertEqual(['foo', 'clone', 'favorite', 'local'], volume['context'].get(guid2)['layer'])
         self.assertEqual({'en-us': 'title'}, self.node_volume['context'].get(guid2)['title'])
+        self.assertEqual(['foo'], self.node_volume['context'].get(guid2)['layer'])
         self.assertEqual(
                 {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
                 self.node_volume['context'].get(guid2)['author'])
@@ -242,8 +210,8 @@ class RoutesTest(tests.Test):
                 {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
                 self.node_volume['context'].get(guid2)['author'])
 
-    def test_CachedClientCommands_WipeReports(self):
-        volume = db.Volume('client', model.RESOURCES)
+    def test_CachedClientRoutes_WipeReports(self):
+        volume = db.Volume('client', model.RESOURCES, lazy_open=True)
         cp = CachedClientRoutes(volume, client.api_url.value)
 
         post = Request(method='POST', path=['report'])
@@ -261,6 +229,31 @@ class RoutesTest(tests.Test):
 
         assert not volume['report'].exists(guid)
         assert self.node_volume['report'].exists(guid)
+
+    def test_CachedClientRoutes_OpenOnlyChangedResources(self):
+        volume = db.Volume('client', model.RESOURCES, lazy_open=True)
+        cp = CachedClientRoutes(volume, client.api_url.value)
+        guid = call(cp, Request(method='POST', path=['context'], content_type='application/json', content={
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            'layer': ['foo', 'clone', 'favorite'],
+            }))
+        cp.close()
+
+        volume = db.Volume('client', model.RESOURCES, lazy_open=True)
+        cp = CachedClientRoutes(volume, client.api_url.value)
+
+        trigger = self.wait_for_events(cp, event='push')
+        self.start_master()
+        call(cp, Request(method='GET', cmd='inline'))
+        trigger.wait()
+
+        self.assertEqual([[2, None]], json.load(file('client/push.sequence')))
+        assert self.node_volume['context'].exists(guid)
+        self.assertEqual(['context'], volume.keys())
+
 
     def test_SwitchToOfflineForAbsentOnlineProps(self):
         volume = db.Volume('client', model.RESOURCES)

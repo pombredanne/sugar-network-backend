@@ -108,50 +108,12 @@ class Routes(object):
         return self._get_props(doc, request, reply)
 
     @route('GET', [None, None, None], mime_type='application/json')
-    def get_prop(self, request):
-        directory = self.volume[request.resource]
-        prop = directory.metadata[request.prop]
-        doc = directory.get(request.guid)
-        doc.request = request
-
-        prop.assert_access(ACL.READ)
-
-        if isinstance(prop, StoredProperty):
-            value = doc.get(prop.name, request.accept_language)
-            value = prop.on_get(doc, value)
-            if value is None:
-                value = prop.default
-            return value
-        else:
-            meta = prop.on_get(doc, doc.meta(prop.name))
-            enforce(meta is not None and ('blob' in meta or 'url' in meta),
-                    http.NotFound, 'BLOB does not exist')
-            return meta
+    def get_prop(self, request, response):
+        return self._prop_meta(request, response)
 
     @route('HEAD', [None, None, None])
     def get_prop_meta(self, request, response):
-        directory = self.volume[request.resource]
-        prop = directory.metadata[request.prop]
-        doc = directory.get(request.guid)
-        doc.request = request
-
-        prop.assert_access(ACL.READ)
-
-        if isinstance(prop, StoredProperty):
-            meta = doc.meta(prop.name)
-            value = meta.pop('value')
-            response.content_length = len(json.dumps(value))
-        else:
-            meta = prop.on_get(doc, doc.meta(prop.name))
-            enforce(meta is not None and ('blob' in meta or 'url' in meta),
-                    http.NotFound, 'BLOB does not exist')
-            if 'blob' in meta:
-                meta.pop('blob')
-                meta['url'] = '/'.join([request.static_prefix] + request.path)
-            response.content_length = meta['blob_size']
-
-        response.meta.update(meta)
-        response.last_modified = meta['mtime']
+        self._prop_meta(request, response)
 
     @route('PUT', [None, None], cmd='useradd',
             arguments={'role': 0}, acl=ACL.AUTH | ACL.AUTHOR)
@@ -255,6 +217,38 @@ class Routes(object):
                     os.unlink(path)
 
         self.after_post(doc)
+
+    def _prop_meta(self, request, response):
+        directory = self.volume[request.resource]
+        prop = directory.metadata[request.prop]
+        doc = directory.get(request.guid)
+        doc.request = request
+
+        prop.assert_access(ACL.READ)
+
+        if isinstance(prop, StoredProperty):
+            meta = doc.meta(prop.name) or {}
+            if 'value' in meta:
+                del meta['value']
+            value = doc.get(prop.name, request.accept_language)
+            value = prop.on_get(doc, value)
+            response.content_length = len(json.dumps(value))
+        else:
+            value = prop.on_get(doc, doc.meta(prop.name))
+            enforce(value is not None and ('blob' in value or 'url' in value),
+                    http.NotFound, 'BLOB does not exist')
+            if 'blob' in value:
+                meta = value.copy()
+                meta.pop('blob')
+            else:
+                meta = value
+            response.content_length = meta.get('blob_size') or 0
+
+        response.meta.update(meta)
+        if 'mtime' in meta:
+            response.last_modified = meta['mtime']
+
+        return value
 
     def _preget(self, request):
         reply = request.get('reply')

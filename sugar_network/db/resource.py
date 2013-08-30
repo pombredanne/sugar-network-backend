@@ -14,7 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from sugar_network import toolkit
-from sugar_network.db.metadata import StoredProperty, indexed_property
+from sugar_network.db.metadata import indexed_property
+from sugar_network.db.metadata import StoredProperty, BlobProperty
 from sugar_network.toolkit.router import Blob, ACL
 
 
@@ -73,6 +74,17 @@ class Resource(object):
                     })
         return result
 
+    @author.setter
+    def author(self, value):
+        if type(value) not in (list, tuple):
+            return value
+        result = {}
+        for order, author in enumerate(value):
+            user = author.pop('guid')
+            author['order'] = order
+            result[user] = author
+        return result
+
     @indexed_property(prefix='RL', typecast=[], default=[])
     def layer(self, value):
         return value
@@ -80,6 +92,15 @@ class Resource(object):
     @indexed_property(prefix='RT', full_text=True, default=[], typecast=[])
     def tags(self, value):
         return value
+
+    def path(self, prop=None):
+        if not prop:
+            return self._record.path()
+        if prop in self.metadata and \
+                isinstance(self.metadata[prop], BlobProperty):
+            return self._record.blob_path(prop)
+        else:
+            return self._record.path(prop)
 
     def get(self, prop, accept_language=None):
         """Get document's property value.

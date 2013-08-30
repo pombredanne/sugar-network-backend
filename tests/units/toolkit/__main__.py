@@ -10,6 +10,7 @@ from toolkit import *
 from options import *
 from spec import *
 from router import *
+from gbus import *
 
 if __name__ == '__main__':
     tests.main()

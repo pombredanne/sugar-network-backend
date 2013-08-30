@@ -30,8 +30,10 @@ class Volume(dict):
 
     _flush_pool = []
 
-    def __init__(self, root, documents, broadcast=None, index_class=None):
+    def __init__(self, root, documents, broadcast=None, index_class=None,
+            lazy_open=False):
         Volume._flush_pool.append(self)
+        self.resources = {}
         self.broadcast = broadcast or (lambda event: None)
         self._populators = coroutine.Pool()
 
@@ -51,11 +53,20 @@ class Volume(dict):
                 name = document.split('.')[-1]
             else:
                 name = document.__name__.lower()
-            self[name] = self._open(name, document)
+            self.resources[name] = document
+            if not lazy_open:
+                self[name] = self._open(name, document)
 
     @property
     def root(self):
         return self._root
+
+    def mtime(self, name):
+        path = join(self._root, name, 'index', 'mtime')
+        if exists(path):
+            return int(os.stat(path).st_mtime)
+        else:
+            return 0
 
     def close(self):
         """Close operations with the server."""
@@ -78,8 +89,10 @@ class Volume(dict):
 
     def __getitem__(self, name):
         directory = self.get(name)
-        enforce(directory is not None, http.BadRequest,
-                'Unknown %r resource', name)
+        if directory is None:
+            enforce(name in self.resources, http.BadRequest,
+                    'Unknown %r resource', name)
+            directory = self[name] = self._open(name, self.resources[name])
         return directory
 
     def _open(self, name, resource):

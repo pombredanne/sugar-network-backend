@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Aleksey Lim
+# Copyright (C) 2012-2013 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 
 import logging
 
-from sugar_network.toolkit import pipe
+from sugar_network.toolkit import gbus
 
 
 _LOOKUP_RESULT_LOCAL = 8
@@ -32,20 +32,12 @@ _logger = logging.getLogger('zeroconf')
 def browse_workstations():
     _logger.info('Start browsing hosts using Avahi')
 
-    # Run zeroconf loop in a subprocess to avoid dbus loop collisions
-    for event in pipe.fork(_browser):
-        if event['state'] == 'resolve':
-            yield event['address']
+    for address in gbus.pipe(_browser):
+        yield address
 
 
-def _browser():
+def _browser(pipe):
     import dbus
-    import gobject
-    from dbus.mainloop.glib import threads_init, DBusGMainLoop
-
-    gobject.threads_init()
-    threads_init()
-    DBusGMainLoop(set_as_default=True)
 
     bus = dbus.SystemBus()
     server = dbus.Interface(bus.get_object(_DBUS_NAME, '/'),
@@ -62,7 +54,7 @@ def _browser():
     def ResolveService_cb(interface, protocol, name, type_, domain,
             host, aprotocol, address, port, txt, flags):
         _logger.debug('Got new address: %s', address)
-        pipe.feedback('resolve', address=str(address))
+        pipe(str(address))
 
     def ItemRemove_cb(interface, protocol, name, type_, domain, *args):
         _logger.debug('Got removed workstation: %s', name)
@@ -77,8 +69,6 @@ def _browser():
             _DBUS_INTERFACE_SERVICE_BROWSER)
     browser.connect_to_signal('ItemNew', ItemNew_cb)
     browser.connect_to_signal('ItemRemove', ItemRemove_cb)
-
-    gobject.MainLoop().run()
 
 
 if __name__ == '__main__':
