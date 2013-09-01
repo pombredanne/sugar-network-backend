@@ -689,7 +689,7 @@ class NodeTest(tests.Test):
             'requires = sugar>=0.88; dep'
             ])
         bundle1 = self.zips(('topdir/activity/activity.info', activity_info))
-        guid1 = json.load(conn.request('POST', ['implementation'], bundle1, params={'cmd': 'release'}).raw)
+        guid1 = json.load(conn.request('POST', ['implementation'], bundle1, params={'cmd': 'submit'}).raw)
 
         impl = volume['implementation'].get(guid1)
         self.assertEqual('bundle_id', impl['context'])
@@ -726,7 +726,7 @@ class NodeTest(tests.Test):
             'stability = stable',
             ])
         bundle2 = self.zips(('topdir/activity/activity.info', activity_info))
-        guid2 = json.load(conn.request('POST', ['implementation'], bundle2, params={'cmd': 'release'}).raw)
+        guid2 = json.load(conn.request('POST', ['implementation'], bundle2, params={'cmd': 'submit'}).raw)
 
         self.assertEqual('1', volume['implementation'].get(guid1)['version'])
         self.assertEqual([], volume['implementation'].get(guid1)['layer'])
@@ -745,7 +745,7 @@ class NodeTest(tests.Test):
             'stability = stable',
             ])
         bundle3 = self.zips(('topdir/activity/activity.info', activity_info))
-        guid3 = json.load(conn.request('POST', ['implementation'], bundle3, params={'cmd': 'release'}).raw)
+        guid3 = json.load(conn.request('POST', ['implementation'], bundle3, params={'cmd': 'submit'}).raw)
 
         self.assertEqual('1', volume['implementation'].get(guid1)['version'])
         self.assertEqual(['deleted'], volume['implementation'].get(guid1)['layer'])
@@ -766,7 +766,7 @@ class NodeTest(tests.Test):
             'stability = buggy',
             ])
         bundle4 = self.zips(('topdir/activity/activity.info', activity_info))
-        guid4 = json.load(conn.request('POST', ['implementation'], bundle4, params={'cmd': 'release'}).raw)
+        guid4 = json.load(conn.request('POST', ['implementation'], bundle4, params={'cmd': 'submit'}).raw)
 
         self.assertEqual('1', volume['implementation'].get(guid1)['version'])
         self.assertEqual(['deleted'], volume['implementation'].get(guid1)['layer'])
@@ -825,7 +825,7 @@ class NodeTest(tests.Test):
                     base64.b64decode('3hIElQAAAAAMAAAAHAAAAHwAAAARAAAA3AAAAAAAAAAgAQAADwAAACEBAAAOAAAAMQEAAA0AAABAAQAACgAAAE4BAAAMAAAAWQEAAA0AAABmAQAAJwAAAHQBAAAUAAAAnAEAABAAAACxAQAABwAAAMIBAAAIAAAAygEAANEBAADTAQAAIQAAAKUDAAATAAAAxwMAABwAAADbAwAAFwAAAPgDAAAhAAAAEAQAAB0AAAAyBAAAQAAAAFAEAAA9AAAAkQQAADUAAADPBAAAFAAAAAUFAAAQAAAAGgUAAAEAAAACAAAABwAAAAAAAAADAAAAAAAAAAwAAAAJAAAAAAAAAAoAAAAEAAAAAAAAAAAAAAALAAAABgAAAAgAAAAFAAAAAENob29zZSBkb2N1bWVudABEb3dubG9hZGluZy4uLgBGaXQgdG8gd2luZG93AEZ1bGxzY3JlZW4ASW1hZ2UgVmlld2VyAE9yaWdpbmFsIHNpemUAUmV0cmlldmluZyBzaGFyZWQgaW1hZ2UsIHBsZWFzZSB3YWl0Li4uAFJvdGF0ZSBhbnRpY2xvY2t3aXNlAFJvdGF0ZSBjbG9ja3dpc2UAWm9vbSBpbgBab29tIG91dABQcm9qZWN0LUlkLVZlcnNpb246IFBBQ0tBR0UgVkVSU0lPTgpSZXBvcnQtTXNnaWQtQnVncy1UbzogClBPVC1DcmVhdGlvbi1EYXRlOiAyMDEyLTA5LTI3IDE0OjU3LTA0MDAKUE8tUmV2aXNpb24tRGF0ZTogMjAxMC0wOS0yMiAxMzo1MCswMjAwCkxhc3QtVHJhbnNsYXRvcjoga3JvbTlyYSA8a3JvbTlyYUBnbWFpbC5jb20+Ckxhbmd1YWdlLVRlYW06IExBTkdVQUdFIDxMTEBsaS5vcmc+Ckxhbmd1YWdlOiAKTUlNRS1WZXJzaW9uOiAxLjAKQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PVVURi04CkNvbnRlbnQtVHJhbnNmZXItRW5jb2Rpbmc6IDhiaXQKUGx1cmFsLUZvcm1zOiBucGx1cmFscz0zOyBwbHVyYWw9KG4lMTA9PTEgJiYgbiUxMDAhPTExID8gMCA6IG4lMTA+PTIgJiYgbiUxMDw9NCAmJiAobiUxMDA8MTAgfHwgbiUxMDA+PTIwKSA/IDEgOiAyKTsKWC1HZW5lcmF0b3I6IFBvb3RsZSAyLjAuMwoA0JLRi9Cx0LXRgNC40YLQtSDQtNC+0LrRg9C80LXQvdGCANCX0LDQs9GA0YPQt9C60LAuLi4A0KPQvNC10YHRgtC40YLRjCDQsiDQvtC60L3QtQDQn9C+0LvQvdGL0Lkg0Y3QutGA0LDQvQDQn9GA0L7RgdC80L7RgtGAINC60LDRgNGC0LjQvdC+0LoA0JjRgdGC0LjQvdC90YvQuSDRgNCw0LfQvNC10YAA0J/QvtC70YPRh9C10L3QuNC1INC40LfQvtCx0YDQsNC20LXQvdC40LksINC/0L7QtNC+0LbQtNC40YLQtS4uLgDQn9C+0LLQtdGA0L3Rg9GC0Ywg0L/RgNC+0YLQuNCyINGH0LDRgdC+0LLQvtC5INGB0YLRgNC10LvQutC4ANCf0L7QstC10YDQvdGD0YLRjCDQv9C+INGH0LDRgdC+0LLQvtC5INGB0YLRgNC10LvQutC1ANCf0YDQuNCx0LvQuNC30LjRgtGMANCe0YLQtNCw0LvQuNGC0YwA')),
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', svg),
                 )
-        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release'}).raw)
+        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit'}).raw)
 
         context = volume['context'].get('org.laptop.ImageViewerActivity')
         self.assertEqual({
@@ -867,8 +867,8 @@ class NodeTest(tests.Test):
                     ])),
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
                 )
-        self.assertRaises(http.NotFound, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'release'})
-        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release', 'initial': 1}).raw)
+        self.assertRaises(http.NotFound, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'submit'})
+        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
 
         context = volume['context'].get('org.laptop.ImageViewerActivity')
         self.assertEqual({'en': 'Image Viewer'}, context['title'])
@@ -897,8 +897,8 @@ class NodeTest(tests.Test):
 
         self.override(client, 'sugar_uid', lambda: tests.UID)
         conn = Connection()
-        impl1 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release', 'initial': 1}).raw)
-        impl2 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'release'}).raw)
+        impl1 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
+        impl2 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit'}).raw)
         self.assertEqual(['deleted'], volume['implementation'].get(impl1)['layer'])
         self.assertEqual([], volume['implementation'].get(impl2)['layer'])
 
@@ -912,7 +912,7 @@ class NodeTest(tests.Test):
             })
         conn = Connection()
         conn.get(cmd='whoami')
-        self.assertRaises(http.Forbidden, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'release'})
+        self.assertRaises(http.Forbidden, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'submit'})
         self.assertEqual(['deleted'], volume['implementation'].get(impl1)['layer'])
         self.assertEqual([], volume['implementation'].get(impl2)['layer'])
 

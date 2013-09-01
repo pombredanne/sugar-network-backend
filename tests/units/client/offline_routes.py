@@ -3,6 +3,7 @@
 
 import json
 from cStringIO import StringIO
+from zipfile import ZipFile
 from os.path import exists
 
 from __init__ import tests, src_root
@@ -10,6 +11,8 @@ from __init__ import tests, src_root
 from sugar_network import client, model
 from sugar_network.client import IPCConnection, implementations, packagekit
 from sugar_network.client.routes import ClientRoutes
+from sugar_network.model.user import User
+from sugar_network.model.report import Report
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import coroutine, http, lsb_release
 
@@ -276,7 +279,7 @@ class OfflineRoutes(tests.Test):
             'activity_version = 1',
             'license=Public Domain',
             ]])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
+        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
 
         ipc.put(['context', 'bundle_id'], True, cmd='clone')
         solution = [{
@@ -454,6 +457,32 @@ Can't find all required implementations:
         ipc.delete(['context', guid])
         self.assertRaises(http.NotFound, ipc.get, ['context', guid])
         assert not exists(guid_path)
+
+    def test_SubmitReport(self):
+        ipc = self.home_volume = self.start_offline_client([User, Report])
+
+        self.touch(
+                ['file1', 'content1'],
+                ['file2', 'content2'],
+                ['file3', 'content3'],
+                )
+        events = [i for i in ipc.post(['report'], {'context': 'context', 'error': 'error', 'logs': [
+            tests.tmpdir + '/file1',
+            tests.tmpdir + '/file2',
+            tests.tmpdir + '/file3',
+            ]}, cmd='submit')]
+        self.assertEqual('done', events[-1]['event'])
+        guid = events[-1]['guid']
+
+        self.assertEqual({
+            'context': 'context',
+            'error': 'error',
+            },
+            ipc.get(['report', guid], reply=['context', 'error']))
+        zipfile = ZipFile('db/report/%s/%s/data.blob' % (guid[:2], guid))
+        self.assertEqual('content1', zipfile.read('file1'))
+        self.assertEqual('content2', zipfile.read('file2'))
+        self.assertEqual('content3', zipfile.read('file3'))
 
 
 if __name__ == '__main__':

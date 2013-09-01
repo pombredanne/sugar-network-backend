@@ -138,10 +138,10 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
             else:
                 return toolkit.iter_file(path)
 
-    @route('POST', ['implementation'], cmd='release',
+    @route('POST', ['implementation'], cmd='submit',
             arguments={'initial': False},
             mime_type='application/json', acl=ACL.AUTH | ACL.AUTHOR)
-    def release(self, request, document):
+    def submit_implementation(self, request, document):
         with toolkit.NamedTemporaryFile() as blob:
             shutil.copyfileobj(request.content_stream, blob)
             blob.flush()

@@ -64,7 +64,7 @@ class RoutesTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
         guid2 = 'context2'
         ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
@@ -75,7 +75,7 @@ class RoutesTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
         guid3 = 'context3'
         guid4 = ipc.post(['context'], {
             'guid': 'context4',
@@ -253,7 +253,6 @@ class RoutesTest(tests.Test):
         self.assertEqual([[2, None]], json.load(file('client/push.sequence')))
         assert self.node_volume['context'].exists(guid)
         self.assertEqual(['context'], volume.keys())
-
 
     def test_SwitchToOfflineForAbsentOnlineProps(self):
         volume = db.Volume('client', model.RESOURCES)

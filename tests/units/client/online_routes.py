@@ -7,6 +7,7 @@ import time
 import copy
 import shutil
 import zipfile
+from zipfile import ZipFile
 from cStringIO import StringIO
 from os.path import exists, lexists, basename
 
@@ -20,6 +21,7 @@ from sugar_network.client.routes import ClientRoutes, Request, Response
 from sugar_network.node.master import MasterRoutes
 from sugar_network.db import Volume, Resource
 from sugar_network.model.user import User
+from sugar_network.model.report import Report
 from sugar_network.model.context import Context
 from sugar_network.model.implementation import Implementation
 from sugar_network.model.artifact import Artifact
@@ -579,7 +581,7 @@ Can't find all required implementations:
             'license=Public Domain',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
+        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
         clone_path = 'client/context/bu/bundle_id/.clone'
         blob_path = tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl)
         solution = [{
@@ -729,7 +731,7 @@ Can't find all required implementations:
             'license = Public Domain',
             ])
         blob1 = self.zips(['TestActivity/activity/activity.info', activity_info1])
-        impl1 = ipc.upload(['implementation'], StringIO(blob1), cmd='release', initial=True)
+        impl1 = ipc.upload(['implementation'], StringIO(blob1), cmd='submit', initial=True)
 
         activity_info2 = '\n'.join([
             '[Activity]',
@@ -742,7 +744,7 @@ Can't find all required implementations:
             'stability = buggy',
             ])
         blob2 = self.zips(['TestActivity/activity/activity.info', activity_info2])
-        impl2 = ipc.upload(['implementation'], StringIO(blob2), cmd='release', initial=True)
+        impl2 = ipc.upload(['implementation'], StringIO(blob2), cmd='submit', initial=True)
 
         self.assertEqual(
                 'ready',
@@ -785,7 +787,7 @@ Can't find all required implementations:
             'license = Public Domain',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
+        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
         blob_path = 'master/implementation/%s/%s/data.blob' % (impl[:2], impl)
 
         self.assertEqual({
@@ -843,7 +845,7 @@ Can't find all required implementations:
             'activity_version = 1',
             'license=Public Domain',
             ]])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
+        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
         coroutine.sleep(.1)
 
         solution = [{
@@ -878,7 +880,7 @@ Can't find all required implementations:
             'activity_version = 2',
             'license=Public Domain',
             ]])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='release')
+        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit')
         coroutine.sleep(.1)
 
         shutil.rmtree('cache/solutions')
@@ -967,7 +969,7 @@ Can't find all required implementations:
             'license=Public Domain',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
+        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
 
         solution = [{
             'guid': impl,
@@ -1265,7 +1267,7 @@ Can't find all required implementations:
             def yield_json_and_sleep(self):
                 yield '"'
                 yield 'r'
-                coroutine.sleep(.5)
+                coroutine.sleep(1)
                 yield 'emote"'
 
         node_pid = self.fork_master([User], NodeRoutes)
@@ -1276,10 +1278,10 @@ Can't find all required implementations:
         self.assertEqual('remote', ipc.get(cmd='sleep'))
         self.assertEqual('remote\n' * 66, ipc.get(cmd='yield_raw_and_sleep'))
         self.assertEqual('remote', ipc.get(cmd='yield_json_and_sleep'))
-        assert time.time() - ts >= 1.5
+        assert time.time() - ts >= 2
 
         def kill():
-            coroutine.sleep(.25)
+            coroutine.sleep(.5)
             self.waitpid(node_pid)
 
         coroutine.spawn(kill)
@@ -1339,6 +1341,33 @@ Can't find all required implementations:
         self.node.stop()
         trigger.wait()
         assert not cp.inline()
+
+    def test_SubmitReport(self):
+        self.home_volume = self.start_online_client([User, Report])
+        ipc = IPCConnection()
+
+        self.touch(
+                ['file1', 'content1'],
+                ['file2', 'content2'],
+                ['file3', 'content3'],
+                )
+        events = [i for i in ipc.post(['report'], {'context': 'context', 'error': 'error', 'logs': [
+            tests.tmpdir + '/file1',
+            tests.tmpdir + '/file2',
+            tests.tmpdir + '/file3',
+            ]}, cmd='submit')]
+        self.assertEqual('done', events[-1]['event'])
+        guid = events[-1]['guid']
+
+        self.assertEqual({
+            'context': 'context',
+            'error': 'error',
+            },
+            ipc.get(['report', guid], reply=['context', 'error']))
+        zipfile = ZipFile('master/report/%s/%s/data.blob' % (guid[:2], guid))
+        self.assertEqual('content1', zipfile.read('file1'))
+        self.assertEqual('content2', zipfile.read('file2'))
+        self.assertEqual('content3', zipfile.read('file3'))
 
 
 if __name__ == '__main__':

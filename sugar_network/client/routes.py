@@ -16,7 +16,8 @@
 import os
 import logging
 import httplib
-from os.path import join
+from zipfile import ZipFile, ZIP_DEFLATED
+from os.path import join, basename
 
 from sugar_network import db, client, node, toolkit, model
 from sugar_network.client import journal, implementations
@@ -172,11 +173,29 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         else:
             return self.fallback(request, response)
 
+    @route('POST', ['report'], cmd='submit', mime_type='text/event-stream')
+    def submit_report(self, request, response):
+        logs = request.content.pop('logs')
+        guid = self.fallback(method='POST', path=['report'],
+                content=request.content, content_type='application/json')
+        if logs:
+            with toolkit.TemporaryFile() as tmpfile:
+                with ZipFile(tmpfile, 'w', ZIP_DEFLATED) as zipfile:
+                    for path in logs:
+                        zipfile.write(path, basename(path))
+                tmpfile.seek(0)
+                self.fallback(method='PUT', path=['report', guid, 'data'],
+                        content_stream=tmpfile, content_type='application/zip')
+        yield {'event': 'done', 'guid': guid}
+
     @fallbackroute()
     def fallback(self, request=None, response=None, method=None, path=None,
-            cmd=None, **kwargs):
+            cmd=None, content=None, content_stream=None, content_type=None,
+            **kwargs):
         if request is None:
-            request = Request(method=method, path=path, cmd=cmd)
+            request = Request(method=method, path=path, cmd=cmd,
+                    content=content, content_stream=content_stream,
+                    content_type=content_type)
         if response is None:
             response = Response()
         request.update(kwargs)

@@ -143,7 +143,7 @@ class Application(application.Application):
         conn = self._connect()
         # XXX Have to proceed auth before uploading data
         conn.get(cmd='whoami')
-        guid = conn.upload(['implementation'], path, cmd='release', **props)
+        guid = conn.upload(['implementation'], path, cmd='submit', **props)
 
         if porcelain.value:
             print guid

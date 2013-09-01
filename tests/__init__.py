@@ -310,8 +310,8 @@ class Test(unittest.TestCase):
         coroutine.dispatch()
         return volume
 
-    def start_offline_client(self):
-        self.home_volume = db.Volume('db', model.RESOURCES)
+    def start_offline_client(self, resources=None):
+        self.home_volume = db.Volume('db', resources or model.RESOURCES)
         commands = ClientRoutes(self.home_volume)
         server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(commands))
         coroutine.spawn(server.serve_forever)

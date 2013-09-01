@@ -204,7 +204,7 @@ class CacheTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
         impl2 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
@@ -214,7 +214,7 @@ class CacheTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
         impl3 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
@@ -224,7 +224,7 @@ class CacheTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
 
         self.assertEqual('exit', [i for i in conn.get(['context', 'context1'], cmd='launch')][-1]['event'])
         self.assertEqual([impl1], [i for i in self.client_routes._cache])
@@ -255,7 +255,7 @@ class CacheTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
 
         conn.put(['context', 'context'], True, cmd='clone')
         self.assertEqual([], [i for i in self.client_routes._cache])
@@ -274,7 +274,7 @@ class CacheTest(tests.Test):
             'activity_version = 2',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
 
         shutil.rmtree('cache')
         conn.put(['context', 'context'], True, cmd='clone')

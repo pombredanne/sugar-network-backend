@@ -46,7 +46,7 @@ class Implementations(tests.Test):
             'license = Public Domain',
             'requires = dep1; dep2',
             ]])
-        impl = conn.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
+        impl = conn.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
 
         conn.post(['context'], {
             'guid': 'dep1',
@@ -120,7 +120,7 @@ class Implementations(tests.Test):
             'TestActivity/file1',
             'TestActivity/test/file2',
             )
-        impl = conn.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
+        impl = conn.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
 
         conn.put(['context', 'bundle_id'], True, cmd='clone')
 
@@ -144,7 +144,7 @@ class Implementations(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
         solution = ['http://127.0.0.1:8888', ['stable'], [{
             'license': ['Public Domain'],
             'stability': 'stable',
@@ -270,7 +270,7 @@ class Implementations(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='release', initial=True)
+            ]])), cmd='submit', initial=True)
         conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
@@ -280,7 +280,7 @@ class Implementations(tests.Test):
             'activity_version = 2',
             'license = Public Domain',
             'stability = testing',
-            ]])), cmd='release')
+            ]])), cmd='submit')
         conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
@@ -290,7 +290,7 @@ class Implementations(tests.Test):
             'activity_version = 3',
             'license = Public Domain',
             'stability = buggy',
-            ]])), cmd='release')
+            ]])), cmd='submit')
         cached_path = 'cache/solutions/bu/bundle_id'
 
         self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
@@ -338,7 +338,7 @@ class Implementations(tests.Test):
                 '#!/bin/sh',
                 'cat $6',
                 ]],
-            )), cmd='release', initial=True)
+            )), cmd='submit', initial=True)
 
         conn.post(['context'], {
             'guid': 'document',

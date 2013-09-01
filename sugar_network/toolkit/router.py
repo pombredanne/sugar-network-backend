@@ -101,7 +101,8 @@ class Request(dict):
     subcall = lambda *args: enforce(False)
 
     def __init__(self, environ=None, method=None, path=None, cmd=None,
-            content=None, content_type=None, session=None, **kwargs):
+            content=None, content_stream=None, content_type=None, session=None,
+            **kwargs):
         dict.__init__(self)
 
         self.path = []
@@ -113,7 +114,7 @@ class Request(dict):
         self._dirty_query = False
         self._if_modified_since = _NOT_SET
         self._accept_language = _NOT_SET
-        self._content_stream = _NOT_SET
+        self._content_stream = content_stream or _NOT_SET
         self._content_type = content_type or _NOT_SET
 
         if environ:
