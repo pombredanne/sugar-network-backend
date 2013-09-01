@@ -92,6 +92,7 @@ class Test(unittest.TestCase):
         client.ipc_port.value = 5555
         client.layers.value = None
         client.cache_limit.value = 0
+        client.cache_limit_percent.value = 0
         client.cache_lifetime.value = 0
         client_routes._RECONNECT_TIMEOUT = 0
         mountpoints._connects.clear()

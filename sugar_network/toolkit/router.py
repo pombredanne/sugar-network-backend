@@ -443,7 +443,7 @@ class Router(object):
             path = result['blob']
             enforce(isfile(path), 'No such file')
 
-            mtime = result.get('mtime') or os.stat(path).st_mtime
+            mtime = result.get('mtime') or int(os.stat(path).st_mtime)
             if request.if_modified_since and mtime and \
                     mtime <= request.if_modified_since:
                 raise http.NotModified()

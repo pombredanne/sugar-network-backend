@@ -88,7 +88,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
             path = ['index.html']
         path = join(client.hub_root.value, *path)
 
-        mtime = os.stat(path).st_mtime
+        mtime = int(os.stat(path).st_mtime)
         if request.if_modified_since >= mtime:
             raise http.NotModified()
 

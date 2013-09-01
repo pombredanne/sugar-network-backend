@@ -30,8 +30,6 @@ class CacheTest(tests.Test):
 
         self.statvfs = statvfs
         self.override(os, 'statvfs', lambda *args: statvfs())
-        cache_limit.value = 0
-        cache_limit_percent.value = 0
 
     def test_open(self):
         volume = db.Volume('db', [Context, Implementation])
@@ -134,6 +132,7 @@ class CacheTest(tests.Test):
         assert volume['implementation'].exists('2')
         assert volume['implementation'].exists('3')
 
+        print '----------'
         cache.ensure(2, 0)
         assert not volume['implementation'].exists('1')
         assert volume['implementation'].exists('2')

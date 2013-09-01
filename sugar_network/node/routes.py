@@ -121,7 +121,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
                 if '.' in filename:
                     continue
                 path = join(root, filename)
-                mtime = os.stat(path).st_mtime
+                mtime = int(os.stat(path).st_mtime)
                 if mtime > request.if_modified_since:
                     result.append(filename)
                     last_modified = max(last_modified, mtime)

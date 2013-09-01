@@ -1,5 +1,3 @@
-- on launch failures, upload system logs
-- do failure upload in background
 - show only packages in /packages API call
 
 - (!) Editors' workflows:
@@ -8,10 +6,8 @@
 
 - Remove temporal security hole with speciying guid in POST,
   it was added as a fast hack to support offline creation (with later pushing to a node)
-- activities migth need MIME registering while checking-in
 - changed pulls should take into account accept_length
 - handle DELETE while calculating per-object node stats
-- unstall activities on checking out and on initial syncing
 - increase granularity for sync.chunked_encode()
 - slave._Pooler might leak events if pullers are not in time to call wait()
 - revert per-document "downloads" property as "launches", a part of unpersonizalied user_stats

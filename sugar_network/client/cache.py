@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
 import json
 import time
 import logging
@@ -125,7 +126,7 @@ class Cache(object):
             # TODO Sonds like a tmpfs or so
             return 0
 
-        limit = 0
+        limit = sys.maxint
         free = stat.f_bfree * stat.f_frsize
         if client.cache_limit_percent.value:
             total = stat.f_blocks * stat.f_frsize
