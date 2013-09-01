@@ -49,7 +49,7 @@ class VolumeRoutes(db.Routes):
                         requires.setdefault(i, {})
                 blob = implementations.get(impl.guid).meta('data')
                 if blob:
-                    for key in ('blob_size', 'unpack_size', 'extract'):
+                    for key in ('blob_size', 'unpack_size'):
                         if key in blob:
                             spec[key] = blob[key]
                 versions.append(spec)

@@ -152,7 +152,6 @@ class Implementations(tests.Test):
             'command': ['true'],
             'context': 'bundle_id',
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
-            'extract': 'TestActivity',
             'guid': impl,
             }]]
         cached_path = 'cache/solutions/bu/bundle_id'

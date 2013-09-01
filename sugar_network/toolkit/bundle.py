@@ -68,16 +68,16 @@ class Bundle(object):
     def extractfile(self, name):
         return self._do_extractfile(name)
 
-    def extractall(self, dst_root, members=None, extract=None):
-        if not extract:
+    def extractall(self, dst_root, members=None, prefix=None):
+        if not prefix:
             self._bundle.extractall(path=dst_root, members=members)
             return
         try:
-            extract = extract.strip(os.sep) + os.sep
+            prefix = prefix.strip(os.sep) + os.sep
             for arcname in self.get_names():
                 dst_path = arcname.strip(os.sep)
-                if dst_path.startswith(extract):
-                    dst_path = dst_path[len(extract):]
+                if dst_path.startswith(prefix):
+                    dst_path = dst_path[len(prefix):]
                 dst_path = join(dst_root, dst_path)
                 if not exists(dirname(dst_path)):
                     os.makedirs(dirname(dst_path))

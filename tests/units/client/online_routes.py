@@ -404,7 +404,6 @@ Can't find all required implementations:
             'notes': '',
             })
         self.node_volume['implementation'].update(impl, {'data': {
-            'extract': 'topdir',
             'spec': {
                 '*-*': {
                     'commands': {
@@ -428,7 +427,6 @@ Can't find all required implementations:
                     'context': context,
                     'guid': impl,
                     'license': ['GPLv3+'],
-                    'extract': 'topdir',
                     'stability': 'stable',
                     'version': '1',
                     'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
@@ -597,7 +595,6 @@ Can't find all required implementations:
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
-            'extract': 'TestActivity',
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
@@ -648,7 +645,6 @@ Can't find all required implementations:
             'blob_size': len(blob),
             'blob': blob_path,
             'mtime': int(os.stat(blob_path[:-5]).st_mtime),
-            'extract': 'TestActivity',
             'mime_type': 'application/vnd.olpc-sugar',
             'spec': {
                 '*-*': {
@@ -692,7 +688,6 @@ Can't find all required implementations:
             'blob_size': len(blob),
             'blob': blob_path,
             'mtime': int(os.stat(blob_path[:-5]).st_mtime),
-            'extract': 'TestActivity',
             'mime_type': 'application/vnd.olpc-sugar',
             'spec': {
                 '*-*': {
@@ -808,7 +803,6 @@ Can't find all required implementations:
             'context': 'bundle_id',
             'data': {
                 'blob_size': len(blob),
-                'extract': 'TestActivity',
                 'mime_type': 'application/vnd.olpc-sugar',
                 'mtime': int(os.stat(blob_path[:-5]).st_mtime),
                 'seqno': 3,
@@ -832,7 +826,6 @@ Can't find all required implementations:
             'data': {
                 'blob': blob_path,
                 'blob_size': len(blob),
-                'extract': 'TestActivity',
                 'mime_type': 'application/vnd.olpc-sugar',
                 'mtime': int(os.stat(blob_path[:-5]).st_mtime),
                 'seqno': 5,
@@ -861,7 +854,6 @@ Can't find all required implementations:
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
-            'extract': 'TestActivity',
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
@@ -897,7 +889,6 @@ Can't find all required implementations:
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
-            'extract': 'TestActivity',
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '2',
@@ -990,7 +981,6 @@ Can't find all required implementations:
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
-            'extract': 'TestActivity',
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',

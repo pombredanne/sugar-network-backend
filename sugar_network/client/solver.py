@@ -174,10 +174,6 @@ def _impl_new(config, iface, sel):
         impl['path'] = sel.local_path
     if sel.impl.to_install:
         impl['install'] = sel.impl.to_install
-    if sel.impl.download_sources:
-        extract = sel.impl.download_sources[0].extract
-        if extract:
-            impl['extract'] = extract
     commands = sel.get_commands()
     if commands:
         impl['command'] = commands.values()[0].path.split()
@@ -275,7 +271,7 @@ class _Feed(model.ZeroInstallFeed):
         if isabs(impl_id):
             impl.local_path = impl_id
         else:
-            impl.add_download_source(impl_id, 0, release.get('extract'))
+            impl.add_download_source(impl_id, 0, None)
 
         for name, command in release['commands'].items():
             impl.commands[name] = _Command(name, command)

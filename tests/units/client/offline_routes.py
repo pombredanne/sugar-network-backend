@@ -285,7 +285,6 @@ class OfflineRoutes(tests.Test):
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
-            'extract': 'TestActivity',
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',

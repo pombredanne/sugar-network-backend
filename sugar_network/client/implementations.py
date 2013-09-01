@@ -281,8 +281,7 @@ class Routes(object):
                     shutil.copyfileobj(blob, tmp_file)
                     tmp_file.seek(0)
                     with Bundle(tmp_file, 'application/zip') as bundle:
-                        bundle.extractall(data_path,
-                                extract=data.get('extract'))
+                        bundle.extractall(data_path, prefix=bundle.rootdir)
                 for exec_dir in ('bin', 'activity'):
                     bin_path = join(data_path, exec_dir)
                     if not exists(bin_path):

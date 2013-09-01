@@ -398,7 +398,6 @@ def load_bundle(volume, request, bundle_path):
             for arcname in bundle.get_names():
                 unpack_size += bundle.getmember(arcname).size
             spec = bundle.get_spec()
-            extract = bundle.rootdir
             context = _load_context_metadata(bundle, spec)
         if 'requires' in impl:
             spec.requires.update(parse_requires(impl.pop('requires')))
@@ -413,7 +412,6 @@ def load_bundle(volume, request, bundle_path):
             }}
         data['unpack_size'] = unpack_size
         data['mime_type'] = 'application/vnd.olpc-sugar'
-        data['extract'] = extract
 
         if initial and not contexts.exists(impl['context']):
             context['guid'] = impl['context']
