@@ -4,6 +4,7 @@
 import os
 import json
 import time
+import copy
 import shutil
 import zipfile
 from cStringIO import StringIO
@@ -364,13 +365,11 @@ class OnlineRoutes(tests.Test):
     def test_clone_Fails(self):
         self.start_online_client([User, Context, Implementation])
         conn = IPCConnection()
-        events = []
 
-        def read_events():
-            for event in conn.subscribe(event='!commit'):
-                events.append(event)
-        coroutine.spawn(read_events)
-        coroutine.dispatch()
+        self.assertEqual([
+            {'event': 'failure', 'exception': 'NotFound', 'error': "Resource 'foo' does not exist in 'context'"},
+            ],
+            [i for i in conn.put(['context', 'foo'], True, cmd='clone')])
 
         context = conn.post(['context'], {
             'type': 'activity',
@@ -379,22 +378,14 @@ class OnlineRoutes(tests.Test):
             'description': 'description',
             })
 
-        self.assertRaises(http.NotFound, conn.put, ['context', context], True, cmd='clone')
-        coroutine.dispatch()
-        self.assertEqual({
-            'event': 'failure',
-            'method': 'PUT',
-            'cmd': 'clone',
-            'resource': 'context',
-            'guid': context,
-            'prop': None,
-            'exception': 'NotFound',
-            'error': """\
+        self.assertEqual([
+            {'event': 'failure', 'exception': 'NotFound', 'error': """\
 Can't find all required implementations:
 - %s -> (problem)
-    No known implementations at all""" % context,
-            },
-            events[-1])
+    No known implementations at all""" % context},
+            ],
+            [i for i in conn.put(['context', context], True, cmd='clone')])
+
         assert not exists('cache/solutions/%s/%s' % (context[:2], context))
 
         impl = conn.post(['implementation'], {
@@ -417,29 +408,22 @@ Can't find all required implementations:
                 },
             }})
 
-        self.assertRaises(http.NotFound, conn.put, ['context', context], True, cmd='clone')
-        coroutine.dispatch()
-        self.assertEqual({
-            'event': 'failure',
-            'method': 'PUT',
-            'cmd': 'clone',
-            'resource': 'context',
-            'guid': context,
-            'prop': None,
-            'exception': 'NotFound',
-            'error': 'BLOB does not exist',
-            'solution': [{
-                'command': ['echo'],
-                'context': context,
-                'guid': impl,
-                'license': ['GPLv3+'],
-                'extract': 'topdir',
-                'stability': 'stable',
-                'version': '1',
-                'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
-                }],
-            },
-            events[-1])
+        self.assertEqual([
+            {'event': 'failure', 'exception': 'NotFound', 'error': 'BLOB does not exist',
+                'stability': ['stable'],
+                'solution': [{
+                    'command': ['echo'],
+                    'context': context,
+                    'guid': impl,
+                    'license': ['GPLv3+'],
+                    'extract': 'topdir',
+                    'stability': 'stable',
+                    'version': '1',
+                    'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+                    }],
+                },
+            ],
+            [i for i in conn.put(['context', context], True, cmd='clone')])
         assert not exists('cache/solutions/%s/%s' % (context[:2], context))
 
     def test_clone_Content(self):
@@ -470,8 +454,10 @@ Can't find all required implementations:
         self.node_volume['implementation'].update(impl, {'data': {'blob': StringIO(blob), 'foo': 'bar'}})
         clone_path = 'client/context/%s/%s/.clone' % (context[:2], context)
 
-        ipc.put(['context', context], True, cmd='clone')
-        coroutine.dispatch()
+        self.assertEqual([
+            {'event': 'ready'},
+            ],
+            [i for i in ipc.put(['context', context], True, cmd='clone')])
 
         self.assertEqual({
             'event': 'update',
@@ -520,8 +506,9 @@ Can't find all required implementations:
         assert exists(clone_path + '/data.blob')
         assert not exists('cache/solutions/%s/%s' % (context[:2], context))
 
-        ipc.put(['context', context], False, cmd='clone')
-        coroutine.dispatch()
+        self.assertEqual([
+            ],
+            [i for i in ipc.put(['context', context], False, cmd='clone')])
 
         self.assertEqual({
             'event': 'update',
@@ -554,8 +541,10 @@ Can't find all required implementations:
         assert not lexists(clone_path)
         assert not exists('cache/solutions/%s/%s' % (context[:2], context))
 
-        ipc.put(['context', context], True, cmd='clone')
-        coroutine.dispatch()
+        self.assertEqual([
+            {'event': 'ready'},
+            ],
+            [i for i in ipc.put(['context', context], True, cmd='clone')])
 
         self.assertEqual({
             'event': 'update',
@@ -601,11 +590,14 @@ Can't find all required implementations:
             'stability': 'stable',
             'version': '1',
             'command': ['true'],
-            'path': blob_path,
             }]
+        downloaded_solution = copy.deepcopy(solution)
+        downloaded_solution[0]['path'] = blob_path
 
-        ipc.put(['context', 'bundle_id'], True, cmd='clone')
-        coroutine.dispatch()
+        self.assertEqual([
+            {'event': 'ready'},
+            ],
+            [i for i in ipc.put(['context', 'bundle_id'], True, cmd='clone')])
 
         self.assertEqual({
             'event': 'update',
@@ -657,11 +649,12 @@ Can't find all required implementations:
         self.assertEqual(activity_info, file(blob_path + '/activity/activity.info').read())
         assert exists(clone_path + '/data.blob/activity/activity.info')
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api_url.value, ['stable'], downloaded_solution],
                 json.load(file('cache/solutions/bu/bundle_id')))
 
-        ipc.put(['context', 'bundle_id'], False, cmd='clone')
-        coroutine.dispatch()
+        self.assertEqual([
+            ],
+            [i for i in ipc.put(['context', 'bundle_id'], False, cmd='clone')])
 
         self.assertEqual({
             'event': 'update',
@@ -700,11 +693,13 @@ Can't find all required implementations:
         self.assertEqual(activity_info, file(blob_path + '/activity/activity.info').read())
         assert not exists(clone_path)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api_url.value, ['stable'], downloaded_solution],
                 json.load(file('cache/solutions/bu/bundle_id')))
 
-        ipc.put(['context', 'bundle_id'], True, cmd='clone')
-        coroutine.dispatch()
+        self.assertEqual([
+            {'event': 'ready'},
+            ],
+            [i for i in ipc.put(['context', 'bundle_id'], True, cmd='clone')])
 
         self.assertEqual({
             'event': 'update',
@@ -717,7 +712,7 @@ Can't find all required implementations:
                 sorted(ipc.get(['context'], reply='layer')['result']))
         assert exists(clone_path + '/data.blob/activity/activity.info')
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api_url.value, ['stable'], downloaded_solution],
                 json.load(file('cache/solutions/bu/bundle_id')))
 
     def test_clone_ActivityWithStabilityPreferences(self):
@@ -749,7 +744,10 @@ Can't find all required implementations:
         blob2 = self.zips(['TestActivity/activity/activity.info', activity_info2])
         impl2 = ipc.upload(['implementation'], StringIO(blob2), cmd='release', initial=True)
 
-        ipc.put(['context', 'bundle_id'], True, cmd='clone')
+        self.assertEqual(
+                'ready',
+                [i for i in ipc.put(['context', 'bundle_id'], True, cmd='clone')][-1]['event'])
+
         coroutine.dispatch()
         self.assertEqual({'layer': ['clone']}, ipc.get(['context', 'bundle_id'], reply='layer'))
         self.assertEqual([impl1], [i.guid for i in local['implementation'].find()[0]])
@@ -761,8 +759,13 @@ Can't find all required implementations:
             ]))
         Option.load(['config'])
 
-        ipc.put(['context', 'bundle_id'], False, cmd='clone')
-        ipc.put(['context', 'bundle_id'], True, cmd='clone')
+        self.assertEqual(
+                [],
+                [i for i in ipc.put(['context', 'bundle_id'], False, cmd='clone')])
+        self.assertEqual(
+                'ready',
+                [i for i in ipc.put(['context', 'bundle_id'], True, cmd='clone')][-1]['event'])
+
         coroutine.dispatch()
         self.assertEqual({'layer': ['clone']}, ipc.get(['context', 'bundle_id'], reply='layer'))
         self.assertEqual([impl1, impl2], [i.guid for i in local['implementation'].find()[0]])
@@ -803,8 +806,9 @@ Can't find all required implementations:
             },
             ipc.head(['context', 'bundle_id'], cmd='clone'))
 
-        ipc.put(['context', 'bundle_id'], True, cmd='clone')
-        coroutine.dispatch()
+        self.assertEqual(
+                'ready',
+                [i for i in ipc.put(['context', 'bundle_id'], True, cmd='clone')][-1]['event'])
         blob_path = tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl)
 
         self.assertEqual({
@@ -842,16 +846,6 @@ Can't find all required implementations:
         impl = ipc.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
         coroutine.sleep(.1)
 
-        def read_events():
-            for event in ipc.subscribe(event='!commit'):
-                events.append(event)
-        events = []
-        coroutine.spawn(read_events)
-        coroutine.dispatch()
-
-        ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')
-        coroutine.sleep(.1)
-
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
@@ -860,17 +854,19 @@ Can't find all required implementations:
             'stability': 'stable',
             'version': '1',
             'command': ['true'],
-            'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
             }]
+        downloaded_solution = copy.deepcopy(solution)
+        downloaded_solution[0]['path'] = tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl)
         log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id.log'
         self.assertEqual([
-            {'event': 'exec', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
-            {'event': 'exit', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
+            {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
+            {'event': 'exec', 'activity_id': 'activity_id'},
+            {'event': 'exit', 'activity_id': 'activity_id'},
             ],
-            events)
+            [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['implementation'].exists(impl)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api_url.value, ['stable'], downloaded_solution],
                 json.load(file('cache/solutions/bu/bundle_id')))
 
         blob = self.zips(['TestActivity/activity/activity.info', [
@@ -886,10 +882,6 @@ Can't find all required implementations:
         coroutine.sleep(.1)
 
         shutil.rmtree('cache/solutions')
-        del events[:]
-        ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')
-        coroutine.sleep(.1)
-
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
@@ -902,10 +894,11 @@ Can't find all required implementations:
             }]
         log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id_1.log'
         self.assertEqual([
-            {'event': 'exec', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
-            {'event': 'exit', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
+            {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
+            {'event': 'exec', 'activity_id': 'activity_id'},
+            {'event': 'exit', 'activity_id': 'activity_id'},
             ],
-            events)
+            [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
@@ -914,40 +907,55 @@ Can't find all required implementations:
         self.node.stop()
         coroutine.sleep(.1)
 
-        del events[:]
-        ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')
-        coroutine.sleep(.1)
-
         log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id_2.log'
         self.assertEqual([
-            {'event': 'exec', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
-            {'event': 'exit', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
+            {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
+            {'event': 'exec', 'activity_id': 'activity_id'},
+            {'event': 'exit', 'activity_id': 'activity_id'},
             ],
-            events)
+            [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
                 json.load(file('cache/solutions/bu/bundle_id')))
 
         shutil.rmtree('cache/solutions')
-        del events[:]
-        ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')
-        coroutine.sleep(.1)
-
         log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id_3.log'
         self.assertEqual([
-            {'event': 'exec', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
-            {'event': 'exit', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
+            {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
+            {'event': 'exec', 'activity_id': 'activity_id'},
+            {'event': 'exit', 'activity_id': 'activity_id'},
             ],
-            events)
+            [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
                 json.load(file('cache/solutions/bu/bundle_id')))
 
-    def test_launch_ActivityFailed(self):
+    def test_launch_Fails(self):
         local = self.start_online_client([User, Context, Implementation])
         ipc = IPCConnection()
+
+        self.assertEqual([
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'NotFound', 'error': "Resource 'foo' does not exist in 'context'"},
+            ],
+            [i for i in ipc.get(['context', 'foo'], cmd='launch')])
+
+        ipc.post(['context'], {
+            'guid': 'bundle_id',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual([
+            {'event': 'launch', 'activity_id': 'activity_id', 'foo': 'bar', 'activity_id': 'activity_id'},
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'NotFound', 'error': """\
+Can't find all required implementations:
+- bundle_id -> (problem)
+    No known implementations at all"""},
+            ],
+            [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
 
         activity_info = '\n'.join([
             '[Activity]',
@@ -960,17 +968,6 @@ Can't find all required implementations:
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
         impl = ipc.upload(['implementation'], StringIO(blob), cmd='release', initial=True)
-        coroutine.sleep(.1)
-
-        def read_events():
-            for event in ipc.subscribe(event='!commit'):
-                events.append(event)
-        events = []
-        coroutine.spawn(read_events)
-        coroutine.dispatch()
-
-        ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')
-        coroutine.sleep(.1)
 
         solution = [{
             'guid': impl,
@@ -982,12 +979,20 @@ Can't find all required implementations:
             'command': ['false'],
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
             }]
-        log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id.log'
         self.assertEqual([
-            {'event': 'exec', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['false', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
-            {'event': 'failure', 'error': 'Process exited with 1 status', 'cmd': 'launch', 'guid': 'bundle_id', 'args': ['false', '-b', 'bundle_id', '-a', 'activity_id'], 'foo': 'bar', 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
+            {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
+            {'event': 'exec', 'activity_id': 'activity_id'},
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'RuntimeError', 'error': 'Process exited with 1 status',
+                'stability': ['stable'],
+                'args': ['false', '-b', 'bundle_id', '-a', 'activity_id'],
+                'solution': solution,
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
+                    tests.tmpdir + '/.sugar/default/logs/bundle_id.log',
+                    ]},
             ],
-            events)
+            [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],

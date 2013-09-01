@@ -13,8 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# pylint: disable=W0611
-
 import os
 import logging
 import httplib
@@ -25,7 +23,7 @@ from sugar_network.client import journal, implementations
 from sugar_network.node.slave import SlaveRoutes
 from sugar_network.toolkit import netlink, mountpoints
 from sugar_network.toolkit.router import ACL, Request, Response, Router
-from sugar_network.toolkit.router import route, fallbackroute, postroute
+from sugar_network.toolkit.router import route, fallbackroute
 from sugar_network.toolkit import zeroconf, coroutine, http, enforce
 
 
@@ -73,23 +71,6 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         self._jobs.kill()
         self._got_offline()
         self._local.volume.close()
-
-    @postroute
-    def postroute(self, request, response, result, error):
-        if error is None or isinstance(error, http.StatusPass):
-            return
-        event = {'event': 'failure',
-                 'exception': type(error).__name__,
-                 'error': str(error),
-                 'method': request.method,
-                 'cmd': request.cmd,
-                 'resource': request.resource,
-                 'guid': request.guid,
-                 'prop': request.prop,
-                 }
-        event.update(request)
-        event.update(request.session)
-        self.broadcast(event)
 
     @fallbackroute('GET', ['hub'])
     def hub(self, request, response):

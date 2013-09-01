@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# pylint: disable-msg=E1101,W0611
+# pylint: disable=E1101
 
 import os
 import re
@@ -30,9 +30,9 @@ from os.path import join, exists, basename, dirname, relpath
 from sugar_network import client, toolkit
 from sugar_network.client.cache import Cache
 from sugar_network.client import journal, packagekit
-from sugar_network.toolkit.router import Request, Response, route, postroute
+from sugar_network.toolkit.router import Request, Response, route
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import http, coroutine, exception, enforce
+from sugar_network.toolkit import http, coroutine, enforce
 
 
 _MIMETYPE_DEFAULTS_KEY = '/desktop/sugar/journal/defaults'
@@ -53,33 +53,53 @@ class Routes(object):
     def invalidate_solutions(self, mtime):
         self._node_mtime = mtime
 
-    @route('GET', ['context', None], cmd='launch', arguments={'args': list})
+    @route('GET', ['context', None], cmd='launch', arguments={'args': list},
+            mime_type='text/event-stream')
     def launch(self, request, no_spawn):
+        activity_id = request.get('activity_id')
+        if 'object_id' in request and not activity_id:
+            activity_id = journal.get(request['object_id'], 'activity_id')
+        if not activity_id:
+            activity_id = _activity_id_new()
+        request.session['activity_id'] = activity_id
+
         for context in self._checkin_context(request):
-            impl = self._checkin_impl(context, request)
-            if 'activity' in context['type']:
-                self._exec(request, context, impl)
-            else:
+            yield {'event': 'launch', 'activity_id': activity_id}, request
+
+            impl = self._solve_impl(context, request)
+            if 'activity' not in context['type']:
                 app = request.get('context') or \
                         _mimetype_context(impl['mime_type'])
                 enforce(app, 'Cannot find proper application')
-                doc = self._volume['implementation'].path(impl['guid'], 'data')
-                app_request = Request(path=['context', app], object_id=doc)
-                for app_context in self._checkin_context(app_request):
-                    app_impl = self._checkin_impl(app_context, app_request)
-                    self._exec(app_request, app_context, app_impl)
+                self._checkin_impl(context, request, impl)
+                request = Request(path=['context', app],
+                        object_id=impl['path'], session=request.session)
+                for context in self._checkin_context(request):
+                    impl = self._solve_impl(context, request)
+            self._checkin_impl(context, request, impl)
 
-    @route('PUT', ['context', None], cmd='clone', arguments={'requires': list})
+            child = _exec(context, request, impl)
+            yield {'event': 'exec', 'activity_id': activity_id}
+
+            status = child.wait()
+            _logger.debug('Exit %s[%s]: %r', context.guid, child.pid, status)
+            enforce(status == 0, 'Process exited with %r status', status)
+            yield {'event': 'exit', 'activity_id': activity_id}
+
+    @route('PUT', ['context', None], cmd='clone', arguments={'requires': list},
+            mime_type='text/event-stream')
     def clone(self, request):
         enforce(not request.content or self.inline(), http.ServiceUnavailable,
                 'Not available in offline')
         for context in self._checkin_context(request, 'clone'):
             cloned_path = context.path('.clone')
             if request.content:
-                impl = self._checkin_impl(context, request)
+                impl = self._solve_impl(context, request)
+                self._checkin_impl(context, request, impl)
                 impl_path = relpath(dirname(impl['path']), context.path())
                 os.symlink(impl_path, cloned_path)
                 self._cache.checkout(impl['guid'])
+                yield {'event': 'ready'}
             else:
                 cloned_impl = basename(os.readlink(cloned_path))
                 self._cache.checkin(cloned_impl)
@@ -145,20 +165,19 @@ class Routes(object):
                 })
             _logger.debug('Checked %r in: %r', guid, layer_value)
 
-    def _checkin_impl(self, context, request, clone=None):
+    def _solve_impl(self, context, request):
         stability = request.get('stability') or \
                 client.stability(request.guid)
+
+        _logger.debug('Solving %r stability=%r', request.guid, stability)
 
         if 'activity' not in context['type']:
             _logger.debug('Cloniing %r', request.guid)
             response = Response()
             blob = self._call(method='GET', path=['context', request.guid],
                     cmd='clone', stability=stability, response=response)
-            impl = response.meta
-            self._cache_impl(context, impl, blob, impl.pop('data'))
-            return impl
-
-        _logger.debug('Making %r', request.guid)
+            response.meta['data']['blob'] = blob
+            return response.meta
 
         solution, stale = self._cache_solution_get(request.guid, stability)
         if stale is False:
@@ -171,9 +190,16 @@ class Routes(object):
             solution = self._map_exceptions(solver.solve,
                     self.fallback, request.guid, stability)
         request.session['solution'] = solution
+        request.session['stability'] = stability
+        return solution[0]
+
+    def _checkin_impl(self, context, request, sel):
+        if 'activity' not in context['type']:
+            self._cache_impl(context, sel)
+            return
 
         to_install = []
-        for sel in solution:
+        for sel in request.session['solution']:
             if 'install' in sel:
                 enforce(self.inline(), http.ServiceUnavailable,
                         'Installation is not available in offline')
@@ -181,95 +207,12 @@ class Routes(object):
         if to_install:
             packagekit.install(to_install)
 
-        for sel in solution:
+        for sel in request.session['solution']:
             if 'path' not in sel and sel['stability'] != 'packaged':
                 self._cache_impl(context, sel)
 
-        self._cache_solution(request.guid, stability, solution)
-        return solution[0]
-
-    def _exec(self, request, context, sel):
-        # pylint: disable-msg=W0212
-        datadir = client.profile_path('data', context.guid)
-        logdir = client.profile_path('logs')
-
-        args = sel['command'] + (request.get('args') or [])
-        object_id = request.get('object_id')
-        if object_id:
-            if 'activity_id' not in request:
-                activity_id = journal.get(object_id, 'activity_id')
-                if activity_id:
-                    request['activity_id'] = activity_id
-            args.extend(['-o', object_id])
-        activity_id = request.get('activity_id')
-        if not activity_id:
-            activity_id = request['activity_id'] = _activity_id_new()
-        uri = request.get('uri')
-        if uri:
-            args.extend(['-u', uri])
-        args.extend([
-            '-b', request.guid,
-            '-a', activity_id,
-            ])
-
-        for path in [
-                join(datadir, 'instance'),
-                join(datadir, 'data'),
-                join(datadir, 'tmp'),
-                logdir,
-                ]:
-            if not exists(path):
-                os.makedirs(path)
-
-        event = {'event': 'exec',
-                 'cmd': 'launch',
-                 'guid': request.guid,
-                 'args': args,
-                 'log_path':
-                    toolkit.unique_filename(logdir, context.guid + '.log'),
-                 }
-        event.update(request)
-        event.update(request.session)
-        self.broadcast(event)
-
-        child = coroutine.fork()
-        if child is not None:
-            _logger.debug('Exec %s[%s]: %r', request.guid, child.pid, args)
-            child.watch(self.__sigchld_cb, child.pid, event)
-            return
-
-        try:
-            with file('/dev/null', 'r') as f:
-                os.dup2(f.fileno(), 0)
-            with file(event['log_path'], 'a+') as f:
-                os.dup2(f.fileno(), 1)
-                os.dup2(f.fileno(), 2)
-            toolkit.init_logging()
-
-            impl_path = sel['path']
-            os.chdir(impl_path)
-
-            environ = os.environ
-            environ['PATH'] = ':'.join([
-                join(impl_path, 'activity'),
-                join(impl_path, 'bin'),
-                environ['PATH'],
-                ])
-            environ['PYTHONPATH'] = impl_path + ':' + \
-                    environ.get('PYTHONPATH', '')
-            environ['SUGAR_BUNDLE_PATH'] = impl_path
-            environ['SUGAR_BUNDLE_ID'] = context.guid
-            environ['SUGAR_BUNDLE_NAME'] = \
-                    toolkit.gettext(context['title']).encode('utf8')
-            environ['SUGAR_BUNDLE_VERSION'] = sel['version']
-            environ['SUGAR_ACTIVITY_ROOT'] = datadir
-            environ['SUGAR_LOCALEDIR'] = join(impl_path, 'locale')
-
-            os.execvpe(args[0], args, environ)
-        except BaseException:
-            logging.exception('Failed to execute %r args=%r', sel, args)
-        finally:
-            os._exit(1)
+        self._cache_solution(context.guid,
+                request.session['stability'], request.session['solution'])
 
     def _cache_solution_path(self, guid):
         return client.path('cache', 'solutions', guid[:2], guid)
@@ -303,16 +246,19 @@ class Routes(object):
         with file(path, 'w') as f:
             json.dump([client.api_url.value, stability, solution], f)
 
-    def _cache_impl(self, context, sel, blob=None, data=None):
+    def _cache_impl(self, context, sel):
         guid = sel['guid']
         impls = self._volume['implementation']
         data_path = sel['path'] = impls.path(guid, 'data')
 
         if impls.exists(guid):
-            self._cache.checkin(guid, data)
+            self._cache.checkin(guid)
             return
 
-        if blob is None:
+        if 'data' in sel:
+            data = sel.pop('data')
+            blob = data.pop('blob')
+        else:
             response = Response()
             blob = self._call(method='GET',
                     path=['implementation', guid, 'data'], response=response)
@@ -360,15 +306,6 @@ class Routes(object):
                 'guid', 'context', 'license', 'version', 'stability', 'data'])
             return impl.meta('data')
 
-    def __sigchld_cb(self, returncode, pid, event):
-        _logger.debug('Exit %s[%s]: %r', event['guid'], pid, returncode)
-        if returncode:
-            event['event'] = 'failure'
-            event['error'] = 'Process exited with %r status' % returncode
-        else:
-            event['event'] = 'exit'
-        self.broadcast(event)
-
 
 def _activity_id_new():
     data = '%s%s%s' % (
@@ -383,3 +320,75 @@ def _mimetype_context(mime_type):
     mime_type = _MIMETYPE_INVALID_CHARS.sub('_', mime_type)
     key = '/'.join([_MIMETYPE_DEFAULTS_KEY, mime_type])
     return gconf.client_get_default().get_string(key)
+
+
+def _exec(context, request, sel):
+    # pylint: disable-msg=W0212
+    datadir = client.profile_path('data', context.guid)
+    logdir = client.profile_path('logs')
+
+    for path in [
+            join(datadir, 'instance'),
+            join(datadir, 'data'),
+            join(datadir, 'tmp'),
+            logdir,
+            ]:
+        if not exists(path):
+            os.makedirs(path)
+
+    args = sel['command'] + [
+            '-b', request.guid,
+            '-a', request.session['activity_id'],
+            ]
+    if 'object_id' in request:
+        args.extend(['-o', request['object_id']])
+    if 'uri' in request:
+        args.extend(['-u', request['uri']])
+    if 'args' in request:
+        args.extend(request['args'])
+    request.session['args'] = args
+
+    log_path = toolkit.unique_filename(logdir, context.guid + '.log')
+    request.session['logs'] = [
+            join(logdir, 'shell.log'),
+            join(logdir, 'sugar-network-client.log'),
+            log_path,
+            ]
+
+    child = coroutine.fork()
+    if child is not None:
+        _logger.debug('Exec %s[%s]: %r', request.guid, child.pid, args)
+        return child
+
+    try:
+        with file('/dev/null', 'r') as f:
+            os.dup2(f.fileno(), 0)
+        with file(log_path, 'a+') as f:
+            os.dup2(f.fileno(), 1)
+            os.dup2(f.fileno(), 2)
+        toolkit.init_logging()
+
+        impl_path = sel['path']
+        os.chdir(impl_path)
+
+        environ = os.environ
+        environ['PATH'] = ':'.join([
+            join(impl_path, 'activity'),
+            join(impl_path, 'bin'),
+            environ['PATH'],
+            ])
+        environ['PYTHONPATH'] = impl_path + ':' + \
+                environ.get('PYTHONPATH', '')
+        environ['SUGAR_BUNDLE_PATH'] = impl_path
+        environ['SUGAR_BUNDLE_ID'] = context.guid
+        environ['SUGAR_BUNDLE_NAME'] = \
+                toolkit.gettext(context['title']).encode('utf8')
+        environ['SUGAR_BUNDLE_VERSION'] = sel['version']
+        environ['SUGAR_ACTIVITY_ROOT'] = datadir
+        environ['SUGAR_LOCALEDIR'] = join(impl_path, 'locale')
+
+        os.execvpe(args[0], args, environ)
+    except BaseException:
+        logging.exception('Failed to execute %r args=%r', sel, args)
+    finally:
+        os._exit(1)

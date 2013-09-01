@@ -54,11 +54,6 @@ class RoutesTest(tests.Test):
 
         def read_events():
             for event in routes.subscribe(event='!commit'):
-                if not event.strip():
-                    continue
-                assert event.startswith('data: ')
-                assert event.endswith('\n\n')
-                event = json.loads(event[6:])
                 events.append(event)
 
         job = coroutine.spawn(read_events)
@@ -84,8 +79,7 @@ class RoutesTest(tests.Test):
         routes = model.FrontRoutes()
         for event in routes.subscribe(ping=True):
             break
-        self.assertEqual('data: {"event": "pong"}\n\n', event)
-
+        self.assertEqual({'event': 'pong'}, event)
 
 
 if __name__ == '__main__':

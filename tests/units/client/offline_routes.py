@@ -297,22 +297,13 @@ class OfflineRoutes(tests.Test):
         self.node.stop()
         coroutine.sleep(.1)
 
-        def read_events():
-            for event in ipc.subscribe(event='!commit'):
-                events.append(event)
-        events = []
-        coroutine.spawn(read_events)
-        coroutine.dispatch()
-
-        ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')
-        coroutine.sleep(.1)
-
         log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id.log'
         self.assertEqual([
-            {'event': 'exec', 'cmd': 'launch', 'guid': 'bundle_id', 'foo': 'bar', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
-            {'event': 'exit', 'cmd': 'launch', 'guid': 'bundle_id', 'foo': 'bar', 'args': ['true', '-b', 'bundle_id', '-a', 'activity_id'], 'activity_id': 'activity_id', 'log_path': log_path, 'solution': solution},
+            {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
+            {'event': 'exec', 'activity_id': 'activity_id'},
+            {'event': 'exit', 'activity_id': 'activity_id'},
             ],
-            events)
+            [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
@@ -321,26 +312,10 @@ class OfflineRoutes(tests.Test):
     def test_ServiceUnavailableWhileSolving(self):
         ipc = self.start_offline_client()
 
-        def read_events():
-            for event in ipc.subscribe(event='!commit'):
-                events.append(event)
-        events = []
-        coroutine.spawn(read_events)
-        coroutine.dispatch()
-
-        self.assertRaises(http.ServiceUnavailable, ipc.get, ['context', 'foo'], cmd='launch')
-        coroutine.dispatch()
-        self.assertEqual({
-            'event': 'failure',
-            'method': 'GET',
-            'guid': 'foo',
-            'cmd': 'launch',
-            'resource': 'context',
-            'prop': None,
-            'exception': 'ServiceUnavailable',
-            'error': "Resource 'foo' does not exist in 'context'",
-            },
-            events[-1])
+        self.assertEqual([
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'ServiceUnavailable', 'error': "Resource 'foo' does not exist in 'context'"},
+            ],
+            [i for i in ipc.get(['context', 'foo'], cmd='launch')])
 
         context = ipc.post(['context'], {
             'type': 'activity',
@@ -348,22 +323,14 @@ class OfflineRoutes(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        self.assertRaises(http.ServiceUnavailable, ipc.get, ['context', context], cmd='launch')
-        coroutine.dispatch()
-        self.assertEqual({
-            'event': 'failure',
-            'method': 'GET',
-            'guid': context,
-            'cmd': 'launch',
-            'resource': 'context',
-            'prop': None,
-            'exception': 'ServiceUnavailable',
-            'error': """\
+        self.assertEqual([
+            {'event': 'launch', 'activity_id': 'activity_id'},
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'ServiceUnavailable', 'error': """\
 Can't find all required implementations:
 - %s -> (problem)
-    No known implementations at all""" % context,
-            },
-            events[-1])
+    No known implementations at all""" % context},
+            ],
+            [i for i in ipc.get(['context', context], cmd='launch')])
 
         impl = ipc.post(['implementation'], {
             'context': context,
@@ -379,25 +346,15 @@ Can't find all required implementations:
                     },
                 },
             }})
-
-        self.assertRaises(http.ServiceUnavailable, ipc.get, ['context', context], cmd='launch')
-        coroutine.dispatch()
-        self.assertEqual({
-            'event': 'failure',
-            'method': 'GET',
-            'guid': context,
-            'cmd': 'launch',
-            'resource': 'context',
-            'prop': None,
-            'exception': 'ServiceUnavailable',
-            'error': """\
+        self.assertEqual([
+            {'event': 'launch', 'activity_id': 'activity_id'},
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'ServiceUnavailable', 'error': """\
 Can't find all required implementations:
 - %s -> 1 (%s)
 - dep -> (problem)
-    No known implementations at all""" % (context, impl),
-            },
-            events[-1])
-
+    No known implementations at all""" % (context, impl)},
+            ],
+            [i for i in ipc.get(['context', context], cmd='launch')])
         assert not exists('cache/solutions/%s/%s' % (context[:2], context))
 
     def test_ServiceUnavailableWhileInstalling(self):
@@ -441,42 +398,29 @@ Can't find all required implementations:
             return dict([(i, {'name': i, 'pk_id': i, 'version': '0', 'arch': '*', 'installed': False}) for i in names])
         self.override(packagekit, 'resolve', resolve)
 
-        def read_events():
-            for event in ipc.subscribe(event='!commit'):
-                events.append(event)
-        events = []
-        coroutine.spawn(read_events)
-        coroutine.dispatch()
-
-        self.assertRaises(http.ServiceUnavailable, ipc.get, ['context', context], cmd='launch')
-        coroutine.dispatch()
-        self.assertEqual({
-            'event': 'failure',
-            'method': 'GET',
-            'guid': context,
-            'cmd': 'launch',
-            'resource': 'context',
-            'prop': None,
-            'exception': 'ServiceUnavailable',
-            'error': 'Installation is not available in offline',
-            'solution': [
-                {   'guid': impl,
-                    'context': context,
-                    'license': ['GPLv3+'],
-                    'stability': 'stable',
-                    'version': '1',
-                    'command': ['true'],
-                    },
-                {   'guid': 'dep',
-                    'context': 'dep',
-                    'install': [{'arch': '*', 'installed': False, 'name': 'dep.bin', 'pk_id': 'dep.bin', 'version': '0'}],
-                    'license': None,
-                    'stability': 'packaged',
-                    'version': '0',
-                    },
-                ],
-            },
-            events[-1])
+        self.assertEqual([
+            {'event': 'launch', 'activity_id': 'activity_id'},
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'ServiceUnavailable', 'error': 'Installation is not available in offline',
+                'stability': ['stable'],
+                'solution': [
+                    {   'guid': impl,
+                        'context': context,
+                        'license': ['GPLv3+'],
+                        'stability': 'stable',
+                        'version': '1',
+                        'command': ['true'],
+                        },
+                    {   'guid': 'dep',
+                        'context': 'dep',
+                        'install': [{'arch': '*', 'installed': False, 'name': 'dep.bin', 'pk_id': 'dep.bin', 'version': '0'}],
+                        'license': None,
+                        'stability': 'packaged',
+                        'version': '0',
+                        },
+                    ],
+                },
+            ],
+            [i for i in ipc.get(['context', context], cmd='launch')])
 
     def test_NoAuthors(self):
         ipc = self.start_offline_client()

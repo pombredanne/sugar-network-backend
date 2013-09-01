@@ -66,12 +66,11 @@ _LIST_RE = re.compile(r'\s*[;,:]+\s*')
 class ClientRouter(Router, ClientRoutes):
 
     def __init__(self):
-        home = db.Volume(client.path('db'), RESOURCES)
+        home = db.Volume(client.path('db'), RESOURCES, lazy_open=True)
         Router.__init__(self, self)
         ClientRoutes.__init__(self, home,
                 client.api_url.value if not offline.value else None,
                 no_subscription=True)
-
         if not offline.value:
             for __ in self.subscribe(event='inline', state='online'):
                 break
@@ -261,6 +260,30 @@ class Application(application.Application):
                     toolkit.ensure_key(client.key_path())
                 cp = ClientRouter()
             result = cp.call(request, response)
+
+            if result is None:
+                pass
+            elif response.content_type == 'application/json':
+                self._dump(result)
+            elif isinstance(result, types.GeneratorType):
+                for chunk in result:
+                    self._dump(chunk)
+            elif hasattr(result, 'read'):
+                if response.content_type == 'text/event-stream':
+                    while True:
+                        chunk = toolkit.readline(result)
+                        if not chunk:
+                            break
+                        if chunk.startswith('data: '):
+                            self._dump(loads(chunk[6:]))
+                else:
+                    while True:
+                        chunk = result.read(BUFFER_SIZE)
+                        if not chunk:
+                            break
+                        sys.stdout.write(chunk)
+            else:
+                sys.stdout.write(result)
         finally:
             if server is not None:
                 server.close()
@@ -268,29 +291,6 @@ class Application(application.Application):
                 cp.close()
             if pid_path:
                 os.unlink(pid_path)
-
-        if result is None:
-            return
-
-        if response.content_type == 'application/json':
-            self._dump(result)
-        elif response.content_type == 'text/event-stream':
-            while True:
-                chunk = toolkit.readline(result)
-                if not chunk:
-                    break
-                sys.stdout.write(chunk)
-        elif hasattr(result, 'read'):
-            while True:
-                chunk = result.read(BUFFER_SIZE)
-                if not chunk:
-                    break
-                sys.stdout.write(chunk)
-        elif isinstance(result, types.GeneratorType):
-            for chunk in result:
-                sys.stdout.write(chunk)
-        else:
-            sys.stdout.write(result)
 
     def _parse_path(self, request):
         if self.args and self.args[0].startswith('/'):

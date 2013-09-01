@@ -226,16 +226,16 @@ class CacheTest(tests.Test):
             'stability = stable',
             ]])), cmd='release', initial=True)
 
-        conn.get(['context', 'context1'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'context1'], cmd='launch')][-1]['event'])
         self.assertEqual([impl1], [i for i in self.client_routes._cache])
         assert local_volume['implementation'].exists(impl1)
 
-        conn.get(['context', 'context2'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'context2'], cmd='launch')][-1]['event'])
         self.assertEqual([impl2, impl1], [i for i in self.client_routes._cache])
         assert local_volume['implementation'].exists(impl1)
         assert local_volume['implementation'].exists(impl2)
 
-        conn.get(['context', 'context3'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'context3'], cmd='launch')][-1]['event'])
         self.assertEqual([impl3, impl2, impl1], [i for i in self.client_routes._cache])
         assert local_volume['implementation'].exists(impl1)
         assert local_volume['implementation'].exists(impl2)

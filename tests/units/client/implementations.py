@@ -86,7 +86,7 @@ class Implementations(tests.Test):
 
         self.override(packagekit, 'resolve', resolve)
         self.override(packagekit, 'install', install)
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
         with file('resolve') as f:
             deps = [pickle.load(f),
@@ -157,7 +157,7 @@ class Implementations(tests.Test):
             }]]
         cached_path = 'cache/solutions/bu/bundle_id'
 
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
         self.assertEqual(solution, json.load(file(cached_path)))
 
         os.utime(cached_path, (0, 0))
@@ -189,35 +189,35 @@ class Implementations(tests.Test):
         self.touch([cached_path, solution])
         cached_mtime = int(os.stat(cached_path).st_mtime)
 
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
         client.api_url.value = 'fake'
-        self.assertRaises(http.NotFound, conn.get, ['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('NotFound', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['exception'])
         self.assertEqual(solution, file(cached_path).read())
 
         client.api_url.value = 'http://127.0.0.1:8888'
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
-        self.client_routes._node_mtime = cached_mtime + 1
-        self.assertRaises(http.NotFound, conn.get, ['context', 'bundle_id'], cmd='launch')
+        self.client_routes._node_mtime = cached_mtime + 2
+        self.assertEqual('NotFound', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['exception'])
         self.assertEqual(solution, file(cached_path).read())
 
         self.client_routes._node_mtime = cached_mtime
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
-        self.override(packagekit, 'mtime', lambda: cached_mtime + 1)
-        self.assertRaises(http.NotFound, conn.get, ['context', 'bundle_id'], cmd='launch')
+        self.override(packagekit, 'mtime', lambda: cached_mtime + 2)
+        self.assertEqual('NotFound', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['exception'])
         self.assertEqual(solution, file(cached_path).read())
 
         self.override(packagekit, 'mtime', lambda: cached_mtime)
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
         self.touch(('config', [
             '[stabilities]',
             'bundle_id = buggy',
             ]))
         Option.load(['config'])
-        self.assertRaises(http.NotFound, conn.get, ['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('NotFound', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['exception'])
         self.assertEqual(solution, file(cached_path).read())
 
         self.touch(('config', [
@@ -225,7 +225,7 @@ class Implementations(tests.Test):
             'bundle_id = stable',
             ]))
         Option.load(['config'])
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
     def test_DeliberateReuseCachedSolutionInOffline(self):
         self.start_online_client()
@@ -251,11 +251,11 @@ class Implementations(tests.Test):
         self.touch(['cache/solutions/bu/bundle_id', solution])
 
         client.api_url.value = 'fake'
-        self.assertRaises(http.NotFound, conn.get, ['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('NotFound', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['exception'])
 
         self.node.stop()
         coroutine.sleep(.1)
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
     def test_StabilityPreferences(self):
         self.start_online_client()
@@ -293,7 +293,7 @@ class Implementations(tests.Test):
             ]])), cmd='release')
         cached_path = 'cache/solutions/bu/bundle_id'
 
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
         self.assertEqual('1', json.load(file(cached_path))[2][0]['version'])
 
         self.touch(('config', [
@@ -301,7 +301,7 @@ class Implementations(tests.Test):
             'bundle_id = testing',
             ]))
         Option.load(['config'])
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
         self.assertEqual('2', json.load(file(cached_path))[2][0]['version'])
 
         self.touch(('config', [
@@ -309,7 +309,7 @@ class Implementations(tests.Test):
             'bundle_id = testing buggy',
             ]))
         Option.load(['config'])
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
         self.assertEqual('3', json.load(file(cached_path))[2][0]['version'])
 
         self.touch(('config', [
@@ -317,7 +317,7 @@ class Implementations(tests.Test):
             'default = testing',
             ]))
         Option.load(['config'])
-        conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
         self.assertEqual('2', json.load(file(cached_path))[2][0]['version'])
 
     def test_LaunchContext(self):
@@ -336,7 +336,7 @@ class Implementations(tests.Test):
                 ]],
             ['TestActivity/bin/activity', [
                 '#!/bin/sh',
-                'cat $2',
+                'cat $6',
                 ]],
             )), cmd='release', initial=True)
 
@@ -358,10 +358,9 @@ class Implementations(tests.Test):
             'blob': StringIO('content'),
             }})
 
-        conn.get(['context', 'document'], cmd='launch', context='bundle_id')
+        self.assertEqual('exit', [i for i in conn.get(['context', 'document'], cmd='launch', context='bundle_id')][-1]['event'])
         coroutine.sleep(.1)
         self.assertEqual('content', file('.sugar/default/logs/bundle_id.log').read())
-
 
 
 if __name__ == '__main__':

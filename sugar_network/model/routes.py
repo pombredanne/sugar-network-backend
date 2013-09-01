@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import json
 import logging
 import mimetypes
 from os.path import join, split
@@ -146,7 +145,7 @@ class FrontRoutes(object):
             # a subscription and do not stuck in waiting for the first event,
             # it should pass `ping` argument to return fake event to unblock
             # `GET /?cmd=subscribe` call.
-            yield 'data: %s\n\n' % json.dumps({'event': 'pong'})
+            yield {'event': 'pong'}
 
         try:
             while True:
@@ -158,7 +157,7 @@ class FrontRoutes(object):
                     elif event.get(key) != value:
                         break
                 else:
-                    yield 'data: %s\n\n' % json.dumps(event)
+                    yield event
         finally:
             _logger.debug('Stop pulling events to %s user', peer)
 

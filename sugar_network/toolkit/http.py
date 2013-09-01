@@ -306,6 +306,8 @@ class Connection(object):
     def _decode_reply(self, reply):
         if reply.headers.get('Content-Type') == 'application/json':
             return json.loads(reply.content)
+        elif reply.headers.get('Content-Type') == 'text/event-stream':
+            return _pull_events(reply.raw)
         else:
             return reply.content
 
@@ -340,14 +342,7 @@ class _Subscription(object):
                 toolkit.exception('Failed to read from %r subscription, '
                         'will resubscribe', self._client.api_url)
                 self._content = None
-
-        if line.startswith('data: '):
-            try:
-                return json.loads(line.split(' ', 1)[1])
-            except Exception:
-                toolkit.exception(
-                        'Failed to parse %r event from %r subscription',
-                        line, self._client.api_url)
+        return _parse_event(line)
 
     def _handshake(self, **params):
         if self._content is not None:
@@ -358,6 +353,24 @@ class _Subscription(object):
         response = self._client.request('GET', params=params)
         self._content = response.raw
         return self._content
+
+
+def _pull_events(stream):
+    while True:
+        line = toolkit.readline(stream)
+        if not line:
+            break
+        event = _parse_event(line)
+        if event is not None:
+            yield event
+
+
+def _parse_event(line):
+    if line and line.startswith('data: '):
+        try:
+            return json.loads(line[6:])
+        except Exception:
+            _logger.exception('Failed to parse %r event', line)
 
 
 def _sign(key_path, data):

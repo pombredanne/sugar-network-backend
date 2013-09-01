@@ -159,7 +159,7 @@ class NodeTest(tests.Test):
 
         def subscribe():
             for event in cp.subscribe():
-                events.append(json.loads(event[6:]))
+                events.append(event)
         events = []
         coroutine.spawn(subscribe)
         coroutine.dispatch()
@@ -184,7 +184,7 @@ class NodeTest(tests.Test):
 
         def subscribe():
             for event in cp.subscribe():
-                events.append(json.loads(event[6:]))
+                events.append(event)
         events = []
         coroutine.spawn(subscribe)
         coroutine.dispatch()

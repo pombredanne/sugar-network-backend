@@ -104,7 +104,7 @@ class Application(application.Daemon):
         volume = db.Volume(client.path('db'), RESOURCES, lazy_open=True)
         routes = CachedClientRoutes(volume,
                 client.api_url.value if not client.server_mode.value else None)
-        router = Router(routes)
+        router = Router(routes, allow_spawn=True)
 
         logging.info('Listening for IPC requests on %s port',
                 client.ipc_port.value)

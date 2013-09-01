@@ -63,15 +63,14 @@ class Cache(object):
             if to_free <= 0:
                 break
 
-    def checkin(self, guid, meta=None):
+    def checkin(self, guid):
         self._ensure_open()
         if guid in self._pool:
             self._pool.__getitem__(guid)
             return
         _logger.debug('Checkin %r', guid)
         impls = self._volume['implementation']
-        if meta is None:
-            meta = impls.get(guid).meta('data')
+        meta = impls.get(guid).meta('data')
         size = meta.get('unpack_size') or meta['blob_size']
         mtime = os.stat(impls.path(guid)).st_mtime
         self._pool[guid] = (size, mtime)

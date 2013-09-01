@@ -10,7 +10,7 @@ from __init__ import tests, src_root
 
 from sugar_network import db
 from sugar_network.toolkit.router import Blob, Router, Request, _parse_accept_language, route, fallbackroute, preroute, postroute, _filename
-from sugar_network.toolkit import default_lang, http
+from sugar_network.toolkit import default_lang, http, coroutine
 
 
 class RouterTest(tests.Test):
@@ -1265,6 +1265,94 @@ class RouterTest(tests.Test):
             {'content-length': '100'},
             ],
             response)
+
+    def test_EventStream(self):
+
+        class Routes(object):
+
+            @route('GET', mime_type='text/event-stream')
+            def get(self):
+                yield None
+                yield 0
+                yield -1
+                yield '2'
+                yield {'3': 4}
+
+        reply = Router(Routes())({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: None)
+
+        self.assertEqual([
+            'data: null\n\n',
+            'data: 0\n\n',
+            'data: -1\n\n',
+            'data: "2"\n\n',
+            'data: {"3": 4}\n\n',
+            ],
+            [i for i in reply])
+
+    def test_SpawnEventStream(self):
+        events = []
+
+        class Routes(object):
+
+            @route('GET', [None, None, None], cmd='cmd', mime_type='text/event-stream')
+            def ok(self):
+                yield {}
+                yield {'foo': 'bar'}
+
+            def broadcast(self, event):
+                events.append(event.copy())
+
+        reply = Router(Routes(), allow_spawn=True)({
+            'PATH_INFO': '/resource/guid/prop',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'cmd=cmd&spawn&arg',
+            },
+            lambda status, headers: None)
+        self.assertEqual([], [i for i in reply])
+
+        coroutine.sleep(.1)
+        self.assertEqual([
+            {'method': 'GET', 'resource': 'resource', 'guid': 'guid', 'prop': 'prop', 'cmd': 'cmd'},
+            {'method': 'GET', 'resource': 'resource', 'guid': 'guid', 'prop': 'prop', 'cmd': 'cmd', 'foo': 'bar'},
+            ],
+            events)
+        del events[:]
+
+    def test_SpawnEventStreamFailure(self):
+        events = []
+
+        class Routes(object):
+
+            @route('GET', mime_type='text/event-stream')
+            def error(self, request):
+                request.session['bar'] = 'foo'
+                yield {}
+                yield {'foo': 'bar'}, {'add': 'on'}
+                raise RuntimeError('error')
+
+            def broadcast(self, event):
+                events.append(event.copy())
+
+        reply = Router(Routes(), allow_spawn=True)({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'spawn',
+            },
+            lambda status, headers: None)
+        self.assertEqual([], [i for i in reply])
+
+        coroutine.sleep(.1)
+        self.assertEqual([
+            {'method': 'GET'},
+            {'method': 'GET', 'foo': 'bar', 'add': 'on'},
+            {'method': 'GET', 'bar': 'foo', 'event': 'failure', 'exception': 'RuntimeError', 'error': 'error'},
+            ],
+            events)
+        del events[:]
 
 
 if __name__ == '__main__':
