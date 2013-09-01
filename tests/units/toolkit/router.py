@@ -594,7 +594,6 @@ class RouterTest(tests.Test):
                 self.value = value
 
             def read(self, size):
-                print self.pos, size, len(self.value)
                 assert self.pos + size <= len(self.value)
                 result = self.value[self.pos:self.pos + size]
                 self.pos += size
@@ -1350,6 +1349,37 @@ class RouterTest(tests.Test):
             {'method': 'GET'},
             {'method': 'GET', 'foo': 'bar', 'add': 'on'},
             {'method': 'GET', 'bar': 'foo', 'event': 'failure', 'exception': 'RuntimeError', 'error': 'error'},
+            ],
+            events)
+        del events[:]
+
+    def test_ReadRequestOnEventStreamSpawn(self):
+        events = []
+
+        class Routes(object):
+
+            @route('GET', mime_type='text/event-stream')
+            def get(self, request):
+                yield {}
+                yield {'request': request.content}
+
+            def broadcast(self, event):
+                events.append(event.copy())
+
+        reply = Router(Routes(), allow_spawn=True)({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            'QUERY_STRING': 'spawn',
+            'CONTENT_LENGTH': '5',
+            'wsgi.input': StringIO('probe'),
+            },
+            lambda status, headers: None)
+        self.assertEqual([], [i for i in reply])
+
+        coroutine.sleep(.1)
+        self.assertEqual([
+            {'method': 'GET'},
+            {'method': 'GET', 'request': 'probe'},
             ],
             events)
         del events[:]

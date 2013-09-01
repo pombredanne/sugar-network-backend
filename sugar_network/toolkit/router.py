@@ -187,11 +187,7 @@ class Request(dict):
 
     @property
     def content(self):
-        if self._content is _NOT_SET:
-            if self.content_type == 'application/json':
-                self._content = json.load(self.environ['wsgi.input'])
-            else:
-                self._content = None
+        self.ensure_content()
         return self._content
 
     @content.setter
@@ -298,6 +294,16 @@ class Request(dict):
         request.principal = self.principal
         request.subcall = self.subcall
         return self.subcall(request, response)
+
+    def ensure_content(self):
+        if self._content is not _NOT_SET:
+            return
+        if self.content_stream is None:
+            self._content = None
+        elif self.content_type == 'application/json':
+            self._content = json.load(self.content_stream)
+        else:
+            self._content = self.content_stream.read()
 
     def __repr__(self):
         return '<Request method=%s path=%r cmd=%s query=%r>' % \
@@ -580,6 +586,7 @@ class Router(object):
             if route_.mime_type == 'text/event-stream' and \
                     self._allow_spawn and 'spawn' in request:
                 _logger.debug('Spawn event stream for %r', request)
+                request.ensure_content()
                 coroutine.spawn(self._event_stream, request, result)
                 result = None
         except Exception, exception:
