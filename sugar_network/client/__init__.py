@@ -120,9 +120,16 @@ accept_language = Option(
         name='accept-language', short_option='-l')
 
 cache_limit = Option(
-        'the minimal disk free space, in percents, to preserve '
-        'while recycling disk cache',
+        'the minimal disk free space, in bytes, to preserve while recycling '
+        'disk cache; the final limit will be a minimal between --cache-limit '
+        'and --cache-limit-percent',
         default=10, type_cast=int, name='cache-limit')
+
+cache_limit_percent = Option(
+        'the minimal disk free space, in percentage terms, to preserve while '
+        'recycling disk cache; the final limit will be a minimal between '
+        '--cache-limit and --cache-limit-percent',
+        default=1024 * 1024 * 10, type_cast=int, name='cache-limit-percent')
 
 cache_lifetime = Option(
         'the number of days to keep unused objects on disk cache '

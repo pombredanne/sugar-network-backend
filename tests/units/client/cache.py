@@ -13,7 +13,7 @@ from __init__ import tests
 from sugar_network import db
 from sugar_network.model.context import Context
 from sugar_network.model.implementation import Implementation
-from sugar_network.client import cache_limit, cache_lifetime, IPCConnection
+from sugar_network.client import cache_limit, cache_limit_percent, cache_lifetime, IPCConnection
 from sugar_network.client.cache import Cache
 from sugar_network.toolkit import http
 
@@ -31,6 +31,7 @@ class CacheTest(tests.Test):
         self.statvfs = statvfs
         self.override(os, 'statvfs', lambda *args: statvfs())
         cache_limit.value = 0
+        cache_limit_percent.value = 0
 
     def test_open(self):
         volume = db.Volume('db', [Context, Implementation])

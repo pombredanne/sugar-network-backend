@@ -41,22 +41,10 @@ class Cache(object):
 
     def ensure(self, requested_size, temp_size=0):
         self._ensure_open()
-        stat = os.statvfs(client.local_root.value)
-        if stat.f_blocks == 0:
-            # TODO Sonds like a tmpfs or so
-            return
-        total = stat.f_blocks * stat.f_frsize
-        free = stat.f_bfree * stat.f_frsize
-
-        to_free = max(client.cache_limit.value * total / 100, temp_size) - \
-                (free - requested_size)
+        to_free = self._to_free(requested_size, temp_size)
         if to_free <= 0:
             return
-
-        _logger.debug('Recycle %s byte free=%d requested_size=%d temp_size=%d',
-                to_free, free, requested_size, temp_size)
         enforce(self._du >= to_free, 'No free disk space')
-
         for guid, size, mtime in self._reversed_iter():
             self._checkout(guid, (size, mtime))
             to_free -= size
@@ -86,12 +74,8 @@ class Cache(object):
 
     def recycle(self):
         self._ensure_open()
-        stat = os.statvfs(client.local_root.value)
-        total = stat.f_blocks * stat.f_frsize
-        free = stat.f_bfree * stat.f_frsize
-        to_free = client.cache_limit.value * total / 100 - free
         ts = time.time()
-
+        to_free = self._to_free(0, 0)
         for guid, size, mtime in self._reversed_iter():
             if to_free > 0:
                 self._checkout(guid, (size, mtime))
@@ -130,6 +114,32 @@ class Cache(object):
         for mtime, guid, size in sorted(pool):
             self._pool[guid] = (size, mtime)
             self._du += size
+
+    def _to_free(self, requested_size, temp_size):
+        if not client.cache_limit.value and \
+                not client.cache_limit_percent.value:
+            return 0
+
+        stat = os.statvfs(client.local_root.value)
+        if stat.f_blocks == 0:
+            # TODO Sonds like a tmpfs or so
+            return 0
+
+        limit = 0
+        free = stat.f_bfree * stat.f_frsize
+        if client.cache_limit_percent.value:
+            total = stat.f_blocks * stat.f_frsize
+            limit = client.cache_limit_percent.value * total / 100
+        if client.cache_limit.value:
+            limit = min(limit, client.cache_limit.value)
+        to_free = max(limit, temp_size) - (free - requested_size)
+
+        if to_free > 0:
+            _logger.debug(
+                    'Need to recycle %d bytes, '
+                    'free_size=%d requested_size=%d temp_size=%d',
+                    to_free, free, requested_size, temp_size)
+        return to_free
 
     def _reversed_iter(self):
         i = self._pool.head.prev

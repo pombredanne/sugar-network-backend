@@ -362,10 +362,9 @@ toolkit.cachedir.value = client.profile_path('tmp')
 Option.seek('main', [
     application.debug, porcelain, post_data, post_file, json, offline,
     ])
-Option.seek('client', [
-    client.api_url, client.layers, client.ipc_port, client.local_root,
-    client.no_dbus, client.anonymous, client.accept_language,
-    ])
+Option.seek('main', [toolkit.cachedir])
+Option.seek('client', client)
+Option.seek('db', db)
 
 locale.setlocale(locale.LC_ALL, '')
 
