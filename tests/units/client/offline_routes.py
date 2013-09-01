@@ -294,7 +294,7 @@ class OfflineRoutes(tests.Test):
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
         self.node.stop()
         coroutine.sleep(.1)
@@ -309,7 +309,7 @@ class OfflineRoutes(tests.Test):
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
     def test_ServiceUnavailableWhileSolving(self):
         ipc = self.start_offline_client()
@@ -369,7 +369,7 @@ Can't find all required implementations:
     No known implementations at all""" % (context, impl)},
             ],
             [i for i in ipc.get(['context', context], cmd='launch')])
-        assert not exists('cache/solutions/%s/%s' % (context[:2], context))
+        assert not exists('solutions/%s/%s' % (context[:2], context))
 
     def test_ServiceUnavailableWhileInstalling(self):
         ipc = self.start_offline_client()

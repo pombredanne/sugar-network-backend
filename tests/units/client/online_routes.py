@@ -394,7 +394,7 @@ Can't find all required implementations:
             ],
             [i for i in conn.put(['context', context], True, cmd='clone')])
 
-        assert not exists('cache/solutions/%s/%s' % (context[:2], context))
+        assert not exists('solutions/%s/%s' % (context[:2], context))
 
         impl = conn.post(['implementation'], {
             'context': context,
@@ -434,7 +434,7 @@ Can't find all required implementations:
                 },
             ],
             [i for i in conn.put(['context', context], True, cmd='clone')])
-        assert not exists('cache/solutions/%s/%s' % (context[:2], context))
+        assert not exists('solutions/%s/%s' % (context[:2], context))
 
     def test_clone_Content(self):
         local = self.start_online_client([User, Context, Implementation])
@@ -514,7 +514,7 @@ Can't find all required implementations:
             local['implementation'].get(impl).meta('data'))
         self.assertEqual('content', file(blob_path).read())
         assert exists(clone_path + '/data.blob')
-        assert not exists('cache/solutions/%s/%s' % (context[:2], context))
+        assert not exists('solutions/%s/%s' % (context[:2], context))
 
         self.assertEqual([
             ],
@@ -549,7 +549,7 @@ Can't find all required implementations:
             local['implementation'].get(impl).meta('data'))
         self.assertEqual('content', file(blob_path).read())
         assert not lexists(clone_path)
-        assert not exists('cache/solutions/%s/%s' % (context[:2], context))
+        assert not exists('solutions/%s/%s' % (context[:2], context))
 
         self.assertEqual([
             {'event': 'ready'},
@@ -566,7 +566,7 @@ Can't find all required implementations:
                 sorted([{'guid': context, 'layer': ['clone']}]),
                 sorted(ipc.get(['context'], reply='layer')['result']))
         assert exists(clone_path + '/data.blob')
-        assert not exists('cache/solutions/%s/%s' % (context[:2], context))
+        assert not exists('solutions/%s/%s' % (context[:2], context))
 
     def test_clone_Activity(self):
         local = self.start_online_client([User, Context, Implementation])
@@ -658,7 +658,7 @@ Can't find all required implementations:
         assert exists(clone_path + '/data.blob/activity/activity.info')
         self.assertEqual(
                 [client.api_url.value, ['stable'], downloaded_solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
         self.assertEqual([
             ],
@@ -701,7 +701,7 @@ Can't find all required implementations:
         assert not exists(clone_path)
         self.assertEqual(
                 [client.api_url.value, ['stable'], downloaded_solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
         self.assertEqual([
             {'event': 'ready'},
@@ -720,7 +720,7 @@ Can't find all required implementations:
         assert exists(clone_path + '/data.blob/activity/activity.info')
         self.assertEqual(
                 [client.api_url.value, ['stable'], downloaded_solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
     def test_clone_ActivityWithStabilityPreferences(self):
         local = self.start_online_client([User, Context, Implementation])
@@ -871,7 +871,7 @@ Can't find all required implementations:
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], downloaded_solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
         blob = self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
@@ -885,7 +885,7 @@ Can't find all required implementations:
         impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit')
         coroutine.sleep(.1)
 
-        shutil.rmtree('cache/solutions')
+        shutil.rmtree('solutions')
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
@@ -905,7 +905,7 @@ Can't find all required implementations:
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
         self.node.stop()
         coroutine.sleep(.1)
@@ -920,9 +920,9 @@ Can't find all required implementations:
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
-        shutil.rmtree('cache/solutions')
+        shutil.rmtree('solutions')
         log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id_3.log'
         self.assertEqual([
             {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
@@ -933,7 +933,7 @@ Can't find all required implementations:
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
     def test_launch_Fails(self):
         local = self.start_online_client([User, Context, Implementation])
@@ -1004,7 +1004,7 @@ Can't find all required implementations:
         assert local['implementation'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
-                json.load(file('cache/solutions/bu/bundle_id')))
+                json.load(file('solutions/bu/bundle_id')))
 
     def test_InvalidateSolutions(self):
         self.start_online_client()

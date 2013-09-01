@@ -276,7 +276,7 @@ class CacheTest(tests.Test):
             'stability = stable',
             ]])), cmd='submit', initial=True)
 
-        shutil.rmtree('cache')
+        shutil.rmtree('solutions')
         conn.put(['context', 'context'], True, cmd='clone')
         self.assertEqual([impl1], [i for i in self.client_routes._cache])
         assert local_volume['implementation'].exists(impl1)

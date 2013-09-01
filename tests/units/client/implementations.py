@@ -154,7 +154,7 @@ class Implementations(tests.Test):
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
             'guid': impl,
             }]]
-        cached_path = 'cache/solutions/bu/bundle_id'
+        cached_path = 'solutions/bu/bundle_id'
 
         self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
         self.assertEqual(solution, json.load(file(cached_path)))
@@ -184,7 +184,7 @@ class Implementations(tests.Test):
             'path': tests.tmpdir,
             'guid': 'impl',
             }]])
-        cached_path = 'cache/solutions/bu/bundle_id'
+        cached_path = 'solutions/bu/bundle_id'
         self.touch([cached_path, solution])
         cached_mtime = int(os.stat(cached_path).st_mtime)
 
@@ -247,7 +247,7 @@ class Implementations(tests.Test):
             'path': tests.tmpdir,
             'guid': 'impl',
             }]])
-        self.touch(['cache/solutions/bu/bundle_id', solution])
+        self.touch(['solutions/bu/bundle_id', solution])
 
         client.api_url.value = 'fake'
         self.assertEqual('NotFound', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['exception'])
@@ -290,7 +290,7 @@ class Implementations(tests.Test):
             'license = Public Domain',
             'stability = buggy',
             ]])), cmd='submit')
-        cached_path = 'cache/solutions/bu/bundle_id'
+        cached_path = 'solutions/bu/bundle_id'
 
         self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
         self.assertEqual('1', json.load(file(cached_path))[2][0]['version'])

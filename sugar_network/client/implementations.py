@@ -220,7 +220,7 @@ class Routes(object):
                 request.session['stability'], request.session['solution'])
 
     def _cache_solution_path(self, guid):
-        return client.path('cache', 'solutions', guid[:2], guid)
+        return client.path('solutions', guid[:2], guid)
 
     def _cache_solution_get(self, guid, stability):
         path = self._cache_solution_path(guid)
