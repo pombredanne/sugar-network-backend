@@ -169,6 +169,12 @@ class Routes(object):
         stability = request.get('stability') or \
                 client.stability(request.guid)
 
+        request.session['stability'] = stability
+        request.session['logs'] = [
+                client.profile_path('logs', 'shell.log'),
+                client.profile_path('logs', 'sugar-network-client.log'),
+                ]
+
         _logger.debug('Solving %r stability=%r', request.guid, stability)
 
         if 'activity' not in context['type']:
@@ -190,7 +196,6 @@ class Routes(object):
             solution = self._map_exceptions(solver.solve,
                     self.fallback, request.guid, stability)
         request.session['solution'] = solution
-        request.session['stability'] = stability
         return solution[0]
 
     def _checkin_impl(self, context, request, sel):
@@ -349,11 +354,7 @@ def _exec(context, request, sel):
     request.session['args'] = args
 
     log_path = toolkit.unique_filename(logdir, context.guid + '.log')
-    request.session['logs'] = [
-            join(logdir, 'shell.log'),
-            join(logdir, 'sugar-network-client.log'),
-            log_path,
-            ]
+    request.session['logs'].append(log_path)
 
     child = coroutine.fork()
     if child is not None:

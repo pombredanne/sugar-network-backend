@@ -328,7 +328,13 @@ class OfflineRoutes(tests.Test):
             })
         self.assertEqual([
             {'event': 'launch', 'activity_id': 'activity_id'},
-            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'ServiceUnavailable', 'error': """\
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'ServiceUnavailable',
+                'stability': ['stable'],
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
+                    ],
+                'error': """\
 Can't find all required implementations:
 - %s -> (problem)
     No known implementations at all""" % context},
@@ -351,7 +357,13 @@ Can't find all required implementations:
             }})
         self.assertEqual([
             {'event': 'launch', 'activity_id': 'activity_id'},
-            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'ServiceUnavailable', 'error': """\
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'ServiceUnavailable',
+                'stability': ['stable'],
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
+                    ],
+                'error': """\
 Can't find all required implementations:
 - %s -> 1 (%s)
 - dep -> (problem)
@@ -420,6 +432,10 @@ Can't find all required implementations:
                         'stability': 'packaged',
                         'version': '0',
                         },
+                    ],
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
                     ],
                 },
             ],

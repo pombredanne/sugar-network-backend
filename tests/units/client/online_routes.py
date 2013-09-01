@@ -381,7 +381,13 @@ class OnlineRoutes(tests.Test):
             })
 
         self.assertEqual([
-            {'event': 'failure', 'exception': 'NotFound', 'error': """\
+            {'event': 'failure', 'exception': 'NotFound',
+                'stability': ['stable'],
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
+                    ],
+                'error': """\
 Can't find all required implementations:
 - %s -> (problem)
     No known implementations at all""" % context},
@@ -413,6 +419,10 @@ Can't find all required implementations:
         self.assertEqual([
             {'event': 'failure', 'exception': 'NotFound', 'error': 'BLOB does not exist',
                 'stability': ['stable'],
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
+                    ],
                 'solution': [{
                     'command': ['echo'],
                     'context': context,
@@ -952,7 +962,13 @@ Can't find all required implementations:
             })
         self.assertEqual([
             {'event': 'launch', 'activity_id': 'activity_id', 'foo': 'bar', 'activity_id': 'activity_id'},
-            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'NotFound', 'error': """\
+            {'event': 'failure', 'activity_id': 'activity_id', 'exception': 'NotFound',
+                'stability': ['stable'],
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
+                    ],
+                'error': """\
 Can't find all required implementations:
 - bundle_id -> (problem)
     No known implementations at all"""},
