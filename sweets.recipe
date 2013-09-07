@@ -18,6 +18,7 @@ replaces  = sugar-network-server; sweets-recipe; active-document
             pylru; requests
 
 [Build]
+make      = sed -i s/node-devel.sugarlabs.org/node-testing.sugarlabs.org/ sugar_network/client/__init__.py
 install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
             cp -r sugar_network %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
             install -m 0755 -D sugar-network %(DESTDIR)s/%(BINDIR)s/sugar-network &&

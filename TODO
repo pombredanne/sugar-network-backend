@@ -1,9 +1,9 @@
-- show only packages in /packages API call
+- 0.10
+  * no Packages project
 
 - (!) Editors' workflows:
   - (?) log all (including editros) posters of particular document to minimize conflicts about why somthing was changed
     or better, detailed log for every editor's change
-
 - Remove temporal security hole with speciying guid in POST,
   it was added as a fast hack to support offline creation (with later pushing to a node)
 - changed pulls should take into account accept_length
@@ -11,3 +11,4 @@
 - increase granularity for sync.chunked_encode()
 - slave._Pooler might leak events if pullers are not in time to call wait()
 - revert per-document "downloads" property as "launches", a part of unpersonizalied user_stats
+- sync node->local db sync
