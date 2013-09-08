@@ -75,14 +75,17 @@ class Bundle(object):
         try:
             prefix = prefix.strip(os.sep) + os.sep
             for arcname in self.get_names():
-                dst_path = arcname.strip(os.sep)
+                dst_path = arcname.lstrip(os.sep)
                 if dst_path.startswith(prefix):
                     dst_path = dst_path[len(prefix):]
                 dst_path = join(dst_root, dst_path)
-                if not exists(dirname(dst_path)):
-                    os.makedirs(dirname(dst_path))
-                with file(dst_path, 'wb') as dst:
-                    shutil.copyfileobj(self.extractfile(arcname), dst)
+                if dst_path.endswith(os.sep):
+                    os.makedirs(dst_path)
+                else:
+                    if not exists(dirname(dst_path)):
+                        os.makedirs(dirname(dst_path))
+                    with file(dst_path, 'wb') as dst:
+                        shutil.copyfileobj(self.extractfile(arcname), dst)
         except Exception:
             if exists(dst_root):
                 shutil.rmtree(dst_root)
