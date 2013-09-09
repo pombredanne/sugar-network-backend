@@ -416,6 +416,8 @@ class CachedClientRoutes(ClientRoutes):
                     push(request, [[seqno, seqno]])
 
         if not pushed_seq:
+            if not self._push_seq.mtime:
+                self._push_seq.commit()
             self.broadcast({'event': 'push'})
             return
 
