@@ -112,6 +112,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
     @fallbackroute('GET', ['packages'])
     def route_packages(self, request, response):
         enforce(node.files_root.value, http.BadRequest, 'Disabled')
+
         if request.path and request.path[-1] == 'updates':
             root = join(node.files_root.value, *request.path[:-1])
             enforce(isdir(root), http.NotFound, 'Directory was not found')
@@ -129,14 +130,20 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
             if last_modified:
                 response.last_modified = last_modified
             return result
-        else:
-            path = join(node.files_root.value, *request.path)
-            enforce(exists(path), http.NotFound, 'File was not found')
-            if isdir(path):
-                response.content_type = 'application/json'
-                return os.listdir(path)
-            else:
-                return toolkit.iter_file(path)
+
+        path = join(node.files_root.value, *request.path)
+        enforce(exists(path), http.NotFound, 'File was not found')
+        if not isdir(path):
+            return toolkit.iter_file(path)
+
+        result = []
+        for filename in os.listdir(path):
+            if filename.endswith('.rpm') or filename.endswith('.deb'):
+                continue
+            result.append(filename)
+
+        response.content_type = 'application/json'
+        return result
 
     @route('POST', ['implementation'], cmd='submit',
             arguments={'initial': False},
