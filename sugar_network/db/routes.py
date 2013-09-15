@@ -201,7 +201,7 @@ class Routes(object):
         if access == ACL.CREATE:
             for name, prop in directory.metadata.items():
                 if not isinstance(prop, BlobProperty) and \
-                        name not in content and \
+                        content.get(name) is None and \
                         (prop.default is not None or prop.on_set is not None):
                     doc[name] = prop.default
 

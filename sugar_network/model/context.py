@@ -29,7 +29,7 @@ class Context(db.Resource):
 
     @type.setter
     def type(self, value):
-        if 'package' in value and 'common' not in self['layer']:
+        if value and 'package' in value and 'common' not in self['layer']:
             self['layer'] = tuple(self['layer']) + ('common',)
         return value
 

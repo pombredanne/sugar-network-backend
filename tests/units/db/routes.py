@@ -1611,6 +1611,19 @@ class RoutesTest(tests.Test):
             ],
             self.call('GET', ['document'])['result'])
 
+    def test_SetDefaultPropsOnNoneValues(self):
+
+        class Document(db.Resource):
+
+            @db.indexed_property(slot=1, default='default')
+            def prop(self, value):
+                return value
+
+        self.volume = db.Volume('db', [Document])
+
+        guid = self.call('POST', ['document'], content={'prop': None})
+        self.assertEqual('default', self.volume['document'].get(guid).meta('prop')['value'])
+
     def call(self, method=None, path=None,
             accept_language=None, content=None, content_stream=None, cmd=None,
             content_type=None, host=None, request=None, routes=db.Routes, principal=None,
