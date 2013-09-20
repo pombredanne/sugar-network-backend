@@ -75,7 +75,7 @@ def presolve(aliases, dst_path):
                             'arch': arch,
                             'package': package,
                             'withdeps': '1',
-                            'exclude': 'sugar',
+                            'exclude': 'sweets-sugar',
                             })
                         binaries = []
                         for pkg in response.findall('binary'):

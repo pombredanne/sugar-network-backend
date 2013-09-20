@@ -323,8 +323,11 @@ class Application(application.Application):
 
         def porcelain_dump(value):
             if type(value) is dict:
-                for i in sorted(value.items()):
-                    print '%-18s%s' % i
+                if len(value) == 1 and 'guid' in value:
+                    porcelain_dump(value['guid'])
+                else:
+                    for i in sorted(value.items()):
+                        print '%-18s%s' % i
             else:
                 if type(value) not in (list, tuple):
                     value = [value]
