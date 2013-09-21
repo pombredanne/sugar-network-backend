@@ -71,7 +71,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         documents = {}
         for name, directory in self.volume.items():
             documents[name] = {'mtime': directory.mtime}
-        return {'guid': self._guid, 'documents': documents}
+        return {'guid': self._guid, 'resources': documents}
 
     @route('GET', cmd='stats', arguments={
                 'start': int, 'end': int, 'resolution': int, 'source': list},

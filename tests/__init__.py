@@ -262,11 +262,11 @@ class Test(unittest.TestCase):
     def create_mountset(self, classes=None):
         self.start_server(classes, root=False)
 
-    def start_master(self, classes=None):
+    def start_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
             classes = [User, Context, Implementation]
         self.node_volume = db.Volume('master', classes)
-        cp = MasterRoutes('guid', self.node_volume)
+        cp = routes('guid', self.node_volume)
         r = Router(cp)
         self.node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
         coroutine.spawn(self.node.serve_forever)

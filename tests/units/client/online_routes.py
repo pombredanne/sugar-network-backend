@@ -1327,6 +1327,43 @@ Can't find all required implementations:
         self.fork_master([User])
         self.wait_for_events(ipc, event='inline', state='online').wait()
 
+    def test_SilentReconnectOnGatewayErrors(self):
+
+        class Routes(object):
+
+            subscribe_tries = 0
+
+            def __init__(self, *args):
+                pass
+
+            @route('GET', cmd='info', mime_type='application/json')
+            def info(self):
+                return {'resources': {}}
+
+            @route('GET', cmd='subscribe', mime_type='text/event-stream')
+            def subscribe(self, request=None, response=None, ping=False, **condition):
+                Routes.subscribe_tries += 1
+                coroutine.sleep(.1)
+                if Routes.subscribe_tries % 2:
+                    raise http.BadGateway()
+                else:
+                    raise http.GatewayTimeout()
+
+        node_pid = self.start_master([User], Routes)
+        self.start_client([User])
+        ipc = IPCConnection()
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        def read_events():
+            for event in ipc.subscribe():
+                events.append(event)
+        events = []
+        coroutine.spawn(read_events)
+
+        coroutine.sleep(1)
+        self.assertEqual([], events)
+        assert Routes.subscribe_tries > 2
+
     def test_inline(self):
         cp = ClientRoutes(Volume('client', model.RESOURCES), client.api_url.value)
         assert not cp.inline()

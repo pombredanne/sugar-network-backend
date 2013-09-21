@@ -85,10 +85,22 @@ class NotFound(Status):
     status_code = 404
 
 
+class BadGateway(Status):
+
+    status = '502 Bad Gateway'
+    status_code = 502
+
+
 class ServiceUnavailable(Status):
 
     status = '503 Service Unavailable'
     status_code = 503
+
+
+class GatewayTimeout(Status):
+
+    status = '504 Gateway Timeout'
+    status_code = 504
 
 
 def download(url, dst_path=None):
@@ -233,12 +245,8 @@ class Connection(object):
                         continue
                     error = content or reply.headers.get('x-sn-error') or \
                             'No error message provided'
-                _logger.debug('Request failed, method=%s path=%r params=%r '
-                        'headers=%r status_code=%s error=%s',
-                        method, path, params, headers, reply.status_code,
-                        '\n' + error)
                 cls = _FORWARD_STATUSES.get(reply.status_code, RuntimeError)
-                raise cls(error)
+                raise cls, error, sys.exc_info()[2]
             break
 
         return reply
@@ -385,5 +393,7 @@ _FORWARD_STATUSES = {
         BadRequest.status_code: BadRequest,
         Forbidden.status_code: Forbidden,
         NotFound.status_code: NotFound,
+        BadGateway.status_code: BadGateway,
         ServiceUnavailable.status_code: ServiceUnavailable,
+        GatewayTimeout.status_code: GatewayTimeout,
         }

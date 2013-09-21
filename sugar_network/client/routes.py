@@ -267,7 +267,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
             _logger.debug('Connecting to %r node', url)
             self._node = client.Connection(url)
             info = self._node.get(cmd='info')
-            impl_info = info['documents'].get('implementation')
+            impl_info = info['resources'].get('implementation')
             if impl_info:
                 self.invalidate_solutions(impl_info['mtime'])
             if self._inline.is_set():
@@ -287,13 +287,11 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
                             if self._no_subscription:
                                 return
                             pull_events()
-                        except http.HTTPError, error:
-                            if error.response.status_code in (502, 504):
-                                _logger.debug('Retry %r on gateway error', url)
-                                continue
+                        except (http.BadGateway, http.GatewayTimeout):
+                            _logger.debug('Retry %r on gateway error', url)
+                            continue
                         except Exception:
-                            toolkit.exception(_logger,
-                                    'Connection to %r failed', url)
+                            _logger.exception('Connection to %r failed', url)
                         break
                 self._got_offline()
                 if not timeout:
@@ -363,8 +361,7 @@ class CachedClientRoutes(ClientRoutes):
             try:
                 self._node.call(request)
             except Exception:
-                toolkit.exception(_logger,
-                        'Cannot push %r, will postpone', request)
+                _logger.exception('Cannot push %r, will postpone', request)
                 skiped_seq.include(seq)
             else:
                 pushed_seq.include(seq)
@@ -494,8 +491,7 @@ class _NodeRoutes(SlaveRoutes, Router):
                         join(mountpoint, _SYNC_DIRNAME),
                         **(self._offline_session or {}))
             except Exception, error:
-                toolkit.exception(_logger,
-                        'Failed to complete synchronization')
+                _logger.exception('Failed to complete synchronization')
                 self._localcast({'event': 'sync_abort', 'error': str(error)})
                 self._offline_session = None
                 raise
