@@ -55,9 +55,15 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         self._jobs = coroutine.Pool()
         self._no_subscription = no_subscription
         self._server_mode = not api_url
+        self._api_url = api_url
 
         self._got_offline()
+        if not client.delayed_start.value:
+            self.connect()
 
+    def connect(self):
+        if self._inline_job:
+            return
         if self._server_mode:
             mountpoints.connect(_SN_DIRNAME,
                     self._found_mount, self._lost_mount)
@@ -65,7 +71,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
             if client.discover_server.value:
                 self._jobs.spawn(self._discover_node)
             else:
-                self._remote_urls.append(api_url)
+                self._remote_urls.append(self._api_url)
             self._jobs.spawn(self._wait_for_connectivity)
 
     def close(self):

@@ -137,6 +137,8 @@ class Application(application.Daemon):
             if client.cache_timeout.value:
                 self.jobs.spawn(self._recycle_cache, routes)
 
+            routes.connect()
+
         def delayed_start(event=None):
             for __ in routes.subscribe(event='delayed-start'):
                 break
