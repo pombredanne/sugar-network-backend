@@ -53,6 +53,13 @@ class Routes(object):
     def invalidate_solutions(self, mtime):
         self._node_mtime = mtime
 
+    @route('GET', ['context', None], cmd='path')
+    def path(self, request):
+        clone_path = self._volume['context'].path(request.guid, '.clone')
+        enforce(exists(clone_path), http.NotFound)
+        clone_impl = basename(os.readlink(clone_path))
+        return self._volume['implementation'].path(clone_impl, 'data')
+
     @route('GET', ['context', None], cmd='launch', arguments={'args': list},
             mime_type='text/event-stream')
     def launch(self, request, no_spawn):

@@ -71,15 +71,16 @@ class Directory(object):
         ts = self._index.checkpoint()
         self.broadcast({'event': 'populate', 'mtime': ts})
 
-    def path(self, guid, prop=None):
+    def path(self, guid, *args):
         record = self._storage.get(guid)
-        if not prop:
+        if not args:
             return record.path()
+        prop = args[0]
         if prop in self.metadata and \
                 isinstance(self.metadata[prop], BlobProperty):
-            return record.blob_path(prop)
+            return record.blob_path(*args)
         else:
-            return record.path(prop)
+            return record.path(*args)
 
     def wipe(self):
         self.close()

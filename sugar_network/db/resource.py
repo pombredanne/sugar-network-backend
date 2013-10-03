@@ -93,14 +93,15 @@ class Resource(object):
     def tags(self, value):
         return value
 
-    def path(self, prop=None):
-        if not prop:
+    def path(self, *args):
+        if not args:
             return self._record.path()
+        prop = args[0]
         if prop in self.metadata and \
                 isinstance(self.metadata[prop], BlobProperty):
-            return self._record.blob_path(prop)
+            return self._record.blob_path(*args)
         else:
-            return self._record.path(prop)
+            return self._record.path(*args)
 
     def get(self, prop, accept_language=None):
         """Get document's property value.

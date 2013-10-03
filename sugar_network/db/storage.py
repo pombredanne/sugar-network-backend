@@ -126,8 +126,8 @@ class Record(object):
     def path(self, *args):
         return join(self._root, *args)
 
-    def blob_path(self, prop):
-        return join(self._root, prop + _BLOB_SUFFIX)
+    def blob_path(self, prop, *args):
+        return join(self._root, prop + _BLOB_SUFFIX, *args)
 
     def invalidate(self):
         guid_path = join(self._root, 'guid')
