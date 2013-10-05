@@ -15,10 +15,9 @@
 
 import os
 import sys
-import json
 import time
 import logging
-from os.path import exists
+from os.path import exists, basename
 
 from sugar_network import client
 from sugar_network.toolkit import pylru, enforce
@@ -100,11 +99,9 @@ class Cache(object):
             meta = res.meta('data')
             if not meta or 'blob_size' not in meta:
                 continue
-            clone = contexts.path(res['context'], 'clone')
-            if exists(clone):
-                with file(clone) as f:
-                    if json.load(f) == res.guid:
-                        continue
+            clone = contexts.path(res['context'], '.clone')
+            if exists(clone) and basename(os.readlink(clone)) == res.guid:
+                continue
             pool.append((
                 os.stat(impls.path(res.guid)).st_mtime,
                 res.guid,

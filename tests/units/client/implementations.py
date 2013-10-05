@@ -361,6 +361,37 @@ class Implementations(tests.Test):
         coroutine.sleep(.1)
         self.assertEqual('content', file('.sugar/default/logs/bundle_id.log').read())
 
+    def test_CreateAllImplPropsOnCheckin(self):
+        home_volume = self.start_online_client()
+        conn = IPCConnection()
+
+        blob = self.zips(
+            ['TestActivity/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivity',
+                'bundle_id = bundle_id',
+                'exec = true',
+                'icon = icon',
+                'activity_version = 1',
+                'license = Public Domain',
+                ]],
+            )
+        impl = conn.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        conn.put(['context', 'bundle_id'], True, cmd='clone')
+
+        doc = home_volume['implementation'].get(impl)
+        assert doc.meta('ctime') is not None
+        assert doc.meta('mtime') is not None
+        assert doc.meta('seqno') is not None
+        self.assertEqual({}, doc.meta('author')['value'])
+        self.assertEqual([], doc.meta('layer')['value'])
+        self.assertEqual('bundle_id', doc.meta('context')['value'])
+        self.assertEqual(['Public Domain'], doc.meta('license')['value'])
+        self.assertEqual('1', doc.meta('version')['value'])
+        self.assertEqual('stable', doc.meta('stability')['value'])
+        self.assertEqual({'en-us': ''}, doc.meta('notes')['value'])
+        self.assertEqual([], doc.meta('tags')['value'])
+
 
 if __name__ == '__main__':
     tests.main()

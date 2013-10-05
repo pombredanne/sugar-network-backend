@@ -104,8 +104,7 @@ class CacheTest(tests.Test):
         cache = Cache(volume)
         self.assertEqual(['impl'], [i for i in cache])
 
-        with file('db/context/co/context/clone', 'w') as f:
-            json.dump('impl', f)
+        os.symlink('../../../implementation/im/impl', 'db/context/co/context/.clone')
         cache = Cache(volume)
         self.assertEqual([], [i for i in cache])
 
@@ -132,7 +131,6 @@ class CacheTest(tests.Test):
         assert volume['implementation'].exists('2')
         assert volume['implementation'].exists('3')
 
-        print '----------'
         cache.ensure(2, 0)
         assert not volume['implementation'].exists('1')
         assert volume['implementation'].exists('2')

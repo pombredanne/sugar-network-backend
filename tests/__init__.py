@@ -52,6 +52,8 @@ class Test(unittest.TestCase):
     def setUp(self, fork_num=0, tmp_root=None):
         self.maxDiff = None
         self._overriden = []
+        self.node_routes = None
+        self.node_volume = None
 
         os.environ['LANG'] = 'en_US'
         toolkit._default_lang = 'en-us'
@@ -154,6 +156,8 @@ class Test(unittest.TestCase):
             self.client.close()
         if self.node is not None:
             self.node.stop()
+        if self.node_volume is not None:
+            self.node_volume.close()
         while self.forks:
             pid = self.forks.pop()
             self.assertEqual(0, self.waitpid(pid))
@@ -266,9 +270,8 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context, Implementation]
         self.node_volume = db.Volume('master', classes)
-        cp = routes('guid', self.node_volume)
-        r = Router(cp)
-        self.node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
+        self.node_routes = routes('guid', self.node_volume)
+        self.node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
         coroutine.spawn(self.node.serve_forever)
         coroutine.dispatch(.1)
         return self.node_volume
@@ -279,8 +282,8 @@ class Test(unittest.TestCase):
 
         def node():
             volume = db.Volume('master', classes)
-            cp = routes('guid', volume)
-            node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
+            self.node_routes = routes('guid', volume)
+            node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
             node.serve_forever()
 
         pid = self.fork(node)
@@ -336,8 +339,8 @@ class Test(unittest.TestCase):
         db.index_write_queue.value = 10
 
         volume = db.Volume('remote', classes or [User, Context, Implementation])
-        cp = MasterRoutes('guid', volume)
-        httpd = coroutine.WSGIServer(('127.0.0.1', 8888), Router(cp))
+        self.node_routes = MasterRoutes('guid', volume)
+        httpd = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
         try:
             coroutine.joinall([
                 coroutine.spawn(httpd.serve_forever),

@@ -2,13 +2,16 @@
 # -*- coding: utf-8 -*-
 # sugar-lint: disable
 
+import os
 import json
+import time
 from cStringIO import StringIO
+from os.path import exists
 
 from __init__ import tests
 
 from sugar_network import db, client, model
-from sugar_network.client import journal, IPCConnection
+from sugar_network.client import journal, IPCConnection, cache_limit, cache_lifetime
 from sugar_network.client.routes import ClientRoutes, CachedClientRoutes
 from sugar_network.model.user import User
 from sugar_network.model.report import Report
@@ -315,6 +318,87 @@ class RoutesTest(tests.Test):
             {'guid': guid2},
             ],
             ipc.get(['context'], query='qwerty')['result'])
+
+    def test_IgnoreClonesOnOpen(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        guid = ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = name',
+            'bundle_id = context',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='submit', initial=True)
+        ipc.put(['context', 'context'], True, cmd='clone')
+        ts = time.time()
+        os.utime('client/implementation/%s/%s' % (guid[:2], guid), (ts - 2 * 86400, ts - 2 * 86400))
+        self.client_routes.close()
+        self.stop_nodes()
+
+        home_volume = self.start_online_client()
+        cache_lifetime.value = 1
+        self.client_routes.recycle()
+        assert home_volume['implementation'].exists(guid)
+        assert exists('client/implementation/%s/%s' % (guid[:2], guid))
+
+    def test_IgnoreClonesWhileCheckingFreeSpace(self):
+        home_volume = self.start_online_client()
+        ipc = IPCConnection()
+
+        guid = ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = name',
+            'bundle_id = context',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='submit', initial=True)
+        ipc.put(['context', 'context'], True, cmd='clone')
+
+        class statvfs(object):
+            f_blocks = 100
+            f_bfree = 10
+            f_frsize = 1
+
+        self.override(os, 'statvfs', lambda *args: statvfs())
+        cache_limit.value = 10
+
+        self.assertRaises(RuntimeError, self.client_routes._cache.ensure, 1, 0)
+        assert home_volume['implementation'].exists(guid)
+        assert exists('client/implementation/%s/%s' % (guid[:2], guid))
+
+    def test_IgnoreClonesOnRecycle(self):
+        home_volume = self.start_online_client()
+        ipc = IPCConnection()
+
+        guid = ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = name',
+            'bundle_id = context',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = stable',
+            ]])), cmd='submit', initial=True)
+        ipc.put(['context', 'context'], True, cmd='clone')
+        ts = time.time()
+        os.utime('client/implementation/%s/%s' % (guid[:2], guid), (ts - 2 * 86400, ts - 2 * 86400))
+
+        cache_lifetime.value = 1
+        self.client_routes.recycle()
+        assert home_volume['implementation'].exists(guid)
+        assert exists('client/implementation/%s/%s' % (guid[:2], guid))
+
+
+
+
 
 
 def call(routes, request):

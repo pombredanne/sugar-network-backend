@@ -17,12 +17,10 @@ import os
 import time
 import json
 import shutil
-import cPickle as pickle
 from os.path import exists, join, isdir, basename
 
 from sugar_network import toolkit
 from sugar_network.toolkit.router import Blob
-from sugar_network.db.metadata import BlobProperty
 
 
 _BLOB_SUFFIX = '.blob'
@@ -88,18 +86,7 @@ class Storage(object):
                     yield guid
 
     def migrate(self, guid):
-        record = self.get(guid)
-        for name, prop in self.metadata.items():
-            path = self._path(guid, name)
-            if exists(path):
-                with file(path) as f:
-                    meta = f.read()
-                if meta.startswith('(dp'):
-                    with file(path, 'w') as f:
-                        json.dump(pickle.loads(meta), f)
-            elif not isinstance(prop, BlobProperty) and \
-                    prop.default is not None:
-                record.set(name, seqno=0, value=prop.default)
+        pass
 
     def _path(self, guid, *args):
         return join(self._root, guid[:2], guid, *args)

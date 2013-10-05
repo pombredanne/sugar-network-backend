@@ -354,7 +354,9 @@ class IndexWriter(IndexReader):
         term_generator.set_document(document)
 
         for name, prop in self._props.items():
-            value = guid if prop.slot == 0 else properties[name]
+            value = guid \
+                    if prop.slot == 0 \
+                    else properties.get(name, prop.default)
 
             if prop.slot is not None:
                 if prop.typecast in [int, float, bool]:

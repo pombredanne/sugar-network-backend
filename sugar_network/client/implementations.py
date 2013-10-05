@@ -301,6 +301,11 @@ class Routes(object):
                     shutil.copyfileobj(blob, f)
             impl = sel.copy()
             impl['data'] = data
+            impl['layer'] = []
+            impl['ctime'] = impl['mtime'] = int(time.time())
+            impl['author'] = {}
+            impl['notes'] = ''
+            impl['tags'] = []
             impls.create(impl)
             self._cache.checkin(guid)
         except Exception:
