@@ -239,7 +239,7 @@ class Option(object):
         for prop in Option.items.values():
             if not Option._parser.has_section(prop.section):
                 Option._parser.add_section(prop.section)
-            Option._parser.set(prop.section, prop.name, prop.value)
+            Option._parser.set(prop.section, prop.name, prop)
         result = StringIO()
         Option._parser.write(result)
 
