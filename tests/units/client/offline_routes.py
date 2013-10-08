@@ -101,23 +101,26 @@ class OfflineRoutes(tests.Test):
             'implementations': [
                 {
                     'version': '1',
-                    'arch': '*-*',
                     'stability': 'stable',
                     'guid': impl1,
                     'license': ['GPLv3+'],
+                    'data': {'spec': {'*-*': {}}},
                     },
                 {
                     'version': '2',
-                    'arch': '*-*',
                     'stability': 'stable',
                     'guid': impl2,
-                    'requires': {
-                        'dep1': {},
-                        'dep2': {'restrictions': [['1', '2']]},
-                        'dep3': {'restrictions': [[None, '2']]},
-                        'dep4': {'restrictions': [['3', None]]},
-                        },
                     'license': ['GPLv3+'],
+                    'data': {
+                        'spec': {'*-*': {
+                            'requires': {
+                                'dep1': {},
+                                'dep2': {'restrictions': [['1', '2']]},
+                                'dep3': {'restrictions': [[None, '2']]},
+                                'dep4': {'restrictions': [['3', None]]},
+                                },
+                            }},
+                        },
                     },
                 ],
             },
@@ -270,7 +273,7 @@ class OfflineRoutes(tests.Test):
         local = self.start_online_client()
         ipc = IPCConnection()
 
-        blob = self.zips(['TestActivity/activity/activity.info', [
+        activity_info = '\n'.join([
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
@@ -278,7 +281,8 @@ class OfflineRoutes(tests.Test):
             'icon = icon',
             'activity_version = 1',
             'license=Public Domain',
-            ]])
+            ])
+        blob = self.zips(['TestActivity/activity/activity.info', activity_info])
         impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
 
         ipc.put(['context', 'bundle_id'], True, cmd='clone')
@@ -288,8 +292,13 @@ class OfflineRoutes(tests.Test):
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'command': ['true'],
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'data': {
+                'unpack_size': len(activity_info),
+                'blob_size': len(blob),
+                'mime_type': 'application/vnd.olpc-sugar',
+                'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                },
             }]
         assert local['implementation'].exists(impl)
         self.assertEqual(
@@ -422,7 +431,9 @@ Can't find all required implementations:
                         'license': ['GPLv3+'],
                         'stability': 'stable',
                         'version': '1',
-                        'command': ['true'],
+                        'data': {
+                            'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {'dep': {}}}},
+                            },
                         },
                     {   'guid': 'dep',
                         'context': 'dep',
@@ -474,7 +485,7 @@ Can't find all required implementations:
         assert not exists(guid_path)
 
     def test_SubmitReport(self):
-        ipc = self.home_volume = self.start_offline_client([User, Report])
+        ipc = self.home_volume = self.start_offline_client()
 
         self.touch(
                 ['file1', 'content1'],

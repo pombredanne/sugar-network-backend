@@ -373,10 +373,12 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         result = request.call(method=request.method,
                 path=['implementation', impl['guid'], 'data'],
                 response=response)
-        props = impl.properties(
+        response.meta = impl.properties(
                 ['guid', 'context', 'license', 'version', 'stability'])
-        props['data'] = response.meta
-        response.meta = props
+        response.meta['data'] = data = impl.meta('data')
+        for key in ('mtime', 'seqno', 'blob'):
+            if key in data:
+                del data[key]
         return result
 
 

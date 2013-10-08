@@ -13,3 +13,4 @@
 - slave._Pooler might leak events if pullers are not in time to call wait()
 - revert per-document "downloads" property as "launches", a part of unpersonizalied user_stats
 - sync node->local db sync
+- parse command while uploading impls; while parsing, take into accoun quotes

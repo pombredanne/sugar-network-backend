@@ -34,10 +34,15 @@ class Cache(object):
         self._volume = volume
         self._pool = None
         self._du = 0
+        self._acquired = {}
 
     def __iter__(self):
         self._ensure_open()
         return iter(self._pool)
+
+    @property
+    def du(self):
+        return self._du
 
     def ensure(self, requested_size, temp_size=0):
         self._ensure_open()
@@ -51,26 +56,40 @@ class Cache(object):
             if to_free <= 0:
                 break
 
-    def checkin(self, guid):
+    def acquire(self, guid, size):
+        self.checkout(guid)
+        self._acquired.setdefault(guid, [0, size])[0] += 1
+        return guid
+
+    def release(self, *guids):
+        for guid in guids:
+            acquired = self._acquired.get(guid)
+            if acquired is None:
+                continue
+            acquired[0] -= 1
+            if acquired[0] <= 0:
+                self.checkin(guid, acquired[1])
+                del self._acquired[guid]
+
+    def checkin(self, guid, size):
         self._ensure_open()
         if guid in self._pool:
             self._pool.__getitem__(guid)
             return
-        _logger.debug('Checkin %r', guid)
-        impls = self._volume['implementation']
-        meta = impls.get(guid).meta('data')
-        size = meta.get('unpack_size') or meta['blob_size']
-        mtime = os.stat(impls.path(guid)).st_mtime
+        _logger.debug('Checkin %r %d bytes long', guid, size)
+        mtime = os.stat(self._volume['implementation'].path(guid)).st_mtime
         self._pool[guid] = (size, mtime)
+        self._du += size
 
-    def checkout(self, guid):
-        self._ensure_open()
+    def checkout(self, guid, *args):
         if guid not in self._pool:
-            return
+            return False
+        self._ensure_open()
         _logger.debug('Checkout %r', guid)
         size, __ = self._pool.peek(guid)
         self._du -= size
         del self._pool[guid]
+        return True
 
     def recycle(self):
         self._ensure_open()
@@ -93,13 +112,12 @@ class Cache(object):
         _logger.debug('Open implementations pool')
 
         pool = []
-        contexts = self._volume['context']
         impls = self._volume['implementation']
         for res in impls.find(not_layer=['local'])[0]:
             meta = res.meta('data')
             if not meta or 'blob_size' not in meta:
                 continue
-            clone = contexts.path(res['context'], '.clone')
+            clone = self._volume['context'].path(res['context'], '.clone')
             if exists(clone) and basename(os.readlink(clone)) == res.guid:
                 continue
             pool.append((

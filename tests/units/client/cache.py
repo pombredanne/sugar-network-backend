@@ -108,7 +108,7 @@ class CacheTest(tests.Test):
         cache = Cache(volume)
         self.assertEqual([], [i for i in cache])
 
-    def test_ensure(self):
+    def test_ensure_AfterOpen(self):
         volume = db.Volume('db', [Context, Implementation])
 
         volume['implementation'].create({'data': {'blob_size': 1}, 'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
@@ -141,6 +141,22 @@ class CacheTest(tests.Test):
         assert not volume['implementation'].exists('3')
 
         self.assertRaises(RuntimeError, cache.ensure, 2, 0)
+
+    def test_ensure_Live(self):
+        volume = db.Volume('db', [Context, Implementation])
+
+        cache = Cache(volume)
+        # To initiate the cache
+        cache.ensure(0, 0)
+
+        volume['implementation'].create({'data': {'blob_size': 1}, 'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        cache.checkin('1', 1)
+
+        cache_limit.value = 10
+        self.statvfs.f_bfree = 10
+        cache.ensure(1, 0)
+        assert not volume['implementation'].exists('1')
+        self.assertRaises(RuntimeError, cache.ensure, 1, 0)
 
     def test_ensure_ConsiderTmpSize(self):
         volume = db.Volume('db', [Context, Implementation])
@@ -189,55 +205,24 @@ class CacheTest(tests.Test):
         cache.recycle()
 
     def test_checkin(self):
-        local_volume = self.start_online_client()
-        conn = IPCConnection()
-        self.statvfs.f_blocks = 0
+        volume = db.Volume('db', [Context, Implementation])
+        cache = Cache(volume)
 
-        impl1 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
-            '[Activity]',
-            'name = TestActivity',
-            'bundle_id = context1',
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license = Public Domain',
-            'stability = stable',
-            ]])), cmd='submit', initial=True)
-        impl2 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
-            '[Activity]',
-            'name = TestActivity',
-            'bundle_id = context2',
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license = Public Domain',
-            'stability = stable',
-            ]])), cmd='submit', initial=True)
-        impl3 = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
-            '[Activity]',
-            'name = TestActivity',
-            'bundle_id = context3',
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license = Public Domain',
-            'stability = stable',
-            ]])), cmd='submit', initial=True)
+        volume['implementation'].create({'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        volume['implementation'].create({'guid': '2', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        volume['implementation'].create({'guid': '3', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
 
-        self.assertEqual('exit', [i for i in conn.get(['context', 'context1'], cmd='launch')][-1]['event'])
-        self.assertEqual([impl1], [i for i in self.client_routes._cache])
-        assert local_volume['implementation'].exists(impl1)
+        cache.checkin('1', 1)
+        self.assertEqual(['1'], [i for i in cache])
+        self.assertEqual(1, cache.du)
 
-        self.assertEqual('exit', [i for i in conn.get(['context', 'context2'], cmd='launch')][-1]['event'])
-        self.assertEqual([impl2, impl1], [i for i in self.client_routes._cache])
-        assert local_volume['implementation'].exists(impl1)
-        assert local_volume['implementation'].exists(impl2)
+        cache.checkin('2', 2)
+        self.assertEqual(['2', '1'], [i for i in cache])
+        self.assertEqual(3, cache.du)
 
-        self.assertEqual('exit', [i for i in conn.get(['context', 'context3'], cmd='launch')][-1]['event'])
-        self.assertEqual([impl3, impl2, impl1], [i for i in self.client_routes._cache])
-        assert local_volume['implementation'].exists(impl1)
-        assert local_volume['implementation'].exists(impl2)
-        assert local_volume['implementation'].exists(impl3)
+        cache.checkin('3', 3)
+        self.assertEqual(['3', '2', '1'], [i for i in cache])
+        self.assertEqual(6, cache.du)
 
     def test_checkout(self):
         local_volume = self.start_online_client()
@@ -284,6 +269,48 @@ class CacheTest(tests.Test):
         self.assertEqual([impl2, impl1], [i for i in self.client_routes._cache])
         assert local_volume['implementation'].exists(impl1)
         assert local_volume['implementation'].exists(impl2)
+
+    def test_Acquiring(self):
+        volume = db.Volume('db', [Context, Implementation])
+        cache = Cache(volume)
+
+        volume['implementation'].create({'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        volume['implementation'].create({'guid': '2', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+        volume['implementation'].create({'guid': '3', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
+
+        cache.checkin('1', 1)
+        self.assertEqual(['1'], [i for i in cache])
+        self.assertEqual(1, cache.du)
+
+        cache.acquire('1', 2)
+        self.assertEqual([], [i for i in cache])
+        self.assertEqual(0, cache.du)
+        cache.acquire('1', 3)
+        self.assertEqual([], [i for i in cache])
+        self.assertEqual(0, cache.du)
+        cache.acquire('2', 1)
+        self.assertEqual([], [i for i in cache])
+        self.assertEqual(0, cache.du)
+        cache.acquire('2', 2)
+        self.assertEqual([], [i for i in cache])
+        self.assertEqual(0, cache.du)
+        cache.acquire('2', 3)
+        self.assertEqual([], [i for i in cache])
+        self.assertEqual(0, cache.du)
+
+        cache.release('1', '2')
+        self.assertEqual([], [i for i in cache])
+        self.assertEqual(0, cache.du)
+        cache.release('1', '2')
+        self.assertEqual(['1'], [i for i in cache])
+        self.assertEqual(2, cache.du)
+        cache.release('2')
+        self.assertEqual(['2', '1'], [i for i in cache])
+        self.assertEqual(3, cache.du)
+
+        cache.release('1', '2')
+        self.assertEqual(['2', '1'], [i for i in cache])
+        self.assertEqual(3, cache.du)
 
 
 if __name__ == '__main__':

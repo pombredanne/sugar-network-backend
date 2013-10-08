@@ -397,10 +397,6 @@ class RoutesTest(tests.Test):
         assert exists('client/implementation/%s/%s' % (guid[:2], guid))
 
 
-
-
-
-
 def call(routes, request):
     router = Router(routes)
     return router.call(request, Response())

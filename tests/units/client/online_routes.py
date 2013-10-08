@@ -174,29 +174,38 @@ class OnlineRoutes(tests.Test):
                     'dep4': {'restrictions': [['3', None]]},
                     },
                 }},
+            'blob_size': 1,
+            'unpack_size': 2,
+            'mime_type': 'foo',
             }})
 
         self.assertEqual({
             'implementations': [
                 {
                     'version': '1',
-                    'arch': '*-*',
                     'stability': 'stable',
                     'guid': impl1,
                     'license': ['GPLv3+'],
+                    'data': {'spec': {'*-*': {}}},
                     },
                 {
                     'version': '2',
-                    'arch': '*-*',
                     'stability': 'stable',
                     'guid': impl2,
-                    'requires': {
-                        'dep1': {},
-                        'dep2': {'restrictions': [['1', '2']]},
-                        'dep3': {'restrictions': [[None, '2']]},
-                        'dep4': {'restrictions': [['3', None]]},
-                        },
                     'license': ['GPLv3+'],
+                    'data': {
+                        'spec': {'*-*': {
+                            'requires': {
+                                'dep1': {},
+                                'dep2': {'restrictions': [['1', '2']]},
+                                'dep3': {'restrictions': [[None, '2']]},
+                                'dep4': {'restrictions': [['3', None]]},
+                                },
+                            }},
+                        'blob_size': 1,
+                        'unpack_size': 2,
+                        'mime_type': 'foo',
+                        },
                     },
                 ],
             },
@@ -404,6 +413,7 @@ Can't find all required implementations:
             'notes': '',
             })
         self.node_volume['implementation'].update(impl, {'data': {
+            'blob_size': 1,
             'spec': {
                 '*-*': {
                     'commands': {
@@ -423,13 +433,24 @@ Can't find all required implementations:
                     tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
                     ],
                 'solution': [{
-                    'command': ['echo'],
-                    'context': context,
                     'guid': impl,
+                    'context': context,
                     'license': ['GPLv3+'],
                     'stability': 'stable',
                     'version': '1',
                     'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+                    'data': {
+                        'spec': {
+                            '*-*': {
+                                'commands': {
+                                    'activity': {
+                                        'exec': 'echo',
+                                        },
+                                    },
+                                },
+                            },
+                        'blob_size': 1,
+                        },
                     }],
                 },
             ],
@@ -463,6 +484,17 @@ Can't find all required implementations:
         blob = 'content'
         self.node_volume['implementation'].update(impl, {'data': {'blob': StringIO(blob), 'foo': 'bar'}})
         clone_path = 'client/context/%s/%s/.clone' % (context[:2], context)
+        solution = [{
+            'guid': impl,
+            'context': context,
+            'license': ['GPLv3+'],
+            'version': '1',
+            'stability': 'stable',
+            'data': {
+                'foo': 'bar',
+                'blob_size': len(blob),
+                },
+            }]
 
         self.assertEqual([
             {'event': 'ready'},
@@ -504,6 +536,7 @@ Can't find all required implementations:
             },
             local['implementation'].get(impl).properties(['context', 'license', 'version', 'stability']))
         blob_path = 'client/implementation/%s/%s/data.blob' % (impl[:2], impl)
+        solution[0]['path'] = tests.tmpdir + '/' + blob_path
         self.assertEqual({
             'seqno': 5,
             'blob_size': len(blob),
@@ -514,7 +547,9 @@ Can't find all required implementations:
             local['implementation'].get(impl).meta('data'))
         self.assertEqual('content', file(blob_path).read())
         assert exists(clone_path + '/data.blob')
-        assert not exists('solutions/%s/%s' % (context[:2], context))
+        self.assertEqual(
+                [client.api_url.value, ['stable'], solution],
+                json.load(file('solutions/%s/%s' % (context[:2], context))))
 
         self.assertEqual([
             ],
@@ -549,7 +584,9 @@ Can't find all required implementations:
             local['implementation'].get(impl).meta('data'))
         self.assertEqual('content', file(blob_path).read())
         assert not lexists(clone_path)
-        assert not exists('solutions/%s/%s' % (context[:2], context))
+        self.assertEqual(
+                [client.api_url.value, ['stable'], solution],
+                json.load(file('solutions/%s/%s' % (context[:2], context))))
 
         self.assertEqual([
             {'event': 'ready'},
@@ -566,7 +603,9 @@ Can't find all required implementations:
                 sorted([{'guid': context, 'layer': ['clone']}]),
                 sorted(ipc.get(['context'], reply='layer')['result']))
         assert exists(clone_path + '/data.blob')
-        assert not exists('solutions/%s/%s' % (context[:2], context))
+        self.assertEqual(
+                [client.api_url.value, ['stable'], solution],
+                json.load(file('solutions/%s/%s' % (context[:2], context))))
 
     def test_clone_Activity(self):
         local = self.start_online_client([User, Context, Implementation])
@@ -598,7 +637,12 @@ Can't find all required implementations:
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'command': ['true'],
+            'data': {
+                'unpack_size': len(activity_info),
+                'blob_size': len(blob),
+                'mime_type': 'application/vnd.olpc-sugar',
+                'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                },
             }]
         downloaded_solution = copy.deepcopy(solution)
         downloaded_solution[0]['path'] = blob_path
@@ -804,8 +848,6 @@ Can't find all required implementations:
             'data': {
                 'blob_size': len(blob),
                 'mime_type': 'application/vnd.olpc-sugar',
-                'mtime': int(os.stat(blob_path[:-5]).st_mtime),
-                'seqno': 3,
                 'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
                 'unpack_size': len(activity_info),
                 },
@@ -839,7 +881,7 @@ Can't find all required implementations:
         local = self.start_online_client([User, Context, Implementation])
         ipc = IPCConnection()
 
-        blob = self.zips(['TestActivity/activity/activity.info', [
+        activity_info = '\n'.join([
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
@@ -847,7 +889,8 @@ Can't find all required implementations:
             'icon = icon',
             'activity_version = 1',
             'license=Public Domain',
-            ]])
+            ])
+        blob = self.zips(['TestActivity/activity/activity.info', activity_info])
         impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
         coroutine.sleep(.1)
 
@@ -857,7 +900,12 @@ Can't find all required implementations:
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'command': ['true'],
+            'data': {
+                'blob_size': len(blob),
+                'unpack_size': len(activity_info),
+                'mime_type': 'application/vnd.olpc-sugar',
+                'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                },
             }]
         downloaded_solution = copy.deepcopy(solution)
         downloaded_solution[0]['path'] = tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl)
@@ -892,8 +940,13 @@ Can't find all required implementations:
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '2',
-            'command': ['true'],
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'data': {
+                'blob_size': len(blob),
+                'unpack_size': len(activity_info),
+                'mime_type': 'application/vnd.olpc-sugar',
+                'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                },
             }]
         log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id_1.log'
         self.assertEqual([
@@ -984,8 +1037,13 @@ Can't find all required implementations:
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'command': ['false'],
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'data': {
+                'blob_size': len(blob),
+                'unpack_size': len(activity_info),
+                'mime_type': 'application/vnd.olpc-sugar',
+                'spec': {'*-*': {'commands': {'activity': {'exec': 'false'}}, 'requires': {}}},
+                },
             }]
         self.assertEqual([
             {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
@@ -1130,9 +1188,9 @@ Can't find all required implementations:
             'implementations': [{
                 'stability': 'stable',
                 'guid': impl,
-                'arch': '*-*',
                 'version': '1',
                 'license': ['GPLv3+'],
+                'data': {'spec': {'*-*': {}}},
                 }],
             },
             ipc.get(['context', context], cmd='feed'))
@@ -1144,9 +1202,9 @@ Can't find all required implementations:
             'implementations': [{
                 'stability': 'stable',
                 'guid': impl,
-                'arch': '*-*',
                 'version': '1',
                 'license': ['GPLv3+'],
+                'data': {'spec': {'*-*': {}}},
                 }],
             },
             ipc.get(['context', context], cmd='feed', layer='public'))
@@ -1185,9 +1243,9 @@ Can't find all required implementations:
             'implementations': [{
                 'stability': 'stable',
                 'guid': impl,
-                'arch': '*-*',
                 'version': '1',
                 'license': ['GPLv3+'],
+                'data': {'spec': {'*-*': {}}},
                 }],
             },
             ipc.get(['context', context], cmd='feed', layer='public'))
@@ -1201,7 +1259,7 @@ Can't find all required implementations:
             def blob(self, value):
                 raise http.Redirect(URL)
 
-        self.start_online_client([User, Document])
+        self.start_online_client([User, Context, Implementation, Document])
         ipc = IPCConnection()
         guid = ipc.post(['document'], {})
 
@@ -1245,7 +1303,7 @@ Can't find all required implementations:
                 yield '"local"'
 
         self.override(routes, '_LocalRoutes', LocalRoutes)
-        home_volume = self.start_client([User])
+        home_volume = self.start_client()
         ipc = IPCConnection()
 
         self.assertEqual('local', ipc.get(cmd='sleep'))
@@ -1313,8 +1371,8 @@ Can't find all required implementations:
     def test_ReconnectOnServerFall(self):
         routes._RECONNECT_TIMEOUT = 1
 
-        node_pid = self.fork_master([User])
-        self.start_client([User])
+        node_pid = self.fork_master()
+        self.start_client()
         ipc = IPCConnection()
         self.wait_for_events(ipc, event='inline', state='online').wait()
 
@@ -1324,7 +1382,7 @@ Can't find all required implementations:
         coroutine.spawn(shutdown)
         self.wait_for_events(ipc, event='inline', state='offline').wait()
 
-        self.fork_master([User])
+        self.fork_master()
         self.wait_for_events(ipc, event='inline', state='online').wait()
 
     def test_SilentReconnectOnGatewayErrors(self):
@@ -1349,8 +1407,8 @@ Can't find all required implementations:
                 else:
                     raise http.GatewayTimeout()
 
-        node_pid = self.start_master([User], Routes)
-        self.start_client([User])
+        node_pid = self.start_master(None, Routes)
+        self.start_client()
         ipc = IPCConnection()
         self.wait_for_events(ipc, event='inline', state='online').wait()
 
@@ -1386,7 +1444,7 @@ Can't find all required implementations:
         assert not cp.inline()
 
     def test_SubmitReport(self):
-        self.home_volume = self.start_online_client([User, Report])
+        self.home_volume = self.start_online_client([User, Context, Implementation, Report])
         ipc = IPCConnection()
 
         self.touch(

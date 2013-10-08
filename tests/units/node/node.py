@@ -650,8 +650,6 @@ class NodeTest(tests.Test):
             'version': '3',
             'license': ['GPLv3+'],
             'data': {
-                'seqno': 8,
-                'mtime': int(os.stat('master/implementation/%s/%s/data.blob' % (impl3[:2], impl3)).st_mtime),
                 'blob_size': len(blob3),
                 'spec': {
                     '*-*': {

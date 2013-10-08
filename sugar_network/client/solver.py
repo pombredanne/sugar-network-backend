@@ -163,20 +163,12 @@ def _interface_init(self, url):
 
 
 def _impl_new(config, iface, sel):
-    impl = {'guid': sel.id,
-            'context': iface,
-            'license': sel.impl.license,
-            'version': sel.version,
-            'stability': sel.impl.upstream_stability.name,
-            }
-
+    impl = sel.impl.sn_impl
+    impl['context'] = iface
     if sel.local_path:
         impl['path'] = sel.local_path
     if sel.impl.to_install:
         impl['install'] = sel.impl.to_install
-    commands = sel.get_commands()
-    if commands:
-        impl['command'] = commands.values()[0].path.split()
     return impl
 
 
@@ -253,30 +245,38 @@ class _Feed(model.ZeroInstallFeed):
         impl.upstream_stability = model.stability_levels['packaged']
         impl.to_install = [i for i in packages if not i['installed']]
         impl.add_download_source(self.context, 0, None)
+        impl.sn_impl = {
+                'guid': self.context,
+                'license': None,
+                'version': top_package['version'],
+                'stability': 'packaged',
+                }
 
         self.implementations[self.context] = impl
 
     def implement(self, release):
         impl_id = release['guid']
+        spec = release['data']['spec']['*-*']
 
         impl = _Implementation(self, impl_id, None)
         impl.version = parse_version(release['version'])
         impl.released = 0
-        impl.arch = release['arch']
+        impl.arch = '*-*'
         impl.upstream_stability = model.stability_levels['stable']
-        impl.requires.extend(_read_requires(release.get('requires')))
-        impl.hints = release
         impl.license = release.get('license') or []
+        impl.requires = _read_requires(spec.get('requires'))
+        impl.requires.extend(_read_requires(release.get('requires')))
+        impl.sn_impl = release
 
         if isabs(impl_id):
             impl.local_path = impl_id
         else:
             impl.add_download_source(impl_id, 0, None)
 
-        for name, command in release['commands'].items():
+        for name, command in spec['commands'].items():
             impl.commands[name] = _Command(name, command)
 
-        for name, insert, mode in release.get('bindings') or []:
+        for name, insert, mode in spec.get('bindings') or []:
             binding = model.EnvironmentBinding(name, insert, mode=mode)
             impl.bindings.append(binding)
 
@@ -290,12 +290,18 @@ class _Feed(model.ZeroInstallFeed):
         impl.arch = '*-*'
         impl.upstream_stability = model.stability_levels['packaged']
         self.implementations[impl_id] = impl
+        impl.sn_impl = {
+                'guid': impl_id,
+                'license': None,
+                'version': sugar_version,
+                'stability': 'packaged',
+                }
 
 
 class _Implementation(model.ZeroInstallImplementation):
 
     to_install = None
-    hints = None
+    sn_impl = None
     license = None
 
     def is_available(self, stores):
@@ -341,15 +347,14 @@ class _Dependency(model.InterfaceDependency):
 
 class _Command(model.Command):
 
-    def __init__(self, name, data):
+    def __init__(self, name, command):
         self.qdom = None
         self.name = name
-        self._path = data['exec']
-        self._requires = _read_requires(data.get('requires'))
+        self._requires = _read_requires(command.get('requires'))
 
     @property
     def path(self):
-        return self._path
+        return 'doesnt_matter'
 
     @property
     def requires(self):

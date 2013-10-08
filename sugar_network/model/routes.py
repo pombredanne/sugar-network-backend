@@ -37,22 +37,17 @@ class VolumeRoutes(db.Routes):
         impls, __ = implementations.find(context=context.guid,
                 not_layer='deleted', **request)
         for impl in impls:
-            for arch, spec in impl.meta('data')['spec'].items():
-                spec['guid'] = impl.guid
-                spec['version'] = impl['version']
-                spec['arch'] = arch
-                spec['stability'] = impl['stability']
-                spec['license'] = impl['license']
-                if context['dependencies']:
-                    requires = spec.setdefault('requires', {})
-                    for i in context['dependencies']:
-                        requires.setdefault(i, {})
-                blob = implementations.get(impl.guid).meta('data')
-                if blob:
-                    for key in ('blob_size', 'unpack_size'):
-                        if key in blob:
-                            spec[key] = blob[key]
-                versions.append(spec)
+            version = impl.properties(
+                    ['guid', 'version', 'stability', 'license'])
+            if context['dependencies']:
+                requires = version.setdefault('requires', {})
+                for i in context['dependencies']:
+                    requires.setdefault(i, {})
+            version['data'] = data = impl.meta('data')
+            for key in ('mtime', 'seqno', 'blob'):
+                if key in data:
+                    del data[key]
+            versions.append(version)
 
         result = {'implementations': versions}
         if distro:

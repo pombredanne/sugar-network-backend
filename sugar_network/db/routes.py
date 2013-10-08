@@ -242,11 +242,10 @@ class Routes(object):
                 meta.pop('blob')
             else:
                 meta = value
-            response.content_length = meta.get('blob_size') or 0
 
-        response.meta.update(meta)
-        if 'mtime' in meta:
-            response.last_modified = meta['mtime']
+        response.meta = meta
+        response.last_modified = meta.get('mtime')
+        response.content_length = meta.get('blob_size') or 0
 
         return value
 

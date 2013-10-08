@@ -14,8 +14,8 @@ from os.path import exists, dirname
 
 from __init__ import tests
 
-from sugar_network.client import journal, implementations
-from sugar_network.toolkit import coroutine, enforce, lsb_release
+from sugar_network.client import journal, implementations, cache_limit
+from sugar_network.toolkit import coroutine, lsb_release
 from sugar_network.node import obs
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
@@ -135,7 +135,7 @@ class Implementations(tests.Test):
         self.start_online_client()
         conn = IPCConnection()
 
-        impl = conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        activity_info = '\n'.join([
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
@@ -144,15 +144,22 @@ class Implementations(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='submit', initial=True)
+            ])
+        blob = self.zips(['TestActivity/activity/activity.info', activity_info])
+        impl = conn.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
         solution = ['http://127.0.0.1:8888', ['stable'], [{
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'command': ['true'],
             'context': 'bundle_id',
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
             'guid': impl,
+            'data': {
+                'unpack_size': len(activity_info),
+                'blob_size': len(blob),
+                'mime_type': 'application/vnd.olpc-sugar',
+                'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                },
             }]]
         cached_path = 'solutions/bu/bundle_id'
 
@@ -179,10 +186,12 @@ class Implementations(tests.Test):
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'command': ['true'],
             'context': 'bundle_id',
             'path': tests.tmpdir,
             'guid': 'impl',
+            'data': {
+                'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                },
             }]])
         cached_path = 'solutions/bu/bundle_id'
         self.touch([cached_path, solution])
@@ -242,10 +251,12 @@ class Implementations(tests.Test):
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'command': ['true'],
             'context': 'bundle_id',
             'path': tests.tmpdir,
             'guid': 'impl',
+            'data': {
+                'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                },
             }]])
         self.touch(['solutions/bu/bundle_id', solution])
 
@@ -391,6 +402,93 @@ class Implementations(tests.Test):
         self.assertEqual('stable', doc.meta('stability')['value'])
         self.assertEqual({'en-us': ''}, doc.meta('notes')['value'])
         self.assertEqual([], doc.meta('tags')['value'])
+
+    def test_LaunchAcquiring(self):
+        volume = self.start_online_client()
+        conn = IPCConnection()
+
+        app = conn.upload(['implementation'], StringIO(self.zips(
+            ['TestActivity/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivity',
+                'bundle_id = bundle_id',
+                'exec = activity',
+                'icon = icon',
+                'activity_version = 1',
+                'license = Public Domain',
+                ]],
+            ['TestActivity/bin/activity', [
+                '#!/bin/sh',
+                'sleep 1',
+                ]],
+            )), cmd='submit', initial=True)
+
+        conn.post(['context'], {
+            'guid': 'document',
+            'type': 'content',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        doc = conn.post(['implementation'], {
+            'context': 'document',
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            })
+        self.node_volume['implementation'].update(doc, {'data': {
+            'mime_type': 'application/octet-stream',
+            'blob': StringIO('content'),
+            }})
+
+        launch = conn.get(['context', 'document'], cmd='launch', context='bundle_id')
+        self.assertEqual('launch', next(launch)['event'])
+        self.assertEqual('exec', next(launch)['event'])
+
+        class statvfs(object):
+            f_blocks = 100
+            f_bfree = 10
+            f_frsize = 1
+        self.override(os, 'statvfs', lambda *args: statvfs())
+        cache_limit.value = 10
+
+        self.assertRaises(RuntimeError, self.client_routes._cache.ensure, 1, 0)
+        assert volume['implementation'].exists(app)
+        assert volume['implementation'].exists(doc)
+        self.assertEqual([], [i for i in self.client_routes._cache])
+
+        self.assertEqual('exit', next(launch)['event'])
+        self.assertEqual([app, doc], [i for i in self.client_routes._cache])
+
+    def test_NoAcquiringForClones(self):
+        volume = self.start_online_client()
+        conn = IPCConnection()
+
+        app = conn.upload(['implementation'], StringIO(self.zips(
+            ['TestActivity/activity/activity.info', [
+                '[Activity]',
+                'name = TestActivity',
+                'bundle_id = bundle_id',
+                'exec = activity',
+                'icon = icon',
+                'activity_version = 1',
+                'license = Public Domain',
+                ]],
+            ['TestActivity/bin/activity', [
+                '#!/bin/sh',
+                'sleep 1',
+                ]],
+            )), cmd='submit', initial=True)
+
+        conn.put(['context', 'bundle_id'], True, cmd='clone')
+        self.assertEqual([], [i for i in self.client_routes._cache])
+
+        launch = conn.get(['context', 'bundle_id'], cmd='launch')
+        self.assertEqual('launch', next(launch)['event'])
+        self.assertEqual('exec', next(launch)['event'])
+        self.assertEqual([], [i for i in self.client_routes._cache])
+        self.assertEqual('exit', next(launch)['event'])
+        self.assertEqual([], [i for i in self.client_routes._cache])
 
 
 if __name__ == '__main__':
