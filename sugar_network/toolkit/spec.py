@@ -43,7 +43,7 @@ _FIELDS = {
 _ARCHES = ['all', 'any']
 _STABILITIES = ('insecure', 'buggy', 'developer', 'testing', 'stable')
 _POLICY_URL = 'http://wiki.sugarlabs.org/go/Sugar_Network/Policy'
-_LIST_SEPARATOR = ';'
+_LIST_SEPARATOR = ','
 
 _RESTRICTION_RE = re.compile('(<|<=|=|>|>=)\\s*([0-9.]+)')
 
@@ -537,7 +537,8 @@ def _parse_list(str_list):
     i = 0
 
     while i < len(str_list):
-        if not max(brackets.values()) and str_list[i] == _LIST_SEPARATOR:
+        if not max(brackets.values()) and \
+                str_list[i] in (_LIST_SEPARATOR, ';'):
             parts.append(str_list[:i])
             str_list = str_list[i + 1:]
             i = 0

@@ -271,8 +271,8 @@ class Connection(object):
             headers['content-length'] = str(len(request.content))
         for env_key, key, value in (
                 ('HTTP_IF_MODIFIED_SINCE', 'if-modified-since', None),
-                ('HTTP_ACCEPT_LANGUAGE', 'accept-language',
-                    client.accept_language.value),
+                ('HTTP_ACCEPT_LANGUAGE', 'accept-language', ','.join(
+                    client.accept_language.value or toolkit.default_langs())),
                 ('HTTP_ACCEPT_ENCODING', 'accept-encoding', None),
                 ):
             if value is None:

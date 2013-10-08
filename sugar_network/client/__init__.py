@@ -95,7 +95,7 @@ hub_root = Option(
         default='/usr/share/sugar-network/hub')
 
 layers = Option(
-        'space separated list of layers to restrict Sugar Network content by',
+        'comma separated list of layers to restrict Sugar Network content by',
         default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
         name='layers')
 
@@ -116,7 +116,9 @@ anonymous = Option(
         name='anonymous')
 
 accept_language = Option(
-        'specify HTTP Accept-Language header field value manually',
+        'comma separated list to specify HTTP Accept-Language '
+        'header field value manually',
+        default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
         name='accept-language', short_option='-l')
 
 cache_limit = Option(

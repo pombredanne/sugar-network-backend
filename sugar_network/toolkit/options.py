@@ -16,8 +16,13 @@
 """Command-line options parsing utilities."""
 
 import os
+import re
 import sys
 from os.path import exists, expanduser, isdir, join
+
+
+# TODO Replace by ','
+_LIST_SEPARATOR = re.compile(r'[\s,]+')
 
 
 class Option(object):
@@ -256,7 +261,7 @@ class Option(object):
     @staticmethod
     def list_cast(x):
         if isinstance(x, basestring):
-            return [i for i in x.strip().split() if i]
+            return [i for i in _LIST_SEPARATOR.split(x.strip()) if i]
         else:
             return x
 
@@ -289,8 +294,6 @@ class Option(object):
 
     @staticmethod
     def _bind(parser, config_files, notice):
-        import re
-
         if config_files:
             Option.config = Option()
             Option.config.name = 'config'
@@ -298,10 +301,8 @@ class Option(object):
             Option.config.description = \
                     'colon separated list of paths to configuration file(s)'
             Option.config.short_option = '-c'
-            Option.config.type_cast = \
-                    lambda x: [i for i in re.split('[\\s:;,]+', x) if i]
-            Option.config.type_repr = \
-                    lambda x: ':'.join(x)
+            Option.config.type_cast = Option.paths_cast
+            Option.config.type_repr = Option.paths_repr
             Option.config.value = ':'.join(config_files)
 
         for prop in [Option.config] + Option.items.values():

@@ -31,7 +31,7 @@ stats_user_step = Option(
         default=60, type_cast=int)
 
 stats_user_rras = Option(
-        'space separated list of RRAs for users\' RRD databases',
+        'comma separated list of RRAs for users\' RRD databases',
         default=[
             'RRA:AVERAGE:0.5:1:4320',   # one day with 60s step
             'RRA:AVERAGE:0.5:5:2016',   # one week with 5min step

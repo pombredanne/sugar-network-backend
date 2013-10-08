@@ -30,7 +30,7 @@ stats_node_step = Option(
         default=60 * 5, type_cast=int)
 
 stats_node_rras = Option(
-        'space separated list of RRAs for node RRD databases',
+        'comma separated list of RRAs for node RRD databases',
         default=[
             'RRA:AVERAGE:0.5:1:288',      # one day with 5min step
             'RRA:AVERAGE:0.5:3:672',      # one week with 15min step

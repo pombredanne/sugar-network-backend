@@ -10,7 +10,7 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network import db, client, model
+from sugar_network import db, client, model, toolkit
 from sugar_network.client import journal, IPCConnection, cache_limit, cache_lifetime
 from sugar_network.client.routes import ClientRoutes, CachedClientRoutes
 from sugar_network.model.user import User
@@ -395,6 +395,96 @@ class RoutesTest(tests.Test):
         self.client_routes.recycle()
         assert home_volume['implementation'].exists(guid)
         assert exists('client/implementation/%s/%s' % (guid[:2], guid))
+
+    def test_LanguagesFallbackInRequests(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        guid1 = self.node_volume['context'].create({
+            'type': 'activity',
+            'title': {'en': '1', 'ru': '2', 'es': '3'},
+            'summary': '',
+            'description': '',
+            })
+        guid2 = self.node_volume['context'].create({
+            'type': 'activity',
+            'title': {'en': '1', 'ru': '2'},
+            'summary': '',
+            'description': '',
+            })
+        guid3 = self.node_volume['context'].create({
+            'type': 'activity',
+            'title': {'en': '1'},
+            'summary': '',
+            'description': '',
+            })
+
+        client.accept_language.value = ['es', 'ru', 'en']
+        self.assertEqual('3', ipc.get(['context', guid1, 'title']))
+        self.assertEqual('2', ipc.get(['context', guid2, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
+
+        client.accept_language.value = ['ru', 'en']
+        self.assertEqual('2', ipc.get(['context', guid1, 'title']))
+        self.assertEqual('2', ipc.get(['context', guid2, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
+
+        client.accept_language.value = ['en']
+        self.assertEqual('1', ipc.get(['context', guid1, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid2, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
+
+        client.accept_language.value = ['foo']
+        self.assertEqual('1', ipc.get(['context', guid1, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid2, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
+
+    def test_DefaultLanguagesFallbackInRequests(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        guid1 = self.node_volume['context'].create({
+            'type': 'activity',
+            'title': {'en': '1', 'ru': '2', 'es': '3'},
+            'summary': '',
+            'description': '',
+            })
+        guid2 = self.node_volume['context'].create({
+            'type': 'activity',
+            'title': {'en': '1', 'ru': '2'},
+            'summary': '',
+            'description': '',
+            })
+        guid3 = self.node_volume['context'].create({
+            'type': 'activity',
+            'title': {'en': '1'},
+            'summary': '',
+            'description': '',
+            })
+
+        toolkit._default_langs = None
+        os.environ['LANGUAGE'] = 'es:ru:en'
+        self.assertEqual('3', ipc.get(['context', guid1, 'title']))
+        self.assertEqual('2', ipc.get(['context', guid2, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
+
+        toolkit._default_langs = None
+        os.environ['LANGUAGE'] = 'ru:en'
+        self.assertEqual('2', ipc.get(['context', guid1, 'title']))
+        self.assertEqual('2', ipc.get(['context', guid2, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
+
+        toolkit._default_langs = None
+        os.environ['LANGUAGE'] = 'en'
+        self.assertEqual('1', ipc.get(['context', guid1, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid2, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
+
+        toolkit._default_langs = None
+        os.environ['LANGUAGE'] = 'foo'
+        self.assertEqual('1', ipc.get(['context', guid1, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid2, 'title']))
+        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
 
 
 def call(routes, request):

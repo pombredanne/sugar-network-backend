@@ -137,6 +137,25 @@ def default_lang():
     return _default_lang
 
 
+def default_langs():
+    """Default languages list, i.e., including all secondory languages.
+
+    :returns:
+        list of strings in format of HTTP's Accept-Language, e.g., `ru,en-gb`.
+
+    """
+    global _default_langs
+
+    if _default_langs is None:
+        langs = os.environ.get('LANGUAGE')
+        if langs:
+            _default_langs = langs.split(':')
+        else:
+            _default_langs = [default_lang()]
+
+    return _default_langs
+
+
 def gettext(value, accept_language=None):
     if not value:
         return ''
@@ -862,3 +881,4 @@ def _nb_read(stream):
 
 
 _default_lang = None
+_default_langs = None

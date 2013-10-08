@@ -61,7 +61,7 @@ pull_timeout = Option(
         default=30, type_cast=int)
 
 sync_layers = Option(
-        'space separated list of layers to restrict Sugar Network '
+        'comma separated list of layers to restrict Sugar Network '
         'synchronization content',
         default=['pilot'], type_cast=Option.list_cast,
         type_repr=Option.list_repr, name='sync-layers')
