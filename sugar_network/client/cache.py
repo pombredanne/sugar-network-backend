@@ -82,9 +82,9 @@ class Cache(object):
         self._du += size
 
     def checkout(self, guid, *args):
+        self._ensure_open()
         if guid not in self._pool:
             return False
-        self._ensure_open()
         _logger.debug('Checkout %r', guid)
         size, __ = self._pool.peek(guid)
         self._du -= size
