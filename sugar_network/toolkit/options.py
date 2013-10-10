@@ -326,8 +326,7 @@ class Option(object):
         Option._parser = ConfigParser()
 
         def load_config(path):
-            if Option._config_to_save is None and \
-                    os.access(dirname(path), os.W_OK):
+            if os.access(dirname(path), os.W_OK):
                 Option._config_to_save = path
             if not exists(path):
                 return
