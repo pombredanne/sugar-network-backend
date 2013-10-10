@@ -18,7 +18,8 @@
 import os
 import re
 import sys
-from os.path import exists, expanduser, isdir, join
+from ConfigParser import ConfigParser
+from os.path import exists, expanduser, isdir, join, dirname
 
 
 # TODO Replace by ','
@@ -43,6 +44,7 @@ class Option(object):
 
     _parser = None
     _config_to_save = None
+    _orig_config = {}
 
     def __init__(self, description=None, default=None, short_option=None,
             type_cast=None, type_repr=None, action=None, name=None):
@@ -231,25 +233,27 @@ class Option(object):
 
     @staticmethod
     def save(path=None):
-        from cStringIO import StringIO
         from sugar_network.toolkit import new_file
 
-        if Option._parser is None:
-            raise RuntimeError('No configure files to save')
         if not path:
             if not Option._config_to_save:
                 raise RuntimeError('No configure files to save')
             path = Option._config_to_save
 
+        parser = ConfigParser()
+        if exists(path):
+            parser.read(path)
+
         for prop in Option.items.values():
-            if not Option._parser.has_section(prop.section):
-                Option._parser.add_section(prop.section)
-            Option._parser.set(prop.section, prop.name, prop)
-        result = StringIO()
-        Option._parser.write(result)
+            if Option._orig_config.get(prop.name) == prop.value:
+                continue
+            if not parser.has_section(prop.section):
+                parser.add_section(prop.section)
+            parser.set(prop.section, prop.name, prop)
+            Option._orig_config[prop.name] = prop.value
 
         with new_file(path) as f:
-            f.write(result.getvalue())
+            parser.write(f)
 
     @staticmethod
     def bool_cast(x):
@@ -319,11 +323,11 @@ class Option(object):
 
     @staticmethod
     def _load(options, config_files):
-        from ConfigParser import ConfigParser
         Option._parser = ConfigParser()
 
         def load_config(path):
-            if Option._config_to_save is None and os.access(path, os.W_OK):
+            if Option._config_to_save is None and \
+                    os.access(dirname(path), os.W_OK):
                 Option._config_to_save = path
             if not exists(path):
                 return
@@ -347,6 +351,7 @@ class Option(object):
                 prop.value = getattr(options, prop.attr_name)
             elif Option._parser.has_option(prop.section, prop.name):
                 prop.value = Option._parser.get(prop.section, prop.name)
+            Option._orig_config[prop.name] = prop.value
 
 
 def _get_frame(frame_no):
