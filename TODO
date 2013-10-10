@@ -1,6 +1,5 @@
 - 0.10
   * keep user guids after reflasing XOs
-  * F1/F3 will preserve original behaviour to show ~/Activities activities
 
 - (!) Editors' workflows:
   - (?) log all (including editros) posters of particular document to minimize conflicts about why somthing was changed

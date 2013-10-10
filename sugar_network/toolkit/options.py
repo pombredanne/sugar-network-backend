@@ -323,8 +323,10 @@ class Option(object):
         Option._parser = ConfigParser()
 
         def load_config(path):
-            if Option._config_to_save is None:
+            if Option._config_to_save is None and os.access(path, os.W_OK):
                 Option._config_to_save = path
+            if not exists(path):
+                return
             Option.config_files.append(path)
             Option._parser.read(path)
 
@@ -336,7 +338,7 @@ class Option(object):
             if isdir(config_path):
                 for path in sorted(os.listdir(config_path)):
                     load_config(join(config_path, path))
-            elif exists(config_path):
+            else:
                 load_config(config_path)
 
         for prop in Option.items.values():
