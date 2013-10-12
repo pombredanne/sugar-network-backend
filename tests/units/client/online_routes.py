@@ -1335,7 +1335,7 @@ Can't find all required implementations:
                 yield 'emote"'
 
         node_pid = self.fork_master([User], NodeRoutes)
-        ipc.get(cmd='inline')
+        self.client_routes._remote_connect()
         self.wait_for_events(ipc, event='inline', state='online').wait()
 
         ts = time.time()
@@ -1353,7 +1353,7 @@ Can't find all required implementations:
         assert not ipc.get(cmd='inline')
 
         node_pid = self.fork_master([User], NodeRoutes)
-        ipc.get(cmd='inline')
+        self.client_routes._remote_connect()
         self.wait_for_events(ipc, event='inline', state='online').wait()
 
         coroutine.spawn(kill)
@@ -1361,7 +1361,7 @@ Can't find all required implementations:
         assert not ipc.get(cmd='inline')
 
         node_pid = self.fork_master([User], NodeRoutes)
-        ipc.get(cmd='inline')
+        self.client_routes._remote_connect()
         self.wait_for_events(ipc, event='inline', state='online').wait()
 
         coroutine.spawn(kill)
@@ -1423,18 +1423,18 @@ Can't find all required implementations:
         assert Routes.subscribe_tries > 2
 
     def test_inline(self):
+        routes._RECONNECT_TIMEOUT = 2
+
         cp = ClientRoutes(Volume('client', model.RESOURCES), client.api_url.value)
         assert not cp.inline()
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
-        coroutine.sleep(1)
+        coroutine.sleep(.5)
         self.start_master()
-        trigger.wait(1)
+        trigger.wait(.5)
         assert trigger.value is None
         assert not cp.inline()
 
-        request = Request(method='GET', cmd='whoami')
-        cp.whoami(request, Response())
         trigger.wait()
         assert cp.inline()
 

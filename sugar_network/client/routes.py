@@ -124,8 +124,6 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
     @route('GET', cmd='inline',
             mime_type='application/json')
     def inline(self):
-        if not self._server_mode and not self._inline.is_set():
-            self._remote_connect()
         return self._inline.is_set()
 
     def whoami(self, request, response):
@@ -229,20 +227,17 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
     def _got_offline(self, force=False):
         if not force and not self._inline.is_set():
             return
-        _logger.debug('Got offline on %r', self._node)
-        self._node.close()
+        if self._node is not None:
+            _logger.debug('Got offline on %r', self._node)
+            self._node.close()
+        if self._inline.is_set():
+            self.broadcast({'event': 'inline', 'state': 'offline'})
         self._inline.clear()
-        self.broadcast({'event': 'inline', 'state': 'offline'})
         self._local.volume.broadcast = self.broadcast
 
-    def _fall_offline(self):
-        if self._inline_job:
-            _logger.debug('Fall to offline on %r', self._node)
-            self._inline_job.kill()
-
     def _restart_online(self):
-        self._fall_offline()
-        _logger.debug('Try to become online in %s seconds', _RECONNECT_TIMEOUT)
+        _logger.debug('Lost %r connection, try to reconnect in %s seconds',
+                self._node, _RECONNECT_TIMEOUT)
         self._remote_connect(_RECONNECT_TIMEOUT)
 
     def _discover_node(self):
@@ -253,10 +248,11 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
             self._remote_connect()
 
     def _wait_for_connectivity(self):
-        for i in netlink.wait_for_route():
-            self._fall_offline()
-            if i:
+        for gw in netlink.wait_for_route():
+            if gw:
                 self._remote_connect()
+            else:
+                self._got_offline()
 
     def _remote_connect(self, timeout=0):
 
@@ -306,8 +302,8 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
                 timeout *= _RECONNECT_TIMEOUT
                 timeout = min(timeout, _RECONNECT_TIMEOUT_MAX)
 
-        if not self._inline_job:
-            self._inline_job.spawn_later(timeout, connect)
+        self._inline_job.kill()
+        self._inline_job.spawn_later(timeout, connect)
 
     def _found_mount(self, root):
         if self._inline.is_set():

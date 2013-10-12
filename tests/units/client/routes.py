@@ -145,7 +145,7 @@ class RoutesTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
         node_volume = self.start_master()
-        call(cp, Request(method='GET', cmd='inline'))
+        cp._remote_connect()
         trigger.wait()
 
         guid = call(cp, post)
@@ -169,7 +169,7 @@ class RoutesTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='push')
         self.start_master()
-        call(cp, Request(method='GET', cmd='inline'))
+        cp._remote_connect()
         trigger.wait()
 
         self.assertEqual([[3, None]], json.load(file('client/push.sequence')))
@@ -198,7 +198,7 @@ class RoutesTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='push')
         self.start_master()
-        call(cp, Request(method='GET', cmd='inline'))
+        cp._remote_connect()
         trigger.wait()
 
         self.assertEqual([[4, None]], json.load(file('client/push.sequence')))
@@ -227,7 +227,7 @@ class RoutesTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='push')
         self.start_master([User, Report])
-        call(cp, Request(method='GET', cmd='inline'))
+        cp._remote_connect()
         trigger.wait()
 
         assert not volume['report'].exists(guid)
@@ -250,7 +250,7 @@ class RoutesTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='push')
         self.start_master()
-        call(cp, Request(method='GET', cmd='inline'))
+        cp._remote_connect()
         trigger.wait()
 
         self.assertEqual([[2, None]], json.load(file('client/push.sequence')))
@@ -275,7 +275,7 @@ class RoutesTest(tests.Test):
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
         self.start_master()
-        call(cp, Request(method='GET', cmd='inline'))
+        cp._remote_connect()
         trigger.wait()
 
         assert not self.node_volume['context'].exists(guid)

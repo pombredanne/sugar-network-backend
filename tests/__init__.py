@@ -294,9 +294,9 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context, Implementation]
         volume = db.Volume('client', classes)
-        commands = routes(volume, client.api_url.value)
+        self.client_routes = routes(volume, client.api_url.value)
         self.client = coroutine.WSGIServer(
-                ('127.0.0.1', client.ipc_port.value), Router(commands))
+                ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
         return volume
@@ -316,8 +316,8 @@ class Test(unittest.TestCase):
 
     def start_offline_client(self, resources=None):
         self.home_volume = db.Volume('db', resources or model.RESOURCES)
-        commands = ClientRoutes(self.home_volume)
-        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(commands))
+        self.client_routes = ClientRoutes(self.home_volume)
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
         return IPCConnection()

@@ -66,7 +66,7 @@ def wait_for_route():
                 if not line:
                     break
                 dst, gw = line.split('\t', 3)[1:3]
-                if int(dst, 16) == 0:
+                if int(dst, 16) in (0, 224):
                     return gw
 
     old_route = get_route()
