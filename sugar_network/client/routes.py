@@ -57,13 +57,11 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         self._server_mode = not api_url
         self._api_url = api_url
 
-        self._got_offline()
         if not client.delayed_start.value:
             self.connect()
 
     def connect(self):
-        if self._inline_job:
-            return
+        self._got_offline(force=True)
         if self._server_mode:
             mountpoints.connect(_SN_DIRNAME,
                     self._found_mount, self._lost_mount)
@@ -228,11 +226,12 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         self.broadcast({'event': 'inline', 'state': 'online'})
         self._local.volume.broadcast = None
 
-    def _got_offline(self):
-        if self._inline.is_set():
-            _logger.debug('Got offline on %r', self._node)
-            self._node.close()
-            self._inline.clear()
+    def _got_offline(self, force=False):
+        if not force and not self._inline.is_set():
+            return
+        _logger.debug('Got offline on %r', self._node)
+        self._node.close()
+        self._inline.clear()
         self.broadcast({'event': 'inline', 'state': 'offline'})
         self._local.volume.broadcast = self.broadcast
 
@@ -354,9 +353,9 @@ class CachedClientRoutes(ClientRoutes):
         ClientRoutes._got_online(self)
         self._push_job.spawn(self._push)
 
-    def _got_offline(self):
+    def _got_offline(self, force=True):
         self._push_job.kill()
-        ClientRoutes._got_offline(self)
+        ClientRoutes._got_offline(self, force)
 
     def _push(self):
         pushed_seq = toolkit.Sequence()

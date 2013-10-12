@@ -1,5 +1,6 @@
 - 0.10
   * keep user guids after reflasing XOs
+  * "-c" command
 
 - (!) Editors' workflows:
   - (?) log all (including editros) posters of particular document to minimize conflicts about why somthing was changed
