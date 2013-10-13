@@ -101,11 +101,6 @@ class GatewayTimeout(Status):
     status_code = 504
 
 
-def download(url, dst_path=None):
-    # TODO (?) Reuse HTTP session
-    return Connection().download(url, dst_path)
-
-
 class Connection(object):
 
     _Session = None
@@ -134,8 +129,8 @@ class Connection(object):
             self._session.close()
 
     def exists(self, path):
-        reply = self.request('GET', path, allowed=[404])
-        return reply.status_code != 404
+        reply = self.request('HEAD', path, allowed=[NotFound.status_code])
+        return reply.status_code != NotFound.status_code
 
     def head(self, path_=None, **kwargs):
         from sugar_network.toolkit.router import Request, Response
