@@ -271,7 +271,7 @@ class Option(object):
 
     @staticmethod
     def list_repr(x):
-        return ' '.join(x)
+        return ','.join(x)
 
     @staticmethod
     def paths_cast(x):
