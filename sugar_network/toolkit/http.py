@@ -19,19 +19,17 @@ import types
 import logging
 from os.path import join, dirname
 
-sys.path.insert(0, join(dirname(__file__), '..', 'lib', 'requests'))
-
-from requests import Session
-# pylint: disable-msg=W0611
-from requests.exceptions import SSLError, ConnectionError, HTTPError
-
 from sugar_network import client, toolkit
-from sugar_network.toolkit import coroutine, enforce
+from sugar_network.toolkit import enforce
 
 
 _REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
 
 _logger = logging.getLogger('http')
+
+
+class ConnectionError(Exception):
+    pass
 
 
 class Status(Exception):
@@ -110,21 +108,17 @@ def download(url, dst_path=None):
 
 class Connection(object):
 
+    _Session = None
+    _SSLError = None
+    _ConnectionError = None
+
     def __init__(self, api_url='', creds=None, trust_env=True, max_retries=0):
         self.api_url = api_url
         self._get_profile = None
-        self._session = session = Session()
+        self._session = None
+        self._creds = creds
+        self._trust_env = trust_env
         self._max_retries = max_retries
-
-        session.stream = True
-        session.trust_env = trust_env
-        if client.no_check_certificate.value:
-            session.verify = False
-        if creds:
-            uid, keyfile, self._get_profile = creds
-            session.headers['X-SN-login'] = uid
-            session.headers['X-SN-signature'] = _sign(keyfile, uid)
-        session.headers['accept-language'] = toolkit.default_lang()
 
     def __repr__(self):
         return '<Connection api_url=%s>' % self.api_url
@@ -136,7 +130,8 @@ class Connection(object):
         self.close()
 
     def close(self):
-        self._session.close()
+        if self._session is not None:
+            self._session.close()
 
     def exists(self, path):
         reply = self.request('GET', path, allowed=[404])
@@ -202,6 +197,9 @@ class Connection(object):
 
     def request(self, method, path=None, data=None, headers=None, allowed=None,
             params=None, **kwargs):
+        if self._session is None:
+            self._init()
+
         if not path:
             path = ['']
         if not isinstance(path, basestring):
@@ -216,9 +214,11 @@ class Connection(object):
             try:
                 reply = self._session.request(method, path, data=data,
                         headers=headers, params=params, **kwargs)
-            except SSLError:
+            except Connection._SSLError:
                 _logger.warning('Use --no-check-certificate to avoid checks')
                 raise
+            except Connection._ConnectionError, error:
+                raise ConnectionError, error, sys.exc_info()[2]
             if reply.status_code != 200:
                 if reply.status_code == 401:
                     enforce(method not in ('PUT', 'POST') or
@@ -318,6 +318,28 @@ class Connection(object):
             return _pull_events(reply.raw)
         else:
             return reply.content
+
+    def _init(self):
+        if Connection._Session is None:
+            sys.path.insert(0,
+                    join(dirname(__file__), '..', 'lib', 'requests'))
+            from requests import Session
+            from requests.exceptions import SSLError
+            from requests.exceptions import ConnectionError as _ConnectionError
+            Connection._Session = Session
+            Connection._SSLError = SSLError
+            Connection._ConnectionError = _ConnectionError
+
+        self._session = Connection._Session()
+        self._session.stream = True
+        self._session.trust_env = self._trust_env
+        if client.no_check_certificate.value:
+            self._session.verify = False
+        if self._creds:
+            uid, keyfile, self._get_profile = self._creds
+            self._session.headers['X-SN-login'] = uid
+            self._session.headers['X-SN-signature'] = _sign(keyfile, uid)
+        self._session.headers['accept-language'] = toolkit.default_lang()
 
 
 class _Subscription(object):

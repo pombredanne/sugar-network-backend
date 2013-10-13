@@ -18,7 +18,6 @@
 import os
 import re
 import sys
-import uuid
 import time
 import json
 import random
@@ -326,10 +325,11 @@ class Routes(object):
 
 
 def _activity_id_new():
+    from uuid import getnode
     data = '%s%s%s' % (
             time.time(),
             random.randint(10000, 100000),
-            uuid.getnode())
+            getnode())
     return hashlib.sha1(data).hexdigest()
 
 

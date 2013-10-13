@@ -25,7 +25,7 @@ from sugar_network.node.slave import SlaveRoutes
 from sugar_network.toolkit import netlink, mountpoints
 from sugar_network.toolkit.router import ACL, Request, Response, Router
 from sugar_network.toolkit.router import route, fallbackroute
-from sugar_network.toolkit import zeroconf, coroutine, http, enforce
+from sugar_network.toolkit import zeroconf, coroutine, http, exception, enforce
 
 
 # Top-level directory name to keep SN data on mounted devices
@@ -292,7 +292,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
                             _logger.debug('Retry %r on gateway error', url)
                             continue
                         except Exception:
-                            _logger.exception('Connection to %r failed', url)
+                            exception(_logger, 'Connection to %r failed', url)
                         break
                 self._got_offline()
                 if not timeout:
