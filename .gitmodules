@@ -7,3 +7,6 @@
 [submodule "sugar_network/lib/requests"]
 	path = sugar_network/lib/requests
 	url = git://git.sugarlabs.org/network/requests.git
+[submodule "tests/regression/production"]
+	path = tests/regression/production
+	url = git://git.sugarlabs.org/network/network.git
