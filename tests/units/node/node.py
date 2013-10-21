@@ -6,14 +6,16 @@ import os
 import time
 import json
 import base64
+import hashlib
+from M2Crypto import RSA
 from email.utils import formatdate, parsedate
 from cStringIO import StringIO
-from os.path import exists
+from os.path import exists, join
 
 from __init__ import tests
 
 from sugar_network import db, node, model, client
-from sugar_network.client import Connection
+from sugar_network.client import Connection, keyfile
 from sugar_network.toolkit import http, coroutine
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.node import stats_user, stats_node, obs
@@ -28,6 +30,7 @@ from sugar_network.model.artifact import Artifact
 from sugar_network.model.solution import Solution
 from sugar_network.model.user import User
 from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, Blob, ACL, route
+from sugar_network.toolkit import http
 
 
 class NodeTest(tests.Test):
@@ -45,8 +48,6 @@ class NodeTest(tests.Test):
         call(cp, method='POST', document='user', principal=tests.UID, content={
             'name': 'user',
             'color': '',
-            'machine_sn': '',
-            'machine_uuid': '',
             'pubkey': tests.PUBKEY,
             })
 
@@ -137,7 +138,7 @@ class NodeTest(tests.Test):
 
     def test_HandleDeletes(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -172,7 +173,7 @@ class NodeTest(tests.Test):
 
     def test_SimulateDeleteEvents(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -196,19 +197,17 @@ class NodeTest(tests.Test):
     def test_RegisterUser(self):
         cp = NodeRoutes('guid', db.Volume('db', [User]))
 
-        guid = call(cp, method='POST', document='user', principal='fake', content={
+        guid = call(cp, method='POST', document='user', principal=tests.UID2, content={
             'name': 'user',
             'color': '',
-            'machine_sn': '',
-            'machine_uuid': '',
             'pubkey': tests.PUBKEY,
             })
-        assert guid == tests.UID
+        assert guid is None
         self.assertEqual('user', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
     def test_UnauthorizedCommands(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
 
         class Routes(NodeRoutes):
 
@@ -246,30 +245,28 @@ class NodeTest(tests.Test):
             pass
 
         volume = db.Volume('db', [User, Document])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = Routes('guid', volume)
 
         guid = call(cp, method='POST', document='document', principal=tests.UID, content={})
 
         self.assertRaises(http.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid)
-        self.assertRaises(http.Unauthorized, call, cp, method='GET', cmd='probe1', document='document', guid=guid, principal='fake')
+        self.assertRaises(http.Forbidden, call, cp, method='GET', cmd='probe1', document='document', guid=guid, principal=tests.UID2)
         call(cp, method='GET', cmd='probe1', document='document', guid=guid, principal=tests.UID)
         call(cp, method='GET', cmd='probe2', document='document', guid=guid)
 
     def test_ForbiddenCommandsForUserResource(self):
         cp = NodeRoutes('guid', db.Volume('db', [User]))
 
-        call(cp, method='POST', document='user', principal='fake', content={
+        call(cp, method='POST', document='user', principal=tests.UID2, content={
             'name': 'user1',
             'color': '',
-            'machine_sn': '',
-            'machine_uuid': '',
             'pubkey': tests.PUBKEY,
             })
         self.assertEqual('user1', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
         self.assertRaises(http.Unauthorized, call, cp, method='PUT', document='user', guid=tests.UID, content={'name': 'user2'})
-        self.assertRaises(http.Unauthorized, call, cp, method='PUT', document='user', guid=tests.UID, principal='fake', content={'name': 'user2'})
+        self.assertRaises(http.Forbidden, call, cp, method='PUT', document='user', guid=tests.UID, principal=tests.UID2, content={'name': 'user2'})
         call(cp, method='PUT', document='user', guid=tests.UID, principal=tests.UID, content={'name': 'user2'})
         self.assertEqual('user2', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
 
@@ -286,8 +283,8 @@ class NodeTest(tests.Test):
                 return 'ok'
 
         volume = db.Volume('db', [User])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
-        volume['user'].create({'guid': tests.UID2, 'name': 'test', 'color': '', 'pubkey': tests.PUBKEY2})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID2, 'name': 'test', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
         cp = Routes('guid', volume)
 
         self.assertRaises(http.Forbidden, call, cp, method='PROBE')
@@ -303,8 +300,8 @@ class NodeTest(tests.Test):
                 return value
 
         volume = db.Volume('db', [User, Document])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
-        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY2})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='document', principal=tests.UID, content={'prop': '1'})
@@ -324,8 +321,8 @@ class NodeTest(tests.Test):
                 return value
 
         volume = db.Volume('db', [User, Document])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
-        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY2})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='document', principal=tests.UID, content={'prop': '1'})
@@ -345,7 +342,7 @@ class NodeTest(tests.Test):
                 pass
 
         volume = db.Volume('db', [User])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = Routes('guid', volume)
 
         self.assertRaises(http.Forbidden, call, cp, 'PROBE', principal=tests.UID)
@@ -383,7 +380,7 @@ class NodeTest(tests.Test):
 
     def test_SetUser(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -398,7 +395,7 @@ class NodeTest(tests.Test):
 
     def test_find_MaxLimit(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -429,7 +426,7 @@ class NodeTest(tests.Test):
 
     def test_DeletedDocuments(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -450,7 +447,7 @@ class NodeTest(tests.Test):
     def test_CreateGUID(self):
         # TODO Temporal security hole, see TODO
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
         call(cp, method='POST', document='context', principal=tests.UID, content={
             'guid': 'foo',
@@ -465,7 +462,7 @@ class NodeTest(tests.Test):
 
     def test_CreateMalformedGUID(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = MasterRoutes('guid', volume)
 
         self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal=tests.UID, content={
@@ -478,7 +475,7 @@ class NodeTest(tests.Test):
 
     def test_FailOnExistedGUID(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = MasterRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -500,7 +497,7 @@ class NodeTest(tests.Test):
         node.files_root.value = '.'
         self.touch(('packages/repo/arch/package', 'file'))
         volume = self.start_master()
-        client = Connection()
+        client = Connection(auth=http.SugarAuth(keyfile.value))
 
         self.assertEqual(['repo'], client.get(['packages']))
         self.assertEqual(['arch'], client.get(['packages', 'repo']))
@@ -516,7 +513,7 @@ class NodeTest(tests.Test):
                 ('packages/repo/2.2', '', 2),
                 )
         volume = self.start_master()
-        ipc = Connection()
+        ipc = Connection(auth=http.SugarAuth(keyfile.value))
 
         self.assertEqual(
                 sorted(['1', '2']),
@@ -548,7 +545,7 @@ class NodeTest(tests.Test):
 
     def test_Clone(self):
         volume = self.start_master()
-        client = Connection()
+        client = Connection(auth=http.SugarAuth(keyfile.value))
 
         context = client.post(['context'], {
             'type': 'activity',
@@ -666,7 +663,7 @@ class NodeTest(tests.Test):
 
     def test_release(self):
         volume = self.start_master()
-        conn = Connection()
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
             'guid': 'bundle_id',
@@ -697,7 +694,7 @@ class NodeTest(tests.Test):
         self.assertEqual('developer', impl['stability'])
         assert impl['ctime'] > 0
         assert impl['mtime'] > 0
-        self.assertEqual({tests.UID: {'role': 3, 'name': 'test', 'order': 0}}, impl['author'])
+        self.assertEqual({tests.UID: {'role': 3, 'name': 'f470db873b6a35903aca1f2492188e1c4b9ffc42', 'order': 0}}, impl['author'])
 
         data = impl.meta('data')
         self.assertEqual({
@@ -778,7 +775,7 @@ class NodeTest(tests.Test):
 
     def test_release_UpdateContext(self):
         volume = self.start_master()
-        conn = Connection()
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
             'guid': 'org.laptop.ImageViewerActivity',
@@ -847,7 +844,7 @@ class NodeTest(tests.Test):
 
     def test_release_CreateContext(self):
         volume = self.start_master()
-        conn = Connection()
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         bundle = self.zips(
                 ('ImageViewer.activity/activity/activity.info', '\n'.join([
@@ -876,7 +873,7 @@ class NodeTest(tests.Test):
         self.assertEqual(['image/bmp', 'image/gif'], context['mime_types'])
         assert context['ctime'] > 0
         assert context['mtime'] > 0
-        self.assertEqual({tests.UID: {'role': 3, 'name': 'test', 'order': 0}}, context['author'])
+        self.assertEqual({tests.UID: {'role': 3, 'name': 'f470db873b6a35903aca1f2492188e1c4b9ffc42', 'order': 0}}, context['author'])
 
     def test_release_AuthorsOnly(self):
         volume = self.start_master()
@@ -893,42 +890,42 @@ class NodeTest(tests.Test):
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
                 )
 
-        self.override(client, 'sugar_uid', lambda: tests.UID)
-        conn = Connection()
+        conn = Connection(auth=http.SugarAuth(join(tests.root, 'data', tests.UID)))
         impl1 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
         impl2 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit'}).raw)
         self.assertEqual(['deleted'], volume['implementation'].get(impl1)['layer'])
         self.assertEqual([], volume['implementation'].get(impl2)['layer'])
 
-        self.override(client, 'sugar_uid', lambda: tests.UID2)
-        self.override(client, 'sugar_profile', lambda: {
-            'name': 'test',
-            'color': '#000000,#000000',
-            'machine_sn': '',
-            'machine_uuid': '',
-            'pubkey': tests.PUBKEY2,
-            })
-        conn = Connection()
+        conn = Connection(auth=http.SugarAuth(join(tests.root, 'data', tests.UID2)))
         conn.get(cmd='whoami')
         self.assertRaises(http.Forbidden, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'submit'})
         self.assertEqual(['deleted'], volume['implementation'].get(impl1)['layer'])
         self.assertEqual([], volume['implementation'].get(impl2)['layer'])
 
 
-def call(routes, method, document=None, guid=None, prop=None, principal=None, cmd=None, content=None, **kwargs):
-    path = []
+def call(routes, method, document=None, guid=None, prop=None, principal=None, content=None, **kwargs):
+    path = ['']
     if document:
         path.append(document)
     if guid:
         path.append(guid)
     if prop:
         path.append(prop)
-    request = Request(method=method, path=path, cmd=cmd, content=content)
-    request.update(kwargs)
-    request.environ['HTTP_HOST'] = '127.0.0.1'
+    env = {'REQUEST_METHOD': method,
+           'PATH_INFO': '/'.join(path),
+           'HTTP_HOST': '127.0.0.1',
+           }
     if principal:
-        request.environ['HTTP_X_SN_LOGIN'] = principal
-        request.principal = principal
+        key = RSA.load_key(join(tests.root, 'data', principal))
+        nonce = int(time.time()) + 100
+        data = hashlib.sha1('%s:%s' % (principal, nonce)).digest()
+        signature = key.sign(data).encode('hex')
+        env['HTTP_AUTHORIZATION'] = 'Sugar username="%s",nonce="%s",signature="%s"' % (principal, nonce, signature)
+    request = Request(env)
+    request.update(kwargs)
+    request.cmd = kwargs.get('cmd')
+    request.content = content
+    request.principal = principal
     router = Router(routes)
     return router.call(request, Response())
 

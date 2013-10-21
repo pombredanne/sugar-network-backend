@@ -19,7 +19,7 @@ from gevent import monkey
 from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus
 from sugar_network.toolkit.router import Router
 from sugar_network.client import IPCConnection, journal, routes as client_routes
-from sugar_network.client.routes import ClientRoutes
+from sugar_network.client.routes import ClientRoutes, _Auth
 from sugar_network import db, client, node, toolkit, model
 from sugar_network.client import solver
 from sugar_network.model.user import User
@@ -56,7 +56,9 @@ class Test(unittest.TestCase):
         self.node_volume = None
 
         os.environ['LANG'] = 'en_US'
+        os.environ['LANGUAGE'] = 'en_US'
         toolkit._default_lang = 'en-us'
+        toolkit._default_langs = None
 
         global tmpdir
         tmpdir = join(tmp_root or tmproot, '.'.join(self.id().split('.')[1:]))
@@ -72,8 +74,6 @@ class Test(unittest.TestCase):
         os.environ['LC_ALL'] = 'en_US.UTF-8'
         profile_dir = join(tmpdir, '.sugar', 'default')
         os.makedirs(profile_dir)
-        shutil.copy(join(root, 'data', 'owner.key'), join(profile_dir, 'owner.key'))
-        shutil.copy(join(root, 'data', 'owner.key.pub'), profile_dir)
 
         adapters.DEFAULT_RETRIES = 5
         Option.items = {}
@@ -87,6 +87,8 @@ class Test(unittest.TestCase):
         node.data_root.value = tmpdir
         node.files_root.value = None
         node.sync_layers.value = None
+        node.stats_root.value = tmpdir + '/stats'
+        node.port.value = 8880
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.api_url.value = 'http://127.0.0.1:8888'
@@ -96,11 +98,11 @@ class Test(unittest.TestCase):
         client.cache_limit.value = 0
         client.cache_limit_percent.value = 0
         client.cache_lifetime.value = 0
+        client.keyfile.value = join(root, 'data', UID)
         client_routes._RECONNECT_TIMEOUT = 0
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
-        node.stats_root.value = tmpdir + '/stats'
         stats_node.stats_node.value = False
         stats_node.stats_node_step.value = 0
         stats_user.stats_user.value = False
@@ -126,11 +128,9 @@ class Test(unittest.TestCase):
                 ]
 
         if tmp_root is None:
-            self.override(client, 'sugar_profile', lambda: {
+            self.override(_Auth, 'profile', lambda self: {
                 'name': 'test',
                 'color': '#000000,#000000',
-                'machine_sn': '',
-                'machine_uuid': '',
                 'pubkey': PUBKEY,
                 })
 
@@ -392,42 +392,21 @@ def sign(privkey, data):
 
 
 PUBKEY = """\
-ssh-dss AAAAB3NzaC1kc3MAAACBANuYoFH3uvJGoQFMeW6M3CCJQlPrSv6sqd9dGQlwnnNxLBrq6KgY63e10ULtyYzq9UjiIUowqbtheGrtPCtL5w7qmFcCnq1cFzAk6Xxfe6ytJDx1fql5Y1wKqa+zxOKF6SGNnglyxvf78mZXt2G6wx22AjW+1fEhAOr+g8kRiUbBAAAAFQDA/W3LfD5NBB4vlZFcT10jU4B8QwAAAIBHh1U2B71memu/TsatwOo9+CyUyvF0FHHsXwQDkeRjqY3dcfeV38YoU/EbOZtHIQgdfGrzy7m5osnpBwUtHLunZJuwCt5tBNrpU8CAF7nEXOJ4n2FnoNiWO1IsbWdhkh9Hd7+TBM9hLGmOqlqTIx3TmUG0e4F2X33VVJ8UsrJ3mwAAAIEAm29WVw9zkRbv6CTFhPlLjJ71l/2GE9XFbdznJFRmPNBBWF2J452okRWywzeDMIIoi/z0wmNSr2B6P9wduxSxp8eIWQhKVQa4V4lJyqX/A2tE5SQtFULtw3yiYOUaCjvB2s46ZM6/9K3r8o7FSKHDpYlqAbBKURNCot5zDAu6RgE=
+-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC9VocIcz6dSUj64ErftV13lne0
+er++oFy17pQXlViwnHIRi4pQutJcJchezLnLxAtDBLE3CsXdQ5RJlMuW7tb9Jt72
+gaN7JMte6f4sKJRBW5rafVewwxzLAw0pFKXqYxQaWEdzOWP2YBbJYuLF2ZB/ZddP
+MseM2sIevEeOLXznuwIDAQAB
+-----END PUBLIC KEY-----
 """
-INVALID_PUBKEY = """\
-ssh-dss ____B3NzaC1kc3MAAACBANuYoFH3uvJGoQFMeW6M3CCJQlPrSv6sqd9dGQlwnnNxLBrq6KgY63e10ULtyYzq9UjiIUowqbtheGrtPCtL5w7qmFcCnq1cFzAk6Xxfe6ytJDx1fql5Y1wKqa+zxOKF6SGNnglyxvf78mZXt2G6wx22AjW+1fEhAOr+g8kRiUbBAAAAFQDA/W3LfD5NBB4vlZFcT10jU4B8QwAAAIBHh1U2B71memu/TsatwOo9+CyUyvF0FHHsXwQDkeRjqY3dcfeV38YoU/EbOZtHIQgdfGrzy7m5osnpBwUtHLunZJuwCt5tBNrpU8CAF7nEXOJ4n2FnoNiWO1IsbWdhkh9Hd7+TBM9hLGmOqlqTIx3TmUG0e4F2X33VVJ8UsrJ3mwAAAIEAm29WVw9zkRbv6CTFhPlLjJ71l/2GE9XFbdznJFRmPNBBWF2J452okRWywzeDMIIoi/z0wmNSr2B6P9wduxSxp8eIWQhKVQa4V4lJyqX/A2tE5SQtFULtw3yiYOUaCjvB2s46ZM6/9K3r8o7FSKHDpYlqAbBKURNCot5zDAu6RgE=
-"""
-PRIVKEY = """\
------BEGIN DSA PRIVATE KEY-----
-MIIBvAIBAAKBgQDbmKBR97ryRqEBTHlujNwgiUJT60r+rKnfXRkJcJ5zcSwa6uio
-GOt3tdFC7cmM6vVI4iFKMKm7YXhq7TwrS+cO6phXAp6tXBcwJOl8X3usrSQ8dX6p
-eWNcCqmvs8TihekhjZ4Jcsb3+/JmV7dhusMdtgI1vtXxIQDq/oPJEYlGwQIVAMD9
-bct8Pk0EHi+VkVxPXSNTgHxDAoGAR4dVNge9Znprv07GrcDqPfgslMrxdBRx7F8E
-A5HkY6mN3XH3ld/GKFPxGzmbRyEIHXxq88u5uaLJ6QcFLRy7p2SbsArebQTa6VPA
-gBe5xFzieJ9hZ6DYljtSLG1nYZIfR3e/kwTPYSxpjqpakyMd05lBtHuBdl991VSf
-FLKyd5sCgYEAm29WVw9zkRbv6CTFhPlLjJ71l/2GE9XFbdznJFRmPNBBWF2J452o
-kRWywzeDMIIoi/z0wmNSr2B6P9wduxSxp8eIWQhKVQa4V4lJyqX/A2tE5SQtFULt
-w3yiYOUaCjvB2s46ZM6/9K3r8o7FSKHDpYlqAbBKURNCot5zDAu6RgECFQC6wU/U
-6uUSSSw8Apr+eJQlSFhA+Q==
------END DSA PRIVATE KEY-----
-"""
-UID = '25c081e29242cf7a19ae893a420ab3de56e9e989'
+UID = 'f470db873b6a35903aca1f2492188e1c4b9ffc42'
 
 PUBKEY2 = """\
-ssh-dss AAAAB3NzaC1kc3MAAACBAOTS+oSz5nmXlxGLhnadTHwZDf9H124rRLqIxmLhHZy/I93LPHfG1T/hSF9n46DEKwfpLZ8EMNl2VNATvPhbst0ckcsdaB6FSblYVNMFu9C+SAwiX1+JYw8e9koFq8tIKyBz+V1zzr3VUJoUozYvT4MehIFq2YlYR4AdlnfbwQG/AAAAFQDa4fpL/eMJBgp2azVvcHPXoAN1dQAAAIAM41xtZbZ2GvOyiMB49gPFta/SWsie84agasvDVaUljj4RLgIHAOe75V3vh8Myjz7WxBMqS09IRKO8EM9Xv/BeRdLQfXRFvOY3kG4C5EJPIoZykDKCag9fEtw3PMSSf50wvnO0zz1FlJOKsf0tNYfeO98KY3fUNyxoI4p7HbLAoQAAAIEAxHnjr34jnPHGL8n4lhALJDbBUJOP5SwubArF94wodPmFtDI0ia6lWV1o3aHtwpTKRIiyUocJRaTJzxArdSh3jfutxaoIs+KqPgGa3rO5jbHv07b40bpueH8nnb6Mc5Qas/NaCLwWqWoVs5F7w28v70LB88PcmGxxjP1bXxLlDKE= 
+-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDQ6AWYEKkp5wjPLXd5d024JWPf
+ZJ3F9VuFIWNlLMNvGv5XOIAA/VK/tc98Bt6WxI7QZoLEWKb8S4aqkD1KSqjQIpO7
+n9WC2r5B15uTNa1Ry3eq0Z3KGeeC6q0466ETDUhqV03K1quLzR//dGdnBgb+hznL
+oLqnwHwnk4DFkdO7ZwIDAQAB
+-----END PUBLIC KEY-----
 """
-PRIVKEY2 = """\
------BEGIN DSA PRIVATE KEY-----
-MIIBuwIBAAKBgQDk0vqEs+Z5l5cRi4Z2nUx8GQ3/R9duK0S6iMZi4R2cvyPdyzx3
-xtU/4UhfZ+OgxCsH6S2fBDDZdlTQE7z4W7LdHJHLHWgehUm5WFTTBbvQvkgMIl9f
-iWMPHvZKBavLSCsgc/ldc8691VCaFKM2L0+DHoSBatmJWEeAHZZ328EBvwIVANrh
-+kv94wkGCnZrNW9wc9egA3V1AoGADONcbWW2dhrzsojAePYDxbWv0lrInvOGoGrL
-w1WlJY4+ES4CBwDnu+Vd74fDMo8+1sQTKktPSESjvBDPV7/wXkXS0H10RbzmN5Bu
-AuRCTyKGcpAygmoPXxLcNzzEkn+dML5ztM89RZSTirH9LTWH3jvfCmN31DcsaCOK
-ex2ywKECgYEAxHnjr34jnPHGL8n4lhALJDbBUJOP5SwubArF94wodPmFtDI0ia6l
-WV1o3aHtwpTKRIiyUocJRaTJzxArdSh3jfutxaoIs+KqPgGa3rO5jbHv07b40bpu
-eH8nnb6Mc5Qas/NaCLwWqWoVs5F7w28v70LB88PcmGxxjP1bXxLlDKECFFHbJZ6Y
-D+YxdWZ851uNEXjVIvza
------END DSA PRIVATE KEY-----
-"""
-UID2 = 'd87dc9fde73fa1cf86c1e7ce86129eaf88985828'
+UID2 = 'd820a3405d6aadf2cf207f6817db2a79f8fa07aa'

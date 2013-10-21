@@ -15,11 +15,11 @@ import rrdtool
 from __init__ import tests, src_root
 
 from sugar_network import db, client
-from sugar_network.client import Connection, IPCConnection
+from sugar_network.client import IPCConnection, Connection, keyfile
 from sugar_network.node.obs import obs_url
 from sugar_network.toolkit.router import Router, route, fallbackroute
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import coroutine
+from sugar_network.toolkit import coroutine, http
 
 
 # /tmp might be on tmpfs wich returns 0 bytes for free mem all time
@@ -75,7 +75,7 @@ class NodePackagesSlaveTest(tests.Test):
             '--obs-url=http://127.0.0.1:1999',
             ]))
         coroutine.sleep(3)
-        conn = Connection('http://127.0.0.1:8100')
+        conn = Connection('http://127.0.0.1:8100', auth=http.SugarAuth(keyfile.value))
 
         conn.post(['/context'], {
             'guid': 'package',
@@ -106,7 +106,7 @@ class NodePackagesSlaveTest(tests.Test):
         client.ipc_port.value = 8200
         ipc = IPCConnection()
         coroutine.sleep(2)
-        if ipc.get(cmd='status')['route'] == 'offline':
+        if ipc.get(cmd='whoami')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
                 '{"arch": [{"path": "rpm", "name": "rpm"}]}',
@@ -144,7 +144,7 @@ class NodePackagesSlaveTest(tests.Test):
         client.ipc_port.value = 8200
         ipc = IPCConnection()
         coroutine.sleep(2)
-        if ipc.get(cmd='status')['route'] == 'offline':
+        if ipc.get(cmd='whoami')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         self.assertEqual(
                 '{"arch": [{"path": "rpm", "name": "rpm"}]}',
@@ -165,7 +165,7 @@ class NodePackagesSlaveTest(tests.Test):
         conn = Connection('http://127.0.0.1:8102')
         client.ipc_port.value = 8202
         ipc = IPCConnection()
-        if ipc.get(cmd='status')['route'] == 'offline':
+        if ipc.get(cmd='whoami')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
 
         pid = self.popen('V=1 %s sync/sugar-network-sync http://127.0.0.1:8100' % join(src_root, 'sugar-network-sync'), shell=True)

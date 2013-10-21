@@ -60,6 +60,7 @@ def shutdown():
 
 
 def reset_resolver():
+    _logger.debug('Reset resolver')
     gevent.get_hub().resolver = None
 
 

@@ -139,6 +139,11 @@ class MasterRoutes(NodeRoutes):
         enforce(aliases, http.BadRequest, 'Nothing to presolve')
         return obs.presolve(aliases, node.files_root.value)
 
+    def status(self):
+        result = NodeRoutes.status(self)
+        result['level'] = 'master'
+        return result
+
     def after_post(self, doc):
         if doc.metadata.name == 'context':
             shift_implementations = doc.modified('dependencies')

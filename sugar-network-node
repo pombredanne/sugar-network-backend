@@ -77,7 +77,7 @@ class Application(application.Daemon):
             # XXX Until implementing regular web users
             from sugar_network.client.routes import ClientRoutes
 
-            client.sugar_uid = lambda: 'demo'
+            client.login.value = 'demo'
             # Point client API to volume directly
             client.mounts_root.value = None
 

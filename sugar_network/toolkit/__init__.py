@@ -267,31 +267,6 @@ def init_logging(debug_level=None, **kwargs):
             **kwargs)
 
 
-def ensure_key(path):
-    import hashlib
-    if not exists(path):
-        if 'SSH_ASKPASS' in os.environ:
-            # Otherwise ssh-keygen will popup auth dialogs on registeration
-            del os.environ['SSH_ASKPASS']
-        if not exists(dirname(path)):
-            os.makedirs(dirname(path))
-        _logger.info('Create DSA key')
-        assert_call([
-            '/usr/bin/ssh-keygen', '-q', '-t', 'dsa', '-f', path,
-            '-C', '', '-N', ''])
-    key = pubkey(path).split()[1]
-    return str(hashlib.sha1(key).hexdigest())
-
-
-def pubkey(path):
-    with file(path + '.pub') as f:
-        for line in f.readlines():
-            line = line.strip()
-            if line.startswith('ssh-'):
-                return line
-    raise RuntimeError('No valid DSA public keys in %r' % path)
-
-
 def iter_file(*path):
     with file(join(*path), 'rb') as f:
         while True:

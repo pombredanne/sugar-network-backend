@@ -77,14 +77,6 @@ class FrontRoutes(object):
             response['Allow'] = 'GET, HEAD, POST, PUT, DELETE'
         response.content_length = 0
 
-    @route('GET', cmd='whoami', mime_type='application/json')
-    def whoami(self, request, response):
-        roles = []
-        # pylint: disable-msg=E1101
-        if self.authorize(request.principal, 'root'):
-            roles.append('root')
-        return {'roles': roles, 'guid': request.principal}
-
     @route('GET', cmd='subscribe', mime_type='text/event-stream')
     def subscribe(self, request=None, response=None, ping=False, **condition):
         """Subscribe to Server-Sent Events."""
@@ -93,10 +85,7 @@ class FrontRoutes(object):
         if response is not None:
             response.content_type = 'text/event-stream'
             response['Cache-Control'] = 'no-cache'
-        peer = 'anonymous'
-        if hasattr(request, 'environ'):
-            peer = request.environ.get('HTTP_X_SN_LOGIN') or peer
-        return self._pull_events(peer, ping, condition)
+        return self._pull_events(ping, condition)
 
     @route('POST', cmd='broadcast',
             mime_type='application/json', acl=ACL.LOCAL)
@@ -129,9 +118,7 @@ class FrontRoutes(object):
             'mime_type': 'image/x-icon',
             })
 
-    def _pull_events(self, peer, ping, condition):
-        _logger.debug('Start pulling events to %s user', peer)
-
+    def _pull_events(self, ping, condition):
         if ping:
             # XXX The whole commands' kwargs handling should be redesigned
             if 'ping' in condition:
@@ -142,19 +129,16 @@ class FrontRoutes(object):
             # `GET /?cmd=subscribe` call.
             yield {'event': 'pong'}
 
-        try:
-            while True:
-                event = self._pooler.wait()
-                for key, value in condition.items():
-                    if value.startswith('!'):
-                        if event.get(key) == value[1:]:
-                            break
-                    elif event.get(key) != value:
+        while True:
+            event = self._pooler.wait()
+            for key, value in condition.items():
+                if value.startswith('!'):
+                    if event.get(key) == value[1:]:
                         break
-                else:
-                    yield event
-        finally:
-            _logger.debug('Stop pulling events to %s user', peer)
+                elif event.get(key) != value:
+                    break
+            else:
+                yield event
 
 
 class _Pooler(object):

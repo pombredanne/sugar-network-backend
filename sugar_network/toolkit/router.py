@@ -16,10 +16,12 @@
 import os
 import cgi
 import json
+import time
 import types
 import logging
 import calendar
 import mimetypes
+from base64 import b64decode
 from bisect import bisect_left
 from urllib import urlencode
 from urlparse import parse_qsl, urlsplit
@@ -30,8 +32,10 @@ from sugar_network import toolkit
 from sugar_network.toolkit import http, coroutine, enforce
 
 
-_logger = logging.getLogger('router')
+_SIGNATURE_LIFETIME = 600
 _NOT_SET = object()
+
+_logger = logging.getLogger('router')
 
 
 def route(method, path=None, cmd=None, **kwargs):
@@ -95,6 +99,15 @@ class ACL(object):
             }
 
 
+class Unauthorized(http.Unauthorized):
+
+    def __init__(self, message, nonce=None):
+        http.Unauthorized.__init__(self, message)
+        if not nonce:
+            nonce = int(time.time()) + _SIGNATURE_LIFETIME
+        self.headers = {'www-authenticate': 'Sugar nonce="%s"' % nonce}
+
+
 class Request(dict):
 
     principal = None
@@ -109,13 +122,14 @@ class Request(dict):
         self.cmd = None
         self.environ = {}
         self.session = session or {}
-        self._content = _NOT_SET
 
+        self._content = _NOT_SET
         self._dirty_query = False
         self._if_modified_since = _NOT_SET
         self._accept_language = _NOT_SET
         self._content_stream = content_stream or _NOT_SET
         self._content_type = content_type or _NOT_SET
+        self._authorization = _NOT_SET
 
         if environ:
             url = environ.get('PATH_INFO', '').strip('/')
@@ -268,6 +282,28 @@ class Request(dict):
             self._dirty_query = False
         return self.environ.get('QUERY_STRING')
 
+    @property
+    def authorization(self):
+        if self._authorization is _NOT_SET:
+            auth = self.environ.get('HTTP_AUTHORIZATION')
+            if not auth:
+                self._authorization = None
+            else:
+                auth = self._authorization = _Authorization(auth)
+                auth.scheme, creds = auth.strip().split(' ', 1)
+                auth.scheme = auth.scheme.lower()
+                if auth.scheme == 'basic':
+                    auth.login, auth.password = b64decode(creds).split(':')
+                elif auth.scheme == 'sugar':
+                    from urllib2 import parse_http_list, parse_keqv_list
+                    creds = parse_keqv_list(parse_http_list(creds))
+                    auth.login = creds['username']
+                    auth.signature = creds['signature']
+                    auth.nonce = int(creds['nonce'])
+                else:
+                    raise http.BadRequest('Unsupported authentication scheme')
+        return self._authorization
+
     def add(self, key, *values):
         existing_value = self.get(key)
         for value in values:
@@ -284,8 +320,8 @@ class Request(dict):
                     'HTTP_ACCEPT_LANGUAGE',
                     'HTTP_ACCEPT_ENCODING',
                     'HTTP_IF_MODIFIED_SINCE',
-                    'HTTP_X_SN_LOGIN',
-                    'HTTP_X_SN_SIGNATURE'):
+                    'HTTP_AUTHORIZATION',
+                    ):
             if key in self.environ:
                 environ[key] = self.environ[key]
         request = Request(environ, **kwargs)
@@ -578,7 +614,7 @@ class Router(object):
                 kwargs[arg] = request.get(arg)
 
         for i in self._preroutes:
-            i(route_, request)
+            i(route_, request, response)
         result = None
         exception = None
         try:
@@ -820,3 +856,11 @@ class _Route(object):
         if self.cmd:
             path += ('?cmd=%s' % self.cmd)
         return '%s /%s (%s)' % (self.method, path, self.callback.__name__)
+
+
+class _Authorization(str):
+    scheme = None
+    login = None
+    password = None
+    signature = None
+    nonce = None

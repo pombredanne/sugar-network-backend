@@ -129,18 +129,9 @@ class NodeClientTest(tests.Test):
                 file('client/db/implementation/%s/%s/data.blob/activity/activity.info' % (impl[:2], impl)).read())
 
     def test_UsecaseOOB(self):
-        privkey_path = '.sugar/default/owner.key'
-        pubkey_path = '.sugar/default/owner.key.pub'
-        os.unlink(privkey_path)
-        os.unlink(pubkey_path)
-
-        self.cli(['PUT', '/context/context', '--no-dbus', '--anonymous', 'cmd=clone', '-jd', '1'])
-        self.cli(['PUT', '/context/context', '--no-dbus', '--anonymous', 'cmd=favorite', '-jd', 'true'])
-
+        self.cli(['--quiet', 'PUT', '/context/context', 'cmd=clone', '-jd', 'true'])
         assert exists('client/db/implementation/im/implementation/data.blob/activity/activity.info')
-        self.assertEqual(['clone', 'favorite'], json.load(file('client/db/context/co/context/layer'))['value'])
-        assert not exists(privkey_path)
-        assert not exists(pubkey_path)
+        self.assertEqual(['clone'], json.load(file('client/db/context/co/context/layer'))['value'])
 
     def cli(self, cmd, stdin=None):
         cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://127.0.0.1:8100', '-DDD'] + cmd
@@ -154,7 +145,7 @@ class NodeClientTest(tests.Test):
                 ])
             coroutine.sleep(2)
             ipc = Connection('http://127.0.0.1:5101')
-            if ipc.get(cmd='status')['route'] == 'offline':
+            if ipc.get(cmd='whoami')['route'] == 'offline':
                 self.wait_for_events(ipc, event='inline', state='online').wait()
 
         result = toolkit.assert_call(cmd, stdin=json.dumps(stdin))

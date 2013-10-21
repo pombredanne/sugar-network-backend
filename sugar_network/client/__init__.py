@@ -15,42 +15,10 @@
 
 import os
 import logging
+from base64 import b64encode
 from os.path import join, expanduser, exists
 
-from sugar_network import toolkit
-from sugar_network.toolkit import Option
-
-
-SUGAR_API_COMPATIBILITY = {
-        '0.94': frozenset(['0.86', '0.88', '0.90', '0.92', '0.94']),
-        }
-
-_NICKNAME_GCONF = '/desktop/sugar/user/nick'
-_COLOR_GCONF = '/desktop/sugar/user/color'
-_XO_SERIAL_PATH = ['/ofw/mfg-data/SN', '/proc/device-tree/mfg-data/SN']
-_XO_UUID_PATH = ['/ofw/mfg-data/U#', '/proc/device-tree/mfg-data/U#']
-
-_logger = logging.getLogger('client')
-_sugar_uid = None
-
-
-def profile_path(*args):
-    """Path within sugar profile directory.
-
-    Missed directories will be created.
-
-    :param args:
-        path parts that will be added to the resulting path
-    :returns:
-        full path with directory part existed
-
-    """
-    if os.geteuid():
-        root_dir = join(os.environ['HOME'], '.sugar',
-                os.environ.get('SUGAR_PROFILE', 'default'))
-    else:
-        root_dir = '/var/sugar-network'
-    return join(root_dir, *args)
+from sugar_network.toolkit import http, Option
 
 
 api_url = Option(
@@ -68,7 +36,7 @@ no_check_certificate = Option(
 
 local_root = Option(
         'path to the directory to keep all local data',
-        default=profile_path('network'), name='local_root')
+        default=lambda: profile_path('network'), name='local_root')
 
 server_mode = Option(
         'start server to share local documents',
@@ -104,23 +72,6 @@ discover_server = Option(
         default=False, type_cast=Option.bool_cast,
         action='store_true', name='discover_server')
 
-no_dbus = Option(
-        'disable any DBus usage',
-        default=False, type_cast=Option.bool_cast,
-        action='store_true', name='no-dbus')
-
-anonymous = Option(
-        'use anonymous user to access to Sugar Network server; '
-        'only read-only operations are available in this mode',
-        default=False, type_cast=Option.bool_cast, action='store_true',
-        name='anonymous')
-
-accept_language = Option(
-        'comma separated list to specify HTTP Accept-Language '
-        'header field value manually',
-        default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
-        name='accept-language', short_option='-l')
-
 cache_limit = Option(
         'the minimal disk free space, in bytes, to preserve while recycling '
         'disk cache; the final limit will be a minimal between --cache-limit '
@@ -142,6 +93,44 @@ cache_timeout = Option(
         'check disk cache for recycling in specified delay in seconds',
         default=3600, type_cast=int, name='cache-timeout')
 
+login = Option(
+        'Sugar Labs account to connect to Sugar Network API server; '
+        'should be set only if either password is provided or public key '
+        'for Sugar Labs account was uploaded to the Sugar Network',
+        name='login', short_option='-l')
+
+password = Option(
+        'Sugar Labs account password to connect to Sugar Network API server '
+        'using Basic authentication; if omitted, keys based authentication '
+        'will be used',
+        name='password', short_option='-p')
+
+keyfile = Option(
+        'path to RSA private key to connect to Sugar Network API server',
+        name='keyfile', short_option='-k', default='~/.ssh/sugar-network')
+
+
+_logger = logging.getLogger('client')
+
+
+def profile_path(*args):
+    """Path within sugar profile directory.
+
+    Missed directories will be created.
+
+    :param args:
+        path parts that will be added to the resulting path
+    :returns:
+        full path with directory part existed
+
+    """
+    if os.geteuid():
+        root_dir = join(os.environ['HOME'], '.sugar',
+                os.environ.get('SUGAR_PROFILE', 'default'))
+    else:
+        root_dir = '/var/sugar-network'
+    return join(root_dir, *args)
+
 
 def path(*args):
     """Calculate a path from the root.
@@ -162,36 +151,6 @@ def path(*args):
     return str(result)
 
 
-def Connection(url=None):
-    from sugar_network.toolkit import http
-    if url is None:
-        url = api_url.value
-    creds = None
-    if not anonymous.value:
-        if exists(key_path()):
-            creds = (sugar_uid(), key_path(), sugar_profile)
-        else:
-            _logger.warning('Sugar session was never started (no DSA key),'
-                    'fallback to anonymous mode')
-    return http.Connection(url, creds=creds)
-
-
-def IPCConnection():
-    from sugar_network.toolkit import http
-
-    return http.Connection(
-            api_url='http://127.0.0.1:%s' % ipc_port.value,
-            creds=None,
-            # No need in proxy for localhost
-            trust_env=False,
-            # The 1st ipc->client->node request might fail if connection
-            # to the node is lost, so, initiate the 2nd request from ipc
-            # to retrive data from client in offline mode without propagating
-            # errors from ipc
-            max_retries=1,
-            )
-
-
 def logger_level():
     """Current Sugar logger level as --debug value."""
     _LEVELS = {
@@ -205,30 +164,6 @@ def logger_level():
     return _LEVELS.get(level, 0)
 
 
-def key_path():
-    return profile_path('owner.key')
-
-
-def sugar_uid():
-    global _sugar_uid
-    if _sugar_uid is None:
-        import hashlib
-        pubkey = toolkit.pubkey(key_path()).split()[1]
-        _sugar_uid = str(hashlib.sha1(pubkey).hexdigest())
-    return _sugar_uid
-
-
-def sugar_profile():
-    import gconf
-    conf = gconf.client_get_default()
-    return {'name': conf.get_string(_NICKNAME_GCONF) or '',
-            'color': conf.get_string(_COLOR_GCONF) or '#000000,#000000',
-            'machine_sn': _read_XO_value(_XO_SERIAL_PATH) or '',
-            'machine_uuid': _read_XO_value(_XO_UUID_PATH) or '',
-            'pubkey': toolkit.pubkey(key_path()),
-            }
-
-
 def stability(context):
     value = Option.get('stabilities', context) or \
             Option.get('stabilities', 'default') or \
@@ -236,8 +171,20 @@ def stability(context):
     return value.split()
 
 
-def _read_XO_value(paths):
-    for value_path in paths:
-        if exists(value_path):
-            with file(value_path) as f:
-                return f.read().rstrip('\x00\n')
+def Connection(url=None, **args):
+    if url is None:
+        url = api_url.value
+    return http.Connection(url, verify=not no_check_certificate.value, **args)
+
+
+def IPCConnection():
+    return http.Connection(
+            api_url='http://127.0.0.1:%s' % ipc_port.value,
+            # Online ipc->client->node request might fail if node connection
+            # is lost in client process, so, re-send ipc request immediately
+            # to retrive data from client in offline mode without propagating
+            # errors on ipc side
+            max_retries=1,
+            # No need in proxy settings to connect to localhost
+            trust_env=False,
+            )

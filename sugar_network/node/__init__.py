@@ -33,12 +33,6 @@ certfile = Option(
         'path to SSL certificate file to serve requests via HTTPS',
         name='certfile')
 
-trust_users = Option(
-        'switch off user credentials check; disabling this option will '
-        'require OpenSSH-5.6 or later',
-        default=False, type_cast=Option.bool_cast,
-        action='store_true', name='trust-users')
-
 data_root = Option(
         'path to a directory to place server data',
         default='/var/lib/sugar-network', name='data_root')

@@ -27,22 +27,14 @@ class User(db.Resource):
     def color(self, value):
         return value
 
-    @db.indexed_property(prefix='S', default='', acl=ACL.CREATE | ACL.WRITE)
-    def machine_sn(self, value):
-        return value
-
-    @db.indexed_property(prefix='U', default='', acl=ACL.CREATE | ACL.WRITE)
-    def machine_uuid(self, value):
-        return value
-
-    @db.stored_property(acl=ACL.CREATE)
-    def pubkey(self, value):
-        return value
-
     @db.indexed_property(prefix='P', full_text=True, default='')
     def location(self, value):
         return value
 
     @db.indexed_property(slot=2, prefix='B', default=0, typecast=int)
     def birthday(self, value):
+        return value
+
+    @db.blob_property(acl=ACL.CREATE, mime_type='text/plain')
+    def pubkey(self, value):
         return value

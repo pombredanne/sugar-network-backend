@@ -27,7 +27,7 @@ class OfflineRoutes(tests.Test):
         ipc = self.start_offline_client()
 
         self.assertEqual(
-                {'guid': tests.UID, 'roles': []},
+                {'guid': tests.UID, 'roles': [], 'route': 'offline'},
                 ipc.get(cmd='whoami'))
 
     def test_Events(self):

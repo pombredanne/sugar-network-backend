@@ -282,7 +282,7 @@ class RoutesTest(tests.Test):
         self.assertEqual('title', call(cp, Request(method='GET', path=['context', guid, 'title'])))
 
     def test_I18nQuery(self):
-        client.accept_language.value = 'foo'
+        os.environ['LANGUAGE'] = 'foo'
         self.start_online_client()
         ipc = IPCConnection()
 
@@ -419,69 +419,30 @@ class RoutesTest(tests.Test):
             'description': '',
             })
 
-        client.accept_language.value = ['es', 'ru', 'en']
-        self.assertEqual('3', ipc.get(['context', guid1, 'title']))
-        self.assertEqual('2', ipc.get(['context', guid2, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
-
-        client.accept_language.value = ['ru', 'en']
-        self.assertEqual('2', ipc.get(['context', guid1, 'title']))
-        self.assertEqual('2', ipc.get(['context', guid2, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
-
-        client.accept_language.value = ['en']
-        self.assertEqual('1', ipc.get(['context', guid1, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid2, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
-
-        client.accept_language.value = ['foo']
-        self.assertEqual('1', ipc.get(['context', guid1, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid2, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
-
-    def test_DefaultLanguagesFallbackInRequests(self):
-        self.start_online_client()
-        ipc = IPCConnection()
-
-        guid1 = self.node_volume['context'].create({
-            'type': 'activity',
-            'title': {'en': '1', 'ru': '2', 'es': '3'},
-            'summary': '',
-            'description': '',
-            })
-        guid2 = self.node_volume['context'].create({
-            'type': 'activity',
-            'title': {'en': '1', 'ru': '2'},
-            'summary': '',
-            'description': '',
-            })
-        guid3 = self.node_volume['context'].create({
-            'type': 'activity',
-            'title': {'en': '1'},
-            'summary': '',
-            'description': '',
-            })
-
         toolkit._default_langs = None
         os.environ['LANGUAGE'] = 'es:ru:en'
+        ipc = IPCConnection()
         self.assertEqual('3', ipc.get(['context', guid1, 'title']))
         self.assertEqual('2', ipc.get(['context', guid2, 'title']))
         self.assertEqual('1', ipc.get(['context', guid3, 'title']))
 
         toolkit._default_langs = None
         os.environ['LANGUAGE'] = 'ru:en'
+        ipc = IPCConnection()
         self.assertEqual('2', ipc.get(['context', guid1, 'title']))
         self.assertEqual('2', ipc.get(['context', guid2, 'title']))
         self.assertEqual('1', ipc.get(['context', guid3, 'title']))
 
         toolkit._default_langs = None
         os.environ['LANGUAGE'] = 'en'
+        ipc = IPCConnection()
         self.assertEqual('1', ipc.get(['context', guid1, 'title']))
         self.assertEqual('1', ipc.get(['context', guid2, 'title']))
         self.assertEqual('1', ipc.get(['context', guid3, 'title']))
 
         toolkit._default_langs = None
         os.environ['LANGUAGE'] = 'foo'
+        ipc = IPCConnection()
         self.assertEqual('1', ipc.get(['context', guid1, 'title']))
         self.assertEqual('1', ipc.get(['context', guid2, 'title']))
         self.assertEqual('1', ipc.get(['context', guid3, 'title']))

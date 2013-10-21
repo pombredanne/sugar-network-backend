@@ -48,7 +48,6 @@ class SyncOfflineTest(tests.Test):
             pass
 
         volume = Volume('node', [Document])
-        toolkit.ensure_key('node/key')
         cp = SlaveRoutes('node/key', volume)
 
         node.sync_layers.value = None
@@ -62,7 +61,6 @@ class SyncOfflineTest(tests.Test):
             pass
 
         volume = Volume('node', [Document])
-        toolkit.ensure_key('node/key')
         cp = SlaveRoutes('node/key', volume)
         stats_user.stats_user.value = True
 
@@ -114,7 +112,6 @@ class SyncOfflineTest(tests.Test):
                 return value
 
         volume = Volume('node', [Document])
-        toolkit.ensure_key('node/key')
         cp = SlaveRoutes('node/key', volume)
         stats_user.stats_user.value = True
 
@@ -205,7 +202,6 @@ class SyncOfflineTest(tests.Test):
             pass
 
         volume = Volume('node', [Document])
-        toolkit.ensure_key('node/key')
         cp = SlaveRoutes('node/key', volume)
         stats_user.stats_user.value = True
         files_root.value = 'files'

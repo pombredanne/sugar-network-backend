@@ -42,7 +42,7 @@ class OnlineRoutes(tests.Test):
         ipc = IPCConnection()
 
         self.assertEqual(
-                {'guid': tests.UID, 'roles': []},
+                {'guid': tests.UID, 'roles': [], 'route': 'proxy'},
                 ipc.get(cmd='whoami'))
 
     def test_Events(self):
@@ -70,6 +70,7 @@ class OnlineRoutes(tests.Test):
         coroutine.sleep(.1)
 
         self.assertEqual([
+            {'guid': tests.UID, 'resource': 'user', 'event': 'create'},
             {'guid': guid, 'resource': 'context', 'event': 'create'},
             {'guid': guid, 'resource': 'context', 'event': 'update'},
             {'guid': guid, 'event': 'delete', 'resource': 'context'},
@@ -1394,7 +1395,7 @@ Can't find all required implementations:
             def __init__(self, *args):
                 pass
 
-            @route('GET', cmd='info', mime_type='application/json')
+            @route('GET', cmd='status', mime_type='application/json')
             def info(self):
                 return {'resources': {}}
 

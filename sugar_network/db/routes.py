@@ -321,9 +321,14 @@ def _read_blob(request, prop, value):
     finally:
         dst.close()
 
+    if request.prop and request.content_type:
+        mime_type = request.content_type
+    else:
+        mime_type = prop.mime_type
+
     return {'blob': dst.name,
             'digest': digest.hexdigest(),
-            'mime_type': request.content_type or prop.mime_type,
+            'mime_type': mime_type,
             }
 
 

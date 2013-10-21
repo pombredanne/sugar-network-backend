@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import time
 import shutil
 import gettext
 import logging
@@ -26,15 +27,16 @@ from sugar_network import node, toolkit, model
 from sugar_network.node import stats_node, stats_user
 from sugar_network.model.context import Context
 # pylint: disable-msg=W0611
-from sugar_network.toolkit.router import route, preroute, postroute
-from sugar_network.toolkit.router import Request, ACL, fallbackroute
+from sugar_network.toolkit.router import route, preroute, postroute, ACL
+from sugar_network.toolkit.router import Unauthorized, Request, fallbackroute
 from sugar_network.toolkit.spec import EMPTY_LICENSE
 from sugar_network.toolkit.spec import parse_requires, ensure_requires
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import http, coroutine, exception, enforce
+from sugar_network.toolkit import pylru, http, coroutine, exception, enforce
 
 
 _MAX_STATS_LENGTH = 100
+_AUTH_POOL_SIZE = 1024
 
 _logger = logging.getLogger('node.routes')
 
@@ -48,7 +50,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
 
         self._guid = guid
         self._stats = None
-        self._authenticated = set()
+        self._auth_pool = pylru.lrucache(_AUTH_POOL_SIZE)
         self._auth_config = None
         self._auth_config_mtime = 0
 
@@ -60,14 +62,19 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
     def guid(self):
         return self._guid
 
-    @route('GET', cmd='status',
-            mime_type='application/json')
-    def status(self):
-        return {'route': 'direct'}
+    @route('GET', cmd='logon', acl=ACL.AUTH)
+    def logon(self):
+        pass
 
-    @route('GET', cmd='info',
-            mime_type='application/json')
-    def info(self):
+    @route('GET', cmd='whoami', mime_type='application/json')
+    def whoami(self, request, response):
+        roles = []
+        if self.authorize(request.principal, 'root'):
+            roles.append('root')
+        return {'roles': roles, 'guid': request.principal, 'route': 'direct'}
+
+    @route('GET', cmd='status', mime_type='application/json')
+    def status(self):
         documents = {}
         for name, directory in self.volume.items():
             documents[name] = {'mtime': directory.mtime}
@@ -108,6 +115,11 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
                 info.append((ts, values))
 
         return result
+
+    @route('POST', ['user'], mime_type='application/json')
+    def register(self, request):
+        # To avoid authentication while registering new user
+        self.create(request)
 
     @fallbackroute('GET', ['packages'])
     def route_packages(self, request, response):
@@ -252,30 +264,31 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
             return ''
 
     @preroute
-    def preroute(self, op, request):
-        user = request.environ.get('HTTP_X_SN_LOGIN')
-        if user and user not in self._authenticated and \
-                (request.path != ['user'] or request.method != 'POST'):
-            _logger.debug('Logging %r user', user)
-            enforce(self.volume['user'].exists(user), http.Unauthorized,
-                    'Principal does not exist')
-            # TODO Process X-SN-signature
-            self._authenticated.add(user)
-        request.principal = user
+    def preroute(self, op, request, response):
+        if op.acl & ACL.AUTH and request.principal is None:
+            if not request.authorization:
+                enforce(self.authorize(None, 'user'),
+                        Unauthorized, 'No credentials')
+            else:
+                if request.authorization not in self._auth_pool:
+                    self.authenticate(request.authorization)
+                    self._auth_pool[request.authorization] = True
+                enforce(not request.authorization.nonce or
+                        request.authorization.nonce >= time.time(),
+                        Unauthorized, 'Credentials expired')
+                request.principal = request.authorization.login
 
-        if op.acl & ACL.AUTH:
-            enforce(self.authorize(user, 'user'), http.Unauthorized,
-                    'User is not authenticated')
         if op.acl & ACL.AUTHOR and request.guid:
             if request.resource == 'user':
-                allowed = (user == request.guid)
+                allowed = (request.principal == request.guid)
             else:
                 doc = self.volume[request.resource].get(request.guid)
-                allowed = (user in doc['author'])
-            enforce(allowed or self.authorize(user, 'root'),
+                allowed = (request.principal in doc['author'])
+            enforce(allowed or self.authorize(request.principal, 'root'),
                     http.Forbidden, 'Operation is permitted only for authors')
+
         if op.acl & ACL.SUPERUSER:
-            enforce(self.authorize(user, 'root'), http.Forbidden,
+            enforce(self.authorize(request.principal, 'root'), http.Forbidden,
                     'Operation is permitted only for superusers')
 
     @postroute
@@ -286,7 +299,8 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
 
     def on_create(self, request, props, event):
         if request.resource == 'user':
-            props['guid'], props['pubkey'] = _load_pubkey(props['pubkey'])
+            with file(props['pubkey']['blob']) as f:
+                props['guid'] = str(hashlib.sha1(f.read()).hexdigest())
         model.VolumeRoutes.on_create(self, request, props, event)
 
     def on_update(self, request, props, event):
@@ -314,6 +328,19 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         enforce('deleted' not in doc['layer'], http.NotFound,
                 'Resource deleted')
         return model.VolumeRoutes.get(self, request, reply)
+
+    def authenticate(self, auth):
+        enforce(auth.scheme == 'sugar', http.BadRequest,
+                'Unknown authentication scheme')
+        if not self.volume['user'].exists(auth.login):
+            raise Unauthorized('Principal does not exist', auth.nonce)
+
+        from M2Crypto import RSA
+
+        data = hashlib.sha1('%s:%s' % (auth.login, auth.nonce)).digest()
+        key = RSA.load_pub_key(self.volume['user'].path(auth.login, 'pubkey'))
+        enforce(key.verify(data, auth.signature.decode('hex')),
+                http.Forbidden, 'Bad credentials')
 
     def authorize(self, user, role):
         if role == 'user' and user:
@@ -496,26 +523,3 @@ def _load_context_metadata(bundle, spec):
                 exception(_logger, 'Gettext failed to read %r', mo_path[-1])
 
     return result
-
-
-def _load_pubkey(pubkey):
-    pubkey = pubkey.strip()
-    try:
-        with toolkit.NamedTemporaryFile() as key_file:
-            key_file.file.write(pubkey)
-            key_file.file.flush()
-            # SSH key needs to be converted to PKCS8 to ket M2Crypto read it
-            pubkey_pkcs8 = toolkit.assert_call(
-                    ['ssh-keygen', '-f', key_file.name, '-e', '-m', 'PKCS8'])
-    except Exception:
-        message = 'Cannot read DSS public key gotten for registeration'
-        exception(_logger, message)
-        if node.trust_users.value:
-            logging.warning('Failed to read registration pubkey, '
-                    'but we trust users')
-            # Keep SSH key for further converting to PKCS8
-            pubkey_pkcs8 = pubkey
-        else:
-            raise http.Forbidden(message)
-
-    return str(hashlib.sha1(pubkey.split()[1]).hexdigest()), pubkey_pkcs8

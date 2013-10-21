@@ -505,7 +505,7 @@ class RouterTest(tests.Test):
                 return request['probe']
 
             @preroute
-            def preroute(self, op, request):
+            def preroute(self, op, request, response):
                 request['probe'] = 'request'
 
         router = Router(Routes())

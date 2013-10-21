@@ -61,10 +61,6 @@ class Application(application.Daemon):
             printf.info('%s already started, no need in index', self.name)
             return
 
-        if not exists(client.key_path()):
-            # Command was launched in foreign environment
-            client.anonymous.value = True
-
         printf.info('Index database in %r', client.local_root.value)
 
         volume = db.Volume(client.path('db'), RESOURCES)
@@ -100,7 +96,6 @@ class Application(application.Daemon):
         self.cmd_start()
 
     def run(self):
-        toolkit.ensure_key(client.key_path())
         volume = db.Volume(client.path('db'), RESOURCES, lazy_open=True)
         routes = CachedClientRoutes(volume,
                 client.api_url.value if not client.server_mode.value else None)
@@ -195,8 +190,6 @@ locale.setlocale(locale.LC_ALL, '')
 
 # New defaults
 application.debug.value = client.logger_level()
-# It seems to be that most of users (on XO at least) don't have recent SSH
-node.trust_users.value = True
 # If tmpfs is mounted to /tmp, `os.fstat()` will return 0 free space
 # and will brake offline synchronization logic
 toolkit.cachedir.value = client.profile_path('tmp')
@@ -206,8 +199,7 @@ Option.seek('main', [toolkit.cachedir])
 Option.seek('webui', webui)
 Option.seek('client', client)
 Option.seek('db', db)
-Option.seek('node', [node.port, node.find_limit, node.sync_layers,
-    node.trust_users])
+Option.seek('node', [node.port, node.find_limit, node.sync_layers])
 Option.seek('node-stats', stats_node)
 Option.seek('user-stats', stats_user)
 

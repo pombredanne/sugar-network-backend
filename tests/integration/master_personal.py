@@ -13,9 +13,9 @@ import rrdtool
 
 from __init__ import tests, src_root
 
-from sugar_network.client import Connection, sugar_uid
+from sugar_network.client import Connection, keyfile
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import coroutine
+from sugar_network.toolkit import coroutine, http
 
 
 # /tmp might be on tmpfs wich returns 0 bytes for free mem all time
@@ -45,12 +45,13 @@ class MasterPersonalTest(tests.Test):
             '--mounts-root=client/mnt', '--ipc-port=8102',
             '--stats-user', '--stats-user-step=1',
             '--stats-user-rras=RRA:AVERAGE:0.5:1:100',
+            '--keyfile=%s' % keyfile.value,
             ])
         os.makedirs('client/mnt/disk/sugar-network')
 
         coroutine.sleep(2)
         ipc = Connection('http://127.0.0.1:8102')
-        if ipc.get(cmd='status')['route'] == 'offline':
+        if ipc.get(cmd='whoami')['route'] == 'offline':
             self.wait_for_events(ipc, event='inline', state='online').wait()
         Connection('http://127.0.0.1:8100').get(cmd='whoami')
         Connection('http://127.0.0.1:8101').get(cmd='whoami')
@@ -61,9 +62,10 @@ class MasterPersonalTest(tests.Test):
         tests.Test.tearDown(self)
 
     def test_SyncMounts(self):
-        master = Connection('http://127.0.0.1:8100')
-        client = Connection('http://127.0.0.1:8102')
-        uid = sugar_uid()
+        auth = http.SugarAuth(keyfile.value)
+        master = Connection('http://127.0.0.1:8100', auth=auth)
+        client = Connection('http://127.0.0.1:8102', auth=auth)
+        uid = auth.login
 
         # Create shared files on master
         self.touch(('master/files/1/1', '1'))

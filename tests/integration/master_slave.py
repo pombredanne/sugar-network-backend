@@ -13,9 +13,9 @@ import rrdtool
 
 from __init__ import tests, src_root
 
-from sugar_network.client import Connection
+from sugar_network.client import Connection, keyfile
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit import coroutine
+from sugar_network.toolkit import coroutine, http
 
 
 # /tmp might be on tmpfs wich returns 0 bytes for free mem all time
@@ -55,8 +55,8 @@ class MasterSlaveTest(tests.Test):
 
     def test_OnlineSync(self):
         ts = int(time.time())
-        master = Connection('http://127.0.0.1:8100')
-        slave = Connection('http://127.0.0.1:8101')
+        master = Connection('http://127.0.0.1:8100', auth=http.SugarAuth(keyfile.value))
+        slave = Connection('http://127.0.0.1:8101', auth=http.SugarAuth(keyfile.value))
 
         # Initial data
 
@@ -174,8 +174,8 @@ class MasterSlaveTest(tests.Test):
         self.assertEqual('file2', file('slave/files/file2').read())
 
     def test_OfflineSync(self):
-        master = Connection('http://127.0.0.1:8100')
-        slave = Connection('http://127.0.0.1:8101')
+        master = Connection('http://127.0.0.1:8100', auth=http.SugarAuth(keyfile.value))
+        slave = Connection('http://127.0.0.1:8101', auth=http.SugarAuth(keyfile.value))
 
         # Create shared files on master
         self.touch(('master/files/1/1', '1'))

@@ -35,10 +35,15 @@ from sugar_network.toolkit import application, coroutine
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
 
+quiet = Option(
+        'turn off any output',
+        default=False, type_cast=Option.bool_cast, action='store_true',
+        name='quiet')
+
 porcelain = Option(
         'give the output in an easy-to-parse format for scripts',
         default=False, type_cast=Option.bool_cast, action='store_true',
-        short_option='-p', name='porcelain')
+        short_option='-P', name='porcelain')
 
 post_data = Option(
         'send content as a string from POST or PUT command',
@@ -111,19 +116,6 @@ class Application(application.Application):
         ipc.get(['context', bundle_id], cmd='launch', **params)
 
     @application.command(
-            'clone Sugar activities to ~/Activities directory',
-            args='BUNDLE_ID',
-            )
-    def clone(self):
-        enforce(self.check_for_instance(), 'No sugar-network-client session')
-        ipc = IPCConnection()
-
-        enforce(self.args, 'BUNDLE_ID was not specified')
-        bundle_id = self.args.pop(0)
-
-        ipc.put(['context', bundle_id], 1, cmd='clone')
-
-    @application.command(
             'upload new implementaion for a context; if BUNDLE_PATH points '
             'not to a .xo bundle, specify all implementaion PROPERTYs for the '
             'new release (at least context and version)',
@@ -140,89 +132,60 @@ class Application(application.Application):
             value = [i for i in _LIST_RE.split(props['license'].strip()) if i]
             props['license'] = value
 
-        conn = self._connect()
-        # XXX Have to proceed auth before uploading data
-        conn.get(cmd='whoami')
+        if self.check_for_instance():
+            conn = IPCConnection()
+        else:
+            conn = Connection(client.api_url.value)
         guid = conn.upload(['implementation'], path, cmd='submit', **props)
 
         if porcelain.value:
-            print guid
+            self._print(guid, '\n')
         else:
-            print '-- Uploaded %s implementaion' % guid
+            self._print('-- Uploaded %s implementaion' % guid, '\n')
 
     @application.command(
             'send raw API POST request; '
             'specifies all ARGUMENTs the particular API call requires',
             args='PATH [ARGUMENT=VALUE]')
-    def post(self):
-        self._request('POST', True)
-
-    @application.command(hidden=True)
     def POST(self):
-        self.post()
+        self._request('POST', True, Response())
 
     @application.command(
             'send raw API PUT request; '
             'specifies all ARGUMENTs the particular API call requires',
             args='PATH [ARGUMENT=VALUE]')
-    def put(self):
-        self._request('PUT', True)
-
-    @application.command(hidden=True)
     def PUT(self):
-        self.put()
+        self._request('PUT', True, Response())
 
     @application.command(
             'send raw API DELETE request',
             args='PATH')
-    def delete(self):
-        self._request('DELETE', False)
-
-    @application.command(hidden=True)
     def DELETE(self):
-        self.delete()
+        self._request('DELETE', False, Response())
 
     @application.command(
             'send raw API GET request; '
             'specifies all ARGUMENTs the particular API call requires',
             args='PATH [ARGUMENT=VALUE]')
-    def get(self):
-        self._request('GET', False)
-
-    @application.command(hidden=True)
     def GET(self):
-        self.get()
+        self._request('GET', False, Response())
 
     @application.command(
             'send raw API HEAD request; '
             'specifies all ARGUMENTs the particular API call requires',
             args='PATH [ARGUMENT=VALUE]')
-    def head(self):
-        request = Request(method='HEAD')
-        self._parse_path(request)
-        self._parse_args(request)
+    def HEAD(self):
         response = Response()
-        self._connect().call(request, response)
+        self._request('HEAD', False, response)
         result = {}
         result.update(response)
         result.update(response.meta)
         self._dump(result)
 
-    @application.command(hidden=True)
-    def HEAD(self):
-        self.head()
-
-    def _connect(self):
-        if self.check_for_instance():
-            return IPCConnection()
-        else:
-            return Connection(client.api_url.value)
-
-    def _request(self, method, post):
+    def _request(self, method, post, response):
         request = Request(method=method)
         request.allow_redirects = True
         request.accept_encoding = ''
-        response = Response()
 
         if post:
             if post_data.value is None and post_file.value is None:
@@ -249,15 +212,12 @@ class Application(application.Application):
         self._parse_args(request)
 
         pid_path = None
-        server = None
         cp = None
         try:
             if self.check_for_instance():
                 cp = IPCConnection()
             else:
                 pid_path = self.new_instance()
-                if not client.anonymous.value:
-                    toolkit.ensure_key(client.key_path())
                 cp = ClientRouter()
             result = cp.call(request, response)
 
@@ -281,12 +241,10 @@ class Application(application.Application):
                         chunk = result.read(BUFFER_SIZE)
                         if not chunk:
                             break
-                        sys.stdout.write(chunk)
+                        self._print(chunk, '\n')
             else:
-                sys.stdout.write(result)
+                self._print(result, '\n')
         finally:
-            if server is not None:
-                server.close()
             if cp is not None:
                 cp.close()
             if pid_path:
@@ -318,7 +276,7 @@ class Application(application.Application):
 
     def _dump(self, result):
         if not porcelain.value:
-            print dumps(result, indent=2, ensure_ascii=False)
+            self._print(dumps(result, indent=2, ensure_ascii=False), '\n')
             return
 
         def porcelain_dump(value):
@@ -327,17 +285,17 @@ class Application(application.Application):
                     porcelain_dump(value.values()[0])
                 else:
                     for i in sorted(value.items()):
-                        print '%-18s%s' % i
+                        self._print('%-18s%s' % i, '\n')
             else:
                 if type(value) not in (list, tuple):
                     value = [value]
                 for n, i in enumerate(value):
                     if n:
-                        print '\t',
+                        self._print('\t')
                     if type(i) is dict and len(i) == 1:
                         i = i.values()[0]
-                    print i,
-                print ''
+                    self._print(i)
+                self._print('\n')
 
         if type(result) in (list, tuple):
             for i in result:
@@ -348,6 +306,10 @@ class Application(application.Application):
                 porcelain_dump(i)
         else:
             porcelain_dump(result)
+
+    def _print(self, *data):
+        if not quiet.value:
+            print ''.join(data)
 
 
 # Let toolkit.http work in concurrence
@@ -363,7 +325,7 @@ application.debug.value = client.logger_level()
 toolkit.cachedir.value = client.profile_path('tmp')
 
 Option.seek('main', [
-    application.debug, porcelain, post_data, post_file, json, offline,
+    application.debug, quiet, porcelain, post_data, post_file, json, offline,
     ])
 Option.seek('main', [toolkit.cachedir])
 Option.seek('client', client)

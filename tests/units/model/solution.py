@@ -3,19 +3,20 @@
 
 from __init__ import tests
 
-from sugar_network.client import Connection
+from sugar_network.client import Connection, keyfile
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.feedback import Feedback
 from sugar_network.model.solution import Solution
 from sugar_network.model.implementation import Implementation
+from sugar_network.toolkit import http
 
 
 class SolutionTest(tests.Test):
 
     def test_SetContext(self):
         volume = self.start_master([User, Context, Feedback, Solution, Implementation])
-        client = Connection()
+        client = Connection(auth=http.SugarAuth(keyfile.value))
 
         context = client.post(['context'], {
             'type': 'package',

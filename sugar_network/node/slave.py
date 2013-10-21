@@ -35,10 +35,9 @@ _logger = logging.getLogger('node.slave')
 class SlaveRoutes(NodeRoutes):
 
     def __init__(self, key_path, volume_):
-        guid = toolkit.ensure_key(key_path)
-        NodeRoutes.__init__(self, guid, volume_)
+        self._auth = http.SugarAuth(key_path)
+        NodeRoutes.__init__(self, self._auth.login, volume_)
 
-        self._key_path = key_path
         self._push_seq = toolkit.PersistentSequence(
                 join(volume_.root, 'push.sequence'), [1, None])
         self._pull_seq = toolkit.PersistentSequence(
@@ -50,19 +49,11 @@ class SlaveRoutes(NodeRoutes):
 
     @route('POST', cmd='online-sync', acl=ACL.LOCAL)
     def online_sync(self, no_pull=False):
-        profile = {
-                'name': self.guid,
-                'color': '#000000,#000000',
-                'machine_sn': '',
-                'machine_uuid': '',
-                'pubkey': toolkit.pubkey(self._key_path),
-                }
-        conn = http.Connection(api_url.value,
-                creds=(self.guid, self._key_path, lambda: profile))
+        conn = http.Connection(api_url.value, auth=self._auth)
 
-        # TODO In case if slave user is not created on master
-        # `http.Connection` should handle re-POSTing without loosing payload
-        conn.get(cmd='whoami')
+        # TODO `http.Connection` should handle re-POSTing without
+        # loosing payload after authentication
+        conn.get(cmd='logon')
 
         push = [('diff', None, volume.diff(self.volume, self._push_seq))]
         if not no_pull:
@@ -107,6 +98,11 @@ class SlaveRoutes(NodeRoutes):
         else:
             _logger.debug('Postpone synchronization with %r session',
                     self._offline_session)
+
+    def status(self):
+        result = NodeRoutes.status(self)
+        result['level'] = 'slave'
+        return result
 
     def _offline_sync(self, path, push_seq=None, stats_seq=None, session=None):
         push = []

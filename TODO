@@ -1,7 +1,3 @@
-- 0.10
-  * keep user guids after reflasing XOs
-  * "-c" command
-
 - (!) Editors' workflows:
   - (?) log all (including editros) posters of particular document to minimize conflicts about why somthing was changed
     or better, detailed log for every editor's change
@@ -14,3 +10,4 @@
 - revert per-document "downloads" property as "launches", a part of unpersonizalied user_stats
 - sync node->local db sync
 - parse command while uploading impls; while parsing, take into accoun quotes
+- secure node-to-node offline sync

@@ -16,6 +16,7 @@
 import os
 import shutil
 import logging
+from cStringIO import StringIO
 from os.path import exists, join
 
 from sugar_network import toolkit
@@ -319,8 +320,10 @@ class Directory(object):
         for name, prop in self.metadata.items():
             value = changes.get(name)
             if isinstance(prop, BlobProperty):
-                if value is not None:
+                if isinstance(value, dict):
                     record.set(name, seqno=seqno, **value)
+                elif isinstance(value, basestring):
+                    record.set(name, seqno=seqno, blob=StringIO(value))
             elif isinstance(prop, StoredProperty):
                 if value is None:
                     enforce(existed or prop.default is not None,

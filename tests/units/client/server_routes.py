@@ -22,7 +22,7 @@ class ServerRoutesTest(tests.Test):
         ipc = IPCConnection()
 
         self.assertEqual(
-                {'guid': tests.UID, 'roles': []},
+                {'guid': tests.UID, 'roles': [], 'route': 'proxy'},
                 ipc.get(cmd='whoami'))
 
     def test_Events(self):
@@ -118,17 +118,6 @@ class ServerRoutesTest(tests.Test):
             ],
             events)
         del events[:]
-
-
-
-
-
-
-
-
-
-
-
 
     def test_BLOBs(self):
         self.start_node()

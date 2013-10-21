@@ -19,7 +19,7 @@ import sys
 import logging
 from os.path import isabs, join, dirname
 
-from sugar_network.client import packagekit, SUGAR_API_COMPATIBILITY
+from sugar_network.client import packagekit
 from sugar_network.toolkit.spec import parse_version
 from sugar_network.toolkit import http, lsb_release
 
@@ -32,6 +32,10 @@ from zeroinstall.injector.requirements import Requirements
 from zeroinstall.injector.arch import machine_ranks
 from zeroinstall.injector.distro import try_cleanup_distro_version
 
+
+_SUGAR_API_COMPATIBILITY = {
+        '0.94': frozenset(['0.86', '0.88', '0.90', '0.92', '0.94']),
+        }
 
 model.Interface.__init__ = lambda *args: _interface_init(*args)
 reader.check_readable = lambda *args, **kwargs: True
@@ -102,7 +106,7 @@ def solve(call, context, stability):
                     if feed.to_resolve:
                         continue
                     if status is None:
-                        status = call(method='GET', cmd='status')
+                        status = call(method='GET', cmd='whoami')
                     if status['route'] == 'offline':
                         raise http.ServiceUnavailable(str(error))
                     else:
@@ -182,7 +186,7 @@ def _load_feed(context):
         except ImportError:
             # XXX sweets-sugar binding might be not sourced
             host_version = '0.94'
-        for version in SUGAR_API_COMPATIBILITY.get(host_version) or []:
+        for version in _SUGAR_API_COMPATIBILITY.get(host_version) or []:
             feed.implement_sugar(version)
         feed.name = context
         return feed

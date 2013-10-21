@@ -16,6 +16,7 @@
 import os
 import logging
 import httplib
+from base64 import b64encode
 from zipfile import ZipFile, ZIP_DEFLATED
 from os.path import join, basename
 
@@ -44,8 +45,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
     def __init__(self, home_volume, api_url=None, no_subscription=False):
         model.FrontRoutes.__init__(self)
         implementations.Routes.__init__(self, home_volume)
-        if not client.no_dbus.value:
-            journal.Routes.__init__(self)
+        journal.Routes.__init__(self)
 
         self._local = _LocalRoutes(home_volume)
         self._inline = coroutine.Event()
@@ -56,6 +56,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         self._no_subscription = no_subscription
         self._server_mode = not api_url
         self._api_url = api_url
+        self._auth = _Auth()
 
         if not client.delayed_start.value:
             self.connect()
@@ -63,6 +64,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
     def connect(self):
         self._got_offline(force=True)
         if self._server_mode:
+            enforce(not client.login.value)
             mountpoints.connect(_SN_DIRNAME,
                     self._found_mount, self._lost_mount)
         else:
@@ -113,24 +115,20 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
             # no way to process specified request on the node
             raise http.ServiceUnavailable()
 
-    @route('GET', cmd='status',
-            mime_type='application/json')
-    def status(self):
-        result = {'route': 'proxy' if self._inline.is_set() else 'offline'}
-        if self._inline.is_set():
-            result['node'] = self._node.api_url
-        return result
-
     @route('GET', cmd='inline',
             mime_type='application/json')
     def inline(self):
         return self._inline.is_set()
 
+    @route('GET', cmd='whoami', mime_type='application/json')
     def whoami(self, request, response):
         if self._inline.is_set():
-            return self.fallback(request, response)
+            result = self.fallback(request, response)
+            result['route'] = 'proxy'
         else:
-            return {'roles': [], 'guid': client.sugar_uid()}
+            result = {'roles': [], 'route': 'offline'}
+        result['guid'] = self._auth.login
+        return result
 
     @route('GET', [None],
             arguments={
@@ -205,6 +203,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
             if client.layers.value and \
                     request.resource in ('context', 'implementation'):
                 request.add('layer', *client.layers.value)
+            request.principal = self._auth.login
             try:
                 reply = self._node.call(request, response)
                 if hasattr(reply, 'read'):
@@ -228,11 +227,11 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         if not force and not self._inline.is_set():
             return
         if self._node is not None:
-            _logger.debug('Got offline on %r', self._node)
             self._node.close()
         if self._inline.is_set():
+            _logger.debug('Got offline on %r', self._node)
             self.broadcast({'event': 'inline', 'state': 'offline'})
-        self._inline.clear()
+            self._inline.clear()
         self._local.volume.broadcast = self.broadcast
 
     def _restart_online(self):
@@ -266,9 +265,10 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
 
         def handshake(url):
             _logger.debug('Connecting to %r node', url)
-            self._node = client.Connection(url)
-            info = self._node.get(cmd='info')
-            impl_info = info['resources'].get('implementation')
+            self._node = client.Connection(url, auth=self._auth)
+            status = self._node.get(cmd='status')
+            self._auth.allow_basic_auth = (status.get('level') == 'master')
+            impl_info = status['resources'].get('implementation')
             if impl_info:
                 self.invalidate_solutions(impl_info['mtime'])
             if self._inline.is_set():
@@ -317,8 +317,13 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         node.data_root.value = db_path
         node.stats_root.value = join(root, _SN_DIRNAME, 'stats')
         node.files_root.value = join(root, _SN_DIRNAME, 'files')
-
         volume = db.Volume(db_path, model.RESOURCES)
+
+        if not volume['user'].exists(self._auth.login):
+            profile = self._auth.profile()
+            profile['guid'] = self._auth.login
+            volume['user'].create(profile)
+
         self._node = _NodeRoutes(join(db_path, 'node'), volume,
                 self.broadcast)
         self._jobs.spawn(volume.populate)
@@ -360,7 +365,7 @@ class CachedClientRoutes(ClientRoutes):
 
         def push(request, seq):
             try:
-                self._node.call(request)
+                self.fallback(request)
             except Exception:
                 _logger.exception('Cannot push %r, will postpone', request)
                 skiped_seq.include(seq)
@@ -456,20 +461,8 @@ class _NodeRoutes(SlaveRoutes, Router):
         self._mounts = toolkit.Pool()
         self._jobs = coroutine.Pool()
 
-        users = volume['user']
-        if not users.exists(client.sugar_uid()):
-            profile = client.sugar_profile()
-            profile['guid'] = client.sugar_uid()
-            users.create(profile)
-
         mountpoints.connect(_SYNC_DIRNAME,
                 self.__found_mountcb, self.__lost_mount_cb)
-
-    def preroute(self, op, request):
-        request.principal = client.sugar_uid()
-
-    def whoami(self, request, response):
-        return {'roles': [], 'guid': client.sugar_uid()}
 
     def broadcast(self, event=None, request=None):
         SlaveRoutes.broadcast(self, event, request)
@@ -537,3 +530,29 @@ class _ResponseStream(object):
         except (http.ConnectionError, httplib.IncompleteRead):
             self._on_fail_cb()
             raise
+
+
+class _Auth(http.SugarAuth):
+
+    def __init__(self):
+        http.SugarAuth.__init__(self, client.keyfile.value)
+        if client.login.value:
+            self.login = client.login.value
+        self.allow_basic_auth = False
+
+    def profile(self):
+        if self.allow_basic_auth and \
+                client.login.value and client.password.value:
+            return None
+        import gconf
+        conf = gconf.client_get_default()
+        self._profile['name'] = conf.get_string('/desktop/sugar/user/nick')
+        self._profile['color'] = conf.get_string('/desktop/sugar/user/color')
+        return http.SugarAuth.profile(self)
+
+    def __call__(self, nonce):
+        if not self.allow_basic_auth or \
+                not client.login.value or not client.password.value:
+            return http.SugarAuth.__call__(self, nonce)
+        auth = b64encode('%s:%s' % (client.login.value, client.password.value))
+        return 'Basic %s' % auth
