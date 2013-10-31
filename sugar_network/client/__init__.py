@@ -21,6 +21,25 @@ from os.path import join, expanduser, exists
 from sugar_network.toolkit import http, Option
 
 
+def profile_path(*args):
+    """Path within sugar profile directory.
+
+    Missed directories will be created.
+
+    :param args:
+        path parts that will be added to the resulting path
+    :returns:
+        full path with directory part existed
+
+    """
+    if os.geteuid():
+        root_dir = join(os.environ['HOME'], '.sugar',
+                os.environ.get('SUGAR_PROFILE', 'default'))
+    else:
+        root_dir = '/var/sugar-network'
+    return join(root_dir, *args)
+
+
 api_url = Option(
         'url to connect to Sugar Network server API',
         default='http://node-devel.sugarlabs.org', short_option='-a',
@@ -36,7 +55,7 @@ no_check_certificate = Option(
 
 local_root = Option(
         'path to the directory to keep all local data',
-        default=lambda: profile_path('network'), name='local_root')
+        default=profile_path('network'), name='local_root')
 
 server_mode = Option(
         'start server to share local documents',
@@ -111,25 +130,6 @@ keyfile = Option(
 
 
 _logger = logging.getLogger('client')
-
-
-def profile_path(*args):
-    """Path within sugar profile directory.
-
-    Missed directories will be created.
-
-    :param args:
-        path parts that will be added to the resulting path
-    :returns:
-        full path with directory part existed
-
-    """
-    if os.geteuid():
-        root_dir = join(os.environ['HOME'], '.sugar',
-                os.environ.get('SUGAR_PROFILE', 'default'))
-    else:
-        root_dir = '/var/sugar-network'
-    return join(root_dir, *args)
 
 
 def path(*args):

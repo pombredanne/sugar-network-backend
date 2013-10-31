@@ -15,8 +15,8 @@
 
 import os
 import logging
-import httplib
 from base64 import b64encode
+from httplib import IncompleteRead
 from zipfile import ZipFile, ZIP_DEFLATED
 from os.path import join, basename
 
@@ -207,10 +207,15 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
             try:
                 reply = self._node.call(request, response)
                 if hasattr(reply, 'read'):
-                    return _ResponseStream(reply, self._restart_online)
+                    if response.relocations:
+                        return reply
+                    else:
+                        return _ResponseStream(reply, self._restart_online)
                 else:
                     return reply
-            except (http.ConnectionError, httplib.IncompleteRead):
+            except (http.ConnectionError, IncompleteRead):
+                if response.relocations:
+                    raise
                 self._restart_online()
                 return self._local.call(request, response)
         else:
@@ -518,16 +523,16 @@ class _ResponseStream(object):
         self._stream = stream
         self._on_fail_cb = on_fail_cb
 
-    def __hasattr__(self, key):
-        return hasattr(self._stream, key)
+    def __hasattr__(self, name):
+        return hasattr(self._stream, name)
 
-    def __getattr__(self, key):
-        return getattr(self._stream, key)
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
 
     def read(self, size=None):
         try:
             return self._stream.read(size)
-        except (http.ConnectionError, httplib.IncompleteRead):
+        except (http.ConnectionError, IncompleteRead):
             self._on_fail_cb()
             raise
 

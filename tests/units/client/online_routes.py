@@ -1252,21 +1252,61 @@ Can't find all required implementations:
             ipc.get(['context', context], cmd='feed', layer='public'))
 
     def test_Redirects(self):
-        URL = 'http://sugarlabs.org'
 
         class Document(Resource):
 
             @db.blob_property()
-            def blob(self, value):
-                raise http.Redirect(URL)
+            def blob1(self, value):
+                raise http.Redirect(prefix + 'blob2')
 
-        self.start_online_client([User, Context, Implementation, Document])
+            @db.blob_property()
+            def blob3(self, value):
+                raise http.Redirect(client.api_url.value + prefix + 'blob4')
+
+        self.start_online_client([User, Document])
         ipc = IPCConnection()
         guid = ipc.post(['document'], {})
+        prefix = '/document/' + guid + '/'
 
-        response = requests.request('GET', client.api_url.value + '/document/' + guid + '/blob', allow_redirects=False)
+        response = requests.request('GET', client.api_url.value + prefix + 'blob1', allow_redirects=False)
         self.assertEqual(303, response.status_code)
-        self.assertEqual(URL, response.headers['Location'])
+        self.assertEqual(prefix + 'blob2', response.headers['Location'])
+
+        response = requests.request('GET', client.api_url.value + prefix + 'blob3', allow_redirects=False)
+        self.assertEqual(303, response.status_code)
+        self.assertEqual(client.api_url.value + prefix + 'blob4', response.headers['Location'])
+
+    def test_DoNotSwitchToOfflineOnRedirectFails(self):
+
+        class Document(Resource):
+
+            @db.blob_property()
+            def blob1(self, value):
+                raise http.Redirect(prefix + '/blob2')
+
+            @db.blob_property()
+            def blob2(self, value):
+                raise http._ConnectionError()
+
+        local_volume = self.start_online_client([User, Document])
+        ipc = IPCConnection()
+        guid = ipc.post(['document'], {})
+        prefix = client.api_url.value + '/document/' + guid + '/'
+        local_volume['document'].create({'guid': guid})
+
+        trigger = self.wait_for_events(ipc, event='inline', state='connecting')
+        try:
+            ipc.get(['document', guid, 'blob1'])
+        except Exception:
+            pass
+        assert trigger.wait(.1) is None
+
+        trigger = self.wait_for_events(ipc, event='inline', state='connecting')
+        try:
+            ipc.get(['document', guid, 'blob2'])
+        except Exception:
+            pass
+        assert trigger.wait(.1) is not None
 
     def test_ContentDisposition(self):
         self.start_online_client([User, Context, Implementation, Artifact])

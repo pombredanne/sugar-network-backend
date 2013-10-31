@@ -102,10 +102,15 @@ class GatewayTimeout(Status):
     status_code = 504
 
 
+class _ConnectionError(Status):
+
+    status = '999 For testing purpose only'
+    status_code = 999
+
+
 class Connection(object):
 
     _Session = None
-    _ConnectionError = None
 
     def __init__(self, api_url='', auth=None, max_retries=0, **session_args):
         self.api_url = api_url
@@ -203,12 +208,8 @@ class Connection(object):
         try_ = 0
         while True:
             try_ += 1
-            try:
-                reply = self._session.request(method, path, data=data,
-                        headers=headers, params=params, **kwargs)
-            except Connection._ConnectionError, error:
-                raise ConnectionError, error, sys.exc_info()[2]
-
+            reply = self._session.request(method, path, data=data,
+                    headers=headers, params=params, **kwargs)
             if reply.status_code == Unauthorized.status_code:
                 enforce(self.auth is not None, Unauthorized, 'No credentials')
                 self._authenticate(reply.headers.get('www-authenticate'))
@@ -229,7 +230,8 @@ class Connection(object):
                         continue
                     error = content or reply.headers.get('x-sn-error') or \
                             'No error message provided'
-                cls = _FORWARD_STATUSES.get(reply.status_code, RuntimeError)
+                cls = _FORWARD_STATUSES.get(reply.status_code, RuntimeError) \
+                        or ConnectionError
                 raise cls(error)
 
         return reply
@@ -277,6 +279,8 @@ class Connection(object):
                         response.meta[key[5:]] = json.loads(value)
                     elif not resend:
                         response[key] = value
+                if resend:
+                    response.relocations += 1
             if not resend:
                 break
             path = reply.headers['location']
@@ -306,7 +310,8 @@ class Connection(object):
             sys.path.insert(0, sys_path)
             from requests import Session, exceptions
             Connection._Session = Session
-            Connection._ConnectionError = exceptions.ConnectionError
+            global ConnectionError
+            ConnectionError = exceptions.ConnectionError
 
         self._session = Connection._Session()
         self._session.headers['accept-language'] = \
@@ -384,7 +389,7 @@ class SugarAuth(object):
             os.chmod(key_dir, 0700)
 
         _logger.info('Generate RSA private key at %r', self._key_path)
-        self._key = RSA.gen_key(2048, 65537, lambda *args: None)
+        self._key = RSA.gen_key(1024, 65537, lambda *args: None)
         self._key.save_key(self._key_path, cipher=None)
         os.chmod(self._key_path, 0600)
 
@@ -466,4 +471,5 @@ _FORWARD_STATUSES = {
         BadGateway.status_code: BadGateway,
         ServiceUnavailable.status_code: ServiceUnavailable,
         GatewayTimeout.status_code: GatewayTimeout,
+        _ConnectionError.status_code: None,
         }

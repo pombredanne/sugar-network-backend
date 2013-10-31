@@ -349,6 +349,7 @@ class Request(dict):
 class Response(dict):
 
     status = '200 OK'
+    relocations = 0
 
     def __init__(self, **kwargs):
         dict.__init__(self, kwargs)
