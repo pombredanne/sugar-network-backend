@@ -542,7 +542,7 @@ class _Auth(http.SugarAuth):
     def __init__(self):
         http.SugarAuth.__init__(self, client.keyfile.value)
         if client.login.value:
-            self.login = client.login.value
+            self._login = client.login.value
         self.allow_basic_auth = False
 
     def profile(self):
