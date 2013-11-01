@@ -88,7 +88,7 @@ class Test(unittest.TestCase):
         node.files_root.value = None
         node.sync_layers.value = None
         node.stats_root.value = tmpdir + '/stats'
-        node.port.value = 8880
+        node.port.value = 8888
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.api_url.value = 'http://127.0.0.1:8888'
