@@ -159,7 +159,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
 
     @route('POST', ['implementation'], cmd='submit',
             arguments={'initial': False},
-            mime_type='application/json', acl=ACL.AUTH | ACL.AUTHOR)
+            mime_type='application/json', acl=ACL.AUTH)
     def submit_implementation(self, request, document):
         with toolkit.NamedTemporaryFile() as blob:
             shutil.copyfileobj(request.content_stream, blob)
@@ -400,8 +400,10 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         result = request.call(method=request.method,
                 path=['implementation', impl['guid'], 'data'],
                 response=response)
-        response.meta = impl.properties(
-                ['guid', 'context', 'license', 'version', 'stability'])
+        response.meta = impl.properties([
+            'guid', 'ctime', 'layer', 'author', 'tags',
+            'context', 'version', 'stability', 'license', 'notes',
+            ])
         response.meta['data'] = data = impl.meta('data')
         for key in ('mtime', 'seqno', 'blob'):
             if key in data:
@@ -418,7 +420,9 @@ def load_bundle(volume, request, bundle_path):
     data = impl.setdefault('data', {})
     data['blob'] = bundle_path
     contexts = volume['context']
-    context = None
+    context = impl.get('context')
+    context_meta = None
+    impls = volume['implementation']
 
     try:
         bundle = Bundle(bundle_path, mime_type='application/zip')
@@ -434,11 +438,11 @@ def load_bundle(volume, request, bundle_path):
             for arcname in bundle.get_names():
                 unpack_size += bundle.getmember(arcname).size
             spec = bundle.get_spec()
-            context = _load_context_metadata(bundle, spec)
+            context_meta = _load_context_metadata(bundle, spec)
         if 'requires' in impl:
             spec.requires.update(parse_requires(impl.pop('requires')))
 
-        impl['context'] = spec['context']
+        context = impl['context'] = spec['context']
         impl['version'] = spec['version']
         impl['stability'] = spec['stability']
         impl['license'] = spec['license']
@@ -449,37 +453,35 @@ def load_bundle(volume, request, bundle_path):
         data['unpack_size'] = unpack_size
         data['mime_type'] = 'application/vnd.olpc-sugar'
 
-        if initial and not contexts.exists(impl['context']):
-            context['guid'] = impl['context']
-            context['type'] = 'activity'
-            request.call(method='POST', path=['context'], content=context)
-            context = None
+        if initial and not contexts.exists(context):
+            context_meta['guid'] = context
+            context_meta['type'] = 'activity'
+            request.call(method='POST', path=['context'], content=context_meta)
+            context_meta = None
 
-    enforce('context' in impl, 'Context is not specified')
+    enforce(context, 'Context is not specified')
     enforce('version' in impl, 'Version is not specified')
-    enforce(context_type in contexts.get(impl['context'])['type'],
+    enforce(context_type in contexts.get(context)['type'],
             http.BadRequest, 'Inappropriate bundle type')
     if impl.get('license') in (None, EMPTY_LICENSE):
-        existing, total = volume['implementation'].find(
-                context=impl['context'], order_by='-version',
-                not_layer='deleted')
+        existing, total = impls.find(
+                context=context, order_by='-version', not_layer='deleted')
         enforce(total, 'License is not specified')
         impl['license'] = next(existing)['license']
 
     yield impl
 
-    existing, __ = volume['implementation'].find(
-            context=impl['context'], version=impl['version'],
-            not_layer='deleted')
+    existing, __ = impls.find(
+            context=context, version=impl['version'], not_layer='deleted')
     impl['guid'] = \
             request.call(method='POST', path=['implementation'], content=impl)
     for i in existing:
         layer = i['layer'] + ['deleted']
-        volume['implementation'].update(i.guid, {'layer': layer})
+        impls.update(i.guid, {'layer': layer})
 
-    if context:
-        request.call(method='PUT', path=['context', impl['context']],
-                content=context)
+    patch = contexts.patch(context, context_meta)
+    if patch and 'origin' in impls.get(impl['guid']).layer:
+        request.call(method='PUT', path=['context', context], content=patch)
 
 
 def _load_context_metadata(bundle, spec):

@@ -261,11 +261,7 @@ class Routes(object):
                     with file(data_path, 'wb') as f:
                         shutil.copyfileobj(blob, f)
                 impl = sel.copy()
-                impl['layer'] = []
-                impl['ctime'] = impl['mtime'] = int(time.time())
-                impl['author'] = {}
-                impl['notes'] = ''
-                impl['tags'] = []
+                impl['mtime'] = impl['ctime']
                 impls.create(impl)
                 return cache_call(guid, size)
             except Exception:
@@ -320,7 +316,9 @@ class Routes(object):
             guid = basename(os.readlink(context.path('.clone')))
             impl = self._volume['implementation'].get(guid)
             response.meta = impl.properties([
-                'guid', 'context', 'license', 'version', 'stability', 'data'])
+                'guid', 'ctime', 'layer', 'author', 'tags',
+                'context', 'version', 'stability', 'license', 'notes', 'data',
+                ])
             return impl.meta('data')
 
 

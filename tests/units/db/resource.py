@@ -23,7 +23,7 @@ from sugar_network.db import directory as directory_
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
 from sugar_network.toolkit.router import ACL
-from sugar_network.toolkit import Sequence
+from sugar_network.toolkit import http, Sequence
 
 
 class ResourceTest(tests.Test):
@@ -331,6 +331,45 @@ class ResourceTest(tests.Test):
         self.assertEqual(
                 json.load(file('%s/%s/prop' % (guid_1[:2], guid_1)))['seqno'],
                 seqno)
+
+    def test_patch(self):
+
+        class Document(db.Resource):
+
+            @db.indexed_property(slot=1)
+            def prop1(self, value):
+                return value
+
+            @db.indexed_property(slot=2)
+            def prop2(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        self.assertRaises(http.NotFound, directory.patch, 'absent', {})
+
+        directory.create({'guid': '1', 'prop1': '1', 'prop2': '2'})
+        self.assertEqual({}, directory.patch('1', {}))
+        self.assertEqual({}, directory.patch('1', {'prop1': '1', 'prop2': '2'}))
+        self.assertEqual({'prop1': '1_'}, directory.patch('1', {'prop1': '1_', 'prop2': '2'}))
+        self.assertEqual({'prop1': '1_', 'prop2': '2_'}, directory.patch('1', {'prop1': '1_', 'prop2': '2_'}))
+
+    def test_patch_LocalizedProps(self):
+
+        class Document(db.Resource):
+
+            @db.indexed_property(slot=1, localized=True)
+            def prop(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        directory.create({'guid': '1', 'prop': {'ru': 'ru'}})
+        self.assertEqual({}, directory.patch('1', {'prop': 'ru'}))
+        self.assertEqual({'prop': {'ru': 'ru_'}}, directory.patch('1', {'prop': {'ru': 'ru_'}}))
+        self.assertEqual({'prop': {'en': 'en'}}, directory.patch('1', {'prop': {'en': 'en'}}))
+        self.assertEqual({'prop': {'ru': 'ru', 'en': 'en'}}, directory.patch('1', {'prop': {'ru': 'ru', 'en': 'en'}}))
+        self.assertEqual({'prop': {'ru': 'ru_', 'en': 'en'}}, directory.patch('1', {'prop': {'ru': 'ru_', 'en': 'en'}}))
 
     def test_diff(self):
 

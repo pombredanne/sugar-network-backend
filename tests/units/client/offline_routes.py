@@ -104,6 +104,11 @@ class OfflineRoutes(tests.Test):
                     'stability': 'stable',
                     'guid': impl1,
                     'license': ['GPLv3+'],
+                    'layer': ['local'],
+                    'author': {},
+                    'ctime': self.home_volume['implementation'].get(impl1).ctime,
+                    'notes': {'en-us': ''},
+                    'tags': [],
                     'data': {'spec': {'*-*': {}}},
                     },
                 {
@@ -111,6 +116,11 @@ class OfflineRoutes(tests.Test):
                     'stability': 'stable',
                     'guid': impl2,
                     'license': ['GPLv3+'],
+                    'layer': ['local'],
+                    'author': {},
+                    'ctime': self.home_volume['implementation'].get(impl2).ctime,
+                    'notes': {'en-us': ''},
+                    'tags': [],
                     'data': {
                         'spec': {'*-*': {
                             'requires': {
@@ -293,6 +303,11 @@ class OfflineRoutes(tests.Test):
             'stability': 'stable',
             'version': '1',
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'unpack_size': len(activity_info),
                 'blob_size': len(blob),
@@ -354,6 +369,7 @@ Can't find all required implementations:
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
+            'layer': ['origin'],
             })
         self.home_volume['implementation'].update(impl, {'data': {
             'spec': {
@@ -394,6 +410,7 @@ Can't find all required implementations:
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
+            'layer': ['origin'],
             })
         self.home_volume['implementation'].update(impl, {'data': {
             'spec': {
@@ -431,6 +448,11 @@ Can't find all required implementations:
                         'license': ['GPLv3+'],
                         'stability': 'stable',
                         'version': '1',
+                        'layer': ['origin', 'local'],
+                        'author': {},
+                        'ctime': self.home_volume['implementation'].get(impl).ctime,
+                        'notes': {'en-us': ''},
+                        'tags': [],
                         'data': {
                             'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {'dep': {}}}},
                             },

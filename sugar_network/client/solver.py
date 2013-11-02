@@ -194,7 +194,7 @@ def _load_feed(context):
     feed_content = None
     try:
         feed_content = _call(method='GET', path=['context', context],
-                cmd='feed', stability=_stability,
+                cmd='feed', layer='origin', stability=_stability,
                 distro=lsb_release.distributor_id())
         _logger.trace('[%s] Found feed: %r', context, feed_content)
     except http.ServiceUnavailable:

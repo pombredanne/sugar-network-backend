@@ -107,6 +107,11 @@ class SolverTest(tests.Test):
                     {'version': '1', 'guid': 'dep2', 'context': 'dep2', 'stability': 'packaged', 'license': None},
                     {'version': '1', 'guid': 'dep3', 'context': 'dep3', 'stability': 'packaged', 'license': None},
                     {'version': '1', 'context': context, 'guid': impl, 'stability': 'stable', 'license': ['GPLv3+'],
+                        'layer': ['origin'],
+                        'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                        'ctime': self.node_volume['implementation'].get(impl).ctime,
+                        'notes': {'en-us': ''},
+                        'tags': [],
                         'data': {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'requires':
                             {'dep2': {'restrictions': [['1', '2']]}, 'dep3': {}}}}},
                         'requires': {'dep1': {}, 'dep2': {}}},
@@ -158,7 +163,17 @@ class SolverTest(tests.Test):
                 },
             }})
         self.assertEqual([
-            {'version': '1', 'context': context, 'guid': impl, 'stability': 'stable', 'license': ['GPLv3+'],
+            {
+                'version': '1',
+                'context': context,
+                'guid': impl,
+                'stability': 'stable',
+                'license': ['GPLv3+'],
+                'layer': ['origin'],
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'notes': {'en-us': ''},
+                'tags': [],
                 'data': {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'requires': {'sugar': {}}}}}},
             {'version': '0.94', 'context': 'sugar', 'guid': 'sugar-0.94', 'stability': 'packaged', 'license': None},
             ],
@@ -179,7 +194,17 @@ class SolverTest(tests.Test):
                 },
             }})
         self.assertEqual([
-            {'version': '1', 'context': context, 'guid': impl, 'stability': 'stable', 'license': ['GPLv3+'],
+            {
+                'version': '1',
+                'context': context,
+                'guid': impl,
+                'stability': 'stable',
+                'license': ['GPLv3+'],
+                'layer': ['origin'],
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'notes': {'en-us': ''},
+                'tags': [],
                 'data': {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'requires':
                     {'sugar': {'restrictions': [['0.80', '0.87']]}}}}}},
             {'version': '0.86', 'context': 'sugar', 'guid': 'sugar-0.86', 'stability': 'packaged', 'license': None},
@@ -231,7 +256,17 @@ class SolverTest(tests.Test):
                 },
             }})
         self.assertEqual([
-            {'version': '1', 'context': context, 'guid': impl, 'stability': 'stable', 'license': ['GPLv3+'],
+            {
+                'version': '1',
+                'context': context,
+                'guid': impl,
+                'stability': 'stable',
+                'license': ['GPLv3+'],
+                'layer': ['origin'],
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'notes': {'en-us': ''},
+                'tags': [],
                 'data': {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'requires': {'sugar': {}}}}}},
             {'version': '0.94', 'context': 'sugar', 'guid': 'sugar-0.94', 'stability': 'packaged', 'license': None},
             ],

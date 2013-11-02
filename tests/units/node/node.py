@@ -646,6 +646,11 @@ class NodeTest(tests.Test):
             'guid': impl3,
             'version': '3',
             'license': ['GPLv3+'],
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl3).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'blob_size': len(blob3),
                 'spec': {
@@ -724,9 +729,9 @@ class NodeTest(tests.Test):
         guid2 = json.load(conn.request('POST', ['implementation'], bundle2, params={'cmd': 'submit'}).raw)
 
         self.assertEqual('1', volume['implementation'].get(guid1)['version'])
-        self.assertEqual([], volume['implementation'].get(guid1)['layer'])
+        self.assertEqual(['origin'], volume['implementation'].get(guid1)['layer'])
         self.assertEqual('2', volume['implementation'].get(guid2)['version'])
-        self.assertEqual([], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual(['origin'], volume['implementation'].get(guid2)['layer'])
         self.assertEqual(bundle2, conn.get(['context', 'bundle_id'], cmd='clone'))
 
         activity_info = '\n'.join([
@@ -743,11 +748,11 @@ class NodeTest(tests.Test):
         guid3 = json.load(conn.request('POST', ['implementation'], bundle3, params={'cmd': 'submit'}).raw)
 
         self.assertEqual('1', volume['implementation'].get(guid1)['version'])
-        self.assertEqual(['deleted'], volume['implementation'].get(guid1)['layer'])
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(guid1)['layer']))
         self.assertEqual('2', volume['implementation'].get(guid2)['version'])
-        self.assertEqual([], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual(['origin'], volume['implementation'].get(guid2)['layer'])
         self.assertEqual('1', volume['implementation'].get(guid3)['version'])
-        self.assertEqual([], volume['implementation'].get(guid3)['layer'])
+        self.assertEqual(['origin'], volume['implementation'].get(guid3)['layer'])
         self.assertEqual(bundle2, conn.get(['context', 'bundle_id'], cmd='clone'))
 
         activity_info = '\n'.join([
@@ -764,13 +769,13 @@ class NodeTest(tests.Test):
         guid4 = json.load(conn.request('POST', ['implementation'], bundle4, params={'cmd': 'submit'}).raw)
 
         self.assertEqual('1', volume['implementation'].get(guid1)['version'])
-        self.assertEqual(['deleted'], volume['implementation'].get(guid1)['layer'])
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(guid1)['layer']))
         self.assertEqual('2', volume['implementation'].get(guid2)['version'])
-        self.assertEqual(['deleted'], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(guid2)['layer']))
         self.assertEqual('1', volume['implementation'].get(guid3)['version'])
-        self.assertEqual([], volume['implementation'].get(guid3)['layer'])
+        self.assertEqual(['origin'], volume['implementation'].get(guid3)['layer'])
         self.assertEqual('2', volume['implementation'].get(guid4)['version'])
-        self.assertEqual([], volume['implementation'].get(guid4)['layer'])
+        self.assertEqual(['origin'], volume['implementation'].get(guid4)['layer'])
         self.assertEqual(bundle3, conn.get(['context', 'bundle_id'], cmd='clone'))
 
     def test_release_UpdateContext(self):
@@ -875,7 +880,7 @@ class NodeTest(tests.Test):
         assert context['mtime'] > 0
         self.assertEqual({tests.UID: {'role': 3, 'name': 'f470db873b6a35903aca1f2492188e1c4b9ffc42', 'order': 0}}, context['author'])
 
-    def test_release_AuthorsOnly(self):
+    def test_release_ByNonAuthors(self):
         volume = self.start_master()
         bundle = self.zips(
                 ('ImageViewer.activity/activity/activity.info', '\n'.join([
@@ -893,14 +898,15 @@ class NodeTest(tests.Test):
         conn = Connection(auth=http.SugarAuth(join(tests.root, 'data', tests.UID)))
         impl1 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
         impl2 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit'}).raw)
-        self.assertEqual(['deleted'], volume['implementation'].get(impl1)['layer'])
-        self.assertEqual([], volume['implementation'].get(impl2)['layer'])
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl1)['layer']))
+        self.assertEqual(['origin'], volume['implementation'].get(impl2)['layer'])
 
         conn = Connection(auth=http.SugarAuth(join(tests.root, 'data', tests.UID2)))
         conn.get(cmd='whoami')
-        self.assertRaises(http.Forbidden, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'submit'})
-        self.assertEqual(['deleted'], volume['implementation'].get(impl1)['layer'])
-        self.assertEqual([], volume['implementation'].get(impl2)['layer'])
+        impl3 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit'}).raw)
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl1)['layer']))
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl2)['layer']))
+        self.assertEqual([], volume['implementation'].get(impl3)['layer'])
 
 
 def call(routes, method, document=None, guid=None, prop=None, principal=None, content=None, **kwargs):

@@ -64,7 +64,7 @@ class ImplementationTest(tests.Test):
                 xapian.sortable_serialise(eval('1''0000''0000''6''001')),
                 _fmt_version('1-r1.2-3'))
 
-    def test_WrongAuthor(self):
+    def test_OriginalAuthor(self):
         self.start_online_client()
         client = IPCConnection()
 
@@ -77,18 +77,47 @@ class ImplementationTest(tests.Test):
                 'author': {'fake': None},
                 })
 
-        impl = {'context': 'context',
-                'license': 'GPLv3+',
-                'version': '1',
-                'stability': 'stable',
-                'notes': '',
-                }
-        self.assertRaises(http.Forbidden, client.post, ['implementation'], impl)
-        self.assertEqual(0, self.node_volume['implementation'].find()[1])
+        guid = client.post(['implementation'], {
+            'context': 'context',
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            })
+        self.assertEqual([], self.node_volume['implementation'].get(guid)['layer'])
+
+        guid = client.post(['implementation'], {
+            'context': 'context',
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'layer': ['foo'],
+            })
+        self.assertEqual(['foo'], self.node_volume['implementation'].get(guid)['layer'])
 
         self.node_volume['context'].update('context', {'author': {tests.UID: None}})
-        guid = client.post(['implementation'], impl)
-        assert self.node_volume['implementation'].exists(guid)
+
+        guid = client.post(['implementation'], {
+            'context': 'context',
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            })
+        self.assertEqual(['origin'], self.node_volume['implementation'].get(guid)['layer'])
+
+        guid = client.post(['implementation'], {
+            'context': 'context',
+            'license': 'GPLv3+',
+            'version': '1',
+            'stability': 'stable',
+            'notes': '',
+            'layer': ['foo'],
+            })
+        self.assertEqual(
+                sorted(['foo', 'origin']),
+                sorted(self.node_volume['implementation'].get(guid)['layer']))
 
 
 if __name__ == '__main__':

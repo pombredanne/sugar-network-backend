@@ -187,6 +187,11 @@ class OnlineRoutes(tests.Test):
                     'stability': 'stable',
                     'guid': impl1,
                     'license': ['GPLv3+'],
+                    'layer': ['origin'],
+                    'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                    'ctime': self.node_volume['implementation'].get(impl1).ctime,
+                    'notes': {'en-us': ''},
+                    'tags': [],
                     'data': {'spec': {'*-*': {}}},
                     },
                 {
@@ -194,6 +199,11 @@ class OnlineRoutes(tests.Test):
                     'stability': 'stable',
                     'guid': impl2,
                     'license': ['GPLv3+'],
+                    'layer': ['origin'],
+                    'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                    'ctime': self.node_volume['implementation'].get(impl2).ctime,
+                    'notes': {'en-us': ''},
+                    'tags': [],
                     'data': {
                         'spec': {'*-*': {
                             'requires': {
@@ -440,6 +450,11 @@ Can't find all required implementations:
                     'stability': 'stable',
                     'version': '1',
                     'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+                    'layer': ['origin'],
+                    'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                    'ctime': self.node_volume['implementation'].get(impl).ctime,
+                    'notes': {'en-us': ''},
+                    'tags': [],
                     'data': {
                         'spec': {
                             '*-*': {
@@ -491,6 +506,11 @@ Can't find all required implementations:
             'license': ['GPLv3+'],
             'version': '1',
             'stability': 'stable',
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'foo': 'bar',
                 'blob_size': len(blob),
@@ -638,6 +658,11 @@ Can't find all required implementations:
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'unpack_size': len(activity_info),
                 'blob_size': len(blob),
@@ -846,6 +871,11 @@ Can't find all required implementations:
             'stability': 'stable',
             'version': '1',
             'context': 'bundle_id',
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'blob_size': len(blob),
                 'mime_type': 'application/vnd.olpc-sugar',
@@ -866,6 +896,11 @@ Can't find all required implementations:
             'stability': 'stable',
             'version': '1',
             'context': 'bundle_id',
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'blob': blob_path,
                 'blob_size': len(blob),
@@ -901,6 +936,11 @@ Can't find all required implementations:
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'blob_size': len(blob),
                 'unpack_size': len(activity_info),
@@ -942,6 +982,11 @@ Can't find all required implementations:
             'stability': 'stable',
             'version': '2',
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'blob_size': len(blob),
                 'unpack_size': len(activity_info),
@@ -1039,6 +1084,11 @@ Can't find all required implementations:
             'stability': 'stable',
             'version': '1',
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'blob_size': len(blob),
                 'unpack_size': len(activity_info),
@@ -1176,13 +1226,13 @@ Can't find all required implementations:
                 ipc.get(['context'], reply=['guid', 'layer'], layer='public')['result'])
 
         self.assertEqual(
-                [{'guid': impl, 'layer': ['public']}],
+                [{'guid': impl, 'layer': ['origin', 'public']}],
                 ipc.get(['implementation'], reply=['guid', 'layer'])['result'])
         self.assertEqual(
                 [],
                 ipc.get(['implementation'], reply=['guid', 'layer'], layer='foo')['result'])
         self.assertEqual(
-                [{'guid': impl, 'layer': ['public']}],
+                [{'guid': impl, 'layer': ['origin', 'public']}],
                 ipc.get(['implementation'], reply=['guid', 'layer'], layer='public')['result'])
 
         self.assertEqual({
@@ -1191,6 +1241,11 @@ Can't find all required implementations:
                 'guid': impl,
                 'version': '1',
                 'license': ['GPLv3+'],
+                'layer': ['origin', 'public'],
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'notes': {'en-us': ''},
+                'tags': [],
                 'data': {'spec': {'*-*': {}}},
                 }],
             },
@@ -1205,6 +1260,11 @@ Can't find all required implementations:
                 'guid': impl,
                 'version': '1',
                 'license': ['GPLv3+'],
+                'layer': ['origin', 'public'],
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'notes': {'en-us': ''},
+                'tags': [],
                 'data': {'spec': {'*-*': {}}},
                 }],
             },
@@ -1229,7 +1289,7 @@ Can't find all required implementations:
                 [],
                 ipc.get(['implementation'], reply=['guid', 'layer'], layer='foo')['result'])
         self.assertEqual(
-                [{'guid': impl, 'layer': ['public']}],
+                [{'guid': impl, 'layer': ['origin', 'public']}],
                 ipc.get(['implementation'], reply=['guid', 'layer'], layer='public')['result'])
 
         self.assertEqual({
@@ -1246,6 +1306,11 @@ Can't find all required implementations:
                 'guid': impl,
                 'version': '1',
                 'license': ['GPLv3+'],
+                'layer': ['origin', 'public'],
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'notes': {'en-us': ''},
+                'tags': [],
                 'data': {'spec': {'*-*': {}}},
                 }],
             },

@@ -225,6 +225,25 @@ class Directory(object):
             self.commit()
             self.checkpoint()
 
+    def patch(self, guid, props, accept_language=None):
+        if not accept_language:
+            accept_language = toolkit.default_lang()
+        orig = self.get(guid)
+        patch = {}
+        for prop, value in (props or {}).items():
+            if orig[prop] == value:
+                continue
+            if isinstance(self.metadata[prop], StoredProperty) and \
+                    self.metadata[prop].localized:
+                if isinstance(value, dict):
+                    orig_value = dict([(i, orig[prop].get(i)) for i in value])
+                    if orig_value == value:
+                        continue
+                elif orig.get(prop, accept_language) == value:
+                    continue
+            patch[prop] = value
+        return patch
+
     def diff(self, seq, exclude_seq=None, **params):
         if exclude_seq is None:
             exclude_seq = []

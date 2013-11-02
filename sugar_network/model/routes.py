@@ -37,8 +37,10 @@ class VolumeRoutes(db.Routes):
         impls, __ = implementations.find(context=context.guid,
                 not_layer='deleted', **request)
         for impl in impls:
-            version = impl.properties(
-                    ['guid', 'version', 'stability', 'license'])
+            version = impl.properties([
+                'guid', 'ctime', 'layer', 'author', 'tags',
+                'version', 'stability', 'license', 'notes',
+                ])
             if context['dependencies']:
                 requires = version.setdefault('requires', {})
                 for i in context['dependencies']:

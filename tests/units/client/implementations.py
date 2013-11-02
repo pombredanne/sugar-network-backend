@@ -154,6 +154,11 @@ class Implementations(tests.Test):
             'context': 'bundle_id',
             'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
             'guid': impl,
+            'layer': ['origin'],
+            'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'notes': {'en-us': ''},
+            'tags': [],
             'data': {
                 'unpack_size': len(activity_info),
                 'blob_size': len(blob),
@@ -394,8 +399,8 @@ class Implementations(tests.Test):
         assert doc.meta('ctime') is not None
         assert doc.meta('mtime') is not None
         assert doc.meta('seqno') is not None
-        self.assertEqual({}, doc.meta('author')['value'])
-        self.assertEqual([], doc.meta('layer')['value'])
+        self.assertEqual({tests.UID: {'name': 'test', 'order': 0, 'role': 3}}, doc.meta('author')['value'])
+        self.assertEqual(['origin'], doc.meta('layer')['value'])
         self.assertEqual('bundle_id', doc.meta('context')['value'])
         self.assertEqual(['Public Domain'], doc.meta('license')['value'])
         self.assertEqual('1', doc.meta('version')['value'])

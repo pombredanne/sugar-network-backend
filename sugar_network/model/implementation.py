@@ -19,7 +19,6 @@ from sugar_network import db, model
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.licenses import GOOD_LICENSES
 from sugar_network.toolkit.spec import parse_version
-from sugar_network.toolkit import http, enforce
 
 
 class Implementation(db.Resource):
@@ -31,10 +30,10 @@ class Implementation(db.Resource):
 
     @context.setter
     def context(self, value):
-        authors = self.volume['context'].get(value)['author']
-        enforce(not self.request.principal and not authors or
-                self.request.principal in authors, http.Forbidden,
-                'Only Context authors can submit new Implementations')
+        if self.request.principal:
+            authors = self.volume['context'].get(value)['author']
+            if self.request.principal in authors:
+                self['layer'] = ('origin',) + tuple(self.layer)
         return value
 
     @db.indexed_property(prefix='L', full_text=True, typecast=[GOOD_LICENSES],
