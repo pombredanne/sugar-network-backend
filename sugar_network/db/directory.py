@@ -236,11 +236,14 @@ class Directory(object):
             if isinstance(self.metadata[prop], StoredProperty) and \
                     self.metadata[prop].localized:
                 if isinstance(value, dict):
-                    orig_value = dict([(i, orig[prop].get(i)) for i in value])
-                    if orig_value == value:
+                    if value == dict([(i, orig[prop].get(i)) for i in value]):
                         continue
                 elif orig.get(prop, accept_language) == value:
                     continue
+            elif isinstance(self.metadata[prop], BlobProperty) and \
+                    isinstance(value, dict) and \
+                    value.get('digest') == orig[prop].get('digest'):
+                continue
             patch[prop] = value
         return patch
 

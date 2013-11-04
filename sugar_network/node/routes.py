@@ -19,13 +19,13 @@ import shutil
 import gettext
 import logging
 import hashlib
+from cStringIO import StringIO
 from contextlib import contextmanager
 from ConfigParser import ConfigParser
 from os.path import join, isdir, exists
 
 from sugar_network import node, toolkit, model
 from sugar_network.node import stats_node, stats_user
-from sugar_network.model.context import Context
 # pylint: disable-msg=W0611
 from sugar_network.toolkit.router import route, preroute, postroute, ACL
 from sugar_network.toolkit.router import Unauthorized, Request, fallbackroute
@@ -418,7 +418,6 @@ def load_bundle(volume, request, bundle_path):
     if 'initial' in impl:
         initial = impl.pop('initial')
     data = impl.setdefault('data', {})
-    data['blob'] = bundle_path
     contexts = volume['context']
     context = impl.get('context')
     context_meta = None
@@ -445,7 +444,8 @@ def load_bundle(volume, request, bundle_path):
         context = impl['context'] = spec['context']
         impl['version'] = spec['version']
         impl['stability'] = spec['stability']
-        impl['license'] = spec['license']
+        if spec['license'] is not EMPTY_LICENSE:
+            impl['license'] = spec['license']
         data['spec'] = {'*-*': {
             'commands': spec.commands,
             'requires': spec.requires,
@@ -463,25 +463,37 @@ def load_bundle(volume, request, bundle_path):
     enforce('version' in impl, 'Version is not specified')
     enforce(context_type in contexts.get(context)['type'],
             http.BadRequest, 'Inappropriate bundle type')
-    if impl.get('license') in (None, EMPTY_LICENSE):
+    if 'license' not in impl:
         existing, total = impls.find(
                 context=context, order_by='-version', not_layer='deleted')
         enforce(total, 'License is not specified')
         impl['license'] = next(existing)['license']
 
+    digest = hashlib.sha1()
+    with file(bundle_path, 'rb') as f:
+        while True:
+            chunk = f.read(toolkit.BUFFER_SIZE)
+            if not chunk:
+                break
+            digest.update(chunk)
+    data['digest'] = digest.hexdigest()
+
     yield impl
 
     existing, __ = impls.find(
             context=context, version=impl['version'], not_layer='deleted')
+    if 'url' not in data:
+        data['blob'] = bundle_path
     impl['guid'] = \
             request.call(method='POST', path=['implementation'], content=impl)
     for i in existing:
         layer = i['layer'] + ['deleted']
         impls.update(i.guid, {'layer': layer})
 
-    patch = contexts.patch(context, context_meta)
-    if patch and 'origin' in impls.get(impl['guid']).layer:
-        request.call(method='PUT', path=['context', context], content=patch)
+    if 'origin' in impls.get(impl['guid']).layer:
+        diff = contexts.patch(context, context_meta)
+        if diff:
+            request.call(method='PUT', path=['context', context], content=diff)
 
 
 def _load_context_metadata(bundle, spec):
@@ -491,8 +503,18 @@ def _load_context_metadata(bundle, spec):
             result[prop] = spec[prop]
 
     try:
-        with bundle.extractfile(join(bundle.rootdir, spec['icon'])) as svg:
-            result.update(Context.image_props(svg))
+        icon_file = bundle.extractfile(join(bundle.rootdir, spec['icon']))
+        icon = StringIO(icon_file.read())
+        icon_file.close()
+        result.update({
+            'artifact_icon': {
+                'blob': icon,
+                'mime_type': 'image/svg+xml',
+                'digest': hashlib.sha1(icon.getvalue()).hexdigest(),
+                },
+            'preview': _svg_to_png(icon.getvalue(), 160, 120),
+            'icon': _svg_to_png(icon.getvalue(), 55, 55),
+            })
     except Exception:
         exception(_logger, 'Failed to load icon')
 
@@ -518,10 +540,35 @@ def _load_context_metadata(bundle, spec):
                 i18n = gettext.translation(spec['context'],
                         join(tmpdir, *mo_path[:2]), [lang])
                 for prop, value in msgids.items():
-                    msgstr = i18n.gettext(value)
-                    if msgstr != value or lang == 'en':
+                    msgstr = i18n.gettext(value).decode('utf8')
+                    if lang == 'en' or msgstr != value:
                         result[prop][lang] = msgstr
             except Exception:
                 exception(_logger, 'Gettext failed to read %r', mo_path[-1])
 
     return result
+
+
+def _svg_to_png(data, w, h):
+    import rsvg
+    import cairo
+
+    svg = rsvg.Handle(data=data)
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    context = cairo.Context(surface)
+
+    scale = min(float(w) / svg.props.width, float(h) / svg.props.height)
+    context.translate(
+            int(w - svg.props.width * scale) / 2,
+            int(h - svg.props.height * scale) / 2)
+    context.scale(scale, scale)
+    svg.render_cairo(context)
+
+    result = StringIO()
+    surface.write_to_png(result)
+    result.seek(0)
+
+    return {'blob': result,
+            'mime_type': 'image/png',
+            'digest': hashlib.sha1(result.getvalue()).hexdigest(),
+            }

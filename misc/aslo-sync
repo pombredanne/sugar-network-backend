@@ -16,26 +16,29 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
 import time
 import shutil
 import getpass
 import gettext
 import tempfile
+import traceback
 from os.path import join
 
 import MySQLdb as mdb
 
-from sugar_network import db, client
+from sugar_network import db, client, model, toolkit
 from sugar_network.node import data_root
 from sugar_network.client.bundle import Bundle
-from sugar_network.resources.volume import Volume
-from sugar_network.node.slave import SlaveCommands
+from sugar_network.node.slave import SlaveRoutes
 from sugar_network.node.routes import load_bundle
 from sugar_network.toolkit import util, licenses, application, spec, Option
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
-ASLO_GUID = 'd26cef70447160f31a7497cc0320f23a4e383cc3'
+ASLO_AUTHOR = {'d26cef70447160f31a7497cc0320f23a4e383cc3': {
+    'order': 0, 'role': 1, 'name': 'Activity Library',
+    }}
 ACTIVITIES_PATH = '/upload/activities'
 SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
@@ -53,6 +56,9 @@ CATEGIORIES_TO_TAGS = {
         'Media creation': 'media',
         'Maths & Science': 'science',
         'News': 'news',
+        'Utilities': 'utilities',
+        'Web': 'web',
+        'Communications and Language': 'literacy',
         }
 
 MISNAMED_LICENSES = {
@@ -76,6 +82,7 @@ IGNORE_VERSIONS = frozenset([
         29464,  # No file
         30074,  # No file
         30234,  # No file
+        31809,  # rsvg fails to load icon
         ])
 
 LICENSES_MAP = {
@@ -125,7 +132,7 @@ class Application(application.Application):
     @property
     def volume(self):
         if self._volume is None:
-            self._volume = Volume(data_root.value)
+            self._volume = db.Volume(data_root.value, model.RESOURCES)
             self._volume.populate()
         return self._volume
 
@@ -158,7 +165,7 @@ class Application(application.Application):
                     'description': 'Sugar Network',
                     'ctime': time.time(),
                     'mtime': time.time(),
-                    'author': self.authors(),
+                    'author': ASLO_AUTHOR,
                     })
 
         if not self.volume['context'].exists(SUGAR_GUID):
@@ -180,7 +187,7 @@ class Application(application.Application):
                         'of life.',
                     'ctime': time.time(),
                     'mtime': time.time(),
-                    'author': self.authors(),
+                    'author': ASLO_AUTHOR,
                     })
 
         if not self.volume['context'].exists(PACKAGES_GUID):
@@ -193,10 +200,11 @@ class Application(application.Application):
                     'description': 'Collection of GNU/Linux packages metadata',
                     'ctime': time.time(),
                     'mtime': time.time(),
-                    'author': self.authors(),
+                    'author': ASLO_AUTHOR,
+                    'icon': {
+                        'url': '/static/images/package.png',
+                        },
                     })
-            self.volume['context'].set_blob(PACKAGES_GUID, 'icon',
-                    url='/static/images/package.png')
 
         if self.args:
             for addon_id in self.args:
@@ -208,12 +216,13 @@ class Application(application.Application):
             'submit pulled activities.sugarlabs.org content to '
             'Sugar Network server')
     def push(self):
-        node = SlaveCommands(join(data_root.value, 'node.key'), self.volume)
+        node = SlaveRoutes(join(data_root.value, 'key'), self.volume)
         node.online_sync(no_pull=True)
 
     def sync_activities(self, addon_id=None):
         directory = self.volume['context']
-        items, __ = directory.find(type='activity', layer='public')
+        items, __ = directory.find(type='activity', guid=addon_id,
+                not_layer='deleted')
         existing_activities = set([i.guid for i in items])
 
         sql = """
@@ -235,18 +244,19 @@ class Application(application.Application):
                 self.sync_context(addon_id, bundle_id)
                 self.sync_versions(addon_id, bundle_id)
                 self.sync_reviews(addon_id, bundle_id)
-            except Exception, error:
-                print '-- Cannot sync %r addon: %s' % (addon_id, error)
+            except Exception:
+                print '-- Failed to sync %s addon' % addon_id
+                traceback.print_exception(*sys.exc_info())
             if bundle_id in existing_activities:
                 existing_activities.remove(bundle_id)
 
         for guid in existing_activities:
-            print '-- Hide %r addon deleted on ASLO' % guid
+            print '-- Hide %r deleted activity' % guid
             directory.update(guid, {'layer': ['deleted']})
 
     def sync_reviews(self, addon_id, bundle_id):
         directory = self.volume['review']
-        items, __ = directory.find(context=bundle_id, layer='public')
+        items, __ = directory.find(context=bundle_id, not_layer='deleted')
         existing_reviews = set([i.guid for i in items])
 
         sql = """
@@ -256,10 +266,9 @@ class Application(application.Application):
                 reviews.title,
                 reviews.body,
                 reviews.rating,
+                users.email,
                 users.nickname,
-                IF(users.firstname!="",
-                    CONCAT_WS(' ', users.firstname, users.lastname),
-                    users.nickname)
+                CONCAT_WS(' ', users.firstname, users.lastname)
             FROM
                 reviews
                 INNER JOIN versions ON versions.id = reviews.version_id
@@ -267,12 +276,17 @@ class Application(application.Application):
             WHERE
                 reply_to IS NULL AND versions.addon_id = %s
             """ % addon_id
-        for guid, created, title, content, rating, nickname, author in \
-                self.sqlexec(sql):
+        for guid, created, title, content, rating, email, nickname, fullname \
+                in self.sqlexec(sql):
             guid = str(guid)
             if directory.exists(guid):
                 existing_reviews.remove(guid)
                 continue
+            if not nickname:
+                nickname = email.split('@')[0]
+            fullname = fullname.strip()
+            if not fullname:
+                fullname = nickname
             directory.create({
                     'guid': guid,
                     'ctime': int(time.mktime(created.timetuple())),
@@ -281,16 +295,18 @@ class Application(application.Application):
                     'title': self.get_i18n_field(title),
                     'content': self.get_i18n_field(content),
                     'rating': rating,
-                    'author': self.authors(nickname, author),
+                    'author': {nickname: {
+                        'order': 0, 'role': 3, 'name': fullname,
+                        }},
                     })
 
         for guid in existing_reviews:
-            print '-- Hide %r review deleted on ASLO' % guid
+            print '-- Hide %s %s deleted review' % (bundle_id, guid)
             directory.update(guid, {'layer': ['deleted']})
 
     def sync_versions(self, addon_id, bundle_id):
         directory = self.volume['implementation']
-        items, __ = directory.find(context=bundle_id, layer='public')
+        items, __ = directory.find(context=bundle_id, not_layer='deleted')
         existing_versions = set([i.guid for i in items])
 
         sql = """
@@ -306,34 +322,40 @@ class Application(application.Application):
                 (select version from appversions where
                     id=applications_versions.min),
                 (select version from appversions where
-                    id=applications_versions.max)
+                    id=applications_versions.max),
+                users.email,
+                users.nickname,
+                CONCAT_WS(' ', users.firstname, users.lastname),
+                addons.status
             FROM addons
                 INNER JOIN versions ON versions.addon_id=addons.id
                 LEFT JOIN licenses ON licenses.id=versions.license_id
                 INNER JOIN files ON files.version_id=versions.id
                 INNER JOIN applications_versions ON
                     applications_versions.version_id=versions.id
+                INNER JOIN users ON users.id=versions.uploader
             WHERE
                 addons.status > 0 AND addons.status < 5 AND addons.id = %s
             ORDER BY
-                versions.id DESC
+                versions.id ASC
             """ % addon_id
 
         for version_id, version, license_id, alicense, release_date, \
-                releasenotes, filename, sugar_min, sugar_max \
-                in self.sqlexec(sql):
+                releasenotes, filename, sugar_min, sugar_max, \
+                email, nickname, fullname, status in self.sqlexec(sql):
             if version_id in IGNORE_VERSIONS:
                 continue
+            version_id = str(version_id)
 
             if filename.endswith('.xol'):
-                print '-- Ignore library bundles for %r' % bundle_id
+                print '-- Ignore %r library bundle' % filename
                 continue
 
             try:
                 parsed_version = util.parse_version(version)
             except Exception, error:
                 print '-- Cannot parse %r version for %r: %s' % \
-                        (version, bundle_id, error)
+                        (version, filename, error)
                 continue
 
             if license_id is None:
@@ -359,49 +381,65 @@ class Application(application.Application):
                 elif bundle_id in LICENSES_MAP:
                     alicense = LICENSES_MAP[bundle_id]
                 else:
-                    print '-- Skip bad %r license from %s in %s' % \
-                            (alicense, filename, addon_id)
+                    print '-- Skip %r bad %r license' % (filename, alicense)
                     continue
+            if not alicense and bundle_id in LICENSES_MAP:
+                alicense = LICENSES_MAP[bundle_id]
 
-            items, __ = directory.find(context=bundle_id,
-                    version=version, limit=1)
-            if items:
-                for i in items:
-                    existing_versions.remove(i.guid)
+            layers = ['origin']
+            if status == 4:
+                layers.append('public')
+
+            if not nickname:
+                nickname = email.split('@')[0]
+            fullname = fullname.strip()
+            if not fullname:
+                fullname = nickname
+
+            if directory.exists(version_id):
+                if set(directory.get(version_id).layer) != set(layers) or \
+                        version_id not in existing_versions:
+                    directory.update(version_id, {'layer': layers})
+                if version_id in existing_versions:
+                    existing_versions.remove(version_id)
                 continue
 
+            bundle_path = join(ACTIVITIES_PATH, str(addon_id), filename)
             try:
-                self.sync_implementaiton(bundle_id, addon_id, filename,
-                        sugar_min, sugar_max, status, alicense,
-                        self.get_i18n_field(releasenotes),
-                        int(time.mktime(release_date.timetuple())),
-                        )
+                with load_bundle(
+                        self.volume, Request(self.volume, {
+                            'requires': 'sugar>=%s<=%s' % (sugar_min, sugar_max),
+                            'license': alicense,
+                            }),
+                        bundle_path) as impl:
+                    impl['guid'] = version_id
+                    if 'notes' not in impl:
+                        impl['notes'] = self.get_i18n_field(releasenotes)
+                    impl['stability'] = 'stable'
+                    impl['ctime'] = int(time.mktime(release_date.timetuple()))
+                    impl['mtime'] = time.time()
+                    impl['author'] = {nickname: {
+                        'order': 0, 'role': 3, 'name': fullname,
+                        }}
+                    impl['layer'] = layers
+                    impl['data']['url'] = \
+                            '/'.join([DOWNLOAD_URL, str(addon_id), filename])
+                    impl['data']['blob_size'] = os.stat(bundle_path).st_size
             except Exception, error:
-                print '-- Failed to sync %s for %s: %s' % \
-                        (version, bundle_id, error)
-                continue
+                print '-- Failed to sync %r' % filename
+                traceback.print_exception(*sys.exc_info())
+            else:
+                print '-- Sync %r' % filename
 
         for guid in existing_versions:
-            print '-- Hide %s %r version deleted on ASLO' % (bundle_id, guid)
+            print '-- Hide %s %s deleted version' % (bundle_id, guid)
             directory.update(guid, {'layer': ['deleted']})
 
     def sync_context(self, addon_id, bundle_id):
-        if not self.volume['context'].exists(bundle_id):
-            self.volume['context'].create({
-                    'guid': bundle_id,
-                    'type': 'activity',
-                    'implement': bundle_id,
-                    'title': {},
-                    'summary': {},
-                    'description': {},
-                    'author': self.authors(),
-                    'layer': ['public'],
-                    'ctime': 0,
-                    'mtime': 0,
-                    })
+        directory = self.volume['context']
 
-        created, modified, title, summary, description, homepage, nickname, \
-                author = self.sqlexec("""
+        created, modified, title, summary, description, homepage = \
+                self.sqlexec("""
             SELECT
                 addons.created,
                 addons.modified,
@@ -409,23 +447,18 @@ class Application(application.Application):
                 addons.summary,
                 addons.description,
                 (select max(localized_string) from translations where
-                    id=addons.homepage),
-                users.nickname,
-                IF(users.firstname != '',
-                    CONCAT_WS(' ', users.firstname, users.lastname),
-                    users.nickname)
+                    id=addons.homepage)
             FROM
                 addons
-                INNER JOIN addons_users on addons_users.addon_id=addons.id
-                INNER JOIN users on users.id=addons_users.user_id
-            WHERE addons.id=%s
+            WHERE
+                addons.id=%s
             """ % addon_id)[0]
         created = int(time.mktime(created.timetuple()))
         modified = int(time.mktime(modified.timetuple()))
 
-        if self.volume['context'].get(bundle_id)['mtime'] >= modified:
+        if directory.exists(bundle_id) and \
+                directory.get(bundle_id)['mtime'] >= modified:
             return
-        print '-- Update %r activity' % bundle_id
 
         tags = set()
         for row in self.sqlexec("""
@@ -451,40 +484,46 @@ class Application(application.Application):
                 """ % addon_id):
             tags.add(row[0])
 
-        self.volume['context'].update(bundle_id, {
+        authors = {}
+        for order, (role, email, nickname, fullname) in enumerate(self.sqlexec(
+                """
+                SELECT
+                    addons_users.role,
+                    users.email,
+                    users.nickname,
+                    CONCAT_WS(' ', users.firstname, users.lastname)
+                FROM
+                    addons_users
+                    INNER JOIN users on users.id=addons_users.user_id
+                WHERE
+                    addons_users.addon_id=%s
+                ORDER BY
+                    position
+                """ % addon_id)):
+            if not nickname:
+                nickname = email.split('@')[0]
+            fullname = fullname.strip()
+            if not fullname:
+                fullname = nickname
+            authors[nickname] = {
+                    'order': order,
+                    'role': 3 if role == 5 else 1,
+                    'name': fullname,
+                    }
+
+        directory.update(bundle_id, {
+                'guid': bundle_id,
+                'type': 'activity',
                 'title': self.get_i18n_field(title),
                 'summary': self.get_i18n_field(summary),
                 'description': self.get_i18n_field(description),
                 'homepage': homepage or '',
                 'tags': list(tags),
-                'author': self.authors(nickname, author),
+                'author': authors,
                 'ctime': created,
                 'mtime': modified,
                 })
-
-    def sync_implementaiton(self, context, addon_id, filename,
-            sugar_min, sugar_max, status, license, notes, date):
-        bundle_path = join(ACTIVITIES_PATH, str(addon_id), filename)
-        with load_bundle(self.volume, ASLO_GUID, bundle_path,
-                requires='sugar>=%s; sugar<=%s' % (sugar_min, sugar_max),
-                ) as impl:
-            if impl['license'] == spec.EMPTY_LICENSE:
-                if not license and context in LICENSES_MAP:
-                    license = LICENSES_MAP[context]
-                if not license:
-                    raise Exception('No licenses for %r' % filename)
-                impl['license'] = license
-            if 'notes' not in impl:
-                impl['notes'] = notes
-            impl['stability'] = 'stable' if status == 4 else 'developer'
-            impl['ctime'] = date
-            impl['mtime'] = time.time()
-            impl['author'] = self.authors()
-            impl['data']['url'] = \
-                    '/'.join([DOWNLOAD_URL, str(addon_id), filename])
-            impl['data']['blob_size'] = os.stat(bundle_path).st_size
-
-        print '-- Add %r version to %r activity' % (impl['version'], context)
+        print '-- Sync %r activity' % bundle_id
 
     def parse_license(self, alicense):
         for good in licenses.GOOD_LICENSES:
@@ -532,17 +571,20 @@ class Application(application.Application):
         cursor.execute(text)
         return cursor.fetchall()
 
-    def authors(self, nickname=None, original=None):
-        result = {
-                ASLO_GUID: {
-                    'role': 1, 'order': 0, 'name': 'Activity Library',
-                    },
-                }
-        if nickname:
-            result[nickname] = {
-                    'role': 2, 'order': 1, 'name': original,
-                    }
-        return result
+
+class Request(dict):
+
+    def __init__(self, volume, props):
+        dict.__init__(self, props)
+        self._volume = volume
+
+    def call(self, method, path, content):
+        if method == 'POST':
+            resource, = path
+            return self._volume[resource].create(content)
+        elif method == 'PUT':
+            resource, guid = path
+            self._volume[resource].update(guid, content)
 
 
 mysql_server = Option(
@@ -558,7 +600,7 @@ mysql_password = Option(
         'MySQL password',
         name='mysql_password')
 
-Option.seek('main', [application.debug])
+Option.seek('main', [application.debug, toolkit.cachedir])
 Option.seek('aslo', [mysql_server, mysql_user, mysql_password, mysql_database])
 Option.seek('node', [data_root])
 Option.seek('client', [client.api_url])

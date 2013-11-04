@@ -20,9 +20,8 @@ import os
 from optparse import OptionParser
 from os.path import exists
 
-from sugar_network import db
+from sugar_network import db, model
 from sugar_network.node import data_root
-from sugar_network.resources.volume import Volume
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit import Option
 
@@ -37,7 +36,7 @@ db.index_write_queue.value = 1024 * 10
 db.index_flush_threshold.value = 0
 db.index_flush_timeout.value = 0
 
-volume = Volume(data_root.value)
+volume = db.Volume(data_root.value, model.RESOURCES)
 volume.populate()
 directory = volume['implementation']
 try:
@@ -50,7 +49,9 @@ try:
         blob_path = '/upload/activities' + url[len(DOWNLOAD_URL):]
         if not exists(blob_path):
             if 'deleted' not in impl['layer']:
-                print '-- Cannot find %r' % blob_path
+                print '-- Delete missed %r' % blob_path
+                impl['layer'].append('deleted')
+                directory.update(impl.guid, {'layer': impl['layer']})
             continue
         unpack_size = 0
         with Bundle(blob_path, mime_type='application/zip') as bundle:

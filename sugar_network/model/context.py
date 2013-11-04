@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from cStringIO import StringIO
 from os.path import join
 
 from sugar_network import db, model, static
@@ -127,41 +126,3 @@ class Context(db.Resource):
     @db.stored_property(typecast=dict, default={}, acl=ACL.PUBLIC | ACL.LOCAL)
     def packages(self, value):
         return value
-
-    @staticmethod
-    def image_props(svg):
-        icon = StringIO(svg.read())
-        return {'artifact_icon': {
-                    'blob': icon,
-                    'mime_type': 'image/svg+xml',
-                    },
-                'icon': {
-                    'blob': _svg_to_png(icon.getvalue(), 55, 55),
-                    'mime_type': 'image/png',
-                    },
-                'preview': {
-                    'blob': _svg_to_png(icon.getvalue(), 160, 120),
-                    'mime_type': 'image/png',
-                    },
-                }
-
-
-def _svg_to_png(data, w, h):
-    import rsvg
-    import cairo
-
-    svg = rsvg.Handle(data=data)
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
-    context = cairo.Context(surface)
-
-    scale = min(float(w) / svg.props.width, float(h) / svg.props.height)
-    context.translate(
-            int(w - svg.props.width * scale) / 2,
-            int(h - svg.props.height * scale) / 2)
-    context.scale(scale, scale)
-    svg.render_cairo(context)
-
-    result = StringIO()
-    surface.write_to_png(result)
-    result.seek(0)
-    return result

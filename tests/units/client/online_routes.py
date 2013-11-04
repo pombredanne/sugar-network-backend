@@ -7,6 +7,7 @@ import time
 import copy
 import shutil
 import zipfile
+import hashlib
 from zipfile import ZipFile
 from cStringIO import StringIO
 from os.path import exists, lexists, basename
@@ -666,6 +667,7 @@ Can't find all required implementations:
             'data': {
                 'unpack_size': len(activity_info),
                 'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
                 'mime_type': 'application/vnd.olpc-sugar',
                 'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
                 },
@@ -713,6 +715,7 @@ Can't find all required implementations:
             'seqno': 5,
             'unpack_size': len(activity_info),
             'blob_size': len(blob),
+            'digest': hashlib.sha1(blob).hexdigest(),
             'blob': blob_path,
             'mtime': int(os.stat(blob_path[:-5]).st_mtime),
             'mime_type': 'application/vnd.olpc-sugar',
@@ -756,6 +759,7 @@ Can't find all required implementations:
             'seqno': 5,
             'unpack_size': len(activity_info),
             'blob_size': len(blob),
+            'digest': hashlib.sha1(blob).hexdigest(),
             'blob': blob_path,
             'mtime': int(os.stat(blob_path[:-5]).st_mtime),
             'mime_type': 'application/vnd.olpc-sugar',
@@ -878,6 +882,7 @@ Can't find all required implementations:
             'tags': [],
             'data': {
                 'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
                 'mime_type': 'application/vnd.olpc-sugar',
                 'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
                 'unpack_size': len(activity_info),
@@ -904,6 +909,7 @@ Can't find all required implementations:
             'data': {
                 'blob': blob_path,
                 'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
                 'mime_type': 'application/vnd.olpc-sugar',
                 'mtime': int(os.stat(blob_path[:-5]).st_mtime),
                 'seqno': 5,
@@ -943,6 +949,7 @@ Can't find all required implementations:
             'tags': [],
             'data': {
                 'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
                 'unpack_size': len(activity_info),
                 'mime_type': 'application/vnd.olpc-sugar',
                 'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
@@ -989,6 +996,7 @@ Can't find all required implementations:
             'tags': [],
             'data': {
                 'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
                 'unpack_size': len(activity_info),
                 'mime_type': 'application/vnd.olpc-sugar',
                 'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
@@ -1091,6 +1099,7 @@ Can't find all required implementations:
             'tags': [],
             'data': {
                 'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
                 'unpack_size': len(activity_info),
                 'mime_type': 'application/vnd.olpc-sugar',
                 'spec': {'*-*': {'commands': {'activity': {'exec': 'false'}}, 'requires': {}}},

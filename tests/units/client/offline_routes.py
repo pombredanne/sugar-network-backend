@@ -2,6 +2,7 @@
 # sugar-lint: disable
 
 import json
+import hashlib
 from cStringIO import StringIO
 from zipfile import ZipFile
 from os.path import exists
@@ -311,6 +312,7 @@ class OfflineRoutes(tests.Test):
             'data': {
                 'unpack_size': len(activity_info),
                 'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
                 'mime_type': 'application/vnd.olpc-sugar',
                 'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
                 },
