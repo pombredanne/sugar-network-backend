@@ -65,6 +65,7 @@ MISNAMED_LICENSES = {
         ('artistic', '2.0'): 'Artistic 2.0',
         ('cc-by-sa',): 'CC-BY-SA',
         ('creative', 'share', 'alike'): 'CC-BY-SA',
+        ('apache',): 'ASL 2.0',
         }
 
 IGNORE_ADDONS = frozenset([
@@ -83,6 +84,18 @@ IGNORE_VERSIONS = frozenset([
         30074,  # No file
         30234,  # No file
         31809,  # rsvg fails to load icon
+        29559,  # Bad license
+        29806,  # Bad license
+        29815,  # Bad license
+        31808,  # Bad license
+        29982,  # Bad license
+        30104,  # Bad license
+        30436,  # Bad license
+        30752,  # Bad license
+        30414,  # Bad license
+        30703,  # Bad license
+        31164,  # Bad bundle_id
+        31512,  # Bad license
         ])
 
 LICENSES_MAP = {
@@ -348,14 +361,15 @@ class Application(application.Application):
             version_id = str(version_id)
 
             if filename.endswith('.xol'):
-                print '-- Ignore %r library bundle' % filename
+                print '-- Ignore %r[%s] library bundle' % \
+                        (filename, version_id)
                 continue
 
             try:
                 parsed_version = util.parse_version(version)
             except Exception, error:
-                print '-- Cannot parse %r version for %r: %s' % \
-                        (version, filename, error)
+                print '-- Cannot parse %r version for %r[%s]: %s' % \
+                        (version, filename, version_id, error)
                 continue
 
             if license_id is None:
@@ -381,7 +395,8 @@ class Application(application.Application):
                 elif bundle_id in LICENSES_MAP:
                     alicense = LICENSES_MAP[bundle_id]
                 else:
-                    print '-- Skip %r bad %r license' % (filename, alicense)
+                    print '-- Skip %r[%s] bad %r license' % \
+                            (filename, version_id, alicense)
                     continue
             if not alicense and bundle_id in LICENSES_MAP:
                 alicense = LICENSES_MAP[bundle_id]
@@ -426,7 +441,7 @@ class Application(application.Application):
                             '/'.join([DOWNLOAD_URL, str(addon_id), filename])
                     impl['data']['blob_size'] = os.stat(bundle_path).st_size
             except Exception, error:
-                print '-- Failed to sync %r' % filename
+                print '-- Failed to sync %r[%s]' % (filename, version_id)
                 traceback.print_exception(*sys.exc_info())
             else:
                 print '-- Sync %r' % filename

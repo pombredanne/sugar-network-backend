@@ -309,7 +309,7 @@ class Application(application.Application):
 
     def _print(self, *data):
         if not quiet.value:
-            print ''.join(data)
+            print ''.join(data),
 
 
 # Let toolkit.http work in concurrence
