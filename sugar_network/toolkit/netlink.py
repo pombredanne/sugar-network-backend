@@ -69,9 +69,12 @@ def wait_for_route():
                 if int(dst, 16) in (0, 224):
                     return gw
 
+    coroutine.reset_resolver()
+
     old_route = get_route()
     if old_route:
         yield old_route
+
     with Netlink(socket.NETLINK_ROUTE,
             RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE) as monitor:
         while True:
