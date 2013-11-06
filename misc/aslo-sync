@@ -18,21 +18,19 @@
 import os
 import sys
 import time
-import shutil
 import getpass
-import gettext
-import tempfile
+import hashlib
 import traceback
+from cStringIO import StringIO
 from os.path import join
 
 import MySQLdb as mdb
 
 from sugar_network import db, client, model, toolkit
 from sugar_network.node import data_root
-from sugar_network.client.bundle import Bundle
 from sugar_network.node.slave import SlaveRoutes
 from sugar_network.node.routes import load_bundle
-from sugar_network.toolkit import util, licenses, application, spec, Option
+from sugar_network.toolkit import util, licenses, application, Option
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
@@ -98,6 +96,11 @@ IGNORE_VERSIONS = frozenset([
         31512,  # Bad license
         ])
 
+IGNORE_PREVIEWS = frozenset([
+    475,    # Malformed PNG
+    476,    # Malformed PNG
+    ])
+
 LICENSES_MAP = {
         'org.laptop.x2o': ['GPLv2+'],
         'org.wesnoth.Wesnoth': ['GPLv2'],
@@ -148,12 +151,6 @@ class Application(application.Application):
             self._volume = db.Volume(data_root.value, model.RESOURCES)
             self._volume.populate()
         return self._volume
-
-    @property
-    def client(self):
-        if self._client is None:
-            self._client = client.Client()
-        return self._client
 
     def epilog(self):
         if self._volume is not None:
@@ -254,9 +251,11 @@ class Application(application.Application):
             if [i for i in IGNORE_ADDONS if i in bundle_id]:
                 continue
             try:
-                self.sync_context(addon_id, bundle_id)
+                authors = self.sync_context(addon_id, bundle_id)
                 self.sync_versions(addon_id, bundle_id)
                 self.sync_reviews(addon_id, bundle_id)
+                self.sync_previews(addon_id, bundle_id, authors)
+                self.sync_comments(addon_id, bundle_id)
             except Exception:
                 print '-- Failed to sync %s addon' % addon_id
                 traceback.print_exception(*sys.exc_info())
@@ -267,10 +266,112 @@ class Application(application.Application):
             print '-- Hide %r deleted activity' % guid
             directory.update(guid, {'layer': ['deleted']})
 
+    def sync_previews(self, addon_id, bundle_id, authors):
+        directory = self.volume['artifact']
+        items, __ = directory.find(context=bundle_id, type='preview',
+                not_layer='deleted')
+        existing = set([i.guid for i in items])
+
+        sql = """
+            SELECT
+                id,
+                created,
+                caption,
+                filedata
+            FROM
+                previews
+            WHERE
+                addon_id = %s
+            """ % addon_id
+        for guid, created, caption, data in self.sqlexec(sql):
+            if guid in IGNORE_PREVIEWS:
+                continue
+            guid = str(guid)
+            if directory.exists(guid):
+                existing.remove(guid)
+                continue
+            try:
+                preview = scale_png(data, 160, 120)
+            except Exception:
+                print '-- Failed to load %s preview for %s' % (guid, bundle_id)
+                continue
+            directory.create({
+                    'guid': guid,
+                    'ctime': int(time.mktime(created.timetuple())),
+                    'mtime': int(time.mktime(created.timetuple())),
+                    'context': bundle_id,
+                    'type': 'preview',
+                    'title': self.get_i18n_field(caption),
+                    'description': self.get_i18n_field(caption),
+                    'author': authors,
+                    'preview': {
+                        'blob': StringIO(preview),
+                        'mime_type': 'image/png',
+                        'digest': hashlib.sha1(preview).hexdigest(),
+                        },
+                    'data': {
+                        'blob': StringIO(data),
+                        'mime_type': 'image/png',
+                        'digest': hashlib.sha1(data).hexdigest(),
+                        },
+                    })
+
+        for guid in existing:
+            print '-- Hide %s %s deleted preview' % (bundle_id, guid)
+            directory.update(guid, {'layer': ['deleted']})
+
+    def sync_comments(self, addon_id, bundle_id):
+        directory = self.volume['comment']
+        items, __ = directory.find(context=bundle_id, not_layer='deleted')
+        existing = set([i.guid for i in items])
+
+        sql = """
+            SELECT
+                reviews.id,
+                reviews.created,
+                reviews.body,
+                users.email,
+                users.nickname,
+                CONCAT_WS(' ', users.firstname, users.lastname),
+                reviews.reply_to
+            FROM
+                reviews
+                INNER JOIN versions ON versions.id = reviews.version_id
+                INNER JOIN users ON users.id=reviews.user_id
+            WHERE
+                reply_to IS NOT NULL AND versions.addon_id = %s
+            """ % addon_id
+        for guid, created, content, email, nickname, fullname, reply_to \
+                in self.sqlexec(sql):
+            guid = str(guid)
+            if directory.exists(guid):
+                existing.remove(guid)
+                continue
+            if not nickname:
+                nickname = email.split('@')[0]
+            fullname = fullname.strip()
+            if not fullname:
+                fullname = nickname
+            directory.create({
+                    'guid': guid,
+                    'ctime': int(time.mktime(created.timetuple())),
+                    'mtime': int(time.mktime(created.timetuple())),
+                    'context': bundle_id,
+                    'review': str(reply_to),
+                    'message': self.get_i18n_field(content),
+                    'author': {nickname: {
+                        'order': 0, 'role': 3, 'name': fullname,
+                        }},
+                    })
+
+        for guid in existing:
+            print '-- Hide %s %s deleted comment' % (bundle_id, guid)
+            directory.update(guid, {'layer': ['deleted']})
+
     def sync_reviews(self, addon_id, bundle_id):
         directory = self.volume['review']
         items, __ = directory.find(context=bundle_id, not_layer='deleted')
-        existing_reviews = set([i.guid for i in items])
+        existing = set([i.guid for i in items])
 
         sql = """
             SELECT
@@ -293,7 +394,7 @@ class Application(application.Application):
                 in self.sqlexec(sql):
             guid = str(guid)
             if directory.exists(guid):
-                existing_reviews.remove(guid)
+                existing.remove(guid)
                 continue
             if not nickname:
                 nickname = email.split('@')[0]
@@ -313,14 +414,14 @@ class Application(application.Application):
                         }},
                     })
 
-        for guid in existing_reviews:
+        for guid in existing:
             print '-- Hide %s %s deleted review' % (bundle_id, guid)
             directory.update(guid, {'layer': ['deleted']})
 
     def sync_versions(self, addon_id, bundle_id):
         directory = self.volume['implementation']
         items, __ = directory.find(context=bundle_id, not_layer='deleted')
-        existing_versions = set([i.guid for i in items])
+        existing = set([i.guid for i in items])
 
         sql = """
             SELECT
@@ -366,7 +467,7 @@ class Application(application.Application):
                 continue
 
             try:
-                parsed_version = util.parse_version(version)
+                util.parse_version(version)
             except Exception, error:
                 print '-- Cannot parse %r version for %r[%s]: %s' % \
                         (version, filename, version_id, error)
@@ -413,17 +514,18 @@ class Application(application.Application):
 
             if directory.exists(version_id):
                 if set(directory.get(version_id).layer) != set(layers) or \
-                        version_id not in existing_versions:
+                        version_id not in existing:
                     directory.update(version_id, {'layer': layers})
-                if version_id in existing_versions:
-                    existing_versions.remove(version_id)
+                if version_id in existing:
+                    existing.remove(version_id)
                 continue
 
             bundle_path = join(ACTIVITIES_PATH, str(addon_id), filename)
             try:
                 with load_bundle(
                         self.volume, Request(self.volume, {
-                            'requires': 'sugar>=%s<=%s' % (sugar_min, sugar_max),
+                            'requires': 'sugar>=%s<=%s' %
+                                    (sugar_min, sugar_max),
                             'license': alicense,
                             }),
                         bundle_path) as impl:
@@ -446,7 +548,7 @@ class Application(application.Application):
             else:
                 print '-- Sync %r' % filename
 
-        for guid in existing_versions:
+        for guid in existing:
             print '-- Hide %s %s deleted version' % (bundle_id, guid)
             directory.update(guid, {'layer': ['deleted']})
 
@@ -540,6 +642,8 @@ class Application(application.Application):
                 })
         print '-- Sync %r activity' % bundle_id
 
+        return authors
+
     def parse_license(self, alicense):
         for good in licenses.GOOD_LICENSES:
             if not alicense or good in ['ec']:
@@ -600,6 +704,22 @@ class Request(dict):
         elif method == 'PUT':
             resource, guid = path
             self._volume[resource].update(guid, content)
+
+
+def scale_png(data, w, h):
+    with toolkit.NamedTemporaryFile() as src:
+        src.write(data)
+        src.flush()
+        with toolkit.NamedTemporaryFile() as dst:
+            toolkit.assert_call(['convert',
+                '-thumbnail', '%sx%s' % (w, h),
+                '-background', 'transparent',
+                '-gravity', 'center',
+                '-extent', '%sx%s' % (w, h),
+                src.name, dst.name,
+                ])
+            with file(dst.name, 'rb') as f:
+                return f.read()
 
 
 mysql_server = Option(

@@ -241,7 +241,7 @@ class Application(application.Application):
                         chunk = result.read(BUFFER_SIZE)
                         if not chunk:
                             break
-                        self._print(chunk, '\n')
+                        self._print(chunk)
             else:
                 self._print(result, '\n')
         finally:
@@ -309,7 +309,7 @@ class Application(application.Application):
 
     def _print(self, *data):
         if not quiet.value:
-            print ''.join(data),
+            sys.stdout.write(''.join(data))
 
 
 # Let toolkit.http work in concurrence
