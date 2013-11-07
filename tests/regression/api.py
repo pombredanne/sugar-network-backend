@@ -28,7 +28,7 @@ class Api(tests.Test):
 
         ipc.upload(['implementation'], StringIO(
             self.zips(
-                ['TestActivity/activity/activity.info', [
+                ['activity1.activity/activity/activity.info', [
                     '[Activity]',
                     'name = activity1',
                     'bundle_id = context1',
@@ -37,7 +37,7 @@ class Api(tests.Test):
                     'activity_version = 1',
                     'license = Public Domain',
                     ]],
-                ['TestActivity/bin/activity', [
+                ['activity1.activity/bin/activity', [
                     '#!/bin/sh',
                     'echo 1 > $1',
                     ]],
@@ -45,7 +45,7 @@ class Api(tests.Test):
             cmd='submit', initial=True)
         ipc.upload(['implementation'], StringIO(
             self.zips(
-                ['TestActivity/activity/activity.info', [
+                ['activity1.activity/activity/activity.info', [
                     '[Activity]',
                     'name = activity1',
                     'bundle_id = context1',
@@ -54,7 +54,7 @@ class Api(tests.Test):
                     'activity_version = 2',
                     'license = Public Domain',
                     ]],
-                ['TestActivity/bin/activity', [
+                ['activity1.activity/bin/activity', [
                     '#!/bin/sh',
                     'echo 2 > $1',
                     ]],
@@ -63,7 +63,7 @@ class Api(tests.Test):
 
         ipc.upload(['implementation'], StringIO(
             self.zips(
-                ['TestActivity/activity/activity.info', [
+                ['activity2.activity/activity/activity.info', [
                     '[Activity]',
                     'name = activity2',
                     'bundle_id = context2',
@@ -72,7 +72,7 @@ class Api(tests.Test):
                     'activity_version = 1',
                     'license = Public Domain',
                     ]],
-                ['TestActivity/bin/activity', [
+                ['activity2.activity/bin/activity', [
                     '#!/bin/sh',
                     'echo 3 > $1',
                     ]],
@@ -80,7 +80,7 @@ class Api(tests.Test):
             cmd='submit', initial=True)
         ipc.upload(['implementation'], StringIO(
             self.zips(
-                ['TestActivity/activity/activity.info', [
+                ['activity2.activity/activity/activity.info', [
                     '[Activity]',
                     'name = activity2',
                     'bundle_id = context2',
@@ -89,7 +89,7 @@ class Api(tests.Test):
                     'activity_version = 2',
                     'license = Public Domain',
                     ]],
-                ['TestActivity/bin/activity', [
+                ['activity2.activity/bin/activity', [
                     '#!/bin/sh',
                     'echo 4 > $1',
                     ]],
