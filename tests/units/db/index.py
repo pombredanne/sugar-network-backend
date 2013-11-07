@@ -567,7 +567,7 @@ class IndexTest(tests.Test):
         self.assertEqual(1, len(commits))
 
     def test_SortLocalizedProps(self):
-        toolkit._default_lang = 'default_lang'
+        toolkit._default_langs = ['default_lang']
         current_lang = locale.getdefaultlocale()[0].replace('_', '-')
 
         db = Index({'prop': IndexedProperty('prop', 1, 'A', localized=True)})

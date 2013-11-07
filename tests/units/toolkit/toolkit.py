@@ -423,7 +423,7 @@ class UtilTest(tests.Test):
 
     def test_gettext(self):
         # Fallback to default lang
-        toolkit._default_lang = 'default'
+        toolkit._default_langs = ['default']
         self.assertEqual('foo', toolkit.gettext({'lang': 'foo', 'default': 'bar'}, 'lang'))
         self.assertEqual('bar', toolkit.gettext({'lang': 'foo', 'default': 'bar'}, 'fake'))
 
@@ -445,7 +445,7 @@ class UtilTest(tests.Test):
         self.assertEqual('foo', toolkit.gettext({'1-a': 'foo', '2': 'bar', 'default': 'default'}, '1-b'))
 
     def test_gettext_EnAsTheLastResort(self):
-        toolkit._default_lang = 'en-us'
+        toolkit._default_langs = ['en-us']
         self.assertEqual('right', toolkit.gettext({'a': 'wrong', 'en': 'right'}, 'probe'))
         self.assertEqual('exact', toolkit.gettext({'a': 'wrong', 'en': 'right', 'probe': 'exact'}, 'probe'))
 

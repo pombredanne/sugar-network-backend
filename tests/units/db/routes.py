@@ -384,7 +384,7 @@ class RoutesTest(tests.Test):
         self.assertEqual(-1, self.call('GET', path=['testdocument', guid, 'prop']))
 
     def test_LocalizedSet(self):
-        toolkit._default_lang = 'en'
+        toolkit._default_langs = ['en']
 
         class TestDocument(db.Resource):
 
@@ -449,7 +449,7 @@ class RoutesTest(tests.Test):
                 },
             })
 
-        toolkit._default_lang = 'en'
+        toolkit._default_langs = ['en']
 
         self.assertEqual(
                 {'localized_prop': 'value_en'},
@@ -494,7 +494,7 @@ class RoutesTest(tests.Test):
                 [{'localized_prop': 'value_en'}],
                 self.call('GET', path=['testdocument'], accept_language=['foo', 'fr', 'za'], reply=['localized_prop'])['result'])
 
-        toolkit._default_lang = 'foo'
+        toolkit._default_langs = ['foo']
         fallback_lang = sorted(['ru', 'es', 'en'])[0]
 
         self.assertEqual(

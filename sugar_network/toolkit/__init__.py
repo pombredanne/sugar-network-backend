@@ -117,41 +117,42 @@ def default_lang():
     """Default language to fallback for localized strings.
 
     :returns:
-        string in format of HTTP's Accept-Language, e.g., `en-gb`.
+        string in format of HTTP's Accept-Language
 
     """
-    global _default_lang
-
-    if _default_lang is None:
-        import locale
-        lang = locale.getdefaultlocale()[0]
-        if not lang or lang == 'C':
-            _default_lang = 'en'
-        else:
-            lang, region = lang.lower().split('_')
-            if lang == region:
-                _default_lang = lang
-            else:
-                _default_lang = '-'.join([lang, region])
-
-    return _default_lang
+    return default_langs()[0]
 
 
 def default_langs():
     """Default languages list, i.e., including all secondory languages.
 
     :returns:
-        list of strings in format of HTTP's Accept-Language, e.g., `ru,en-gb`.
+        list of strings in format of HTTP's Accept-Language
 
     """
     global _default_langs
 
     if _default_langs is None:
-        langs = os.environ.get('LANGUAGE')
-        if langs:
-            _default_langs = langs.split(':')
+        locales = os.environ.get('LANGUAGE')
+        if locales:
+            locales = [i for i in locales.split(':') if i.strip()]
         else:
-            _default_langs = [default_lang()]
+            from locale import getdefaultlocale
+            locales = [getdefaultlocale()[0]]
+        if not locales:
+            _default_langs = ['en']
+        else:
+            _default_langs = []
+            for locale in locales:
+                lang = locale.strip().split('.')[0].lower()
+                if lang == 'c':
+                    lang = 'en'
+                elif '_' in lang:
+                    lang, region = lang.split('_')
+                    if lang != region:
+                        lang = '-'.join([lang, region])
+                _default_langs.append(lang)
+        _logger.info('Default languages are %r', _default_langs)
 
     return _default_langs
 

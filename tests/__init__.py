@@ -57,7 +57,6 @@ class Test(unittest.TestCase):
 
         os.environ['LANG'] = 'en_US'
         os.environ['LANGUAGE'] = 'en_US'
-        toolkit._default_lang = 'en-us'
         toolkit._default_langs = None
 
         global tmpdir
