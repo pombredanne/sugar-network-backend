@@ -97,9 +97,9 @@ IGNORE_VERSIONS = frozenset([
         ])
 
 IGNORE_PREVIEWS = frozenset([
-    475,    # Malformed PNG
-    476,    # Malformed PNG
-    ])
+        475,    # Malformed PNG
+        476,    # Malformed PNG
+        ])
 
 LICENSES_MAP = {
         'org.laptop.x2o': ['GPLv2+'],
@@ -276,6 +276,7 @@ class Application(application.Application):
             SELECT
                 id,
                 created,
+                modified,
                 caption,
                 filedata
             FROM
@@ -283,7 +284,7 @@ class Application(application.Application):
             WHERE
                 addon_id = %s
             """ % addon_id
-        for guid, created, caption, data in self.sqlexec(sql):
+        for guid, created, modified, caption, data in self.sqlexec(sql):
             if guid in IGNORE_PREVIEWS:
                 continue
             guid = str(guid)
@@ -298,7 +299,7 @@ class Application(application.Application):
             directory.create({
                     'guid': guid,
                     'ctime': int(time.mktime(created.timetuple())),
-                    'mtime': int(time.mktime(created.timetuple())),
+                    'mtime': int(time.mktime(modified.timetuple())),
                     'context': bundle_id,
                     'type': 'preview',
                     'title': self.get_i18n_field(caption),
@@ -329,6 +330,7 @@ class Application(application.Application):
             SELECT
                 reviews.id,
                 reviews.created,
+                reviews.modified,
                 reviews.body,
                 users.email,
                 users.nickname,
@@ -341,8 +343,8 @@ class Application(application.Application):
             WHERE
                 reply_to IS NOT NULL AND versions.addon_id = %s
             """ % addon_id
-        for guid, created, content, email, nickname, fullname, reply_to \
-                in self.sqlexec(sql):
+        for guid, created, modified, content, email, nickname, fullname, \
+                reply_to in self.sqlexec(sql):
             guid = str(guid)
             if directory.exists(guid):
                 existing.remove(guid)
@@ -355,7 +357,7 @@ class Application(application.Application):
             directory.create({
                     'guid': guid,
                     'ctime': int(time.mktime(created.timetuple())),
-                    'mtime': int(time.mktime(created.timetuple())),
+                    'mtime': int(time.mktime(modified.timetuple())),
                     'context': bundle_id,
                     'review': str(reply_to),
                     'message': self.get_i18n_field(content),
@@ -377,6 +379,7 @@ class Application(application.Application):
             SELECT
                 reviews.id,
                 reviews.created,
+                reviews.modified,
                 reviews.title,
                 reviews.body,
                 reviews.rating,
@@ -390,8 +393,8 @@ class Application(application.Application):
             WHERE
                 reply_to IS NULL AND versions.addon_id = %s
             """ % addon_id
-        for guid, created, title, content, rating, email, nickname, fullname \
-                in self.sqlexec(sql):
+        for guid, created, modified, title, content, rating, email, nickname, \
+                fullname in self.sqlexec(sql):
             guid = str(guid)
             if directory.exists(guid):
                 existing.remove(guid)
@@ -404,7 +407,7 @@ class Application(application.Application):
             directory.create({
                     'guid': guid,
                     'ctime': int(time.mktime(created.timetuple())),
-                    'mtime': int(time.mktime(created.timetuple())),
+                    'mtime': int(time.mktime(modified.timetuple())),
                     'context': bundle_id,
                     'title': self.get_i18n_field(title),
                     'content': self.get_i18n_field(content),
@@ -555,16 +558,18 @@ class Application(application.Application):
     def sync_context(self, addon_id, bundle_id):
         directory = self.volume['context']
 
-        created, modified, title, summary, description, homepage = \
-                self.sqlexec("""
+        created, modified, title, summary, description, homepage, \
+                featured = self.sqlexec("""
             SELECT
-                addons.created,
-                addons.modified,
-                addons.name,
-                addons.summary,
-                addons.description,
+                created,
+                modified,
+                name,
+                summary,
+                description,
                 (select max(localized_string) from translations where
-                    id=addons.homepage)
+                    id=homepage),
+                exists (select * from addons_categories where
+                    addons_categories.addon_id=addons.id and feature>0)
             FROM
                 addons
             WHERE
@@ -572,9 +577,11 @@ class Application(application.Application):
             """ % addon_id)[0]
         created = int(time.mktime(created.timetuple()))
         modified = int(time.mktime(modified.timetuple()))
+        layers = ['featured'] if featured else []
 
         if directory.exists(bundle_id) and \
-                directory.get(bundle_id)['mtime'] >= modified:
+                directory.get(bundle_id)['mtime'] >= modified and \
+                directory.get(bundle_id)['layer'] == layers:
             return
 
         tags = set()
@@ -639,6 +646,7 @@ class Application(application.Application):
                 'author': authors,
                 'ctime': created,
                 'mtime': modified,
+                'layer': layers,
                 })
         print '-- Sync %r activity' % bundle_id
 
