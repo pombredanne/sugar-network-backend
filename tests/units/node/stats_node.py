@@ -81,6 +81,11 @@ class StatsTest(tests.Test):
 
         request.content = {'solution': None}
         stats.log(request)
+        self.assertEqual(1, stats._stats['feedback'].solutions)
+
+        volume['feedback'].update('guid', {'solution': 'exists'})
+        request.content = {'solution': None}
+        stats.log(request)
         self.assertEqual(0, stats._stats['feedback'].solutions)
 
     def test_Comments(self):
@@ -173,64 +178,6 @@ class StatsTest(tests.Test):
         stats.log(request)
         self.assertEqual(1, stats._stats['context'].failed)
 
-    def test_ContextActive(self):
-        volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
-
-        request = Request(method='PUT', path=['context', '1'])
-        request.principal = 'user'
-        stats.log(request)
-        self.assertEqual(
-                ['1'],
-                stats._stats['context'].active.keys())
-
-        request = Request(method='GET', path=['artifact'], context='2')
-        request.principal = 'user'
-        stats.log(request)
-        self.assertEqual(
-                ['1', '2'],
-                stats._stats['context'].active.keys())
-
-        volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': '3', 'title': '', 'description': ''})
-        request = Request(method='GET', path=['review'], artifact='artifact')
-        request.principal = 'user'
-        stats.log(request)
-        self.assertEqual(
-                ['1', '2', '3'],
-                sorted(stats._stats['context'].active.keys()))
-
-        volume['feedback'].create({'guid': 'feedback', 'context': '4', 'type': 'idea', 'title': '', 'content': ''})
-        request = Request(method='GET', path=['solution'], feedback='feedback')
-        request.principal = 'user'
-        stats.log(request)
-        self.assertEqual(
-                ['1', '2', '3', '4'],
-                sorted(stats._stats['context'].active.keys()))
-
-        request = Request(method='GET', path=['context', '5'])
-        request.principal = 'user'
-        stats.log(request)
-        self.assertEqual(
-                ['1', '2', '3', '4', '5'],
-                sorted(stats._stats['context'].active.keys()))
-
-        request = Request(method='POST', path=['report'])
-        request.principal = 'user'
-        request.content = {'context': '6'}
-        stats.log(request)
-        self.assertEqual(
-                ['1', '2', '3', '4', '5', '6'],
-                sorted(stats._stats['context'].active.keys()))
-
-        volume['solution'].create({'guid': 'solution', 'context': '7', 'feedback': 'feedback', 'content': ''})
-        request = Request(method='POST', path=['comment'])
-        request.principal = 'user'
-        request.content = {'solution': 'solution'}
-        stats.log(request)
-        self.assertEqual(
-                ['1', '2', '3', '4', '5', '6', '7'],
-                sorted(stats._stats['context'].active.keys()))
-
     def test_ArtifactDownloaded(self):
         volume = db.Volume('local', model.RESOURCES)
         stats = Sniffer(volume)
@@ -278,7 +225,6 @@ class StatsTest(tests.Test):
 
         self.assertEqual(1, stats._stats['user'].total)
         self.assertEqual(1, stats._stats['context'].total)
-        self.assertEqual(['context'], stats._stats['context'].active.keys())
         self.assertEqual(1, stats._stats['review'].total)
         self.assertEqual(1, stats._stats['feedback'].total)
         self.assertEqual(1, stats._stats['solution'].total)
@@ -289,7 +235,6 @@ class StatsTest(tests.Test):
 
         self.assertEqual(1, stats._stats['user'].total)
         self.assertEqual(1, stats._stats['context'].total)
-        self.assertEqual([], stats._stats['context'].active.keys())
         self.assertEqual(1, stats._stats['review'].total)
         self.assertEqual(1, stats._stats['feedback'].total)
         self.assertEqual(1, stats._stats['solution'].total)
@@ -313,7 +258,6 @@ class StatsTest(tests.Test):
                 'reviewed': 0.0,
                 'downloaded': 0.0,
                 'total': 1.0,
-                'active': 0.0,
                 })],
             [('user', ts, {
                 'total': 1.0,
@@ -322,7 +266,6 @@ class StatsTest(tests.Test):
                 'failed': 0.0,
                 'reviewed': 0.0,
                 'downloaded': 0.0,
-                'active': 1.0,
                 'total': 1.0,
                 'released': 0.0,
                 })],
