@@ -166,7 +166,7 @@ class Routes(object):
         if request.guid:
             doc = directory.get(request.guid)
         else:
-            doc = directory.document_class(None, {})
+            doc = directory.resource_class(None, {})
         doc.request = request
         blobs = []
 

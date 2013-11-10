@@ -172,7 +172,8 @@ class MasterRoutes(NodeRoutes):
                 if self._files is not None:
                     cookie['files_pull'].include(packet['sequence'])
             elif packet.name == 'diff':
-                seq, ack_seq = volume.merge(self.volume, packet)
+                seq, ack_seq = volume.merge(self.volume, packet,
+                        stats=self._stats)
                 reply.append(('ack', {
                     'ack': ack_seq,
                     'sequence': seq,

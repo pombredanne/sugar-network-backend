@@ -13,7 +13,11 @@ from sugar_network import db, toolkit, model
 from sugar_network.node.volume import diff, merge
 from sugar_network.node.stats_node import stats_node_step, Sniffer
 from sugar_network.node.routes import NodeRoutes
+from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, Blob, ACL, route
+
+
+current_time = time.time
 
 
 class VolumeTest(tests.Test):
@@ -344,59 +348,240 @@ class VolumeTest(tests.Test):
         self.assertEqual(([[1, 3]], [[101, 101]]), merge(volume, records))
         assert volume['document'].exists('1')
 
-    def test_merge_UpdateReviewStats(self):
+    def test_merge_UpdateStats(self):
         stats_node_step.value = 1
         volume = db.Volume('db', model.RESOURCES)
         cp = NodeRoutes('guid', volume)
         stats = Sniffer(volume)
 
-        context = call(cp, method='POST', document='context', content={
-                'guid': 'context',
-                'type': 'package',
-                'title': 'title',
-                'summary': 'summary',
-                'description': 'description',
-                })
-        artifact = call(cp, method='POST', document='artifact', content={
-                'guid': 'artifact',
-                'type': 'instance',
-                'context': context,
-                'title': '',
-                'description': '',
-                })
-
         records = [
-                {'resource': 'review'},
-                {'guid': '1', 'diff': {
-                    'guid': {'value': '1', 'mtime': 1.0},
+                {'resource': 'context'},
+                {'guid': 'context', 'diff': {
+                    'guid': {'value': 'context', 'mtime': 1.0},
                     'ctime': {'value': 1, 'mtime': 1.0},
                     'mtime': {'value': 1, 'mtime': 1.0},
-                    'context': {'value': context, 'mtime': 1.0},
-                    'artifact': {'value': artifact, 'mtime': 4.0},
+                    'type': {'value': ['package'], 'mtime': 1.0},
+                    'title': {'value': {}, 'mtime': 1.0},
+                    'summary': {'value': {}, 'mtime': 1.0},
+                    'description': {'value': {}, 'mtime': 1.0},
+                    }},
+                {'resource': 'artifact'},
+                {'guid': 'artifact', 'diff': {
+                    'guid': {'value': 'artifact', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'type': {'value': ['instance'], 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'title': {'value': {}, 'mtime': 1.0},
+                    'description': {'value': {}, 'mtime': 1.0},
+                    }},
+                {'resource': 'review'},
+                {'guid': 'context_review', 'diff': {
+                    'guid': {'value': 'context_review', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'artifact': {'value': 'artifact', 'mtime': 4.0},
                     'rating': {'value': 1, 'mtime': 1.0},
                     'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
                     }},
-                {'guid': '2', 'diff': {
-                    'guid': {'value': '2', 'mtime': 2.0},
-                    'ctime': {'value': 2, 'mtime': 2.0},
-                    'mtime': {'value': 2, 'mtime': 2.0},
-                    'context': {'value': context, 'mtime': 2.0},
-                    'rating': {'value': 2, 'mtime': 2.0},
-                    'author': {'mtime': 2, 'value': {}},
-                    'layer': {'mtime': 2, 'value': []},
-                    'tags': {'mtime': 2, 'value': []},
+                {'guid': 'artifact_review', 'diff': {
+                    'guid': {'value': 'artifact_review', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'rating': {'value': 1, 'mtime': 1.0},
+                    'author': {'mtime': 1, 'value': {}},
+                    'layer': {'mtime': 1, 'value': []},
+                    'tags': {'mtime': 1, 'value': []},
                     }},
-                {'commit': [[1, 2]]},
+                {'resource': 'feedback'},
+                {'guid': 'feedback_1', 'diff': {
+                    'guid': {'value': 'feedback_1', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'type': {'value': ['idea'], 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'title': {'value': {}, 'mtime': 1.0},
+                    'content': {'value': {}, 'mtime': 1.0},
+                    'solution': {'value': 'solution_1', 'mtime': 1.0},
+                    }},
+                {'guid': 'feedback_2', 'diff': {
+                    'guid': {'value': 'feedback_2', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'type': {'value': ['idea'], 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'title': {'value': {}, 'mtime': 1.0},
+                    'content': {'value': {}, 'mtime': 1.0},
+                    'solution': {'value': 'solution_2', 'mtime': 1.0},
+                    }},
+                {'resource': 'solution'},
+                {'guid': 'solution_1', 'diff': {
+                    'guid': {'value': 'solution_1', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'feedback': {'value': 'feedback_1', 'mtime': 1.0},
+                    'content': {'value': {}, 'mtime': 1.0},
+                    }},
+                {'guid': 'solution_2', 'diff': {
+                    'guid': {'value': 'solution_2', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'feedback': {'value': 'feedback_1', 'mtime': 1.0},
+                    'content': {'value': {}, 'mtime': 1.0},
+                    }},
+                {'resource': 'implementation'},
+                {'guid': 'implementation', 'diff': {
+                    'guid': {'value': 'implementation', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'license': {'value': ['GPL-3.0'], 'mtime': 1.0},
+                    'version': {'value': '1', 'mtime': 1.0},
+                    'stability': {'value': 'stable', 'mtime': 1.0},
+                    'notes': {'value': {}, 'mtime': 1.0},
+                    }},
+                {'commit': [[1, 1]]},
                 ]
-        merge(volume, records, node_stats=stats)
+        merge(volume, records, stats=stats)
+        ts = int(current_time())
+        stats.commit(ts)
 
-        stats.commit()
-        self.assertEqual(1, volume['artifact'].get(artifact)['rating'])
-        self.assertEqual([1, 1], volume['artifact'].get(artifact)['reviews'])
-        self.assertEqual(2, volume['context'].get(context)['rating'])
-        self.assertEqual([1, 2], volume['context'].get(context)['reviews'])
+        self.assertEqual([
+            [('feedback', ts, {
+                'solutions': 2.0,
+                'total': 2.0,
+                'commented': 0.0,
+                })],
+            [('review', ts, {
+                'total': 2.0,
+                'commented': 0.0,
+                })],
+            [('solution', ts, {
+                'total': 2.0,
+                'commented': 0.0,
+                })],
+            [('artifact', ts, {
+                'reviewed': 1.0,
+                'downloaded': 0.0,
+                'total': 1.0,
+                })],
+            [('user', ts, {
+                'total': 0.0,
+                })],
+            [('context', ts, {
+                'failed': 0.0,
+                'reviewed': 1.0,
+                'downloaded': 0.0,
+                'total': 1.0,
+                'released': 1.0,
+                })],
+            ],
+            [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)])
+        self.assertEqual(1, volume['artifact'].get('artifact')['rating'])
+        self.assertEqual([1, 1], volume['artifact'].get('artifact')['reviews'])
+        self.assertEqual(1, volume['context'].get('context')['rating'])
+        self.assertEqual([1, 1], volume['context'].get('context')['reviews'])
+
+        records = [
+                {'resource': 'feedback'},
+                {'guid': 'feedback_2', 'diff': {'solution': {'value': '', 'mtime': 2.0}}},
+                {'commit': [[2, 2]]},
+                ]
+        merge(volume, records, stats=stats)
+        ts += 1
+        stats.commit(ts)
+
+        self.assertEqual([
+            [('feedback', ts, {
+                'solutions': 1.0,
+                'total': 2.0,
+                'commented': 0.0,
+                })],
+            [('review', ts, {
+                'total': 2.0,
+                'commented': 0.0,
+                })],
+            [('solution', ts, {
+                'total': 2.0,
+                'commented': 0.0,
+                })],
+            [('artifact', ts, {
+                'reviewed': 0.0,
+                'downloaded': 0.0,
+                'total': 1.0,
+                })],
+            [('user', ts, {
+                'total': 0.0,
+                })],
+            [('context', ts, {
+                'failed': 0.0,
+                'reviewed': 0.0,
+                'downloaded': 0.0,
+                'total': 1.0,
+                'released': 0.0,
+                })],
+            ],
+            [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)])
+
+        records = [
+                {'resource': 'context'},
+                {'guid': 'context', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'resource': 'artifact'},
+                {'guid': 'artifact', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'resource': 'review'},
+                {'guid': 'context_review', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'guid': 'artifact_review', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'resource': 'feedback'},
+                {'guid': 'feedback_1', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'guid': 'feedback_2', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'resource': 'solution'},
+                {'guid': 'solution_1', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'guid': 'solution_2', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'resource': 'implementation'},
+                {'guid': 'implementation', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'commit': [[3, 3]]},
+                ]
+        merge(volume, records, stats=stats)
+        ts += 1
+        stats.commit(ts)
+
+        self.assertEqual([
+            [('feedback', ts, {
+                'solutions': 0.0,
+                'total': 0.0,
+                'commented': 0.0,
+                })],
+            [('review', ts, {
+                'total': 0.0,
+                'commented': 0.0,
+                })],
+            [('solution', ts, {
+                'total': 0.0,
+                'commented': 0.0,
+                })],
+            [('artifact', ts, {
+                'reviewed': 0.0,
+                'downloaded': 0.0,
+                'total': 0.0,
+                })],
+            [('user', ts, {
+                'total': 0.0,
+                })],
+            [('context', ts, {
+                'failed': 0.0,
+                'reviewed': 0.0,
+                'downloaded': 0.0,
+                'total': 0.0,
+                'released': 0.0,
+                })],
+            ],
+            [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)])
 
     def test_diff_Blobs(self):
 

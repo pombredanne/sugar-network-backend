@@ -282,6 +282,9 @@ class _FeedbackStats(_ResourceStats):
                     self.solutions += 1
                 else:
                     self.solutions -= 1
+        elif request.method == 'DELETE':
+            if self._directory.get(request.guid)['solution']:
+                self.solutions -= 1
 
     def commit(self):
         result = _ResourceStats.commit(self)

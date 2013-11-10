@@ -37,14 +37,14 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
             layer = [layer]
         layer.append('common')
     try:
-        for document, directory in volume.items():
-            if ignore_documents and document in ignore_documents:
+        for resource, directory in volume.items():
+            if ignore_documents and resource in ignore_documents:
                 continue
             coroutine.dispatch()
             directory.commit()
-            yield {'resource': document}
+            yield {'resource': resource}
             for guid, patch in directory.diff(in_seq, exclude_seq,
-                    layer=layer if document in _LIMITED_RESOURCES else None):
+                    layer=layer if resource in _LIMITED_RESOURCES else None):
                 adiff = {}
                 adiff_seq = toolkit.Sequence()
                 for prop, meta, seqno in patch:
@@ -64,7 +64,7 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
                                     headers={'Accept-Encoding': ''})
                         except Exception:
                             _logger.exception('Cannot fetch %r for %s:%s:%s',
-                                    url, document, guid, prop)
+                                    url, resource, guid, prop)
                             is_the_only_seq = False
                             continue
                         yield {'guid': guid,
@@ -88,38 +88,47 @@ def diff(volume, in_seq, out_seq=None, exclude_seq=None, layer=None,
     yield {'commit': out_seq}
 
 
-def merge(volume, records, shift_seqno=True, node_stats=None):
-    document = None
+def merge(volume, records, shift_seqno=True, stats=None):
+    resource = None
     directory = None
     commit_seq = toolkit.Sequence()
     merged_seq = toolkit.Sequence()
     synced = False
 
     for record in records:
-        document_ = record.get('resource')
-        if document_:
-            document = document_
-            directory = volume[document_]
+        resource_ = record.get('resource')
+        if resource_:
+            resource = resource_
+            directory = volume[resource_]
             continue
 
         if 'guid' in record:
-            enforce(document, 'Invalid merge, no document')
+            guid = record['guid']
+            layer = []
+            existed = directory.exists(guid)
+            if existed:
+                layer = directory.get(guid)['layer']
 
+            def update_stats(upd):
+                method = 'PUT' if existed else 'POST'
+                if ('deleted' in layer) != ('deleted' in upd.get('layer', [])):
+                    if 'deleted' in layer:
+                        # TODO
+                        enforce(not 'supported yet')
+                    else:
+                        method = 'DELETE'
+                stats.log(Request(
+                        method=method,
+                        path=[resource, guid],
+                        content=upd,
+                        ))
+
+            if stats is not None:
+                record['op'] = update_stats
             seqno, merged = directory.merge(shift_seqno=shift_seqno, **record)
             synced = synced or merged
             if seqno is not None:
                 merged_seq.include(seqno, seqno)
-
-            if node_stats is not None and document == 'review':
-                request = Request(method='POST', path=[document])
-                patch = record['diff']
-                request.content = {
-                        'context': patch['context']['value'],
-                        'rating': patch['rating']['value'],
-                        }
-                if 'artifact' in patch:
-                    request.content['artifact'] = patch['artifact']['value']
-                node_stats.log(request)
             continue
 
         commit = record.get('commit')

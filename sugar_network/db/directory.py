@@ -35,7 +35,7 @@ _logger = logging.getLogger('db.directory')
 
 class Directory(object):
 
-    def __init__(self, root, document_class, index_class,
+    def __init__(self, root, resource_class, index_class,
             broadcast=None, seqno=None):
         """
         :param index_class:
@@ -47,14 +47,14 @@ class Directory(object):
         if not exists(root):
             os.makedirs(root)
 
-        if document_class.metadata is None:
+        if resource_class.metadata is None:
             # Metadata cannot be recreated
-            document_class.metadata = Metadata(document_class)
-            document_class.metadata['guid'] = IndexedProperty('guid',
+            resource_class.metadata = Metadata(resource_class)
+            resource_class.metadata['guid'] = IndexedProperty('guid',
                     slot=0, prefix=GUID_PREFIX, acl=ACL.CREATE | ACL.READ)
-        self.metadata = document_class.metadata
+        self.metadata = resource_class.metadata
 
-        self.document_class = document_class
+        self.resource_class = resource_class
         self.broadcast = broadcast or (lambda event: None)
         self._index_class = index_class
         self._root = root
@@ -119,7 +119,7 @@ class Directory(object):
             # XXX Setters are being proccessed on routes level, but,
             # while creating resources gotten from routes, it is important
             # to call setters as well, e.g., `author` property
-            doc = self.document_class(guid, None, props)
+            doc = self.resource_class(guid, None, props)
             for key, value in props.items():
                 prop = self.metadata.get(key)
                 if prop is not None and prop.on_set is not None:
@@ -168,7 +168,7 @@ class Directory(object):
         enforce(cached_props or record.exists, http.NotFound,
                 'Resource %r does not exist in %r',
                 guid, self.metadata.name)
-        return self.document_class(guid, record, cached_props)
+        return self.resource_class(guid, record, cached_props)
 
     def find(self, **kwargs):
         mset = self._index.find(**kwargs)
@@ -177,7 +177,7 @@ class Directory(object):
             for hit in mset:
                 guid = hit.document.get_value(0)
                 record = self._storage.get(guid)
-                yield self.document_class(guid, record)
+                yield self.resource_class(guid, record)
 
         return iterate(), mset.get_matches_estimated()
 
@@ -285,11 +285,12 @@ class Directory(object):
 
                 yield doc.guid, patch()
 
-    def merge(self, guid, diff, shift_seqno=True, **kwargs):
+    def merge(self, guid, diff, shift_seqno=True, op=None, **kwargs):
         """Apply changes for documents."""
         record = self._storage.get(guid)
         seqno = None
-        merged = False
+        merge = {}
+        patch = {}
 
         for prop, meta in diff.items():
             orig_meta = record.get(prop)
@@ -302,11 +303,18 @@ class Directory(object):
             else:
                 meta['seqno'] = (orig_meta or {}).get('seqno') or 0
             meta.update(kwargs)
+            merge[prop] = meta
+            patch[prop] = meta.get('value')
+
+        if not merge:
+            return seqno, False
+
+        if op is not None:
+            op(patch)
+        for prop, meta in merge.items():
             record.set(prop, **meta)
 
-            merged = True
-
-        if merged and record.consistent:
+        if record.consistent:
             props = {}
             if seqno:
                 props['seqno'] = seqno
@@ -314,7 +322,7 @@ class Directory(object):
             # is enough to avoid events flow on nodes synchronization
             self._index.store(guid, props, self._pre_store, self._post_store)
 
-        return seqno, merged
+        return seqno, True
 
     def _open(self):
         if not exists(self._root):
@@ -329,7 +337,7 @@ class Directory(object):
         self._storage = Storage(self._root, self.metadata)
         self._index = self._index_class(index_path, self.metadata,
                 self._post_commit)
-        _logger.debug('Open %r resource', self.document_class)
+        _logger.debug('Open %r resource', self.resource_class)
 
     def _pre_store(self, guid, changes, event=None):
         seqno = changes.get('seqno')
