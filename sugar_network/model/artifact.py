@@ -40,6 +40,10 @@ class Artifact(db.Resource):
     def description(self, value):
         return value
 
+    @db.indexed_property(slot=2, default=0, acl=ACL.READ | ACL.CALC)
+    def downloads(self, value):
+        return value
+
     @db.indexed_property(slot=3, typecast=model.RATINGS, default=0,
             acl=ACL.READ | ACL.CALC)
     def rating(self, value):

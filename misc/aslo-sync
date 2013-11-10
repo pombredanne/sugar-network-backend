@@ -135,10 +135,6 @@ LICENSES_MAP = {
         }
 
 
-class AbsDict(dict):
-    pass
-
-
 class Application(application.Application):
 
     _my_connection = None
