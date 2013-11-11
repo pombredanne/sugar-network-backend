@@ -58,6 +58,10 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
             self._stats = stats_node.Sniffer(volume)
             coroutine.spawn(self._commit_stats)
 
+    def close(self):
+        if self._stats is not None:
+            self._stats.commit()
+
     @property
     def guid(self):
         return self._guid

@@ -136,6 +136,7 @@ class FrontRoutes(object):
         rfile = None
         if request is not None:
             rfile = request.content_stream
+        if rfile is not None:
             coroutine.spawn(self._waiter_for_closing, rfile)
 
         while True:

@@ -286,7 +286,9 @@ def _print_exception(context, klass, value, tb):
     if issubclass(klass, self.NOT_ERROR + self.SYSTEM_ERROR):
         return
 
+    import errno
     import traceback
+
     tb_repr = '\n'.join([i.rstrip()
             for i in traceback.format_exception(klass, value, tb)][:-1])
     del tb
@@ -306,7 +308,8 @@ def _print_exception(context, klass, value, tb):
             (context_repr or context[:40] + '..', value)
 
     logging_level = logging.getLogger().level
-    if logging_level > logging.DEBUG:
+    if logging_level > logging.DEBUG or \
+            isinstance(value, IOError) and value.errno == errno.EPIPE:
         _logger.error(error)
     elif logging_level == logging.DEBUG:
         _logger.error('\n'.join([error, tb_repr]))

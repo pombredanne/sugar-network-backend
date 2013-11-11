@@ -97,6 +97,7 @@ class Application(application.Daemon):
         try:
             self.jobs.join()
         finally:
+            cp.close()
             volume.close()
 
     def shutdown(self):
