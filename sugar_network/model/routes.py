@@ -87,7 +87,7 @@ class FrontRoutes(object):
         if response is not None:
             response.content_type = 'text/event-stream'
             response['Cache-Control'] = 'no-cache'
-        return self._pull_events(ping, condition)
+        return self._pull_events(request, ping, condition)
 
     @route('POST', cmd='broadcast',
             mime_type='application/json', acl=ACL.LOCAL)
@@ -120,7 +120,9 @@ class FrontRoutes(object):
             'mime_type': 'image/x-icon',
             })
 
-    def _pull_events(self, ping, condition):
+    def _pull_events(self, request, ping, condition):
+        _logger.debug('Start subscription, total=%s', self._pooler.waiters + 1)
+
         if ping:
             # XXX The whole commands' kwargs handling should be redesigned
             if 'ping' in condition:
@@ -131,8 +133,18 @@ class FrontRoutes(object):
             # `GET /?cmd=subscribe` call.
             yield {'event': 'pong'}
 
+        rfile = None
+        if request is not None:
+            rfile = request.content_stream
+            coroutine.spawn(self._waiter_for_closing, rfile)
+
         while True:
             event = self._pooler.wait()
+            if not isinstance(event, dict):
+                if event is rfile:
+                    break
+                else:
+                    continue
             for key, value in condition.items():
                 if value.startswith('!'):
                     if event.get(key) == value[1:]:
@@ -141,6 +153,14 @@ class FrontRoutes(object):
                     break
             else:
                 yield event
+
+        _logger.debug('Stop subscription, total=%s', self._pooler.waiters)
+
+    def _waiter_for_closing(self, rfile):
+        try:
+            coroutine.select([rfile.fileno()], [], [])
+        finally:
+            self._pooler.notify_all(rfile)
 
 
 class _Pooler(object):
@@ -152,6 +172,10 @@ class _Pooler(object):
         self._ready = coroutine.Event()
         self._open = coroutine.Event()
         self._open.set()
+
+    @property
+    def waiters(self):
+        return self._waiters
 
     def wait(self):
         self._open.wait()

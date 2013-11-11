@@ -721,6 +721,9 @@ class _ContentStream(object):
         self._length = length
         self._pos = 0
 
+    def fileno(self):
+        return self._stream.rfile.fileno()
+
     def read(self, size=None):
         if self._length:
             the_rest = max(0, self._length - self._pos)

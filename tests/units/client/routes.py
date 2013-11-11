@@ -193,6 +193,7 @@ class RoutesTest(tests.Test):
         trigger.wait()
         self.node_volume.close()
 
+        coroutine.sleep(1.1)
         volume['context'].update(guid1, {'title': 'title_'})
         volume['context'].delete(guid2)
 
