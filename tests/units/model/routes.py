@@ -11,7 +11,7 @@ from __init__ import tests, src_root
 
 from sugar_network import db, model
 from sugar_network.model.user import User
-from sugar_network.toolkit.router import Router
+from sugar_network.toolkit.router import Router, Request
 from sugar_network.toolkit import coroutine
 
 
@@ -80,6 +80,62 @@ class RoutesTest(tests.Test):
         for event in routes.subscribe(ping=True):
             break
         self.assertEqual({'event': 'pong'}, event)
+
+    def test_feed(self):
+        volume = db.Volume('db', model.RESOURCES)
+        routes = model.VolumeRoutes(volume)
+
+        volume['context'].create({
+            'guid': 'context',
+            'type': 'activity',
+            'title': '',
+            'summary': '',
+            'description': '',
+            'dependencies': ['foo', 'bar'],
+            })
+        volume['implementation'].create({
+            'guid': 'implementation',
+            'context': 'context',
+            'license': 'GPLv3',
+            'version': '1',
+            'date': 0,
+            'stability': 'stable',
+            'notes': '',
+            'data': {
+                'spec': {
+                    '*-*': {
+                        'commands': {'activity': {'exec': 'true'}},
+                        'requires': {'dep': {}, 'sugar': {'restrictions': [['0.88', None]]}},
+                        },
+                    },
+                },
+            })
+
+        self.assertEqual({
+            'implementations': [
+                {
+                    'guid': 'implementation',
+                    'author': {},
+                    'ctime': 0,
+                    'data': {
+                        'spec': {
+                            '*-*': {
+                                'commands': {'activity': {'exec': 'true'}},
+                                'requires': {'dep': {}, 'sugar': {'restrictions': [['0.88', None]]}},
+                                },
+                            },
+                        },
+                    'layer': [],
+                    'license': 'GPLv3',
+                    'notes': {'en-us': ''},
+                    'stability': 'stable',
+                    'tags': [],
+                    'version': '1',
+                    'requires': {'bar': {}, 'foo': {}},
+                    },
+                ],
+            },
+            routes.feed(Request(method='GET', path=['context', 'context']), 'foo'))
 
 
 if __name__ == '__main__':
