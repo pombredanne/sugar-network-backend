@@ -35,7 +35,7 @@ from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit import pylru, http, coroutine, exception, enforce
 
 
-_MAX_STATS_LENGTH = 100
+_MAX_STAT_RECORDS = 128
 _AUTH_POOL_SIZE = 1024
 
 _logger = logging.getLogger('node.routes')
@@ -85,40 +85,27 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         return {'guid': self._guid, 'resources': documents}
 
     @route('GET', cmd='stats', arguments={
-                'start': int, 'end': int, 'resolution': int, 'source': list},
+                'start': int, 'end': int, 'records': int, 'source': list},
             mime_type='application/json')
-    def stats(self, start, end, resolution, source):
-        if not source:
+    def stats(self, start, end, records, source):
+        if not source or records <= 0 or start > end:
             return {}
 
         enforce(self._stats is not None, 'Node stats is disabled')
-        enforce(start < end, "Argument 'start' should be less than 'end'")
-        enforce(resolution > 0, "Argument 'resolution' should be more than 0")
 
-        min_resolution = (end - start) / _MAX_STATS_LENGTH
-        if resolution < min_resolution:
-            _logger.debug('Resulution is too short, use %s instead',
-                    min_resolution)
-            resolution = min_resolution
+        if records > _MAX_STAT_RECORDS:
+            _logger.debug('Decrease %d stats records number to %d',
+                    records, _MAX_STAT_RECORDS)
+            records = _MAX_STAT_RECORDS
+        resolution = (end - start) / records
 
-        dbs = {}
+        stats = {}
         for i in source:
             enforce('.' in i, 'Misnamed source')
             db_name, ds_name = i.split('.', 1)
-            dbs.setdefault(db_name, []).append(ds_name)
-        result = {}
+            stats.setdefault(db_name, []).append(ds_name)
 
-        for rdb in self._stats.rrd:
-            if rdb.name not in dbs:
-                continue
-            info = result[rdb.name] = []
-            for ts, ds_values in rdb.get(start, end, resolution):
-                values = {}
-                for name in dbs[rdb.name]:
-                    values[name] = ds_values.get(name)
-                info.append((ts, values))
-
-        return result
+        return self._stats.report(stats, start, end, resolution)
 
     @route('POST', ['user'], mime_type='application/json')
     def register(self, request):

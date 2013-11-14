@@ -40,6 +40,8 @@ stats_node_rras = Option(
             ],
         type_cast=Option.list_cast, type_repr=Option.list_repr)
 
+_MAX_FRAME = 64
+
 _logger = logging.getLogger('node.stats_node')
 
 
@@ -47,31 +49,40 @@ class Sniffer(object):
 
     def __init__(self, volume):
         path = join(node.stats_root.value, 'node')
-        _logger.info('Start collecting node stats in %r', path)
+        _logger.info('Collect node stats in %r', path)
 
         self._volume = volume
-        self.rrd = Rrd(path, stats_node_step.value, stats_node_rras.value)
+        self._rrd = Rrd(path, stats_node_step.value, stats_node_rras.value)
         self._stats = {}
 
-        for cls in (_UserStats, _ContextStats, _ImplementationStats,
-                _ReportStats, _ReviewStats, _FeedbackStats, _SolutionStats,
-                _ArtifactStats, _CommentStats):
-            self._stats[cls.RESOURCE] = cls(self._stats, volume)
+        for name, cls in _STATS.items():
+            self._stats[name] = cls(self._stats, volume)
 
     def log(self, request):
-        if request.cmd:
+        if request.cmd or request.resource in _STATS:
             return
-        stats = self._stats.get(request.resource)
-        if stats is not None:
-            stats.log(request)
+        self._stats[request.resource].log(request)
 
     def commit(self, timestamp=None):
-        _logger.heartbeat('Commit node stats')
+        _logger.trace('Commit node stats')
 
         for resource, stats in self._stats.items():
             values = stats.commit()
             if values is not None:
-                self.rrd[resource].put(values, timestamp=timestamp)
+                self._rrd[resource].put(values, timestamp=timestamp)
+
+    def report(self, dbs, start, end, resolution):
+        result = {}
+        for rdb in self._rrd:
+            if rdb.name not in dbs:
+                continue
+            info = result[rdb.name] = []
+            for ts, ds_values in rdb.get(start, end, resolution):
+                values = {}
+                for name in dbs[rdb.name]:
+                    values[name] = ds_values.get(name)
+                info.append((ts, values))
+        return result
 
 
 class _ObjectStats(object):
@@ -339,3 +350,15 @@ class _CommentStats(_Stats):
                 if request.content.get(owner):
                     self._stats[owner].commented += 1
                     break
+
+
+_STATS = {_UserStats.RESOURCE: _UserStats,
+          _ContextStats.RESOURCE: _ContextStats,
+          _ImplementationStats.RESOURCE: _ImplementationStats,
+          _ReportStats.RESOURCE: _ReportStats,
+          _ReviewStats.RESOURCE: _ReviewStats,
+          _FeedbackStats.RESOURCE: _FeedbackStats,
+          _SolutionStats.RESOURCE: _SolutionStats,
+          _ArtifactStats.RESOURCE: _ArtifactStats,
+          _CommentStats.RESOURCE: _CommentStats,
+          }
