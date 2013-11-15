@@ -103,7 +103,8 @@ class Test(unittest.TestCase):
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
         stats_node.stats_node.value = False
-        stats_node.stats_node_step.value = 0
+        stats_node.stats_node_step.value = 1
+        stats_node.stats_node_rras.value = ['RRA:AVERAGE:0.5:1:60']
         stats_user.stats_user.value = False
         stats_user.stats_user_step.value = 1
         stats_user._user_cache.clear()

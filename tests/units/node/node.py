@@ -6,6 +6,7 @@ import os
 import time
 import json
 import base64
+import shutil
 import hashlib
 from M2Crypto import RSA
 from email.utils import formatdate, parsedate
@@ -106,11 +107,11 @@ class NodeTest(tests.Test):
 
     def test_NodeStats(self):
         stats_node.stats_node.value = True
-        stats_node.stats_node_step.value = 1
+        stats_node.stats_node_rras.value = ['RRA:AVERAGE:0.5:1:60', 'RRA:AVERAGE:0.5:3:60']
         rrd = Rrd('stats/node', stats_node.stats_node_step.value, stats_node.stats_node_rras.value)
 
         ts = int(time.time()) / 3 * 3
-        for i in range(100):
+        for i in range(10):
             rrd['user'].put({'total': i}, ts + i)
 
         volume = db.Volume('db', model.RESOURCES)
@@ -131,10 +132,36 @@ class NodeTest(tests.Test):
                 (ts + 3, {'total': 2.0}),
                 (ts + 6, {'total': 5.0}),
                 (ts + 9, {'total': 8.0}),
-                (ts + 12, {'total': 11.0}),
                 ],
             },
-            call(cp, method='GET', cmd='stats', source='user.total', start=ts, end=ts + 12, records=4))
+            call(cp, method='GET', cmd='stats', source='user.total', start=ts, end=ts + 9, records=3))
+
+    def test_NodeStatsDefaults(self):
+        stats_node.stats_node.value = True
+        rrd = Rrd('stats/node', stats_node.stats_node_step.value, stats_node.stats_node_rras.value)
+
+        ts = int(time.time())
+        for i in range(10):
+            rrd['user'].put({'total': i}, ts + i)
+
+        volume = db.Volume('db', model.RESOURCES)
+        cp = NodeRoutes('guid', volume)
+
+        self.assertEqual({
+            'user': [
+                (ts + 0, {'total': 0.0}),
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 2.0}),
+                (ts + 3, {'total': 3.0}),
+                (ts + 4, {'total': 4.0}),
+                (ts + 5, {'total': 5.0}),
+                (ts + 6, {'total': 6.0}),
+                (ts + 7, {'total': 7.0}),
+                (ts + 8, {'total': 8.0}),
+                (ts + 9, {'total': 9.0}),
+                ],
+            },
+            call(cp, method='GET', cmd='stats', source='user.total'))
 
     def test_HandleDeletes(self):
         volume = db.Volume('db', model.RESOURCES)

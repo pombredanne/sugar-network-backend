@@ -35,7 +35,7 @@ from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit import pylru, http, coroutine, exception, enforce
 
 
-_MAX_STAT_RECORDS = 128
+_MAX_STAT_RECORDS = 100
 _AUTH_POOL_SIZE = 1024
 
 _logger = logging.getLogger('node.routes')
@@ -88,16 +88,16 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
                 'start': int, 'end': int, 'records': int, 'source': list},
             mime_type='application/json')
     def stats(self, start, end, records, source):
-        if not source or records <= 0 or start > end:
-            return {}
-
         enforce(self._stats is not None, 'Node stats is disabled')
+        if not source:
+            return {}
 
         if records > _MAX_STAT_RECORDS:
             _logger.debug('Decrease %d stats records number to %d',
                     records, _MAX_STAT_RECORDS)
             records = _MAX_STAT_RECORDS
-        resolution = (end - start) / records
+        elif records <= 0:
+            records = _MAX_STAT_RECORDS / 10
 
         stats = {}
         for i in source:
@@ -105,7 +105,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
             db_name, ds_name = i.split('.', 1)
             stats.setdefault(db_name, []).append(ds_name)
 
-        return self._stats.report(stats, start, end, resolution)
+        return self._stats.report(stats, start, end, records)
 
     @route('POST', ['user'], mime_type='application/json')
     def register(self, request):

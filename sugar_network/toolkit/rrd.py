@@ -62,6 +62,9 @@ class Rrd(object):
     def __getitem__(self, name):
         return self.get(name)
 
+    def __contains__(self, name):
+        return name in self._dbsets
+
     @property
     def root(self):
         return self._root
@@ -199,8 +202,8 @@ class _DbSet(object):
             filename += '-%s' % revision
         filename += '.rrd'
 
-        _logger.debug('Create %s database in %s starting from %s',
-                filename, self._root, timestamp)
+        _logger.debug('Create %s database in %s start=%s step=%s',
+                filename, self._root, timestamp, self._step)
 
         fields = []
         for name in field_names:

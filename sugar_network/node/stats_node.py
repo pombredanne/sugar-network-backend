@@ -40,8 +40,6 @@ stats_node_rras = Option(
             ],
         type_cast=Option.list_cast, type_repr=Option.list_repr)
 
-_MAX_FRAME = 64
-
 _logger = logging.getLogger('node.stats_node')
 
 
@@ -71,17 +69,27 @@ class Sniffer(object):
             if values is not None:
                 self._rrd[resource].put(values, timestamp=timestamp)
 
-    def report(self, dbs, start, end, resolution):
+    def report(self, dbs, start, end, records):
         result = {}
-        for rdb in self._rrd:
-            if rdb.name not in dbs:
-                continue
+
+        rdbs = [self._rrd[i] for i in dbs if i in self._rrd]
+        if not rdbs:
+            return result
+
+        if not start:
+            start = min([i.first for i in rdbs])
+        if not end:
+            end = max([i.last for i in rdbs])
+        resolution = max(1, (end - start) / records)
+
+        for rdb in rdbs:
             info = result[rdb.name] = []
             for ts, ds_values in rdb.get(start, end, resolution):
                 values = {}
                 for name in dbs[rdb.name]:
                     values[name] = ds_values.get(name)
                 info.append((ts, values))
+
         return result
 
 

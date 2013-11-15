@@ -11,7 +11,7 @@ from __init__ import tests
 
 from sugar_network import db, toolkit, model
 from sugar_network.node.volume import diff, merge
-from sugar_network.node.stats_node import stats_node_step, Sniffer
+from sugar_network.node.stats_node import Sniffer
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, Blob, ACL, route
@@ -349,7 +349,6 @@ class VolumeTest(tests.Test):
         assert volume['document'].exists('1')
 
     def test_merge_UpdateStats(self):
-        stats_node_step.value = 1
         volume = db.Volume('db', model.RESOURCES)
         cp = NodeRoutes('guid', volume)
         stats = Sniffer(volume)

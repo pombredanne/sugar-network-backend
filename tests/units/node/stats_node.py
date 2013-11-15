@@ -6,7 +6,7 @@ import time
 from __init__ import tests
 
 from sugar_network import db, model
-from sugar_network.node.stats_node import stats_node_step, Sniffer
+from sugar_network.node.stats_node import Sniffer
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit.router import Request
 
@@ -194,7 +194,6 @@ class StatsTest(tests.Test):
         self.assertEqual(1, stats._stats['artifact'].downloaded)
 
     def test_Commit(self):
-        stats_node_step.value = 1
         volume = db.Volume('local', model.RESOURCES)
         volume['user'].create({'guid': 'user', 'name': 'user', 'color': '', 'pubkey': ''})
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
@@ -273,7 +272,6 @@ class StatsTest(tests.Test):
             [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)])
 
     def test_CommitContextStats(self):
-        stats_node_step.value = 1
         volume = db.Volume('local', model.RESOURCES)
 
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
@@ -323,7 +321,6 @@ class StatsTest(tests.Test):
         self.assertEqual(3, volume['context'].get('context')['rating'])
 
     def test_CommitArtifactStats(self):
-        stats_node_step.value = 1
         volume = db.Volume('local', model.RESOURCES)
 
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
