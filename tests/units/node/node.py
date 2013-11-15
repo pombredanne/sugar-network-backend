@@ -124,7 +124,7 @@ class NodeTest(tests.Test):
                 (ts + 3, {'total': 3.0}),
                 ],
             },
-            cp.stats(ts, ts + 3, 4, ['user.total']))
+            call(cp, method='GET', cmd='stats', source='user.total', start=ts, end=ts + 3, records=4))
 
         self.assertEqual({
             'user': [
@@ -134,7 +134,7 @@ class NodeTest(tests.Test):
                 (ts + 12, {'total': 11.0}),
                 ],
             },
-            cp.stats(ts, ts + 12, 4, ['user.total']))
+            call(cp, method='GET', cmd='stats', source='user.total', start=ts, end=ts + 12, records=4))
 
     def test_HandleDeletes(self):
         volume = db.Volume('db', model.RESOURCES)

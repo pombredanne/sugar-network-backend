@@ -59,7 +59,7 @@ class Sniffer(object):
             self._stats[name] = cls(self._stats, volume)
 
     def log(self, request):
-        if request.cmd or request.resource in _STATS:
+        if request.cmd or request.resource not in _STATS:
             return
         self._stats[request.resource].log(request)
 
