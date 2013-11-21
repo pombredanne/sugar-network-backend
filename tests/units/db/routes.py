@@ -1180,7 +1180,7 @@ class RoutesTest(tests.Test):
                 {'user': {'role': 2, 'order': 0}},
                 self.volume['document'].get(guid)['author'])
 
-        self.volume['user'].create({'guid': 'user', 'color': '', 'pubkey': '', 'name': 'User'})
+        self.volume['user'].create({'guid': 'user', 'pubkey': '', 'name': 'User'})
 
         guid = self.call('POST', ['document'], content={}, principal='user')
         self.assertEqual(
@@ -1203,9 +1203,9 @@ class RoutesTest(tests.Test):
 
         self.volume = db.Volume('db', [User, Document])
 
-        self.volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'UserName1'})
-        self.volume['user'].create({'guid': 'user2', 'color': '', 'pubkey': '', 'name': 'User Name2'})
-        self.volume['user'].create({'guid': 'user3', 'color': '', 'pubkey': '', 'name': 'User Name 3'})
+        self.volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'UserName1'})
+        self.volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User Name2'})
+        self.volume['user'].create({'guid': 'user3', 'pubkey': '', 'name': 'User Name 3'})
 
         guid1 = self.call('POST', ['document'], content={}, principal='user1')
         guid2 = self.call('POST', ['document'], content={}, principal='user2')
@@ -1245,9 +1245,9 @@ class RoutesTest(tests.Test):
 
         self.volume = db.Volume('db', [User, Document])
 
-        self.volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'User1'})
-        self.volume['user'].create({'guid': 'user2', 'color': '', 'pubkey': '', 'name': 'User2'})
-        self.volume['user'].create({'guid': 'user3', 'color': '', 'pubkey': '', 'name': 'User3'})
+        self.volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
+        self.volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
+        self.volume['user'].create({'guid': 'user3', 'pubkey': '', 'name': 'User3'})
 
         guid = self.call('POST', ['document'], content={}, principal='user1')
         self.call('PUT', ['document', guid], cmd='useradd', user='user2', role=0)
@@ -1326,7 +1326,7 @@ class RoutesTest(tests.Test):
             pass
 
         self.volume = db.Volume('db', [User, Document])
-        self.volume['user'].create({'guid': 'user', 'color': '', 'pubkey': '', 'name': 'User'})
+        self.volume['user'].create({'guid': 'user', 'pubkey': '', 'name': 'User'})
 
         guid1 = self.call('POST', ['document'], content={}, principal='user')
         self.assertEqual({'user': {'name': 'User', 'role': 3, 'order': 0}}, self.volume['document'].get(guid1)['author'])
@@ -1350,8 +1350,8 @@ class RoutesTest(tests.Test):
 
         self.volume = db.Volume('db', [User, Document])
 
-        self.volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'User1'})
-        self.volume['user'].create({'guid': 'user2', 'color': '', 'pubkey': '', 'name': 'User2'})
+        self.volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
+        self.volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
 
         guid = self.call('POST', ['document'], content={}, principal='user1')
         self.assertEqual([
@@ -1418,7 +1418,7 @@ class RoutesTest(tests.Test):
 
         self.volume = db.Volume('db', [User, Document])
 
-        self.volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'User1'})
+        self.volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
         guid = self.call('POST', ['document'], content={}, principal='user1')
 
         self.call('PUT', ['document', guid], cmd='useradd', user='User2', role=0)
@@ -1470,8 +1470,8 @@ class RoutesTest(tests.Test):
 
         self.volume = db.Volume('db', [User, Document])
 
-        self.volume['user'].create({'guid': 'user1', 'color': '', 'pubkey': '', 'name': 'User1'})
-        self.volume['user'].create({'guid': 'user2', 'color': '', 'pubkey': '', 'name': 'User2'})
+        self.volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
+        self.volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
         guid = self.call('POST', ['document'], content={}, principal='user1')
         self.call('PUT', ['document', guid], cmd='useradd', user='user2')
         self.call('PUT', ['document', guid], cmd='useradd', user='User3')

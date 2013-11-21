@@ -55,12 +55,14 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         self._auth_config_mtime = 0
 
         if stats_node.stats_node.value:
-            self._stats = stats_node.Sniffer(volume)
+            stats_path = join(node.stats_root.value, 'node')
+            self._stats = stats_node.Sniffer(volume, stats_path)
             coroutine.spawn(self._commit_stats)
 
     def close(self):
         if self._stats is not None:
             self._stats.commit()
+            self._stats.commit_objects()
 
     @property
     def guid(self):
@@ -402,6 +404,91 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         return result
 
 
+def generate_node_stats(volume, path):
+    tmp_path = toolkit.mkdtemp()
+    new_stats = stats_node.Sniffer(volume, tmp_path, True)
+    old_stats = stats_node.Sniffer(volume, path)
+
+    def timeline(ts):
+        ts = long(ts)
+        end = long(time.time())
+        step = None
+
+        archives = {}
+        for rra in stats_node.stats_node_rras.value:
+            a_step, a_size = [long(i) for i in rra.split(':')[-2:]]
+            a_step *= stats_node.stats_node_step.value
+            a_start = end - min(end, a_step * a_size)
+            if archives.setdefault(a_start, a_step) > a_step:
+                archives[a_start] = a_step
+        archives = list(sorted(archives.items()))
+
+        try:
+            while ts <= end:
+                while not step or archives and ts >= archives[0][0]:
+                    archive_start, step = archives.pop(0)
+                    ts = max(ts / step * step, archive_start)
+                yield ts, ts + step - 1, step
+                ts += step
+        except GeneratorExit:
+            shutil.rmtree(tmp_path, ignore_errors=True)
+
+    start = next(volume['context'].find(limit=1, order_by='ctime')[0])['ctime']
+    for left, right, step in timeline(start):
+        for resource, props in [
+                ('user', []),
+                ('context', []),
+                ('implementation', ['context']),
+                ('artifact', ['context']),
+                ('feedback', ['context']),
+                ('solution', ['context', 'feedback']),
+                ('review', ['context', 'artifact', 'rating']),
+                ('report', ['context', 'implementation']),
+                ('comment', ['context', 'review', 'feedback', 'solution']),
+                ]:
+            objs, __ = volume[resource].find(
+                    query='ctime:%s..%s' % (left, right))
+            for obj in objs:
+                request = Request(method='POST', path=[resource],
+                        content=obj.properties(props))
+                new_stats.log(request)
+        for resource, props in [
+                ('user', ['layer']),
+                ('context', ['layer']),
+                ('implementation', ['layer']),
+                ('artifact', ['layer']),
+                ('feedback', ['layer', 'solution']),
+                ('solution', ['layer']),
+                ('review', ['layer']),
+                ('report', ['layer']),
+                ('comment', ['layer']),
+                ]:
+            objs, __ = volume[resource].find(
+                    query='mtime:%s..%s' % (left, right))
+            for obj in objs:
+                if 'deleted' in obj['layer']:
+                    request = Request(method='DELETE',
+                            path=[resource, obj.guid])
+                else:
+                    request = Request(method='PUT', path=[resource, obj.guid],
+                            content=obj.properties(props))
+                new_stats.log(request)
+        downloaded = {}
+        for resource in ('context', 'artifact'):
+            stats = old_stats.report(
+                    {resource: ['downloaded']}, left - step, right, 1)
+            if not stats.get(resource):
+                continue
+            stats = stats[resource][-1][1].get('downloaded')
+            if stats:
+                downloaded[resource] = {'downloaded': stats}
+        new_stats.commit(left + (right - left) / 2, downloaded)
+
+    new_stats.commit_objects(True)
+    shutil.rmtree(path)
+    shutil.move(tmp_path, path)
+
+
 @contextmanager
 def load_bundle(volume, request, bundle_path):
     impl = request.copy()
@@ -488,6 +575,14 @@ def load_bundle(volume, request, bundle_path):
 
 
 def _load_context_metadata(bundle, spec):
+
+    def convert(data, w, h):
+        result = toolkit.svg_to_png(data.getvalue(), w, h)
+        return {'blob': result,
+                'mime_type': 'image/png',
+                'digest': hashlib.sha1(result.getvalue()).hexdigest(),
+                }
+
     result = {}
     for prop in ('homepage', 'mime_types'):
         if spec[prop]:
@@ -503,8 +598,8 @@ def _load_context_metadata(bundle, spec):
                 'mime_type': 'image/svg+xml',
                 'digest': hashlib.sha1(icon.getvalue()).hexdigest(),
                 },
-            'preview': _svg_to_png(icon.getvalue(), 160, 120),
-            'icon': _svg_to_png(icon.getvalue(), 55, 55),
+            'preview': convert(icon, 160, 120),
+            'icon': convert(icon, 55, 55),
             })
     except Exception:
         exception(_logger, 'Failed to load icon')
@@ -538,28 +633,3 @@ def _load_context_metadata(bundle, spec):
                 exception(_logger, 'Gettext failed to read %r', mo_path[-1])
 
     return result
-
-
-def _svg_to_png(data, w, h):
-    import rsvg
-    import cairo
-
-    svg = rsvg.Handle(data=data)
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
-    context = cairo.Context(surface)
-
-    scale = min(float(w) / svg.props.width, float(h) / svg.props.height)
-    context.translate(
-            int(w - svg.props.width * scale) / 2,
-            int(h - svg.props.height * scale) / 2)
-    context.scale(scale, scale)
-    svg.render_cairo(context)
-
-    result = StringIO()
-    surface.write_to_png(result)
-    result.seek(0)
-
-    return {'blob': result,
-            'mime_type': 'image/png',
-            'digest': hashlib.sha1(result.getvalue()).hexdigest(),
-            }

@@ -20,7 +20,7 @@ from sugar_network.client import Connection, keyfile
 from sugar_network.toolkit import http, coroutine
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.node import stats_user, stats_node, obs
-from sugar_network.node.routes import NodeRoutes
+from sugar_network.node.routes import NodeRoutes, generate_node_stats
 from sugar_network.node.master import MasterRoutes
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
@@ -48,7 +48,6 @@ class NodeTest(tests.Test):
 
         call(cp, method='POST', document='user', principal=tests.UID, content={
             'name': 'user',
-            'color': '',
             'pubkey': tests.PUBKEY,
             })
 
@@ -129,6 +128,7 @@ class NodeTest(tests.Test):
 
         self.assertEqual({
             'user': [
+                (ts + 0, {'total': 0.0}),
                 (ts + 3, {'total': 2.0}),
                 (ts + 6, {'total': 5.0}),
                 (ts + 9, {'total': 8.0}),
@@ -165,7 +165,7 @@ class NodeTest(tests.Test):
 
     def test_HandleDeletes(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -200,7 +200,7 @@ class NodeTest(tests.Test):
 
     def test_SimulateDeleteEvents(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -226,7 +226,6 @@ class NodeTest(tests.Test):
 
         guid = call(cp, method='POST', document='user', principal=tests.UID2, content={
             'name': 'user',
-            'color': '',
             'pubkey': tests.PUBKEY,
             })
         assert guid is None
@@ -234,7 +233,7 @@ class NodeTest(tests.Test):
 
     def test_UnauthorizedCommands(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
 
         class Routes(NodeRoutes):
 
@@ -272,7 +271,7 @@ class NodeTest(tests.Test):
             pass
 
         volume = db.Volume('db', [User, Document])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = Routes('guid', volume)
 
         guid = call(cp, method='POST', document='document', principal=tests.UID, content={})
@@ -287,7 +286,6 @@ class NodeTest(tests.Test):
 
         call(cp, method='POST', document='user', principal=tests.UID2, content={
             'name': 'user1',
-            'color': '',
             'pubkey': tests.PUBKEY,
             })
         self.assertEqual('user1', call(cp, method='GET', document='user', guid=tests.UID, prop='name'))
@@ -310,8 +308,8 @@ class NodeTest(tests.Test):
                 return 'ok'
 
         volume = db.Volume('db', [User])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
-        volume['user'].create({'guid': tests.UID2, 'name': 'test', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID2, 'name': 'test', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
         cp = Routes('guid', volume)
 
         self.assertRaises(http.Forbidden, call, cp, method='PROBE')
@@ -327,8 +325,8 @@ class NodeTest(tests.Test):
                 return value
 
         volume = db.Volume('db', [User, Document])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
-        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='document', principal=tests.UID, content={'prop': '1'})
@@ -348,8 +346,8 @@ class NodeTest(tests.Test):
                 return value
 
         volume = db.Volume('db', [User, Document])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
-        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='document', principal=tests.UID, content={'prop': '1'})
@@ -369,7 +367,7 @@ class NodeTest(tests.Test):
                 pass
 
         volume = db.Volume('db', [User])
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = Routes('guid', volume)
 
         self.assertRaises(http.Forbidden, call, cp, 'PROBE', principal=tests.UID)
@@ -407,7 +405,7 @@ class NodeTest(tests.Test):
 
     def test_SetUser(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -422,7 +420,7 @@ class NodeTest(tests.Test):
 
     def test_find_MaxLimit(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -453,7 +451,7 @@ class NodeTest(tests.Test):
 
     def test_DeletedDocuments(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -474,7 +472,7 @@ class NodeTest(tests.Test):
     def test_CreateGUID(self):
         # TODO Temporal security hole, see TODO
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = NodeRoutes('guid', volume)
         call(cp, method='POST', document='context', principal=tests.UID, content={
             'guid': 'foo',
@@ -489,7 +487,7 @@ class NodeTest(tests.Test):
 
     def test_CreateMalformedGUID(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = MasterRoutes('guid', volume)
 
         self.assertRaises(RuntimeError, call, cp, method='POST', document='context', principal=tests.UID, content={
@@ -502,7 +500,7 @@ class NodeTest(tests.Test):
 
     def test_FailOnExistedGUID(self):
         volume = db.Volume('db', model.RESOURCES)
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'color': '', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
         cp = MasterRoutes('guid', volume)
 
         guid = call(cp, method='POST', document='context', principal=tests.UID, content={
@@ -934,6 +932,551 @@ class NodeTest(tests.Test):
         self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl1)['layer']))
         self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl2)['layer']))
         self.assertEqual([], volume['implementation'].get(impl3)['layer'])
+
+    def test_generate_node_stats_Posts(self):
+        node.stats_root.value = 'stats'
+        stats_node.stats_node.value = True
+        stats_node.stats_node_rras.value = ['RRA:AVERAGE:0.5:1:10', 'RRA:AVERAGE:0.5:10:10']
+        volume = db.Volume('db', model.RESOURCES)
+
+        ts = 1000000000
+
+        volume['user'].create({
+            'guid': 'user_1',
+            'ctime': ts + 1,
+            'mtime': ts + 1,
+            'layer': [],
+            'name': '',
+            })
+        volume['context'].create({
+            'guid': 'context_1',
+            'ctime': ts + 1,
+            'mtime': ts + 1,
+            'layer': [],
+            'type': 'activity',
+            'title': '',
+            'summary': '',
+            'description': '',
+            })
+        volume['implementation'].create({
+            'guid': 'impl_1',
+            'ctime': ts + 2,
+            'mtime': ts + 2,
+            'layer': [],
+            'context': 'context_1',
+            'license': ['GPL-3'],
+            'version': '1',
+            })
+        volume['artifact'].create({
+            'guid': 'artifact_1',
+            'ctime': ts + 3,
+            'mtime': ts + 3,
+            'layer': [],
+            'context': 'context_1',
+            'type': 'preview',
+            'title': '',
+            'description': '',
+            })
+        volume['feedback'].create({
+            'guid': 'feedback_1',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_1',
+            'title': '',
+            'content': '',
+            'type': 'idea',
+            })
+        volume['solution'].create({
+            'guid': 'solution_1',
+            'ctime': ts + 5,
+            'mtime': ts + 5,
+            'layer': [],
+            'context': 'context_1',
+            'feedback': 'feedback_1',
+            'content': '',
+            })
+        volume['review'].create({
+            'guid': 'review_1',
+            'ctime': ts + 6,
+            'mtime': ts + 6,
+            'layer': [],
+            'context': 'context_1',
+            'rating': 1,
+            'title': '',
+            'content': '',
+            })
+        volume['review'].create({
+            'guid': 'review_2',
+            'ctime': ts + 6,
+            'mtime': ts + 6,
+            'layer': [],
+            'context': 'context_1',
+            'artifact': 'artifact_1',
+            'rating': 2,
+            'title': '',
+            'content': '',
+            })
+        volume['comment'].create({
+            'guid': 'comment_1',
+            'ctime': ts + 7,
+            'mtime': ts + 7,
+            'layer': [],
+            'context': 'context_1',
+            'review': 'review_1',
+            'message': '',
+            })
+        volume['comment'].create({
+            'guid': 'comment_2',
+            'ctime': ts + 7,
+            'mtime': ts + 7,
+            'layer': [],
+            'context': 'context_1',
+            'feedback': 'feedback_1',
+            'message': '',
+            })
+        volume['comment'].create({
+            'guid': 'comment_3',
+            'ctime': ts + 7,
+            'mtime': ts + 7,
+            'layer': [],
+            'context': 'context_1',
+            'solution': 'solution_1',
+            'message': '',
+            })
+        volume['report'].create({
+            'guid': 'report_1',
+            'ctime': ts + 8,
+            'mtime': ts + 8,
+            'layer': [],
+            'context': 'context_1',
+            'implementation': 'impl_1',
+            'error': '',
+            })
+
+        volume['user'].create({
+            'guid': 'user_2',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'name': '',
+            })
+        volume['context'].create({
+            'guid': 'context_2',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'type': 'activity',
+            'title': '',
+            'summary': '',
+            'description': '',
+            })
+        volume['implementation'].create({
+            'guid': 'impl_2',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'license': ['GPL-3'],
+            'version': '1',
+            })
+        volume['implementation'].create({
+            'guid': 'impl_3',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'license': ['GPL-3'],
+            'version': '1',
+            })
+        volume['review'].create({
+            'guid': 'review_3',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'rating': 3,
+            'title': '',
+            'content': '',
+            })
+        volume['review'].create({
+            'guid': 'review_4',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'rating': 4,
+            'title': '',
+            'content': '',
+            })
+        volume['report'].create({
+            'guid': 'report_2',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'implementation': 'impl_1',
+            'error': '',
+            })
+        volume['report'].create({
+            'guid': 'report_3',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'implementation': 'impl_1',
+            'error': '',
+            })
+        volume['artifact'].create({
+            'guid': 'artifact_2',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'type': 'preview',
+            'title': '',
+            'description': '',
+            })
+        volume['feedback'].create({
+            'guid': 'feedback_2',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'title': '',
+            'content': '',
+            'type': 'idea',
+            })
+        volume['solution'].create({
+            'guid': 'solution_2',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'feedback': 'feedback_2',
+            'content': '',
+            })
+        volume['comment'].create({
+            'guid': 'comment_4',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'review': 'review_3',
+            'message': '',
+            })
+        volume['comment'].create({
+            'guid': 'comment_5',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'review': 'review_4',
+            'message': '',
+            })
+        volume['comment'].create({
+            'guid': 'comment_6',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'feedback': 'feedback_2',
+            'message': '',
+            })
+        volume['comment'].create({
+            'guid': 'comment_7',
+            'ctime': ts + 4,
+            'mtime': ts + 4,
+            'layer': [],
+            'context': 'context_2',
+            'solution': 'solution_2',
+            'message': '',
+            })
+
+        self.override(time, 'time', lambda: ts + 9)
+        old_stats = stats_node.Sniffer(volume, 'stats/node')
+        old_stats.log(Request(method='GET', path=['implementation', 'impl_1', 'data']))
+        old_stats.log(Request(method='GET', path=['artifact', 'artifact_1', 'data']))
+        old_stats.commit(ts + 1)
+        old_stats.commit_objects()
+        old_stats.commit(ts + 2)
+        old_stats.commit(ts + 3)
+        old_stats.log(Request(method='GET', path=['implementation', 'impl_1', 'data']))
+        old_stats.log(Request(method='GET', path=['implementation', 'impl_2', 'data']))
+        old_stats.commit(ts + 4)
+        old_stats.commit_objects()
+        old_stats.commit(ts + 5)
+        old_stats.commit(ts + 6)
+        old_stats.log(Request(method='GET', path=['artifact', 'artifact_1', 'data']))
+        old_stats.log(Request(method='GET', path=['artifact', 'artifact_2', 'data']))
+        old_stats.commit(ts + 7)
+        old_stats.commit_objects()
+        old_stats.commit(ts + 8)
+        old_stats.commit_objects()
+
+        generate_node_stats(volume, 'stats/node')
+        cp = NodeRoutes('guid', volume)
+
+        self.assertEqual({
+            'user': [
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 1.0}),
+                (ts + 3, {'total': 1.0}),
+                (ts + 4, {'total': 2.0}),
+                (ts + 5, {'total': 2.0}),
+                (ts + 6, {'total': 2.0}),
+                (ts + 7, {'total': 2.0}),
+                (ts + 8, {'total': 2.0}),
+                (ts + 9, {'total': 2.0}),
+                ],
+            'context': [
+                (ts + 1, {'total': 1.0, 'released': 0.0, 'failed': 0.0, 'downloaded': 1.0}),
+                (ts + 2, {'total': 1.0, 'released': 1.0, 'failed': 0.0, 'downloaded': 0.0}),
+                (ts + 3, {'total': 1.0, 'released': 0.0, 'failed': 0.0, 'downloaded': 0.0}),
+                (ts + 4, {'total': 2.0, 'released': 2.0, 'failed': 2.0, 'downloaded': 2.0}),
+                (ts + 5, {'total': 2.0, 'released': 0.0, 'failed': 0.0, 'downloaded': 0.0}),
+                (ts + 6, {'total': 2.0, 'released': 0.0, 'failed': 0.0, 'downloaded': 0.0}),
+                (ts + 7, {'total': 2.0, 'released': 0.0, 'failed': 0.0, 'downloaded': 0.0}),
+                (ts + 8, {'total': 2.0, 'released': 0.0, 'failed': 1.0, 'downloaded': 0.0}),
+                (ts + 9, {'total': 2.0, 'released': 0.0, 'failed': 0.0, 'downloaded': 0.0}),
+                ],
+            'review': [
+                (ts + 1, {'total': 0.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                (ts + 4, {'total': 2.0}),
+                (ts + 5, {'total': 2.0}),
+                (ts + 6, {'total': 4.0}),
+                (ts + 7, {'total': 4.0}),
+                (ts + 8, {'total': 4.0}),
+                (ts + 9, {'total': 4.0}),
+                ],
+            'feedback': [
+                (ts + 1, {'total': 0.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                (ts + 4, {'total': 2.0}),
+                (ts + 5, {'total': 2.0}),
+                (ts + 6, {'total': 2.0}),
+                (ts + 7, {'total': 2.0}),
+                (ts + 8, {'total': 2.0}),
+                (ts + 9, {'total': 2.0}),
+                ],
+            'solution': [
+                (ts + 1, {'total': 0.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                (ts + 4, {'total': 1.0}),
+                (ts + 5, {'total': 2.0}),
+                (ts + 6, {'total': 2.0}),
+                (ts + 7, {'total': 2.0}),
+                (ts + 8, {'total': 2.0}),
+                (ts + 9, {'total': 2.0}),
+                ],
+            'artifact': [
+                (ts + 1, {'total': 0.0, 'downloaded': 1.0}),
+                (ts + 2, {'total': 0.0, 'downloaded': 0.0}),
+                (ts + 3, {'total': 1.0, 'downloaded': 0.0}),
+                (ts + 4, {'total': 2.0, 'downloaded': 0.0}),
+                (ts + 5, {'total': 2.0, 'downloaded': 0.0}),
+                (ts + 6, {'total': 2.0, 'downloaded': 0.0}),
+                (ts + 7, {'total': 2.0, 'downloaded': 2.0}),
+                (ts + 8, {'total': 2.0, 'downloaded': 0.0}),
+                (ts + 9, {'total': 2.0, 'downloaded': 0.0}),
+                ],
+            'comment': [
+                (ts + 1, {'total': 0.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                (ts + 4, {'total': 4.0}),
+                (ts + 5, {'total': 4.0}),
+                (ts + 6, {'total': 4.0}),
+                (ts + 7, {'total': 7.0}),
+                (ts + 8, {'total': 7.0}),
+                (ts + 9, {'total': 7.0}),
+                ],
+            },
+            call(cp, method='GET', cmd='stats', source=[
+                'user.total',
+                'context.total',
+                'context.released',
+                'context.failed',
+                'context.downloaded',
+                'review.total',
+                'feedback.total',
+                'solution.total',
+                'artifact.total',
+                'artifact.downloaded',
+                'comment.total',
+                ], start=ts + 1, end=ts + 10))
+
+        self.assertEqual({
+            'downloads': 2,
+            'rating': 1,
+            'reviews': [1, 1],
+            },
+            volume['context'].get('context_1').properties(['downloads', 'rating', 'reviews']))
+        self.assertEqual({
+            'downloads': 1,
+            'rating': 4,
+            'reviews': [2, 7],
+            },
+            volume['context'].get('context_2').properties(['downloads', 'rating', 'reviews']))
+        self.assertEqual({
+            'downloads': 2,
+            'rating': 2,
+            'reviews': [1, 2],
+            },
+            volume['artifact'].get('artifact_1').properties(['downloads', 'rating', 'reviews']))
+        self.assertEqual({
+            'downloads': 1,
+            'rating': 0,
+            'reviews': [0, 0],
+            },
+            volume['artifact'].get('artifact_2').properties(['downloads', 'rating', 'reviews']))
+
+    def test_generate_node_stats_Deletes(self):
+        node.stats_root.value = 'stats'
+        stats_node.stats_node.value = True
+        stats_node.stats_node_rras.value = ['RRA:AVERAGE:0.5:1:10', 'RRA:AVERAGE:0.5:10:10']
+        volume = db.Volume('db', model.RESOURCES)
+
+        ts = 1000000000
+
+        volume['user'].create({
+            'guid': 'user_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'name': '',
+            })
+        volume['context'].create({
+            'guid': 'context_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'type': 'activity',
+            'title': '',
+            'summary': '',
+            'description': '',
+            })
+        volume['implementation'].create({
+            'guid': 'impl_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'context': 'context_1',
+            'license': ['GPL-3'],
+            'version': '1',
+            })
+        volume['artifact'].create({
+            'guid': 'artifact_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'context': 'context_1',
+            'type': 'preview',
+            'title': '',
+            'description': '',
+            })
+        volume['feedback'].create({
+            'guid': 'feedback_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'context': 'context_1',
+            'title': '',
+            'content': '',
+            'type': 'idea',
+            })
+        volume['solution'].create({
+            'guid': 'solution_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'context': 'context_1',
+            'feedback': 'feedback_1',
+            'content': '',
+            })
+        volume['review'].create({
+            'guid': 'review_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'context': 'context_1',
+            'rating': 1,
+            'title': '',
+            'content': '',
+            })
+        volume['comment'].create({
+            'guid': 'comment_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'context': 'context_1',
+            'review': 'review_1',
+            'message': '',
+            })
+        volume['report'].create({
+            'guid': 'report_1',
+            'ctime': ts + 1,
+            'mtime': ts + 2,
+            'layer': ['deleted'],
+            'context': 'context_1',
+            'implementation': 'impl_1',
+            'error': '',
+            })
+
+        self.override(time, 'time', lambda: ts + 9)
+        generate_node_stats(volume, 'stats/node')
+        cp = NodeRoutes('guid', volume)
+
+        self.assertEqual({
+            'user': [
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                ],
+            'context': [
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                ],
+            'review': [
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                ],
+            'feedback': [
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                ],
+            'solution': [
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                ],
+            'artifact': [
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                ],
+            'comment': [
+                (ts + 1, {'total': 1.0}),
+                (ts + 2, {'total': 0.0}),
+                (ts + 3, {'total': 0.0}),
+                ],
+            },
+            call(cp, method='GET', cmd='stats', source=[
+                'user.total',
+                'context.total',
+                'review.total',
+                'feedback.total',
+                'solution.total',
+                'artifact.total',
+                'comment.total',
+                ], start=ts + 1, end=ts + 3))
 
 
 def call(routes, method, document=None, guid=None, prop=None, principal=None, content=None, **kwargs):

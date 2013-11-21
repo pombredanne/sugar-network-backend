@@ -21,6 +21,7 @@ import shutil
 import logging
 import tempfile
 import collections
+from cStringIO import StringIO
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
 from os.path import lexists, isfile
 
@@ -496,6 +497,27 @@ class mkdtemp(str):
 
     def __exit__(self, exc_type, exc_value, traceback):
         shutil.rmtree(self)
+
+
+def svg_to_png(data, w, h):
+    import rsvg
+    import cairo
+
+    svg = rsvg.Handle(data=data)
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    context = cairo.Context(surface)
+
+    scale = min(float(w) / svg.props.width, float(h) / svg.props.height)
+    context.translate(
+            int(w - svg.props.width * scale) / 2,
+            int(h - svg.props.height * scale) / 2)
+    context.scale(scale, scale)
+    svg.render_cairo(context)
+
+    result = StringIO()
+    surface.write_to_png(result)
+    result.seek(0)
+    return result
 
 
 def TemporaryFile(*args, **kwargs):

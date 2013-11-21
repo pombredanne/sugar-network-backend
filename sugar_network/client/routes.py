@@ -552,7 +552,6 @@ class _Auth(http.SugarAuth):
         import gconf
         conf = gconf.client_get_default()
         self._profile['name'] = conf.get_string('/desktop/sugar/user/nick')
-        self._profile['color'] = conf.get_string('/desktop/sugar/user/color')
         return http.SugarAuth.profile(self)
 
     def __call__(self, nonce):

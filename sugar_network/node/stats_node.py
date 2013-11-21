@@ -14,9 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-from os.path import join
 
-from sugar_network import node
 from sugar_network.toolkit.rrd import Rrd
 from sugar_network.toolkit import Option
 
@@ -32,11 +30,11 @@ stats_node_step = Option(
 stats_node_rras = Option(
         'comma separated list of RRAs for node RRD databases',
         default=[
-            'RRA:AVERAGE:0.5:1:288',      # one day with 5min step
-            'RRA:AVERAGE:0.5:3:672',      # one week with 15min step
-            'RRA:AVERAGE:0.5:12:744',     # one month with 1h step
-            'RRA:AVERAGE:0.5:144:732',    # one year with 12h step
-            'RRA:AVERAGE:0.5:288:36600',  # hundred years with 24h step
+            'RRA:AVERAGE:0.5:1:864',        # 3d with 5min step
+            'RRA:AVERAGE:0.5:288:3660',     # 10y with 1d step
+            'RRA:AVERAGE:0.5:2880:366',     # 10y with 10d step
+            'RRA:AVERAGE:0.5:8640:122',     # 10y with 30d step
+            'RRA:AVERAGE:0.5:105408:10',    # 10y with 1y step
             ],
         type_cast=Option.list_cast, type_repr=Option.list_repr)
 
@@ -45,8 +43,7 @@ _logger = logging.getLogger('node.stats_node')
 
 class Sniffer(object):
 
-    def __init__(self, volume):
-        path = join(node.stats_root.value, 'node')
+    def __init__(self, volume, path, reset=False):
         _logger.info('Collect node stats in %r', path)
 
         self._volume = volume
@@ -54,20 +51,75 @@ class Sniffer(object):
         self._stats = {}
 
         for name, cls in _STATS.items():
-            self._stats[name] = cls(self._stats, volume)
+            stats = self._stats[name] = cls(self._stats, volume, reset)
+            fields = {}
+            for attr in dir(stats):
+                if attr[0] == '_' or attr[0].isupper() or \
+                        type(getattr(stats, attr)) not in (int, long):
+                    continue
+                if attr == 'total':
+                    dst = 'GAUGE'
+                    limit = 60 * 60 * 24 * 365
+                else:
+                    dst = 'ABSOLUTE'
+                    limit = stats_node_step.value
+                fields[attr] = 'DS:%s:%s:%s:U:U' % (attr, dst, limit)
+            if fields:
+                self._rrd[name].fields = fields
+
+    def __getitem__(self, name):
+        return self._rrd[name]
 
     def log(self, request):
         if request.cmd or request.resource not in _STATS:
             return
         self._stats[request.resource].log(request)
 
-    def commit(self, timestamp=None):
+    def commit(self, timestamp=None, extra_values=None):
         _logger.trace('Commit node stats')
 
         for resource, stats in self._stats.items():
-            values = stats.commit()
-            if values is not None:
+            if resource not in self._rrd:
+                continue
+            values = {}
+            for field in self._rrd[resource].fields:
+                values[field] = getattr(stats, field)
+                if field != 'total':
+                    setattr(stats, field, 0)
+            if extra_values and resource in extra_values:
+                values.update(extra_values[resource])
+            if values:
                 self._rrd[resource].put(values, timestamp=timestamp)
+
+    def commit_objects(self, reset=False):
+        _logger.trace('Commit object stats')
+
+        for resource, stats in self._stats.items():
+            obj = {
+                    'downloads': 0,
+                    'reviews': (0, 0),
+                    }
+            directory = self._volume[resource]
+            for guid, obj_stats in stats.active.items():
+                if not obj_stats.reviews and not obj_stats.downloads:
+                    continue
+                if not directory.exists(guid):
+                    _logger.warning('Ignore stats for missed %r %s',
+                            guid, resource)
+                    continue
+                if not reset:
+                    obj = directory.get(guid)
+                patch = {}
+                if obj_stats.downloads:
+                    patch['downloads'] = obj_stats.downloads + obj['downloads']
+                if obj_stats.reviews:
+                    reviews, rating = obj['reviews']
+                    reviews += obj_stats.reviews
+                    rating += obj_stats.rating
+                    patch['reviews'] = [reviews, rating]
+                    patch['rating'] = int(round(float(rating) / reviews))
+                directory.update(guid, patch)
+            stats.active.clear()
 
     def report(self, dbs, start, end, records):
         result = {}
@@ -77,10 +129,13 @@ class Sniffer(object):
             return result
 
         if not start:
-            start = min([i.first for i in rdbs])
+            start = min([i.first for i in rdbs]) or 0
         if not end:
-            end = max([i.last for i in rdbs])
+            end = max([i.last for i in rdbs]) or 0
         resolution = max(1, (end - start) / records)
+
+        _logger.debug('Report start=%s end=%s resolution=%s dbs=%r',
+                start, end, resolution, dbs)
 
         for rdb in rdbs:
             info = result[rdb.name] = []
@@ -105,15 +160,18 @@ class _Stats(object):
     RESOURCE = None
     OWNERS = []
 
-    def __init__(self, stats, volume):
+    def __init__(self, stats, volume, reset):
+        self.active = {}
         self._stats = stats
         self._volume = volume
-        self._directory = volume[self.RESOURCE]
+
+    def __getitem__(self, guid):
+        result = self.active.get(guid)
+        if result is None:
+            result = self.active[guid] = _ObjectStats()
+        return result
 
     def log(self, request):
-        pass
-
-    def commit(self):
         pass
 
 
@@ -121,16 +179,10 @@ class _ResourceStats(_Stats):
 
     total = 0
 
-    def __init__(self, stats, volume):
-        _Stats.__init__(self, stats, volume)
-        self.total = volume[self.RESOURCE].find(limit=0)[1]
-        self._active = {}
-
-    def __getitem__(self, guid):
-        result = self._active.get(guid)
-        if result is None:
-            result = self._active[guid] = _ObjectStats()
-        return result
+    def __init__(self, stats, volume, reset):
+        _Stats.__init__(self, stats, volume, reset)
+        if not reset:
+            self.total = volume[self.RESOURCE].find(limit=0)[1]
 
     def log(self, request):
         if request.method == 'POST':
@@ -138,37 +190,9 @@ class _ResourceStats(_Stats):
         elif request.method == 'DELETE':
             self.total -= 1
 
-    def commit(self):
-        for guid, stats in self._active.items():
-            if not stats.reviews and not stats.downloads:
-                continue
-            doc = self._directory.get(guid)
-            updates = {}
-            if stats.downloads:
-                updates['downloads'] = stats.downloads + doc['downloads']
-            if stats.reviews:
-                reviews, rating = doc['reviews']
-                reviews += stats.reviews
-                rating += stats.rating
-                updates['reviews'] = [reviews, rating]
-                updates['rating'] = int(round(float(rating) / reviews))
-            self._directory.update(guid, updates)
-        self._active.clear()
-
-        result = {}
-        for attr in dir(self):
-            if attr[0] == '_' or attr[0].isupper():
-                continue
-            value = getattr(self, attr)
-            if type(value) in (set, dict):
-                value = len(value)
-            if type(value) in (int, long):
-                result[attr] = value
-
-        return result
-
     def parse_context(self, request):
         context = None
+        directory = self._volume[self.RESOURCE]
 
         def parse_context(props):
             for owner in self.OWNERS:
@@ -186,14 +210,14 @@ class _ResourceStats(_Stats):
             elif self.RESOURCE == 'context':
                 context = request.guid
             elif self.RESOURCE != 'user':
-                context = self._directory.get(request.guid)['context']
+                context = directory.get(request.guid)['context']
         elif request.method == 'PUT':
             if self.RESOURCE == 'context':
                 context = request.guid
             else:
                 context = request.content.get('context')
                 if not context:
-                    context = self._directory.get(request.guid)['context']
+                    context = directory.get(request.guid)['context']
         elif request.method == 'POST':
             context = parse_context(request.content)
 
@@ -211,16 +235,7 @@ class _ContextStats(_ResourceStats):
 
     released = 0
     failed = 0
-    reviewed = 0
     downloaded = 0
-
-    def commit(self):
-        result = _ResourceStats.commit(self)
-        self.released = 0
-        self.failed = 0
-        self.reviewed = 0
-        self.downloaded = 0
-        return result
 
 
 class _ImplementationStats(_Stats):
@@ -231,7 +246,7 @@ class _ImplementationStats(_Stats):
     def log(self, request):
         if request.method == 'GET':
             if request.prop == 'data':
-                context = self._directory.get(request.guid)
+                context = self._volume[self.RESOURCE].get(request.guid)
                 self._stats['context'][context.context].downloads += 1
                 self._stats['context'].downloaded += 1
         elif request.method == 'POST':
@@ -253,8 +268,6 @@ class _ReviewStats(_ResourceStats):
     RESOURCE = 'review'
     OWNERS = ['artifact', 'context']
 
-    commented = 0
-
     def log(self, request):
         _ResourceStats.log(self, request)
 
@@ -262,17 +275,10 @@ class _ReviewStats(_ResourceStats):
             if request.content.get('artifact'):
                 artifact = self._stats['artifact']
                 stats = artifact[request.content['artifact']]
-                artifact.reviewed += 1
             else:
                 stats = self._stats['context'][self.parse_context(request)]
-                self._stats['context'].reviewed += 1
             stats.reviews += 1
-            stats.rating += request.content['rating']
-
-    def commit(self):
-        result = _ResourceStats.commit(self)
-        self.commented = 0
-        return result
+            stats.rating += request.content.get('rating') or 0
 
 
 class _FeedbackStats(_ResourceStats):
@@ -280,48 +286,11 @@ class _FeedbackStats(_ResourceStats):
     RESOURCE = 'feedback'
     OWNERS = ['context']
 
-    solutions = 0
-    commented = 0
-
-    def __init__(self, stats, volume):
-        _ResourceStats.__init__(self, stats, volume)
-        not_solved = volume['feedback'].find(limit=0, solution='')[1]
-        self.solutions = self.total - not_solved
-
-    def log(self, request):
-        _ResourceStats.log(self, request)
-
-        if request.method == 'POST':
-            if request.content.get('solution'):
-                self.solutions += 1
-        elif request.method == 'PUT':
-            if cmp(bool(self._directory.get(request.guid)['solution']),
-                   bool(request.content.get('solution'))):
-                if request.content.get('solution'):
-                    self.solutions += 1
-                else:
-                    self.solutions -= 1
-        elif request.method == 'DELETE':
-            if self._directory.get(request.guid)['solution']:
-                self.solutions -= 1
-
-    def commit(self):
-        result = _ResourceStats.commit(self)
-        self.commented = 0
-        return result
-
 
 class _SolutionStats(_ResourceStats):
 
     RESOURCE = 'solution'
     OWNERS = ['feedback']
-
-    commented = 0
-
-    def commit(self):
-        result = _ResourceStats.commit(self)
-        self.commented = 0
-        return result
 
 
 class _ArtifactStats(_ResourceStats):
@@ -329,7 +298,6 @@ class _ArtifactStats(_ResourceStats):
     RESOURCE = 'artifact'
     OWNERS = ['context']
 
-    reviewed = 0
     downloaded = 0
 
     def log(self, request):
@@ -340,24 +308,11 @@ class _ArtifactStats(_ResourceStats):
                 self[request.guid].downloads += 1
                 self.downloaded += 1
 
-    def commit(self):
-        result = _ResourceStats.commit(self)
-        self.reviewed = 0
-        self.downloaded = 0
-        return result
 
-
-class _CommentStats(_Stats):
+class _CommentStats(_ResourceStats):
 
     RESOURCE = 'comment'
     OWNERS = ['solution', 'feedback', 'review']
-
-    def log(self, request):
-        if request.method == 'POST':
-            for owner in ('solution', 'feedback', 'review'):
-                if request.content.get(owner):
-                    self._stats[owner].commented += 1
-                    break
 
 
 _STATS = {_UserStats.RESOURCE: _UserStats,

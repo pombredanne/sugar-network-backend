@@ -277,8 +277,8 @@ class RrdTest(tests.Test):
         for i in xrange((end_ts - start_ts) / 300):
             dbset.put({'f': i}, start_ts + i * 300)
 
-        prev_ts = 0
-        prev_value = 0
+        prev_ts = -1
+        prev_value = -1
         for ts, value in dbset.get(start_ts, end_ts, 86400):
             value = value['f']
             assert ts > prev_ts

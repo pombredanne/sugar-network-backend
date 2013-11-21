@@ -23,10 +23,6 @@ class User(db.Resource):
     def name(self, value):
         return value
 
-    @db.stored_property()
-    def color(self, value):
-        return value
-
     @db.indexed_property(prefix='P', full_text=True, default='')
     def location(self, value):
         return value

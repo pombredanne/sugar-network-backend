@@ -310,6 +310,7 @@ class Connection(object):
             sys.path.insert(0, sys_path)
             from requests import Session, exceptions
             Connection._Session = Session
+            # pylint: disable-msg=W0601
             global ConnectionError
             ConnectionError = exceptions.ConnectionError
 
@@ -341,7 +342,7 @@ class SugarAuth(object):
 
     def __init__(self, key_path, profile=None):
         self._key_path = abspath(expanduser(key_path))
-        self._profile = profile or {'color': '#000000,#000000'}
+        self._profile = profile or {}
         self._key = None
         self._pubkey = None
         self._login = None

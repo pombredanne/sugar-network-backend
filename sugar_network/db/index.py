@@ -170,7 +170,7 @@ class IndexReader(object):
         enquire = self._enquire(request, query, order_by, group_by)
         mset = self._call_db(enquire.get_mset, offset, limit, check_at_least)
 
-        _logger.debug('Found in %s: %s time=%s total=%s parsed=%s',
+        _logger.debug('Found in %s: query=%r time=%s total=%s parsed=%s',
                 self.metadata.name, query, time.time() - start_timestamp,
                 mset.get_matches_estimated(), enquire.get_query())
 

@@ -130,7 +130,6 @@ class Test(unittest.TestCase):
         if tmp_root is None:
             self.override(_Auth, 'profile', lambda self: {
                 'name': 'test',
-                'color': '#000000,#000000',
                 'pubkey': PUBKEY,
                 })
 

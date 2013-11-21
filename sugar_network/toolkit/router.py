@@ -575,7 +575,7 @@ class Router(object):
             result = None
 
         _logger.trace('%s call: request=%s response=%r result=%r',
-                self, request.environ, response, result)
+                self, request.environ, response, repr(result)[:256])
         start_response(response.status, response.items())
 
         if result_streamed:

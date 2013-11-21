@@ -18,9 +18,10 @@
 import re
 import os
 import time
+import json
 import bisect
 import logging
-from os.path import exists, join
+from os.path import exists, join, splitext
 
 
 _DB_FILENAME_RE = re.compile('(.*?)(-[0-9]+){0,1}\\.rrd$')
@@ -28,7 +29,7 @@ _INFO_RE = re.compile('([^[]+)\\[([^]]+)\\]\\.(.*)$')
 
 _FETCH_PAGE = 256
 
-_logger = logging.getLogger('sugar_stats')
+_logger = logging.getLogger('rrd')
 _rrdtool = None
 
 
@@ -76,8 +77,8 @@ class Rrd(object):
     def get(self, name):
         db = self._dbsets.get(name)
         if db is None:
-            db = self._dbsets[name] = \
-                    _DbSet(self._root, name, self._step, self._rras)
+            db = _DbSet(self._root, name, self._step, self._rras)
+            self._dbsets[name] = db
         return db
 
 
@@ -89,8 +90,20 @@ class _DbSet(object):
         self._step = step
         self._rras = rras
         self._revisions = []
-        self._field_names = []
+        self._fields = None
+        self._field_names = None
         self.__db = None
+
+    @property
+    def fields(self):
+        return self._field_names
+
+    @fields.setter
+    def fields(self, fields):
+        self._field_names = fields.keys()
+        self._field_names.sort()
+        self._fields = [str(fields[i]) for i in self._field_names]
+        _logger.debug('Set %r fields for %r', self._fields, self.name)
 
     @property
     def first(self):
@@ -110,9 +123,11 @@ class _DbSet(object):
         return db
 
     def put(self, values, timestamp=None):
-        if not self._field_names:
-            self._field_names = values.keys()
-            self._field_names.sort()
+        if not self.fields:
+            _logger.debug('Parse fields from the first put')
+            self.fields = dict([
+                (i, 'DS:%s:GAUGE:%s:U:U' % (i, self._step * 2))
+                for i in values])
 
         if not timestamp:
             timestamp = int(time.time())
@@ -133,7 +148,7 @@ class _DbSet(object):
 
         _logger.debug('Put %r to %s', value, db.path)
 
-        db.put(':'.join(value))
+        db.put(':'.join(value), timestamp)
 
     def get(self, start=None, end=None, resolution=None):
         if not self._revisions:
@@ -154,11 +169,11 @@ class _DbSet(object):
                 break
 
         start = start - start % self._step - self._step
-        end = min(end, start + _FETCH_PAGE * resolution)
-        end -= end % self._step + self._step
+        last = min(end, start + _FETCH_PAGE * resolution)
+        last -= last % self._step + self._step
 
         for db in reversed(revisions):
-            db_end = min(end, db.last - self._step)
+            db_end = min(last, db.last - self._step)
             if start > db_end:
                 break
             (row_start, start, row_step), __, rows = _rrdtool.fetch(
@@ -169,17 +184,16 @@ class _DbSet(object):
                     '--resolution', str(resolution))
             for raw_row in rows:
                 row_start += row_step
+                if row_start > end:
+                    break
                 row = {}
-                accept = False
                 for i, value in enumerate(raw_row):
-                    row[db.field_names[i]] = value
-                    accept = accept or value is not None
-                if accept:
-                    yield row_start, row
+                    row[db.field_names[i]] = value or .0
+                yield row_start, row
             start = db_end + 1
 
     def _get_db(self, timestamp):
-        if self.__db is None and self._field_names:
+        if self.__db is None and self._fields:
             if self._revisions:
                 db = self._revisions[-1]
                 if db.last >= timestamp:
@@ -189,14 +203,13 @@ class _DbSet(object):
                     return None
                 if db.step != self._step or db.rras != self._rras or \
                         db.field_names != self._field_names:
-                    db = self._create_db(self._field_names, db.revision + 1,
-                            db.last)
+                    db = self._create_db(db.revision + 1, db.last)
             else:
-                db = self._create_db(self._field_names, 0, timestamp)
+                db = self._create_db(0, timestamp)
             self.__db = db
         return self.__db
 
-    def _create_db(self, field_names, revision, timestamp):
+    def _create_db(self, revision, timestamp):
         filename = self.name
         if revision:
             filename += '-%s' % revision
@@ -205,15 +218,11 @@ class _DbSet(object):
         _logger.debug('Create %s database in %s start=%s step=%s',
                 filename, self._root, timestamp, self._step)
 
-        fields = []
-        for name in field_names:
-            fields.append(str('DS:%s:GAUGE:%s:U:U' % (name, self._step * 2)))
-
         _rrdtool.create(
                 str(join(self._root, filename)),
                 '--start', str(timestamp - self._step),
                 '--step', str(self._step),
-                *(fields + self._rras))
+                *(self._fields + self._rras))
 
         return self.load(filename, revision)
 
@@ -222,6 +231,7 @@ class _Db(object):
 
     def __init__(self, path, revision=0):
         self.path = str(path)
+        self._meta_path = splitext(path)[0] + '.meta'
         self.revision = revision
         self.fields = []
         self.field_names = []
@@ -229,6 +239,7 @@ class _Db(object):
 
         info = _rrdtool.info(self.path)
         self.step = info['step']
+        self.first = 0
         self.last = info['last_update']
 
         fields = {}
@@ -257,13 +268,17 @@ class _Db(object):
             self.fields.append(props)
             self.field_names.append(name)
 
-    def put(self, value):
+        if exists(self._meta_path):
+            with file(self._meta_path) as f:
+                self.first = json.load(f).get('first')
+
+    def put(self, value, timestamp):
+        if not self.first:
+            with file(self._meta_path, 'w') as f:
+                json.dump({'first': timestamp}, f)
+            self.first = timestamp
         _rrdtool.update(self.path, str(value))
         self.last = _rrdtool.info(self.path)['last_update']
-
-    @property
-    def first(self):
-        return _rrdtool.first(self.path)
 
     def __cmp__(self, other):
         return cmp(self.revision, other.revision)

@@ -351,7 +351,7 @@ class VolumeTest(tests.Test):
     def test_merge_UpdateStats(self):
         volume = db.Volume('db', model.RESOURCES)
         cp = NodeRoutes('guid', volume)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
 
         records = [
                 {'resource': 'context'},
@@ -445,28 +445,35 @@ class VolumeTest(tests.Test):
                     'stability': {'value': 'stable', 'mtime': 1.0},
                     'notes': {'value': {}, 'mtime': 1.0},
                     }},
+                {'resource': 'comment'},
+                {'guid': 'comment', 'diff': {
+                    'guid': {'value': 'comment', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'message': {'value': {}, 'mtime': 1.0},
+                    }},
                 {'commit': [[1, 1]]},
                 ]
         merge(volume, records, stats=stats)
         ts = int(current_time())
         stats.commit(ts)
+        stats.commit_objects()
 
         self.assertEqual([
+            [('comment', ts, {
+                'total': 1.0,
+                })],
             [('feedback', ts, {
-                'solutions': 2.0,
                 'total': 2.0,
-                'commented': 0.0,
                 })],
             [('review', ts, {
                 'total': 2.0,
-                'commented': 0.0,
                 })],
             [('solution', ts, {
                 'total': 2.0,
-                'commented': 0.0,
                 })],
             [('artifact', ts, {
-                'reviewed': 1.0,
                 'downloaded': 0.0,
                 'total': 1.0,
                 })],
@@ -475,7 +482,6 @@ class VolumeTest(tests.Test):
                 })],
             [('context', ts, {
                 'failed': 0.0,
-                'reviewed': 1.0,
                 'downloaded': 0.0,
                 'total': 1.0,
                 'released': 1.0,
@@ -495,23 +501,22 @@ class VolumeTest(tests.Test):
         merge(volume, records, stats=stats)
         ts += 1
         stats.commit(ts)
+        stats.commit_objects()
 
         self.assertEqual([
+            [('comment', ts, {
+                'total': 1.0,
+                })],
             [('feedback', ts, {
-                'solutions': 1.0,
                 'total': 2.0,
-                'commented': 0.0,
                 })],
             [('review', ts, {
                 'total': 2.0,
-                'commented': 0.0,
                 })],
             [('solution', ts, {
                 'total': 2.0,
-                'commented': 0.0,
                 })],
             [('artifact', ts, {
-                'reviewed': 0.0,
                 'downloaded': 0.0,
                 'total': 1.0,
                 })],
@@ -520,7 +525,6 @@ class VolumeTest(tests.Test):
                 })],
             [('context', ts, {
                 'failed': 0.0,
-                'reviewed': 0.0,
                 'downloaded': 0.0,
                 'total': 1.0,
                 'released': 0.0,
@@ -549,23 +553,22 @@ class VolumeTest(tests.Test):
         merge(volume, records, stats=stats)
         ts += 1
         stats.commit(ts)
+        stats.commit_objects()
 
         self.assertEqual([
+            [('comment', ts, {
+                'total': 1.0,
+                })],
             [('feedback', ts, {
-                'solutions': 0.0,
                 'total': 0.0,
-                'commented': 0.0,
                 })],
             [('review', ts, {
                 'total': 0.0,
-                'commented': 0.0,
                 })],
             [('solution', ts, {
                 'total': 0.0,
-                'commented': 0.0,
                 })],
             [('artifact', ts, {
-                'reviewed': 0.0,
                 'downloaded': 0.0,
                 'total': 0.0,
                 })],
@@ -574,7 +577,6 @@ class VolumeTest(tests.Test):
                 })],
             [('context', ts, {
                 'failed': 0.0,
-                'reviewed': 0.0,
                 'downloaded': 0.0,
                 'total': 0.0,
                 'released': 0.0,

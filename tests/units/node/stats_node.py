@@ -16,16 +16,15 @@ class StatsTest(tests.Test):
     def test_InitializeTotals(self):
         volume = db.Volume('local', model.RESOURCES)
 
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         self.assertEqual(0, stats._stats['user'].total)
         self.assertEqual(0, stats._stats['context'].total)
         self.assertEqual(0, stats._stats['review'].total)
         self.assertEqual(0, stats._stats['feedback'].total)
-        self.assertEqual(0, stats._stats['feedback'].solutions)
         self.assertEqual(0, stats._stats['solution'].total)
         self.assertEqual(0, stats._stats['artifact'].total)
 
-        volume['user'].create({'guid': 'user', 'name': 'user', 'color': '', 'pubkey': ''})
+        volume['user'].create({'guid': 'user', 'name': 'user', 'pubkey': ''})
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
         volume['review'].create({'guid': 'review', 'context': 'context', 'title': '', 'content': '', 'rating': 5})
         volume['feedback'].create({'guid': 'feedback', 'context': 'context', 'type': 'idea', 'title': '', 'content': ''})
@@ -33,18 +32,17 @@ class StatsTest(tests.Test):
         volume['solution'].create({'guid': 'solution', 'context': 'context', 'feedback': 'feedback', 'content': ''})
         volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         self.assertEqual(1, stats._stats['user'].total)
         self.assertEqual(1, stats._stats['context'].total)
         self.assertEqual(1, stats._stats['review'].total)
         self.assertEqual(2, stats._stats['feedback'].total)
-        self.assertEqual(1, stats._stats['feedback'].solutions)
         self.assertEqual(1, stats._stats['solution'].total)
         self.assertEqual(1, stats._stats['artifact'].total)
 
     def test_POSTs(self):
         volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
 
         request = Request(method='POST', path=['context'])
         request.principal = 'user'
@@ -55,7 +53,7 @@ class StatsTest(tests.Test):
 
     def test_DELETEs(self):
         volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
 
         request = Request(method='DELETE', path=['context'])
         request.principal = 'user'
@@ -64,33 +62,9 @@ class StatsTest(tests.Test):
         stats.log(request)
         self.assertEqual(-3, stats._stats['context'].total)
 
-    def test_FeedbackSolutions(self):
-        volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
-        volume['feedback'].create({'guid': 'guid', 'context': 'context', 'type': 'idea', 'title': '', 'content': ''})
-
-        request = Request(method='PUT', path=['feedback', 'guid'])
-        request.principal = 'user'
-        request.content = {}
-        stats.log(request)
-        self.assertEqual(0, stats._stats['feedback'].solutions)
-
-        request.content = {'solution': 'solution'}
-        stats.log(request)
-        self.assertEqual(1, stats._stats['feedback'].solutions)
-
-        request.content = {'solution': None}
-        stats.log(request)
-        self.assertEqual(1, stats._stats['feedback'].solutions)
-
-        volume['feedback'].update('guid', {'solution': 'exists'})
-        request.content = {'solution': None}
-        stats.log(request)
-        self.assertEqual(0, stats._stats['feedback'].solutions)
-
     def test_Comments(self):
         volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         volume['solution'].create({'guid': 'solution', 'context': 'context', 'feedback': 'feedback', 'content': ''})
         volume['feedback'].create({'guid': 'feedback', 'context': 'context', 'type': 'idea', 'title': '', 'content': ''})
         volume['review'].create({'guid': 'review', 'context': 'context', 'title': '', 'content': '', 'rating': 5})
@@ -99,50 +73,51 @@ class StatsTest(tests.Test):
         request.principal = 'user'
         request.content = {'solution': 'solution'}
         stats.log(request)
-        self.assertEqual(1, stats._stats['solution'].commented)
+        self.assertEqual(1, stats._stats['comment'].total)
 
         request = Request(method='POST', path=['comment'])
         request.principal = 'user'
         request.content = {'feedback': 'feedback'}
         stats.log(request)
-        self.assertEqual(1, stats._stats['feedback'].commented)
+        self.assertEqual(2, stats._stats['comment'].total)
 
         request = Request(method='POST', path=['comment'])
         request.principal = 'user'
         request.content = {'review': 'review'}
         stats.log(request)
-        self.assertEqual(1, stats._stats['review'].commented)
+        self.assertEqual(3, stats._stats['comment'].total)
 
     def test_Reviewes(self):
         volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
         volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         request = Request(method='POST', path=['review'])
         request.principal = 'user'
-        request.content = {'context': 'context', 'rating': 0}
+        request.content = {'context': 'context', 'rating': 1}
         stats.log(request)
-        self.assertEqual(1, stats._stats['context'].reviewed)
-        self.assertEqual(0, stats._stats['artifact'].reviewed)
+        self.assertEqual(1, stats._stats['review'].total)
 
         request = Request(method='POST', path=['review'])
         request.principal = 'user'
-        request.content = {'context': 'context', 'artifact': '', 'rating': 0}
+        request.content = {'context': 'context', 'artifact': '', 'rating': 2}
         stats.log(request)
-        self.assertEqual(2, stats._stats['context'].reviewed)
-        self.assertEqual(0, stats._stats['artifact'].reviewed)
+        self.assertEqual(2, stats._stats['review'].total)
 
         request = Request(method='POST', path=['review'])
         request.principal = 'user'
-        request.content = {'artifact': 'artifact', 'rating': 0}
+        request.content = {'artifact': 'artifact', 'rating': 3}
         stats.log(request)
-        self.assertEqual(2, stats._stats['context'].reviewed)
-        self.assertEqual(1, stats._stats['artifact'].reviewed)
+        self.assertEqual(3, stats._stats['review'].total)
+
+        stats.commit_objects()
+        self.assertEqual([2, 3], volume['context'].get('context')['reviews'])
+        self.assertEqual([1, 3], volume['artifact'].get('artifact')['reviews'])
 
     def test_ContextDownloaded(self):
         volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
         volume['implementation'].create({'guid': 'implementation', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
 
@@ -158,7 +133,7 @@ class StatsTest(tests.Test):
 
     def test_ContextReleased(self):
         volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
 
         request = Request(method='POST', path=['implementation'])
@@ -169,7 +144,7 @@ class StatsTest(tests.Test):
 
     def test_ContextFailed(self):
         volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
 
         request = Request(method='POST', path=['report'])
@@ -180,7 +155,7 @@ class StatsTest(tests.Test):
 
     def test_ArtifactDownloaded(self):
         volume = db.Volume('local', model.RESOURCES)
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         request = Request(method='GET', path=['artifact', 'artifact', 'fake'])
@@ -195,14 +170,15 @@ class StatsTest(tests.Test):
 
     def test_Commit(self):
         volume = db.Volume('local', model.RESOURCES)
-        volume['user'].create({'guid': 'user', 'name': 'user', 'color': '', 'pubkey': ''})
+        volume['user'].create({'guid': 'user', 'name': 'user', 'pubkey': ''})
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
         volume['review'].create({'guid': 'review', 'context': 'context', 'title': '', 'content': '', 'rating': 5})
         volume['feedback'].create({'guid': 'feedback', 'context': 'context', 'type': 'idea', 'title': '', 'content': ''})
         volume['solution'].create({'guid': 'solution', 'context': 'context', 'feedback': 'feedback', 'content': ''})
         volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
+        volume['comment'].create({'guid': 'comment', 'context': 'context', 'message': ''})
 
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         request = Request(method='GET', path=['user', 'user'])
         request.principal = 'user'
         stats.log(request)
@@ -231,6 +207,7 @@ class StatsTest(tests.Test):
 
         ts = int(time.time())
         stats.commit(ts)
+        stats.commit_objects()
 
         self.assertEqual(1, stats._stats['user'].total)
         self.assertEqual(1, stats._stats['context'].total)
@@ -239,22 +216,22 @@ class StatsTest(tests.Test):
         self.assertEqual(1, stats._stats['solution'].total)
         self.assertEqual(1, stats._stats['artifact'].total)
 
+        print [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)]
+
         self.assertEqual([
-            [('feedback', ts, {
-                'solutions': 0.0,
+            [('comment', ts, {
                 'total': 1.0,
-                'commented': 0.0,
+                })],
+            [('feedback', ts, {
+                'total': 1.0,
                 })],
             [('review', ts, {
                 'total': 1.0,
-                'commented': 0.0,
                 })],
             [('solution', ts, {
                 'total': 1.0,
-                'commented': 0.0,
                 })],
             [('artifact', ts, {
-                'reviewed': 0.0,
                 'downloaded': 0.0,
                 'total': 1.0,
                 })],
@@ -263,7 +240,6 @@ class StatsTest(tests.Test):
                 })],
             [('context', ts, {
                 'failed': 0.0,
-                'reviewed': 0.0,
                 'downloaded': 0.0,
                 'total': 1.0,
                 'released': 0.0,
@@ -282,7 +258,7 @@ class StatsTest(tests.Test):
         self.assertEqual([0, 0], volume['context'].get('context')['reviews'])
         self.assertEqual(0, volume['context'].get('context')['rating'])
 
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         request = Request(method='GET', path=['implementation', 'implementation', 'data'])
         request.principal = 'user'
         stats.log(request)
@@ -295,18 +271,20 @@ class StatsTest(tests.Test):
         request.content = {'artifact': 'artifact', 'rating': 5}
         stats.log(request)
         stats.commit()
+        stats.commit_objects()
 
         self.assertEqual(1, volume['context'].get('context')['downloads'])
         self.assertEqual([1, 5], volume['context'].get('context')['reviews'])
         self.assertEqual(5, volume['context'].get('context')['rating'])
 
         stats.commit()
+        stats.commit_objects()
 
         self.assertEqual(1, volume['context'].get('context')['downloads'])
         self.assertEqual([1, 5], volume['context'].get('context')['reviews'])
         self.assertEqual(5, volume['context'].get('context')['rating'])
 
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         request = Request(method='GET', path=['implementation', 'implementation', 'data'])
         request.principal = 'user'
         stats.log(request)
@@ -315,6 +293,7 @@ class StatsTest(tests.Test):
         request.content = {'context': 'context', 'rating': 1}
         stats.log(request)
         stats.commit()
+        stats.commit_objects()
 
         self.assertEqual(2, volume['context'].get('context')['downloads'])
         self.assertEqual([2, 6], volume['context'].get('context')['reviews'])
@@ -330,7 +309,7 @@ class StatsTest(tests.Test):
         self.assertEqual([0, 0], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(0, volume['artifact'].get('artifact')['rating'])
 
-        stats = Sniffer(volume)
+        stats = Sniffer(volume, 'stats/node')
         request = Request(method='GET', path=['artifact', 'artifact', 'data'])
         request.principal = 'user'
         stats.log(request)
@@ -339,12 +318,14 @@ class StatsTest(tests.Test):
         request.content = {'artifact': 'artifact', 'rating': 5}
         stats.log(request)
         stats.commit()
+        stats.commit_objects()
 
         self.assertEqual(1, volume['artifact'].get('artifact')['downloads'])
         self.assertEqual([1, 5], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(5, volume['artifact'].get('artifact')['rating'])
 
         stats.commit()
+        stats.commit_objects()
 
         self.assertEqual(1, volume['artifact'].get('artifact')['downloads'])
         self.assertEqual([1, 5], volume['artifact'].get('artifact')['reviews'])
@@ -358,6 +339,7 @@ class StatsTest(tests.Test):
         request.content = {'artifact': 'artifact', 'rating': 1}
         stats.log(request)
         stats.commit()
+        stats.commit_objects()
 
         self.assertEqual(2, volume['artifact'].get('artifact')['downloads'])
         self.assertEqual([2, 6], volume['artifact'].get('artifact')['reviews'])
