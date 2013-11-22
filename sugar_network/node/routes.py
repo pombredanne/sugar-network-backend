@@ -61,8 +61,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
 
     def close(self):
         if self._stats is not None:
-            self._stats.commit()
-            self._stats.commit_objects()
+            self._stats.suspend()
 
     @property
     def guid(self):
