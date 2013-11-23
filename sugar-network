@@ -289,12 +289,13 @@ class Application(application.Application):
             else:
                 if type(value) not in (list, tuple):
                     value = [value]
+                term = '\n' if len(value) > 5 else '\t'
                 for n, i in enumerate(value):
                     if n:
-                        self._print('\t')
+                        self._print(term)
                     if type(i) is dict and len(i) == 1:
                         i = i.values()[0]
-                    self._print(i)
+                    self._print('%s' % i)
                 self._print('\n')
 
         if type(result) in (list, tuple):

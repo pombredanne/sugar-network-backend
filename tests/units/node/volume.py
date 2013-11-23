@@ -527,7 +527,7 @@ class VolumeTest(tests.Test):
                 'failed': 0.0,
                 'downloaded': 0.0,
                 'total': 1.0,
-                'released': 0.0,
+                'released': 1.0,
                 })],
             ],
             [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)])
@@ -579,7 +579,7 @@ class VolumeTest(tests.Test):
                 'failed': 0.0,
                 'downloaded': 0.0,
                 'total': 0.0,
-                'released': 0.0,
+                'released': 1.0,
                 })],
             ],
             [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)])

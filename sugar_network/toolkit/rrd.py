@@ -107,13 +107,25 @@ class _DbSet(object):
 
     @property
     def first(self):
-        if self._revisions:
-            return self._revisions[0].first
+        if not self._revisions:
+            return
+        return self._revisions[0].first
 
     @property
     def last(self):
-        if self._revisions:
-            return self._revisions[-1].last
+        if not self._revisions:
+            return
+        return self._revisions[-1].last
+
+    @property
+    def last_ds(self):
+        if not self._revisions or not self._field_names:
+            return {}
+        info = _rrdtool.info(self._revisions[-1].path)
+        result = {}
+        for field in self._field_names:
+            result[field] = float(info.get('ds[%s].last_ds' % field) or 0)
+        return result
 
     def load(self, filename, revision):
         _logger.debug('Load %s database from %s with revision %s',

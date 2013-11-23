@@ -42,6 +42,8 @@ stats_node_rras = Option(
             ],
         type_cast=Option.list_cast, type_repr=Option.list_repr)
 
+_HEARTBEAT = 60 * 60 * 24 * 365
+
 _logger = logging.getLogger('node.stats_node')
 
 
@@ -57,17 +59,14 @@ class Sniffer(object):
         self._last = int(time.time())
 
         for name, cls in _STATS.items():
-            stats = self._stats[name] = cls(self._stats, volume, reset)
+            stats = self._stats[name] = cls(self._stats, volume)
             fields = {}
             for field in stats:
-                if field == 'total':
-                    dst = 'GAUGE'
-                    limit = 60 * 60 * 24 * 365
-                else:
-                    dst = 'ABSOLUTE'
-                    limit = stats_node_step.value
-                fields[field] = 'DS:%s:%s:%s:U:U' % (field, dst, limit)
+                fields[field] = 'DS:%s:GAUGE:%s:U:U' % (field, _HEARTBEAT)
             if fields:
+                if not reset:
+                    stats.update(self._rrd[name].last_ds)
+                    stats['total'] = volume[name].find(limit=0)[1]
                 self._rrd[name].fields = fields
 
         if exists(self._suspend_path):
@@ -106,9 +105,6 @@ class Sniffer(object):
             if resource not in self._rrd:
                 continue
             values = stats.copy()
-            for field in stats:
-                if field != 'total':
-                    stats[field] = 0
             if extra_values and resource in extra_values:
                 values.update(extra_values[resource])
             if values:
@@ -176,7 +172,7 @@ class _Stats(dict):
     RESOURCE = None
     OWNERS = []
 
-    def __init__(self, stats, volume, reset):
+    def __init__(self, stats, volume):
         self.objects = {}
         self._stats = stats
         self._volume = volume
@@ -194,12 +190,9 @@ class _Stats(dict):
 
 class _ResourceStats(_Stats):
 
-    def __init__(self, stats, volume, reset):
-        _Stats.__init__(self, stats, volume, reset)
-        if reset:
-            self['total'] = 0
-        else:
-            self['total'] = volume[self.RESOURCE].find(limit=0)[1]
+    def __init__(self, stats, volume):
+        _Stats.__init__(self, stats, volume)
+        self['total'] = 0
 
     def log(self, request):
         if request.method == 'POST':
@@ -250,8 +243,8 @@ class _ContextStats(_ResourceStats):
 
     RESOURCE = 'context'
 
-    def __init__(self, stats, volume, reset):
-        _ResourceStats.__init__(self, stats, volume, reset)
+    def __init__(self, stats, volume):
+        _ResourceStats.__init__(self, stats, volume)
         self['released'] = 0
         self['failed'] = 0
         self['downloaded'] = 0
@@ -318,8 +311,8 @@ class _ArtifactStats(_ResourceStats):
     RESOURCE = 'artifact'
     OWNERS = ['context']
 
-    def __init__(self, stats, volume, reset):
-        _ResourceStats.__init__(self, stats, volume, reset)
+    def __init__(self, stats, volume):
+        _ResourceStats.__init__(self, stats, volume)
         self['downloaded'] = 0
 
     def log(self, request):

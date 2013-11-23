@@ -378,7 +378,7 @@ class StatsTest(tests.Test):
         rdb = Rrd('stats', 1)['context']
         self.assertEqual([
             (ts + 0, {'failed': 0.0, 'downloaded': 0.0, 'total': 0.0, 'released': 0.0}),
-            (ts + 5, {'failed': 0.0, 'downloaded': 0.2, 'total': 2.0, 'released': 0.0}),
+            (ts + 5, {'failed': 0.0, 'downloaded': 1.0, 'total': 2.0, 'released': 0.0}),
             ],
             [i for i in rdb.get(ts, ts + 20)])
 
@@ -396,7 +396,7 @@ class StatsTest(tests.Test):
         rdb = Rrd('stats', 1)['context']
         self.assertEqual([
             (ts + 0, {'failed': 0.0, 'downloaded': 0.0, 'total': 0.0, 'released': 0.0}),
-            (ts + 5, {'failed': 0.0, 'downloaded': 0.2, 'total': 2.0, 'released': 0.0}),
+            (ts + 5, {'failed': 0.0, 'downloaded': 1.0, 'total': 2.0, 'released': 0.0}),
             ],
             [i for i in rdb.get(ts, ts + 10)])
 
@@ -406,8 +406,8 @@ class StatsTest(tests.Test):
         rdb = Rrd('stats', 1)['context']
         self.assertEqual([
             (ts + 0, {'failed': 0.0, 'downloaded': 0.0, 'total': 0.0, 'released': 0.0}),
-            (ts + 5, {'failed': 0.0, 'downloaded': 0.2, 'total': 2.0, 'released': 0.0}),
-            (ts + 10, {'failed': 0.0, 'downloaded': 0.4, 'total': 3.0, 'released': 0.0}),
+            (ts + 5, {'failed': 0.0, 'downloaded': 1.0, 'total': 2.0, 'released': 0.0}),
+            (ts + 10, {'failed': 0.0, 'downloaded': 3.0, 'total': 3.0, 'released': 0.0}),
             ],
             [i for i in rdb.get(ts, ts + 20)])
 
