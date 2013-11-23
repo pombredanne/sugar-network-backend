@@ -438,7 +438,7 @@ def generate_node_stats(volume, path):
                 ('user', []),
                 ('context', []),
                 ('implementation', ['context']),
-                ('artifact', ['context']),
+                ('artifact', ['context', 'type']),
                 ('feedback', ['context']),
                 ('solution', ['context', 'feedback']),
                 ('review', ['context', 'artifact', 'rating']),

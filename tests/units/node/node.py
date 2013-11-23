@@ -973,7 +973,7 @@ class NodeTest(tests.Test):
             'mtime': ts + 3,
             'layer': [],
             'context': 'context_1',
-            'type': 'preview',
+            'type': 'instance',
             'title': '',
             'description': '',
             })
@@ -1133,7 +1133,7 @@ class NodeTest(tests.Test):
             'mtime': ts + 4,
             'layer': [],
             'context': 'context_2',
-            'type': 'preview',
+            'type': 'instance',
             'title': '',
             'description': '',
             })
@@ -1375,7 +1375,7 @@ class NodeTest(tests.Test):
             'mtime': ts + 2,
             'layer': ['deleted'],
             'context': 'context_1',
-            'type': 'preview',
+            'type': 'instance',
             'title': '',
             'description': '',
             })

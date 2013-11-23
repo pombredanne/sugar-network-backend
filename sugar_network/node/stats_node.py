@@ -316,10 +316,16 @@ class _ArtifactStats(_ResourceStats):
         self['downloaded'] = 0
 
     def log(self, request):
-        _ResourceStats.log(self, request)
-
-        if request.method == 'GET':
-            if request.prop == 'data':
+        if request.method == 'POST':
+            if request.content.get('type') != 'preview':
+                self['total'] += 1
+        elif request.method == 'DELETE':
+            existing = self._volume[self.RESOURCE].get(request.guid)
+            if existing['type'] != 'preview':
+                self['total'] -= 1
+        elif request.method == 'GET' and request.prop == 'data':
+            existing = self._volume[self.RESOURCE].get(request.guid)
+            if existing['type'] != 'preview':
                 self.inc(request.guid, 'downloads')
                 self['downloaded'] += 1
 
