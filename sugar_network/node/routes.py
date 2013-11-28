@@ -523,6 +523,15 @@ def load_bundle(volume, request, bundle_path):
         impl['stability'] = spec['stability']
         if spec['license'] is not EMPTY_LICENSE:
             impl['license'] = spec['license']
+        requires = impl['requires'] = []
+        for dep_name, dep in spec.requires.items():
+            found = False
+            for version in dep.versions_range():
+                requires.append('%s-%s' % (dep_name, version))
+                found = True
+            if not found:
+                requires.append(dep_name)
+
         data['spec'] = {'*-*': {
             'commands': spec.commands,
             'requires': spec.requires,

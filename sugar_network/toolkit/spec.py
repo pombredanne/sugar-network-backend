@@ -191,9 +191,9 @@ def parse_requires(requires):
             if parts[0] == '<':
                 before = format_version(parts[1])
             elif parts[0] == '<=':
-                before = format_next_version(parts[1])
+                before = format_next_version(parts[1], False)
             elif parts[0] == '>':
-                not_before = format_next_version(parts[1])
+                not_before = format_next_version(parts[1], False)
             elif parts[0] == '>=':
                 not_before = format_version(parts[1])
             elif parts[0] == '=':
@@ -489,10 +489,12 @@ class _Dependency(dict):
 
     def versions_range(self):
         for not_before, before in self.get('restrictions') or []:
-            if not_before is None or before is None:
+            if not_before is None:
                 continue
             i = parse_version(not_before)[0]
             yield format_version([i, 0])
+            if before is None:
+                continue
             end = parse_version(before)[0]
             i = i[:min(len(i), len(end))]
             while True:

@@ -56,6 +56,11 @@ class Implementation(db.Resource):
     def notes(self, value):
         return value
 
+    @db.indexed_property(prefix='R', typecast=[], default=[],
+            acl=ACL.CREATE | ACL.READ)
+    def requires(self, value):
+        return value
+
     @db.blob_property()
     def data(self, value):
         return value

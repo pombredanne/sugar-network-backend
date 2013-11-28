@@ -933,6 +933,34 @@ class NodeTest(tests.Test):
         self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl2)['layer']))
         self.assertEqual([], volume['implementation'].get(impl3)['layer'])
 
+    def test_release_PopulateRequires(self):
+        volume = self.start_master()
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
+
+        bundle = self.zips(
+                ('ImageViewer.activity/activity/activity.info', '\n'.join([
+                    '[Activity]',
+                    'bundle_id = org.laptop.ImageViewerActivity',
+                    'name      = Image Viewer',
+                    'activity_version = 22',
+                    'license   = GPLv2+',
+                    'icon      = activity-imageviewer',
+                    'exec      = true',
+                    'requires  = dep1, dep2<10, dep3<=20, dep4>30, dep5>=40, dep6>5<7, dep7>=1<=3',
+                    ])),
+                ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
+                )
+        self.assertRaises(http.NotFound, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'submit'})
+        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
+
+        self.assertEqual(
+                sorted([
+                    'dep1', 'dep2', 'dep3', 'dep4-31', 'dep5-40',
+                    'dep6-6',
+                    'dep7-1', 'dep7-2', 'dep7-3',
+                    ]),
+                sorted(volume['implementation'].get(impl)['requires']))
+
     def test_generate_node_stats_Posts(self):
         node.stats_root.value = 'stats'
         stats_node.stats_node.value = True
