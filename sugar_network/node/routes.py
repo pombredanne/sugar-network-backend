@@ -606,7 +606,7 @@ def _load_context_metadata(bundle, spec):
                 'mime_type': 'image/svg+xml',
                 'digest': hashlib.sha1(icon.getvalue()).hexdigest(),
                 },
-            'preview': convert(icon, 160, 120),
+            'preview': convert(icon, 120, 120),
             'icon': convert(icon, 55, 55),
             })
     except Exception:

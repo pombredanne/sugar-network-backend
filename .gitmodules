@@ -3,7 +3,7 @@
     url = git://git.sugarlabs.org/network/0install.git
 [submodule "sugar_network/lib/pylru"]
 	path = sugar_network/lib/pylru
-	url = git://github.com/jlhutch/pylru.git
+	url = https://github.com/jlhutch/pylru.git
 [submodule "sugar_network/lib/requests"]
 	path = sugar_network/lib/requests
 	url = git://git.sugarlabs.org/network/requests.git
