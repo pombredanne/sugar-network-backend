@@ -288,7 +288,7 @@ class Application(application.Application):
                 existing.remove(guid)
                 continue
             try:
-                preview = scale_png(data, 160, 120)
+                preview = scale_png(data, 200, 200)
             except Exception:
                 print '-- Failed to load %s preview for %s' % (guid, bundle_id)
                 continue
