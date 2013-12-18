@@ -585,7 +585,7 @@ def load_bundle(volume, request, bundle_path):
 def _load_context_metadata(bundle, spec):
 
     def convert(data, w, h):
-        result = toolkit.svg_to_png(data.getvalue(), w, h)
+        result = toolkit.svg_to_png(data.getvalue(), w, h, spec['context'])
         return {'blob': result,
                 'mime_type': 'image/png',
                 'digest': hashlib.sha1(result.getvalue()).hexdigest(),
@@ -606,7 +606,7 @@ def _load_context_metadata(bundle, spec):
                 'mime_type': 'image/svg+xml',
                 'digest': hashlib.sha1(icon.getvalue()).hexdigest(),
                 },
-            'preview': convert(icon, 120, 120),
+            'preview': convert(icon, 140, 140),
             'icon': convert(icon, 55, 55),
             })
     except Exception:
