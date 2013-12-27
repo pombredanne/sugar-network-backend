@@ -1,3 +1,7 @@
+0.10
+====
+- Context prop for Update Hub sort
+
 - Remove temporal security hole with speciying guid in POST,
   it was added as a fast hack to support offline creation (with later pushing to a node)
 - changed pulls should take into account accept_length
@@ -18,3 +22,4 @@ v2.0
   * students w/ disabilities
   * etc
 - sort out contexts by school subjects
+- handle forks
