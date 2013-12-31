@@ -817,8 +817,8 @@ class NodeTest(tests.Test):
         svg = '\n'.join([
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" [',
-            '  <!ENTITY fill_color "#FFFFFF">',
-            '  <!ENTITY stroke_color "#010101">',
+            '  <!ENTITY fill_color "#123456">',
+            '  <!ENTITY stroke_color "#123456">',
             ']>',
             '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">',
             '    <rect x="3" y="7" width="44" height="36" style="fill:&fill_color;;stroke:&stroke_color;;stroke-width:3"/>',

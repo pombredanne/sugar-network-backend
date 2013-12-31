@@ -124,7 +124,7 @@ class ServerRoutesTest(tests.Test):
         ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
-            'type': 'activity',
+            'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
@@ -142,13 +142,13 @@ class ServerRoutesTest(tests.Test):
                 ipc.get(['context'], reply=['preview'])['result'])
 
         self.assertEqual(
-                file(src_root + '/sugar_network/static/httpdocs/images/missing.png').read(),
+                file(src_root + '/sugar_network/static/httpdocs/images/package.png').read(),
                 ipc.request('GET', ['context', guid, 'icon']).content)
         self.assertEqual(
-                {'icon': 'http://127.0.0.1:5555/static/images/missing.png'},
+                {'icon': 'http://127.0.0.1:5555/static/images/package.png'},
                 ipc.get(['context', guid], reply=['icon']))
         self.assertEqual(
-                [{'icon': 'http://127.0.0.1:5555/static/images/missing.png'}],
+                [{'icon': 'http://127.0.0.1:5555/static/images/package.png'}],
                 ipc.get(['context'], reply=['icon'])['result'])
 
     def test_PopulateNode(self):

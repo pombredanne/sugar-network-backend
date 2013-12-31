@@ -19,13 +19,13 @@ import shutil
 import gettext
 import logging
 import hashlib
-from cStringIO import StringIO
 from contextlib import contextmanager
 from ConfigParser import ConfigParser
 from os.path import join, isdir, exists
 
 from sugar_network import node, toolkit, model
 from sugar_network.node import stats_node, stats_user
+from sugar_network.model.context import Context
 # pylint: disable-msg=W0611
 from sugar_network.toolkit.router import route, preroute, postroute, ACL
 from sugar_network.toolkit.router import Unauthorized, Request, fallbackroute
@@ -504,7 +504,7 @@ def load_bundle(volume, request, bundle_path):
         bundle = Bundle(bundle_path, mime_type='application/zip')
     except Exception:
         _logger.debug('Load unrecognized bundle from %r', bundle_path)
-        context_type = 'content'
+        context_type = 'book'
     else:
         _logger.debug('Load Sugar Activity bundle from %r', bundle_path)
         context_type = 'activity'
@@ -540,7 +540,6 @@ def load_bundle(volume, request, bundle_path):
         data['mime_type'] = 'application/vnd.olpc-sugar'
 
         if initial and not contexts.exists(context):
-            context_meta['guid'] = context
             context_meta['type'] = 'activity'
             request.call(method='POST', path=['context'], content=context_meta)
             context_meta = None
@@ -583,32 +582,16 @@ def load_bundle(volume, request, bundle_path):
 
 
 def _load_context_metadata(bundle, spec):
-
-    def convert(data, w, h):
-        result = toolkit.svg_to_png(data.getvalue(), w, h, spec['context'])
-        return {'blob': result,
-                'mime_type': 'image/png',
-                'digest': hashlib.sha1(result.getvalue()).hexdigest(),
-                }
-
     result = {}
     for prop in ('homepage', 'mime_types'):
         if spec[prop]:
             result[prop] = spec[prop]
+    result['guid'] = spec['context']
 
     try:
         icon_file = bundle.extractfile(join(bundle.rootdir, spec['icon']))
-        icon = StringIO(icon_file.read())
+        Context.populate_images(result, icon_file.read())
         icon_file.close()
-        result.update({
-            'artifact_icon': {
-                'blob': icon,
-                'mime_type': 'image/svg+xml',
-                'digest': hashlib.sha1(icon.getvalue()).hexdigest(),
-                },
-            'preview': convert(icon, 140, 140),
-            'icon': convert(icon, 55, 55),
-            })
     except Exception:
         exception(_logger, 'Failed to load icon')
 

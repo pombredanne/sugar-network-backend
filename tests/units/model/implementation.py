@@ -70,7 +70,7 @@ class ImplementationTest(tests.Test):
 
         self.node_volume['context'].create({
                 'guid': 'context',
-                'type': 'content',
+                'type': 'book',
                 'title': 'title',
                 'summary': 'summary',
                 'description': 'description',

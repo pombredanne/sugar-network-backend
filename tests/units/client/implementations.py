@@ -359,7 +359,7 @@ class Implementations(tests.Test):
 
         conn.post(['context'], {
             'guid': 'document',
-            'type': 'content',
+            'type': 'book',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
@@ -432,7 +432,7 @@ class Implementations(tests.Test):
 
         conn.post(['context'], {
             'guid': 'document',
-            'type': 'content',
+            'type': 'book',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',

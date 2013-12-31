@@ -228,7 +228,7 @@ class OnlineRoutes(tests.Test):
         ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
-            'type': 'activity',
+            'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
@@ -246,13 +246,13 @@ class OnlineRoutes(tests.Test):
                 ipc.get(['context'], reply=['preview'])['result'])
 
         self.assertEqual(
-                file(src_root + '/sugar_network/static/httpdocs/images/missing.png').read(),
+                file(src_root + '/sugar_network/static/httpdocs/images/package.png').read(),
                 ipc.request('GET', ['context', guid, 'icon']).content)
         self.assertEqual(
-                {'icon': 'http://127.0.0.1:8888/static/images/missing.png'},
+                {'icon': 'http://127.0.0.1:8888/static/images/package.png'},
                 ipc.get(['context', guid], reply=['icon']))
         self.assertEqual(
-                [{'icon': 'http://127.0.0.1:8888/static/images/missing.png'}],
+                [{'icon': 'http://127.0.0.1:8888/static/images/package.png'}],
                 ipc.get(['context'], reply=['icon'])['result'])
 
     def test_favorite(self):
@@ -486,7 +486,7 @@ Can't find all required implementations:
         coroutine.dispatch()
 
         context = ipc.post(['context'], {
-            'type': 'content',
+            'type': 'book',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
@@ -545,7 +545,7 @@ Can't find all required implementations:
                 [(i.guid, i['layer']) for i in local['context'].find(reply='layer')[0]])
         self.assertEqual({
             'layer': ['clone'],
-            'type': ['content'],
+            'type': ['book'],
             'author': {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
             'title': {'en-us': 'title'},
             },
@@ -590,7 +590,7 @@ Can't find all required implementations:
         self.assertEqual([], ipc.get(['context', context, 'layer']))
         self.assertEqual({
             'layer': [],
-            'type': ['content'],
+            'type': ['book'],
             'author': {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
             'title': {'en-us': 'title'},
             },
@@ -1181,7 +1181,7 @@ Can't find all required implementations:
         ipc = IPCConnection()
 
         guid = ipc.post(['context'], {
-            'type': 'content',
+            'type': 'book',
             'title': 'remote',
             'summary': 'summary',
             'description': 'description',

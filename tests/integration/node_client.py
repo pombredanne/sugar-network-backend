@@ -75,7 +75,7 @@ class NodeClientTest(tests.Test):
 
     def test_ReleaseContext(self):
         context = self.cli(['POST', '/context'], stdin={
-            'type': 'content',
+            'type': 'book',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',

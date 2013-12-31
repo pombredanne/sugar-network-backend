@@ -214,6 +214,10 @@ class Request(dict):
         if value is not None:
             return int(value)
 
+    @content_length.setter
+    def content_length(self, value):
+        self.environ['CONTENT_LENGTH'] = str(value)
+
     @property
     def content_stream(self):
         if self._content_stream is _NOT_SET:
@@ -223,6 +227,10 @@ class Request(dict):
             else:
                 self._content_stream = _ContentStream(s, self.content_length)
         return self._content_stream
+
+    @content_stream.setter
+    def content_stream(self, value):
+        self._content_stream = value
 
     @property
     def resource(self):

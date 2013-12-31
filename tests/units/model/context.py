@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+from os.path import exists
+
 from __init__ import tests
 
 from sugar_network.node import obs
@@ -39,6 +41,21 @@ class ContextTest(tests.Test):
             'layer': ['common', 'bar'],
             })
         self.assertEqual(['common', 'bar'], ipc.get(['context', guid, 'layer']))
+
+    def test_DefaultImages(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        guid = ipc.post(['context'], {
+            'guid': 'guid',
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        assert exists('master/context/gu/guid/artifact_icon.blob')
+        assert exists('master/context/gu/guid/icon.blob')
+        assert exists('master/context/gu/guid/preview.blob')
 
 
 if __name__ == '__main__':

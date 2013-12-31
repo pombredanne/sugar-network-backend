@@ -65,6 +65,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title1',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview1',
             'layer': 'pilot',
             })
@@ -75,6 +76,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title2',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview2',
             'layer': 'pilot',
             })
@@ -115,6 +117,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title3',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview3',
             'layer': 'pilot',
             })
@@ -128,6 +131,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title4',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview4',
             'layer': 'pilot',
             })
@@ -187,6 +191,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title_1',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview1',
             'layer': 'pilot',
             })
@@ -195,6 +200,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title_2',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview2',
             'layer': 'pilot',
             })
@@ -205,6 +211,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title_3',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview3',
             'layer': 'pilot',
             })
@@ -213,6 +220,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title_4',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview4',
             'layer': 'pilot',
             })
@@ -237,6 +245,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title_5',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview5',
             'layer': 'pilot',
             })
@@ -249,6 +258,7 @@ class MasterSlaveTest(tests.Test):
             'title': 'title_6',
             'summary': 'summary',
             'description': 'description',
+            'artifact_icon': 'artifact_icon',
             'preview': 'preview6',
             'layer': 'pilot',
             })

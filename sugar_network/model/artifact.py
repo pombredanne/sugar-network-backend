@@ -13,8 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from os.path import join
-
 from sugar_network import db, model, static
 from sugar_network.toolkit.router import Blob, ACL
 
@@ -62,8 +60,8 @@ class Artifact(db.Resource):
         if value:
             return value
         return Blob({
-            'url': '/static/images/missing.png',
-            'blob': join(static.PATH, 'images', 'missing.png'),
+            'url': '/static/images/missing-preview.png',
+            'blob': static.path('images', 'missing-preview.png'),
             'mime_type': 'image/png',
             })
 

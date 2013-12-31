@@ -499,13 +499,9 @@ class mkdtemp(str):
         shutil.rmtree(self)
 
 
-def svg_to_png(data, w, h, replace_color=None):
+def svg_to_png(data, w, h):
     import rsvg
     import cairo
-
-    if replace_color:
-        from sugar_network.toolkit.sugar import color_svg
-        data = color_svg(data, replace_color)
 
     svg = rsvg.Handle(data=data)
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)

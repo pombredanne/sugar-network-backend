@@ -15,7 +15,7 @@
 
 import logging
 import mimetypes
-from os.path import join, split
+from os.path import split
 
 from sugar_network import static, db
 from sugar_network.toolkit.router import route, fallbackroute, Blob, ACL
@@ -99,7 +99,7 @@ class FrontRoutes(object):
 
     @fallbackroute('GET', ['static'])
     def get_static(self, request):
-        path = join(static.PATH, *request.path[1:])
+        path = static.path(*request.path[1:])
         if not mimetypes.inited:
             mimetypes.init()
         mime_type = mimetypes.types_map.get('.' + path.rsplit('.', 1)[-1])
@@ -116,7 +116,7 @@ class FrontRoutes(object):
     @route('GET', ['favicon.ico'])
     def favicon(self, request, response):
         return Blob({
-            'blob': join(static.PATH, 'favicon.ico'),
+            'blob': static.path('favicon.ico'),
             'mime_type': 'image/x-icon',
             })
 

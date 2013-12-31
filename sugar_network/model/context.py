@@ -13,9 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from os.path import join
+import hashlib
+from cStringIO import StringIO
 
-from sugar_network import db, model, static
+from sugar_network import db, model, static, toolkit
 from sugar_network.toolkit.router import Blob, ACL
 
 
@@ -30,6 +31,13 @@ class Context(db.Resource):
     def type(self, value):
         if value and 'package' in value and 'common' not in self['layer']:
             self['layer'] = tuple(self['layer']) + ('common',)
+        if 'artifact_icon' not in self:
+            for name in ('activity', 'book', 'group'):
+                if name not in self.type:
+                    continue
+                with file(static.path('images', name + '.svg')) as f:
+                    Context.populate_images(self, f.read())
+                break
         return value
 
     @db.indexed_property(slot=1, prefix='S', full_text=True, localized=True)
@@ -59,13 +67,13 @@ class Context(db.Resource):
         if 'package' in self['type']:
             return Blob({
                 'url': '/static/images/package.png',
-                'blob': join(static.PATH, 'images', 'package.png'),
+                'blob': static.path('images', 'package.png'),
                 'mime_type': 'image/png',
                 })
         else:
             return Blob({
                 'url': '/static/images/missing.png',
-                'blob': join(static.PATH, 'images', 'missing.png'),
+                'blob': static.path('images', 'missing.png'),
                 'mime_type': 'image/png',
                 })
 
@@ -73,21 +81,35 @@ class Context(db.Resource):
     def artifact_icon(self, value):
         if value:
             return value
-        return Blob({
-            'url': '/static/images/missing.svg',
-            'blob': join(static.PATH, 'images', 'missing.svg'),
-            'mime_type': 'image/svg+xml',
-            })
+        if 'package' in self['type']:
+            return Blob({
+                'url': '/static/images/package.svg',
+                'blob': static.path('images', 'package.svg'),
+                'mime_type': 'image/png',
+                })
+        else:
+            return Blob({
+                'url': '/static/images/missing.svg',
+                'blob': static.path('images', 'missing.svg'),
+                'mime_type': 'image/svg+xml',
+                })
 
     @db.blob_property(mime_type='image/png')
     def preview(self, value):
         if value:
             return value
-        return Blob({
-            'url': '/static/images/missing.png',
-            'blob': join(static.PATH, 'images', 'missing.png'),
-            'mime_type': 'image/png',
-            })
+        if 'package' in self['type']:
+            return Blob({
+                'url': '/static/images/package-preview.png',
+                'blob': static.path('images', 'package-preview.png'),
+                'mime_type': 'image/png',
+                })
+        else:
+            return Blob({
+                'url': '/static/images/missing-preview.png',
+                'blob': static.path('images', 'missing-preview.png'),
+                'mime_type': 'image/png',
+                })
 
     @db.indexed_property(slot=3, default=0, acl=ACL.READ | ACL.CALC)
     def downloads(self, value):
@@ -130,3 +152,24 @@ class Context(db.Resource):
     @db.stored_property(typecast=dict, default={}, acl=ACL.PUBLIC | ACL.LOCAL)
     def packages(self, value):
         return value
+
+    @staticmethod
+    def populate_images(props, svg):
+        if 'guid' in props:
+            from sugar_network.toolkit.sugar import color_svg
+            svg = color_svg(svg, props['guid'])
+
+        def convert(w, h):
+            png = toolkit.svg_to_png(svg, w, h)
+            return {'blob': png,
+                    'mime_type': 'image/png',
+                    'digest': hashlib.sha1(png.getvalue()).hexdigest(),
+                    }
+
+        props['artifact_icon'] = {
+                'blob': StringIO(svg),
+                'mime_type': 'image/svg+xml',
+                'digest': hashlib.sha1(svg).hexdigest(),
+                }
+        props['icon'] = convert(55, 55)
+        props['preview'] = convert(140, 140)

@@ -16,7 +16,7 @@
 from sugar_network.model.routes import VolumeRoutes, FrontRoutes
 
 
-CONTEXT_TYPES = ['activity', 'project', 'package', 'content']
+CONTEXT_TYPES = ['activity', 'group', 'package', 'book']
 NOTIFICATION_TYPES = ['create', 'update', 'delete', 'vote']
 FEEDBACK_TYPES = ['question', 'idea', 'problem']
 ARTIFACT_TYPES = ['instance', 'preview']

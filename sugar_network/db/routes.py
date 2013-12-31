@@ -135,14 +135,6 @@ class Routes(object):
         directory.update(request.guid, {'author': authors})
 
     def on_create(self, request, props, event):
-        if 'guid' in props:
-            # TODO Temporal security hole, see TODO
-            guid = props['guid']
-            enforce(not self.volume[request.resource].exists(guid),
-                    '%s already exists', guid)
-            enforce(_GUID_RE.match(guid) is not None,
-                    'Malformed %s GUID', guid)
-
         ts = int(time.time())
         props['ctime'] = ts
         props['mtime'] = ts
@@ -204,6 +196,14 @@ class Routes(object):
                         content.get(name) is None and \
                         (prop.default is not None or prop.on_set is not None):
                     doc[name] = prop.default
+            if doc['guid']:
+                # TODO Temporal security hole, see TODO
+                enforce(not self.volume[request.resource].exists(doc['guid']),
+                        '%s already exists', doc['guid'])
+                enforce(_GUID_RE.match(doc['guid']) is not None,
+                        'Malformed %s GUID', doc['guid'])
+            else:
+                doc['guid'] = toolkit.uuid()
 
         try:
             for name, value in doc.props.items():

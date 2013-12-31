@@ -15,5 +15,8 @@
 
 from os.path import dirname, join
 
-
 PATH = join(dirname(__file__), 'httpdocs')
+
+
+def path(*args):
+    return join(PATH, *args)
