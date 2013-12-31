@@ -20,11 +20,9 @@ Aleksey Lim <alsroot@sugarlabs.org>
 
 **Artwork**
 
-The project uses graphics from the following projects:
+* Images are based on `Font Awesome`_ vector icons licensed under the terms
+  of the :doc:`OTF 1.1 <COPYING.FontAwesome>`.
 
-* `sugar-artwork`_ images.
-* `Oxygen`_ icons.
 
 .. _Sugar Labs Perú: http://pe.sugarlabs.org/
-.. _sugar-artwork: http://git.sugarlabs.org/sugar-artwork
-.. _Oxygen: http://www.oxygen-icons.org/
+.. _Font Awesome: http://fortawesome.github.io/Font-Awesome/
