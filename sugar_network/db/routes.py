@@ -100,8 +100,7 @@ class Routes(object):
         if not reply:
             reply = []
             for prop in self.volume[request.resource].metadata.values():
-                if isinstance(prop, StoredProperty) and \
-                        prop.acl & ACL.READ and not (prop.acl & ACL.LOCAL):
+                if prop.acl & ACL.READ and not (prop.acl & ACL.LOCAL):
                     reply.append(prop.name)
         self._preget(request)
         doc = self.volume[request.resource].get(request.guid)
