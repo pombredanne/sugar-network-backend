@@ -66,7 +66,7 @@ class Bundle(object):
         return self._do_extract(name, dst_path)
 
     def extractfile(self, name):
-        return self._do_extractfile(name)
+        return _File(self._do_extractfile(name))
 
     def extractall(self, dst_root, members=None, prefix=None):
         if not prefix:
@@ -85,7 +85,8 @@ class Bundle(object):
                     if not exists(dirname(dst_path)):
                         os.makedirs(dirname(dst_path))
                     with file(dst_path, 'wb') as dst:
-                        shutil.copyfileobj(self.extractfile(arcname), dst)
+                        with self.extractfile(arcname) as src:
+                            shutil.copyfileobj(src, dst)
         except Exception:
             if exists(dst_root):
                 shutil.rmtree(dst_root)
@@ -164,3 +165,18 @@ class _ZipInfo(object):
     @property
     def size(self):
         return self._info.file_size
+
+
+class _File(object):
+
+    def __init__(self, fileobj):
+        self._fileobj = fileobj
+
+    def __getattr__(self, name):
+        return getattr(self._fileobj, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self._fileobj.close()

@@ -511,7 +511,12 @@ def load_bundle(volume, request, bundle_path):
         unpack_size = 0
 
         with bundle:
+            changelog = join(bundle.rootdir, 'CHANGELOG')
             for arcname in bundle.get_names():
+                if changelog and arcname == changelog:
+                    with bundle.extractfile(changelog) as f:
+                        impl['notes'] = f.read()
+                    changelog = None
                 unpack_size += bundle.getmember(arcname).size
             spec = bundle.get_spec()
             context_meta = _load_context_metadata(bundle, spec)

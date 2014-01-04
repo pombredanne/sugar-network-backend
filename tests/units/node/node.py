@@ -713,7 +713,11 @@ class NodeTest(tests.Test):
             'stability = developer',
             'requires = sugar>=0.88; dep'
             ])
-        bundle1 = self.zips(('topdir/activity/activity.info', activity_info))
+        changelog = "LOG"
+        bundle1 = self.zips(
+                ('topdir/activity/activity.info', activity_info),
+                ('topdir/CHANGELOG', changelog),
+                )
         guid1 = json.load(conn.request('POST', ['implementation'], bundle1, params={'cmd': 'submit'}).raw)
 
         impl = volume['implementation'].get(guid1)
@@ -722,6 +726,7 @@ class NodeTest(tests.Test):
         self.assertEqual('developer', impl['stability'])
         self.assertEqual(['Public Domain'], impl['license'])
         self.assertEqual('developer', impl['stability'])
+        self.assertEqual({'en-us': changelog}, impl['notes'])
         assert impl['ctime'] > 0
         assert impl['mtime'] > 0
         self.assertEqual({tests.UID: {'role': 3, 'name': 'f470db873b6a35903aca1f2492188e1c4b9ffc42', 'order': 0}}, impl['author'])
@@ -737,7 +742,7 @@ class NodeTest(tests.Test):
 
         self.assertEqual('application/vnd.olpc-sugar', data['mime_type'])
         self.assertEqual(len(bundle1), data['blob_size'])
-        self.assertEqual(len(activity_info), data.get('unpack_size'))
+        self.assertEqual(len(activity_info) + len(changelog), data.get('unpack_size'))
         self.assertEqual(bundle1, conn.get(['context', 'bundle_id'], cmd='clone', stability='developer'))
 
         activity_info = '\n'.join([
