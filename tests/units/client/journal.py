@@ -107,32 +107,32 @@ class JournalTest(tests.Test):
         request.path = ['journal']
         response = Response()
         self.assertEqual([
-            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
-            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
-            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
+            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': {'url': url + 'guid1/preview'}},
+            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': {'url': url + 'guid2/preview'}},
+            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': {'url': url + 'guid3/preview'}},
             ],
             ds.journal_find(request, response)['result'])
 
         request = Request(offset=1, limit=1, reply=['uid', 'title', 'description', 'preview'])
         request.path = ['journal']
         self.assertEqual([
-            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
+            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': {'url': url + 'guid2/preview'}},
             ],
             ds.journal_find(request, response)['result'])
 
         request = Request(query='title3', reply=['uid', 'title', 'description', 'preview'])
         request.path = ['journal']
         self.assertEqual([
-            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
+            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': {'url': url + 'guid3/preview'}},
             ],
             ds.journal_find(request, response)['result'])
 
         request = Request(order_by=['+title'], reply=['uid', 'title', 'description', 'preview'])
         request.path = ['journal']
         self.assertEqual([
-            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
-            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
-            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
+            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': {'url': url + 'guid3/preview'}},
+            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': {'url': url + 'guid2/preview'}},
+            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': {'url': url + 'guid1/preview'}},
             ],
             ds.journal_find(request, response)['result'])
 
@@ -146,7 +146,7 @@ class JournalTest(tests.Test):
         request.path = ['journal', 'guid1']
         response = Response()
         self.assertEqual(
-            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
+            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': {'url': url + 'guid1/preview'}},
             ds.journal_get(request, response))
 
     def test_GetPropRequest(self):

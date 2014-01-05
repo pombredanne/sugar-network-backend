@@ -90,7 +90,7 @@ class Routes(object):
             # Do not break SN like API
             guid = item['guid'] = item.pop('uid')
             if has_preview:
-                item['preview'] = _preview_url(guid)
+                item['preview'] = _preview(guid)
 
         return {'result': result, 'total': int(total)}
 
@@ -100,7 +100,7 @@ class Routes(object):
         return {'guid': guid,
                 'title': get(guid, 'title'),
                 'description': get(guid, 'description'),
-                'preview': _preview_url(guid),
+                'preview': _preview(guid),
                 }
 
     @route('GET', ['journal', None, 'preview'])
@@ -193,6 +193,7 @@ def _prop_path(guid, prop):
     return _ds_path(guid, 'metadata', prop)
 
 
-def _preview_url(guid):
-    return 'http://127.0.0.1:%s/journal/%s/preview' % \
-            (client.ipc_port.value, guid)
+def _preview(guid):
+    return {'url': 'http://127.0.0.1:%s/journal/%s/preview' %
+                   (client.ipc_port.value, guid),
+            }

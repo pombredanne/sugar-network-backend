@@ -233,27 +233,48 @@ class OnlineRoutes(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        ipc.request('PUT', ['context', guid, 'preview'], 'image')
+        blob = 'preview_blob'
+        ipc.request('PUT', ['context', guid, 'preview'], blob, headers={'content-type': 'image/png'})
 
         self.assertEqual(
-                'image',
+                blob,
                 ipc.request('GET', ['context', guid, 'preview']).content)
-        self.assertEqual(
-                {'preview': 'http://127.0.0.1:8888/context/%s/preview' % guid},
-                ipc.get(['context', guid], reply=['preview']))
-        self.assertEqual(
-                [{'preview': 'http://127.0.0.1:8888/context/%s/preview' % guid}],
-                ipc.get(['context'], reply=['preview'])['result'])
+        self.assertEqual({
+            'preview': {
+                'url': 'http://127.0.0.1:8888/context/%s/preview' % guid,
+                'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
+                'mime_type': 'image/png',
+                },
+            },
+            ipc.get(['context', guid], reply=['preview']))
+        self.assertEqual([{
+            'preview': {
+                'url': 'http://127.0.0.1:8888/context/%s/preview' % guid,
+                'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
+                'mime_type': 'image/png',
+                },
+            }],
+            ipc.get(['context'], reply=['preview'])['result'])
 
         self.assertEqual(
                 file(src_root + '/sugar_network/static/httpdocs/images/package.png').read(),
                 ipc.request('GET', ['context', guid, 'icon']).content)
-        self.assertEqual(
-                {'icon': 'http://127.0.0.1:8888/static/images/package.png'},
-                ipc.get(['context', guid], reply=['icon']))
-        self.assertEqual(
-                [{'icon': 'http://127.0.0.1:8888/static/images/package.png'}],
-                ipc.get(['context'], reply=['icon'])['result'])
+        self.assertEqual({
+            'icon': {
+                'url': 'http://127.0.0.1:8888/static/images/package.png',
+                'mime_type': 'image/png',
+                },
+            },
+            ipc.get(['context', guid], reply=['icon']))
+        self.assertEqual([{
+            'icon': {
+                'url': 'http://127.0.0.1:8888/static/images/package.png',
+                'mime_type': 'image/png',
+                },
+            }],
+            ipc.get(['context'], reply=['icon'])['result'])
 
     def test_favorite(self):
         local = self.start_online_client()

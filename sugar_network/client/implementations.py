@@ -24,6 +24,7 @@ import random
 import shutil
 import hashlib
 import logging
+from copy import deepcopy
 from os.path import join, exists, basename, dirname, relpath
 
 from sugar_network import client, toolkit
@@ -227,7 +228,7 @@ class Routes(object):
         def cache_impl(sel):
             guid = sel['guid']
             data = sel['data']
-            data_path = sel['path'] = impls.path(guid, 'data')
+            sel['path'] = impls.path(guid, 'data')
             size = data.get('unpack_size') or data['blob_size']
 
             blob = None
@@ -240,33 +241,36 @@ class Routes(object):
             if blob is None:
                 blob = self._call(method='GET',
                         path=['implementation', guid, 'data'])
-            try:
-                if not exists(dirname(data_path)):
-                    os.makedirs(dirname(data_path))
+
+            blob_dir = dirname(sel['path'])
+            if not exists(blob_dir):
+                os.makedirs(blob_dir)
+
+            with toolkit.mkdtemp(dir=blob_dir) as blob_dir:
                 if 'activity' in context['type']:
                     self._cache.ensure(size, data['blob_size'])
                     with toolkit.TemporaryFile() as tmp_file:
                         shutil.copyfileobj(blob, tmp_file)
                         tmp_file.seek(0)
                         with Bundle(tmp_file, 'application/zip') as bundle:
-                            bundle.extractall(data_path, prefix=bundle.rootdir)
+                            bundle.extractall(blob_dir, prefix=bundle.rootdir)
                     for exec_dir in ('bin', 'activity'):
-                        bin_path = join(data_path, exec_dir)
+                        bin_path = join(blob_dir, exec_dir)
                         if not exists(bin_path):
                             continue
                         for filename in os.listdir(bin_path):
                             os.chmod(join(bin_path, filename), 0755)
+                    blob = blob_dir
                 else:
                     self._cache.ensure(size)
-                    with file(data_path, 'wb') as f:
+                    with file(join(blob_dir, 'data'), 'wb') as f:
                         shutil.copyfileobj(blob, f)
-                impl = sel.copy()
+                        blob = f.name
+                impl = deepcopy(sel)
                 impl['mtime'] = impl['ctime']
+                impl['data']['blob'] = blob
                 impls.create(impl)
                 return cache_call(guid, size)
-            except Exception:
-                shutil.rmtree(data_path, ignore_errors=True)
-                raise
 
         result = []
         for sel in request.session['solution']:

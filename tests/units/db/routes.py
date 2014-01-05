@@ -254,28 +254,40 @@ class RoutesTest(tests.Test):
 
         self.volume = db.Volume(tests.tmpdir, [TestDocument], lambda event: None)
         guid = self.call('POST', path=['testdocument'], content={})
-        self.call('PUT', path=['testdocument', guid, 'blob'], content='blob')
+        blob = 'blob'
+        self.call('PUT', path=['testdocument', guid, 'blob'], content=blob)
 
         blob_path = tests.tmpdir + '/testdocument/%s/%s/blob' % (guid[:2], guid)
         blob_meta = {
                 'seqno': 2,
                 'blob': blob_path + '.blob',
-                'blob_size': 4,
-                'digest': hashlib.sha1('blob').hexdigest(),
+                'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
                 'mime_type': 'application/octet-stream',
                 'mtime': int(os.stat(blob_path).st_mtime),
                 }
 
         self.assertEqual('blob', file(self.call('GET', path=['testdocument', guid, 'blob'])['blob']).read())
 
-        self.assertEqual(
-                {'guid': guid, 'blob': 'http://localhost/testdocument/%s/blob' % guid},
-                self.call('GET', path=['testdocument', guid], reply=['guid', 'blob'], host='localhost'))
+        self.assertEqual({
+            'blob': {
+                'url': 'http://localhost/testdocument/%s/blob' % guid,
+                'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
+                'mime_type': u'application/octet-stream',
+                },
+            },
+            self.call('GET', path=['testdocument', guid], reply=['blob'], host='localhost'))
 
-        self.assertEqual([
-            {'guid': guid, 'blob': 'http://localhost/testdocument/%s/blob' % guid},
-            ],
-            self.call('GET', path=['testdocument'], reply=['guid', 'blob'], host='localhost')['result'])
+        self.assertEqual([{
+            'blob': {
+                'url': 'http://localhost/testdocument/%s/blob' % guid,
+                'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
+                'mime_type': u'application/octet-stream',
+                },
+            }],
+            self.call('GET', path=['testdocument'], reply=['blob'], host='localhost')['result'])
 
     def test_GetBLOBsByUrls(self):
 
@@ -286,37 +298,51 @@ class RoutesTest(tests.Test):
                 return value
 
         self.volume = db.Volume(tests.tmpdir, [TestDocument], lambda event: None)
-        guid = self.call('POST', path=['testdocument'], content={})
+        guid1 = self.call('POST', path=['testdocument'], content={})
 
-        self.assertRaises(http.NotFound, self.call, 'GET', path=['testdocument', guid, 'blob'])
+        self.assertRaises(http.NotFound, self.call, 'GET', path=['testdocument', guid1, 'blob'])
         self.assertEqual(
-                {'blob': 'http://127.0.0.1/testdocument/%s/blob' % guid},
-                self.call('GET', path=['testdocument', guid], reply=['blob'], host='127.0.0.1'))
-        self.assertEqual([
-            {'blob': 'http://127.0.0.1/testdocument/%s/blob' % guid},
-            ],
-            self.call('GET', path=['testdocument'], reply=['blob'], host='127.0.0.1')['result'])
+                {'blob': {'url': 'http://127.0.0.1/testdocument/%s/blob' % guid1}},
+                self.call('GET', path=['testdocument', guid1], reply=['blob'], host='127.0.0.1'))
 
-        self.call('PUT', path=['testdocument', guid, 'blob'], content='file')
-        self.assertEqual('file', file(self.call('GET', path=['testdocument', guid, 'blob'])['blob']).read())
-        self.assertEqual(
-                {'blob': 'http://127.0.0.1/testdocument/%s/blob' % guid},
-                self.call('GET', path=['testdocument', guid], reply=['blob'], host='127.0.0.1'))
-        self.assertEqual([
-            {'blob': 'http://127.0.0.1/testdocument/%s/blob' % guid},
-            ],
-            self.call('GET', path=['testdocument'], reply=['blob'], host='127.0.0.1')['result'])
+        blob = 'file'
+        guid2 = self.call('POST', path=['testdocument'], content={'blob': blob})
+        self.assertEqual('file', file(self.call('GET', path=['testdocument', guid2, 'blob'])['blob']).read())
+        self.assertEqual({
+            'blob': {
+                'url': 'http://127.0.0.1/testdocument/%s/blob' % guid2,
+                'blob_size': len(blob),
+                'digest': hashlib.sha1(blob).hexdigest(),
+                'mime_type': u'application/octet-stream',
+                },
+            },
+            self.call('GET', path=['testdocument', guid2], reply=['blob'], host='127.0.0.1'))
 
-        self.call('PUT', path=['testdocument', guid, 'blob'], content={'url': 'http://foo'},
-                content_type='application/json')
-        self.assertEqual('http://foo', self.call('GET', path=['testdocument', guid, 'blob'])['url'])
+        guid3 = self.call('POST', path=['testdocument'], content={'blob': {'url': 'http://foo'}}, content_type='application/json')
+        self.assertEqual('http://foo', self.call('GET', path=['testdocument', guid3, 'blob'])['url'])
+        self.assertEqual({
+            'blob': {
+                'url': 'http://foo',
+                },
+            },
+            self.call('GET', path=['testdocument', guid3], reply=['blob'], host='127.0.0.1'))
+
         self.assertEqual(
-                {'blob': 'http://foo'},
-                self.call('GET', path=['testdocument', guid], reply=['blob'], host='127.0.0.1'))
-        self.assertEqual([
-            {'blob': 'http://foo'},
-            ],
-            self.call('GET', path=['testdocument'], reply=['blob'], host='127.0.0.1')['result'])
+                sorted([
+                    {'blob': {
+                        'url': 'http://127.0.0.1/testdocument/%s/blob' % guid1,
+                        }},
+                    { 'blob': {
+                        'url': 'http://127.0.0.1/testdocument/%s/blob' % guid2,
+                        'blob_size': len(blob),
+                        'digest': hashlib.sha1(blob).hexdigest(),
+                        'mime_type': u'application/octet-stream',
+                        }},
+                    { 'blob': {
+                        'url': 'http://foo',
+                        }},
+                    ]),
+                sorted(self.call('GET', path=['testdocument'], reply=['blob'], host='127.0.0.1')['result']))
 
     def test_CommandsGetAbsentBlobs(self):
 
@@ -336,7 +362,7 @@ class RoutesTest(tests.Test):
         self.assertEqual('value', self.call('GET', path=['testdocument', guid, 'prop']))
         self.assertRaises(http.NotFound, self.call, 'GET', path=['testdocument', guid, 'blob'])
         self.assertEqual(
-                {'blob': 'http://localhost/testdocument/%s/blob' % guid},
+                {'blob': {'url': 'http://localhost/testdocument/%s/blob' % guid}},
                 self.call('GET', path=['testdocument', guid], reply=['blob'], host='localhost'))
 
     def test_Command_ReplyForGET(self):

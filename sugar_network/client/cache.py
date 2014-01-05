@@ -138,7 +138,7 @@ class Cache(object):
 
         stat = os.statvfs(client.local_root.value)
         if stat.f_blocks == 0:
-            # TODO Sonds like a tmpfs or so
+            # TODO Sounds like a tmpfs or so
             return 0
 
         limit = sys.maxint

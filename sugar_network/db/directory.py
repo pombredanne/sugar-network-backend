@@ -313,7 +313,7 @@ class Directory(object):
         if op is not None:
             op(patch)
         for prop, meta in merge.items():
-            is_blob = isinstance(self.metadata[prop], BlobProperty)
+            is_blob = isinstance(self.metadata.get(prop), BlobProperty)
             record.set(prop, cleanup_blob=is_blob, **meta)
 
         if record.consistent:

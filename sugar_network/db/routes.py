@@ -267,11 +267,16 @@ class Routes(object):
             if value is None:
                 value = prop.default
             elif isinstance(value, Blob):
-                value = value.get('url')
-                if value is None:
-                    value = '/'.join(['', metadata.name, doc.guid, name])
-                if value.startswith('/'):
-                    value = request.static_prefix + value
+                for key in ('mtime', 'seqno', 'blob'):
+                    if key in value:
+                        del value[key]
+                url = value.get('url')
+                if url is None:
+                    value['url'] = '/'.join([
+                        request.static_prefix, metadata.name, doc.guid, name,
+                        ])
+                elif url.startswith('/'):
+                    value['url'] = request.static_prefix + url
             result[name] = value
         return result
 

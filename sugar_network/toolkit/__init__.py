@@ -485,7 +485,7 @@ def unique_filename(root, filename):
 class mkdtemp(str):
 
     def __new__(cls, **kwargs):
-        if cachedir.value:
+        if cachedir.value and 'dir' not in kwargs:
             if not exists(cachedir.value):
                 os.makedirs(cachedir.value)
             kwargs['dir'] = cachedir.value
@@ -496,7 +496,8 @@ class mkdtemp(str):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        shutil.rmtree(self)
+        if exists(self):
+            shutil.rmtree(self)
 
 
 def svg_to_png(data, w, h):
@@ -522,7 +523,7 @@ def svg_to_png(data, w, h):
 
 
 def TemporaryFile(*args, **kwargs):
-    if cachedir.value:
+    if cachedir.value and 'dir' not in kwargs:
         if not exists(cachedir.value):
             os.makedirs(cachedir.value)
         kwargs['dir'] = cachedir.value
@@ -532,7 +533,7 @@ def TemporaryFile(*args, **kwargs):
 class NamedTemporaryFile(object):
 
     def __init__(self, *args, **kwargs):
-        if cachedir.value:
+        if cachedir.value and 'dir' not in kwargs:
             if not exists(cachedir.value):
                 os.makedirs(cachedir.value)
             kwargs['dir'] = cachedir.value
