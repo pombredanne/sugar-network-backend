@@ -304,7 +304,8 @@ class Directory(object):
                 meta['seqno'] = (orig_meta or {}).get('seqno') or 0
             meta.update(kwargs)
             merge[prop] = meta
-            patch[prop] = meta.get('value')
+            if op is not None:
+                patch[prop] = meta.get('value')
 
         if not merge:
             return seqno, False
@@ -312,7 +313,8 @@ class Directory(object):
         if op is not None:
             op(patch)
         for prop, meta in merge.items():
-            record.set(prop, **meta)
+            is_blob = isinstance(self.metadata[prop], BlobProperty)
+            record.set(prop, cleanup_blob=is_blob, **meta)
 
         if record.consistent:
             props = {}
@@ -351,7 +353,7 @@ class Directory(object):
             value = changes.get(name)
             if isinstance(prop, BlobProperty):
                 if isinstance(value, dict):
-                    record.set(name, seqno=seqno, **value)
+                    record.set(name, seqno=seqno, cleanup_blob=True, **value)
                 elif isinstance(value, basestring):
                     record.set(name, seqno=seqno, blob=StringIO(value))
             elif isinstance(prop, StoredProperty):

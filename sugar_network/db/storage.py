@@ -135,14 +135,16 @@ class Record(object):
         meta['mtime'] = int(os.stat(path).st_mtime)
         return meta
 
-    def set(self, prop, mtime=None, **meta):
+    def set(self, prop, mtime=None, cleanup_blob=False, blob=None, **meta):
         if not exists(self._root):
             os.makedirs(self._root)
         meta_path = join(self._root, prop)
+        dst_blob_path = meta_path + _BLOB_SUFFIX
 
-        if 'blob' in meta:
-            dst_blob_path = meta_path + _BLOB_SUFFIX
-            blob = meta.pop('blob')
+        if (cleanup_blob or blob is not None) and exists(dst_blob_path):
+            os.unlink(dst_blob_path)
+
+        if blob is not None:
             if hasattr(blob, 'read'):
                 with toolkit.new_file(dst_blob_path) as f:
                     shutil.copyfileobj(blob, f)

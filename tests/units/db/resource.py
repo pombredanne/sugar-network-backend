@@ -900,6 +900,26 @@ class ResourceTest(tests.Test):
         self.assertEqual([], [i.guid for i in directory.find()[0]])
         assert directory.mtime == 0
 
+    def test_DeleteOldBlobOnUpdate(self):
+
+        class Document(db.Resource):
+
+            @db.blob_property()
+            def blob(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        directory.create({'guid': 'guid', 'blob': 'foo'})
+        assert exists('gu/guid/blob.blob')
+        directory.update('guid', {'blob': {'url': 'foo'}})
+        assert not exists('gu/guid/blob.blob')
+
+        directory.update('guid', {'blob': 'foo'})
+        assert exists('gu/guid/blob.blob')
+        directory.update('guid', {'blob': {}})
+        assert not exists('gu/guid/blob.blob')
+
 
 def diff(directory, in_seq, out_seq, exclude_seq=None, **kwargs):
     for guid, patch in directory.diff(Sequence(in_seq), Sequence(exclude_seq) if exclude_seq else None, **kwargs):
