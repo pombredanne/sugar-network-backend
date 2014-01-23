@@ -29,11 +29,11 @@ from sugar_network.toolkit import Option, coroutine, exception, enforce
 
 index_flush_timeout = Option(
         'flush index index after specified seconds since the last change',
-        default=5, type_cast=int)
+        default=60, type_cast=int)
 
 index_flush_threshold = Option(
         'flush index every specified changes',
-        default=32, type_cast=int)
+        default=1024, type_cast=int)
 
 index_write_queue = Option(
         'if active-document is being used for the scheme with one writer '

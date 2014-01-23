@@ -39,7 +39,7 @@ data_root = Option(
 
 find_limit = Option(
         'limit the resulting list for search requests',
-        default=32, type_cast=int, name='find-limit')
+        default=64, type_cast=int, name='find-limit')
 
 stats_root = Option(
         'path to the root directory for placing stats',
