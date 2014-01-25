@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # sugar-lint: disable
 
 import os
@@ -8,7 +9,7 @@ from cStringIO import StringIO
 
 from __init__ import tests, src_root
 
-from sugar_network import db
+from sugar_network import db, client
 from sugar_network.toolkit.router import Blob, Router, Request, _parse_accept_language, route, fallbackroute, preroute, postroute, _filename
 from sugar_network.toolkit import default_lang, http, coroutine
 
@@ -1175,8 +1176,6 @@ class RouterTest(tests.Test):
         self.assertEqual('Foo-Bar', _filename(['foo', 'bar'], None))
         self.assertEqual('FOO-BaR', _filename([' f o o', ' ba r   '], None))
 
-        self.assertEqual('Foo-3', _filename(['foo', 3], None))
-
         self.assertEqual('12-3', _filename(['/1/2/', '/3/'], None))
 
         self.assertEqual('Foo.png', _filename('foo', 'image/png'))
@@ -1185,7 +1184,7 @@ class RouterTest(tests.Test):
 
         self.assertEqual('Eng', _filename({default_lang(): 'eng'}, None))
         self.assertEqual('Eng', _filename([{default_lang(): 'eng'}], None))
-        self.assertEqual('Bar-1', _filename([{'lang': 'foo', default_lang(): 'bar'}, 1], None))
+        self.assertEqual('Bar-1', _filename([{'lang': 'foo', default_lang(): 'bar'}, '1'], None))
 
     def test_BlobsDisposition(self):
         self.touch(('blob.data', 'value'))
@@ -1383,6 +1382,25 @@ class RouterTest(tests.Test):
             ],
             events)
         del events[:]
+
+    def test_UnicodeInHeaders(self):
+
+        class Routes(object):
+
+            @route('HEAD')
+            def probe(self, request, response):
+                response['фоо'] = 'бар'
+                response[u'йцу'] = u'кен'
+
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(Routes()))
+        coroutine.spawn(server.serve_forever)
+        coroutine.dispatch()
+
+        conn = http.Connection('http://127.0.0.1:%s' % client.ipc_port.value)
+        headers = conn.request('HEAD', []).headers
+
+        self.assertEqual('бар', headers.get('фоо'))
+        self.assertEqual('кен', headers.get('йцу'))
 
 
 if __name__ == '__main__':

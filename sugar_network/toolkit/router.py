@@ -396,14 +396,14 @@ class Response(dict):
         for key, value in dict.items(self):
             if type(value) in (list, tuple):
                 for i in value:
-                    result.append((key, str(i)))
+                    result.append((_to_ascii(key), _to_ascii(i)))
             else:
-                result.append((key, str(value)))
+                result.append((_to_ascii(key), _to_ascii(value)))
         return result
 
     def __repr__(self):
         items = ['%s=%r' % i for i in self.items() + self.meta.items()]
-        return '<Response %s>' % ' '.join(items)
+        return '<Response %r>' % items
 
     def __contains__(self, key):
         dict.__contains__(self, key.lower())
@@ -576,7 +576,7 @@ class Router(object):
                 response.content_length = len(result) if result else 0
 
         for key, value in response.meta.items():
-            response.set('X-SN-%s' % str(key), json.dumps(value))
+            response.set('X-SN-%s' % _to_ascii(key), json.dumps(value))
 
         if request.method == 'HEAD' and result is not None:
             _logger.warning('Content from HEAD response is ignored')
@@ -750,7 +750,7 @@ def _filename(names, mime_type):
     for name in names:
         if isinstance(name, dict):
             name = toolkit.gettext(name)
-        parts.append(''.join([i.capitalize() for i in str(name).split()]))
+        parts.append(''.join([i.capitalize() for i in name.split()]))
     result = '-'.join(parts)
     if mime_type:
         if not mimetypes.inited:
@@ -830,6 +830,14 @@ def _parse_accept_language(value):
         qualities.insert(index, quality)
         langs.insert(len(langs) - index, lang.lower().replace('_', '-'))
     return langs
+
+
+def _to_ascii(value):
+    if not isinstance(value, basestring):
+        return str(value)
+    if isinstance(value, unicode):
+        return value.encode('utf8')
+    return value
 
 
 class _Routes(dict):
