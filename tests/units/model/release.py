@@ -8,13 +8,13 @@ import xapian
 from __init__ import tests
 
 from sugar_network import db
-from sugar_network.model import implementation
-from sugar_network.model.implementation import _fmt_version, Implementation
+from sugar_network.model import release
+from sugar_network.model.release import _fmt_version, Release
 from sugar_network.client import IPCConnection
 from sugar_network.toolkit import http, coroutine
 
 
-class ImplementationTest(tests.Test):
+class ReleaseTest(tests.Test):
 
     def test_fmt_version(self):
         self.assertEqual(
@@ -77,16 +77,16 @@ class ImplementationTest(tests.Test):
                 'author': {'fake': None},
                 })
 
-        guid = client.post(['implementation'], {
+        guid = client.post(['release'], {
             'context': 'context',
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.assertEqual([], self.node_volume['implementation'].get(guid)['layer'])
+        self.assertEqual([], self.node_volume['release'].get(guid)['layer'])
 
-        guid = client.post(['implementation'], {
+        guid = client.post(['release'], {
             'context': 'context',
             'license': 'GPLv3+',
             'version': '1',
@@ -94,20 +94,20 @@ class ImplementationTest(tests.Test):
             'notes': '',
             'layer': ['foo'],
             })
-        self.assertEqual(['foo'], self.node_volume['implementation'].get(guid)['layer'])
+        self.assertEqual(['foo'], self.node_volume['release'].get(guid)['layer'])
 
         self.node_volume['context'].update('context', {'author': {tests.UID: None}})
 
-        guid = client.post(['implementation'], {
+        guid = client.post(['release'], {
             'context': 'context',
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.assertEqual(['origin'], self.node_volume['implementation'].get(guid)['layer'])
+        self.assertEqual(['origin'], self.node_volume['release'].get(guid)['layer'])
 
-        guid = client.post(['implementation'], {
+        guid = client.post(['release'], {
             'context': 'context',
             'license': 'GPLv3+',
             'version': '1',
@@ -117,7 +117,7 @@ class ImplementationTest(tests.Test):
             })
         self.assertEqual(
                 sorted(['foo', 'origin']),
-                sorted(self.node_volume['implementation'].get(guid)['layer']))
+                sorted(self.node_volume['release'].get(guid)['layer']))
 
 
 if __name__ == '__main__':

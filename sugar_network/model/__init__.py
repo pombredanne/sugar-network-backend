@@ -35,7 +35,7 @@ RESOURCES = (
         'sugar_network.model.artifact',
         'sugar_network.model.comment',
         'sugar_network.model.context',
-        'sugar_network.model.implementation',
+        'sugar_network.model.release',
         'sugar_network.model.notification',
         'sugar_network.model.feedback',
         'sugar_network.model.report',

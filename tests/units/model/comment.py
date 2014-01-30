@@ -10,14 +10,14 @@ from sugar_network.model.review import Review
 from sugar_network.model.feedback import Feedback
 from sugar_network.model.solution import Solution
 from sugar_network.model.comment import Comment
-from sugar_network.model.implementation import Implementation
+from sugar_network.model.release import Release
 from sugar_network.toolkit import http
 
 
 class CommentTest(tests.Test):
 
     def test_SetContext(self):
-        volume = self.start_master([User, Context, Review, Feedback, Solution, Comment, Implementation])
+        volume = self.start_master([User, Context, Review, Feedback, Solution, Comment, Release])
         client = Connection(auth=http.SugarAuth(keyfile.value))
 
         self.assertRaises(http.NotFound, client.post, ['comment'], {'message': '', 'review': 'absent'})

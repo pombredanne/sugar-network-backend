@@ -146,14 +146,14 @@ class MasterRoutes(NodeRoutes):
 
     def after_post(self, doc):
         if doc.metadata.name == 'context':
-            shift_implementations = doc.modified('dependencies')
+            shift_releases = doc.modified('dependencies')
             if doc.modified('aliases'):
                 # TODO Already launched job should be killed
                 coroutine.spawn(self._resolve_aliases, doc)
-                shift_implementations = True
-            if shift_implementations and not doc.is_new:
+                shift_releases = True
+            if shift_releases and not doc.is_new:
                 # Shift checkpoint to invalidate solutions
-                self.volume['implementation'].checkpoint()
+                self.volume['release'].checkpoint()
         NodeRoutes.after_post(self, doc)
 
     def _push(self, stream):

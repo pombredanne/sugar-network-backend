@@ -93,8 +93,8 @@ class RoutesTest(tests.Test):
             'description': '',
             'dependencies': ['foo', 'bar'],
             })
-        volume['implementation'].create({
-            'guid': 'implementation',
+        volume['release'].create({
+            'guid': 'release',
             'context': 'context',
             'license': 'GPLv3',
             'version': '1',
@@ -112,9 +112,9 @@ class RoutesTest(tests.Test):
             })
 
         self.assertEqual({
-            'implementations': [
+            'releases': [
                 {
-                    'guid': 'implementation',
+                    'guid': 'release',
                     'author': {},
                     'ctime': 0,
                     'data': {

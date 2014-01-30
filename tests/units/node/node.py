@@ -24,7 +24,7 @@ from sugar_network.node.routes import NodeRoutes, generate_node_stats
 from sugar_network.node.master import MasterRoutes
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
-from sugar_network.model.implementation import Implementation
+from sugar_network.model.release import Release
 from sugar_network.model.review import Review
 from sugar_network.model.feedback import Feedback
 from sugar_network.model.artifact import Artifact
@@ -578,7 +578,7 @@ class NodeTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        impl1 = client.post(['implementation'], {
+        impl1 = client.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -586,7 +586,7 @@ class NodeTest(tests.Test):
             'notes': '',
             })
         blob1 = self.zips(('topdir/probe', 'probe1'))
-        volume['implementation'].update(impl1, {'data': {
+        volume['release'].update(impl1, {'data': {
             'blob': StringIO(blob1),
             'spec': {
                 '*-*': {
@@ -596,7 +596,7 @@ class NodeTest(tests.Test):
                     },
                 },
             }})
-        impl2 = client.post(['implementation'], {
+        impl2 = client.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
@@ -604,7 +604,7 @@ class NodeTest(tests.Test):
             'notes': '',
             })
         blob2 = self.zips(('topdir/probe', 'probe2'))
-        volume['implementation'].update(impl2, {'data': {
+        volume['release'].update(impl2, {'data': {
             'blob': StringIO(blob2),
             'spec': {
                 '*-*': {
@@ -615,7 +615,7 @@ class NodeTest(tests.Test):
                     },
                 },
             }})
-        impl3 = client.post(['implementation'], {
+        impl3 = client.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '3',
@@ -623,7 +623,7 @@ class NodeTest(tests.Test):
             'notes': '',
             })
         blob3 = self.zips(('topdir/probe', 'probe3'))
-        volume['implementation'].update(impl3, {'data': {
+        volume['release'].update(impl3, {'data': {
             'blob': StringIO(blob3),
             'spec': {
                 '*-*': {
@@ -633,7 +633,7 @@ class NodeTest(tests.Test):
                     },
                 },
             }})
-        impl4 = client.post(['implementation'], {
+        impl4 = client.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '4',
@@ -641,7 +641,7 @@ class NodeTest(tests.Test):
             'notes': '',
             })
         blob4 = self.zips(('topdir/probe', 'probe4'))
-        volume['implementation'].update(impl4, {'data': {
+        volume['release'].update(impl4, {'data': {
             'blob': StringIO(blob4),
             'spec': {
                 '*-*': {
@@ -673,7 +673,7 @@ class NodeTest(tests.Test):
             'license': ['GPLv3+'],
             'layer': ['origin'],
             'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl3).ctime,
+            'ctime': self.node_volume['release'].get(impl3).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -718,9 +718,9 @@ class NodeTest(tests.Test):
                 ('topdir/activity/activity.info', activity_info),
                 ('topdir/CHANGELOG', changelog),
                 )
-        guid1 = json.load(conn.request('POST', ['implementation'], bundle1, params={'cmd': 'submit'}).raw)
+        guid1 = json.load(conn.request('POST', ['release'], bundle1, params={'cmd': 'submit'}).raw)
 
-        impl = volume['implementation'].get(guid1)
+        impl = volume['release'].get(guid1)
         self.assertEqual('bundle_id', impl['context'])
         self.assertEqual('1', impl['version'])
         self.assertEqual('developer', impl['stability'])
@@ -756,12 +756,12 @@ class NodeTest(tests.Test):
             'stability = stable',
             ])
         bundle2 = self.zips(('topdir/activity/activity.info', activity_info))
-        guid2 = json.load(conn.request('POST', ['implementation'], bundle2, params={'cmd': 'submit'}).raw)
+        guid2 = json.load(conn.request('POST', ['release'], bundle2, params={'cmd': 'submit'}).raw)
 
-        self.assertEqual('1', volume['implementation'].get(guid1)['version'])
-        self.assertEqual(['origin'], volume['implementation'].get(guid1)['layer'])
-        self.assertEqual('2', volume['implementation'].get(guid2)['version'])
-        self.assertEqual(['origin'], volume['implementation'].get(guid2)['layer'])
+        self.assertEqual('1', volume['release'].get(guid1)['version'])
+        self.assertEqual(['origin'], volume['release'].get(guid1)['layer'])
+        self.assertEqual('2', volume['release'].get(guid2)['version'])
+        self.assertEqual(['origin'], volume['release'].get(guid2)['layer'])
         self.assertEqual(bundle2, conn.get(['context', 'bundle_id'], cmd='clone'))
 
         activity_info = '\n'.join([
@@ -775,14 +775,14 @@ class NodeTest(tests.Test):
             'stability = stable',
             ])
         bundle3 = self.zips(('topdir/activity/activity.info', activity_info))
-        guid3 = json.load(conn.request('POST', ['implementation'], bundle3, params={'cmd': 'submit'}).raw)
+        guid3 = json.load(conn.request('POST', ['release'], bundle3, params={'cmd': 'submit'}).raw)
 
-        self.assertEqual('1', volume['implementation'].get(guid1)['version'])
-        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(guid1)['layer']))
-        self.assertEqual('2', volume['implementation'].get(guid2)['version'])
-        self.assertEqual(['origin'], volume['implementation'].get(guid2)['layer'])
-        self.assertEqual('1', volume['implementation'].get(guid3)['version'])
-        self.assertEqual(['origin'], volume['implementation'].get(guid3)['layer'])
+        self.assertEqual('1', volume['release'].get(guid1)['version'])
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['release'].get(guid1)['layer']))
+        self.assertEqual('2', volume['release'].get(guid2)['version'])
+        self.assertEqual(['origin'], volume['release'].get(guid2)['layer'])
+        self.assertEqual('1', volume['release'].get(guid3)['version'])
+        self.assertEqual(['origin'], volume['release'].get(guid3)['layer'])
         self.assertEqual(bundle2, conn.get(['context', 'bundle_id'], cmd='clone'))
 
         activity_info = '\n'.join([
@@ -796,16 +796,16 @@ class NodeTest(tests.Test):
             'stability = buggy',
             ])
         bundle4 = self.zips(('topdir/activity/activity.info', activity_info))
-        guid4 = json.load(conn.request('POST', ['implementation'], bundle4, params={'cmd': 'submit'}).raw)
+        guid4 = json.load(conn.request('POST', ['release'], bundle4, params={'cmd': 'submit'}).raw)
 
-        self.assertEqual('1', volume['implementation'].get(guid1)['version'])
-        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(guid1)['layer']))
-        self.assertEqual('2', volume['implementation'].get(guid2)['version'])
-        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(guid2)['layer']))
-        self.assertEqual('1', volume['implementation'].get(guid3)['version'])
-        self.assertEqual(['origin'], volume['implementation'].get(guid3)['layer'])
-        self.assertEqual('2', volume['implementation'].get(guid4)['version'])
-        self.assertEqual(['origin'], volume['implementation'].get(guid4)['layer'])
+        self.assertEqual('1', volume['release'].get(guid1)['version'])
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['release'].get(guid1)['layer']))
+        self.assertEqual('2', volume['release'].get(guid2)['version'])
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['release'].get(guid2)['layer']))
+        self.assertEqual('1', volume['release'].get(guid3)['version'])
+        self.assertEqual(['origin'], volume['release'].get(guid3)['layer'])
+        self.assertEqual('2', volume['release'].get(guid4)['version'])
+        self.assertEqual(['origin'], volume['release'].get(guid4)['layer'])
         self.assertEqual(bundle3, conn.get(['context', 'bundle_id'], cmd='clone'))
 
     def test_release_UpdateContext(self):
@@ -855,7 +855,7 @@ class NodeTest(tests.Test):
                     base64.b64decode('3hIElQAAAAAMAAAAHAAAAHwAAAARAAAA3AAAAAAAAAAgAQAADwAAACEBAAAOAAAAMQEAAA0AAABAAQAACgAAAE4BAAAMAAAAWQEAAA0AAABmAQAAJwAAAHQBAAAUAAAAnAEAABAAAACxAQAABwAAAMIBAAAIAAAAygEAANEBAADTAQAAIQAAAKUDAAATAAAAxwMAABwAAADbAwAAFwAAAPgDAAAhAAAAEAQAAB0AAAAyBAAAQAAAAFAEAAA9AAAAkQQAADUAAADPBAAAFAAAAAUFAAAQAAAAGgUAAAEAAAACAAAABwAAAAAAAAADAAAAAAAAAAwAAAAJAAAAAAAAAAoAAAAEAAAAAAAAAAAAAAALAAAABgAAAAgAAAAFAAAAAENob29zZSBkb2N1bWVudABEb3dubG9hZGluZy4uLgBGaXQgdG8gd2luZG93AEZ1bGxzY3JlZW4ASW1hZ2UgVmlld2VyAE9yaWdpbmFsIHNpemUAUmV0cmlldmluZyBzaGFyZWQgaW1hZ2UsIHBsZWFzZSB3YWl0Li4uAFJvdGF0ZSBhbnRpY2xvY2t3aXNlAFJvdGF0ZSBjbG9ja3dpc2UAWm9vbSBpbgBab29tIG91dABQcm9qZWN0LUlkLVZlcnNpb246IFBBQ0tBR0UgVkVSU0lPTgpSZXBvcnQtTXNnaWQtQnVncy1UbzogClBPVC1DcmVhdGlvbi1EYXRlOiAyMDEyLTA5LTI3IDE0OjU3LTA0MDAKUE8tUmV2aXNpb24tRGF0ZTogMjAxMC0wOS0yMiAxMzo1MCswMjAwCkxhc3QtVHJhbnNsYXRvcjoga3JvbTlyYSA8a3JvbTlyYUBnbWFpbC5jb20+Ckxhbmd1YWdlLVRlYW06IExBTkdVQUdFIDxMTEBsaS5vcmc+Ckxhbmd1YWdlOiAKTUlNRS1WZXJzaW9uOiAxLjAKQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PVVURi04CkNvbnRlbnQtVHJhbnNmZXItRW5jb2Rpbmc6IDhiaXQKUGx1cmFsLUZvcm1zOiBucGx1cmFscz0zOyBwbHVyYWw9KG4lMTA9PTEgJiYgbiUxMDAhPTExID8gMCA6IG4lMTA+PTIgJiYgbiUxMDw9NCAmJiAobiUxMDA8MTAgfHwgbiUxMDA+PTIwKSA/IDEgOiAyKTsKWC1HZW5lcmF0b3I6IFBvb3RsZSAyLjAuMwoA0JLRi9Cx0LXRgNC40YLQtSDQtNC+0LrRg9C80LXQvdGCANCX0LDQs9GA0YPQt9C60LAuLi4A0KPQvNC10YHRgtC40YLRjCDQsiDQvtC60L3QtQDQn9C+0LvQvdGL0Lkg0Y3QutGA0LDQvQDQn9GA0L7RgdC80L7RgtGAINC60LDRgNGC0LjQvdC+0LoA0JjRgdGC0LjQvdC90YvQuSDRgNCw0LfQvNC10YAA0J/QvtC70YPRh9C10L3QuNC1INC40LfQvtCx0YDQsNC20LXQvdC40LksINC/0L7QtNC+0LbQtNC40YLQtS4uLgDQn9C+0LLQtdGA0L3Rg9GC0Ywg0L/RgNC+0YLQuNCyINGH0LDRgdC+0LLQvtC5INGB0YLRgNC10LvQutC4ANCf0L7QstC10YDQvdGD0YLRjCDQv9C+INGH0LDRgdC+0LLQvtC5INGB0YLRgNC10LvQutC1ANCf0YDQuNCx0LvQuNC30LjRgtGMANCe0YLQtNCw0LvQuNGC0YwA')),
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', svg),
                 )
-        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit'}).raw)
+        impl = json.load(conn.request('POST', ['release'], bundle, params={'cmd': 'submit'}).raw)
 
         context = volume['context'].get('org.laptop.ImageViewerActivity')
         self.assertEqual({
@@ -897,8 +897,8 @@ class NodeTest(tests.Test):
                     ])),
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
                 )
-        self.assertRaises(http.NotFound, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'submit'})
-        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
+        self.assertRaises(http.NotFound, conn.request, 'POST', ['release'], bundle, params={'cmd': 'submit'})
+        impl = json.load(conn.request('POST', ['release'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
 
         context = volume['context'].get('org.laptop.ImageViewerActivity')
         self.assertEqual({'en': 'Image Viewer'}, context['title'])
@@ -926,17 +926,17 @@ class NodeTest(tests.Test):
                 )
 
         conn = Connection(auth=http.SugarAuth(join(tests.root, 'data', tests.UID)))
-        impl1 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
-        impl2 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit'}).raw)
-        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl1)['layer']))
-        self.assertEqual(['origin'], volume['implementation'].get(impl2)['layer'])
+        impl1 = json.load(conn.request('POST', ['release'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
+        impl2 = json.load(conn.request('POST', ['release'], bundle, params={'cmd': 'submit'}).raw)
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['release'].get(impl1)['layer']))
+        self.assertEqual(['origin'], volume['release'].get(impl2)['layer'])
 
         conn = Connection(auth=http.SugarAuth(join(tests.root, 'data', tests.UID2)))
         conn.get(cmd='whoami')
-        impl3 = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit'}).raw)
-        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl1)['layer']))
-        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['implementation'].get(impl2)['layer']))
-        self.assertEqual([], volume['implementation'].get(impl3)['layer'])
+        impl3 = json.load(conn.request('POST', ['release'], bundle, params={'cmd': 'submit'}).raw)
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['release'].get(impl1)['layer']))
+        self.assertEqual(sorted(['origin', 'deleted']), sorted(volume['release'].get(impl2)['layer']))
+        self.assertEqual([], volume['release'].get(impl3)['layer'])
 
     def test_release_PopulateRequires(self):
         volume = self.start_master()
@@ -955,8 +955,8 @@ class NodeTest(tests.Test):
                     ])),
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
                 )
-        self.assertRaises(http.NotFound, conn.request, 'POST', ['implementation'], bundle, params={'cmd': 'submit'})
-        impl = json.load(conn.request('POST', ['implementation'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
+        self.assertRaises(http.NotFound, conn.request, 'POST', ['release'], bundle, params={'cmd': 'submit'})
+        impl = json.load(conn.request('POST', ['release'], bundle, params={'cmd': 'submit', 'initial': 1}).raw)
 
         self.assertEqual(
                 sorted([
@@ -964,7 +964,7 @@ class NodeTest(tests.Test):
                     'dep6-6',
                     'dep7-1', 'dep7-2', 'dep7-3',
                     ]),
-                sorted(volume['implementation'].get(impl)['requires']))
+                sorted(volume['release'].get(impl)['requires']))
 
     def test_generate_node_stats_Posts(self):
         node.stats_root.value = 'stats'
@@ -991,7 +991,7 @@ class NodeTest(tests.Test):
             'summary': '',
             'description': '',
             })
-        volume['implementation'].create({
+        volume['release'].create({
             'guid': 'impl_1',
             'ctime': ts + 2,
             'mtime': ts + 2,
@@ -1083,7 +1083,7 @@ class NodeTest(tests.Test):
             'mtime': ts + 8,
             'layer': [],
             'context': 'context_1',
-            'implementation': 'impl_1',
+            'release': 'impl_1',
             'error': '',
             })
 
@@ -1104,7 +1104,7 @@ class NodeTest(tests.Test):
             'summary': '',
             'description': '',
             })
-        volume['implementation'].create({
+        volume['release'].create({
             'guid': 'impl_2',
             'ctime': ts + 4,
             'mtime': ts + 4,
@@ -1113,7 +1113,7 @@ class NodeTest(tests.Test):
             'license': ['GPL-3'],
             'version': '1',
             })
-        volume['implementation'].create({
+        volume['release'].create({
             'guid': 'impl_3',
             'ctime': ts + 4,
             'mtime': ts + 4,
@@ -1148,7 +1148,7 @@ class NodeTest(tests.Test):
             'mtime': ts + 4,
             'layer': [],
             'context': 'context_2',
-            'implementation': 'impl_1',
+            'release': 'impl_1',
             'error': '',
             })
         volume['report'].create({
@@ -1157,7 +1157,7 @@ class NodeTest(tests.Test):
             'mtime': ts + 4,
             'layer': [],
             'context': 'context_2',
-            'implementation': 'impl_1',
+            'release': 'impl_1',
             'error': '',
             })
         volume['artifact'].create({
@@ -1228,14 +1228,14 @@ class NodeTest(tests.Test):
 
         self.override(time, 'time', lambda: ts + 9)
         old_stats = stats_node.Sniffer(volume, 'stats/node')
-        old_stats.log(Request(method='GET', path=['implementation', 'impl_1', 'data']))
+        old_stats.log(Request(method='GET', path=['release', 'impl_1', 'data']))
         old_stats.log(Request(method='GET', path=['artifact', 'artifact_1', 'data']))
         old_stats.commit(ts + 1)
         old_stats.commit_objects()
         old_stats.commit(ts + 2)
         old_stats.commit(ts + 3)
-        old_stats.log(Request(method='GET', path=['implementation', 'impl_1', 'data']))
-        old_stats.log(Request(method='GET', path=['implementation', 'impl_2', 'data']))
+        old_stats.log(Request(method='GET', path=['release', 'impl_1', 'data']))
+        old_stats.log(Request(method='GET', path=['release', 'impl_2', 'data']))
         old_stats.commit(ts + 4)
         old_stats.commit_objects()
         old_stats.commit(ts + 5)
@@ -1393,7 +1393,7 @@ class NodeTest(tests.Test):
             'summary': '',
             'description': '',
             })
-        volume['implementation'].create({
+        volume['release'].create({
             'guid': 'impl_1',
             'ctime': ts + 1,
             'mtime': ts + 2,
@@ -1456,7 +1456,7 @@ class NodeTest(tests.Test):
             'mtime': ts + 2,
             'layer': ['deleted'],
             'context': 'context_1',
-            'implementation': 'impl_1',
+            'release': 'impl_1',
             'error': '',
             })
 

@@ -24,13 +24,13 @@ class Report(db.Resource):
         return value
 
     @db.indexed_property(prefix='V', default='', acl=ACL.CREATE | ACL.READ)
-    def implementation(self, value):
+    def release(self, value):
         return value
 
-    @implementation.setter
-    def implementation(self, value):
-        if value and 'version' not in self.props and 'implementation' in value:
-            version = self.volume['implementation'].get(value)
+    @release.setter
+    def release(self, value):
+        if value and 'version' not in self.props and 'release' in value:
+            version = self.volume['release'].get(value)
             self['version'] = version['version']
         return value
 

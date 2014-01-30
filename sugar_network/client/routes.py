@@ -21,7 +21,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from os.path import join, basename
 
 from sugar_network import db, client, node, toolkit, model
-from sugar_network.client import journal, implementations
+from sugar_network.client import journal, releases
 from sugar_network.node.slave import SlaveRoutes
 from sugar_network.toolkit import netlink, mountpoints
 from sugar_network.toolkit.router import ACL, Request, Response, Router
@@ -40,11 +40,11 @@ _LOCAL_LAYERS = frozenset(['local', 'clone', 'favorite'])
 _logger = logging.getLogger('client.routes')
 
 
-class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
+class ClientRoutes(model.FrontRoutes, releases.Routes, journal.Routes):
 
     def __init__(self, home_volume, api_url=None, no_subscription=False):
         model.FrontRoutes.__init__(self)
-        implementations.Routes.__init__(self, home_volume)
+        releases.Routes.__init__(self, home_volume)
         journal.Routes.__init__(self)
 
         self._local = _LocalRoutes(home_volume)
@@ -201,7 +201,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
         request.update(kwargs)
         if self._inline.is_set():
             if client.layers.value and \
-                    request.resource in ('context', 'implementation'):
+                    request.resource in ('context', 'release'):
                 request.add('layer', *client.layers.value)
             request.principal = self._auth.login
             try:
@@ -262,7 +262,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
 
         def pull_events():
             for event in self._node.subscribe():
-                if event.get('resource') == 'implementation':
+                if event.get('resource') == 'release':
                     mtime = event.get('mtime')
                     if mtime:
                         self.invalidate_solutions(mtime)
@@ -273,7 +273,7 @@ class ClientRoutes(model.FrontRoutes, implementations.Routes, journal.Routes):
             self._node = client.Connection(url, auth=self._auth)
             status = self._node.get(cmd='status')
             self._auth.allow_basic_auth = (status.get('level') == 'master')
-            impl_info = status['resources'].get('implementation')
+            impl_info = status['resources'].get('release')
             if impl_info:
                 self.invalidate_solutions(impl_info['mtime'])
             if self._inline.is_set():

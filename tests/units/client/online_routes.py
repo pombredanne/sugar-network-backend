@@ -15,7 +15,7 @@ from os.path import exists, lexists, basename
 from __init__ import tests, src_root
 
 from sugar_network import client, db, model
-from sugar_network.client import IPCConnection, journal, routes, implementations
+from sugar_network.client import IPCConnection, journal, routes, releases
 from sugar_network.toolkit import coroutine, http
 from sugar_network.toolkit.spec import Spec
 from sugar_network.client.routes import ClientRoutes, Request, Response
@@ -24,7 +24,7 @@ from sugar_network.db import Volume, Resource
 from sugar_network.model.user import User
 from sugar_network.model.report import Report
 from sugar_network.model.context import Context
-from sugar_network.model.implementation import Implementation
+from sugar_network.model.release import Release
 from sugar_network.model.artifact import Artifact
 from sugar_network.toolkit.router import route
 from sugar_network.toolkit import Option
@@ -36,7 +36,7 @@ class OnlineRoutes(tests.Test):
 
     def setUp(self, fork_num=0):
         tests.Test.setUp(self, fork_num)
-        self.override(implementations, '_activity_id_new', lambda: 'activity_id')
+        self.override(releases, '_activity_id_new', lambda: 'activity_id')
 
     def test_whoami(self):
         self.start_online_client()
@@ -150,24 +150,24 @@ class OnlineRoutes(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        impl1 = ipc.post(['implementation'], {
+        impl1 = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.node_volume['implementation'].update(impl1, {'data': {
+        self.node_volume['release'].update(impl1, {'data': {
             'spec': {'*-*': {}},
             }})
-        impl2 = ipc.post(['implementation'], {
+        impl2 = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
             'stability': 'stable',
             'notes': '',
             })
-        self.node_volume['implementation'].update(impl2, {'data': {
+        self.node_volume['release'].update(impl2, {'data': {
             'spec': {'*-*': {
                 'requires': {
                     'dep1': {},
@@ -182,7 +182,7 @@ class OnlineRoutes(tests.Test):
             }})
 
         self.assertEqual({
-            'implementations': [
+            'releases': [
                 {
                     'version': '1',
                     'stability': 'stable',
@@ -190,7 +190,7 @@ class OnlineRoutes(tests.Test):
                     'license': ['GPLv3+'],
                     'layer': ['origin'],
                     'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                    'ctime': self.node_volume['implementation'].get(impl1).ctime,
+                    'ctime': self.node_volume['release'].get(impl1).ctime,
                     'notes': {'en-us': ''},
                     'tags': [],
                     'data': {'spec': {'*-*': {}}},
@@ -202,7 +202,7 @@ class OnlineRoutes(tests.Test):
                     'license': ['GPLv3+'],
                     'layer': ['origin'],
                     'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                    'ctime': self.node_volume['implementation'].get(impl2).ctime,
+                    'ctime': self.node_volume['release'].get(impl2).ctime,
                     'notes': {'en-us': ''},
                     'tags': [],
                     'data': {
@@ -407,7 +407,7 @@ class OnlineRoutes(tests.Test):
                 sorted([(i.guid, i['layer']) for i in local['context'].find(reply='layer')[0]]))
 
     def test_clone_Fails(self):
-        self.start_online_client([User, Context, Implementation])
+        self.start_online_client([User, Context, Release])
         conn = IPCConnection()
 
         self.assertEqual([
@@ -438,14 +438,14 @@ Can't find all required implementations:
 
         assert not exists('solutions/%s/%s' % (context[:2], context))
 
-        impl = conn.post(['implementation'], {
+        impl = conn.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.node_volume['implementation'].update(impl, {'data': {
+        self.node_volume['release'].update(impl, {'data': {
             'blob_size': 1,
             'spec': {
                 '*-*': {
@@ -471,10 +471,10 @@ Can't find all required implementations:
                     'license': ['GPLv3+'],
                     'stability': 'stable',
                     'version': '1',
-                    'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+                    'path': tests.tmpdir + '/client/release/%s/%s/data.blob' % (impl[:2], impl),
                     'layer': ['origin'],
                     'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                    'ctime': self.node_volume['implementation'].get(impl).ctime,
+                    'ctime': self.node_volume['release'].get(impl).ctime,
                     'notes': {'en-us': ''},
                     'tags': [],
                     'data': {
@@ -496,7 +496,7 @@ Can't find all required implementations:
         assert not exists('solutions/%s/%s' % (context[:2], context))
 
     def test_clone_Content(self):
-        local = self.start_online_client([User, Context, Implementation])
+        local = self.start_online_client([User, Context, Release])
         ipc = IPCConnection()
         events = []
 
@@ -512,7 +512,7 @@ Can't find all required implementations:
             'summary': 'summary',
             'description': 'description',
             })
-        impl = ipc.post(['implementation'], {
+        impl = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -520,7 +520,7 @@ Can't find all required implementations:
             'notes': '',
             })
         blob = 'content'
-        self.node_volume['implementation'].update(impl, {'data': {'blob': StringIO(blob), 'foo': 'bar'}})
+        self.node_volume['release'].update(impl, {'data': {'blob': StringIO(blob), 'foo': 'bar'}})
         clone_path = 'client/context/%s/%s/.clone' % (context[:2], context)
         solution = [{
             'guid': impl,
@@ -530,7 +530,7 @@ Can't find all required implementations:
             'stability': 'stable',
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -577,8 +577,8 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             },
-            local['implementation'].get(impl).properties(['context', 'license', 'version', 'stability']))
-        blob_path = 'client/implementation/%s/%s/data.blob' % (impl[:2], impl)
+            local['release'].get(impl).properties(['context', 'license', 'version', 'stability']))
+        blob_path = 'client/release/%s/%s/data.blob' % (impl[:2], impl)
         solution[0]['path'] = tests.tmpdir + '/' + blob_path
         self.assertEqual({
             'seqno': 5,
@@ -587,7 +587,7 @@ Can't find all required implementations:
             'mtime': int(os.stat(blob_path[:-5]).st_mtime),
             'foo': 'bar',
             },
-            local['implementation'].get(impl).meta('data'))
+            local['release'].get(impl).meta('data'))
         self.assertEqual('content', file(blob_path).read())
         assert exists(clone_path + '/data.blob')
         self.assertEqual(
@@ -616,7 +616,7 @@ Can't find all required implementations:
             'title': {'en-us': 'title'},
             },
             local['context'].get(context).properties(['layer', 'type', 'author', 'title']))
-        blob_path = 'client/implementation/%s/%s/data.blob' % (impl[:2], impl)
+        blob_path = 'client/release/%s/%s/data.blob' % (impl[:2], impl)
         self.assertEqual({
             'seqno': 5,
             'blob_size': len(blob),
@@ -624,7 +624,7 @@ Can't find all required implementations:
             'mtime': int(os.stat(blob_path[:-5]).st_mtime),
             'foo': 'bar',
             },
-            local['implementation'].get(impl).meta('data'))
+            local['release'].get(impl).meta('data'))
         self.assertEqual('content', file(blob_path).read())
         assert not lexists(clone_path)
         self.assertEqual(
@@ -651,7 +651,7 @@ Can't find all required implementations:
                 json.load(file('solutions/%s/%s' % (context[:2], context))))
 
     def test_clone_Activity(self):
-        local = self.start_online_client([User, Context, Implementation])
+        local = self.start_online_client([User, Context, Release])
         ipc = IPCConnection()
         events = []
 
@@ -671,9 +671,9 @@ Can't find all required implementations:
             'license=Public Domain',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        impl = ipc.upload(['release'], StringIO(blob), cmd='submit', initial=True)
         clone_path = 'client/context/bu/bundle_id/.clone'
-        blob_path = tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl)
+        blob_path = tests.tmpdir + '/client/release/%s/%s/data.blob' % (impl[:2], impl)
         solution = [{
             'guid': impl,
             'context': 'bundle_id',
@@ -682,7 +682,7 @@ Can't find all required implementations:
             'version': '1',
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -731,7 +731,7 @@ Can't find all required implementations:
             'version': '1',
             'stability': 'stable',
             },
-            local['implementation'].get(impl).properties(['context', 'license', 'version', 'stability']))
+            local['release'].get(impl).properties(['context', 'license', 'version', 'stability']))
         self.assertEqual({
             'seqno': 5,
             'unpack_size': len(activity_info),
@@ -747,7 +747,7 @@ Can't find all required implementations:
                     },
                 },
             },
-            local['implementation'].get(impl).meta('data'))
+            local['release'].get(impl).meta('data'))
         self.assertEqual(activity_info, file(blob_path + '/activity/activity.info').read())
         assert exists(clone_path + '/data.blob/activity/activity.info')
         self.assertEqual(
@@ -791,7 +791,7 @@ Can't find all required implementations:
                     },
                 },
             },
-            local['implementation'].get(impl).meta('data'))
+            local['release'].get(impl).meta('data'))
         self.assertEqual(activity_info, file(blob_path + '/activity/activity.info').read())
         assert not exists(clone_path)
         self.assertEqual(
@@ -818,7 +818,7 @@ Can't find all required implementations:
                 json.load(file('solutions/bu/bundle_id')))
 
     def test_clone_ActivityWithStabilityPreferences(self):
-        local = self.start_online_client([User, Context, Implementation])
+        local = self.start_online_client([User, Context, Release])
         ipc = IPCConnection()
 
         activity_info1 = '\n'.join([
@@ -831,7 +831,7 @@ Can't find all required implementations:
             'license = Public Domain',
             ])
         blob1 = self.zips(['TestActivity/activity/activity.info', activity_info1])
-        impl1 = ipc.upload(['implementation'], StringIO(blob1), cmd='submit', initial=True)
+        impl1 = ipc.upload(['release'], StringIO(blob1), cmd='submit', initial=True)
 
         activity_info2 = '\n'.join([
             '[Activity]',
@@ -844,7 +844,7 @@ Can't find all required implementations:
             'stability = buggy',
             ])
         blob2 = self.zips(['TestActivity/activity/activity.info', activity_info2])
-        impl2 = ipc.upload(['implementation'], StringIO(blob2), cmd='submit', initial=True)
+        impl2 = ipc.upload(['release'], StringIO(blob2), cmd='submit', initial=True)
 
         self.assertEqual(
                 'ready',
@@ -852,7 +852,7 @@ Can't find all required implementations:
 
         coroutine.dispatch()
         self.assertEqual({'layer': ['clone']}, ipc.get(['context', 'bundle_id'], reply='layer'))
-        self.assertEqual([impl1], [i.guid for i in local['implementation'].find()[0]])
+        self.assertEqual([impl1], [i.guid for i in local['release'].find()[0]])
         self.assertEqual(impl1, basename(os.readlink('client/context/bu/bundle_id/.clone')))
 
         self.touch(('config', [
@@ -870,11 +870,11 @@ Can't find all required implementations:
 
         coroutine.dispatch()
         self.assertEqual({'layer': ['clone']}, ipc.get(['context', 'bundle_id'], reply='layer'))
-        self.assertEqual([impl1, impl2], [i.guid for i in local['implementation'].find()[0]])
+        self.assertEqual([impl1, impl2], [i.guid for i in local['release'].find()[0]])
         self.assertEqual(impl2, basename(os.readlink('client/context/bu/bundle_id/.clone')))
 
     def test_clone_Head(self):
-        local = self.start_online_client([User, Context, Implementation])
+        local = self.start_online_client([User, Context, Release])
         ipc = IPCConnection()
 
         activity_info = '\n'.join([
@@ -887,8 +887,8 @@ Can't find all required implementations:
             'license = Public Domain',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
-        blob_path = 'master/implementation/%s/%s/data.blob' % (impl[:2], impl)
+        impl = ipc.upload(['release'], StringIO(blob), cmd='submit', initial=True)
+        blob_path = 'master/release/%s/%s/data.blob' % (impl[:2], impl)
 
         self.assertEqual({
             'guid': impl,
@@ -898,7 +898,7 @@ Can't find all required implementations:
             'context': 'bundle_id',
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -914,7 +914,7 @@ Can't find all required implementations:
         self.assertEqual(
                 'ready',
                 [i for i in ipc.put(['context', 'bundle_id'], True, cmd='clone')][-1]['event'])
-        blob_path = tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl)
+        blob_path = tests.tmpdir + '/client/release/%s/%s/data.blob' % (impl[:2], impl)
 
         self.assertEqual({
             'guid': impl,
@@ -924,7 +924,7 @@ Can't find all required implementations:
             'context': 'bundle_id',
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -941,7 +941,7 @@ Can't find all required implementations:
             ipc.head(['context', 'bundle_id'], cmd='clone'))
 
     def test_launch_Activity(self):
-        local = self.start_online_client([User, Context, Implementation])
+        local = self.start_online_client([User, Context, Release])
         ipc = IPCConnection()
 
         activity_info = '\n'.join([
@@ -954,7 +954,7 @@ Can't find all required implementations:
             'license=Public Domain',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        impl = ipc.upload(['release'], StringIO(blob), cmd='submit', initial=True)
         coroutine.sleep(.1)
 
         solution = [{
@@ -965,7 +965,7 @@ Can't find all required implementations:
             'version': '1',
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -977,7 +977,7 @@ Can't find all required implementations:
                 },
             }]
         downloaded_solution = copy.deepcopy(solution)
-        downloaded_solution[0]['path'] = tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl)
+        downloaded_solution[0]['path'] = tests.tmpdir + '/client/release/%s/%s/data.blob' % (impl[:2], impl)
         log_path = tests.tmpdir + '/.sugar/default/logs/bundle_id.log'
         self.assertEqual([
             {'event': 'launch', 'foo': 'bar', 'activity_id': 'activity_id'},
@@ -985,7 +985,7 @@ Can't find all required implementations:
             {'event': 'exit', 'activity_id': 'activity_id'},
             ],
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
-        assert local['implementation'].exists(impl)
+        assert local['release'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], downloaded_solution],
                 json.load(file('solutions/bu/bundle_id')))
@@ -999,7 +999,7 @@ Can't find all required implementations:
             'activity_version = 2',
             'license=Public Domain',
             ]])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit')
+        impl = ipc.upload(['release'], StringIO(blob), cmd='submit')
         coroutine.sleep(.1)
 
         shutil.rmtree('solutions')
@@ -1009,10 +1009,10 @@ Can't find all required implementations:
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '2',
-            'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'path': tests.tmpdir + '/client/release/%s/%s/data.blob' % (impl[:2], impl),
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -1030,7 +1030,7 @@ Can't find all required implementations:
             {'event': 'exit', 'activity_id': 'activity_id'},
             ],
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
-        assert local['implementation'].exists(impl)
+        assert local['release'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
@@ -1045,7 +1045,7 @@ Can't find all required implementations:
             {'event': 'exit', 'activity_id': 'activity_id'},
             ],
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
-        assert local['implementation'].exists(impl)
+        assert local['release'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
@@ -1058,13 +1058,13 @@ Can't find all required implementations:
             {'event': 'exit', 'activity_id': 'activity_id'},
             ],
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
-        assert local['implementation'].exists(impl)
+        assert local['release'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
 
     def test_launch_Fails(self):
-        local = self.start_online_client([User, Context, Implementation])
+        local = self.start_online_client([User, Context, Release])
         ipc = IPCConnection()
 
         self.assertEqual([
@@ -1104,7 +1104,7 @@ Can't find all required implementations:
             'license=Public Domain',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        impl = ipc.upload(['release'], StringIO(blob), cmd='submit', initial=True)
 
         solution = [{
             'guid': impl,
@@ -1112,10 +1112,10 @@ Can't find all required implementations:
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'path': tests.tmpdir + '/client/release/%s/%s/data.blob' % (impl[:2], impl),
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -1140,7 +1140,7 @@ Can't find all required implementations:
                     ]},
             ],
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
-        assert local['implementation'].exists(impl)
+        assert local['release'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
@@ -1163,14 +1163,14 @@ Can't find all required implementations:
 
         coroutine.sleep(1.1)
 
-        impl1 = ipc.post(['implementation'], {
+        impl1 = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.node_volume['implementation'].update(impl1, {'data': {
+        self.node_volume['release'].update(impl1, {'data': {
             'spec': {'*-*': {}},
             }})
         assert self.client_routes._node_mtime > mtime
@@ -1178,14 +1178,14 @@ Can't find all required implementations:
         mtime = self.client_routes._node_mtime
         coroutine.sleep(1.1)
 
-        impl2 = ipc.post(['implementation'], {
+        impl2 = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
             'stability': 'stable',
             'notes': '',
             })
-        self.node_volume['implementation'].update(impl2, {'data': {
+        self.node_volume['release'].update(impl2, {'data': {
             'spec': {'*-*': {
                 'requires': {
                     'dep1': {},
@@ -1223,7 +1223,7 @@ Can't find all required implementations:
                 ipc.get(['context', guid], reply=['title']))
 
     def test_RestrictLayers(self):
-        self.start_online_client([User, Context, Implementation, Artifact])
+        self.start_online_client([User, Context, Release, Artifact])
         ipc = IPCConnection()
 
         context = ipc.post(['context'], {
@@ -1233,7 +1233,7 @@ Can't find all required implementations:
             'description': 'description',
             'layer': 'public',
             })
-        impl = ipc.post(['implementation'], {
+        impl = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
@@ -1241,7 +1241,7 @@ Can't find all required implementations:
             'notes': '',
             'layer': 'public',
             })
-        self.node_volume['implementation'].update(impl, {'data': {
+        self.node_volume['release'].update(impl, {'data': {
             'spec': {'*-*': {}},
             }})
 
@@ -1257,23 +1257,23 @@ Can't find all required implementations:
 
         self.assertEqual(
                 [{'guid': impl, 'layer': ['origin', 'public']}],
-                ipc.get(['implementation'], reply=['guid', 'layer'])['result'])
+                ipc.get(['release'], reply=['guid', 'layer'])['result'])
         self.assertEqual(
                 [],
-                ipc.get(['implementation'], reply=['guid', 'layer'], layer='foo')['result'])
+                ipc.get(['release'], reply=['guid', 'layer'], layer='foo')['result'])
         self.assertEqual(
                 [{'guid': impl, 'layer': ['origin', 'public']}],
-                ipc.get(['implementation'], reply=['guid', 'layer'], layer='public')['result'])
+                ipc.get(['release'], reply=['guid', 'layer'], layer='public')['result'])
 
         self.assertEqual({
-            'implementations': [{
+            'releases': [{
                 'stability': 'stable',
                 'guid': impl,
                 'version': '1',
                 'license': ['GPLv3+'],
                 'layer': ['origin', 'public'],
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'ctime': self.node_volume['release'].get(impl).ctime,
                 'notes': {'en-us': ''},
                 'tags': [],
                 'data': {'spec': {'*-*': {}}},
@@ -1281,18 +1281,18 @@ Can't find all required implementations:
             },
             ipc.get(['context', context], cmd='feed'))
         self.assertEqual({
-            'implementations': [],
+            'releases': [],
             },
             ipc.get(['context', context], cmd='feed', layer='foo'))
         self.assertEqual({
-            'implementations': [{
+            'releases': [{
                 'stability': 'stable',
                 'guid': impl,
                 'version': '1',
                 'license': ['GPLv3+'],
                 'layer': ['origin', 'public'],
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'ctime': self.node_volume['release'].get(impl).ctime,
                 'notes': {'en-us': ''},
                 'tags': [],
                 'data': {'spec': {'*-*': {}}},
@@ -1314,31 +1314,31 @@ Can't find all required implementations:
 
         self.assertEqual(
                 [],
-                ipc.get(['implementation'], reply=['guid', 'layer'])['result'])
+                ipc.get(['release'], reply=['guid', 'layer'])['result'])
         self.assertEqual(
                 [],
-                ipc.get(['implementation'], reply=['guid', 'layer'], layer='foo')['result'])
+                ipc.get(['release'], reply=['guid', 'layer'], layer='foo')['result'])
         self.assertEqual(
                 [{'guid': impl, 'layer': ['origin', 'public']}],
-                ipc.get(['implementation'], reply=['guid', 'layer'], layer='public')['result'])
+                ipc.get(['release'], reply=['guid', 'layer'], layer='public')['result'])
 
         self.assertEqual({
-            'implementations': [],
+            'releases': [],
             },
             ipc.get(['context', context], cmd='feed'))
         self.assertEqual({
-            'implementations': [],
+            'releases': [],
             },
             ipc.get(['context', context], cmd='feed', layer='foo'))
         self.assertEqual({
-            'implementations': [{
+            'releases': [{
                 'stability': 'stable',
                 'guid': impl,
                 'version': '1',
                 'license': ['GPLv3+'],
                 'layer': ['origin', 'public'],
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'ctime': self.node_volume['release'].get(impl).ctime,
                 'notes': {'en-us': ''},
                 'tags': [],
                 'data': {'spec': {'*-*': {}}},
@@ -1404,7 +1404,7 @@ Can't find all required implementations:
         assert trigger.wait(.1) is not None
 
     def test_ContentDisposition(self):
-        self.start_online_client([User, Context, Implementation, Artifact])
+        self.start_online_client([User, Context, Release, Artifact])
         ipc = IPCConnection()
 
         artifact = ipc.post(['artifact'], {
@@ -1580,7 +1580,7 @@ Can't find all required implementations:
         assert not cp.inline()
 
     def test_SubmitReport(self):
-        self.home_volume = self.start_online_client([User, Context, Implementation, Report])
+        self.home_volume = self.start_online_client([User, Context, Release, Report])
         ipc = IPCConnection()
 
         self.touch(

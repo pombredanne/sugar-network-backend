@@ -418,7 +418,7 @@ class Application(application.Application):
             directory.update(guid, {'layer': ['deleted']})
 
     def sync_versions(self, addon_id, bundle_id):
-        directory = self.volume['implementation']
+        directory = self.volume['release']
         items, __ = directory.find(context=bundle_id, not_layer='deleted')
         existing = set([i.guid for i in items])
 

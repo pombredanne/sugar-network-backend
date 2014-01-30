@@ -149,7 +149,7 @@ def solve(call, context, stability):
         if reason_exception is not None:
             reason = reason_exception.message
         else:
-            reason = 'Cannot find implementations for %s' % ', '.join(missed)
+            reason = 'Cannot find releases for %s' % ', '.join(missed)
         raise http.NotFound(reason)
 
     solution = []
@@ -209,10 +209,10 @@ def _load_feed(context):
     feed.to_resolve = feed_content.get('packages')
     if not feed.to_resolve:
         _logger.trace('[%s] No compatible packages', context)
-    for impl in feed_content['implementations']:
+    for impl in feed_content['releases']:
         feed.implement(impl)
     if not feed.to_resolve and not feed.implementations:
-        _logger.trace('[%s] No implementations', context)
+        _logger.trace('[%s] No releases', context)
 
     return feed
 
@@ -242,7 +242,7 @@ class _Feed(model.ZeroInstallFeed):
     def resolve(self, packages):
         top_package = packages[0]
 
-        impl = _Implementation(self, self.context, None)
+        impl = _Release(self, self.context, None)
         impl.version = parse_version(top_package['version'])
         impl.released = 0
         impl.arch = '*-%s' % (top_package['arch'] or '*')
@@ -262,7 +262,7 @@ class _Feed(model.ZeroInstallFeed):
         impl_id = release['guid']
         spec = release['data']['spec']['*-*']
 
-        impl = _Implementation(self, impl_id, None)
+        impl = _Release(self, impl_id, None)
         impl.version = parse_version(release['version'])
         impl.released = 0
         impl.arch = '*-*'
@@ -288,7 +288,7 @@ class _Feed(model.ZeroInstallFeed):
 
     def implement_sugar(self, sugar_version):
         impl_id = 'sugar-%s' % sugar_version
-        impl = _Implementation(self, impl_id, None)
+        impl = _Release(self, impl_id, None)
         impl.version = parse_version(sugar_version)
         impl.released = 0
         impl.arch = '*-*'
@@ -302,7 +302,7 @@ class _Feed(model.ZeroInstallFeed):
                 }
 
 
-class _Implementation(model.ZeroInstallImplementation):
+class _Release(model.ZeroInstallImplementation):
 
     to_install = None
     sn_impl = None

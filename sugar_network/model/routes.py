@@ -31,10 +31,10 @@ class VolumeRoutes(db.Routes):
             mime_type='application/json')
     def feed(self, request, distro):
         context = self.volume['context'].get(request.guid)
-        implementations = self.volume['implementation']
+        releases = self.volume['release']
         versions = []
 
-        impls, __ = implementations.find(context=context.guid,
+        impls, __ = releases.find(context=context.guid,
                 not_layer='deleted', **request)
         for impl in impls:
             version = impl.properties([
@@ -51,7 +51,7 @@ class VolumeRoutes(db.Routes):
                     del data[key]
             versions.append(version)
 
-        result = {'implementations': versions}
+        result = {'releases': versions}
         if distro:
             aliases = context['aliases'].get(distro)
             if aliases and 'binary' in aliases:

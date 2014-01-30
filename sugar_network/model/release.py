@@ -21,7 +21,7 @@ from sugar_network.toolkit.licenses import GOOD_LICENSES
 from sugar_network.toolkit.spec import parse_version
 
 
-class Implementation(db.Resource):
+class Release(db.Resource):
 
     @db.indexed_property(prefix='C',
             acl=ACL.CREATE | ACL.READ)

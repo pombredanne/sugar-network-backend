@@ -10,7 +10,7 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import client, model
-from sugar_network.client import IPCConnection, implementations, packagekit
+from sugar_network.client import IPCConnection, releases, packagekit
 from sugar_network.client.routes import ClientRoutes
 from sugar_network.model.user import User
 from sugar_network.model.report import Report
@@ -22,7 +22,7 @@ class OfflineRoutes(tests.Test):
 
     def setUp(self, fork_num=0):
         tests.Test.setUp(self, fork_num)
-        self.override(implementations, '_activity_id_new', lambda: 'activity_id')
+        self.override(releases, '_activity_id_new', lambda: 'activity_id')
 
     def test_whoami(self):
         ipc = self.start_offline_client()
@@ -70,24 +70,24 @@ class OfflineRoutes(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        impl1 = ipc.post(['implementation'], {
+        impl1 = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.home_volume['implementation'].update(impl1, {'data': {
+        self.home_volume['release'].update(impl1, {'data': {
             'spec': {'*-*': {}},
             }})
-        impl2 = ipc.post(['implementation'], {
+        impl2 = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '2',
             'stability': 'stable',
             'notes': '',
             })
-        self.home_volume['implementation'].update(impl2, {'data': {
+        self.home_volume['release'].update(impl2, {'data': {
             'spec': {'*-*': {
                 'requires': {
                     'dep1': {},
@@ -99,7 +99,7 @@ class OfflineRoutes(tests.Test):
             }})
 
         self.assertEqual({
-            'implementations': [
+            'releases': [
                 {
                     'version': '1',
                     'stability': 'stable',
@@ -107,7 +107,7 @@ class OfflineRoutes(tests.Test):
                     'license': ['GPLv3+'],
                     'layer': ['local'],
                     'author': {},
-                    'ctime': self.home_volume['implementation'].get(impl1).ctime,
+                    'ctime': self.home_volume['release'].get(impl1).ctime,
                     'notes': {'en-us': ''},
                     'tags': [],
                     'data': {'spec': {'*-*': {}}},
@@ -119,7 +119,7 @@ class OfflineRoutes(tests.Test):
                     'license': ['GPLv3+'],
                     'layer': ['local'],
                     'author': {},
-                    'ctime': self.home_volume['implementation'].get(impl2).ctime,
+                    'ctime': self.home_volume['release'].get(impl2).ctime,
                     'notes': {'en-us': ''},
                     'tags': [],
                     'data': {
@@ -315,7 +315,7 @@ class OfflineRoutes(tests.Test):
             'license=Public Domain',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = ipc.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        impl = ipc.upload(['release'], StringIO(blob), cmd='submit', initial=True)
 
         ipc.put(['context', 'bundle_id'], True, cmd='clone')
         solution = [{
@@ -324,10 +324,10 @@ class OfflineRoutes(tests.Test):
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
-            'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'path': tests.tmpdir + '/client/release/%s/%s/data.blob' % (impl[:2], impl),
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -338,7 +338,7 @@ class OfflineRoutes(tests.Test):
                 'spec': {'*-*': {'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
                 },
             }]
-        assert local['implementation'].exists(impl)
+        assert local['release'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
@@ -353,7 +353,7 @@ class OfflineRoutes(tests.Test):
             {'event': 'exit', 'activity_id': 'activity_id'},
             ],
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
-        assert local['implementation'].exists(impl)
+        assert local['release'].exists(impl)
         self.assertEqual(
                 [client.api_url.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
@@ -387,14 +387,14 @@ Can't find all required implementations:
             ],
             [i for i in ipc.get(['context', context], cmd='launch')])
 
-        impl = ipc.post(['implementation'], {
+        impl = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'layer': ['origin'],
             })
-        self.home_volume['implementation'].update(impl, {'data': {
+        self.home_volume['release'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {'activity': {'exec': 'true'}},
@@ -428,14 +428,14 @@ Can't find all required implementations:
             'summary': 'summary',
             'description': 'description',
             })
-        impl = ipc.post(['implementation'], {
+        impl = ipc.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'layer': ['origin'],
             })
-        self.home_volume['implementation'].update(impl, {'data': {
+        self.home_volume['release'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {'activity': {'exec': 'true'}},
@@ -473,7 +473,7 @@ Can't find all required implementations:
                         'version': '1',
                         'layer': ['origin', 'local'],
                         'author': {},
-                        'ctime': self.home_volume['implementation'].get(impl).ctime,
+                        'ctime': self.home_volume['release'].get(impl).ctime,
                         'notes': {'en-us': ''},
                         'tags': [],
                         'data': {

@@ -77,7 +77,7 @@ class Cache(object):
             self._pool.__getitem__(guid)
             return
         _logger.debug('Checkin %r %d bytes long', guid, size)
-        mtime = os.stat(self._volume['implementation'].path(guid)).st_mtime
+        mtime = os.stat(self._volume['release'].path(guid)).st_mtime
         self._pool[guid] = (size, mtime)
         self._du += size
 
@@ -109,10 +109,10 @@ class Cache(object):
         if self._pool is not None:
             return
 
-        _logger.debug('Open implementations pool')
+        _logger.debug('Open releases pool')
 
         pool = []
-        impls = self._volume['implementation']
+        impls = self._volume['release']
         for res in impls.find(not_layer=['local'])[0]:
             meta = res.meta('data')
             if not meta or 'blob_size' not in meta:
@@ -176,7 +176,7 @@ class Cache(object):
             _logger.debug('Recycle stale %r to save %s bytes', guid, size)
         else:
             _logger.debug('Recycle %r to save %s bytes', guid, size)
-        self._volume['implementation'].delete(guid)
+        self._volume['release'].delete(guid)
         self._du -= size
         if guid in self._pool:
             del self._pool[guid]

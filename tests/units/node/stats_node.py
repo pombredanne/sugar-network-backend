@@ -119,14 +119,14 @@ class StatsTest(tests.Test):
         volume = db.Volume('local', model.RESOURCES)
         stats = Sniffer(volume, 'stats/node')
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
-        volume['implementation'].create({'guid': 'implementation', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
+        volume['release'].create({'guid': 'release', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
 
-        request = Request(method='GET', path=['implementation', 'implementation', 'fake'])
+        request = Request(method='GET', path=['release', 'release', 'fake'])
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(0, stats._stats['context']['downloaded'])
 
-        request = Request(method='GET', path=['implementation', 'implementation', 'data'])
+        request = Request(method='GET', path=['release', 'release', 'data'])
         request.principal = 'user'
         stats.log(request)
         self.assertEqual(1, stats._stats['context']['downloaded'])
@@ -136,7 +136,7 @@ class StatsTest(tests.Test):
         stats = Sniffer(volume, 'stats/node')
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
 
-        request = Request(method='POST', path=['implementation'])
+        request = Request(method='POST', path=['release'])
         request.principal = 'user'
         request.content = {'context': 'context'}
         stats.log(request)
@@ -249,7 +249,7 @@ class StatsTest(tests.Test):
         volume = db.Volume('local', model.RESOURCES)
 
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
-        volume['implementation'].create({'guid': 'implementation', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
+        volume['release'].create({'guid': 'release', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
         volume['artifact'].create({'guid': 'artifact', 'type': 'instance', 'context': 'context', 'title': '', 'description': ''})
 
         self.assertEqual(0, volume['context'].get('context')['downloads'])
@@ -257,7 +257,7 @@ class StatsTest(tests.Test):
         self.assertEqual(0, volume['context'].get('context')['rating'])
 
         stats = Sniffer(volume, 'stats/node')
-        request = Request(method='GET', path=['implementation', 'implementation', 'data'])
+        request = Request(method='GET', path=['release', 'release', 'data'])
         request.principal = 'user'
         stats.log(request)
         request = Request(method='POST', path=['review'])
@@ -283,7 +283,7 @@ class StatsTest(tests.Test):
         self.assertEqual(5, volume['context'].get('context')['rating'])
 
         stats = Sniffer(volume, 'stats/node')
-        request = Request(method='GET', path=['implementation', 'implementation', 'data'])
+        request = Request(method='GET', path=['release', 'release', 'data'])
         request.principal = 'user'
         stats.log(request)
         request = Request(method='POST', path=['review'])
@@ -347,7 +347,7 @@ class StatsTest(tests.Test):
         stats_node_step.value = 5
         volume = db.Volume('local', model.RESOURCES)
         volume['context'].create({'guid': 'context', 'type': 'activity', 'title': '', 'summary': '', 'description': ''})
-        volume['implementation'].create({'guid': 'impl', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
+        volume['release'].create({'guid': 'impl', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
 
         ts = self.ts = 1000000000
         self.override(time, 'time', lambda: self.ts)
@@ -355,7 +355,7 @@ class StatsTest(tests.Test):
         stats = Sniffer(volume, 'stats')
         request = Request(method='POST', path=['context'])
         stats.log(request)
-        request = Request(method='GET', path=['implementation', 'impl', 'data'], context='context')
+        request = Request(method='GET', path=['release', 'impl', 'data'], context='context')
         stats.log(request)
         stats.suspend()
 
@@ -384,9 +384,9 @@ class StatsTest(tests.Test):
 
         request = Request(method='POST', path=['context'])
         stats.log(request)
-        request = Request(method='GET', path=['implementation', 'impl', 'data'], context='context')
+        request = Request(method='GET', path=['release', 'impl', 'data'], context='context')
         stats.log(request)
-        request = Request(method='GET', path=['implementation', 'impl', 'data'], context='context')
+        request = Request(method='GET', path=['release', 'impl', 'data'], context='context')
         stats.log(request)
         stats.suspend()
 

@@ -34,14 +34,14 @@ class SolverTest(tests.Test):
             'description': 'description',
             'dependencies': ['dep1', 'dep2'],
             })
-        impl = conn.post(['implementation'], {
+        impl = conn.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.node_volume['implementation'].update(impl, {'data': {
+        self.node_volume['release'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -109,7 +109,7 @@ class SolverTest(tests.Test):
                     {'version': '1', 'context': context, 'guid': impl, 'stability': 'stable', 'license': ['GPLv3+'],
                         'layer': ['origin'],
                         'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                        'ctime': self.node_volume['implementation'].get(impl).ctime,
+                        'ctime': self.node_volume['release'].get(impl).ctime,
                         'notes': {'en-us': ''},
                         'tags': [],
                         'data': {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'requires':
@@ -141,14 +141,14 @@ class SolverTest(tests.Test):
             'description': 'description',
             })
 
-        impl = conn.post(['implementation'], {
+        impl = conn.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.node_volume['implementation'].update(impl, {'data': {
+        self.node_volume['release'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -171,7 +171,7 @@ class SolverTest(tests.Test):
                 'license': ['GPLv3+'],
                 'layer': ['origin'],
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'ctime': self.node_volume['release'].get(impl).ctime,
                 'notes': {'en-us': ''},
                 'tags': [],
                 'data': {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'requires': {'sugar': {}}}}}},
@@ -179,7 +179,7 @@ class SolverTest(tests.Test):
             ],
             solver.solve(self.client_routes.fallback, context, ['stable']))
 
-        self.node_volume['implementation'].update(impl, {'data': {
+        self.node_volume['release'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -202,7 +202,7 @@ class SolverTest(tests.Test):
                 'license': ['GPLv3+'],
                 'layer': ['origin'],
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'ctime': self.node_volume['release'].get(impl).ctime,
                 'notes': {'en-us': ''},
                 'tags': [],
                 'data': {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'requires':
@@ -234,14 +234,14 @@ class SolverTest(tests.Test):
             'description': 'description',
             })
 
-        impl = conn.post(['implementation'], {
+        impl = conn.post(['release'], {
             'context': context,
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             'notes': '',
             })
-        self.node_volume['implementation'].update(impl, {'data': {
+        self.node_volume['release'].update(impl, {'data': {
             'spec': {
                 '*-*': {
                     'commands': {
@@ -264,7 +264,7 @@ class SolverTest(tests.Test):
                 'license': ['GPLv3+'],
                 'layer': ['origin'],
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-                'ctime': self.node_volume['implementation'].get(impl).ctime,
+                'ctime': self.node_volume['release'].get(impl).ctime,
                 'notes': {'en-us': ''},
                 'tags': [],
                 'data': {'spec': {'*-*': {'commands': {'activity': {'exec': 'echo'}}, 'requires': {'sugar': {}}}}}},

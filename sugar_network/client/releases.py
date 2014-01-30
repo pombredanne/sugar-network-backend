@@ -38,7 +38,7 @@ from sugar_network.toolkit import http, coroutine, enforce
 _MIMETYPE_DEFAULTS_KEY = '/desktop/sugar/journal/defaults'
 _MIMETYPE_INVALID_CHARS = re.compile('[^a-zA-Z0-9-_/.]')
 
-_logger = logging.getLogger('implementations')
+_logger = logging.getLogger('releases')
 
 
 class Routes(object):
@@ -58,7 +58,7 @@ class Routes(object):
         clone_path = self._volume['context'].path(request.guid, '.clone')
         enforce(exists(clone_path), http.NotFound)
         clone_impl = basename(os.readlink(clone_path))
-        return self._volume['implementation'].path(clone_impl, 'data')
+        return self._volume['release'].path(clone_impl, 'data')
 
     @route('GET', ['context', None], cmd='launch', arguments={'args': list},
             mime_type='text/event-stream')
@@ -114,8 +114,7 @@ class Routes(object):
                 yield {'event': 'ready'}
             else:
                 cloned_impl = basename(os.readlink(cloned_path))
-                meta = self._volume['implementation'].get(
-                        cloned_impl).meta('data')
+                meta = self._volume['release'].get(cloned_impl).meta('data')
                 size = meta.get('unpack_size') or meta['blob_size']
                 self._cache.checkin(cloned_impl, size)
                 os.unlink(cloned_path)
@@ -213,7 +212,7 @@ class Routes(object):
     def _checkin_impl(self, context, request, cache_call):
         if 'clone' in context['layer']:
             cache_call = self._cache.checkout
-        impls = self._volume['implementation']
+        impls = self._volume['release']
 
         if 'activity' in context['type']:
             to_install = []
@@ -239,8 +238,7 @@ class Routes(object):
                 return cache_call(guid, size)
 
             if blob is None:
-                blob = self._call(method='GET',
-                        path=['implementation', guid, 'data'])
+                blob = self._call(method='GET', path=['release', guid, 'data'])
 
             blob_dir = dirname(sel['path'])
             if not exists(blob_dir):
@@ -318,7 +316,7 @@ class Routes(object):
             if 'clone' not in context['layer']:
                 return self._map_exceptions(self.fallback, request, response)
             guid = basename(os.readlink(context.path('.clone')))
-            impl = self._volume['implementation'].get(guid)
+            impl = self._volume['release'].get(guid)
             response.meta = impl.properties([
                 'guid', 'ctime', 'layer', 'author', 'tags',
                 'context', 'version', 'stability', 'license', 'notes', 'data',

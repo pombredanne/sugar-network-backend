@@ -250,9 +250,9 @@ class _ContextStats(_ResourceStats):
         self['downloaded'] = 0
 
 
-class _ImplementationStats(_Stats):
+class _ReleaseStats(_Stats):
 
-    RESOURCE = 'implementation'
+    RESOURCE = 'release'
     OWNERS = ['context']
 
     def log(self, request):
@@ -268,7 +268,7 @@ class _ImplementationStats(_Stats):
 class _ReportStats(_Stats):
 
     RESOURCE = 'report'
-    OWNERS = ['context', 'implementation']
+    OWNERS = ['context', 'release']
 
     def log(self, request):
         if request.method == 'POST':
@@ -338,7 +338,7 @@ class _CommentStats(_ResourceStats):
 
 _STATS = {_UserStats.RESOURCE: _UserStats,
           _ContextStats.RESOURCE: _ContextStats,
-          _ImplementationStats.RESOURCE: _ImplementationStats,
+          _ReleaseStats.RESOURCE: _ReleaseStats,
           _ReportStats.RESOURCE: _ReportStats,
           _ReviewStats.RESOURCE: _ReviewStats,
           _FeedbackStats.RESOURCE: _FeedbackStats,

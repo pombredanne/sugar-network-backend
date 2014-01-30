@@ -149,10 +149,10 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         response.content_type = 'application/json'
         return result
 
-    @route('POST', ['implementation'], cmd='submit',
+    @route('POST', ['release'], cmd='submit',
             arguments={'initial': False},
             mime_type='application/json', acl=ACL.AUTH)
-    def submit_implementation(self, request, document):
+    def submit_release(self, request, document):
         with toolkit.NamedTemporaryFile() as blob:
             shutil.copyfileobj(request.content_stream, blob)
             blob.flush()
@@ -373,7 +373,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         if 'stability' not in request:
             request['stability'] = 'stable'
 
-        impls, __ = self.volume['implementation'].find(
+        impls, __ = self.volume['release'].find(
                 context=request.guid, order_by='-version', not_layer='deleted',
                 **request)
         impl = None
@@ -384,13 +384,13 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
                     continue
             break
         else:
-            raise http.NotFound('No implementations found')
+            raise http.NotFound('No releases found')
         return impl
 
     def _get_clone(self, request, response):
         impl = self._solve(request)
         result = request.call(method=request.method,
-                path=['implementation', impl['guid'], 'data'],
+                path=['release', impl['guid'], 'data'],
                 response=response)
         response.meta = impl.properties([
             'guid', 'ctime', 'layer', 'author', 'tags',
@@ -437,12 +437,12 @@ def generate_node_stats(volume, path):
         for resource, props in [
                 ('user', []),
                 ('context', []),
-                ('implementation', ['context']),
+                ('release', ['context']),
                 ('artifact', ['context', 'type']),
                 ('feedback', ['context']),
                 ('solution', ['context', 'feedback']),
                 ('review', ['context', 'artifact', 'rating']),
-                ('report', ['context', 'implementation']),
+                ('report', ['context', 'release']),
                 ('comment', ['context', 'review', 'feedback', 'solution']),
                 ]:
             objs, __ = volume[resource].find(
@@ -454,7 +454,7 @@ def generate_node_stats(volume, path):
         for resource, props in [
                 ('user', ['layer']),
                 ('context', ['layer']),
-                ('implementation', ['layer']),
+                ('release', ['layer']),
                 ('artifact', ['layer']),
                 ('feedback', ['layer', 'solution']),
                 ('solution', ['layer']),
@@ -498,7 +498,7 @@ def load_bundle(volume, request, bundle_path):
     contexts = volume['context']
     context = impl.get('context')
     context_meta = None
-    impls = volume['implementation']
+    impls = volume['release']
 
     try:
         bundle = Bundle(bundle_path, mime_type='application/zip')
@@ -574,8 +574,7 @@ def load_bundle(volume, request, bundle_path):
             context=context, version=impl['version'], not_layer='deleted')
     if 'url' not in data:
         data['blob'] = bundle_path
-    impl['guid'] = \
-            request.call(method='POST', path=['implementation'], content=impl)
+    impl['guid'] = request.call(method='POST', path=['release'], content=impl)
     for i in existing:
         layer = i['layer'] + ['deleted']
         impls.update(i.guid, {'layer': layer})

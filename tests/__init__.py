@@ -24,7 +24,7 @@ from sugar_network import db, client, node, toolkit, model
 from sugar_network.client import solver
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
-from sugar_network.model.implementation import Implementation
+from sugar_network.model.release import Release
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node import stats_user, stats_node, obs, slave, downloads
 from requests import adapters
@@ -123,7 +123,7 @@ class Test(unittest.TestCase):
                 'sugar_network.model.user',
                 'sugar_network.model.context',
                 'sugar_network.model.artifact',
-                'sugar_network.model.implementation',
+                'sugar_network.model.release',
                 'sugar_network.model.report',
                 ]
 
@@ -267,7 +267,7 @@ class Test(unittest.TestCase):
 
     def start_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
-            classes = [User, Context, Implementation]
+            classes = [User, Context, Release]
         self.node_volume = db.Volume('master', classes)
         self.node_routes = routes('guid', self.node_volume)
         self.node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
@@ -277,7 +277,7 @@ class Test(unittest.TestCase):
 
     def fork_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
-            classes = [User, Context, Implementation]
+            classes = [User, Context, Release]
 
         def node():
             volume = db.Volume('master', classes)
@@ -291,7 +291,7 @@ class Test(unittest.TestCase):
 
     def start_client(self, classes=None, routes=ClientRoutes):
         if classes is None:
-            classes = [User, Context, Implementation]
+            classes = [User, Context, Release]
         volume = db.Volume('client', classes)
         self.client_routes = routes(volume, client.api_url.value)
         self.client = coroutine.WSGIServer(
@@ -302,7 +302,7 @@ class Test(unittest.TestCase):
 
     def start_online_client(self, classes=None):
         if classes is None:
-            classes = [User, Context, Implementation]
+            classes = [User, Context, Release]
         self.start_master(classes)
         volume = db.Volume('client', classes)
         self.client_routes = ClientRoutes(volume, client.api_url.value)
@@ -337,7 +337,7 @@ class Test(unittest.TestCase):
         node.find_limit.value = 1024
         db.index_write_queue.value = 10
 
-        volume = db.Volume('remote', classes or [User, Context, Implementation])
+        volume = db.Volume('remote', classes or [User, Context, Release])
         self.node_routes = MasterRoutes('guid', volume)
         httpd = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
         try:

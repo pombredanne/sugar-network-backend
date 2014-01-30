@@ -21,7 +21,7 @@ from sugar_network.toolkit import http, coroutine, enforce
 
 
 # Apply node level layer for these documents
-_LIMITED_RESOURCES = ('context', 'implementation')
+_LIMITED_RESOURCES = ('context', 'release')
 
 _logger = logging.getLogger('node.volume')
 

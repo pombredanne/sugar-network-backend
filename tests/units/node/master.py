@@ -153,7 +153,7 @@ class MasterTest(tests.Test):
         events = []
         def read_events():
             for event in ipc.subscribe():
-                if event.get('resource') == 'implementation':
+                if event.get('resource') == 'release':
                     events.append(event)
         job = coroutine.spawn(read_events)
 
@@ -174,7 +174,7 @@ class MasterTest(tests.Test):
             })
         coroutine.sleep(.5)
         self.assertEqual([
-            {'event': 'populate', 'resource': 'implementation', 'mtime': int(os.stat('master/implementation/index/mtime').st_mtime)},
+            {'event': 'populate', 'resource': 'release', 'mtime': int(os.stat('master/release/index/mtime').st_mtime)},
             ],
             events)
         self.assertEqual({
@@ -189,7 +189,7 @@ class MasterTest(tests.Test):
         events = []
         def read_events():
             for event in ipc.subscribe():
-                if event.get('resource') == 'implementation':
+                if event.get('resource') == 'release':
                     events.append(event)
         job = coroutine.spawn(read_events)
 
@@ -205,7 +205,7 @@ class MasterTest(tests.Test):
         ipc.put(['context', guid, 'dependencies'], ['foo'])
         coroutine.sleep(.1)
         self.assertEqual([
-            {'event': 'populate', 'resource': 'implementation', 'mtime': int(os.stat('master/implementation/index/mtime').st_mtime)},
+            {'event': 'populate', 'resource': 'release', 'mtime': int(os.stat('master/release/index/mtime').st_mtime)},
             ],
             events)
 

@@ -69,9 +69,9 @@ class NodeClientTest(tests.Test):
             {'guid': impl1, 'version': '1', 'stability': 'developer', 'license': ['Public Domain']},
             {'guid': impl2, 'version': '2', 'stability': 'stable', 'license': ['Public Domain']},
             ],
-            self.cli(['GET', '/implementation', 'context=activity2', 'reply=guid,version,stability,license', 'order_by=version'])['result'])
-        assert blob1 == file('node/implementation/%s/%s/data.blob' % (impl1[:2], impl1)).read()
-        assert blob2 == file('node/implementation/%s/%s/data.blob' % (impl2[:2], impl2)).read()
+            self.cli(['GET', '/release', 'context=activity2', 'reply=guid,version,stability,license', 'order_by=version'])['result'])
+        assert blob1 == file('node/release/%s/%s/data.blob' % (impl1[:2], impl1)).read()
+        assert blob2 == file('node/release/%s/%s/data.blob' % (impl2[:2], impl2)).read()
 
     def test_ReleaseContext(self):
         context = self.cli(['POST', '/context'], stdin={
@@ -105,9 +105,9 @@ class NodeClientTest(tests.Test):
             {'guid': impl1, 'version': '1', 'stability': 'developer', 'license': ['GPLv3+']},
             {'guid': impl2, 'version': '2', 'stability': 'stable', 'license': ['GPLv3+']},
             ],
-            self.cli(['GET', '/implementation', 'context=%s' % context, 'reply=guid,version,stability,license', 'order_by=version'])['result'])
-        assert blob1 == file('node/implementation/%s/%s/data.blob' % (impl1[:2], impl1)).read()
-        assert blob2 == file('node/implementation/%s/%s/data.blob' % (impl2[:2], impl2)).read()
+            self.cli(['GET', '/release', 'context=%s' % context, 'reply=guid,version,stability,license', 'order_by=version'])['result'])
+        assert blob1 == file('node/release/%s/%s/data.blob' % (impl1[:2], impl1)).read()
+        assert blob2 == file('node/release/%s/%s/data.blob' % (impl2[:2], impl2)).read()
 
     def test_CloneContext(self):
         activity_info = '\n'.join([
@@ -126,11 +126,11 @@ class NodeClientTest(tests.Test):
         self.cli(['PUT', '/context/bundle_id', 'cmd=clone', '-jd1'])
         self.assertEqual(
                 activity_info,
-                file('client/db/implementation/%s/%s/data.blob/activity/activity.info' % (impl[:2], impl)).read())
+                file('client/db/release/%s/%s/data.blob/activity/activity.info' % (impl[:2], impl)).read())
 
     def test_UsecaseOOB(self):
         self.cli(['--quiet', 'PUT', '/context/context', 'cmd=clone', '-jd', 'true'])
-        assert exists('client/db/implementation/im/implementation/data.blob/activity/activity.info')
+        assert exists('client/db/release/im/release/data.blob/activity/activity.info')
         self.assertEqual(['clone'], json.load(file('client/db/context/co/context/layer'))['value'])
 
     def cli(self, cmd, stdin=None):

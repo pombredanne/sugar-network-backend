@@ -26,7 +26,7 @@ class Api(tests.Test):
         self.start_online_client()
         ipc = client.IPCConnection()
 
-        ipc.upload(['implementation'], StringIO(
+        ipc.upload(['release'], StringIO(
             self.zips(
                 ['activity1.activity/activity/activity.info', [
                     '[Activity]',
@@ -43,7 +43,7 @@ class Api(tests.Test):
                     ]],
                 )),
             cmd='submit', initial=True)
-        ipc.upload(['implementation'], StringIO(
+        ipc.upload(['release'], StringIO(
             self.zips(
                 ['activity1.activity/activity/activity.info', [
                     '[Activity]',
@@ -61,7 +61,7 @@ class Api(tests.Test):
                 )),
             cmd='submit')
 
-        ipc.upload(['implementation'], StringIO(
+        ipc.upload(['release'], StringIO(
             self.zips(
                 ['activity2.activity/activity/activity.info', [
                     '[Activity]',
@@ -78,7 +78,7 @@ class Api(tests.Test):
                     ]],
                 )),
             cmd='submit', initial=True)
-        ipc.upload(['implementation'], StringIO(
+        ipc.upload(['release'], StringIO(
             self.zips(
                 ['activity2.activity/activity/activity.info', [
                     '[Activity]',

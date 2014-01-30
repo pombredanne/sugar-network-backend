@@ -434,9 +434,9 @@ class VolumeTest(tests.Test):
                     'feedback': {'value': 'feedback_1', 'mtime': 1.0},
                     'content': {'value': {}, 'mtime': 1.0},
                     }},
-                {'resource': 'implementation'},
-                {'guid': 'implementation', 'diff': {
-                    'guid': {'value': 'implementation', 'mtime': 1.0},
+                {'resource': 'release'},
+                {'guid': 'release', 'diff': {
+                    'guid': {'value': 'release', 'mtime': 1.0},
                     'ctime': {'value': 1, 'mtime': 1.0},
                     'mtime': {'value': 1, 'mtime': 1.0},
                     'context': {'value': 'context', 'mtime': 1.0},
@@ -546,8 +546,8 @@ class VolumeTest(tests.Test):
                 {'resource': 'solution'},
                 {'guid': 'solution_1', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
                 {'guid': 'solution_2', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
-                {'resource': 'implementation'},
-                {'guid': 'implementation', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'resource': 'release'},
+                {'guid': 'release', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
                 {'commit': [[3, 3]]},
                 ]
         merge(volume, records, stats=stats)
@@ -797,21 +797,21 @@ class VolumeTest(tests.Test):
         class Context(db.Resource):
             pass
 
-        class Implementation(db.Resource):
+        class release(db.Resource):
             pass
 
         class Review(db.Resource):
             pass
 
-        volume = db.Volume('db', [Context, Implementation, Review])
+        volume = db.Volume('db', [Context, release, Review])
         volume['context'].create({'guid': '0', 'ctime': 1, 'mtime': 1, 'layer': ['layer0', 'common']})
         volume['context'].create({'guid': '1', 'ctime': 1, 'mtime': 1, 'layer': 'layer1'})
-        volume['implementation'].create({'guid': '2', 'ctime': 2, 'mtime': 2, 'layer': 'layer2'})
+        volume['release'].create({'guid': '2', 'ctime': 2, 'mtime': 2, 'layer': 'layer2'})
         volume['review'].create({'guid': '3', 'ctime': 3, 'mtime': 3, 'layer': 'layer3'})
 
         volume['context'].update('0', {'tags': '0'})
         volume['context'].update('1', {'tags': '1'})
-        volume['implementation'].update('2', {'tags': '2'})
+        volume['release'].update('2', {'tags': '2'})
         volume['review'].update('3', {'tags': '3'})
         self.utime('db', 0)
 
@@ -819,7 +819,7 @@ class VolumeTest(tests.Test):
             {'resource': 'context'},
             {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
             {'guid': '1', 'diff': {'tags': {'value': '1', 'mtime': 0}}},
-            {'resource': 'implementation'},
+            {'resource': 'release'},
             {'guid': '2', 'diff': {'tags': {'value': '2', 'mtime': 0}}},
             {'resource': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
@@ -831,7 +831,7 @@ class VolumeTest(tests.Test):
             {'resource': 'context'},
             {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
             {'guid': '1', 'diff': {'tags': {'value': '1', 'mtime': 0}}},
-            {'resource': 'implementation'},
+            {'resource': 'release'},
             {'resource': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
             {'commit': [[5, 8]]},
@@ -841,7 +841,7 @@ class VolumeTest(tests.Test):
         self.assertEqual(sorted([
             {'resource': 'context'},
             {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
-            {'resource': 'implementation'},
+            {'resource': 'release'},
             {'guid': '2', 'diff': {'tags': {'value': '2', 'mtime': 0}}},
             {'resource': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
@@ -852,7 +852,7 @@ class VolumeTest(tests.Test):
         self.assertEqual(sorted([
             {'resource': 'context'},
             {'guid': '0', 'diff': {'tags': {'value': '0', 'mtime': 0}}},
-            {'resource': 'implementation'},
+            {'resource': 'release'},
             {'resource': 'review'},
             {'guid': '3', 'diff': {'tags': {'value': '3', 'mtime': 0}}},
             {'commit': [[5, 8]]},

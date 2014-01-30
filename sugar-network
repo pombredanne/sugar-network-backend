@@ -116,8 +116,8 @@ class Application(application.Application):
         ipc.get(['context', bundle_id], cmd='launch', **params)
 
     @application.command(
-            'upload new implementaion for a context; if BUNDLE_PATH points '
-            'not to a .xo bundle, specify all implementaion PROPERTYs for the '
+            'upload new release for a context; if BUNDLE_PATH points '
+            'not to a .xo bundle, specify all release PROPERTYs for the '
             'new release (at least context and version)',
             args='BUNDLE_PATH [PROPERTY=VALUE]',
             )
@@ -136,12 +136,12 @@ class Application(application.Application):
             conn = IPCConnection()
         else:
             conn = Connection(client.api_url.value)
-        guid = conn.upload(['implementation'], path, cmd='submit', **props)
+        guid = conn.upload(['release'], path, cmd='submit', **props)
 
         if porcelain.value:
             self._print(guid, '\n')
         else:
-            self._print('-- Uploaded %s implementaion' % guid, '\n')
+            self._print('-- Uploaded %s release' % guid, '\n')
 
     @application.command(
             'send raw API POST request; '

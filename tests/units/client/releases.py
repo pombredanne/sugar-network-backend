@@ -15,18 +15,18 @@ from os.path import exists, dirname
 
 from __init__ import tests
 
-from sugar_network.client import journal, implementations, cache_limit
+from sugar_network.client import journal, releases, cache_limit
 from sugar_network.toolkit import coroutine, lsb_release
 from sugar_network.node import obs
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
-from sugar_network.model.implementation import Implementation
+from sugar_network.model.release import Release
 from sugar_network.client import IPCConnection, packagekit, solver
 from sugar_network.toolkit import http, Option
 from sugar_network import client
 
 
-class Implementations(tests.Test):
+class Releases(tests.Test):
 
     def setUp(self, fork_num=0):
         tests.Test.setUp(self, fork_num)
@@ -47,7 +47,7 @@ class Implementations(tests.Test):
             'license = Public Domain',
             'requires = dep1; dep2',
             ]])
-        impl = conn.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        impl = conn.upload(['release'], StringIO(blob), cmd='submit', initial=True)
 
         conn.post(['context'], {
             'guid': 'dep1',
@@ -121,11 +121,11 @@ class Implementations(tests.Test):
             'TestActivity/file1',
             'TestActivity/test/file2',
             )
-        impl = conn.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        impl = conn.upload(['release'], StringIO(blob), cmd='submit', initial=True)
 
         conn.put(['context', 'bundle_id'], True, cmd='clone')
 
-        path = 'client/implementation/%s/%s/data.blob/' % (impl[:2], impl)
+        path = 'client/release/%s/%s/data.blob/' % (impl[:2], impl)
         assert os.access(path + 'activity/foo', os.X_OK)
         assert os.access(path + 'bin/bar', os.X_OK)
         assert os.access(path + 'bin/probe', os.X_OK)
@@ -147,17 +147,17 @@ class Implementations(tests.Test):
             'stability = stable',
             ])
         blob = self.zips(['TestActivity/activity/activity.info', activity_info])
-        impl = conn.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        impl = conn.upload(['release'], StringIO(blob), cmd='submit', initial=True)
         solution = ['http://127.0.0.1:8888', ['stable'], [{
             'license': ['Public Domain'],
             'stability': 'stable',
             'version': '1',
             'context': 'bundle_id',
-            'path': tests.tmpdir + '/client/implementation/%s/%s/data.blob' % (impl[:2], impl),
+            'path': tests.tmpdir + '/client/release/%s/%s/data.blob' % (impl[:2], impl),
             'guid': impl,
             'layer': ['origin'],
             'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
-            'ctime': self.node_volume['implementation'].get(impl).ctime,
+            'ctime': self.node_volume['release'].get(impl).ctime,
             'notes': {'en-us': ''},
             'tags': [],
             'data': {
@@ -278,7 +278,7 @@ class Implementations(tests.Test):
         self.start_online_client()
         conn = IPCConnection()
 
-        conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        conn.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
@@ -288,7 +288,7 @@ class Implementations(tests.Test):
             'license = Public Domain',
             'stability = stable',
             ]])), cmd='submit', initial=True)
-        conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        conn.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
@@ -298,7 +298,7 @@ class Implementations(tests.Test):
             'license = Public Domain',
             'stability = testing',
             ]])), cmd='submit')
-        conn.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        conn.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
             'bundle_id = bundle_id',
@@ -341,7 +341,7 @@ class Implementations(tests.Test):
         self.start_online_client()
         conn = IPCConnection()
 
-        app = conn.upload(['implementation'], StringIO(self.zips(
+        app = conn.upload(['release'], StringIO(self.zips(
             ['TestActivity/activity/activity.info', [
                 '[Activity]',
                 'name = TestActivity',
@@ -364,13 +364,13 @@ class Implementations(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        doc = conn.post(['implementation'], {
+        doc = conn.post(['release'], {
             'context': 'document',
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             })
-        self.node_volume['implementation'].update(doc, {'data': {
+        self.node_volume['release'].update(doc, {'data': {
             'mime_type': 'application/octet-stream',
             'blob': StringIO('content'),
             }})
@@ -394,10 +394,10 @@ class Implementations(tests.Test):
                 'license = Public Domain',
                 ]],
             )
-        impl = conn.upload(['implementation'], StringIO(blob), cmd='submit', initial=True)
+        impl = conn.upload(['release'], StringIO(blob), cmd='submit', initial=True)
         conn.put(['context', 'bundle_id'], True, cmd='clone')
 
-        doc = home_volume['implementation'].get(impl)
+        doc = home_volume['release'].get(impl)
         assert doc.meta('ctime') is not None
         assert doc.meta('mtime') is not None
         assert doc.meta('seqno') is not None
@@ -414,7 +414,7 @@ class Implementations(tests.Test):
         volume = self.start_online_client()
         conn = IPCConnection()
 
-        app = conn.upload(['implementation'], StringIO(self.zips(
+        app = conn.upload(['release'], StringIO(self.zips(
             ['TestActivity/activity/activity.info', [
                 '[Activity]',
                 'name = TestActivity',
@@ -437,13 +437,13 @@ class Implementations(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        doc = conn.post(['implementation'], {
+        doc = conn.post(['release'], {
             'context': 'document',
             'license': 'GPLv3+',
             'version': '1',
             'stability': 'stable',
             })
-        self.node_volume['implementation'].update(doc, {'data': {
+        self.node_volume['release'].update(doc, {'data': {
             'mime_type': 'application/octet-stream',
             'blob': StringIO('content'),
             }})
@@ -460,8 +460,8 @@ class Implementations(tests.Test):
         cache_limit.value = 10
 
         self.assertRaises(RuntimeError, self.client_routes._cache.ensure, 1, 0)
-        assert volume['implementation'].exists(app)
-        assert volume['implementation'].exists(doc)
+        assert volume['release'].exists(app)
+        assert volume['release'].exists(doc)
         self.assertEqual([], [i for i in self.client_routes._cache])
 
         self.assertEqual('exit', next(launch)['event'])
@@ -471,7 +471,7 @@ class Implementations(tests.Test):
         volume = self.start_online_client()
         conn = IPCConnection()
 
-        app = conn.upload(['implementation'], StringIO(self.zips(
+        app = conn.upload(['release'], StringIO(self.zips(
             ['TestActivity/activity/activity.info', [
                 '[Activity]',
                 'name = TestActivity',

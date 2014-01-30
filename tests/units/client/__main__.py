@@ -9,7 +9,7 @@ from offline_routes import *
 from online_routes import *
 from server_routes import *
 from cache import *
-from implementations import *
+from releases import *
 
 if __name__ == '__main__':
     tests.main()

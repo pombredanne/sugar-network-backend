@@ -38,7 +38,7 @@ db.index_flush_timeout.value = 0
 
 volume = db.Volume(data_root.value, model.RESOURCES)
 volume.populate()
-directory = volume['implementation']
+directory = volume['release']
 try:
     items, __ = directory.find()
     for impl in items:

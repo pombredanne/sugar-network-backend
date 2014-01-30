@@ -58,7 +58,7 @@ class RoutesTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = 2',
             'bundle_id = context2',
@@ -69,7 +69,7 @@ class RoutesTest(tests.Test):
             'stability = stable',
             ]])), cmd='submit', initial=True)
         guid2 = 'context2'
-        ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = 3',
             'bundle_id = context3',
@@ -324,7 +324,7 @@ class RoutesTest(tests.Test):
         self.start_online_client()
         ipc = IPCConnection()
 
-        guid = ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        guid = ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = name',
             'bundle_id = context',
@@ -336,21 +336,21 @@ class RoutesTest(tests.Test):
             ]])), cmd='submit', initial=True)
         ipc.put(['context', 'context'], True, cmd='clone')
         ts = time.time()
-        os.utime('client/implementation/%s/%s' % (guid[:2], guid), (ts - 2 * 86400, ts - 2 * 86400))
+        os.utime('client/release/%s/%s' % (guid[:2], guid), (ts - 2 * 86400, ts - 2 * 86400))
         self.client_routes.close()
         self.stop_nodes()
 
         home_volume = self.start_online_client()
         cache_lifetime.value = 1
         self.client_routes.recycle()
-        assert home_volume['implementation'].exists(guid)
-        assert exists('client/implementation/%s/%s' % (guid[:2], guid))
+        assert home_volume['release'].exists(guid)
+        assert exists('client/release/%s/%s' % (guid[:2], guid))
 
     def test_IgnoreClonesWhileCheckingFreeSpace(self):
         home_volume = self.start_online_client()
         ipc = IPCConnection()
 
-        guid = ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        guid = ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = name',
             'bundle_id = context',
@@ -371,14 +371,14 @@ class RoutesTest(tests.Test):
         cache_limit.value = 10
 
         self.assertRaises(RuntimeError, self.client_routes._cache.ensure, 1, 0)
-        assert home_volume['implementation'].exists(guid)
-        assert exists('client/implementation/%s/%s' % (guid[:2], guid))
+        assert home_volume['release'].exists(guid)
+        assert exists('client/release/%s/%s' % (guid[:2], guid))
 
     def test_IgnoreClonesOnRecycle(self):
         home_volume = self.start_online_client()
         ipc = IPCConnection()
 
-        guid = ipc.upload(['implementation'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        guid = ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = name',
             'bundle_id = context',
@@ -390,12 +390,12 @@ class RoutesTest(tests.Test):
             ]])), cmd='submit', initial=True)
         ipc.put(['context', 'context'], True, cmd='clone')
         ts = time.time()
-        os.utime('client/implementation/%s/%s' % (guid[:2], guid), (ts - 2 * 86400, ts - 2 * 86400))
+        os.utime('client/release/%s/%s' % (guid[:2], guid), (ts - 2 * 86400, ts - 2 * 86400))
 
         cache_lifetime.value = 1
         self.client_routes.recycle()
-        assert home_volume['implementation'].exists(guid)
-        assert exists('client/implementation/%s/%s' % (guid[:2], guid))
+        assert home_volume['release'].exists(guid)
+        assert exists('client/release/%s/%s' % (guid[:2], guid))
 
     def test_LanguagesFallbackInRequests(self):
         self.start_online_client()
