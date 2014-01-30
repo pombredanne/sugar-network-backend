@@ -44,8 +44,8 @@ PACKAGES_GUID = 'packages'
 
 CATEGIORIES_TO_TAGS = {
         'Search & Discovery': 'discovery',
-        'Documents': 'documents',
-        'Chat, mail and talk': 'conversation',
+        'Documents': 'productivity',
+        'Chat, mail and talk': 'communication',
         'Programming': 'programming',
         'Maps & Geography': 'geography',
         'Media players': 'media',
@@ -54,7 +54,7 @@ CATEGIORIES_TO_TAGS = {
         'Media creation': 'media',
         'Maths & Science': 'science',
         'News': 'news',
-        'Utilities': 'utilities',
+        'Utilities': 'tools',
         'Web': 'web',
         'Communications and Language': 'literacy',
         }

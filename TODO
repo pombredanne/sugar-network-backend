@@ -13,6 +13,7 @@
 
 v2.0
 ====
+- Pools topics
 - proxying as a tool to sort out downstream content
   * client db is a special case of proxying
   * easy proxying from any client, e.g., from a classroom teacher
