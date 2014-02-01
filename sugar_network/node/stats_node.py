@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -170,7 +170,7 @@ class Sniffer(object):
 class _Stats(dict):
 
     RESOURCE = None
-    OWNERS = []
+    PARENTS = []
 
     def __init__(self, stats, volume):
         self.objects = {}
@@ -205,14 +205,14 @@ class _ResourceStats(_Stats):
         directory = self._volume[self.RESOURCE]
 
         def parse_context(props):
-            for owner in self.OWNERS:
-                guid = props.get(owner)
+            for prop, resource in self.PARENTS:
+                guid = props.get(prop)
                 if not guid:
                     continue
-                if owner == 'context':
+                if resource == 'context':
                     return guid
                 else:
-                    return self._volume[owner].get(guid)['context']
+                    return self._volume[resource].get(guid)['context']
 
         if request.method == 'GET':
             if not request.guid:
@@ -253,7 +253,7 @@ class _ContextStats(_ResourceStats):
 class _ReleaseStats(_Stats):
 
     RESOURCE = 'release'
-    OWNERS = ['context']
+    PARENTS = [('context', 'context')]
 
     def log(self, request):
         if request.method == 'GET':
@@ -268,81 +268,45 @@ class _ReleaseStats(_Stats):
 class _ReportStats(_Stats):
 
     RESOURCE = 'report'
-    OWNERS = ['context', 'release']
+    PARENTS = [('context', 'context'), ('release', 'release')]
 
     def log(self, request):
         if request.method == 'POST':
             self._stats['context']['failed'] += 1
 
 
-class _ReviewStats(_ResourceStats):
+class _PostStats(_ResourceStats):
 
-    RESOURCE = 'review'
-    OWNERS = ['artifact', 'context']
-
-    def log(self, request):
-        _ResourceStats.log(self, request)
-
-        if request.method == 'POST':
-            if request.content.get('artifact'):
-                stats = self._stats['artifact']
-                guid = request.content['artifact']
-            else:
-                stats = self._stats['context']
-                guid = self.parse_context(request)
-            stats.inc(guid, 'reviews')
-            stats.inc(guid, 'rating', request.content.get('rating') or 0)
-
-
-class _FeedbackStats(_ResourceStats):
-
-    RESOURCE = 'feedback'
-    OWNERS = ['context']
-
-
-class _SolutionStats(_ResourceStats):
-
-    RESOURCE = 'solution'
-    OWNERS = ['feedback']
-
-
-class _ArtifactStats(_ResourceStats):
-
-    RESOURCE = 'artifact'
-    OWNERS = ['context']
+    RESOURCE = 'post'
+    PARENTS = [('context', 'context'), ('topic', 'post')]
 
     def __init__(self, stats, volume):
         _ResourceStats.__init__(self, stats, volume)
         self['downloaded'] = 0
 
     def log(self, request):
+        _ResourceStats.log(self, request)
+
         if request.method == 'POST':
-            if request.content.get('type') != 'preview':
-                self['total'] += 1
-        elif request.method == 'DELETE':
-            existing = self._volume[self.RESOURCE].get(request.guid)
-            if existing['type'] != 'preview':
-                self['total'] -= 1
+            stats = None
+            if request.content['type'] == 'review':
+                stats = self._stats['context']
+                guid = request.content['context']
+            elif request.content['type'] == 'feedback':
+                stats = self._stats['post']
+                guid = request.content['topic']
+            if stats:
+                stats.inc(guid, 'reviews')
+                stats.inc(guid, 'rating', request.content.get('vote') or 0)
+
         elif request.method == 'GET' and request.prop == 'data':
-            existing = self._volume[self.RESOURCE].get(request.guid)
-            if existing['type'] != 'preview':
-                self.inc(request.guid, 'downloads')
-                self['downloaded'] += 1
-
-
-class _CommentStats(_ResourceStats):
-
-    RESOURCE = 'comment'
-    OWNERS = ['solution', 'feedback', 'review']
+            self.inc(request.guid, 'downloads')
+            self['downloaded'] += 1
 
 
 _STATS = {_UserStats.RESOURCE: _UserStats,
           _ContextStats.RESOURCE: _ContextStats,
           _ReleaseStats.RESOURCE: _ReleaseStats,
           _ReportStats.RESOURCE: _ReportStats,
-          _ReviewStats.RESOURCE: _ReviewStats,
-          _FeedbackStats.RESOURCE: _FeedbackStats,
-          _SolutionStats.RESOURCE: _SolutionStats,
-          _ArtifactStats.RESOURCE: _ArtifactStats,
-          _CommentStats.RESOURCE: _CommentStats,
+          _PostStats.RESOURCE: _PostStats,
           }

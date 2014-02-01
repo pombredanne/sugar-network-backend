@@ -111,11 +111,11 @@ class Context(db.Resource):
                 'mime_type': 'image/png',
                 })
 
-    @db.indexed_property(slot=3, default=0, acl=ACL.READ | ACL.CALC)
+    @db.indexed_property(slot=2, default=0, acl=ACL.READ | ACL.CALC)
     def downloads(self, value):
         return value
 
-    @db.indexed_property(slot=4, typecast=model.RATINGS, default=0,
+    @db.indexed_property(slot=3, typecast=model.RATINGS, default=0,
             acl=ACL.READ | ACL.CALC)
     def rating(self, value):
         return value

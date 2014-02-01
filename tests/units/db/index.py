@@ -30,6 +30,10 @@ class IndexTest(tests.Test):
     def test_Create(self):
         db = Index({'key': IndexedProperty('key', 1, 'K')})
 
+        self.assertEqual(
+                ([], 0),
+                db._find())
+
         db.store('1', {'key': 'value_1'})
         self.assertEqual(
                 ([{'guid': '1', 'key': 'value_1'}], 1),

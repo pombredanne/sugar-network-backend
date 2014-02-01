@@ -25,7 +25,7 @@ from sugar_network.model.user import User
 from sugar_network.model.report import Report
 from sugar_network.model.context import Context
 from sugar_network.model.release import Release
-from sugar_network.model.artifact import Artifact
+from sugar_network.model.post import Post
 from sugar_network.toolkit.router import route
 from sugar_network.toolkit import Option
 
@@ -1223,7 +1223,7 @@ Can't find all required implementations:
                 ipc.get(['context', guid], reply=['title']))
 
     def test_RestrictLayers(self):
-        self.start_online_client([User, Context, Release, Artifact])
+        self.start_online_client([User, Context, Release])
         ipc = IPCConnection()
 
         context = ipc.post(['context'], {
@@ -1404,18 +1404,18 @@ Can't find all required implementations:
         assert trigger.wait(.1) is not None
 
     def test_ContentDisposition(self):
-        self.start_online_client([User, Context, Release, Artifact])
+        self.start_online_client([User, Context, Release, Post])
         ipc = IPCConnection()
 
-        artifact = ipc.post(['artifact'], {
-            'type': 'instance',
+        post = ipc.post(['post'], {
+            'type': 'object',
             'context': 'context',
             'title': 'title',
-            'description': 'description',
+            'message': '',
             })
-        ipc.request('PUT', ['artifact', artifact, 'data'], 'blob', headers={'Content-Type': 'image/png'})
+        ipc.request('PUT', ['post', post, 'data'], 'blob', headers={'Content-Type': 'image/png'})
 
-        response = ipc.request('GET', ['artifact', artifact, 'data'])
+        response = ipc.request('GET', ['post', post, 'data'])
         self.assertEqual(
                 'attachment; filename="Title.png"',
                 response.headers.get('Content-Disposition'))

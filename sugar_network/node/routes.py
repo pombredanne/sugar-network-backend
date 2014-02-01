@@ -438,12 +438,8 @@ def generate_node_stats(volume, path):
                 ('user', []),
                 ('context', []),
                 ('release', ['context']),
-                ('artifact', ['context', 'type']),
-                ('feedback', ['context']),
-                ('solution', ['context', 'feedback']),
-                ('review', ['context', 'artifact', 'rating']),
                 ('report', ['context', 'release']),
-                ('comment', ['context', 'review', 'feedback', 'solution']),
+                ('post', ['context', 'topic', 'type', 'vote']),
                 ]:
             objs, __ = volume[resource].find(
                     query='ctime:%s..%s' % (left, right))
@@ -455,12 +451,8 @@ def generate_node_stats(volume, path):
                 ('user', ['layer']),
                 ('context', ['layer']),
                 ('release', ['layer']),
-                ('artifact', ['layer']),
-                ('feedback', ['layer', 'solution']),
-                ('solution', ['layer']),
-                ('review', ['layer']),
                 ('report', ['layer']),
-                ('comment', ['layer']),
+                ('post', ['layer']),
                 ]:
             objs, __ = volume[resource].find(
                     query='mtime:%s..%s' % (left, right))
@@ -473,7 +465,7 @@ def generate_node_stats(volume, path):
                             content=obj.properties(props))
                 new_stats.log(request)
         downloaded = {}
-        for resource in ('context', 'artifact'):
+        for resource in ('context', 'post'):
             stats = old_stats.report(
                     {resource: ['downloaded']}, left - step, right, 1)
             if not stats.get(resource):

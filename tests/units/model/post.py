@@ -6,17 +6,18 @@ from __init__ import tests
 from sugar_network.client import Connection, keyfile
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
-from sugar_network.model.feedback import Feedback
-from sugar_network.model.solution import Solution
+from sugar_network.model.post import Post
 from sugar_network.model.release import Release
 from sugar_network.toolkit import http
 
 
-class SolutionTest(tests.Test):
+class PostTest(tests.Test):
 
     def test_SetContext(self):
-        volume = self.start_master([User, Context, Feedback, Solution, Release])
+        volume = self.start_master([User, Context, Release, Post])
         client = Connection(auth=http.SugarAuth(keyfile.value))
+
+        self.assertRaises(http.NotFound, client.post, ['post'], {'type': 'comment', 'title': '', 'message': '', 'topic': 'absent'})
 
         context = client.post(['context'], {
             'type': 'package',
@@ -24,20 +25,21 @@ class SolutionTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        feedback = client.post(['feedback'], {
+        topic = client.post(['post'], {
             'context': context,
-            'type': 'idea',
             'title': 'title',
-            'content': 'content',
+            'message': 'message',
+            'type': 'update',
             })
-        solution = client.post(['solution'], {
-            'feedback': feedback,
-            'content': '',
+        comment = client.post(['post'], {
+            'topic': topic,
+            'title': 'title',
+            'message': 'message',
+            'type': 'comment',
             })
-
         self.assertEqual(
                 context,
-                client.get(['solution', solution, 'context']))
+                client.get(['post', comment, 'context']))
 
 
 if __name__ == '__main__':

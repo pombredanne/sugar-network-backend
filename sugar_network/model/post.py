@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,25 +17,62 @@ from sugar_network import db, model, static
 from sugar_network.toolkit.router import Blob, ACL
 
 
-class Artifact(db.Resource):
+class Post(db.Resource):
 
     @db.indexed_property(prefix='C',
             acl=ACL.CREATE | ACL.READ)
     def context(self, value):
         return value
 
-    @db.indexed_property(prefix='T', typecast=[model.ARTIFACT_TYPES])
+    @db.indexed_property(prefix='A', default='',
+            acl=ACL.CREATE | ACL.READ)
+    def topic(self, value):
+        return value
+
+    @topic.setter
+    def topic(self, value):
+        if value and not self['context']:
+            post = self.volume['post'].get(value)
+            self['context'] = post['context']
+        return value
+
+    @db.indexed_property(prefix='T', typecast=model.POST_TYPES)
     def type(self, value):
         return value
 
-    @db.indexed_property(slot=1, prefix='S', full_text=True, localized=True,
+    @db.indexed_property(slot=1, prefix='N', full_text=True, localized=True,
             acl=ACL.CREATE | ACL.READ)
     def title(self, value):
         return value
 
     @db.indexed_property(prefix='D', full_text=True, localized=True,
             acl=ACL.CREATE | ACL.READ)
-    def description(self, value):
+    def message(self, value):
+        return value
+
+    @db.indexed_property(prefix='R', default='')
+    def solution(self, value):
+        return value
+
+    @db.indexed_property(prefix='V', typecast=model.RATINGS, default=0,
+            acl=ACL.CREATE | ACL.READ)
+    def vote(self, value):
+        return value
+
+    @db.blob_property(mime_type='image/png')
+    def preview(self, value):
+        if value:
+            return value
+        return Blob({
+            'url': '/static/images/missing-preview.png',
+            'blob': static.path('images', 'missing-preview.png'),
+            'mime_type': 'image/png',
+            })
+
+    @db.blob_property()
+    def data(self, value):
+        if value:
+            value['name'] = self['title']
         return value
 
     @db.indexed_property(slot=2, default=0, acl=ACL.READ | ACL.CALC)
@@ -54,19 +91,3 @@ class Artifact(db.Resource):
             return 0
         else:
             return value[0]
-
-    @db.blob_property(mime_type='image/png')
-    def preview(self, value):
-        if value:
-            return value
-        return Blob({
-            'url': '/static/images/missing-preview.png',
-            'blob': static.path('images', 'missing-preview.png'),
-            'mime_type': 'image/png',
-            })
-
-    @db.blob_property()
-    def data(self, value):
-        if value:
-            value['name'] = self['title']
-        return value

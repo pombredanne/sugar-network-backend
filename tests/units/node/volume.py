@@ -364,75 +364,69 @@ class VolumeTest(tests.Test):
                     'summary': {'value': {}, 'mtime': 1.0},
                     'description': {'value': {}, 'mtime': 1.0},
                     }},
-                {'resource': 'artifact'},
-                {'guid': 'artifact', 'diff': {
-                    'guid': {'value': 'artifact', 'mtime': 1.0},
+                {'resource': 'post'},
+                {'guid': 'topic_1', 'diff': {
+                    'guid': {'value': 'topic_1', 'mtime': 1.0},
                     'ctime': {'value': 1, 'mtime': 1.0},
                     'mtime': {'value': 1, 'mtime': 1.0},
-                    'type': {'value': ['instance'], 'mtime': 1.0},
+                    'type': {'value': 'object', 'mtime': 1.0},
                     'context': {'value': 'context', 'mtime': 1.0},
                     'title': {'value': {}, 'mtime': 1.0},
-                    'description': {'value': {}, 'mtime': 1.0},
+                    'message': {'value': {}, 'mtime': 1.0},
+                    'solution': {'value': 'solution_1', 'mtime': 1.0},
                     }},
-                {'resource': 'review'},
+                {'guid': 'topic_2', 'diff': {
+                    'guid': {'value': 'topic_2', 'mtime': 1.0},
+                    'ctime': {'value': 1, 'mtime': 1.0},
+                    'mtime': {'value': 1, 'mtime': 1.0},
+                    'type': {'value': 'object', 'mtime': 1.0},
+                    'context': {'value': 'context', 'mtime': 1.0},
+                    'title': {'value': {}, 'mtime': 1.0},
+                    'message': {'value': {}, 'mtime': 1.0},
+                    'solution': {'value': 'solution_2', 'mtime': 1.0},
+                    }},
                 {'guid': 'context_review', 'diff': {
                     'guid': {'value': 'context_review', 'mtime': 1.0},
                     'ctime': {'value': 1, 'mtime': 1.0},
                     'mtime': {'value': 1, 'mtime': 1.0},
                     'context': {'value': 'context', 'mtime': 1.0},
-                    'artifact': {'value': 'artifact', 'mtime': 4.0},
-                    'rating': {'value': 1, 'mtime': 1.0},
+                    'vote': {'value': 1, 'mtime': 1.0},
                     'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
+                    'type': {'value': 'review', 'mtime': 1.0},
                     }},
-                {'guid': 'artifact_review', 'diff': {
-                    'guid': {'value': 'artifact_review', 'mtime': 1.0},
+                {'guid': 'topic_review', 'diff': {
+                    'guid': {'value': 'topic_review', 'mtime': 1.0},
                     'ctime': {'value': 1, 'mtime': 1.0},
                     'mtime': {'value': 1, 'mtime': 1.0},
                     'context': {'value': 'context', 'mtime': 1.0},
-                    'rating': {'value': 1, 'mtime': 1.0},
+                    'topic': {'value': 'topic_1', 'mtime': 1.0},
+                    'vote': {'value': 1, 'mtime': 1.0},
                     'author': {'mtime': 1, 'value': {}},
                     'layer': {'mtime': 1, 'value': []},
                     'tags': {'mtime': 1, 'value': []},
+                    'type': {'value': 'feedback', 'mtime': 1.0},
                     }},
-                {'resource': 'feedback'},
-                {'guid': 'feedback_1', 'diff': {
-                    'guid': {'value': 'feedback_1', 'mtime': 1.0},
-                    'ctime': {'value': 1, 'mtime': 1.0},
-                    'mtime': {'value': 1, 'mtime': 1.0},
-                    'type': {'value': ['idea'], 'mtime': 1.0},
-                    'context': {'value': 'context', 'mtime': 1.0},
-                    'title': {'value': {}, 'mtime': 1.0},
-                    'content': {'value': {}, 'mtime': 1.0},
-                    'solution': {'value': 'solution_1', 'mtime': 1.0},
-                    }},
-                {'guid': 'feedback_2', 'diff': {
-                    'guid': {'value': 'feedback_2', 'mtime': 1.0},
-                    'ctime': {'value': 1, 'mtime': 1.0},
-                    'mtime': {'value': 1, 'mtime': 1.0},
-                    'type': {'value': ['idea'], 'mtime': 1.0},
-                    'context': {'value': 'context', 'mtime': 1.0},
-                    'title': {'value': {}, 'mtime': 1.0},
-                    'content': {'value': {}, 'mtime': 1.0},
-                    'solution': {'value': 'solution_2', 'mtime': 1.0},
-                    }},
-                {'resource': 'solution'},
                 {'guid': 'solution_1', 'diff': {
                     'guid': {'value': 'solution_1', 'mtime': 1.0},
                     'ctime': {'value': 1, 'mtime': 1.0},
                     'mtime': {'value': 1, 'mtime': 1.0},
                     'context': {'value': 'context', 'mtime': 1.0},
-                    'feedback': {'value': 'feedback_1', 'mtime': 1.0},
-                    'content': {'value': {}, 'mtime': 1.0},
+                    'topic': {'value': 'topic_1', 'mtime': 1.0},
+                    'type': {'value': 'answer', 'mtime': 1.0},
+                    'title': {'value': {}, 'mtime': 1.0},
+                    'message': {'value': {}, 'mtime': 1.0},
                     }},
                 {'guid': 'solution_2', 'diff': {
                     'guid': {'value': 'solution_2', 'mtime': 1.0},
                     'ctime': {'value': 1, 'mtime': 1.0},
                     'mtime': {'value': 1, 'mtime': 1.0},
                     'context': {'value': 'context', 'mtime': 1.0},
-                    'feedback': {'value': 'feedback_1', 'mtime': 1.0},
-                    'content': {'value': {}, 'mtime': 1.0},
+                    'topic': {'value': 'topic_2', 'mtime': 1.0},
+                    'type': {'value': 'answer', 'mtime': 1.0},
+                    'title': {'value': {}, 'mtime': 1.0},
+                    'message': {'value': {}, 'mtime': 1.0},
                     }},
                 {'resource': 'release'},
                 {'guid': 'release', 'diff': {
@@ -445,14 +439,6 @@ class VolumeTest(tests.Test):
                     'stability': {'value': 'stable', 'mtime': 1.0},
                     'notes': {'value': {}, 'mtime': 1.0},
                     }},
-                {'resource': 'comment'},
-                {'guid': 'comment', 'diff': {
-                    'guid': {'value': 'comment', 'mtime': 1.0},
-                    'ctime': {'value': 1, 'mtime': 1.0},
-                    'mtime': {'value': 1, 'mtime': 1.0},
-                    'context': {'value': 'context', 'mtime': 1.0},
-                    'message': {'value': {}, 'mtime': 1.0},
-                    }},
                 {'commit': [[1, 1]]},
                 ]
         merge(volume, records, stats=stats)
@@ -461,21 +447,9 @@ class VolumeTest(tests.Test):
         stats.commit_objects()
 
         self.assertEqual([
-            [('comment', ts, {
-                'total': 1.0,
-                })],
-            [('feedback', ts, {
-                'total': 2.0,
-                })],
-            [('review', ts, {
-                'total': 2.0,
-                })],
-            [('solution', ts, {
-                'total': 2.0,
-                })],
-            [('artifact', ts, {
+            [('post', ts, {
                 'downloaded': 0.0,
-                'total': 1.0,
+                'total': 6.0,
                 })],
             [('user', ts, {
                 'total': 0.0,
@@ -488,14 +462,14 @@ class VolumeTest(tests.Test):
                 })],
             ],
             [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)])
-        self.assertEqual(1, volume['artifact'].get('artifact')['rating'])
-        self.assertEqual([1, 1], volume['artifact'].get('artifact')['reviews'])
         self.assertEqual(1, volume['context'].get('context')['rating'])
         self.assertEqual([1, 1], volume['context'].get('context')['reviews'])
+        self.assertEqual(1, volume['post'].get('topic_1')['rating'])
+        self.assertEqual([1, 1], volume['post'].get('topic_1')['reviews'])
 
         records = [
-                {'resource': 'feedback'},
-                {'guid': 'feedback_2', 'diff': {'solution': {'value': '', 'mtime': 2.0}}},
+                {'resource': 'post'},
+                {'guid': 'topic_2', 'diff': {'solution': {'value': '', 'mtime': 2.0}}},
                 {'commit': [[2, 2]]},
                 ]
         merge(volume, records, stats=stats)
@@ -504,21 +478,9 @@ class VolumeTest(tests.Test):
         stats.commit_objects()
 
         self.assertEqual([
-            [('comment', ts, {
-                'total': 1.0,
-                })],
-            [('feedback', ts, {
-                'total': 2.0,
-                })],
-            [('review', ts, {
-                'total': 2.0,
-                })],
-            [('solution', ts, {
-                'total': 2.0,
-                })],
-            [('artifact', ts, {
+            [('post', ts, {
                 'downloaded': 0.0,
-                'total': 1.0,
+                'total': 6.0,
                 })],
             [('user', ts, {
                 'total': 0.0,
@@ -535,15 +497,11 @@ class VolumeTest(tests.Test):
         records = [
                 {'resource': 'context'},
                 {'guid': 'context', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
-                {'resource': 'artifact'},
-                {'guid': 'artifact', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
-                {'resource': 'review'},
+                {'resource': 'post'},
+                {'guid': 'topic_1', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
+                {'guid': 'topic_2', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
                 {'guid': 'context_review', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
-                {'guid': 'artifact_review', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
-                {'resource': 'feedback'},
-                {'guid': 'feedback_1', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
-                {'guid': 'feedback_2', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
-                {'resource': 'solution'},
+                {'guid': 'topic_review', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
                 {'guid': 'solution_1', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
                 {'guid': 'solution_2', 'diff': {'layer': {'value': ['deleted'], 'mtime': 3.0}}},
                 {'resource': 'release'},
@@ -556,19 +514,7 @@ class VolumeTest(tests.Test):
         stats.commit_objects()
 
         self.assertEqual([
-            [('comment', ts, {
-                'total': 1.0,
-                })],
-            [('feedback', ts, {
-                'total': 0.0,
-                })],
-            [('review', ts, {
-                'total': 0.0,
-                })],
-            [('solution', ts, {
-                'total': 0.0,
-                })],
-            [('artifact', ts, {
+            [('post', ts, {
                 'downloaded': 0.0,
                 'total': 0.0,
                 })],

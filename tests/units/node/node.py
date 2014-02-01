@@ -25,10 +25,6 @@ from sugar_network.node.master import MasterRoutes
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.release import Release
-from sugar_network.model.review import Review
-from sugar_network.model.feedback import Feedback
-from sugar_network.model.artifact import Artifact
-from sugar_network.model.solution import Solution
 from sugar_network.model.user import User
 from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, Blob, ACL, route
 from sugar_network.toolkit import http
@@ -1000,82 +996,49 @@ class NodeTest(tests.Test):
             'license': ['GPL-3'],
             'version': '1',
             })
-        volume['artifact'].create({
-            'guid': 'artifact_1',
+        volume['post'].create({
+            'guid': 'topic_1',
             'ctime': ts + 3,
             'mtime': ts + 3,
             'layer': [],
             'context': 'context_1',
-            'type': 'instance',
+            'type': 'object',
             'title': '',
-            'description': '',
+            'message': '',
             })
-        volume['feedback'].create({
-            'guid': 'feedback_1',
-            'ctime': ts + 4,
-            'mtime': ts + 4,
-            'layer': [],
-            'context': 'context_1',
-            'title': '',
-            'content': '',
-            'type': 'idea',
-            })
-        volume['solution'].create({
+        volume['post'].create({
             'guid': 'solution_1',
             'ctime': ts + 5,
             'mtime': ts + 5,
             'layer': [],
             'context': 'context_1',
-            'feedback': 'feedback_1',
-            'content': '',
+            'topic': 'topic_1',
+            'title': '',
+            'message': '',
+            'type': 'answer',
             })
-        volume['review'].create({
+        volume['post'].create({
             'guid': 'review_1',
             'ctime': ts + 6,
             'mtime': ts + 6,
             'layer': [],
             'context': 'context_1',
-            'rating': 1,
+            'vote': 1,
             'title': '',
-            'content': '',
+            'message': '',
+            'type': 'review',
             })
-        volume['review'].create({
+        volume['post'].create({
             'guid': 'review_2',
             'ctime': ts + 6,
             'mtime': ts + 6,
             'layer': [],
             'context': 'context_1',
-            'artifact': 'artifact_1',
-            'rating': 2,
+            'topic': 'topic_1',
+            'vote': 2,
             'title': '',
-            'content': '',
-            })
-        volume['comment'].create({
-            'guid': 'comment_1',
-            'ctime': ts + 7,
-            'mtime': ts + 7,
-            'layer': [],
-            'context': 'context_1',
-            'review': 'review_1',
             'message': '',
-            })
-        volume['comment'].create({
-            'guid': 'comment_2',
-            'ctime': ts + 7,
-            'mtime': ts + 7,
-            'layer': [],
-            'context': 'context_1',
-            'feedback': 'feedback_1',
-            'message': '',
-            })
-        volume['comment'].create({
-            'guid': 'comment_3',
-            'ctime': ts + 7,
-            'mtime': ts + 7,
-            'layer': [],
-            'context': 'context_1',
-            'solution': 'solution_1',
-            'message': '',
+            'type': 'feedback',
             })
         volume['report'].create({
             'guid': 'report_1',
@@ -1086,7 +1049,6 @@ class NodeTest(tests.Test):
             'release': 'impl_1',
             'error': '',
             })
-
         volume['user'].create({
             'guid': 'user_2',
             'ctime': ts + 4,
@@ -1122,25 +1084,27 @@ class NodeTest(tests.Test):
             'license': ['GPL-3'],
             'version': '1',
             })
-        volume['review'].create({
+        volume['post'].create({
             'guid': 'review_3',
             'ctime': ts + 4,
             'mtime': ts + 4,
             'layer': [],
             'context': 'context_2',
-            'rating': 3,
+            'vote': 3,
             'title': '',
-            'content': '',
+            'message': '',
+            'type': 'review',
             })
-        volume['review'].create({
+        volume['post'].create({
             'guid': 'review_4',
             'ctime': ts + 4,
             'mtime': ts + 4,
             'layer': [],
             'context': 'context_2',
-            'rating': 4,
+            'vote': 4,
             'title': '',
-            'content': '',
+            'message': '',
+            'type': 'review',
             })
         volume['report'].create({
             'guid': 'report_2',
@@ -1160,76 +1124,32 @@ class NodeTest(tests.Test):
             'release': 'impl_1',
             'error': '',
             })
-        volume['artifact'].create({
-            'guid': 'artifact_2',
+        volume['post'].create({
+            'guid': 'topic_2',
             'ctime': ts + 4,
             'mtime': ts + 4,
             'layer': [],
             'context': 'context_2',
-            'type': 'instance',
+            'type': 'object',
             'title': '',
-            'description': '',
+            'message': '',
             })
-        volume['feedback'].create({
-            'guid': 'feedback_2',
-            'ctime': ts + 4,
-            'mtime': ts + 4,
-            'layer': [],
-            'context': 'context_2',
-            'title': '',
-            'content': '',
-            'type': 'idea',
-            })
-        volume['solution'].create({
+        volume['post'].create({
             'guid': 'solution_2',
             'ctime': ts + 4,
             'mtime': ts + 4,
             'layer': [],
             'context': 'context_2',
-            'feedback': 'feedback_2',
-            'content': '',
-            })
-        volume['comment'].create({
-            'guid': 'comment_4',
-            'ctime': ts + 4,
-            'mtime': ts + 4,
-            'layer': [],
-            'context': 'context_2',
-            'review': 'review_3',
+            'topic': 'topic_2',
+            'title': '',
             'message': '',
-            })
-        volume['comment'].create({
-            'guid': 'comment_5',
-            'ctime': ts + 4,
-            'mtime': ts + 4,
-            'layer': [],
-            'context': 'context_2',
-            'review': 'review_4',
-            'message': '',
-            })
-        volume['comment'].create({
-            'guid': 'comment_6',
-            'ctime': ts + 4,
-            'mtime': ts + 4,
-            'layer': [],
-            'context': 'context_2',
-            'feedback': 'feedback_2',
-            'message': '',
-            })
-        volume['comment'].create({
-            'guid': 'comment_7',
-            'ctime': ts + 4,
-            'mtime': ts + 4,
-            'layer': [],
-            'context': 'context_2',
-            'solution': 'solution_2',
-            'message': '',
+            'type': 'answer',
             })
 
         self.override(time, 'time', lambda: ts + 9)
         old_stats = stats_node.Sniffer(volume, 'stats/node')
         old_stats.log(Request(method='GET', path=['release', 'impl_1', 'data']))
-        old_stats.log(Request(method='GET', path=['artifact', 'artifact_1', 'data']))
+        old_stats.log(Request(method='GET', path=['post', 'topic_1', 'data']))
         old_stats.commit(ts + 1)
         old_stats.commit_objects()
         old_stats.commit(ts + 2)
@@ -1240,8 +1160,8 @@ class NodeTest(tests.Test):
         old_stats.commit_objects()
         old_stats.commit(ts + 5)
         old_stats.commit(ts + 6)
-        old_stats.log(Request(method='GET', path=['artifact', 'artifact_1', 'data']))
-        old_stats.log(Request(method='GET', path=['artifact', 'artifact_2', 'data']))
+        old_stats.log(Request(method='GET', path=['post', 'topic_1', 'data']))
+        old_stats.log(Request(method='GET', path=['post', 'topic_2', 'data']))
         old_stats.commit(ts + 7)
         old_stats.commit_objects()
         old_stats.commit(ts + 8)
@@ -1273,60 +1193,16 @@ class NodeTest(tests.Test):
                 (ts + 8, {'total': 2.0, 'released': 3.0, 'failed': 3.0, 'downloaded': 3.0}),
                 (ts + 9, {'total': 2.0, 'released': 3.0, 'failed': 3.0, 'downloaded': 3.0}),
                 ],
-            'review': [
-                (ts + 1, {'total': 0.0}),
-                (ts + 2, {'total': 0.0}),
-                (ts + 3, {'total': 0.0}),
-                (ts + 4, {'total': 2.0}),
-                (ts + 5, {'total': 2.0}),
-                (ts + 6, {'total': 4.0}),
-                (ts + 7, {'total': 4.0}),
-                (ts + 8, {'total': 4.0}),
-                (ts + 9, {'total': 4.0}),
-                ],
-            'feedback': [
-                (ts + 1, {'total': 0.0}),
-                (ts + 2, {'total': 0.0}),
-                (ts + 3, {'total': 0.0}),
-                (ts + 4, {'total': 2.0}),
-                (ts + 5, {'total': 2.0}),
-                (ts + 6, {'total': 2.0}),
-                (ts + 7, {'total': 2.0}),
-                (ts + 8, {'total': 2.0}),
-                (ts + 9, {'total': 2.0}),
-                ],
-            'solution': [
-                (ts + 1, {'total': 0.0}),
-                (ts + 2, {'total': 0.0}),
-                (ts + 3, {'total': 0.0}),
-                (ts + 4, {'total': 1.0}),
-                (ts + 5, {'total': 2.0}),
-                (ts + 6, {'total': 2.0}),
-                (ts + 7, {'total': 2.0}),
-                (ts + 8, {'total': 2.0}),
-                (ts + 9, {'total': 2.0}),
-                ],
-            'artifact': [
+            'post': [
                 (ts + 1, {'total': 0.0, 'downloaded': 1.0}),
                 (ts + 2, {'total': 0.0, 'downloaded': 1.0}),
                 (ts + 3, {'total': 1.0, 'downloaded': 1.0}),
-                (ts + 4, {'total': 2.0, 'downloaded': 1.0}),
-                (ts + 5, {'total': 2.0, 'downloaded': 1.0}),
-                (ts + 6, {'total': 2.0, 'downloaded': 1.0}),
-                (ts + 7, {'total': 2.0, 'downloaded': 3.0}),
-                (ts + 8, {'total': 2.0, 'downloaded': 3.0}),
-                (ts + 9, {'total': 2.0, 'downloaded': 3.0}),
-                ],
-            'comment': [
-                (ts + 1, {'total': 0.0}),
-                (ts + 2, {'total': 0.0}),
-                (ts + 3, {'total': 0.0}),
-                (ts + 4, {'total': 4.0}),
-                (ts + 5, {'total': 4.0}),
-                (ts + 6, {'total': 4.0}),
-                (ts + 7, {'total': 7.0}),
-                (ts + 8, {'total': 7.0}),
-                (ts + 9, {'total': 7.0}),
+                (ts + 4, {'total': 5.0, 'downloaded': 1.0}),
+                (ts + 5, {'total': 6.0, 'downloaded': 1.0}),
+                (ts + 6, {'total': 8.0, 'downloaded': 1.0}),
+                (ts + 7, {'total': 8.0, 'downloaded': 3.0}),
+                (ts + 8, {'total': 8.0, 'downloaded': 3.0}),
+                (ts + 9, {'total': 8.0, 'downloaded': 3.0}),
                 ],
             },
             call(cp, method='GET', cmd='stats', source=[
@@ -1335,12 +1211,8 @@ class NodeTest(tests.Test):
                 'context.released',
                 'context.failed',
                 'context.downloaded',
-                'review.total',
-                'feedback.total',
-                'solution.total',
-                'artifact.total',
-                'artifact.downloaded',
-                'comment.total',
+                'post.total',
+                'post.downloaded',
                 ], start=ts + 1, end=ts + 10))
 
         self.assertEqual({
@@ -1360,13 +1232,13 @@ class NodeTest(tests.Test):
             'rating': 2,
             'reviews': [1, 2],
             },
-            volume['artifact'].get('artifact_1').properties(['downloads', 'rating', 'reviews']))
+            volume['post'].get('topic_1').properties(['downloads', 'rating', 'reviews']))
         self.assertEqual({
             'downloads': 1,
             'rating': 0,
             'reviews': [0, 0],
             },
-            volume['artifact'].get('artifact_2').properties(['downloads', 'rating', 'reviews']))
+            volume['post'].get('topic_2').properties(['downloads', 'rating', 'reviews']))
 
     def test_generate_node_stats_Deletes(self):
         node.stats_root.value = 'stats'
@@ -1402,52 +1274,14 @@ class NodeTest(tests.Test):
             'license': ['GPL-3'],
             'version': '1',
             })
-        volume['artifact'].create({
-            'guid': 'artifact_1',
+        volume['post'].create({
+            'guid': 'post_1',
             'ctime': ts + 1,
             'mtime': ts + 2,
             'layer': ['deleted'],
             'context': 'context_1',
-            'type': 'instance',
+            'type': 'object',
             'title': '',
-            'description': '',
-            })
-        volume['feedback'].create({
-            'guid': 'feedback_1',
-            'ctime': ts + 1,
-            'mtime': ts + 2,
-            'layer': ['deleted'],
-            'context': 'context_1',
-            'title': '',
-            'content': '',
-            'type': 'idea',
-            })
-        volume['solution'].create({
-            'guid': 'solution_1',
-            'ctime': ts + 1,
-            'mtime': ts + 2,
-            'layer': ['deleted'],
-            'context': 'context_1',
-            'feedback': 'feedback_1',
-            'content': '',
-            })
-        volume['review'].create({
-            'guid': 'review_1',
-            'ctime': ts + 1,
-            'mtime': ts + 2,
-            'layer': ['deleted'],
-            'context': 'context_1',
-            'rating': 1,
-            'title': '',
-            'content': '',
-            })
-        volume['comment'].create({
-            'guid': 'comment_1',
-            'ctime': ts + 1,
-            'mtime': ts + 2,
-            'layer': ['deleted'],
-            'context': 'context_1',
-            'review': 'review_1',
             'message': '',
             })
         volume['report'].create({
@@ -1475,27 +1309,7 @@ class NodeTest(tests.Test):
                 (ts + 2, {'total': 0.0}),
                 (ts + 3, {'total': 0.0}),
                 ],
-            'review': [
-                (ts + 1, {'total': 1.0}),
-                (ts + 2, {'total': 0.0}),
-                (ts + 3, {'total': 0.0}),
-                ],
-            'feedback': [
-                (ts + 1, {'total': 1.0}),
-                (ts + 2, {'total': 0.0}),
-                (ts + 3, {'total': 0.0}),
-                ],
-            'solution': [
-                (ts + 1, {'total': 1.0}),
-                (ts + 2, {'total': 0.0}),
-                (ts + 3, {'total': 0.0}),
-                ],
-            'artifact': [
-                (ts + 1, {'total': 1.0}),
-                (ts + 2, {'total': 0.0}),
-                (ts + 3, {'total': 0.0}),
-                ],
-            'comment': [
+            'post': [
                 (ts + 1, {'total': 1.0}),
                 (ts + 2, {'total': 0.0}),
                 (ts + 3, {'total': 0.0}),
@@ -1504,11 +1318,7 @@ class NodeTest(tests.Test):
             call(cp, method='GET', cmd='stats', source=[
                 'user.total',
                 'context.total',
-                'review.total',
-                'feedback.total',
-                'solution.total',
-                'artifact.total',
-                'comment.total',
+                'post.total',
                 ], start=ts + 1, end=ts + 3))
 
 

@@ -14,7 +14,6 @@ from sugar_network.node.master import MasterRoutes
 from sugar_network.node.slave import SlaveRoutes
 from sugar_network.db.volume import Volume
 from sugar_network.model.user import User
-from sugar_network.model.feedback import Feedback
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import coroutine, http
 
@@ -35,8 +34,23 @@ class SyncOnlineTest(tests.Test):
         self.override(stats_user, 'merge', stats_merge)
         self.override(stats_user, 'commit', lambda seq: self.stats_commit.append(seq))
 
-        class Document(Feedback):
-            pass
+        class Document(db.Resource):
+
+            @db.indexed_property(prefix='C')
+            def context(self, value):
+                return value
+
+            @db.indexed_property(prefix='T')
+            def type(self, value):
+                return value
+
+            @db.indexed_property(slot=1, prefix='N', full_text=True, localized=True)
+            def title(self, value):
+                return value
+
+            @db.indexed_property(prefix='D', full_text=True, localized=True)
+            def message(self, value):
+                return value
 
         api_url.value = 'http://127.0.0.1:9000'
 
@@ -66,35 +80,35 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
-        guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
-        guid2 = client.post(['document'], {'context': '', 'content': '2', 'title': '', 'type': 'idea'})
+        guid1 = client.post(['document'], {'context': '', 'message': '1', 'title': '', 'type': 'comment'})
+        guid2 = client.post(['document'], {'context': '', 'message': '2', 'title': '', 'type': 'comment'})
 
         client.post(cmd='online-sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': '1'}},
-            {'guid': guid2, 'content': {'en-us': '2'}},
+            {'guid': guid1, 'message': {'en-us': '1'}},
+            {'guid': guid2, 'message': {'en-us': '2'}},
             ],
-            [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
+            [i.properties(['guid', 'message']) for i in self.master_volume['document'].find()[0]])
         self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[4, None]], json.load(file('slave/push.sequence')))
 
-        guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
+        guid3 = client.post(['document'], {'context': '', 'message': '3', 'title': '', 'type': 'comment'})
         client.post(cmd='online-sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': '1'}},
-            {'guid': guid2, 'content': {'en-us': '2'}},
-            {'guid': guid3, 'content': {'en-us': '3'}},
+            {'guid': guid1, 'message': {'en-us': '1'}},
+            {'guid': guid2, 'message': {'en-us': '2'}},
+            {'guid': guid3, 'message': {'en-us': '3'}},
             ],
-            [i.properties(['guid', 'content']) for i in self.master_volume['document'].find()[0]])
+            [i.properties(['guid', 'message']) for i in self.master_volume['document'].find()[0]])
         self.assertEqual([[7, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[5, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
-        client.put(['document', guid2], {'content': '22'})
+        client.put(['document', guid2], {'message': '22'})
         client.post(cmd='online-sync')
         self.assertEqual(
-                {'guid': guid2, 'content': {'en-us': '22'}},
-                self.master_volume['document'].get(guid2).properties(['guid', 'content']))
+                {'guid': guid2, 'message': {'en-us': '22'}},
+                self.master_volume['document'].get(guid2).properties(['guid', 'message']))
         self.assertEqual([[8, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[6, None]], json.load(file('slave/push.sequence')))
 
@@ -102,28 +116,28 @@ class SyncOnlineTest(tests.Test):
         client.delete(['document', guid1])
         client.post(cmd='online-sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['deleted']},
-            {'guid': guid2, 'content': {'en-us': '22'}, 'layer': []},
-            {'guid': guid3, 'content': {'en-us': '3'}, 'layer': []},
+            {'guid': guid1, 'message': {'en-us': '1'}, 'layer': ['deleted']},
+            {'guid': guid2, 'message': {'en-us': '22'}, 'layer': []},
+            {'guid': guid3, 'message': {'en-us': '3'}, 'layer': []},
             ],
-            [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
+            [i.properties(['guid', 'message', 'layer']) for i in self.master_volume['document'].find()[0]])
         self.assertEqual([[9, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[7, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
-        client.put(['document', guid1], {'content': 'a'})
-        client.put(['document', guid2], {'content': 'b'})
-        client.put(['document', guid3], {'content': 'c'})
-        guid4 = client.post(['document'], {'context': '', 'content': 'd', 'title': '', 'type': 'idea'})
+        client.put(['document', guid1], {'message': 'a'})
+        client.put(['document', guid2], {'message': 'b'})
+        client.put(['document', guid3], {'message': 'c'})
+        guid4 = client.post(['document'], {'context': '', 'message': 'd', 'title': '', 'type': 'comment'})
         client.delete(['document', guid2])
         client.post(cmd='online-sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': 'a'}, 'layer': ['deleted']},
-            {'guid': guid2, 'content': {'en-us': 'b'}, 'layer': ['deleted']},
-            {'guid': guid3, 'content': {'en-us': 'c'}, 'layer': []},
-            {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': []},
+            {'guid': guid1, 'message': {'en-us': 'a'}, 'layer': ['deleted']},
+            {'guid': guid2, 'message': {'en-us': 'b'}, 'layer': ['deleted']},
+            {'guid': guid3, 'message': {'en-us': 'c'}, 'layer': []},
+            {'guid': guid4, 'message': {'en-us': 'd'}, 'layer': []},
             ],
-            [i.properties(['guid', 'content', 'layer']) for i in self.master_volume['document'].find()[0]])
+            [i.properties(['guid', 'message', 'layer']) for i in self.master_volume['document'].find()[0]])
         self.assertEqual([[13, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[12, None]], json.load(file('slave/push.sequence')))
 
@@ -144,35 +158,35 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
-        guid1 = client.post(['document'], {'context': '', 'content': '1', 'title': '', 'type': 'idea'})
-        guid2 = client.post(['document'], {'context': '', 'content': '2', 'title': '', 'type': 'idea'})
+        guid1 = client.post(['document'], {'context': '', 'message': '1', 'title': '', 'type': 'comment'})
+        guid2 = client.post(['document'], {'context': '', 'message': '2', 'title': '', 'type': 'comment'})
 
         slave_client.post(cmd='online-sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': '1'}},
-            {'guid': guid2, 'content': {'en-us': '2'}},
+            {'guid': guid1, 'message': {'en-us': '1'}},
+            {'guid': guid2, 'message': {'en-us': '2'}},
             ],
-            [i.properties(['guid', 'content']) for i in self.slave_volume['document'].find()[0]])
+            [i.properties(['guid', 'message']) for i in self.slave_volume['document'].find()[0]])
         self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
-        guid3 = client.post(['document'], {'context': '', 'content': '3', 'title': '', 'type': 'idea'})
+        guid3 = client.post(['document'], {'context': '', 'message': '3', 'title': '', 'type': 'comment'})
         slave_client.post(cmd='online-sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': '1'}},
-            {'guid': guid2, 'content': {'en-us': '2'}},
-            {'guid': guid3, 'content': {'en-us': '3'}},
+            {'guid': guid1, 'message': {'en-us': '1'}},
+            {'guid': guid2, 'message': {'en-us': '2'}},
+            {'guid': guid3, 'message': {'en-us': '3'}},
             ],
-            [i.properties(['guid', 'content']) for i in self.slave_volume['document'].find()[0]])
+            [i.properties(['guid', 'message']) for i in self.slave_volume['document'].find()[0]])
         self.assertEqual([[7, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
-        client.put(['document', guid2], {'content': '22'})
+        client.put(['document', guid2], {'message': '22'})
         slave_client.post(cmd='online-sync')
         self.assertEqual(
-                {'guid': guid2, 'content': {'en-us': '22'}},
-                self.slave_volume['document'].get(guid2).properties(['guid', 'content']))
+                {'guid': guid2, 'message': {'en-us': '22'}},
+                self.slave_volume['document'].get(guid2).properties(['guid', 'message']))
         self.assertEqual([[8, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
@@ -180,28 +194,28 @@ class SyncOnlineTest(tests.Test):
         client.delete(['document', guid1])
         slave_client.post(cmd='online-sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': '1'}, 'layer': ['deleted']},
-            {'guid': guid2, 'content': {'en-us': '22'}, 'layer': []},
-            {'guid': guid3, 'content': {'en-us': '3'}, 'layer': []},
+            {'guid': guid1, 'message': {'en-us': '1'}, 'layer': ['deleted']},
+            {'guid': guid2, 'message': {'en-us': '22'}, 'layer': []},
+            {'guid': guid3, 'message': {'en-us': '3'}, 'layer': []},
             ],
-            [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
+            [i.properties(['guid', 'message', 'layer']) for i in self.slave_volume['document'].find()[0]])
         self.assertEqual([[9, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
         coroutine.sleep(1)
-        client.put(['document', guid1], {'content': 'a'})
-        client.put(['document', guid2], {'content': 'b'})
-        client.put(['document', guid3], {'content': 'c'})
-        guid4 = client.post(['document'], {'context': '', 'content': 'd', 'title': '', 'type': 'idea'})
+        client.put(['document', guid1], {'message': 'a'})
+        client.put(['document', guid2], {'message': 'b'})
+        client.put(['document', guid3], {'message': 'c'})
+        guid4 = client.post(['document'], {'context': '', 'message': 'd', 'title': '', 'type': 'comment'})
         client.delete(['document', guid2])
         slave_client.post(cmd='online-sync')
         self.assertEqual([
-            {'guid': guid1, 'content': {'en-us': 'a'}, 'layer': ['deleted']},
-            {'guid': guid2, 'content': {'en-us': 'b'}, 'layer': ['deleted']},
-            {'guid': guid3, 'content': {'en-us': 'c'}, 'layer': []},
-            {'guid': guid4, 'content': {'en-us': 'd'}, 'layer': []},
+            {'guid': guid1, 'message': {'en-us': 'a'}, 'layer': ['deleted']},
+            {'guid': guid2, 'message': {'en-us': 'b'}, 'layer': ['deleted']},
+            {'guid': guid3, 'message': {'en-us': 'c'}, 'layer': []},
+            {'guid': guid4, 'message': {'en-us': 'd'}, 'layer': []},
             ],
-            [i.properties(['guid', 'content', 'layer']) for i in self.slave_volume['document'].find()[0]])
+            [i.properties(['guid', 'message', 'layer']) for i in self.slave_volume['document'].find()[0]])
         self.assertEqual([[14, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
@@ -238,20 +252,20 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
-        guid = slave.post(['document'], {'context': '', 'content': '1', 'title': '1', 'type': 'idea'})
+        guid = slave.post(['document'], {'context': '', 'message': '1', 'title': '1', 'type': 'comment'})
         slave.post(cmd='online-sync')
 
         coroutine.sleep(1)
-        master.put(['document', guid], {'content': '1_'})
+        master.put(['document', guid], {'message': '1_'})
         slave.put(['document', guid], {'title': '1_'})
         slave.post(cmd='online-sync')
 
         self.assertEqual(
-                {'content': {'en-us': '1_'}, 'title': {'en-us': '1_'}},
-                self.master_volume['document'].get(guid).properties(['content', 'title']))
+                {'message': {'en-us': '1_'}, 'title': {'en-us': '1_'}},
+                self.master_volume['document'].get(guid).properties(['message', 'title']))
         self.assertEqual(
-                {'content': {'en-us': '1_'}, 'title': {'en-us': '1_'}},
-                self.slave_volume['document'].get(guid).properties(['content', 'title']))
+                {'message': {'en-us': '1_'}, 'title': {'en-us': '1_'}},
+                self.slave_volume['document'].get(guid).properties(['message', 'title']))
 
 
 if __name__ == '__main__':

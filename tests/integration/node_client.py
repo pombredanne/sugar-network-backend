@@ -130,7 +130,7 @@ class NodeClientTest(tests.Test):
 
     def test_UsecaseOOB(self):
         self.cli(['--quiet', 'PUT', '/context/context', 'cmd=clone', '-jd', 'true'])
-        assert exists('client/db/release/im/release/data.blob/activity/activity.info')
+        assert exists('client/db/release/re/release/data.blob/activity/activity.info')
         self.assertEqual(['clone'], json.load(file('client/db/context/co/context/layer'))['value'])
 
     def cli(self, cmd, stdin=None):
