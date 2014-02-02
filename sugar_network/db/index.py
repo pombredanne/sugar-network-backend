@@ -201,7 +201,7 @@ class IndexReader(object):
                     parser.add_prefix(name, prop.prefix)
                 parser.add_prefix('', prop.prefix)
                 if prop.slot is not None and \
-                        prop.typecast in [int, float, bool]:
+                        prop.sortable_serialise is not None:
                     value_range = xapian.NumberValueRangeProcessor(
                             prop.slot, name + ':')
                     parser.add_valuerangeprocessor(value_range)
@@ -359,14 +359,14 @@ class IndexWriter(IndexReader):
                     else properties.get(name, prop.default)
 
             if prop.slot is not None:
-                if prop.typecast in [int, float, bool]:
-                    value_ = xapian.sortable_serialise(value)
+                if prop.sortable_serialise is not None:
+                    slotted_value = xapian.sortable_serialise(
+                            prop.sortable_serialise(value))
+                elif prop.localized:
+                    slotted_value = toolkit.gettext(value) or ''
                 else:
-                    if prop.localized:
-                        value_ = toolkit.gettext(value) or ''
-                    else:
-                        value_ = next(_fmt_prop_value(prop, value))
-                document.add_value(prop.slot, value_)
+                    slotted_value = next(_fmt_prop_value(prop, value))
+                document.add_value(prop.slot, slotted_value)
 
             if prop.prefix or prop.full_text:
                 for value_ in _fmt_prop_value(prop, value):

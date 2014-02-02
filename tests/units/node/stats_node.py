@@ -77,10 +77,8 @@ class StatsTest(tests.Test):
         self.assertEqual(3, stats._stats['post']['total'])
 
         stats.commit_objects()
-        self.assertEqual([2, 3], volume['context'].get('context')['reviews'])
-        self.assertEqual(2, volume['context'].get('context')['rating'])
-        self.assertEqual([1, 3], volume['post'].get('topic')['reviews'])
-        self.assertEqual(3, volume['post'].get('topic')['rating'])
+        self.assertEqual([2, 3], volume['context'].get('context')['rating'])
+        self.assertEqual([1, 3], volume['post'].get('topic')['rating'])
 
     def test_ContextDownloaded(self):
         volume = db.Volume('local', model.RESOURCES)
@@ -188,8 +186,7 @@ class StatsTest(tests.Test):
         volume['release'].create({'guid': 'release', 'context': 'context', 'license': 'GPLv3', 'version': '1', 'date': 0, 'stability': 'stable', 'notes': ''})
 
         self.assertEqual(0, volume['context'].get('context')['downloads'])
-        self.assertEqual([0, 0], volume['context'].get('context')['reviews'])
-        self.assertEqual(0, volume['context'].get('context')['rating'])
+        self.assertEqual([0, 0], volume['context'].get('context')['rating'])
 
         stats = Sniffer(volume, 'stats/node')
         request = Request(method='GET', path=['release', 'release', 'data'])
@@ -204,15 +201,13 @@ class StatsTest(tests.Test):
         stats.commit_objects()
 
         self.assertEqual(1, volume['context'].get('context')['downloads'])
-        self.assertEqual([1, 5], volume['context'].get('context')['reviews'])
-        self.assertEqual(5, volume['context'].get('context')['rating'])
+        self.assertEqual([1, 5], volume['context'].get('context')['rating'])
 
         stats.commit()
         stats.commit_objects()
 
         self.assertEqual(1, volume['context'].get('context')['downloads'])
-        self.assertEqual([1, 5], volume['context'].get('context')['reviews'])
-        self.assertEqual(5, volume['context'].get('context')['rating'])
+        self.assertEqual([1, 5], volume['context'].get('context')['rating'])
 
         stats = Sniffer(volume, 'stats/node')
         request = Request(method='GET', path=['release', 'release', 'data'])
@@ -226,8 +221,7 @@ class StatsTest(tests.Test):
         stats.commit_objects()
 
         self.assertEqual(2, volume['context'].get('context')['downloads'])
-        self.assertEqual([2, 6], volume['context'].get('context')['reviews'])
-        self.assertEqual(3, volume['context'].get('context')['rating'])
+        self.assertEqual([2, 6], volume['context'].get('context')['rating'])
 
     def test_CommitTopicStats(self):
         volume = db.Volume('local', model.RESOURCES)
@@ -236,8 +230,7 @@ class StatsTest(tests.Test):
         volume['post'].create({'guid': 'topic', 'type': 'object', 'context': 'context', 'title': '', 'message': ''})
 
         self.assertEqual(0, volume['post'].get('topic')['downloads'])
-        self.assertEqual([0, 0], volume['post'].get('topic')['reviews'])
-        self.assertEqual(0, volume['post'].get('topic')['rating'])
+        self.assertEqual([0, 0], volume['post'].get('topic')['rating'])
 
         stats = Sniffer(volume, 'stats/node')
         request = Request(method='GET', path=['post', 'topic', 'data'])
@@ -251,15 +244,13 @@ class StatsTest(tests.Test):
         stats.commit_objects()
 
         self.assertEqual(1, volume['post'].get('topic')['downloads'])
-        self.assertEqual([1, 5], volume['post'].get('topic')['reviews'])
-        self.assertEqual(5, volume['post'].get('topic')['rating'])
+        self.assertEqual([1, 5], volume['post'].get('topic')['rating'])
 
         stats.commit()
         stats.commit_objects()
 
         self.assertEqual(1, volume['post'].get('topic')['downloads'])
-        self.assertEqual([1, 5], volume['post'].get('topic')['reviews'])
-        self.assertEqual(5, volume['post'].get('topic')['rating'])
+        self.assertEqual([1, 5], volume['post'].get('topic')['rating'])
 
         request = Request(method='GET', path=['post', 'topic', 'data'])
         request.principal = 'user'
@@ -272,8 +263,7 @@ class StatsTest(tests.Test):
         stats.commit_objects()
 
         self.assertEqual(2, volume['post'].get('topic')['downloads'])
-        self.assertEqual([2, 6], volume['post'].get('topic')['reviews'])
-        self.assertEqual(3, volume['post'].get('topic')['rating'])
+        self.assertEqual([2, 6], volume['post'].get('topic')['rating'])
 
     def test_Suspend(self):
         stats_node_step.value = 5

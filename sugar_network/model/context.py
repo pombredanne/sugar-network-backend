@@ -115,24 +115,11 @@ class Context(db.Resource):
     def downloads(self, value):
         return value
 
-    @db.indexed_property(slot=3, typecast=model.RATINGS, default=0,
+    @db.indexed_property(slot=3, typecast=[], default=[0, 0],
+            sortable_serialise=lambda x: float(x[1]) / x[0] if x[0] else 0,
             acl=ACL.READ | ACL.CALC)
     def rating(self, value):
         return value
-
-    @db.stored_property(typecast=[], default=[0, 0], acl=ACL.READ | ACL.CALC)
-    def reviews(self, value):
-        if value is None:
-            return 0
-        else:
-            return value[0]
-
-    @reviews.setter
-    def reviews(self, value):
-        if isinstance(value, int):
-            return [value, 0]
-        else:
-            return value
 
     @db.stored_property(typecast=[], default=[], acl=ACL.PUBLIC | ACL.LOCAL)
     def dependencies(self, value):

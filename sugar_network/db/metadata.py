@@ -116,67 +116,47 @@ class Property(object):
     """Basic class to collect information about document property."""
 
     def __init__(self, name, acl=ACL.PUBLIC, typecast=None,
-            parse=None, fmt=None, default=None):
+            parse=None, fmt=None, default=None, sortable_serialise=None):
+        """
+        :param name:
+            property name;
+        :param acl:
+            access to the property,
+            might be an ORed composition of `db.ACCESS_*` constants;
+        :param typecast:
+            cast property value before storing in the system;
+            supported values are `None` (strings), `int` (intergers),
+            `float` (floats), `bool` (booleans repesented by symbols
+            `0` and `1`),  a sequence of strings (property value should
+            confirm one of values from the sequencei);
+        :param parse:
+            parse property value from a string;
+        :param fmt:
+            format property value to a string or a list of strings;
+        :param default:
+            default property value or None;
+        :param sortable_serialise:
+            cast property value before storing as a srotable value.
+
+        """
         if typecast is bool:
             if fmt is None:
                 fmt = lambda x: '1' if x else '0'
             if parse is None:
                 parse = lambda x: str(x).lower() in ('true', '1', 'on', 'yes')
+        if sortable_serialise is None and typecast in [int, float, bool]:
+            sortable_serialise = typecast
+
         self.setter = None
         self.on_get = lambda self, x: x
         self.on_set = None
-        self._name = name
-        self._acl = acl
-        self._typecast = typecast
-        self._parse = parse
-        self._fmt = fmt
-        self._default = default
-
-    @property
-    def name(self):
-        """Property name."""
-        return self._name
-
-    @property
-    def acl(self):
-        """Specify access to the property.
-
-        Value might be ORed composition of `db.ACCESS_*`
-        constants.
-
-        """
-        return self._acl
-
-    @property
-    def typecast(self):
-        """Cast property value before storing in the system.
-
-        Supported values are:
-
-        * `None`, string values
-        * `int`, interger values
-        * `float`, float values
-        * `bool`, boolean values repesented by symbols `0` and `1`
-        * sequence of strings, property value should confirm one of values
-          from the sequence
-
-        """
-        return self._typecast
-
-    @property
-    def parse(self):
-        """Parse property value from a string."""
-        return self._parse
-
-    @property
-    def fmt(self):
-        """Format property value to a string or a list of strings."""
-        return self._fmt
-
-    @property
-    def default(self):
-        """Default property value or None."""
-        return self._default
+        self.name = name
+        self.acl = acl
+        self.typecast = typecast
+        self.parse = parse
+        self.fmt = fmt
+        self.default = default
+        self.sortable_serialise = sortable_serialise
 
     def assert_access(self, mode):
         """Is access to the property permitted.
@@ -200,11 +180,13 @@ class StoredProperty(Property):
     def __init__(self, name, localized=False, typecast=None, fmt=None,
             **kwargs):
         """
+        :param: localized:
+            property value will be stored per locale;
         :param: **kwargs
             :class:`.Property` arguments
 
         """
-        self._localized = localized
+        self.localized = localized
 
         if localized:
             enforce(typecast is None,
@@ -216,11 +198,6 @@ class StoredProperty(Property):
 
         Property.__init__(self, name, typecast=typecast, fmt=fmt, **kwargs)
 
-    @property
-    def localized(self):
-        """Property value will be stored per locale."""
-        return self._localized
-
 
 class IndexedProperty(StoredProperty):
     """Property which needs to be indexed."""
@@ -228,6 +205,14 @@ class IndexedProperty(StoredProperty):
     def __init__(self, name, slot=None, prefix=None, full_text=False,
             boolean=False, **kwargs):
         """
+        :param slot:
+            Xapian document's slot number to add property value to;
+        :param prefix:
+            Xapian serach term prefix, if `None`, property is not a term;
+        :param full_text:
+            property takes part in full-text search;
+        :param boolean:
+            Xapian will use boolean search for this property;
         :param: **kwargs
             :class:`.StoredProperty` arguments
 
@@ -242,35 +227,16 @@ class IndexedProperty(StoredProperty):
                 'For %r property, either slot, prefix or full_text '
                 'need to be set',
                 name)
-        enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')),
+        enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')) or
+                kwargs.get('sortable_serialise'),
                 'Slot can be set only for properties for str, int, float, '
                 'bool types, or, for list of these types')
 
         StoredProperty.__init__(self, name, **kwargs)
-        self._slot = slot
-        self._prefix = prefix
-        self._full_text = full_text
-        self._boolean = boolean
-
-    @property
-    def slot(self):
-        """Xapian document's slot number to add property value to."""
-        return self._slot
-
-    @property
-    def prefix(self):
-        """Xapian serach term prefix, if `None`, property is not a term."""
-        return self._prefix
-
-    @property
-    def full_text(self):
-        """Property takes part in full-text search."""
-        return self._full_text
-
-    @property
-    def boolean(self):
-        """Xapian will use boolean search for this property."""
-        return self._boolean
+        self.slot = slot
+        self.prefix = prefix
+        self.full_text = full_text
+        self.boolean = boolean
 
 
 class BlobProperty(Property):
@@ -279,21 +245,15 @@ class BlobProperty(Property):
     def __init__(self, name, acl=ACL.PUBLIC,
             mime_type='application/octet-stream'):
         """
+        :param mime_type:
+            MIME type for BLOB content;
+            by default, MIME type is application/octet-stream;
         :param: **kwargs
             :class:`.Property` arguments
 
         """
         Property.__init__(self, name, acl=acl)
-        self._mime_type = mime_type
-
-    @property
-    def mime_type(self):
-        """MIME type for BLOB content.
-
-        By default, MIME type is application/octet-stream.
-
-        """
-        return self._mime_type
+        self.mime_type = mime_type
 
 
 def _is_sloted_prop(typecast):

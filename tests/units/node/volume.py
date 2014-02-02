@@ -462,10 +462,8 @@ class VolumeTest(tests.Test):
                 })],
             ],
             [[(j.name,) + i for i in j.get(j.last, j.last)] for j in Rrd('stats/node', 1)])
-        self.assertEqual(1, volume['context'].get('context')['rating'])
-        self.assertEqual([1, 1], volume['context'].get('context')['reviews'])
-        self.assertEqual(1, volume['post'].get('topic_1')['rating'])
-        self.assertEqual([1, 1], volume['post'].get('topic_1')['reviews'])
+        self.assertEqual([1, 1], volume['context'].get('context')['rating'])
+        self.assertEqual([1, 1], volume['post'].get('topic_1')['rating'])
 
         records = [
                 {'resource': 'post'},

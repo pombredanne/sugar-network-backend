@@ -1217,28 +1217,24 @@ class NodeTest(tests.Test):
 
         self.assertEqual({
             'downloads': 2,
-            'rating': 1,
-            'reviews': [1, 1],
+            'rating': [1, 1],
             },
-            volume['context'].get('context_1').properties(['downloads', 'rating', 'reviews']))
+            volume['context'].get('context_1').properties(['downloads', 'rating']))
         self.assertEqual({
             'downloads': 1,
-            'rating': 4,
-            'reviews': [2, 7],
+            'rating': [2, 7],
             },
-            volume['context'].get('context_2').properties(['downloads', 'rating', 'reviews']))
+            volume['context'].get('context_2').properties(['downloads', 'rating']))
         self.assertEqual({
             'downloads': 2,
-            'rating': 2,
-            'reviews': [1, 2],
+            'rating': [1, 2],
             },
-            volume['post'].get('topic_1').properties(['downloads', 'rating', 'reviews']))
+            volume['post'].get('topic_1').properties(['downloads', 'rating']))
         self.assertEqual({
             'downloads': 1,
-            'rating': 0,
-            'reviews': [0, 0],
+            'rating': [0, 0],
             },
-            volume['post'].get('topic_2').properties(['downloads', 'rating', 'reviews']))
+            volume['post'].get('topic_2').properties(['downloads', 'rating']))
 
     def test_generate_node_stats_Deletes(self):
         node.stats_root.value = 'stats'

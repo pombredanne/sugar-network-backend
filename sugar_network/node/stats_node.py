@@ -118,7 +118,7 @@ class Sniffer(object):
         for resource, stats in self._stats.items():
             old = {
                     'downloads': 0,
-                    'reviews': (0, 0),
+                    'rating': (0, 0),
                     }
             directory = self._volume[resource]
             for guid, new in stats.objects.items():
@@ -131,12 +131,11 @@ class Sniffer(object):
                 patch = {}
                 if 'downloads' in new:
                     patch['downloads'] = new['downloads'] + old['downloads']
-                if 'reviews' in new:
-                    reviews, rating = old['reviews']
-                    reviews += new['reviews']
+                if 'votes' in new:
+                    votes, rating = old['rating']
+                    votes += new['votes']
                     rating += new['rating']
-                    patch['reviews'] = [reviews, rating]
-                    patch['rating'] = int(round(float(rating) / reviews))
+                    patch['rating'] = [votes, rating]
                 directory.update(guid, patch)
             stats.objects.clear()
 
@@ -296,7 +295,7 @@ class _PostStats(_ResourceStats):
                 stats = self._stats['post']
                 guid = request.content['topic']
             if stats:
-                stats.inc(guid, 'reviews')
+                stats.inc(guid, 'votes')
                 stats.inc(guid, 'rating', request.content.get('vote') or 0)
 
         elif request.method == 'GET' and request.prop == 'data':
