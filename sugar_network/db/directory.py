@@ -24,6 +24,7 @@ from sugar_network.toolkit.router import ACL
 from sugar_network.db.storage import Storage
 from sugar_network.db.metadata import BlobProperty, Metadata, GUID_PREFIX
 from sugar_network.db.metadata import IndexedProperty, StoredProperty
+from sugar_network.db.metadata import AggregatedType
 from sugar_network.toolkit import http, exception, enforce
 
 
@@ -278,9 +279,16 @@ class Directory(object):
                         if isinstance(prop, BlobProperty):
                             del meta['seqno']
                         else:
-                            meta = {'mtime': meta['mtime'],
-                                    'value': meta.get('value'),
-                                    }
+                            value = meta.get('value')
+                            if prop.typecast is AggregatedType:
+                                value_ = {}
+                                for key, agg in value.items():
+                                    aggseqno = agg.pop('seqno')
+                                    if aggseqno >= start and \
+                                            (not end or aggseqno <= end):
+                                        value_[key] = agg
+                                value = value_
+                            meta = {'mtime': meta['mtime'], 'value': value}
                         yield name, meta, seqno
 
                 yield doc.guid, patch()
@@ -303,6 +311,12 @@ class Directory(object):
             else:
                 meta['seqno'] = (orig_meta or {}).get('seqno') or 0
             meta.update(kwargs)
+            if self.metadata.get(prop).typecast is AggregatedType:
+                for agg in meta['value'].values():
+                    agg['seqno'] = meta['seqno']
+                if orig_meta:
+                    orig_meta['value'].update(meta['value'])
+                    meta['value'] = orig_meta['value']
             merge[prop] = meta
             if op is not None:
                 patch[prop] = meta.get('value')
@@ -365,7 +379,14 @@ class Directory(object):
                         value = meta['value']
                     changes[name] = prop.default if value is None else value
                 else:
-                    if prop.localized:
+                    if prop.typecast is AggregatedType:
+                        for aggvalue in value.values():
+                            aggvalue['seqno'] = seqno
+                        if existed:
+                            value_ = record.get(name)['value']
+                            value_.update(value)
+                            value = value_
+                    elif prop.localized:
                         if not isinstance(value, dict):
                             value = {toolkit.default_lang(): value}
                         if existed and \

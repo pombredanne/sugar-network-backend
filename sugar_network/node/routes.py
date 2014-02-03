@@ -271,13 +271,7 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
                 request.principal = request.authorization.login
 
         if op.acl & ACL.AUTHOR and request.guid:
-            if request.resource == 'user':
-                allowed = (request.principal == request.guid)
-            else:
-                doc = self.volume[request.resource].get(request.guid)
-                allowed = (request.principal in doc['author'])
-            enforce(allowed or self.authorize(request.principal, 'root'),
-                    http.Forbidden, 'Operation is permitted only for authors')
+            self._enforce_authority(request)
 
         if op.acl & ACL.SUPERUSER:
             enforce(self.authorize(request.principal, 'root'), http.Forbidden,
@@ -299,6 +293,12 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
         model.VolumeRoutes.on_update(self, request, props, event)
         if 'deleted' in props.get('layer', []):
             event['event'] = 'delete'
+
+    def on_aggprop_update(self, request, prop, value):
+        if prop.acl & ACL.AUTHOR:
+            self._enforce_authority(request)
+        elif value is not None:
+            self._enforce_authority(request, value.get('author'))
 
     def find(self, request, reply):
         limit = request.get('limit')
@@ -401,6 +401,17 @@ class NodeRoutes(model.VolumeRoutes, model.FrontRoutes):
             if key in data:
                 del data[key]
         return result
+
+    def _enforce_authority(self, request, author=None):
+        if request.resource == 'user':
+            allowed = (request.principal == request.guid)
+        else:
+            if author is None:
+                doc = self.volume[request.resource].get(request.guid)
+                author = doc['author']
+            allowed = request.principal in author
+        enforce(allowed or self.authorize(request.principal, 'root'),
+                http.Forbidden, 'Operation is permitted only for authors')
 
 
 def generate_node_stats(volume, path):

@@ -45,7 +45,7 @@ class Post(db.Resource):
     def title(self, value):
         return value
 
-    @db.indexed_property(prefix='D', full_text=True, localized=True,
+    @db.indexed_property(prefix='M', full_text=True, localized=True,
             acl=ACL.CREATE | ACL.READ)
     def message(self, value):
         return value
@@ -57,6 +57,13 @@ class Post(db.Resource):
     @db.indexed_property(prefix='V', typecast=model.RATINGS, default=0,
             acl=ACL.CREATE | ACL.READ)
     def vote(self, value):
+        return value
+
+    @db.indexed_property(prefix='D', typecast=db.AggregatedType,
+            full_text=True, default=db.AggregatedType(),
+            fmt=lambda x: [i.get('message') for i in x.values()],
+            acl=ACL.READ | ACL.INSERT | ACL.REMOVE)
+    def comments(self, value):
         return value
 
     @db.blob_property(mime_type='image/png')

@@ -622,6 +622,144 @@ class ResourceTest(tests.Test):
             [i for i in diff(directory, [[0, None]], out_seq, group_by='prop')])
         self.assertEqual([[2, 2]], out_seq)
 
+    def test_diff_Aggprops(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType())
+            def prop(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter)
+
+        directory.create({'guid': '1', 'prop': {'1': {'prop': 1}}, 'ctime': 1, 'mtime': 1})
+        for i in os.listdir('1/1'):
+            os.utime('1/1/%s' % i, (1, 1))
+
+        directory.create({'guid': '2', 'prop': {'2': {'prop': 2}}, 'ctime': 2, 'mtime': 2})
+        for i in os.listdir('2/2'):
+            os.utime('2/2/%s' % i, (2, 2))
+
+        out_seq = Sequence()
+        self.assertEqual([
+            {'guid': '1', 'diff': {
+                'guid': {'value': '1', 'mtime': 1},
+                'ctime': {'value': 1, 'mtime': 1},
+                'mtime': {'value': 1, 'mtime': 1},
+                'prop': {'value': {'1': {'prop': 1}}, 'mtime': 1},
+                }},
+            {'guid': '2', 'diff': {
+                'guid': {'value': '2', 'mtime': 2},
+                'ctime': {'value': 2, 'mtime': 2},
+                'mtime': {'value': 2, 'mtime': 2},
+                'prop': {'value': {'2': {'prop': 2}}, 'mtime': 2},
+                }},
+            ],
+            [i for i in diff(directory, [[0, None]], out_seq)])
+        self.assertEqual([[1, 2]], out_seq)
+
+        out_seq = Sequence()
+        self.assertEqual([
+            {'guid': '1', 'diff': {
+                'guid': {'value': '1', 'mtime': 1},
+                'ctime': {'value': 1, 'mtime': 1},
+                'mtime': {'value': 1, 'mtime': 1},
+                'prop': {'value': {'1': {'prop': 1}}, 'mtime': 1},
+                }},
+            ],
+            [i for i in diff(directory, [[1, 1]], out_seq)])
+        self.assertEqual([[1, 1]], out_seq)
+
+        out_seq = Sequence()
+        self.assertEqual([
+            {'guid': '2', 'diff': {
+                'guid': {'value': '2', 'mtime': 2},
+                'ctime': {'value': 2, 'mtime': 2},
+                'mtime': {'value': 2, 'mtime': 2},
+                'prop': {'value': {'2': {'prop': 2}}, 'mtime': 2},
+                }},
+            ],
+            [i for i in diff(directory, [[2, 2]], out_seq)])
+        self.assertEqual([[2, 2]], out_seq)
+
+        out_seq = Sequence()
+        self.assertEqual([
+            ],
+            [i for i in diff(directory, [[3, None]], out_seq)])
+        self.assertEqual([], out_seq)
+
+        self.assertEqual({
+            '1': {'seqno': 1, 'prop': 1},
+            },
+            directory.get('1')['prop'])
+        self.assertEqual({
+            '2': {'seqno': 2, 'prop': 2},
+            },
+            directory.get('2')['prop'])
+
+        out_seq = Sequence()
+        directory.update('2', {'prop': {'2': {}, '3': {'prop': 3}}})
+        self.assertEqual([
+            {'guid': '2', 'diff': {
+                'prop': {'value': {'2': {}, '3': {'prop': 3}}, 'mtime': int(os.stat('2/2/prop').st_mtime)},
+                }},
+            ],
+            [i for i in diff(directory, [[3, None]], out_seq)])
+        self.assertEqual([[3, 3]], out_seq)
+
+        self.assertEqual({
+            '2': {'seqno': 3},
+            '3': {'seqno': 3, 'prop': 3},
+            },
+            directory.get('2')['prop'])
+
+        out_seq = Sequence()
+        directory.update('1', {'prop': {'1': {'foo': 'bar'}}})
+        self.assertEqual([
+            {'guid': '1', 'diff': {
+                'prop': {'value': {'1': {'foo': 'bar'}}, 'mtime': int(os.stat('1/1/prop').st_mtime)},
+                }},
+            ],
+            [i for i in diff(directory, [[4, None]], out_seq)])
+        self.assertEqual([[4, 4]], out_seq)
+
+        self.assertEqual({
+            '1': {'seqno': 4, 'foo': 'bar'},
+            },
+            directory.get('1')['prop'])
+
+        out_seq = Sequence()
+        directory.update('2', {'prop': {'2': {'restore': True}}})
+        self.assertEqual([
+            {'guid': '2', 'diff': {
+                'prop': {'value': {'2': {'restore': True}}, 'mtime': int(os.stat('2/2/prop').st_mtime)},
+                }},
+            ],
+            [i for i in diff(directory, [[5, None]], out_seq)])
+        self.assertEqual([[5, 5]], out_seq)
+
+        self.assertEqual({
+            '2': {'seqno': 5, 'restore': True},
+            '3': {'seqno': 3, 'prop': 3},
+            },
+            directory.get('2')['prop'])
+
+        out_seq = Sequence()
+        directory.update('2', {'ctime': 0})
+        self.assertEqual([
+            {'guid': '2', 'diff': {
+                'ctime': {'value': 0, 'mtime': int(os.stat('2/2/prop').st_mtime)},
+                }},
+            ],
+            [i for i in diff(directory, [[6, None]], out_seq)])
+        self.assertEqual([[6, 6]], out_seq)
+
+        self.assertEqual({
+            '2': {'seqno': 5, 'restore': True},
+            '3': {'seqno': 3, 'prop': 3},
+            },
+            directory.get('2')['prop'])
+
     def test_merge_New(self):
 
         class Document(db.Resource):
@@ -884,6 +1022,62 @@ class ResourceTest(tests.Test):
 
         self.assertEqual(5, doc.meta('blob')['mtime'])
         self.assertEqual('blob-2', file('document/1/1/blob.blob').read())
+
+    def test_merge_Aggprops(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType())
+            def prop(self, value):
+                return value
+
+        directory = Directory('document', Document, IndexWriter)
+
+        directory.merge('1', {
+            'guid': {'mtime': 1, 'value': '1'},
+            'ctime': {'mtime': 1, 'value': 1},
+            'mtime': {'mtime': 1, 'value': 1},
+            'prop': {'mtime': 1, 'value': {'1': {}}},
+            })
+        self.assertEqual({
+            '1': {'seqno': 1},
+            },
+            directory.get('1')['prop'])
+
+        directory.merge('1', {
+            'prop': {'mtime': 1, 'value': {'1': {'probe': False}}},
+            })
+        self.assertEqual({
+            '1': {'seqno': 1},
+            },
+            directory.get('1')['prop'])
+
+        directory.merge('1', {
+            'prop': {'mtime': 2, 'value': {'1': {'probe': True}}},
+            })
+        self.assertEqual({
+            '1': {'seqno': 2, 'probe': True},
+            },
+            directory.get('1')['prop'])
+
+        directory.merge('1', {
+            'prop': {'mtime': 3, 'value': {'2': {'foo': 'bar'}}},
+            })
+        self.assertEqual({
+            '1': {'seqno': 2, 'probe': True},
+            '2': {'seqno': 3, 'foo': 'bar'},
+            },
+            directory.get('1')['prop'])
+
+        directory.merge('1', {
+            'prop': {'mtime': 4, 'value': {'2': {}, '3': {'foo': 'bar'}}},
+            })
+        self.assertEqual({
+            '1': {'seqno': 2, 'probe': True},
+            '2': {'seqno': 4},
+            '3': {'seqno': 4, 'foo': 'bar'},
+            },
+            directory.get('1')['prop'])
 
     def test_wipe(self):
 

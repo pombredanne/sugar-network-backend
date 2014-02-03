@@ -82,20 +82,24 @@ class ACL(object):
     WRITE = 1 << 3
     READ = 1 << 4
     DELETE = 1 << 5
-    PUBLIC = CREATE | WRITE | READ | DELETE
+    INSERT = 1 << 6
+    REMOVE = 1 << 7
+    PUBLIC = CREATE | WRITE | READ | DELETE | INSERT | REMOVE
 
-    AUTH = 1 << 6
-    AUTHOR = 1 << 7
-    SUPERUSER = 1 << 8
+    AUTH = 1 << 8
+    AUTHOR = 1 << 9
+    SUPERUSER = 1 << 10
 
-    LOCAL = 1 << 9
-    CALC = 1 << 10
+    LOCAL = 1 << 11
+    CALC = 1 << 12
 
     NAMES = {
             CREATE: 'Create',
             WRITE: 'Write',
             READ: 'Read',
             DELETE: 'Delete',
+            INSERT: 'Insert',
+            REMOVE: 'Remove',
             }
 
 

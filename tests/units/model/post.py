@@ -61,6 +61,37 @@ class PostTest(tests.Test):
                 ['3', '5', '2', '4', '1'],
                 [i.guid for i in directory.find(order_by='-rating')[0]])
 
+    def test_FindComments(self):
+        directory = db.Volume('db', [Post])['post']
+
+        directory.create({'guid': '1', 'context': '', 'type': 'comment', 'title': '', 'message': '', 'comments': {
+            '1': {'message': 'foo'},
+            }})
+        directory.create({'guid': '2', 'context': '', 'type': 'comment', 'title': '', 'message': '', 'comments': {
+            '1': {'message': 'bar'},
+            }})
+        directory.create({'guid': '3', 'context': '', 'type': 'comment', 'title': '', 'message': '', 'comments': {
+            '1': {'message': 'bar'},
+            '2': {'message': 'foo'},
+            }})
+        directory.create({'guid': '4', 'context': '', 'type': 'comment', 'title': '', 'message': '', 'comments': {
+            '1': {'message': 'foo bar'},
+            }})
+
+        self.assertEqual(
+                ['1', '3', '4'],
+                [i.guid for i in directory.find(query='foo')[0]])
+        self.assertEqual(
+                ['2', '3', '4'],
+                [i.guid for i in directory.find(query='bar')[0]])
+        self.assertEqual(
+                ['1', '2', '3', '4'],
+                [i.guid for i in directory.find(query='foo bar')[0]])
+
+        self.assertEqual(
+                ['1', '3', '4'],
+                [i.guid for i in directory.find(query='comments:foo')[0]])
+
 
 if __name__ == '__main__':
     tests.main()

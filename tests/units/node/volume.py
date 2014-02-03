@@ -325,7 +325,10 @@ class VolumeTest(tests.Test):
     def test_merge_MultipleCommits(self):
 
         class Document(db.Resource):
-            pass
+
+            @db.stored_property()
+            def prop(self, value):
+                return value
 
         self.touch(('db/seqno', '100'))
         volume = db.Volume('db', [Document])

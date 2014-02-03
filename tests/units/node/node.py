@@ -1317,15 +1317,116 @@ class NodeTest(tests.Test):
                 'post.total',
                 ], start=ts + 1, end=ts + 3))
 
+    def test_AggpropInsertAccess(self):
 
-def call(routes, method, document=None, guid=None, prop=None, principal=None, content=None, **kwargs):
-    path = ['']
-    if document:
-        path.append(document)
-    if guid:
-        path.append(guid)
-    if prop:
-        path.append(prop)
+        class Document(db.Resource):
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType(), acl=ACL.READ | ACL.INSERT)
+            def prop1(self, value):
+                return value
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType(), acl=ACL.READ | ACL.INSERT | ACL.AUTHOR)
+            def prop2(self, value):
+                return value
+
+        volume = db.Volume('db', [Document, User])
+        volume['user'].create({'guid': tests.UID, 'name': 'user1', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
+
+        cp = NodeRoutes('node', volume)
+        guid = call(cp, method='POST', document='document', principal=tests.UID, content={})
+        self.override(time, 'time', lambda: 0)
+
+        call(cp, method='POST', path=['document', guid, 'prop1'], principal=tests.UID, content={'guid': '1'})
+        call(cp, method='POST', path=['document', guid, 'prop1'], principal=tests.UID2, content={'guid': '2'})
+        self.assertEqual({
+            '1': {'seqno': 4, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
+            '2': {'seqno': 5, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 3}}},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop1']))
+
+        call(cp, method='POST', path=['document', guid, 'prop2'], principal=tests.UID, content={'guid': '1'})
+        self.assertRaises(http. Forbidden, call, cp, method='POST', path=['document', guid, 'prop2'], principal=tests.UID2, content={'guid': '2'})
+        self.assertEqual({
+            '1': {'seqno': 6, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop2']))
+
+    def test_AggpropRemoveAccess(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType(), acl=ACL.READ | ACL.INSERT | ACL.REMOVE)
+            def prop1(self, value):
+                return value
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType(), acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.AUTHOR)
+            def prop2(self, value):
+                return value
+
+        volume = db.Volume('db', [Document, User])
+        volume['user'].create({'guid': tests.UID, 'name': 'user1', 'pubkey': {'blob': StringIO(tests.PUBKEY)}})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': {'blob': StringIO(tests.PUBKEY2)}})
+
+        cp = NodeRoutes('node', volume)
+        guid = call(cp, method='POST', document='document', principal=tests.UID, content={})
+        self.override(time, 'time', lambda: 0)
+
+        call(cp, method='POST', path=['document', guid, 'prop1'], principal=tests.UID, content={'guid': '1', 'probe': True})
+        call(cp, method='POST', path=['document', guid, 'prop1'], principal=tests.UID2, content={'guid': '2', 'probe': True})
+        self.assertEqual({
+            '1': {'seqno': 4, 'probe': True, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
+            '2': {'seqno': 5, 'probe': True, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 3}}},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop1']))
+        self.assertRaises(http.Forbidden, call, cp, method='DELETE', path=['document', guid, 'prop1', '1'], principal=tests.UID2)
+        self.assertRaises(http.Forbidden, call, cp, method='DELETE', path=['document', guid, 'prop1', '2'], principal=tests.UID)
+        self.assertEqual({
+            '1': {'seqno': 4, 'probe': True, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
+            '2': {'seqno': 5, 'probe': True, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 3}}},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop1']))
+
+        call(cp, method='DELETE', path=['document', guid, 'prop1', '1'], principal=tests.UID)
+        self.assertEqual({
+            '1': {'seqno': 6},
+            '2': {'seqno': 5, 'probe': True, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 3}}},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop1']))
+        call(cp, method='DELETE', path=['document', guid, 'prop1', '2'], principal=tests.UID2)
+        self.assertEqual({
+            '1': {'seqno': 6},
+            '2': {'seqno': 7},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop1']))
+
+        call(cp, method='POST', path=['document', guid, 'prop2'], principal=tests.UID, content={'guid': '1', 'probe': True})
+        self.assertEqual({
+            '1': {'seqno': 8, 'probe': True, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop2']))
+
+        self.assertRaises(http.Forbidden, call, cp, method='DELETE', path=['document', guid, 'prop2', '1'], principal=tests.UID2)
+        self.assertEqual({
+            '1': {'seqno': 8, 'probe': True, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop2']))
+        call(cp, method='DELETE', path=['document', guid, 'prop2', '1'], principal=tests.UID)
+        self.assertEqual({
+            '1': {'seqno': 9},
+            },
+            call(cp, method='GET', path=['document', guid, 'prop2']))
+
+
+def call(routes, method, document=None, guid=None, prop=None, principal=None, content=None, path=None, **kwargs):
+    if not path:
+        path = ['']
+        if document:
+            path.append(document)
+        if guid:
+            path.append(guid)
+        if prop:
+            path.append(prop)
     env = {'REQUEST_METHOD': method,
            'PATH_INFO': '/'.join(path),
            'HTTP_HOST': '127.0.0.1',

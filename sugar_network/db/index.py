@@ -349,9 +349,9 @@ class IndexWriter(IndexReader):
 
         _logger.debug('Index %r object: %r', self.metadata.name, properties)
 
-        document = xapian.Document()
+        doc = xapian.Document()
         term_generator = xapian.TermGenerator()
-        term_generator.set_document(document)
+        term_generator.set_document(doc)
 
         for name, prop in self._props.items():
             value = guid \
@@ -366,21 +366,20 @@ class IndexWriter(IndexReader):
                     slotted_value = toolkit.gettext(value) or ''
                 else:
                     slotted_value = next(_fmt_prop_value(prop, value))
-                document.add_value(prop.slot, slotted_value)
+                doc.add_value(prop.slot, slotted_value)
 
             if prop.prefix or prop.full_text:
                 for value_ in _fmt_prop_value(prop, value):
                     if prop.prefix:
                         if prop.boolean:
-                            document.add_boolean_term(
-                                    _term(prop.prefix, value_))
+                            doc.add_boolean_term(_term(prop.prefix, value_))
                         else:
-                            document.add_term(_term(prop.prefix, value_))
+                            doc.add_term(_term(prop.prefix, value_))
                     if prop.full_text:
                         term_generator.index_text(value_, 1, prop.prefix or '')
                     term_generator.increase_termpos()
 
-        self._db.replace_document(_term(GUID_PREFIX, guid), document)
+        self._db.replace_document(_term(GUID_PREFIX, guid), doc)
         self._pending_updates += 1
 
         if post_cb is not None:
@@ -475,7 +474,7 @@ def _fmt_prop_value(prop, value):
             for i in value:
                 for j in fmt(i):
                     yield j
-        else:
+        elif value is not None:
             yield str(value)
 
     return fmt(value if prop.fmt is None else prop.fmt(value))

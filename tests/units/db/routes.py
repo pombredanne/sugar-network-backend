@@ -1650,6 +1650,103 @@ class RoutesTest(tests.Test):
         guid = self.call('POST', ['document'], content={'prop': None})
         self.assertEqual('default', self.volume['document'].get(guid).meta('prop')['value'])
 
+    def test_InsertAggprops(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(default='')
+            def prop1(self, value):
+                return value
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType(), acl=ACL.WRITE)
+            def prop2(self, value):
+                return value
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType(), acl=ACL.INSERT)
+            def prop3(self, value):
+                return value
+
+        events = []
+        self.volume = db.Volume('db', [Document], lambda event: events.append(event))
+        guid = self.call('POST', ['document'], content={})
+
+        self.assertRaises(http.NotFound, self.call, 'POST', ['document', 'foo', 'bar'], content={})
+        self.assertRaises(http.NotFound, self.call, 'POST', ['document', guid, 'bar'], content={})
+        self.assertRaises(http.BadRequest, self.call, 'POST', ['document', guid, 'prop1'], content={})
+        self.assertRaises(http.Forbidden, self.call, 'POST', ['document', guid, 'prop2'], content={})
+
+        del events[:]
+        self.override(time, 'time', lambda: 0)
+        self.override(toolkit, 'uuid', lambda: '0')
+        self.assertEqual('0', self.call('POST', ['document', guid, 'prop3'], content={}))
+        self.assertEqual({
+            '0': {'seqno': 2},
+            },
+            self.volume['document'].get(guid)['prop3'])
+        self.assertEqual([
+            {'event': 'update', 'resource': 'document', 'guid': guid},
+            ],
+            events)
+
+        self.override(time, 'time', lambda: 1)
+        self.assertEqual('1', self.call('POST', ['document', guid, 'prop3'], content={'guid': '1', 'foo': 'bar'}))
+        self.assertEqual({
+            '0': {'seqno': 2},
+            '1': {'seqno': 3, 'foo': 'bar'},
+            },
+            self.volume['document'].get(guid)['prop3'])
+
+        self.override(time, 'time', lambda: 2)
+        self.override(toolkit, 'uuid', lambda: '2')
+        self.assertEqual('2', self.call('POST', ['document', guid, 'prop3'], content={'prop': 'more'}))
+        self.assertEqual({
+            '0': {'seqno': 2},
+            '1': {'seqno': 3, 'foo': 'bar'},
+            '2': {'seqno': 4, 'prop': 'more'},
+            },
+            self.volume['document'].get(guid)['prop3'])
+
+    def test_RemoveAggprops(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType(), acl=ACL.INSERT)
+            def prop1(self, value):
+                return value
+
+            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType(), acl=ACL.INSERT | ACL.REMOVE)
+            def prop2(self, value):
+                return value
+
+        events = []
+        self.volume = db.Volume('db', [Document], lambda event: events.append(event))
+        guid = self.call('POST', ['document'], content={})
+
+        agg_guid = self.call('POST', ['document', guid, 'prop1'], content={'probe': 'value'})
+        del events[:]
+        self.assertEqual(
+                {agg_guid: {'seqno': 2, 'probe': 'value'}},
+                self.volume['document'].get(guid)['prop1'])
+        self.assertRaises(http.Forbidden, self.call, 'DELETE', ['document', guid, 'prop1', agg_guid])
+        self.assertEqual(
+                {agg_guid: {'seqno': 2, 'probe': 'value'}},
+                self.volume['document'].get(guid)['prop1'])
+        self.assertEqual([], events)
+
+        agg_guid = self.call('POST', ['document', guid, 'prop2'], content={'probe': 'value'})
+        del events[:]
+        self.assertEqual(
+                {agg_guid: {'seqno': 3, 'probe': 'value'}},
+                self.volume['document'].get(guid)['prop2'])
+        self.call('DELETE', ['document', guid, 'prop2', agg_guid])
+        self.assertEqual(
+                {agg_guid: {'seqno': 4}},
+                self.volume['document'].get(guid)['prop2'])
+        self.assertEqual([
+            {'event': 'update', 'resource': 'document', 'guid': guid},
+            ],
+            events)
+
     def call(self, method=None, path=None,
             accept_language=None, content=None, content_stream=None, cmd=None,
             content_type=None, host=None, request=None, routes=db.Routes, principal=None,

@@ -58,6 +58,10 @@ stored_property = lambda ** kwargs: indexed_property(StoredProperty, **kwargs)
 blob_property = lambda ** kwargs: indexed_property(BlobProperty, **kwargs)
 
 
+class AggregatedType(dict):
+    pass
+
+
 class Metadata(dict):
     """Structure to describe the document.
 
@@ -107,8 +111,8 @@ class Metadata(dict):
         return self._name
 
     def __getitem__(self, prop_name):
-        enforce(prop_name in self, 'There is no %r property in %r',
-                prop_name, self.name)
+        enforce(prop_name in self, http.NotFound,
+                'There is no %r property in %r', prop_name, self.name)
         return dict.__getitem__(self, prop_name)
 
 

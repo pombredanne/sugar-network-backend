@@ -25,6 +25,7 @@ from contextlib import contextmanager
 from os.path import exists
 
 from sugar_network import toolkit
+from sugar_network.db.metadata import AggregatedType
 from sugar_network.db.metadata import BlobProperty, StoredProperty, LIST_TYPES
 from sugar_network.toolkit.router import Blob, ACL, route
 from sugar_network.toolkit import http, enforce
@@ -114,6 +115,52 @@ class Routes(object):
     def get_prop_meta(self, request, response):
         self._prop_meta(request, response)
 
+    @route('POST', [None, None, None],
+            acl=ACL.AUTH, mime_type='application/json')
+    def insert_to_aggprop(self, request):
+        content = request.content or {}
+        enforce(isinstance(content, dict), http.BadRequest, 'Invalid value')
+
+        directory = self.volume[request.resource]
+        prop = directory.metadata[request.prop]
+
+        enforce(prop.typecast is AggregatedType, http.BadRequest,
+                'Property is not aggregated')
+        prop.assert_access(ACL.INSERT)
+        self.on_aggprop_update(request, prop, None)
+
+        if request.principal:
+            authors = content['author'] = {}
+            self._useradd(authors, request.principal, ACL.ORIGINAL)
+        guid = content.pop('guid') if 'guid' in content else toolkit.uuid()
+        props = {request.prop: {guid: content}}
+        event = {}
+        self.on_update(request, props, event)
+        directory.update(request.guid, props, event)
+
+        return guid
+
+    @route('DELETE', [None, None, None, None],
+            acl=ACL.AUTH, mime_type='application/json')
+    def remove_from_aggprop(self, request):
+        directory = self.volume[request.resource]
+        doc = directory.get(request.guid)
+        prop = directory.metadata[request.prop]
+
+        enforce(prop.typecast is AggregatedType, http.BadRequest,
+                'Property is not aggregated')
+        prop.assert_access(ACL.REMOVE)
+
+        guid = request.path[3]
+        enforce(guid in doc[request.prop], http.NotFound,
+                'No such aggregated item')
+        self.on_aggprop_update(request, prop, doc[request.prop][guid])
+
+        props = {request.prop: {guid: {}}}
+        event = {}
+        self.on_update(request, props, event)
+        directory.update(request.guid, props, event)
+
     @route('PUT', [None, None], cmd='useradd',
             arguments={'role': 0}, acl=ACL.AUTH | ACL.AUTHOR)
     def useradd(self, request, user, role):
@@ -144,6 +191,9 @@ class Routes(object):
 
     def on_update(self, request, props, event):
         props['mtime'] = int(time.time())
+
+    def on_aggprop_update(self, request, prop, value):
+        pass
 
     def after_post(self, doc):
         pass
