@@ -78,7 +78,7 @@ class MasterPersonalTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview1',
+            'logo': 'logo1',
             'layer': 'pilot',
             })
         guid_2 = master.post(['context'], {
@@ -87,7 +87,7 @@ class MasterPersonalTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview2',
+            'logo': 'logo2',
             'layer': 'pilot',
             })
 
@@ -98,7 +98,7 @@ class MasterPersonalTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview3',
+            'logo': 'logo3',
             'layer': 'pilot',
             })
         guid_4 = client.post(['context'], {
@@ -107,7 +107,7 @@ class MasterPersonalTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview4',
+            'logo': 'logo4',
             'layer': 'pilot',
             })
         stats_timestamp = int(time.time())
@@ -134,11 +134,11 @@ class MasterPersonalTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview5',
+            'logo': 'logo5',
             'layer': 'pilot',
             })
         master.put(['context', guid_1, 'title'], 'title_1_')
-        master.put(['context', guid_3, 'preview'], 'preview3_')
+        master.put(['context', guid_3, 'logo'], 'logo3_')
 
         # Update data on client
         guid_6 = client.post(['context'], {
@@ -147,11 +147,11 @@ class MasterPersonalTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview6',
+            'logo': 'logo6',
             'layer': 'pilot',
             })
         client.put(['context', guid_3, 'title'], 'title_3_')
-        client.put(['context', guid_1, 'preview'], 'preview1_')
+        client.put(['context', guid_1, 'logo'], 'logo1_')
 
         # Export client changes
         trigger = self.wait_for_events(client, event='sync_complete')
@@ -186,18 +186,18 @@ class MasterPersonalTest(tests.Test):
                     ]},
                 client.get(['context'], reply=['guid', 'title'], layer='pilot'))
 
-        self.assertEqual('preview1_', master.request('GET', ['context', guid_1, 'preview']).content)
-        self.assertEqual('preview2', master.request('GET', ['context', guid_2, 'preview']).content)
-        self.assertEqual('preview3_', master.request('GET', ['context', guid_3, 'preview']).content)
-        self.assertEqual('preview4', master.request('GET', ['context', guid_4, 'preview']).content)
-        self.assertEqual('preview5', master.request('GET', ['context', guid_5, 'preview']).content)
-        self.assertEqual('preview6', master.request('GET', ['context', guid_6, 'preview']).content)
-        self.assertEqual('preview1_', client.request('GET', ['context', guid_1, 'preview']).content)
-        self.assertEqual('preview2', client.request('GET', ['context', guid_2, 'preview']).content)
-        self.assertEqual('preview3_', client.request('GET', ['context', guid_3, 'preview']).content)
-        self.assertEqual('preview4', client.request('GET', ['context', guid_4, 'preview']).content)
-        self.assertEqual('preview5', client.request('GET', ['context', guid_5, 'preview']).content)
-        self.assertEqual('preview6', client.request('GET', ['context', guid_6, 'preview']).content)
+        self.assertEqual('logo1_', master.request('GET', ['context', guid_1, 'logo']).content)
+        self.assertEqual('logo2', master.request('GET', ['context', guid_2,  'logo']).content)
+        self.assertEqual('logo3_', master.request('GET', ['context', guid_3, 'logo']).content)
+        self.assertEqual('logo4', master.request('GET', ['context', guid_4,  'logo']).content)
+        self.assertEqual('logo5', master.request('GET', ['context', guid_5,  'logo']).content)
+        self.assertEqual('logo6', master.request('GET', ['context', guid_6,  'logo']).content)
+        self.assertEqual('logo1_', client.request('GET', ['context', guid_1, 'logo']).content)
+        self.assertEqual('logo2', client.request('GET', ['context', guid_2,  'logo']).content)
+        self.assertEqual('logo3_', client.request('GET', ['context', guid_3, 'logo']).content)
+        self.assertEqual('logo4', client.request('GET', ['context', guid_4,  'logo']).content)
+        self.assertEqual('logo5', client.request('GET', ['context', guid_5,  'logo']).content)
+        self.assertEqual('logo6', client.request('GET', ['context', guid_6,  'logo']).content)
 
         self.assertEqual('1', file('master/files/1/1').read())
         self.assertEqual('2', file('master/files/2/2').read())

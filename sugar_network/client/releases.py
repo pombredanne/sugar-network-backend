@@ -155,7 +155,7 @@ class Routes(object):
         if not contexts.exists(guid):
             context = self._call(method='GET', path=['context', guid])
             contexts.create(context, setters=True)
-            for prop in ('icon', 'artifact_icon', 'preview'):
+            for prop in ('icon', 'artifact_icon', 'logo'):
                 blob = self._call(method='GET', path=['context', guid, prop])
                 if blob is not None:
                     contexts.update(guid, {prop: {'blob': blob}})

@@ -869,7 +869,7 @@ class NodeTest(tests.Test):
             context['description'])
         self.assertEqual(svg, file(context['artifact_icon']['blob']).read())
         assert 'blob' in context['icon']
-        assert 'blob' in context['preview']
+        assert 'blob' in context['logo']
         self.assertEqual('http://wiki.sugarlabs.org/go/Activities/Image_Viewer', context['homepage'])
         self.assertEqual(['image/bmp', 'image/gif'], context['mime_types'])
 

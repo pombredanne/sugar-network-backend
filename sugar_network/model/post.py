@@ -71,8 +71,8 @@ class Post(db.Resource):
         if value:
             return value
         return Blob({
-            'url': '/static/images/missing-preview.png',
-            'blob': static.path('images', 'missing-preview.png'),
+            'url': '/static/images/missing-logo.png',
+            'blob': static.path('images', 'missing-logo.png'),
             'mime_type': 'image/png',
             })
 

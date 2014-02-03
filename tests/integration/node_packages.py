@@ -83,7 +83,7 @@ class NodePackagesSlaveTest(tests.Test):
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            'preview': 'preview',
+            'logo': 'logo',
             'layer': 'pilot',
             'type': 'package',
             'aliases': {'Fedora': {'binary': [['package']]}},

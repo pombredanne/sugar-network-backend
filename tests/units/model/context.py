@@ -57,7 +57,7 @@ class ContextTest(tests.Test):
             })
         assert exists('master/context/gu/guid/artifact_icon.blob')
         assert exists('master/context/gu/guid/icon.blob')
-        assert exists('master/context/gu/guid/preview.blob')
+        assert exists('master/context/gu/guid/logo.blob')
 
     def test_RatingSort(self):
         directory = db.Volume('db', [Context])['context']

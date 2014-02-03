@@ -66,7 +66,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview1',
+            'logo': 'logo1',
             'layer': 'pilot',
             })
         self.touch(('master/files/file1', 'file1'))
@@ -77,7 +77,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview2',
+            'logo': 'logo2',
             'layer': 'pilot',
             })
         slave.post(['user', tests.UID], {
@@ -89,9 +89,9 @@ class MasterSlaveTest(tests.Test):
         slave.post(cmd='online-sync')
 
         self.assertEqual('title1', master.get(['context', context1, 'title']))
-        self.assertEqual('preview1', master.request('GET', ['context', context1, 'preview']).content)
+        self.assertEqual('logo1', master.request('GET', ['context', context1, 'logo']).content)
         self.assertEqual('title2', master.get(['context', context2, 'title']))
-        self.assertEqual('preview2', master.request('GET', ['context', context2, 'preview']).content)
+        self.assertEqual('logo2', master.request('GET', ['context', context2, 'logo']).content)
 
         stats = Rrd('master/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
         self.assertEqual([
@@ -118,11 +118,11 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview3',
+            'logo': 'logo3',
             'layer': 'pilot',
             })
         master.put(['context', context1, 'title'], 'title1_')
-        master.put(['context', context2, 'preview'], 'preview2_')
+        master.put(['context', context2, 'logo'], 'logo2_')
         self.touch(('master/files/file1', 'file1_'))
         self.touch(('master/files/file2', 'file2'))
 
@@ -132,11 +132,11 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview4',
+            'logo': 'logo4',
             'layer': 'pilot',
             })
         slave.put(['context', context2, 'title'], 'title2_')
-        slave.put(['context', context1, 'preview'], 'preview1_')
+        slave.put(['context', context1, 'logo'], 'logo1_')
         slave.post(['user', tests.UID], {
             'name': 'db',
             'values': [(ts + 1, {'field': 2})],
@@ -146,13 +146,13 @@ class MasterSlaveTest(tests.Test):
         slave.post(cmd='online-sync')
 
         self.assertEqual('title1_', master.get(['context', context1, 'title']))
-        self.assertEqual('preview1_', master.request('GET', ['context', context1, 'preview']).content)
+        self.assertEqual('logo1_', master.request('GET', ['context', context1, 'logo']).content)
         self.assertEqual('title2_', master.get(['context', context2, 'title']))
-        self.assertEqual('preview2_', master.request('GET', ['context', context2, 'preview']).content)
+        self.assertEqual('logo2_', master.request('GET', ['context', context2, 'logo']).content)
         self.assertEqual('title3', master.get(['context', context3, 'title']))
-        self.assertEqual('preview3', master.request('GET', ['context', context3, 'preview']).content)
+        self.assertEqual('logo3', master.request('GET', ['context', context3, 'logo']).content)
         self.assertEqual('title4', master.get(['context', context4, 'title']))
-        self.assertEqual('preview3', master.request('GET', ['context', context3, 'preview']).content)
+        self.assertEqual('logo3', master.request('GET', ['context', context3, 'logo']).content)
         stats = Rrd('master/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
         self.assertEqual([
             [('db', ts, {'field': 1.0}), ('db', ts + 1, {'field': 2.0})]
@@ -162,13 +162,13 @@ class MasterSlaveTest(tests.Test):
         self.assertEqual('file2', file('master/files/file2').read())
 
         self.assertEqual('title1_', slave.get(['context', context1, 'title']))
-        self.assertEqual('preview1_', slave.request('GET', ['context', context1, 'preview']).content)
+        self.assertEqual('logo1_', slave.request('GET', ['context', context1, 'logo']).content)
         self.assertEqual('title2_', slave.get(['context', context2, 'title']))
-        self.assertEqual('preview2_', slave.request('GET', ['context', context2, 'preview']).content)
+        self.assertEqual('logo2_', slave.request('GET', ['context', context2, 'logo']).content)
         self.assertEqual('title3', slave.get(['context', context3, 'title']))
-        self.assertEqual('preview3', slave.request('GET', ['context', context3, 'preview']).content)
+        self.assertEqual('logo3', slave.request('GET', ['context', context3, 'logo']).content)
         self.assertEqual('title4', slave.get(['context', context4, 'title']))
-        self.assertEqual('preview4', slave.request('GET', ['context', context4, 'preview']).content)
+        self.assertEqual('logo4', slave.request('GET', ['context', context4, 'logo']).content)
         stats = Rrd('slave/stats/user/%s/%s' % (tests.UID[:2], tests.UID), 1)
         self.assertEqual([
             [('db', ts, {'field': 1.0}), ('db', ts + 1, {'field': 2.0})]
@@ -192,7 +192,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview1',
+            'logo': 'logo1',
             'layer': 'pilot',
             })
         guid_2 = master.post(['context'], {
@@ -201,7 +201,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview2',
+            'logo': 'logo2',
             'layer': 'pilot',
             })
 
@@ -212,7 +212,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview3',
+            'logo': 'logo3',
             'layer': 'pilot',
             })
         guid_4 = slave.post(['context'], {
@@ -221,7 +221,7 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview4',
+            'logo': 'logo4',
             'layer': 'pilot',
             })
         stats_timestamp = int(time.time())
@@ -246,11 +246,11 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview5',
+            'logo': 'logo5',
             'layer': 'pilot',
             })
         master.put(['context', guid_1, 'title'], 'title_1_')
-        master.put(['context', guid_3, 'preview'], 'preview3_')
+        master.put(['context', guid_3, 'logo'], 'logo3_')
 
         # Update data on slave
         guid_6 = slave.post(['context'], {
@@ -259,11 +259,11 @@ class MasterSlaveTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             'artifact_icon': 'artifact_icon',
-            'preview': 'preview6',
+            'logo': 'logo6',
             'layer': 'pilot',
             })
         slave.put(['context', guid_3, 'title'], 'title_3_')
-        slave.put(['context', guid_1, 'preview'], 'preview1_')
+        slave.put(['context', guid_1, 'logo'], 'logo1_')
 
         # Export slave changes
         slave.post(cmd='offline-sync', path=tests.tmpdir + '/sync2/sugar-network-sync')
@@ -294,18 +294,18 @@ class MasterSlaveTest(tests.Test):
                     ]},
                 slave.get(['context'], reply=['guid', 'title'], layer='pilot'))
 
-        self.assertEqual('preview1_', master.request('GET', ['context', guid_1, 'preview']).content)
-        self.assertEqual('preview2', master.request('GET', ['context', guid_2, 'preview']).content)
-        self.assertEqual('preview3_', master.request('GET', ['context', guid_3, 'preview']).content)
-        self.assertEqual('preview4', master.request('GET', ['context', guid_4, 'preview']).content)
-        self.assertEqual('preview5', master.request('GET', ['context', guid_5, 'preview']).content)
-        self.assertEqual('preview6', master.request('GET', ['context', guid_6, 'preview']).content)
-        self.assertEqual('preview1_', slave.request('GET', ['context', guid_1, 'preview']).content)
-        self.assertEqual('preview2', slave.request('GET', ['context', guid_2, 'preview']).content)
-        self.assertEqual('preview3_', slave.request('GET', ['context', guid_3, 'preview']).content)
-        self.assertEqual('preview4', slave.request('GET', ['context', guid_4, 'preview']).content)
-        self.assertEqual('preview5', slave.request('GET', ['context', guid_5, 'preview']).content)
-        self.assertEqual('preview6', slave.request('GET', ['context', guid_6, 'preview']).content)
+        self.assertEqual('logo1_', master.request('GET', ['context', guid_1, 'logo']).content)
+        self.assertEqual('logo2', master.request('GET', ['context', guid_2,  'logo']).content)
+        self.assertEqual('logo3_', master.request('GET', ['context', guid_3, 'logo']).content)
+        self.assertEqual('logo4', master.request('GET', ['context', guid_4,  'logo']).content)
+        self.assertEqual('logo5', master.request('GET', ['context', guid_5,  'logo']).content)
+        self.assertEqual('logo6', master.request('GET', ['context', guid_6,  'logo']).content)
+        self.assertEqual('logo1_', slave.request('GET', ['context', guid_1,  'logo']).content)
+        self.assertEqual('logo2', slave.request('GET', ['context', guid_2,   'logo']).content)
+        self.assertEqual('logo3_', slave.request('GET', ['context', guid_3,  'logo']).content)
+        self.assertEqual('logo4', slave.request('GET', ['context', guid_4,   'logo']).content)
+        self.assertEqual('logo5', slave.request('GET', ['context', guid_5,   'logo']).content)
+        self.assertEqual('logo6', slave.request('GET', ['context', guid_6,   'logo']).content)
 
         self.assertEqual('1', file('master/files/1/1').read())
         self.assertEqual('2', file('master/files/2/2').read())

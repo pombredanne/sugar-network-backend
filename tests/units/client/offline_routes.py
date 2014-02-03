@@ -146,30 +146,30 @@ class OfflineRoutes(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        blob = 'preview_blob'
-        ipc.request('PUT', ['context', guid, 'preview'], blob)
+        blob = 'logo_blob'
+        ipc.request('PUT', ['context', guid, 'logo'], blob)
 
         self.assertEqual(
                 blob,
-                ipc.request('GET', ['context', guid, 'preview']).content)
+                ipc.request('GET', ['context', guid, 'logo']).content)
         self.assertEqual({
-            'preview': {
-                'url': 'http://127.0.0.1:5555/context/%s/preview' % guid,
+            'logo': {
+                'url': 'http://127.0.0.1:5555/context/%s/logo' % guid,
                 'blob_size': len(blob),
                 'digest': hashlib.sha1(blob).hexdigest(),
                 'mime_type': 'image/png',
                 },
             },
-            ipc.get(['context', guid], reply=['preview']))
+            ipc.get(['context', guid], reply=['logo']))
         self.assertEqual([{
-            'preview': {
-                'url': 'http://127.0.0.1:5555/context/%s/preview' % guid,
+            'logo': {
+                'url': 'http://127.0.0.1:5555/context/%s/logo' % guid,
                 'blob_size': len(blob),
                 'digest': hashlib.sha1(blob).hexdigest(),
                 'mime_type': 'image/png',
                 },
             }],
-            ipc.get(['context'], reply=['preview'])['result'])
+            ipc.get(['context'], reply=['logo'])['result'])
 
         self.assertEqual(
                 file(src_root + '/sugar_network/static/httpdocs/images/package.png').read(),
