@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2013 Aleksey Lim
+# Copyright (C) 2011-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,11 +30,9 @@ class Volume(dict):
 
     _flush_pool = []
 
-    def __init__(self, root, documents, broadcast=None, index_class=None,
-            lazy_open=False):
+    def __init__(self, root, documents, index_class=None):
         Volume._flush_pool.append(self)
         self.resources = {}
-        self.broadcast = broadcast or (lambda event: None)
         self._populators = coroutine.Pool()
 
         if index_class is None:
@@ -46,7 +44,8 @@ class Volume(dict):
         if not exists(root):
             os.makedirs(root)
         self._index_class = index_class
-        self.seqno = toolkit.Seqno(join(self._root, 'seqno'))
+        self.seqno = toolkit.Seqno(join(self._root, 'db.seqno'))
+        self.releases_seqno = toolkit.Seqno(join(self._root, 'releases.seqno'))
 
         for document in documents:
             if isinstance(document, basestring):
@@ -54,19 +53,10 @@ class Volume(dict):
             else:
                 name = document.__name__.lower()
             self.resources[name] = document
-            if not lazy_open:
-                self[name] = self._open(name, document)
 
     @property
     def root(self):
         return self._root
-
-    def mtime(self, name):
-        path = join(self._root, name, 'index', 'mtime')
-        if exists(path):
-            return int(os.stat(path).st_mtime)
-        else:
-            return 0
 
     def close(self):
         """Close operations with the server."""
@@ -75,6 +65,7 @@ class Volume(dict):
         while self:
             __, cls = self.popitem()
             cls.close()
+        self.releases_seqno.commit()
 
     def populate(self):
         for cls in self.values():
@@ -92,25 +83,18 @@ class Volume(dict):
         if directory is None:
             enforce(name in self.resources, http.BadRequest,
                     'Unknown %r resource', name)
-            directory = self[name] = self._open(name, self.resources[name])
-        return directory
-
-    def _open(self, name, resource):
-        if isinstance(resource, basestring):
-            mod = __import__(resource, fromlist=[name])
-            cls = getattr(mod, name.capitalize())
-        else:
-            cls = resource
-        directory = Directory(join(self._root, name), cls, self._index_class,
-                lambda event: self._broadcast(name, event), self.seqno)
-        self._populators.spawn(self._populate, directory)
+            resource = self.resources[name]
+            if isinstance(resource, basestring):
+                mod = __import__(resource, fromlist=[name])
+                cls = getattr(mod, name.capitalize())
+            else:
+                cls = resource
+            directory = Directory(join(self._root, name), cls,
+                    self._index_class, self.seqno)
+            self._populators.spawn(self._populate, directory)
+            self[name] = directory
         return directory
 
     def _populate(self, directory):
         for __ in directory.populate():
             coroutine.dispatch()
-
-    def _broadcast(self, resource, event):
-        if self.broadcast is not None:
-            event['resource'] = resource
-            self.broadcast(event)

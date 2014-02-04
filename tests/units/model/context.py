@@ -1,82 +1,331 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+from cStringIO import StringIO
 from os.path import exists
 
 from __init__ import tests
 
 from sugar_network import db
-from sugar_network.node import obs
+from sugar_network.db import files
+from sugar_network.client import IPCConnection, Connection, keyfile
 from sugar_network.model.context import Context
-from sugar_network.client import IPCConnection
-from sugar_network.toolkit import coroutine, enforce
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit.router import Request
+from sugar_network.toolkit import i18n, http, coroutine, enforce
 
 
 class ContextTest(tests.Test):
 
     def test_SetCommonLayerForPackages(self):
-        self.start_online_client()
-        ipc = IPCConnection()
+        volume = self.start_master()
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
 
-        guid = ipc.post(['context'], {
+        guid = conn.post(['context'], {
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
-        self.assertEqual(['common'], ipc.get(['context', guid, 'layer']))
+        self.assertEqual(['common'], conn.get(['context', guid, 'layer']))
 
-        guid = ipc.post(['context'], {
+        guid = conn.post(['context'], {
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             'layer': 'foo',
             })
-        self.assertEqual(['foo', 'common'], ipc.get(['context', guid, 'layer']))
+        self.assertEqual(['foo', 'common'], conn.get(['context', guid, 'layer']))
 
-        guid = ipc.post(['context'], {
+        guid = conn.post(['context'], {
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             'layer': ['common', 'bar'],
             })
-        self.assertEqual(['common', 'bar'], ipc.get(['context', guid, 'layer']))
+        self.assertEqual(['common', 'bar'], conn.get(['context', guid, 'layer']))
 
-    def test_DefaultImages(self):
-        self.start_online_client()
-        ipc = IPCConnection()
+    def test_Releases(self):
+        volume = self.start_master()
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
 
-        guid = ipc.post(['context'], {
-            'guid': 'guid',
+        context = conn.post(['context'], {
             'type': 'activity',
-            'title': 'title',
+            'title': 'Activity',
             'summary': 'summary',
             'description': 'description',
             })
-        assert exists('master/context/gu/guid/artifact_icon.blob')
-        assert exists('master/context/gu/guid/icon.blob')
-        assert exists('master/context/gu/guid/logo.blob')
 
-    def test_RatingSort(self):
-        directory = db.Volume('db', [Context])['context']
+        activity_info1 = '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ])
+        bundle1 = self.zips(('topdir/activity/activity.info', activity_info1))
+        release1 = conn.upload(['context', context, 'releases'], StringIO(bundle1))
+        assert release1 == str(hash(bundle1))
+        self.assertEqual({
+            release1: {
+                'seqno': 5,
+                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'value': {
+                    'license': ['Public Domain'],
+                    'announce': next(volume['post'].find(query='title:1')[0]).guid,
+                    'release': [[1], 0],
+                    'requires': [],
+                    'spec': {'*-*': {'bundle': str(hash(bundle1)), 'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                    'stability': 'stable',
+                    'unpack_size': len(activity_info1),
+                    'version': '1',
+                    },
+                },
+            }, conn.get(['context', context, 'releases']))
+        assert files.get(str(hash(bundle1)))
 
-        directory.create({'guid': '1', 'type': 'activity', 'title': '', 'summary': '', 'description': '', 'rating': [0, 0]})
-        directory.create({'guid': '2', 'type': 'activity', 'title': '', 'summary': '', 'description': '', 'rating': [1, 2]})
-        directory.create({'guid': '3', 'type': 'activity', 'title': '', 'summary': '', 'description': '', 'rating': [1, 4]})
-        directory.create({'guid': '4', 'type': 'activity', 'title': '', 'summary': '', 'description': '', 'rating': [10, 10]})
-        directory.create({'guid': '5', 'type': 'activity', 'title': '', 'summary': '', 'description': '', 'rating': [30, 90]})
+        activity_info2 = '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])
+        bundle2 = self.zips(('topdir/activity/activity.info', activity_info2))
+        release2 = conn.upload(['context', context, 'releases'], StringIO(bundle2))
+        assert release2 == str(hash(bundle2))
+        self.assertEqual({
+            release1: {
+                'seqno': 5,
+                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'value': {
+                    'license': ['Public Domain'],
+                    'announce': next(volume['post'].find(query='title:1')[0]).guid,
+                    'release': [[1], 0],
+                    'requires': [],
+                    'spec': {'*-*': {'bundle': str(hash(bundle1)), 'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                    'stability': 'stable',
+                    'unpack_size': len(activity_info1),
+                    'version': '1',
+                    },
+                },
+            release2: {
+                'seqno': 7,
+                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'value': {
+                    'license': ['Public Domain'],
+                    'announce': next(volume['post'].find(query='title:2')[0]).guid,
+                    'release': [[2], 0],
+                    'requires': [],
+                    'spec': {'*-*': {'bundle': str(hash(bundle2)), 'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                    'stability': 'stable',
+                    'unpack_size': len(activity_info2),
+                    'version': '2',
+                    },
+                },
+            }, conn.get(['context', context, 'releases']))
+        assert files.get(str(hash(bundle1)))
+        assert files.get(str(hash(bundle2)))
 
-        self.assertEqual(
-                ['1', '2', '3', '4', '5'],
-                [i.guid for i in directory.find()[0]])
-        self.assertEqual(
-                ['1', '4', '2', '5', '3'],
-                [i.guid for i in directory.find(order_by='rating')[0]])
-        self.assertEqual(
-                ['3', '5', '2', '4', '1'],
-                [i.guid for i in directory.find(order_by='-rating')[0]])
+        conn.delete(['context', context, 'releases', release1])
+        self.assertEqual({
+            release1: {
+                'seqno': 8,
+                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                },
+            release2: {
+                'seqno': 7,
+                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'value': {
+                    'license': ['Public Domain'],
+                    'announce': next(volume['post'].find(query='title:2')[0]).guid,
+                    'release': [[2], 0],
+                    'requires': [],
+                    'spec': {'*-*': {'bundle': str(hash(bundle2)), 'commands': {'activity': {'exec': 'true'}}, 'requires': {}}},
+                    'stability': 'stable',
+                    'unpack_size': len(activity_info2),
+                    'version': '2',
+                    },
+                },
+            }, conn.get(['context', context, 'releases']))
+        assert files.get(str(hash(bundle1))) is None
+        assert files.get(str(hash(bundle2)))
+
+        conn.delete(['context', context, 'releases', release2])
+        self.assertEqual({
+            release1: {
+                'seqno': 8,
+                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                },
+            release2: {
+                'seqno': 9,
+                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                },
+            }, conn.get(['context', context, 'releases']))
+        assert files.get(str(hash(bundle1))) is None
+        assert files.get(str(hash(bundle2))) is None
+
+    def test_IncrementReleasesSeqnoOnNewReleases(self):
+        events = []
+        volume = self.start_master()
+        this.broadcast = lambda x: events.append(x)
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'Activity',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual([
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(0, volume.releases_seqno.value)
+
+        conn.put(['context', context], {
+            'summary': 'summary2',
+            })
+        self.assertEqual([
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(0, volume.releases_seqno.value)
+
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(1, volume.releases_seqno.value)
+
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            {'event': 'release', 'seqno': 2},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(2, volume.releases_seqno.value)
+
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            {'event': 'release', 'seqno': 2},
+            {'event': 'release', 'seqno': 3},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(3, volume.releases_seqno.value)
+
+        conn.delete(['context', context, 'releases', release])
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            {'event': 'release', 'seqno': 2},
+            {'event': 'release', 'seqno': 3},
+            {'event': 'release', 'seqno': 4},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(4, volume.releases_seqno.value)
+
+    def test_IncrementReleasesSeqnoOnDependenciesChange(self):
+        events = []
+        volume = self.start_master()
+        this.broadcast = lambda x: events.append(x)
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'Activity',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual([
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(0, volume.releases_seqno.value)
+
+        conn.put(['context', context], {
+            'dependencies': 'dep',
+            })
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(1, volume.releases_seqno.value)
+
+    def test_IncrementReleasesSeqnoOnDeletes(self):
+        events = []
+        volume = self.start_master()
+        this.broadcast = lambda x: events.append(x)
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'Activity',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual([
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(0, volume.releases_seqno.value)
+
+        conn.put(['context', context], {
+            'layer': ['deleted'],
+            })
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(1, volume.releases_seqno.value)
+
+        conn.put(['context', context], {
+            'layer': [],
+            })
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            {'event': 'release', 'seqno': 2},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(2, volume.releases_seqno.value)
+
+    def test_RestoreReleasesSeqno(self):
+        events = []
+        volume = self.start_master()
+        this.broadcast = lambda x: events.append(x)
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'Activity',
+            'summary': 'summary',
+            'description': 'description',
+            'dependencies': 'dep',
+            })
+        self.assertEqual(1, volume.releases_seqno.value)
+
+        volume.close()
+        volume = db.Volume('master', [])
+        self.assertEqual(1, volume.releases_seqno.value)
 
 
 if __name__ == '__main__':

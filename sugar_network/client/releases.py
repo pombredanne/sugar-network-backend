@@ -32,7 +32,8 @@ from sugar_network.client.cache import Cache
 from sugar_network.client import journal, packagekit
 from sugar_network.toolkit.router import Request, Response, route
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import http, coroutine, enforce
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import i18n, http, coroutine, enforce
 
 
 _MIMETYPE_DEFAULTS_KEY = '/desktop/sugar/journal/defaults'
@@ -43,22 +44,20 @@ _logger = logging.getLogger('releases')
 
 class Routes(object):
 
-    def __init__(self, local_volume):
-        self._volume = local_volume
+    def __init__(self):
         self._node_mtime = None
         self._call = lambda **kwargs: \
                 self._map_exceptions(self.fallback, **kwargs)
-        self._cache = Cache(local_volume)
+        self._cache = Cache()
 
     def invalidate_solutions(self, mtime):
         self._node_mtime = mtime
 
     @route('GET', ['context', None], cmd='path')
     def path(self, request):
-        clone_path = self._volume['context'].path(request.guid, '.clone')
-        enforce(exists(clone_path), http.NotFound)
-        clone_impl = basename(os.readlink(clone_path))
-        return self._volume['release'].path(clone_impl, 'data')
+        clone = self._solve(request)
+        enforce(clone is not None, http.NotFound, 'No clones')
+        return clone['path']
 
     @route('GET', ['context', None], cmd='launch', arguments={'args': list},
             mime_type='text/event-stream')
@@ -75,18 +74,18 @@ class Routes(object):
 
             acquired = []
             try:
-                impl = self._solve_impl(context, request)
+                impl = self._solve(request, context['type'])
                 if 'activity' not in context['type']:
                     app = request.get('context') or \
                             _mimetype_context(impl['data']['mime_type'])
                     enforce(app, 'Cannot find proper application')
-                    acquired += self._checkin_impl(
+                    acquired += self._checkin(
                             context, request, self._cache.acquire)
                     request = Request(path=['context', app],
                             object_id=impl['path'], session=request.session)
                     for context in self._checkin_context(request):
-                        impl = self._solve_impl(context, request)
-                acquired += self._checkin_impl(
+                        impl = self._solve(request, context['type'])
+                acquired += self._checkin(
                         context, request, self._cache.acquire)
 
                 child = _exec(context, request, impl)
@@ -105,19 +104,15 @@ class Routes(object):
         enforce(not request.content or self.inline(), http.ServiceUnavailable,
                 'Not available in offline')
         for context in self._checkin_context(request, 'clone'):
-            cloned_path = context.path('.clone')
             if request.content:
-                impl = self._solve_impl(context, request)
-                self._checkin_impl(context, request, self._cache.checkout)
-                impl_path = relpath(dirname(impl['path']), context.path())
-                os.symlink(impl_path, cloned_path)
+                impl = self._solve(request, context['type'])
+                self._checkin(context, request, self._cache.checkout)
                 yield {'event': 'ready'}
             else:
-                cloned_impl = basename(os.readlink(cloned_path))
-                meta = self._volume['release'].get(cloned_impl).meta('data')
+                clone = self._solve(request)
+                meta = this.volume['release'].get(clone['guid']).meta('data')
                 size = meta.get('unpack_size') or meta['blob_size']
-                self._cache.checkin(cloned_impl, size)
-                os.unlink(cloned_path)
+                self._cache.checkin(clone['guid'], size)
 
     @route('GET', ['context', None], cmd='clone',
             arguments={'requires': list})
@@ -147,18 +142,14 @@ class Routes(object):
             raise http.ServiceUnavailable, error, sys.exc_info()[2]
 
     def _checkin_context(self, request, layer=None):
-        contexts = self._volume['context']
+        contexts = this.volume['context']
         guid = request.guid
         if layer and not request.content and not contexts.exists(guid):
             return
 
         if not contexts.exists(guid):
-            context = self._call(method='GET', path=['context', guid])
-            contexts.create(context, setters=True)
-            for prop in ('icon', 'artifact_icon', 'logo'):
-                blob = self._call(method='GET', path=['context', guid, prop])
-                if blob is not None:
-                    contexts.update(guid, {prop: {'blob': blob}})
+            patch = self._call(method='GET', path=['context', guid], cmd='diff')
+            contexts.merge(guid, patch)
         context = contexts.get(guid)
         if layer and bool(request.content) == (layer in context['layer']):
             return
@@ -171,14 +162,9 @@ class Routes(object):
             else:
                 layer_value = set(context['layer']) - set([layer])
             contexts.update(guid, {'layer': list(layer_value)})
-            self.broadcast({
-                'event': 'update',
-                'resource': 'context',
-                'guid': guid,
-                })
             _logger.debug('Checked %r in: %r', guid, layer_value)
 
-    def _solve_impl(self, context, request):
+    def _solve(self, request, force_type=None):
         stability = request.get('stability') or \
                 client.stability(request.guid)
 
@@ -193,9 +179,11 @@ class Routes(object):
         solution, stale = self._cache_solution_get(request.guid, stability)
         if stale is False:
             _logger.debug('Reuse cached %r solution', request.guid)
-        elif solution is not None and not self.inline():
-            _logger.debug('Reuse stale %r in offline', request.guid)
-        elif 'activity' in context['type']:
+        elif solution is not None and (not force_type or not self.inline()):
+            _logger.debug('Reuse stale %r solution', request.guid)
+        elif not force_type:
+            return None
+        elif 'activity' in force_type:
             from sugar_network.client import solver
             solution = self._map_exceptions(solver.solve,
                     self.fallback, request.guid, stability)
@@ -203,16 +191,18 @@ class Routes(object):
             response = Response()
             blob = self._call(method='GET', path=['context', request.guid],
                     cmd='clone', stability=stability, response=response)
-            response.meta['data']['blob'] = blob
-            solution = [response.meta]
+            release = response.meta
+            release['mime_type'] = response.content_type
+            release['size'] = response.content_length
+            files.post(blob, digest=release['spec']['*-*']['bundle'])
+            solution = [release]
 
         request.session['solution'] = solution
         return solution[0]
 
-    def _checkin_impl(self, context, request, cache_call):
+    def _checkin(self, context, request, cache_call):
         if 'clone' in context['layer']:
             cache_call = self._cache.checkout
-        impls = self._volume['release']
 
         if 'activity' in context['type']:
             to_install = []
@@ -226,49 +216,42 @@ class Routes(object):
 
         def cache_impl(sel):
             guid = sel['guid']
-            data = sel['data']
-            sel['path'] = impls.path(guid, 'data')
-            size = data.get('unpack_size') or data['blob_size']
 
-            blob = None
-            if 'blob' in data:
-                blob = data.pop('blob')
 
-            if impls.exists(guid):
-                return cache_call(guid, size)
 
-            if blob is None:
-                blob = self._call(method='GET', path=['release', guid, 'data'])
 
-            blob_dir = dirname(sel['path'])
-            if not exists(blob_dir):
-                os.makedirs(blob_dir)
+            data = files.get(guid)
 
-            with toolkit.mkdtemp(dir=blob_dir) as blob_dir:
-                if 'activity' in context['type']:
-                    self._cache.ensure(size, data['blob_size'])
-                    with toolkit.TemporaryFile() as tmp_file:
-                        shutil.copyfileobj(blob, tmp_file)
-                        tmp_file.seek(0)
-                        with Bundle(tmp_file, 'application/zip') as bundle:
-                            bundle.extractall(blob_dir, prefix=bundle.rootdir)
-                    for exec_dir in ('bin', 'activity'):
-                        bin_path = join(blob_dir, exec_dir)
-                        if not exists(bin_path):
-                            continue
-                        for filename in os.listdir(bin_path):
-                            os.chmod(join(bin_path, filename), 0755)
-                    blob = blob_dir
-                else:
-                    self._cache.ensure(size)
-                    with file(join(blob_dir, 'data'), 'wb') as f:
-                        shutil.copyfileobj(blob, f)
-                        blob = f.name
-                impl = deepcopy(sel)
-                impl['mtime'] = impl['ctime']
-                impl['data']['blob'] = blob
-                impls.create(impl)
-                return cache_call(guid, size)
+            if data is not None:
+                return cache_call(guid, data['unpack_size'])
+
+            response = Response()
+            blob = self._call(method='GET', path=['release', guid, 'data'],
+                    response=response)
+
+            if 'activity' not in context['type']:
+                self._cache.ensure(response.content_length)
+                files.post(blob, response.meta, sel['data'])
+                return cache_call(guid, response.content_length)
+
+            with toolkit.mkdtemp(dir=files.path(sel['data'])) as blob_dir:
+                self._cache.ensure(
+                        response.meta['unpack_size'],
+                        response.content_length)
+                with toolkit.TemporaryFile() as tmp_file:
+                    shutil.copyfileobj(blob, tmp_file)
+                    tmp_file.seek(0)
+                    with Bundle(tmp_file, 'application/zip') as bundle:
+                        bundle.extractall(blob_dir, prefix=bundle.rootdir)
+                for exec_dir in ('bin', 'activity'):
+                    bin_path = join(blob_dir, exec_dir)
+                    if not exists(bin_path):
+                        continue
+                    for filename in os.listdir(bin_path):
+                        os.chmod(join(bin_path, filename), 0755)
+
+            files.update(sel['data'], response.meta)
+            return cache_call(guid, response.meta['unpack_size'])
 
         result = []
         for sel in request.session['solution']:
@@ -278,11 +261,8 @@ class Routes(object):
                 request.session['stability'], request.session['solution'])
         return result
 
-    def _cache_solution_path(self, guid):
-        return client.path('solutions', guid[:2], guid)
-
     def _cache_solution_get(self, guid, stability):
-        path = self._cache_solution_path(guid)
+        path = client.path('solutions', guid)
         solution = None
         if exists(path):
             try:
@@ -305,7 +285,7 @@ class Routes(object):
     def _cache_solution_set(self, guid, stability, solution):
         if isinstance(solution, _CachedSolution):
             return
-        path = self._cache_solution_path(guid)
+        path = client.path('solutions', guid)
         if not exists(dirname(path)):
             os.makedirs(dirname(path))
         with file(path, 'w') as f:
@@ -315,13 +295,12 @@ class Routes(object):
         for context in self._checkin_context(request):
             if 'clone' not in context['layer']:
                 return self._map_exceptions(self.fallback, request, response)
-            guid = basename(os.readlink(context.path('.clone')))
-            impl = self._volume['release'].get(guid)
-            response.meta = impl.properties([
+            release = this.volume['release'].get(self._solve(request)['guid'])
+            response.meta = release.properties([
                 'guid', 'ctime', 'layer', 'author', 'tags',
                 'context', 'version', 'stability', 'license', 'notes', 'data',
                 ])
-            return impl.meta('data')
+            return release.meta('data')
 
 
 def _activity_id_new():
@@ -397,7 +376,7 @@ def _exec(context, request, sel):
         environ['SUGAR_BUNDLE_PATH'] = impl_path
         environ['SUGAR_BUNDLE_ID'] = context.guid
         environ['SUGAR_BUNDLE_NAME'] = \
-                toolkit.gettext(context['title']).encode('utf8')
+                i18n.decode(context['title']).encode('utf8')
         environ['SUGAR_BUNDLE_VERSION'] = sel['version']
         environ['SUGAR_ACTIVITY_ROOT'] = datadir
         environ['SUGAR_LOCALEDIR'] = join(impl_path, 'locale')

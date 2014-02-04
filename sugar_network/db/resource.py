@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012 Aleksey Lim
+# Copyright (C) 2011-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,10 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from sugar_network import toolkit
-from sugar_network.db.metadata import indexed_property
-from sugar_network.db.metadata import StoredProperty, BlobProperty
-from sugar_network.toolkit.router import Blob, ACL
+from sugar_network.db.metadata import indexed_property, Localized
+from sugar_network.db.metadata import Numeric, List, Authors
+from sugar_network.db.metadata import Composite, Aggregated
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit.router import ACL
 
 
 class Resource(object):
@@ -25,85 +26,69 @@ class Resource(object):
     #: `Metadata` object that describes the document
     metadata = None
 
-    def __init__(self, guid, record, cached_props=None, request=None):
+    def __init__(self, guid, record, cached_props=None):
         self.props = cached_props or {}
         self.guid = guid
         self.is_new = not bool(guid)
-        self._record = record
-        self.request = request
-        self._modifies = set()
+        self.record = record
+        self._post_seqno = None
 
     @property
-    def volume(self):
-        return self.request.routes.volume
+    def post_seqno(self):
+        return self._post_seqno
 
-    @property
-    def directory(self):
-        return self.volume[self.metadata.name]
+    @post_seqno.setter
+    def post_seqno(self, value):
+        if self._post_seqno is None:
+            self._post_seqno = value
+            self.post('seqno', value)
 
-    @indexed_property(slot=1000, prefix='RC', typecast=int, default=0,
-            acl=ACL.READ)
-    def ctime(self, value):
-        return value
-
-    @indexed_property(slot=1001, prefix='RM', typecast=int, default=0,
-            acl=ACL.READ)
-    def mtime(self, value):
-        return value
-
-    @indexed_property(slot=1002, prefix='RS', typecast=int, default=0, acl=0)
+    @indexed_property(Numeric, slot=1000, prefix='RS', acl=0)
     def seqno(self, value):
         return value
 
-    @indexed_property(prefix='RA', typecast=dict, full_text=True, default={},
-            fmt=lambda x: _fmt_authors(x), acl=ACL.READ)
-    def author(self, value):
-        result = []
-        for guid, props in sorted(value.items(),
-                cmp=lambda x, y: cmp(x[1]['order'], y[1]['order'])):
-            if 'name' in props:
-                result.append({
-                    'guid': guid,
-                    'name': props['name'],
-                    'role': props['role'],
-                    })
-            else:
-                result.append({
-                    'name': guid,
-                    'role': props['role'],
-                    })
-        return result
+    @indexed_property(Numeric, slot=1001, prefix='RC', default=0, acl=ACL.READ)
+    def ctime(self, value):
+        return value
 
-    @author.setter
-    def author(self, value):
-        if type(value) not in (list, tuple):
-            return value
-        result = {}
-        for order, author in enumerate(value):
-            user = author.pop('guid')
-            author['order'] = order
-            result[user] = author
-        return result
+    @indexed_property(Numeric, slot=1002, prefix='RM', default=0, acl=ACL.READ)
+    def mtime(self, value):
+        return value
 
-    @indexed_property(prefix='RL', typecast=[], default=[])
+    @indexed_property(Authors, prefix='RA', default={}, full_text=True,
+            acl=ACL.READ)
+    def author(self, value):
+        return value
+
+    @indexed_property(List, prefix='RL', default=[])
     def layer(self, value):
         return value
 
-    @indexed_property(prefix='RT', full_text=True, default=[], typecast=[])
+    @layer.setter
+    def layer(self, value):
+        orig = self['layer']
+        if 'deleted' in value:
+            if this.request.method != 'POST' and 'deleted' not in orig:
+                self.deleted()
+        elif this.request.method != 'POST' and 'deleted' in orig:
+            self.restored()
+        return value
+
+    @indexed_property(List, prefix='RT', full_text=True, default=[])
     def tags(self, value):
         return value
 
-    def path(self, *args):
-        if not args:
-            return self._record.path()
-        prop = args[0]
-        if prop in self.metadata and \
-                isinstance(self.metadata[prop], BlobProperty):
-            return self._record.blob_path(*args)
-        else:
-            return self._record.path(*args)
+    @property
+    def exists(self):
+        return self.record is not None and self.record.consistent
 
-    def get(self, prop, accept_language=None):
+    def deleted(self):
+        pass
+
+    def restored(self):
+        pass
+
+    def get(self, prop):
         """Get document's property value.
 
         :param prop:
@@ -113,57 +98,83 @@ class Resource(object):
 
         """
         prop = self.metadata[prop]
-
         value = self.props.get(prop.name)
-        if value is None and self._record is not None:
-            meta = self._record.get(prop.name)
-            if isinstance(prop, StoredProperty):
-                if meta is not None:
-                    value = meta.get('value')
-                else:
-                    value = prop.default
+        if value is None and self.record is not None:
+            meta = self.record.get(prop.name)
+            if meta is not None:
+                value = meta.get('value')
             else:
-                value = meta or Blob()
+                value = prop.default
             self.props[prop.name] = value
-
-        if value is not None and accept_language:
-            if isinstance(prop, StoredProperty) and prop.localized:
-                value = toolkit.gettext(value, accept_language)
-
         return value
 
-    def properties(self, props, accept_language=None):
+    def properties(self, props):
         result = {}
         for i in props:
-            result[i] = self.get(i, accept_language)
+            result[i] = self.get(i)
         return result
 
     def meta(self, prop):
-        return self._record.get(prop)
+        if self.record is not None:
+            return self.record.get(prop)
 
-    def modified(self, prop):
-        return prop in self._modifies
+    def diff(self, seq):
+        for name, prop in self.metadata.items():
+            if name == 'seqno' or prop.acl & ACL.CALC:
+                continue
+            meta = self.meta(name)
+            if meta is None:
+                continue
+            seqno = meta.get('seqno')
+            if seqno not in seq:
+                continue
+            value = meta.get('value')
+            if isinstance(prop, Aggregated):
+                value_ = {}
+                for key, agg in value.items():
+                    if agg.pop('seqno') in seq:
+                        value_[key] = agg
+                value = value_
+            meta = {'mtime': meta['mtime'], 'value': value}
+            yield name, meta, seqno
+
+    def patch(self, props):
+        if not props:
+            return {}
+        patch = {}
+        for prop, value in props.items():
+            if self[prop] == value:
+                continue
+            orig_value = self[prop]
+            if orig_value and isinstance(self.metadata[prop], Localized):
+                for lang, subvalue in value.items():
+                    if orig_value.get(lang) != subvalue:
+                        break
+                else:
+                    continue
+            patch[prop] = value
+        return patch
+
+    def post(self, prop, value, **meta):
+        prop = self.metadata[prop]
+        if prop.on_set is not None:
+            value = prop.on_set(self, value)
+        if isinstance(prop, Aggregated):
+            for agg in value.values():
+                agg['seqno'] = self.post_seqno
+        if isinstance(prop, Composite):
+            old_value = self[prop.name]
+            if old_value:
+                old_value.update(value)
+                value = old_value
+        self.record.set(prop.name, value=value, seqno=self.post_seqno, **meta)
+        self.props[prop.name] = value
+
+    def _set(self, prop, value):
+        self.props[prop] = value
 
     def __contains__(self, prop):
-        return self.get(prop)
+        return prop in self.props
 
     def __getitem__(self, prop):
         return self.get(prop)
-
-    def __setitem__(self, prop, value):
-        self.props[prop] = value
-        self._modifies.add(prop)
-
-
-def _fmt_authors(value):
-    if isinstance(value, dict):
-        for guid, props in value.items():
-            if not isinstance(props, dict):
-                yield guid
-            else:
-                if 'name' in props:
-                    yield props['name']
-                if not (props['role'] & ACL.INSYSTEM):
-                    yield guid
-    else:
-        yield value

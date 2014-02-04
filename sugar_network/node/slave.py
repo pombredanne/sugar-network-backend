@@ -23,9 +23,10 @@ from gettext import gettext as _
 
 from sugar_network import node, toolkit
 from sugar_network.client import api_url
-from sugar_network.node import sync, stats_user, files, volume
+from sugar_network.node import sync, stats_user, files, model
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, enforce
 
 
@@ -55,7 +56,7 @@ class SlaveRoutes(NodeRoutes):
         # loosing payload after authentication
         conn.get(cmd='logon')
 
-        push = [('diff', None, volume.diff(self.volume, self._push_seq))]
+        push = [('diff', None, model.diff(self.volume, self._push_seq))]
         if not no_pull:
             push.extend([
                 ('pull', {
@@ -119,7 +120,7 @@ class SlaveRoutes(NodeRoutes):
                 }, None))
             push.append(('files_pull', {'sequence': self._files_seq}, None))
 
-        self.broadcast({
+        this.broadcast({
             'event': 'sync_progress',
             'progress': _('Reading sneakernet packages'),
             })
@@ -129,14 +130,14 @@ class SlaveRoutes(NodeRoutes):
         if exists(offline_script):
             shutil.copy(offline_script, path)
 
-        self.broadcast({
+        this.broadcast({
             'event': 'sync_progress',
             'progress': _('Generating new sneakernet package'),
             })
 
         diff_seq = toolkit.Sequence([])
         push.append(('diff', None,
-                volume.diff(self.volume, push_seq, diff_seq)))
+                model.diff(self.volume, push_seq, diff_seq)))
         if stats_user.stats_user.value:
             push.append(('stats_diff', None, stats_user.diff(stats_seq)))
         complete = sync.sneakernet_encode(push, root=path,
@@ -156,7 +157,7 @@ class SlaveRoutes(NodeRoutes):
 
             if packet.name == 'diff':
                 _logger.debug('Processing %r', packet)
-                seq, __ = volume.merge(self.volume, packet, shift_seqno=False)
+                seq, __ = model.merge(self.volume, packet, shift_seqno=False)
                 if from_master and seq:
                     self._pull_seq.exclude(seq)
                     self._pull_seq.commit()

@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2013 Aleksey Lim
+# Copyright (C) 2011-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -114,84 +114,12 @@ def exception(*args):
     logger.debug('\n'.join(tb))
 
 
-def default_lang():
-    """Default language to fallback for localized strings.
-
-    :returns:
-        string in format of HTTP's Accept-Language
-
-    """
-    return default_langs()[0]
-
-
-def default_langs():
-    """Default languages list, i.e., including all secondory languages.
-
-    :returns:
-        list of strings in format of HTTP's Accept-Language
-
-    """
-    global _default_langs
-
-    if _default_langs is None:
-        locales = os.environ.get('LANGUAGE')
-        if locales:
-            locales = [i for i in locales.split(':') if i.strip()]
-        else:
-            from locale import getdefaultlocale
-            locales = [getdefaultlocale()[0]]
-        if not locales:
-            _default_langs = ['en']
-        else:
-            _default_langs = []
-            for locale in locales:
-                lang = locale.strip().split('.')[0].lower()
-                if lang == 'c':
-                    lang = 'en'
-                elif '_' in lang:
-                    lang, region = lang.split('_')
-                    if lang != region:
-                        lang = '-'.join([lang, region])
-                _default_langs.append(lang)
-        _logger.info('Default languages are %r', _default_langs)
-
-    return _default_langs
-
-
-def gettext(value, accept_language=None):
-    if not value:
-        return ''
-    if not isinstance(value, dict):
-        return value
-
-    if accept_language is None:
-        accept_language = [default_lang()]
-    elif isinstance(accept_language, basestring):
-        accept_language = [accept_language]
-    accept_language.append('en')
-
-    stripped_value = None
-    for lang in accept_language:
-        result = value.get(lang)
-        if result is not None:
-            return result
-
-        prime_lang = lang.split('-')[0]
-        if prime_lang != lang:
-            result = value.get(prime_lang)
-            if result is not None:
-                return result
-
-        if stripped_value is None:
-            stripped_value = {}
-            for k, v in value.items():
-                if '-' in k:
-                    stripped_value[k.split('-', 1)[0]] = v
-        result = stripped_value.get(prime_lang)
-        if result is not None:
-            return result
-
-    return value[min(value.keys())]
+def ascii(value):
+    if not isinstance(value, basestring):
+        return str(value)
+    if isinstance(value, unicode):
+        return value.encode('utf8')
+    return value
 
 
 def uuid():
@@ -484,12 +412,12 @@ def unique_filename(root, filename):
 
 class mkdtemp(str):
 
-    def __new__(cls, **kwargs):
-        if cachedir.value and 'dir' not in kwargs:
-            if not exists(cachedir.value):
-                os.makedirs(cachedir.value)
+    def __new__(cls, *args, **kwargs):
+        if 'dir' not in kwargs:
             kwargs['dir'] = cachedir.value
-        result = tempfile.mkdtemp(**kwargs)
+        if not exists(kwargs['dir']):
+            os.makedirs(kwargs['dir'])
+        result = tempfile.mkdtemp(*args, **kwargs)
         return str.__new__(cls, result)
 
     def __enter__(self):
@@ -522,21 +450,60 @@ def svg_to_png(data, w, h):
     return result
 
 
+class File(dict):
+
+    AWAY = None
+
+    def __init__(self, path=None, meta=None, digest=None):
+        self.path = path
+        self.digest = digest
+        dict.__init__(self, meta or {})
+        self._stat = None
+        self._name = self.get('filename')
+
+    @property
+    def size(self):
+        if self._stat is None:
+            self._stat = os.stat(self.path)
+        return self._stat.st_size
+
+    @property
+    def mtime(self):
+        if self._stat is None:
+            self._stat = os.stat(self.path)
+        return int(self._stat.st_mtime)
+
+    @property
+    def name(self):
+        if self._name is None:
+            self._name = self.get('name') or self.digest or 'blob'
+            mime_type = self.get('mime_type')
+            if mime_type:
+                import mimetypes
+                if not mimetypes.inited:
+                    mimetypes.init()
+                self._name += mimetypes.guess_extension(mime_type) or ''
+        return self._name
+
+    def __repr__(self):
+        return '<File path=%r digest=%r>' % (self.path, self.digest)
+
+
 def TemporaryFile(*args, **kwargs):
-    if cachedir.value and 'dir' not in kwargs:
-        if not exists(cachedir.value):
-            os.makedirs(cachedir.value)
+    if 'dir' not in kwargs:
         kwargs['dir'] = cachedir.value
+    if not exists(kwargs['dir']):
+        os.makedirs(kwargs['dir'])
     return tempfile.TemporaryFile(*args, **kwargs)
 
 
 class NamedTemporaryFile(object):
 
     def __init__(self, *args, **kwargs):
-        if cachedir.value and 'dir' not in kwargs:
-            if not exists(cachedir.value):
-                os.makedirs(cachedir.value)
+        if 'dir' not in kwargs:
             kwargs['dir'] = cachedir.value
+        if not exists(kwargs['dir']):
+            os.makedirs(kwargs['dir'])
         self._file = tempfile.NamedTemporaryFile(*args, **kwargs)
 
     def close(self):
@@ -567,11 +534,9 @@ class Seqno(object):
         """
         self._path = path
         self._value = 0
-
         if exists(path):
             with file(path) as f:
                 self._value = int(f.read().strip())
-
         self._orig_value = self._value
 
     @property
@@ -610,7 +575,7 @@ class Sequence(list):
     """List of sorted and non-overlapping ranges.
 
     List items are ranges, [`start`, `stop']. If `start` or `stop`
-    is `None`, it means the beginning or ending of the entire scale.
+    is `None`, it means the beginning or ending of the entire sequence.
 
     """
 
@@ -880,5 +845,4 @@ def _nb_read(stream):
         fcntl.fcntl(fd, fcntl.F_SETFL, orig_flags)
 
 
-_default_lang = None
-_default_langs = None
+File.AWAY = File()

@@ -12,7 +12,6 @@ from __init__ import tests
 
 from sugar_network import db
 from sugar_network.model.context import Context
-from sugar_network.model.release import Release
 from sugar_network.client import cache_limit, cache_limit_percent, cache_lifetime, IPCConnection
 from sugar_network.client.cache import Cache
 from sugar_network.toolkit import http
@@ -32,7 +31,7 @@ class CacheTest(tests.Test):
         self.override(os, 'statvfs', lambda *args: statvfs())
 
     def test_open(self):
-        volume = db.Volume('db', [Context, Release])
+        volume = db.Volume('db', [Context])
 
         volume['release'].create({
             'guid': '1',
@@ -83,7 +82,7 @@ class CacheTest(tests.Test):
         self.assertEqual(['5', '4', '1'], [i for i in cache])
 
     def test_open_IgnoreClones(self):
-        volume = db.Volume('db', [Context, Release])
+        volume = db.Volume('db', [Context])
 
         volume['context'].create({
             'guid': 'context',
@@ -109,7 +108,7 @@ class CacheTest(tests.Test):
         self.assertEqual([], [i for i in cache])
 
     def test_ensure_AfterOpen(self):
-        volume = db.Volume('db', [Context, Release])
+        volume = db.Volume('db', [Context])
 
         volume['release'].create({'data': {'blob_size': 1}, 'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
         os.utime('db/release/1/1', (1, 1))
@@ -143,7 +142,7 @@ class CacheTest(tests.Test):
         self.assertRaises(RuntimeError, cache.ensure, 2, 0)
 
     def test_ensure_Live(self):
-        volume = db.Volume('db', [Context, Release])
+        volume = db.Volume('db', [Context])
 
         cache = Cache(volume)
         # To initiate the cache
@@ -159,7 +158,7 @@ class CacheTest(tests.Test):
         self.assertRaises(RuntimeError, cache.ensure, 1, 0)
 
     def test_ensure_ConsiderTmpSize(self):
-        volume = db.Volume('db', [Context, Release])
+        volume = db.Volume('db', [Context])
         volume['release'].create({'data': {'blob_size': 1}, 'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
 
         cache = Cache(volume)
@@ -175,7 +174,7 @@ class CacheTest(tests.Test):
     def test_recycle(self):
         ts = time.time()
 
-        volume = db.Volume('db', [Context, Release])
+        volume = db.Volume('db', [Context])
         volume['release'].create({'data': {'blob_size': 1}, 'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
         os.utime('db/release/1/1', (ts - 1.5 * 86400, ts - 1.5 * 86400))
         volume['release'].create({'data': {'blob_size': 1}, 'guid': '2', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
@@ -205,7 +204,7 @@ class CacheTest(tests.Test):
         cache.recycle()
 
     def test_checkin(self):
-        volume = db.Volume('db', [Context, Release])
+        volume = db.Volume('db', [Context])
         cache = Cache(volume)
 
         volume['release'].create({'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})
@@ -229,7 +228,7 @@ class CacheTest(tests.Test):
         conn = IPCConnection()
         self.statvfs.f_blocks = 0
 
-        impl1 = conn.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        bundle = self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = TestActivity',
             'bundle_id = context',
@@ -238,9 +237,12 @@ class CacheTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='submit', initial=True)
-
+            ]])
+        impl1 = conn.upload(['release'], StringIO(bundle), cmd='submit', initial=True)
+        print self.blobs[str(hash(bundle))]
         conn.put(['context', 'context'], True, cmd='clone')
+        print self.blobs[str(hash(bundle))]
+        return
         self.assertEqual([], [i for i in self.client_routes._cache])
         assert local_volume['release'].exists(impl1)
 
@@ -271,7 +273,7 @@ class CacheTest(tests.Test):
         assert local_volume['release'].exists(impl2)
 
     def test_Acquiring(self):
-        volume = db.Volume('db', [Context, Release])
+        volume = db.Volume('db', [Context])
         cache = Cache(volume)
 
         volume['release'].create({'guid': '1', 'context': 'context', 'version': '1', 'license': ['GPL'], 'stability': 'stable'})

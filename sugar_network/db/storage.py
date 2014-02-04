@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,10 +20,6 @@ import shutil
 from os.path import exists, join, isdir, basename
 
 from sugar_network import toolkit
-from sugar_network.toolkit.router import Blob
-
-
-_BLOB_SUFFIX = '.blob'
 
 
 class Storage(object):
@@ -67,9 +63,8 @@ class Storage(object):
         :param mtime:
             return entities that were modified after `mtime`
         :returns:
-            generator returns (guid, properties) typle for all found
-            documents; the properties dictionary will contain only
-            `StoredProperty` properties
+            generator returns (guid, properties) tuple for all found
+            documents
 
         """
         if not exists(self._root):
@@ -113,9 +108,6 @@ class Record(object):
     def path(self, *args):
         return join(self._root, *args)
 
-    def blob_path(self, prop, *args):
-        return join(self._root, prop + _BLOB_SUFFIX, *args)
-
     def invalidate(self):
         guid_path = join(self._root, 'guid')
         if exists(guid_path):
@@ -126,32 +118,14 @@ class Record(object):
         if not exists(path):
             return None
         with file(path) as f:
-            meta = Blob(json.load(f))
-        blob_path = path + _BLOB_SUFFIX
-        if exists(blob_path):
-            meta['blob'] = blob_path
-            if 'blob_size' not in meta:
-                meta['blob_size'] = os.stat(blob_path).st_size
+            meta = json.load(f)
         meta['mtime'] = int(os.stat(path).st_mtime)
         return meta
 
-    def set(self, prop, mtime=None, cleanup_blob=False, blob=None, **meta):
+    def set(self, prop, mtime=None, **meta):
         if not exists(self._root):
             os.makedirs(self._root)
         meta_path = join(self._root, prop)
-        dst_blob_path = meta_path + _BLOB_SUFFIX
-
-        if (cleanup_blob or blob is not None) and exists(dst_blob_path):
-            os.unlink(dst_blob_path)
-
-        if blob is not None:
-            if hasattr(blob, 'read'):
-                with toolkit.new_file(dst_blob_path) as f:
-                    shutil.copyfileobj(blob, f)
-            elif blob is not None:
-                os.rename(blob, dst_blob_path)
-            elif exists(dst_blob_path):
-                os.unlink(dst_blob_path)
 
         with toolkit.new_file(meta_path) as f:
             json.dump(meta, f)

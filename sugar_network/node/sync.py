@@ -199,7 +199,7 @@ def _encode(limit, packets, download_blobs, header, status):
                         pos = (yield chunk) or 0
                         blob_size -= len(chunk)
                     enforce(blob_size == 0, EOFError,
-                            'Blob size is not the same as declared')
+                            'File size is not the same as declared')
 
                 record = next(content)
         except StopIteration:

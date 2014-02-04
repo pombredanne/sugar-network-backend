@@ -11,8 +11,7 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network.db.metadata import Metadata, StoredProperty
-from sugar_network.db.metadata import BlobProperty
+from sugar_network.db.metadata import Metadata, Property
 from sugar_network.db.storage import Storage
 from sugar_network.toolkit import BUFFER_SIZE
 
@@ -30,7 +29,7 @@ class StorageTest(tests.Test):
         return Storage(tests.tmpdir, metadata)
 
     def test_Record_get(self):
-        storage = self.storage([StoredProperty('prop')])
+        storage = self.storage([Property('prop')])
 
         self.assertEqual(None, storage.get('guid').get('prop'))
         self.touch(('gu/guid/prop', json.dumps({
@@ -45,7 +44,7 @@ class StorageTest(tests.Test):
             storage.get('guid').get('prop'))
 
     def test_Record_set(self):
-        storage = self.storage([StoredProperty('prop')])
+        storage = self.storage([Property('prop')])
 
         storage.get('guid').set('prop', value='value', foo='bar')
         self.assertEqual({
@@ -56,7 +55,7 @@ class StorageTest(tests.Test):
             storage.get('guid').get('prop'))
 
     def test_delete(self):
-        storage = self.storage([StoredProperty('prop')])
+        storage = self.storage([Property('prop')])
 
         assert not exists('ab/absent')
         storage.delete('absent')
@@ -69,8 +68,8 @@ class StorageTest(tests.Test):
 
     def test_Record_consistent(self):
         storage = self.storage([
-            StoredProperty('guid'),
-            StoredProperty('prop'),
+            Property('guid'),
+            Property('prop'),
             ])
         record = storage.get('guid')
 
@@ -83,7 +82,7 @@ class StorageTest(tests.Test):
         self.assertEqual(True, record.consistent)
 
     def test_walk(self):
-        storage = self.storage([StoredProperty('guid')])
+        storage = self.storage([Property('guid')])
 
         storage.get('guid1').set('guid', value=1, mtime=1)
         storage.get('guid2').set('guid', value=2, mtime=2)
@@ -107,8 +106,8 @@ class StorageTest(tests.Test):
 
     def test_walk_SkipGuidLess(self):
         storage = self.storage([
-            StoredProperty('guid'),
-            StoredProperty('prop'),
+            Property('guid'),
+            Property('prop'),
             ])
 
         record = storage.get('guid1')

@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ obs_presolve_project = Option(
         default='presolve')
 
 _logger = logging.getLogger('node.obs')
-_client = None
+_conn = None
 _repos = {}
 
 
@@ -45,82 +45,68 @@ def get_repos():
     return _get_repos(obs_project.value)
 
 
-def resolve(repo, arch, names):
-    for package in names:
-        _request('GET', ['resolve'], params={
-            'project': obs_project.value,
-            'repository': repo,
-            'arch': arch,
-            'package': package,
-            })
+def resolve(repo, arch, packages):
+    _request('GET', ['resolve'], params={
+        'project': obs_project.value,
+        'repository': repo,
+        'arch': arch,
+        'package': packages,
+        })
 
 
-def presolve(aliases, dst_path):
+def presolve(repo_name, packages, dst_path):
     for repo in _get_repos(obs_presolve_project.value):
-        # Presolves make sense only for XO, thus, for Fedora
-        alias = aliases.get('Fedora')
-        if not alias:
-            continue
+        dst_dir = join(dst_path, 'packages',
+                obs_presolve_project.value, repo['name'])
+        result = {}
+        to_download = []
 
-        name_variants = alias['binary']
-        while name_variants:
-            names = name_variants.pop()
-            presolves = []
+        for package in packages:
+            files = result.setdefault(package, {})
             try:
-                for arch in repo['arches']:
-                    for package in names:
-                        response = _request('GET', ['resolve'], params={
-                            'project': obs_presolve_project.value,
-                            'repository': repo['name'],
-                            'arch': arch,
-                            'package': package,
-                            'withdeps': '1',
-                            'exclude': 'sweets-sugar',
-                            })
-                        binaries = []
-                        for pkg in response.findall('binary'):
-                            binaries.append(dict(pkg.items()))
-                        presolves.append((package, binaries))
+                for repo_arch in repo['arches']:
+                    response = _request('GET', ['resolve'], params={
+                        'project': obs_presolve_project.value,
+                        'repository': '%(lsb_id)s-%(lsb_release)s' % repo,
+                        'arch': repo_arch,
+                        'package': package,
+                        'withdeps': '1',
+                        'exclude': 'sweets-sugar',
+                        })
+                    for binary in response.findall('binary'):
+                        binary = dict(binary.items())
+                        arch = binary.pop('arch')
+                        url = binary.pop('url')
+                        filename = binary['path'] = basename(url)
+                        path = join(dst_dir, filename)
+                        if not exists(path):
+                            to_download.append((url, path))
+                        files.setdefault(arch, []).append(binary)
             except Exception:
                 toolkit.exception(_logger, 'Failed to presolve %r on %s',
-                        names, repo['name'])
+                        packages, repo['name'])
                 continue
 
-            _logger.debug('Presolve %r on %s', names, repo['name'])
+        _logger.debug('Presolve %r on %s', packages, repo['name'])
 
-            dst_dir = join(dst_path, 'packages',
-                    obs_presolve_project.value, repo['name'])
-            if not exists(dst_dir):
-                os.makedirs(dst_dir)
-            result = {}
+        if not exists(dst_dir):
+            os.makedirs(dst_dir)
+        for url, path in to_download:
+            _conn.download(url, path)
+        for package, info in result.items():
+            with toolkit.new_file(join(dst_dir, package)) as f:
+                json.dump(info, f)
 
-            for package, binaries in presolves:
-                files = []
-                for binary in binaries:
-                    arch = binary.pop('arch')
-                    if not files:
-                        result.setdefault(package, {})[arch] = files
-                    url = binary.pop('url')
-                    filename = binary['path'] = basename(url)
-                    path = join(dst_dir, filename)
-                    if not exists(path):
-                        _client.download(url, path)
-                    files.append(binary)
-
-            for package, info in result.items():
-                with toolkit.new_file(join(dst_dir, package)) as f:
-                    json.dump(info, f)
-
-            return {'repo': repo['name'], 'packages': result}
+        return {'repo': repo['name'], 'packages': result}
 
 
 def _request(*args, **kwargs):
-    global _client
+    global _conn
 
-    if _client is None:
-        _client = http.Connection(obs_url.value)
+    if _conn is None:
+        _conn = http.Connection(obs_url.value)
 
-    response = _client.request(*args, allowed=(400, 404), **kwargs)
+    response = _conn.request(*args, allowed=(400, 404), **kwargs)
     enforce(response.headers.get('Content-Type') == 'text/xml',
             'Irregular OBS response')
     reply = ElementTree.fromstring(response.content)
@@ -144,8 +130,10 @@ def _get_repos(project):
     for repo in _request('GET', ['build', project]).findall('entry'):
         repo = repo.get('name')
         arches = _request('GET', ['build', project, repo])
+        lsb_id, lsb_release = repo.split('-', 1)
         repos.append({
-            'distributor_id': repo.split('-', 1)[0],
+            'lsb_id': lsb_id,
+            'lsb_release': lsb_release,
             'name': repo,
             'arches': [i.get('name') for i in arches.findall('entry')],
             })

@@ -13,39 +13,31 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from sugar_network import db, model, static
-from sugar_network.toolkit.router import Blob, ACL
+from sugar_network import db, model
+from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit.coroutine import this
 
 
 class Post(db.Resource):
 
-    @db.indexed_property(prefix='C',
-            acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(prefix='C', acl=ACL.CREATE | ACL.READ)
     def context(self, value):
         return value
 
-    @db.indexed_property(prefix='A', default='',
-            acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(prefix='A', default='', acl=ACL.CREATE | ACL.READ)
     def topic(self, value):
         return value
 
-    @topic.setter
-    def topic(self, value):
-        if value and not self['context']:
-            post = self.volume['post'].get(value)
-            self['context'] = post['context']
-        return value
-
-    @db.indexed_property(prefix='T', typecast=model.POST_TYPES)
+    @db.indexed_property(db.Enum, prefix='T', items=model.POST_TYPES)
     def type(self, value):
         return value
 
-    @db.indexed_property(slot=1, prefix='N', full_text=True, localized=True,
+    @db.indexed_property(db.Localized, slot=1, prefix='N', full_text=True,
             acl=ACL.CREATE | ACL.READ)
     def title(self, value):
         return value
 
-    @db.indexed_property(prefix='M', full_text=True, localized=True,
+    @db.indexed_property(db.Localized, prefix='M', full_text=True,
             acl=ACL.CREATE | ACL.READ)
     def message(self, value):
         return value
@@ -54,40 +46,45 @@ class Post(db.Resource):
     def solution(self, value):
         return value
 
-    @db.indexed_property(prefix='V', typecast=model.RATINGS, default=0,
+    @db.indexed_property(db.Enum, prefix='V', items=range(5), default=0,
             acl=ACL.CREATE | ACL.READ)
     def vote(self, value):
         return value
 
-    @db.indexed_property(prefix='D', typecast=db.AggregatedType,
-            full_text=True, default=db.AggregatedType(),
-            fmt=lambda x: [i.get('message') for i in x.values()],
-            acl=ACL.READ | ACL.INSERT | ACL.REMOVE)
+    @vote.setter
+    def vote(self, value):
+        if value:
+            if self['topic']:
+                resource = this.volume['post']
+                guid = self['topic']
+            else:
+                resource = this.volume['context']
+                guid = self['context']
+            orig = resource[guid]['rating']
+            resource.update(guid, {'rating': [orig[0] + 1, orig[1] + value]})
+        return value
+
+    @db.indexed_property(db.Aggregated, prefix='D', full_text=True,
+            subtype=db.Localized())
     def comments(self, value):
         return value
 
-    @db.blob_property(mime_type='image/png')
+    @db.stored_property(db.Blob, mime_type='image/png',
+            default='missing-logo.png')
     def preview(self, value):
-        if value:
-            return value
-        return Blob({
-            'url': '/static/images/missing-logo.png',
-            'blob': static.path('images', 'missing-logo.png'),
-            'mime_type': 'image/png',
-            })
+        return value
 
-    @db.blob_property()
-    def data(self, value):
+    @db.stored_property(db.Aggregated, subtype=db.Blob())
+    def attachments(self, value):
         if value:
             value['name'] = self['title']
         return value
 
-    @db.indexed_property(slot=2, default=0, acl=ACL.READ | ACL.CALC)
+    @db.indexed_property(db.Numeric, slot=2, default=0,
+            acl=ACL.READ | ACL.CALC)
     def downloads(self, value):
         return value
 
-    @db.indexed_property(slot=3, typecast=[], default=[0, 0],
-            sortable_serialise=lambda x: float(x[1]) / x[0] if x[0] else 0,
-            acl=ACL.READ | ACL.CALC)
+    @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.CALC)
     def rating(self, value):
         return value

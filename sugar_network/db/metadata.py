@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2013 Aleksey Lim
+# Copyright (C) 2011-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,20 +13,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import types
+import xapian
 
 from sugar_network import toolkit
+from sugar_network.db import files
 from sugar_network.toolkit.router import ACL
-from sugar_network.toolkit import http, enforce
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import i18n, http, enforce
 
 
 #: Xapian term prefix for GUID value
 GUID_PREFIX = 'I'
 
-LIST_TYPES = (list, tuple, frozenset, types.GeneratorType)
 
-
-def indexed_property(property_class=None, *args, **kwargs):
+def stored_property(klass=None, *args, **kwargs):
 
     def getter(func, self):
         value = self[func.__name__]
@@ -34,7 +34,7 @@ def indexed_property(property_class=None, *args, **kwargs):
 
     def decorate_setter(func, attr):
         attr.prop.setter = lambda self, value: \
-                self.set(attr.name, func(self, value))
+                self._set(attr.name, func(self, value))
         attr.prop.on_set = func
         return attr
 
@@ -46,20 +46,18 @@ def indexed_property(property_class=None, *args, **kwargs):
         # pylint: disable-msg=W0212
         attr._is_db_property = True
         attr.name = func.__name__
-        attr.prop = (property_class or IndexedProperty)(
-                attr.name, *args, **kwargs)
+        attr.prop = (klass or Property)(*args, name=attr.name, **kwargs)
         attr.prop.on_get = func
         return attr
 
     return decorate_getter
 
 
-stored_property = lambda ** kwargs: indexed_property(StoredProperty, **kwargs)
-blob_property = lambda ** kwargs: indexed_property(BlobProperty, **kwargs)
-
-
-class AggregatedType(dict):
-    pass
+def indexed_property(klass=None, *args, **kwargs):
+    enforce('slot' in kwargs or 'prefix' in kwargs or 'full_text' in kwargs,
+            "None of 'slot', 'prefix' or 'full_text' was specified "
+            'for indexed property')
+    return stored_property(klass, *args, **kwargs)
 
 
 class Metadata(dict):
@@ -83,7 +81,6 @@ class Metadata(dict):
         for attr in [getattr(cls, i) for i in dir(cls)]:
             if not hasattr(attr, '_is_db_property'):
                 continue
-
             prop = attr.prop
 
             if hasattr(prop, 'slot'):
@@ -117,52 +114,73 @@ class Metadata(dict):
 
 
 class Property(object):
-    """Basic class to collect information about document property."""
+    """Collect information about document properties."""
 
-    def __init__(self, name, acl=ACL.PUBLIC, typecast=None,
-            parse=None, fmt=None, default=None, sortable_serialise=None):
+    def __init__(self, name=None,
+            slot=None, prefix=None, full_text=False, boolean=False,
+            acl=ACL.PUBLIC, default=None):
         """
         :param name:
             property name;
         :param acl:
             access to the property,
             might be an ORed composition of `db.ACCESS_*` constants;
-        :param typecast:
-            cast property value before storing in the system;
-            supported values are `None` (strings), `int` (intergers),
-            `float` (floats), `bool` (booleans repesented by symbols
-            `0` and `1`),  a sequence of strings (property value should
-            confirm one of values from the sequencei);
-        :param parse:
-            parse property value from a string;
-        :param fmt:
-            format property value to a string or a list of strings;
         :param default:
-            default property value or None;
-        :param sortable_serialise:
-            cast property value before storing as a srotable value.
+            default property value;
+        :param slot:
+            Xapian document's slot number to add property value to;
+        :param prefix:
+            Xapian serach term prefix, if `None`, property is not a term;
+        :param full_text:
+            the property takes part in full-text search;
+        :param boolean:
+            Xapian will use boolean search for this property;
 
         """
-        if typecast is bool:
-            if fmt is None:
-                fmt = lambda x: '1' if x else '0'
-            if parse is None:
-                parse = lambda x: str(x).lower() in ('true', '1', 'on', 'yes')
-        if sortable_serialise is None and typecast in [int, float, bool]:
-            sortable_serialise = typecast
+        enforce(name == 'guid' or slot != 0,
+                "Slot '0' is reserved for internal needs in %r",
+                name)
+        enforce(name == 'guid' or prefix != GUID_PREFIX,
+                'Prefix %r is reserved for internal needs in %r',
+                GUID_PREFIX, name)
 
         self.setter = None
         self.on_get = lambda self, x: x
         self.on_set = None
         self.name = name
         self.acl = acl
-        self.typecast = typecast
-        self.parse = parse
-        self.fmt = fmt
         self.default = default
-        self.sortable_serialise = sortable_serialise
+        self.indexed = slot is not None or prefix is not None or full_text
+        self.slot = slot
+        self.prefix = prefix
+        self.full_text = full_text
+        self.boolean = boolean
 
-    def assert_access(self, mode):
+    def typecast(self, value):
+        """Convert input values to types stored in the system."""
+        return value
+
+    def reprcast(self, value):
+        """Convert output values before returning out of the system."""
+        return self.default if value is None else value
+
+    def encode(self, value):
+        """Convert stored value to strings capable for indexing."""
+        yield toolkit.ascii(value)
+
+    def decode(self, value):
+        """Make input string capable for indexing."""
+        return toolkit.ascii(value)
+
+    def slotting(self, value):
+        """Convert stored value to xapian.NumberValueRangeProcessor values."""
+        return next(self.encode(value))
+
+    def teardown(self, value):
+        """Cleanup property value on resetting."""
+        pass
+
+    def assert_access(self, mode, value=None):
         """Is access to the property permitted.
 
         If there are no permissions, function should raise
@@ -178,106 +196,255 @@ class Property(object):
                 ACL.NAMES[mode], self.name)
 
 
-class StoredProperty(Property):
-    """Property to save only in persistent storage, no index."""
+class Boolean(Property):
 
-    def __init__(self, name, localized=False, typecast=None, fmt=None,
+    def typecast(self, value):
+        if isinstance(value, basestring):
+            return value.lower() in ('true', '1', 'on', 'yes')
+        return bool(value)
+
+    def encode(self, value):
+        yield '1' if value else '0'
+
+    def decode(self, value):
+        return '1' if self.typecast(value) else '0'
+
+    def slotting(self, value):
+        return xapian.sortable_serialise(value)
+
+
+class Numeric(Property):
+
+    def typecast(self, value):
+        return int(value)
+
+    def encode(self, value):
+        yield str(value)
+
+    def decode(self, value):
+        return str(int(value))
+
+    def slotting(self, value):
+        return xapian.sortable_serialise(value)
+
+
+class List(Property):
+
+    def __init__(self, subtype=None, **kwargs):
+        Property.__init__(self, **kwargs)
+        self._subtype = subtype or Property()
+
+    def typecast(self, value):
+        if value is None:
+            return []
+        if type(value) not in (list, tuple):
+            return [self._subtype.typecast(value)]
+        return [self._subtype.typecast(i) for i in value]
+
+    def encode(self, value):
+        for i in value:
+            for j in self._subtype.encode(i):
+                yield j
+
+    def decode(self, value):
+        return self._subtype.decode(value)
+
+
+class Dict(Property):
+
+    def __init__(self, subtype=None, **kwargs):
+        Property.__init__(self, **kwargs)
+        self._subtype = subtype or Property()
+
+    def typecast(self, value):
+        for key, value_ in value.items():
+            value[key] = self._subtype.typecast(value_)
+        return value
+
+    def encode(self, items):
+        for i in items.values():
+            for j in self._subtype.encode(i):
+                yield j
+
+
+class Enum(Property):
+
+    def __init__(self, items, **kwargs):
+        enforce(items, 'Enum should not be empty')
+        Property.__init__(self, **kwargs)
+        self._items = items
+        if type(next(iter(items))) in (int, long):
+            self._subtype = Numeric()
+        else:
+            self._subtype = Property()
+
+    def typecast(self, value):
+        value = self._subtype.typecast(value)
+        enforce(value in self._items, ValueError,
+                "Value %r is not in '%s' enum",
+                value, ', '.join([str(i) for i in self._items]))
+        return value
+
+    def slotting(self, value):
+        return self._subtype.slotting(value)
+
+
+class Blob(Property):
+
+    def __init__(self, mime_type='application/octet-stream', default='',
             **kwargs):
-        """
-        :param: localized:
-            property value will be stored per locale;
-        :param: **kwargs
-            :class:`.Property` arguments
-
-        """
-        self.localized = localized
-
-        if localized:
-            enforce(typecast is None,
-                    'typecast should be None for localized properties')
-            enforce(fmt is None,
-                    'fmt should be None for localized properties')
-            typecast = _localized_typecast
-            fmt = _localized_fmt
-
-        Property.__init__(self, name, typecast=typecast, fmt=fmt, **kwargs)
-
-
-class IndexedProperty(StoredProperty):
-    """Property which needs to be indexed."""
-
-    def __init__(self, name, slot=None, prefix=None, full_text=False,
-            boolean=False, **kwargs):
-        """
-        :param slot:
-            Xapian document's slot number to add property value to;
-        :param prefix:
-            Xapian serach term prefix, if `None`, property is not a term;
-        :param full_text:
-            property takes part in full-text search;
-        :param boolean:
-            Xapian will use boolean search for this property;
-        :param: **kwargs
-            :class:`.StoredProperty` arguments
-
-        """
-        enforce(name == 'guid' or slot != 0,
-                "For %r property, slot '0' is reserved for internal needs",
-                name)
-        enforce(name == 'guid' or prefix != GUID_PREFIX,
-                'For %r property, prefix %r is reserved for internal needs',
-                name, GUID_PREFIX)
-        enforce(slot is not None or prefix or full_text,
-                'For %r property, either slot, prefix or full_text '
-                'need to be set',
-                name)
-        enforce(slot is None or _is_sloted_prop(kwargs.get('typecast')) or
-                kwargs.get('sortable_serialise'),
-                'Slot can be set only for properties for str, int, float, '
-                'bool types, or, for list of these types')
-
-        StoredProperty.__init__(self, name, **kwargs)
-        self.slot = slot
-        self.prefix = prefix
-        self.full_text = full_text
-        self.boolean = boolean
-
-
-class BlobProperty(Property):
-    """Binary large objects which needs to be fetched alone, no index."""
-
-    def __init__(self, name, acl=ACL.PUBLIC,
-            mime_type='application/octet-stream'):
-        """
-        :param mime_type:
-            MIME type for BLOB content;
-            by default, MIME type is application/octet-stream;
-        :param: **kwargs
-            :class:`.Property` arguments
-
-        """
-        Property.__init__(self, name, acl=acl)
+        Property.__init__(self, default=default, **kwargs)
         self.mime_type = mime_type
 
+    def typecast(self, value):
+        if isinstance(value, toolkit.File):
+            return value.digest
+        if isinstance(value, files.Digest):
+            return value
 
-def _is_sloted_prop(typecast):
-    if typecast in [None, int, float, bool, str]:
-        return True
-    if type(typecast) in LIST_TYPES:
-        if typecast and [i for i in typecast
-                if type(i) in [None, int, float, bool, str]]:
-            return True
+        enforce(value is None or isinstance(value, basestring) or \
+                isinstance(value, dict) and value or hasattr(value, 'read'),
+                'Inappropriate blob value')
+
+        if not value:
+            return ''
+
+        if not isinstance(value, dict):
+            return files.post(value, {
+                'mime_type': this.request.content_type or self.mime_type,
+                }).digest
+
+        digest = this.resource[self.name] if self.name else None
+        if digest:
+            meta = files.get(digest)
+            enforce('digest' not in value or value.pop('digest') == digest,
+                    "Inappropriate 'digest' value")
+            enforce(meta.path or 'url' in meta or 'url' in value,
+                    'Blob points to nothing')
+            if 'url' in value and meta.path:
+                files.delete(digest)
+                meta.update(value)
+                value = meta
+        else:
+            enforce('url' in value, 'Blob points to nothing')
+            enforce('digest' in value, "Missed 'digest' value")
+            if 'mime_type' not in value:
+                value['mime_type'] = self.mime_type
+            digest = value.pop('digest')
+
+        files.update(digest, value)
+        return digest
+
+    def reprcast(self, value):
+        if not value:
+            return toolkit.File.AWAY
+        meta = files.get(value)
+        if 'url' not in meta:
+            meta['url'] = '%s/blobs/%s' % (this.request.static_prefix, value)
+            meta['size'] = meta.size
+            meta['mtime'] = meta.mtime
+            meta['digest'] = value
+        return meta
+
+    def teardown(self, value):
+        if value:
+            files.delete(value)
+
+    def assert_access(self, mode, value=None):
+        if mode == ACL.WRITE and not value:
+            mode = ACL.CREATE
+        Property.assert_access(self, mode, value)
 
 
-def _localized_typecast(value):
-    if isinstance(value, dict):
-        return value
-    else:
-        return {toolkit.default_lang(): value}
+class Composite(Property):
+    pass
 
 
-def _localized_fmt(value):
-    if isinstance(value, dict):
-        return value.values()
-    else:
-        return [value]
+class Localized(Composite):
+
+    def typecast(self, value):
+        if isinstance(value, dict):
+            return value
+        return {this.request.accept_language[0]: value}
+
+    def reprcast(self, value):
+        if value is None:
+            return self.default
+        return i18n.decode(value, this.request.accept_language)
+
+    def encode(self, value):
+        for i in value.values():
+            yield toolkit.ascii(i)
+
+    def slotting(self, value):
+        # TODO Multilingual sorting
+        return i18n.decode(value) or ''
+
+
+class Aggregated(Composite):
+
+    def __init__(self, subtype=None, acl=ACL.READ | ACL.INSERT | ACL.REMOVE,
+            **kwargs):
+        enforce(not (acl & (ACL.CREATE | ACL.WRITE)),
+                'ACL.CREATE|ACL.WRITE not allowed for aggregated properties')
+        Property.__init__(self, acl=acl, default={}, **kwargs)
+        self._subtype = subtype or Property()
+
+    def subtypecast(self, value):
+        return self._subtype.typecast(value)
+
+    def subteardown(self, value):
+        self._subtype.teardown(value)
+
+    def typecast(self, value):
+        return dict(value)
+
+    def encode(self, items):
+        for agg in items.values():
+            if 'value' in agg:
+                for j in self._subtype.encode(agg['value']):
+                    yield j
+
+
+class Guid(Property):
+
+    def __init__(self):
+        Property.__init__(self, name='guid', slot=0, prefix=GUID_PREFIX,
+                acl=ACL.CREATE | ACL.READ)
+
+
+class Authors(Dict):
+
+    def typecast(self, value):
+        if type(value) not in (list, tuple):
+            return dict(value)
+        result = {}
+        for order, author in enumerate(value):
+            user = author.pop('guid')
+            author['order'] = order
+            result[user] = author
+        return result
+
+    def reprcast(self, value):
+        result = []
+        for guid, props in sorted(value.items(),
+                cmp=lambda x, y: cmp(x[1]['order'], y[1]['order'])):
+            if 'name' in props:
+                result.append({
+                    'guid': guid,
+                    'name': props['name'],
+                    'role': props['role'],
+                    })
+            else:
+                result.append({
+                    'name': guid,
+                    'role': props['role'],
+                    })
+        return result
+
+    def encode(self, value):
+        for guid, props in value.items():
+            if 'name' in props:
+                yield props['name']
+            if not (props['role'] & ACL.INSYSTEM):
+                yield guid

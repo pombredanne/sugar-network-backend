@@ -19,8 +19,8 @@ import logging
 from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
 
-from sugar_network import client
-from sugar_network.toolkit.router import Blob, route, Request
+from sugar_network import client, toolkit
+from sugar_network.toolkit.router import route, Request
 from sugar_network.toolkit import enforce
 
 
@@ -105,15 +105,13 @@ class Routes(object):
 
     @route('GET', ['journal', None, 'preview'])
     def journal_get_preview(self, request, response):
-        return Blob({
-            'blob': _prop_path(request.guid, 'preview'),
+        return toolkit.File(_prop_path(request.guid, 'preview'), {
             'mime_type': 'image/png',
             })
 
     @route('GET', ['journal', None, 'data'])
     def journal_get_data(self, request, response):
-        return Blob({
-            'blob': _ds_path(request.guid, 'data'),
+        return toolkit.File(_ds_path(request.guid, 'data'), {
             'mime_type': get(request.guid, 'mime_type') or 'application/octet',
             })
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,10 +27,10 @@ class User(db.Resource):
     def location(self, value):
         return value
 
-    @db.indexed_property(slot=2, prefix='B', default=0, typecast=int)
+    @db.indexed_property(db.Numeric, slot=2, prefix='B', default=0)
     def birthday(self, value):
         return value
 
-    @db.blob_property(acl=ACL.CREATE, mime_type='text/plain')
+    @db.stored_property(db.Blob, acl=ACL.CREATE, mime_type='text/plain')
     def pubkey(self, value):
         return value

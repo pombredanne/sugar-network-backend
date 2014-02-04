@@ -16,7 +16,7 @@ from sugar_network.client.routes import ClientRoutes, CachedClientRoutes
 from sugar_network.model.user import User
 from sugar_network.model.report import Report
 from sugar_network.toolkit.router import Router, Request, Response
-from sugar_network.toolkit import coroutine
+from sugar_network.toolkit import coroutine, i18n
 
 import requests
 
@@ -420,28 +420,28 @@ class RoutesTest(tests.Test):
             'description': '',
             })
 
-        toolkit._default_langs = None
+        i18n._default_langs = None
         os.environ['LANGUAGE'] = 'es:ru:en'
         ipc = IPCConnection()
         self.assertEqual('3', ipc.get(['context', guid1, 'title']))
         self.assertEqual('2', ipc.get(['context', guid2, 'title']))
         self.assertEqual('1', ipc.get(['context', guid3, 'title']))
 
-        toolkit._default_langs = None
+        i18n._default_langs = None
         os.environ['LANGUAGE'] = 'ru:en'
         ipc = IPCConnection()
         self.assertEqual('2', ipc.get(['context', guid1, 'title']))
         self.assertEqual('2', ipc.get(['context', guid2, 'title']))
         self.assertEqual('1', ipc.get(['context', guid3, 'title']))
 
-        toolkit._default_langs = None
+        i18n._default_langs = None
         os.environ['LANGUAGE'] = 'en'
         ipc = IPCConnection()
         self.assertEqual('1', ipc.get(['context', guid1, 'title']))
         self.assertEqual('1', ipc.get(['context', guid2, 'title']))
         self.assertEqual('1', ipc.get(['context', guid3, 'title']))
 
-        toolkit._default_langs = None
+        i18n._default_langs = None
         os.environ['LANGUAGE'] = 'foo'
         ipc = IPCConnection()
         self.assertEqual('1', ipc.get(['context', guid1, 'title']))

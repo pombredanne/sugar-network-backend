@@ -8,7 +8,7 @@ from cStringIO import StringIO
 from __init__ import tests
 
 from sugar_network import toolkit
-from sugar_network.toolkit import Seqno, Sequence
+from sugar_network.toolkit import Seqno, Sequence, File
 
 
 class UtilTest(tests.Test):
@@ -421,33 +421,14 @@ class UtilTest(tests.Test):
                 ['d', 'a', 'b', 'c'],
                 [i for i in stack])
 
-    def test_gettext(self):
-        # Fallback to default lang
-        toolkit._default_langs = ['default']
-        self.assertEqual('foo', toolkit.gettext({'lang': 'foo', 'default': 'bar'}, 'lang'))
-        self.assertEqual('bar', toolkit.gettext({'lang': 'foo', 'default': 'bar'}, 'fake'))
-
-        # Exact accept_language
-        self.assertEqual('', toolkit.gettext(None, 'lang'))
-        self.assertEqual('foo', toolkit.gettext('foo', 'lang'))
-        self.assertEqual('foo', toolkit.gettext({'lang': 'foo', 'fake': 'bar', 'default': 'default'}, 'lang'))
-        self.assertEqual('foo', toolkit.gettext({'lang': 'foo', 'fake': 'bar', 'default': 'default'}, ['lang', 'fake']))
-        self.assertEqual('bar', toolkit.gettext({'lang': 'foo', 'fake': 'bar', 'default': 'default'}, ['fake', 'lang']))
-
-        # Last resort
-        self.assertEqual('foo', toolkit.gettext({'1': 'foo', '2': 'bar'}, 'fake'))
-
-        # Primed accept_language
-        self.assertEqual('foo', toolkit.gettext({'1': 'foo', '2': 'bar', 'default': 'default'}, '1-a'))
-
-        # Primed i18n value
-        self.assertEqual('bar', toolkit.gettext({'1-a': 'foo', '1': 'bar', 'default': 'default'}, '1-b'))
-        self.assertEqual('foo', toolkit.gettext({'1-a': 'foo', '2': 'bar', 'default': 'default'}, '1-b'))
-
-    def test_gettext_EnAsTheLastResort(self):
-        toolkit._default_langs = ['en-us']
-        self.assertEqual('right', toolkit.gettext({'a': 'wrong', 'en': 'right'}, 'probe'))
-        self.assertEqual('exact', toolkit.gettext({'a': 'wrong', 'en': 'right', 'probe': 'exact'}, 'probe'))
+    def test_FileName(self):
+        self.assertEqual('blob', File().name)
+        self.assertEqual('blob', File('foo/bar').name)
+        self.assertEqual('digest', File(digest='digest').name)
+        self.assertEqual('foo', File(meta={'filename': 'foo'}).name)
+        self.assertEqual('foo', File(meta={'name': 'foo'}).name)
+        self.assertEqual('foo', File(meta={'filename': 'foo', 'mime_type': 'image/png'}).name)
+        self.assertEqual('digest.png', File(digest='digest', meta={'mime_type': 'image/png'}).name)
 
 
 if __name__ == '__main__':

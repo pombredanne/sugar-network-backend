@@ -13,3 +13,4 @@ sugar_network/lib/zeroinstall/tests/**
 sugar_network/lib/requests/build/**
 sugar_network/lib/requests/docs/**
 sugar_network/lib/requests/tests/**
+sugar_network/toolkit/languages.py

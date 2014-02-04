@@ -44,11 +44,11 @@ class SyncOnlineTest(tests.Test):
             def type(self, value):
                 return value
 
-            @db.indexed_property(slot=1, prefix='N', full_text=True, localized=True)
+            @db.indexed_property(db.Localized, slot=1, prefix='N', full_text=True)
             def title(self, value):
                 return value
 
-            @db.indexed_property(prefix='D', full_text=True, localized=True)
+            @db.indexed_property(db.Localized, prefix='D', full_text=True)
             def message(self, value):
                 return value
 
@@ -80,8 +80,8 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
-        guid1 = client.post(['document'], {'context': '', 'message': '1', 'title': '', 'type': 'comment'})
-        guid2 = client.post(['document'], {'context': '', 'message': '2', 'title': '', 'type': 'comment'})
+        guid1 = client.post(['document'], {'context': '', 'message': '1', 'title': '', 'type': 'post'})
+        guid2 = client.post(['document'], {'context': '', 'message': '2', 'title': '', 'type': 'post'})
 
         client.post(cmd='online-sync')
         self.assertEqual([
@@ -92,7 +92,7 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[4, None]], json.load(file('slave/push.sequence')))
 
-        guid3 = client.post(['document'], {'context': '', 'message': '3', 'title': '', 'type': 'comment'})
+        guid3 = client.post(['document'], {'context': '', 'message': '3', 'title': '', 'type': 'post'})
         client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'message': {'en-us': '1'}},
@@ -128,7 +128,7 @@ class SyncOnlineTest(tests.Test):
         client.put(['document', guid1], {'message': 'a'})
         client.put(['document', guid2], {'message': 'b'})
         client.put(['document', guid3], {'message': 'c'})
-        guid4 = client.post(['document'], {'context': '', 'message': 'd', 'title': '', 'type': 'comment'})
+        guid4 = client.post(['document'], {'context': '', 'message': 'd', 'title': '', 'type': 'post'})
         client.delete(['document', guid2])
         client.post(cmd='online-sync')
         self.assertEqual([
@@ -158,8 +158,8 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
-        guid1 = client.post(['document'], {'context': '', 'message': '1', 'title': '', 'type': 'comment'})
-        guid2 = client.post(['document'], {'context': '', 'message': '2', 'title': '', 'type': 'comment'})
+        guid1 = client.post(['document'], {'context': '', 'message': '1', 'title': '', 'type': 'post'})
+        guid2 = client.post(['document'], {'context': '', 'message': '2', 'title': '', 'type': 'post'})
 
         slave_client.post(cmd='online-sync')
         self.assertEqual([
@@ -170,7 +170,7 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[6, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
-        guid3 = client.post(['document'], {'context': '', 'message': '3', 'title': '', 'type': 'comment'})
+        guid3 = client.post(['document'], {'context': '', 'message': '3', 'title': '', 'type': 'post'})
         slave_client.post(cmd='online-sync')
         self.assertEqual([
             {'guid': guid1, 'message': {'en-us': '1'}},
@@ -206,7 +206,7 @@ class SyncOnlineTest(tests.Test):
         client.put(['document', guid1], {'message': 'a'})
         client.put(['document', guid2], {'message': 'b'})
         client.put(['document', guid3], {'message': 'c'})
-        guid4 = client.post(['document'], {'context': '', 'message': 'd', 'title': '', 'type': 'comment'})
+        guid4 = client.post(['document'], {'context': '', 'message': 'd', 'title': '', 'type': 'post'})
         client.delete(['document', guid2])
         slave_client.post(cmd='online-sync')
         self.assertEqual([
@@ -252,7 +252,7 @@ class SyncOnlineTest(tests.Test):
         self.assertEqual([[4, None]], json.load(file('slave/pull.sequence')))
         self.assertEqual([[2, None]], json.load(file('slave/push.sequence')))
 
-        guid = slave.post(['document'], {'context': '', 'message': '1', 'title': '1', 'type': 'comment'})
+        guid = slave.post(['document'], {'context': '', 'message': '1', 'title': '1', 'type': 'post'})
         slave.post(cmd='online-sync')
 
         coroutine.sleep(1)

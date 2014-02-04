@@ -1,3 +1,9 @@
+- push local offline changes to the node on getting online
+- diff/merge while checking in node context
+- deliver spawn events only to local subscribers
+- test/run presolve
+
+
 0.10
 ====
 - Context prop for Update Hub sort

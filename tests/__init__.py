@@ -8,6 +8,7 @@ import shutil
 import hashlib
 import logging
 import zipfile
+import gettext
 import unittest
 import tempfile
 import subprocess
@@ -16,17 +17,19 @@ from os.path import dirname, join, exists, abspath, isfile
 from M2Crypto import DSA
 from gevent import monkey
 
-from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus
+from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus, i18n, languages
 from sugar_network.toolkit.router import Router
+from sugar_network.toolkit.coroutine import this
+from sugar_network.db import files
 from sugar_network.client import IPCConnection, journal, routes as client_routes
 from sugar_network.client.routes import ClientRoutes, _Auth
 from sugar_network import db, client, node, toolkit, model
 from sugar_network.client import solver
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
-from sugar_network.model.release import Release
+from sugar_network.model.post import Post
 from sugar_network.node.master import MasterRoutes
-from sugar_network.node import stats_user, stats_node, obs, slave, downloads
+from sugar_network.node import stats_user, obs, slave, downloads
 from requests import adapters
 
 
@@ -40,6 +43,9 @@ monkey.patch_socket()
 monkey.patch_select()
 monkey.patch_ssl()
 monkey.patch_time()
+
+gettext._default_localedir = join(root, 'data', 'locale')
+languages.LANGUAGES = ['en', 'es', 'fr']
 
 
 def main():
@@ -57,7 +63,7 @@ class Test(unittest.TestCase):
 
         os.environ['LANG'] = 'en_US'
         os.environ['LANGUAGE'] = 'en_US'
-        toolkit._default_langs = None
+        i18n._default_langs = None
 
         global tmpdir
         tmpdir = join(tmp_root or tmproot, '.'.join(self.id().split('.')[1:]))
@@ -102,13 +108,10 @@ class Test(unittest.TestCase):
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
-        stats_node.stats_node.value = False
-        stats_node.stats_node_step.value = 1
-        stats_node.stats_node_rras.value = ['RRA:AVERAGE:0.5:1:60']
         stats_user.stats_user.value = False
         stats_user.stats_user_step.value = 1
         stats_user._user_cache.clear()
-        obs._client = None
+        obs._conn = None
         obs._repos = {'base': [], 'presolve': []}
         http._RECONNECTION_NUMBER = 0
         toolkit.cachedir.value = tmpdir + '/tmp'
@@ -122,8 +125,7 @@ class Test(unittest.TestCase):
         db.Volume.model = [
                 'sugar_network.model.user',
                 'sugar_network.model.context',
-                'sugar_network.model.artifact',
-                'sugar_network.model.release',
+                'sugar_network.model.post',
                 'sugar_network.model.report',
                 ]
 
@@ -137,9 +139,15 @@ class Test(unittest.TestCase):
 
         self.node = None
         self.client = None
-
         self.forks = []
         self.fork_num = fork_num
+
+        this.request = None
+        this.volume = None
+        this.call = None
+        this.broadcast = lambda x: x
+
+        self.override_files()
 
     def tearDown(self):
         self.stop_nodes()
@@ -149,6 +157,46 @@ class Test(unittest.TestCase):
             mod, name, old_handler = self._overriden.pop()
             setattr(mod, name, old_handler)
         sys.stdout.flush()
+
+    def override_files(self):
+        os.makedirs('blobs')
+        self.blobs = {}
+
+        def files_post(content, meta=None, digest_to_assert=None):
+            if hasattr(content, 'read'):
+                content = content.read()
+            digest = files.Digest(hash(content))
+            if digest_to_assert:
+                assert digest == digest_to_assert
+            path = join('blobs', digest)
+            with file(path, 'w') as f:
+                f.write(content)
+            self.blobs[digest] = meta or {}
+            return toolkit.File(path, meta=meta, digest=digest)
+
+        def files_update(digest, meta):
+            self.blobs.setdefault(digest, {}).update(meta)
+
+        def files_get(digest):
+            if digest not in self.blobs:
+                return None
+            meta = toolkit.File(meta=self.blobs[digest])
+            path = join('blobs', digest)
+            if exists(path):
+                meta.path = path
+            return meta
+
+        def files_delete(digest):
+            path = join('blobs', digest)
+            if exists(path):
+                os.unlink(path)
+            if digest in self.blobs:
+                del self.blobs[digest]
+
+        self.override(files, 'post', files_post)
+        self.override(files, 'update', files_update)
+        self.override(files, 'get', files_get)
+        self.override(files, 'delete', files_delete)
 
     def stop_nodes(self):
         if self.client is not None:
@@ -267,17 +315,20 @@ class Test(unittest.TestCase):
 
     def start_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
-            classes = [User, Context, Release]
+            classes = [User, Context, Post]
         self.node_volume = db.Volume('master', classes)
         self.node_routes = routes('guid', self.node_volume)
-        self.node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
+        self.node_router = Router(self.node_routes)
+        self.node = coroutine.WSGIServer(('127.0.0.1', 8888), self.node_router)
         coroutine.spawn(self.node.serve_forever)
         coroutine.dispatch(.1)
+        this.volume = self.node_volume
+        this.call = self.node_router.call
         return self.node_volume
 
     def fork_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
-            classes = [User, Context, Release]
+            classes = [User, Context]
 
         def node():
             volume = db.Volume('master', classes)
@@ -291,18 +342,19 @@ class Test(unittest.TestCase):
 
     def start_client(self, classes=None, routes=ClientRoutes):
         if classes is None:
-            classes = [User, Context, Release]
+            classes = [User, Context]
         volume = db.Volume('client', classes)
         self.client_routes = routes(volume, client.api_url.value)
         self.client = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
+        this.volume = volume
         return volume
 
     def start_online_client(self, classes=None):
         if classes is None:
-            classes = [User, Context, Release]
+            classes = [User, Context]
         self.start_master(classes)
         volume = db.Volume('client', classes)
         self.client_routes = ClientRoutes(volume, client.api_url.value)
@@ -311,6 +363,7 @@ class Test(unittest.TestCase):
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
+        this.volume = volume
         return volume
 
     def start_offline_client(self, resources=None):
@@ -319,6 +372,7 @@ class Test(unittest.TestCase):
         server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
+        this.volume = self.home_volume
         return IPCConnection()
 
     def restful_server(self, classes=None):
@@ -337,7 +391,7 @@ class Test(unittest.TestCase):
         node.find_limit.value = 1024
         db.index_write_queue.value = 10
 
-        volume = db.Volume('remote', classes or [User, Context, Release])
+        volume = db.Volume('remote', classes or [User, Context])
         self.node_routes = MasterRoutes('guid', volume)
         httpd = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
         try:

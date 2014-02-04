@@ -13,42 +13,33 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import hashlib
-from cStringIO import StringIO
-
-from sugar_network import db, model, static, toolkit
-from sugar_network.toolkit.router import Blob, ACL
+from sugar_network import db, model
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit.router import ACL
 
 
 class Context(db.Resource):
 
-    @db.indexed_property(prefix='T', full_text=True,
-            typecast=[model.CONTEXT_TYPES])
+    @db.indexed_property(db.List, prefix='T', full_text=True,
+            subtype=db.Enum(model.CONTEXT_TYPES))
     def type(self, value):
         return value
 
     @type.setter
     def type(self, value):
-        if value and 'package' in value and 'common' not in self['layer']:
-            self['layer'] = tuple(self['layer']) + ('common',)
-        if 'artifact_icon' not in self:
-            for name in ('activity', 'book', 'group'):
-                if name not in self.type:
-                    continue
-                with file(static.path('images', name + '.svg')) as f:
-                    Context.populate_images(self, f.read())
-                break
+        if 'package' in value and 'common' not in self['layer']:
+            self.post('layer', self['layer'] + ['common'])
         return value
 
-    @db.indexed_property(slot=1, prefix='S', full_text=True, localized=True)
+    @db.indexed_property(db.Localized, slot=1, prefix='S', full_text=True)
     def title(self, value):
         return value
 
-    @db.indexed_property(prefix='R', full_text=True, localized=True)
+    @db.indexed_property(db.Localized, prefix='R', full_text=True)
     def summary(self, value):
         return value
 
-    @db.indexed_property(prefix='D', full_text=True, localized=True)
+    @db.indexed_property(db.Localized, prefix='D', full_text=True)
     def description(self, value):
         return value
 
@@ -56,72 +47,49 @@ class Context(db.Resource):
     def homepage(self, value):
         return value
 
-    @db.indexed_property(prefix='Y', default=[], typecast=[], full_text=True)
+    @db.indexed_property(db.List, prefix='Y', default=[], full_text=True)
     def mime_types(self, value):
         return value
 
-    @db.blob_property(mime_type='image/png')
+    @db.stored_property(db.Blob, mime_type='image/png', default='missing.png')
     def icon(self, value):
-        if value:
-            return value
-        if 'package' in self['type']:
-            return Blob({
-                'url': '/static/images/package.png',
-                'blob': static.path('images', 'package.png'),
-                'mime_type': 'image/png',
-                })
-        else:
-            return Blob({
-                'url': '/static/images/missing.png',
-                'blob': static.path('images', 'missing.png'),
-                'mime_type': 'image/png',
-                })
+        return value
 
-    @db.blob_property(mime_type='image/svg+xml')
+    @db.stored_property(db.Blob, mime_type='image/svg+xml',
+            default='missing.svg')
     def artifact_icon(self, value):
-        if value:
-            return value
-        if 'package' in self['type']:
-            return Blob({
-                'url': '/static/images/package.svg',
-                'blob': static.path('images', 'package.svg'),
-                'mime_type': 'image/png',
-                })
-        else:
-            return Blob({
-                'url': '/static/images/missing.svg',
-                'blob': static.path('images', 'missing.svg'),
-                'mime_type': 'image/svg+xml',
-                })
+        return value
 
-    @db.blob_property(mime_type='image/png')
+    @db.stored_property(db.Blob, mime_type='image/png',
+            default='missing-logo.png')
     def logo(self, value):
-        if value:
-            return value
-        if 'package' in self['type']:
-            return Blob({
-                'url': '/static/images/package-logo.png',
-                'blob': static.path('images', 'package-logo.png'),
-                'mime_type': 'image/png',
-                })
-        else:
-            return Blob({
-                'url': '/static/images/missing-logo.png',
-                'blob': static.path('images', 'missing-.png'),
-                'mime_type': 'image/png',
-                })
+        return value
 
-    @db.indexed_property(slot=2, default=0, acl=ACL.READ | ACL.CALC)
+    @db.stored_property(db.Aggregated, subtype=db.Blob())
+    def previews(self, value):
+        return value
+
+    @db.stored_property(db.Aggregated, subtype=model.Release(),
+            acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
+    def releases(self, value):
+        return value
+
+    @releases.setter
+    def releases(self, value):
+        if value or this.request.method != 'POST':
+            self.invalidate_solutions()
+        return value
+
+    @db.indexed_property(db.Numeric, slot=2, default=0,
+            acl=ACL.READ | ACL.CALC)
     def downloads(self, value):
         return value
 
-    @db.indexed_property(slot=3, typecast=[], default=[0, 0],
-            sortable_serialise=lambda x: float(x[1]) / x[0] if x[0] else 0,
-            acl=ACL.READ | ACL.CALC)
+    @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.CALC)
     def rating(self, value):
         return value
 
-    @db.stored_property(typecast=[], default=[], acl=ACL.PUBLIC | ACL.LOCAL)
+    @db.stored_property(db.List, default=[], acl=ACL.PUBLIC | ACL.LOCAL)
     def dependencies(self, value):
         """Software dependencies.
 
@@ -131,32 +99,20 @@ class Context(db.Resource):
         """
         return value
 
-    @db.stored_property(typecast=dict, default={},
-            acl=ACL.PUBLIC | ACL.LOCAL)
-    def aliases(self, value):
+    @dependencies.setter
+    def dependencies(self, value):
+        if value or this.request.method != 'POST':
+            self.invalidate_solutions()
         return value
 
-    @db.stored_property(typecast=dict, default={}, acl=ACL.PUBLIC | ACL.LOCAL)
-    def packages(self, value):
-        return value
+    def deleted(self):
+        self.invalidate_solutions()
 
-    @staticmethod
-    def populate_images(props, svg):
-        if 'guid' in props:
-            from sugar_network.toolkit.sugar import color_svg
-            svg = color_svg(svg, props['guid'])
+    def restored(self):
+        self.invalidate_solutions()
 
-        def convert(w, h):
-            png = toolkit.svg_to_png(svg, w, h)
-            return {'blob': png,
-                    'mime_type': 'image/png',
-                    'digest': hashlib.sha1(png.getvalue()).hexdigest(),
-                    }
-
-        props['artifact_icon'] = {
-                'blob': StringIO(svg),
-                'mime_type': 'image/svg+xml',
-                'digest': hashlib.sha1(svg).hexdigest(),
-                }
-        props['icon'] = convert(55, 55)
-        props['logo'] = convert(140, 140)
+    def invalidate_solutions(self):
+        this.broadcast({
+            'event': 'release',
+            'seqno': this.volume.releases_seqno.next(),
+            })

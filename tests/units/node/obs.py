@@ -39,8 +39,8 @@ class ObsTest(tests.Test):
             ]))
 
         self.assertEqual([
-            {'distributor_id': 'Debian', 'name': 'Debian-6.0', 'arches': ['i586', 'x86_64']},
-            {'distributor_id': 'Fedora', 'name': 'Fedora-11', 'arches': ['i586']},
+            {'lsb_id': 'Debian', 'lsb_release': '6.0', 'name': 'Debian-6.0', 'arches': ['i586', 'x86_64']},
+            {'lsb_id': 'Fedora', 'lsb_release': '11', 'name': 'Fedora-11', 'arches': ['i586']},
             ],
             obs.get_repos())
 
@@ -51,21 +51,10 @@ class ObsTest(tests.Test):
                     'project': 'base',
                     'repository': 'repo',
                     'arch': 'arch',
-                    'package': 'pkg1',
+                    'package': ['pkg1', 'pkg2'],
                     }},
                 [   '<resolve>',
                     '   <binary name="pygame" url="http://pkg1.prm" arch="arch"/>',
-                    '</resolve>',
-                    ],
-                ),
-            (('GET', ['resolve']),
-                {'allowed': (400, 404), 'params': {
-                    'project': 'base',
-                    'repository': 'repo',
-                    'arch': 'arch',
-                    'package': 'pkg2',
-                    }},
-                [   '<resolve>',
                     '   <binary name="pygame" url="http://pkg2.prm" arch="arch"/>',
                     '</resolve>',
                     ],
@@ -122,10 +111,7 @@ class ObsTest(tests.Test):
             ('http://pkg2-2.prm', ['4']),
             ]))
 
-        obs.presolve({
-            'Debian': {'binary': [['deb']]},
-            'Fedora': {'binary': [['pkg1', 'pkg2']], 'devel': [['pkg3']]},
-            }, '.')
+        obs.presolve(None, ['pkg1', 'pkg2'], '.')
 
         self.assertEqual({
             'arch': [

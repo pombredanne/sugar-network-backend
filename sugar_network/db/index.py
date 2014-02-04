@@ -22,8 +22,7 @@ from os.path import exists, join
 
 import xapian
 
-from sugar_network import toolkit
-from sugar_network.db.metadata import IndexedProperty, GUID_PREFIX, LIST_TYPES
+from sugar_network.db.metadata import GUID_PREFIX
 from sugar_network.toolkit import Option, coroutine, exception, enforce
 
 
@@ -65,18 +64,13 @@ class IndexReader(object):
         self._commit_cb = commit_cb
 
         for name, prop in self.metadata.items():
-            if isinstance(prop, IndexedProperty):
+            if prop.indexed:
                 self._props[name] = prop
 
     @property
     def mtime(self):
         """UNIX seconds of the last `commit()` call."""
         return int(os.stat(self._mtime_path).st_mtime)
-
-    def checkpoint(self):
-        ts = time.time()
-        os.utime(self._mtime_path, (ts, ts))
-        return int(ts)
 
     def ensure_open(self):
         if not exists(self._mtime_path):
@@ -200,8 +194,7 @@ class IndexReader(object):
                 else:
                     parser.add_prefix(name, prop.prefix)
                 parser.add_prefix('', prop.prefix)
-                if prop.slot is not None and \
-                        prop.sortable_serialise is not None:
+                if prop.slot is not None:
                     value_range = xapian.NumberValueRangeProcessor(
                             prop.slot, name + ':')
                     parser.add_valuerangeprocessor(value_range)
@@ -230,9 +223,7 @@ class IndexReader(object):
             for needle in value if type(value) in (tuple, list) else [value]:
                 if needle is None:
                     continue
-                if prop.parse is not None:
-                    needle = prop.parse(needle)
-                needle = next(_fmt_prop_value(prop, needle))
+                needle = prop.decode(needle)
                 queries.append(xapian.Query(_term(prop.prefix, needle)))
             if len(sub_queries) == 1:
                 all_queries.append(sub_queries[0])
@@ -313,7 +304,7 @@ class IndexReader(object):
             query = query[:exact_term.start()] + query[exact_term.end():]
             term, __, value = exact_term.groups()
             prop = self.metadata.get(term)
-            if isinstance(prop, IndexedProperty) and prop.prefix:
+            if prop.indexed and prop.prefix:
                 props[term] = value
         return query
 
@@ -345,7 +336,7 @@ class IndexWriter(IndexReader):
         self.ensure_open()
 
         if pre_cb is not None:
-            pre_cb(guid, properties, *args)
+            properties = pre_cb(guid, properties, *args)
 
         _logger.debug('Index %r object: %r', self.metadata.name, properties)
 
@@ -359,17 +350,10 @@ class IndexWriter(IndexReader):
                     else properties.get(name, prop.default)
 
             if prop.slot is not None:
-                if prop.sortable_serialise is not None:
-                    slotted_value = xapian.sortable_serialise(
-                            prop.sortable_serialise(value))
-                elif prop.localized:
-                    slotted_value = toolkit.gettext(value) or ''
-                else:
-                    slotted_value = next(_fmt_prop_value(prop, value))
-                doc.add_value(prop.slot, slotted_value)
+                doc.add_value(prop.slot, prop.slotting(value))
 
             if prop.prefix or prop.full_text:
-                for value_ in _fmt_prop_value(prop, value):
+                for value_ in prop.encode(value):
                     if prop.prefix:
                         if prop.boolean:
                             doc.add_boolean_term(_term(prop.prefix, value_))
@@ -383,7 +367,7 @@ class IndexWriter(IndexReader):
         self._pending_updates += 1
 
         if post_cb is not None:
-            post_cb(guid, properties, *args)
+            post_cb(*args)
 
         self._check_for_commit()
 
@@ -397,7 +381,7 @@ class IndexWriter(IndexReader):
         self._pending_updates += 1
 
         if post_cb is not None:
-            post_cb(guid, *args)
+            post_cb(*args)
 
         self._check_for_commit()
 
@@ -433,10 +417,13 @@ class IndexWriter(IndexReader):
             self._db.commit()
         else:
             self._db.flush()
-        ts = self.checkpoint() - ts
+
+        checkpoint = time.time()
+        os.utime(self._mtime_path, (checkpoint, checkpoint))
         self._pending_updates = 0
 
-        _logger.debug('Commit to %r took %s seconds', self.metadata.name, ts)
+        _logger.debug('Commit to %r took %s seconds',
+                self.metadata.name, checkpoint - ts)
 
         if self._commit_cb is not None:
             self._commit_cb()
@@ -461,20 +448,3 @@ class IndexWriter(IndexReader):
 
 def _term(prefix, value):
     return _EXACT_PREFIX + prefix + str(value).split('\n')[0][:243]
-
-
-def _fmt_prop_value(prop, value):
-
-    def fmt(value):
-        if type(value) is unicode:
-            yield value.encode('utf8')
-        elif isinstance(value, basestring):
-            yield value
-        elif type(value) in LIST_TYPES:
-            for i in value:
-                for j in fmt(i):
-                    yield j
-        elif value is not None:
-            yield str(value)
-
-    return fmt(value if prop.fmt is None else prop.fmt(value))

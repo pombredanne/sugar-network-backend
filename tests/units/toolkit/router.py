@@ -9,9 +9,10 @@ from cStringIO import StringIO
 
 from __init__ import tests, src_root
 
-from sugar_network import db, client
-from sugar_network.toolkit.router import Blob, Router, Request, _parse_accept_language, route, fallbackroute, preroute, postroute, _filename
-from sugar_network.toolkit import default_lang, http, coroutine
+from sugar_network import db, client, toolkit
+from sugar_network.toolkit.router import Router, Request, _parse_accept_language, route, fallbackroute, preroute, postroute
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import http, coroutine
 
 
 class RouterTest(tests.Test):
@@ -499,26 +500,44 @@ class RouterTest(tests.Test):
 
     def test_routes_Pre(self):
 
-        class Routes(object):
+        class A(object):
 
             @route('PROBE')
             def ok(self, request, response):
                 return request['probe']
 
             @preroute
-            def preroute(self, op, request, response):
-                request['probe'] = 'request'
+            def _(self, op, request, response):
+                request['probe'] = '_'
 
-        router = Router(Routes())
+        class B1(A):
+
+            @preroute
+            def z(self, op, request, response):
+                request['probe'] += 'z'
+
+        class B2(object):
+
+            @preroute
+            def f(self, op, request, response):
+                request['probe'] += 'f'
+
+        class C(B1, B2):
+
+            @preroute
+            def a(self, op, request, response):
+                request['probe'] += 'a'
+
+        router = Router(C())
 
         self.assertEqual(
-                ['request'],
+                ['_afz'],
                 [i for i in router({'REQUEST_METHOD': 'PROBE', 'PATH_INFO': '/'}, lambda *args: None)])
 
     def test_routes_Post(self):
         postroutes = []
 
-        class Routes(object):
+        class A(object):
 
             @route('OK')
             def ok(self):
@@ -529,20 +548,51 @@ class RouterTest(tests.Test):
                 raise Exception('fail')
 
             @postroute
-            def postroute(self, request, response, result, exception):
-                postroutes.append((result, str(exception)))
+            def _(self, request, response, result, exception):
+                postroutes.append(('_', result, str(exception)))
 
-        router = Router(Routes())
+        class B1(A):
+
+            @postroute
+            def z(self, request, response, result, exception):
+                postroutes.append(('z', result, str(exception)))
+
+        class B2(object):
+
+            @postroute
+            def f(self, request, response, result, exception):
+                postroutes.append(('f', result, str(exception)))
+
+        class C(B1, B2):
+
+            @postroute
+            def a(self, request, response, result, exception):
+                postroutes.append(('a', result, str(exception)))
+
+        router = Router(C())
 
         self.assertEqual(
                 ['ok'],
                 [i for i in router({'REQUEST_METHOD': 'OK', 'PATH_INFO': '/'}, lambda *args: None)])
-        self.assertEqual(('ok', 'None'), postroutes[-1])
+        self.assertEqual([
+            ('_', 'ok', 'None'),
+            ('a', 'ok', 'None'),
+            ('f', 'ok', 'None'),
+            ('z', 'ok', 'None'),
+            ],
+            postroutes)
 
+        del postroutes[:]
         self.assertEqual(
                 ['{"request": "/", "error": "fail"}'],
                 [i for i in router({'REQUEST_METHOD': 'FAIL', 'PATH_INFO': '/'}, lambda *args: None)])
-        self.assertEqual((None, 'fail'), postroutes[-1])
+        self.assertEqual([
+            ('_', None, 'fail'),
+            ('a', None, 'fail'),
+            ('f', None, 'fail'),
+            ('z', None, 'fail'),
+            ],
+            postroutes)
 
     def test_routes_WildcardsAsLastResort(self):
 
@@ -968,14 +1018,14 @@ class RouterTest(tests.Test):
             ],
             response)
 
-    def test_BlobsRedirects(self):
+    def test_FilesRedirects(self):
         URL = 'http://sugarlabs.org'
 
         class CommandsProcessor(object):
 
             @route('GET')
             def get(self, response):
-                return Blob(url=URL)
+                return toolkit.File(meta={'url': URL})
 
         router = Router(CommandsProcessor())
 
@@ -1171,33 +1221,18 @@ class RouterTest(tests.Test):
             ],
             response)
 
-    def test_filename(self):
-        self.assertEqual('Foo', _filename('foo', None))
-        self.assertEqual('Foo-Bar', _filename(['foo', 'bar'], None))
-        self.assertEqual('FOO-BaR', _filename([' f o o', ' ba r   '], None))
-
-        self.assertEqual('12-3', _filename(['/1/2/', '/3/'], None))
-
-        self.assertEqual('Foo.png', _filename('foo', 'image/png'))
-        self.assertEqual('Foo-Bar.gif', _filename(['foo', 'bar'], 'image/gif'))
-        self.assertEqual('Fake', _filename('fake', 'foo/bar'))
-
-        self.assertEqual('Eng', _filename({default_lang(): 'eng'}, None))
-        self.assertEqual('Eng', _filename([{default_lang(): 'eng'}], None))
-        self.assertEqual('Bar-1', _filename([{'lang': 'foo', default_lang(): 'bar'}, '1'], None))
-
-    def test_BlobsDisposition(self):
+    def test_FilesDisposition(self):
         self.touch(('blob.data', 'value'))
 
         class CommandsProcessor(object):
 
             @route('GET', [], '1')
             def cmd1(self, request):
-                return Blob(name='foo', blob='blob.data')
+                return toolkit.File('blob.data', {'name': 'foo', 'mime_type': 'application/octet-stream'})
 
             @route('GET', [], cmd='2')
             def cmd2(self, request):
-                return Blob(filename='foo.bar', blob='blob.data')
+                return toolkit.File('blob.data', {'filename': 'foo.bar'})
 
         router = Router(CommandsProcessor())
 
@@ -1216,7 +1251,7 @@ class RouterTest(tests.Test):
                 'last-modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
                 'content-length': str(len(result)),
                 'content-type': 'application/octet-stream',
-                'content-disposition': 'attachment; filename="Foo.obj"',
+                'content-disposition': 'attachment; filename="foo.obj"',
                 }
             ],
             response)
@@ -1292,7 +1327,6 @@ class RouterTest(tests.Test):
             [i for i in reply])
 
     def test_SpawnEventStream(self):
-        events = []
 
         class Routes(object):
 
@@ -1301,8 +1335,10 @@ class RouterTest(tests.Test):
                 yield {}
                 yield {'foo': 'bar'}
 
-            def broadcast(self, event):
-                events.append(event.copy())
+        events = []
+        def localcast(event):
+            events.append(event.copy())
+        this.localcast = localcast
 
         reply = Router(Routes(), allow_spawn=True)({
             'PATH_INFO': '/resource/guid/prop',
@@ -1321,7 +1357,6 @@ class RouterTest(tests.Test):
         del events[:]
 
     def test_SpawnEventStreamFailure(self):
-        events = []
 
         class Routes(object):
 
@@ -1332,8 +1367,10 @@ class RouterTest(tests.Test):
                 yield {'foo': 'bar'}, {'add': 'on'}
                 raise RuntimeError('error')
 
-            def broadcast(self, event):
-                events.append(event.copy())
+        events = []
+        def localcast(event):
+            events.append(event.copy())
+        this.localcast = localcast
 
         reply = Router(Routes(), allow_spawn=True)({
             'PATH_INFO': '/',
@@ -1353,7 +1390,6 @@ class RouterTest(tests.Test):
         del events[:]
 
     def test_ReadRequestOnEventStreamSpawn(self):
-        events = []
 
         class Routes(object):
 
@@ -1362,8 +1398,10 @@ class RouterTest(tests.Test):
                 yield {}
                 yield {'request': request.content}
 
-            def broadcast(self, event):
-                events.append(event.copy())
+        events = []
+        def localcast(event):
+            events.append(event.copy())
+        this.localcast = localcast
 
         reply = Router(Routes(), allow_spawn=True)({
             'PATH_INFO': '/',

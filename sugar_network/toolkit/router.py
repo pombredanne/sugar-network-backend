@@ -20,16 +20,16 @@ import time
 import types
 import logging
 import calendar
-import mimetypes
 from base64 import b64decode
 from bisect import bisect_left
 from urllib import urlencode
 from urlparse import parse_qsl, urlsplit
 from email.utils import parsedate, formatdate
-from os.path import isfile, split, splitext
+from os.path import isfile
 
 from sugar_network import toolkit
-from sugar_network.toolkit import http, coroutine, enforce
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import i18n, http, coroutine, enforce
 
 
 _SIGNATURE_LIFETIME = 600
@@ -84,14 +84,15 @@ class ACL(object):
     DELETE = 1 << 5
     INSERT = 1 << 6
     REMOVE = 1 << 7
+    REPLACE = 1 << 8
     PUBLIC = CREATE | WRITE | READ | DELETE | INSERT | REMOVE
 
-    AUTH = 1 << 8
-    AUTHOR = 1 << 9
-    SUPERUSER = 1 << 10
+    AUTH = 1 << 10
+    AUTHOR = 1 << 11
+    SUPERUSER = 1 << 12
 
-    LOCAL = 1 << 11
-    CALC = 1 << 12
+    LOCAL = 1 << 13
+    CALC = 1 << 14
 
     NAMES = {
             CREATE: 'Create',
@@ -100,6 +101,7 @@ class ACL(object):
             DELETE: 'Delete',
             INSERT: 'Insert',
             REMOVE: 'Remove',
+            REPLACE: 'Replace',
             }
 
 
@@ -114,18 +116,16 @@ class Unauthorized(http.Unauthorized):
 
 class Request(dict):
 
-    principal = None
-    subcall = lambda *args: enforce(False)
-
     def __init__(self, environ=None, method=None, path=None, cmd=None,
             content=None, content_stream=None, content_type=None, session=None,
-            **kwargs):
+            principal=None, **kwargs):
         dict.__init__(self)
 
         self.path = []
         self.cmd = None
         self.environ = {}
         self.session = session or {}
+        self.principal = principal
 
         self._content = _NOT_SET
         self._dirty_query = False
@@ -252,6 +252,11 @@ class Request(dict):
             return self.path[2]
 
     @property
+    def key(self):
+        if len(self.path) > 3:
+            return self.path[3]
+
+    @property
     def static_prefix(self):
         http_host = self.environ.get('HTTP_HOST')
         if http_host:
@@ -326,23 +331,6 @@ class Request(dict):
             else:
                 existing_value = self[key] = [existing_value, value]
 
-    def call(self, response=None, **kwargs):
-        environ = {}
-        for key in ('HTTP_HOST',
-                    'HTTP_ACCEPT_LANGUAGE',
-                    'HTTP_ACCEPT_ENCODING',
-                    'HTTP_IF_MODIFIED_SINCE',
-                    'HTTP_AUTHORIZATION',
-                    ):
-            if key in self.environ:
-                environ[key] = self.environ[key]
-        request = Request(environ, **kwargs)
-        if response is None:
-            response = Response()
-        request.principal = self.principal
-        request.subcall = self.subcall
-        return self.subcall(request, response)
-
     def ensure_content(self):
         if self._content is not _NOT_SET:
             return
@@ -400,9 +388,9 @@ class Response(dict):
         for key, value in dict.items(self):
             if type(value) in (list, tuple):
                 for i in value:
-                    result.append((_to_ascii(key), _to_ascii(i)))
+                    result.append((toolkit.ascii(key), toolkit.ascii(i)))
             else:
-                result.append((_to_ascii(key), _to_ascii(value)))
+                result.append((toolkit.ascii(key), toolkit.ascii(value)))
         return result
 
     def __repr__(self):
@@ -428,10 +416,6 @@ class Response(dict):
         dict.__delitem__(self, key)
 
 
-class Blob(dict):
-    pass
-
-
 class Router(object):
 
     def __init__(self, routes_model, allow_spawn=False):
@@ -441,8 +425,8 @@ class Router(object):
         self._invalid_origins = set()
         self._host = None
         self._routes = _Routes()
-        self._preroutes = set()
-        self._postroutes = set()
+        self._preroutes = []
+        self._postroutes = []
 
         processed = set()
         cls = type(routes_model)
@@ -452,10 +436,14 @@ class Router(object):
                 if name in processed:
                     continue
                 if hasattr(attr, 'is_preroute'):
-                    self._preroutes.add(getattr(routes_model, name))
+                    route_ = getattr(routes_model, name)
+                    if route_ not in self._preroutes:
+                        self._preroutes.append(route_)
                     continue
                 elif hasattr(attr, 'is_postroute'):
-                    self._postroutes.add(getattr(routes_model, name))
+                    route_ = getattr(routes_model, name)
+                    if route_ not in self._postroutes:
+                        self._postroutes.append(route_)
                     continue
                 elif not hasattr(attr, 'route'):
                     continue
@@ -481,128 +469,29 @@ class Router(object):
                 processed.add(name)
             cls = cls.__base__
 
-    def call(self, request, response):
-        request.subcall = self.call
-        result = self._call_route(request, response)
+        this.call = self.call
 
-        if isinstance(result, Blob):
-            if 'url' in result:
-                raise http.Redirect(result['url'])
+    def call(self, request=None, response=None, environ=None, principal=None,
+            **kwargs):
+        if request is None:
+            if this.request is not None:
+                if not environ:
+                    environ = {}
+                    for key in ('HTTP_HOST',
+                                'HTTP_ACCEPT_LANGUAGE',
+                                'HTTP_ACCEPT_ENCODING',
+                                'HTTP_IF_MODIFIED_SINCE',
+                                'HTTP_AUTHORIZATION',
+                                ):
+                        if key in this.request.environ:
+                            environ[key] = this.request.environ[key]
+                if not principal:
+                    principal = this.request.principal
+            request = Request(environ=environ, principal=principal, **kwargs)
+        if response is None:
+            response = Response()
 
-            path = result['blob']
-            enforce(isfile(path), 'No such file')
-
-            mtime = result.get('mtime') or int(os.stat(path).st_mtime)
-            if request.if_modified_since and mtime and \
-                    mtime <= request.if_modified_since:
-                raise http.NotModified()
-            response.last_modified = mtime
-
-            response.content_type = result.get('mime_type') or \
-                    'application/octet-stream'
-
-            filename = result.get('filename')
-            if not filename:
-                filename = _filename(result.get('name') or
-                        splitext(split(path)[-1])[0],
-                    response.content_type)
-            response['Content-Disposition'] = \
-                    'attachment; filename="%s"' % filename
-
-            result = file(path, 'rb')
-
-        if hasattr(result, 'read'):
-            if hasattr(result, 'fileno'):
-                response.content_length = os.fstat(result.fileno()).st_size
-            elif hasattr(result, 'seek'):
-                result.seek(0, 2)
-                response.content_length = result.tell()
-                result.seek(0)
-            result = _stream_reader(result)
-
-        return result
-
-    def __repr__(self):
-        return '<Router %s>' % type(self._routes_model).__name__
-
-    def __call__(self, environ, start_response):
-        request = Request(environ)
-        response = Response()
-
-        js_callback = None
-        if 'callback' in request:
-            js_callback = request.pop('callback')
-
-        result = None
-        try:
-            if 'HTTP_ORIGIN' in request.environ:
-                enforce(self._assert_origin(request.environ), http.Forbidden,
-                        'Cross-site is not allowed for %r origin',
-                        request.environ['HTTP_ORIGIN'])
-                response['Access-Control-Allow-Origin'] = \
-                        request.environ['HTTP_ORIGIN']
-            result = self.call(request, response)
-        except http.StatusPass, error:
-            response.status = error.status
-            if error.headers:
-                response.update(error.headers)
-            response.content_type = None
-        except Exception, error:
-            toolkit.exception('Error while processing %r request', request.url)
-            if isinstance(error, http.Status):
-                response.status = error.status
-                response.update(error.headers or {})
-            else:
-                response.status = '500 Internal Server Error'
-            if request.method == 'HEAD':
-                response.meta['error'] = str(error)
-            else:
-                result = {'error': str(error),
-                          'request': request.url,
-                          }
-                response.content_type = 'application/json'
-
-        result_streamed = isinstance(result, types.GeneratorType)
-
-        if request.method == 'HEAD':
-            result_streamed = False
-            result = None
-        elif js_callback:
-            if result_streamed:
-                result = ''.join(result)
-                result_streamed = False
-            result = '%s(%s);' % (js_callback, json.dumps(result))
-            response.content_length = len(result)
-        elif not result_streamed:
-            if response.content_type == 'application/json':
-                result = json.dumps(result)
-            if 'content-length' not in response:
-                response.content_length = len(result) if result else 0
-
-        for key, value in response.meta.items():
-            response.set('X-SN-%s' % _to_ascii(key), json.dumps(value))
-
-        if request.method == 'HEAD' and result is not None:
-            _logger.warning('Content from HEAD response is ignored')
-            result = None
-
-        _logger.trace('%s call: request=%s response=%r result=%r',
-                self, request.environ, response, repr(result)[:256])
-        start_response(response.status, response.items())
-
-        if result_streamed:
-            if response.content_type == 'text/event-stream':
-                for event in _event_stream(request, result):
-                    yield 'data: %s\n\n' % json.dumps(event)
-            else:
-                for i in result:
-                    yield i
-        elif result is not None:
-            yield result
-
-    def _call_route(self, request, response):
         route_ = self._resolve_route(request)
-        request.routes = self._routes_model
 
         for arg, cast in route_.arguments.items():
             value = request.get(arg)
@@ -642,7 +531,7 @@ class Router(object):
             raise
         else:
             if not response.content_type:
-                if isinstance(result, Blob):
+                if isinstance(result, toolkit.File):
                     response.content_type = result.get('mime_type')
                 if not response.content_type:
                     response.content_type = route_.mime_type
@@ -651,6 +540,109 @@ class Router(object):
                 i(request, response, result, exception)
 
         return result
+
+    def __repr__(self):
+        return '<Router %s>' % type(self._routes_model).__name__
+
+    def __call__(self, environ, start_response):
+        request = Request(environ)
+        response = Response()
+
+        js_callback = None
+        if 'callback' in request:
+            js_callback = request.pop('callback')
+
+        content = None
+        try:
+            if 'HTTP_ORIGIN' in request.environ:
+                enforce(self._assert_origin(request.environ), http.Forbidden,
+                        'Cross-site is not allowed for %r origin',
+                        request.environ['HTTP_ORIGIN'])
+                response['Access-Control-Allow-Origin'] = \
+                        request.environ['HTTP_ORIGIN']
+
+            result = self.call(request, response)
+
+            if isinstance(result, toolkit.File):
+                if 'url' in result:
+                    raise http.Redirect(result['url'])
+                enforce(isfile(result.path), 'No such file')
+                if request.if_modified_since and result.mtime and \
+                        result.mtime <= request.if_modified_since:
+                    raise http.NotModified()
+                response.last_modified = result.mtime
+                response.content_type = result.get('mime_type') or \
+                        'application/octet-stream'
+                response['Content-Disposition'] = \
+                        'attachment; filename="%s"' % result.name
+                result = file(result.path, 'rb')
+
+            if not hasattr(result, 'read'):
+                content = result
+            else:
+                if hasattr(result, 'fileno'):
+                    response.content_length = os.fstat(result.fileno()).st_size
+                elif hasattr(result, 'seek'):
+                    result.seek(0, 2)
+                    response.content_length = result.tell()
+                    result.seek(0)
+                content = _stream_reader(result)
+
+        except http.StatusPass, error:
+            response.status = error.status
+            if error.headers:
+                response.update(error.headers)
+            response.content_type = None
+        except Exception, error:
+            toolkit.exception('Error while processing %r request', request.url)
+            if isinstance(error, http.Status):
+                response.status = error.status
+                response.update(error.headers or {})
+            else:
+                response.status = '500 Internal Server Error'
+            if request.method == 'HEAD':
+                response.meta['error'] = str(error)
+            else:
+                content = {'error': str(error), 'request': request.url}
+                response.content_type = 'application/json'
+
+        streamed_content = isinstance(content, types.GeneratorType)
+
+        if request.method == 'HEAD':
+            streamed_content = False
+            content = None
+        elif js_callback:
+            if streamed_content:
+                content = ''.join(content)
+                streamed_content = False
+            content = '%s(%s);' % (js_callback, json.dumps(content))
+            response.content_length = len(content)
+        elif not streamed_content:
+            if response.content_type == 'application/json':
+                content = json.dumps(content)
+            if 'content-length' not in response:
+                response.content_length = len(content) if content else 0
+
+        for key, value in response.meta.items():
+            response.set('X-SN-%s' % toolkit.ascii(key), json.dumps(value))
+
+        if request.method == 'HEAD' and content is not None:
+            _logger.warning('Content from HEAD response is ignored')
+            content = None
+
+        _logger.trace('%s call: request=%s response=%r content=%r',
+                self, request.environ, response, repr(content)[:256])
+        start_response(response.status, response.items())
+
+        if streamed_content:
+            if response.content_type == 'text/event-stream':
+                for event in _event_stream(request, content):
+                    yield 'data: %s\n\n' % json.dumps(event)
+            else:
+                for i in content:
+                    yield i
+        elif content is not None:
+            yield content
 
     def _resolve_route(self, request):
         found_path = [False]
@@ -695,9 +687,19 @@ class Router(object):
             commons['guid'] = request.guid
         if request.prop:
             commons['prop'] = request.prop
-        for event in _event_stream(request, stream):
+        try:
+            for event in _event_stream(request, stream):
+                event.update(commons)
+                this.localcast(event)
+        except Exception, error:
+            _logger.exception('Event stream %r failed', request)
+            event = {'event': 'failure',
+                     'exception': type(error).__name__,
+                     'error': str(error),
+                     }
+            event.update(request.session)
             event.update(commons)
-            self._routes_model.broadcast(event)
+            this.localcast(event)
 
     def _assert_origin(self, environ):
         origin = environ['HTTP_ORIGIN']
@@ -747,22 +749,6 @@ class _ContentStream(object):
         return result
 
 
-def _filename(names, mime_type):
-    if type(names) not in (list, tuple):
-        names = [names]
-    parts = []
-    for name in names:
-        if isinstance(name, dict):
-            name = toolkit.gettext(name)
-        parts.append(''.join([i.capitalize() for i in name.split()]))
-    result = '-'.join(parts)
-    if mime_type:
-        if not mimetypes.inited:
-            mimetypes.init()
-        result += mimetypes.guess_extension(mime_type) or ''
-    return result.replace(os.sep, '')
-
-
 def _stream_reader(stream):
     try:
         while True:
@@ -783,15 +769,8 @@ def _event_stream(request, stream):
                     event[0].update(i)
                 event = event[0]
             yield event
-    except Exception, error:
-        _logger.exception('Event stream %r failed', request)
-        event = {'event': 'failure',
-                 'exception': type(error).__name__,
-                 'error': str(error),
-                 }
-        event.update(request.session)
-        yield event
-    _logger.debug('Event stream %r exited', request)
+    finally:
+        _logger.debug('Event stream %r exited', request)
 
 
 def _typecast(cast, value):
@@ -817,7 +796,7 @@ def _typecast(cast, value):
 
 def _parse_accept_language(value):
     if not value:
-        return [toolkit.default_lang()]
+        return [i18n.default_lang()]
     langs = []
     qualities = []
     for chunk in value.split(','):
@@ -834,14 +813,6 @@ def _parse_accept_language(value):
         qualities.insert(index, quality)
         langs.insert(len(langs) - index, lang.lower().replace('_', '-'))
     return langs
-
-
-def _to_ascii(value):
-    if not isinstance(value, basestring):
-        return str(value)
-    if isinstance(value, unicode):
-        return value.encode('utf8')
-    return value
 
 
 class _Routes(dict):

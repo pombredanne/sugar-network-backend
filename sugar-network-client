@@ -19,6 +19,7 @@ import os
 import errno
 import signal
 import locale
+import gettext
 import logging
 from os.path import join, abspath, exists
 
@@ -32,6 +33,9 @@ from sugar_network.model import RESOURCES
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit import mountpoints, printf, application
 from sugar_network.toolkit import Option, coroutine
+
+
+gettext.textdomain('sugar-network')
 
 
 class Application(application.Daemon):
@@ -96,7 +100,7 @@ class Application(application.Daemon):
         self.cmd_start()
 
     def run(self):
-        volume = db.Volume(client.path('db'), RESOURCES, lazy_open=True)
+        volume = db.Volume(client.path('db'), RESOURCES)
         routes = CachedClientRoutes(volume,
                 client.api_url.value if not client.server_mode.value else None)
         router = Router(routes, allow_spawn=True)

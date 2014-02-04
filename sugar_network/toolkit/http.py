@@ -22,7 +22,7 @@ import logging
 from os.path import join, dirname, exists, expanduser, abspath
 
 from sugar_network import toolkit
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit import i18n, enforce
 
 
 _REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
@@ -316,7 +316,7 @@ class Connection(object):
 
         self._session = Connection._Session()
         self._session.headers['accept-language'] = \
-                ','.join(toolkit.default_langs())
+                ','.join(i18n.default_langs())
         for arg, value in self._session_args.items():
             setattr(self._session, arg, value)
         self._session.stream = True

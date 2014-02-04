@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,6 +17,19 @@ from sugar_network import db
 from sugar_network.toolkit.router import ACL
 
 
+class _Solution(db.Property):
+
+    def __init__(self, **kwargs):
+        db.Property.__init__(self, default=[], **kwargs)
+
+    def typecast(self, value):
+        return [] if value is None else list(value)
+
+    def encode(self, value):
+        for i in value:
+            yield i[0]
+
+
 class Report(db.Resource):
 
     @db.indexed_property(prefix='C', acl=ACL.CREATE | ACL.READ)
@@ -24,28 +37,27 @@ class Report(db.Resource):
         return value
 
     @db.indexed_property(prefix='V', default='', acl=ACL.CREATE | ACL.READ)
-    def release(self, value):
-        return value
-
-    @release.setter
-    def release(self, value):
-        if value and 'version' not in self.props and 'release' in value:
-            version = self.volume['release'].get(value)
-            self['version'] = version['version']
-        return value
-
-    @db.stored_property(default='', acl=ACL.CREATE | ACL.READ)
     def version(self, value):
         return value
 
-    @db.stored_property(typecast=dict, default={}, acl=ACL.CREATE | ACL.READ)
-    def environ(self, value):
-        return value
-
-    @db.indexed_property(prefix='T', acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(prefix='E', full_text=True, acl=ACL.CREATE | ACL.READ)
     def error(self, value):
         return value
 
-    @db.blob_property()
-    def data(self, value):
+    @db.indexed_property(prefix='U', full_text=True, acl=ACL.CREATE | ACL.READ)
+    def uname(self, value):
+        return value
+
+    @db.indexed_property(db.Dict, prefix='L', full_text=True,
+            acl=ACL.CREATE | ACL.READ)
+    def lsb_release(self, value):
+        return value
+
+    @db.indexed_property(_Solution, prefix='S', full_text=True,
+            acl=ACL.CREATE | ACL.READ)
+    def solution(self, value):
+        return value
+
+    @db.stored_property(db.Aggregated, subtype=db.Blob())
+    def logs(self, value):
         return value

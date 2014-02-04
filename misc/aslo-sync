@@ -527,7 +527,7 @@ class Application(application.Application):
                                     (sugar_min, sugar_max),
                             'license': alicense,
                             }),
-                        bundle_path) as impl:
+                        file(bundle_path, 'rb')) as (impl, data):
                     impl['guid'] = version_id
                     if 'notes' not in impl:
                         impl['notes'] = self.get_i18n_field(releasenotes)
@@ -538,9 +538,9 @@ class Application(application.Application):
                         'order': 0, 'role': 3, 'name': fullname,
                         }}
                     impl['layer'] = layers
-                    impl['data']['url'] = \
+                    data['url'] = \
                             '/'.join([DOWNLOAD_URL, str(addon_id), filename])
-                    impl['data']['blob_size'] = os.stat(bundle_path).st_size
+                    data['size'] = os.stat(bundle_path).st_size
             except Exception, error:
                 print '-- Failed to sync %r[%s]' % (filename, version_id)
                 traceback.print_exception(*sys.exc_info())

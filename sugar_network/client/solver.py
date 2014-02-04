@@ -20,6 +20,7 @@ import logging
 from os.path import isabs, join, dirname
 
 from sugar_network.client import packagekit
+from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.spec import parse_version
 from sugar_network.toolkit import http, lsb_release
 
@@ -191,12 +192,10 @@ def _load_feed(context):
         feed.name = context
         return feed
 
-    feed_content = None
+    releases = None
     try:
-        feed_content = _call(method='GET', path=['context', context],
-                cmd='feed', layer='origin', stability=_stability,
-                distro=lsb_release.distributor_id())
-        _logger.trace('[%s] Found feed: %r', context, feed_content)
+        releases = _call(method='GET', path=['context', context, 'releases'])
+        _logger.trace('[%s] Found feed: %r', context, releases)
     except http.ServiceUnavailable:
         _logger.trace('[%s] Failed to fetch the feed', context)
         raise
@@ -204,13 +203,33 @@ def _load_feed(context):
         _logger.exception('[%s] Failed to fetch the feed', context)
         return None
 
+    """
+    for digest, release in releases:
+        if [i for i in release['author'].values()
+                if i['role'] & ACL.ORIGINAL] and \
+            release['stability'] == _stability and \
+            f
+
+
+
+
+
+                stability=_stability,
+                distro=lsb_release.distributor_id())
+    """
+
+    for impl in feed_content['releases']:
+        feed.implement(impl)
+
+
+
     # XXX 0install fails on non-ascii `name` values
     feed.name = context
     feed.to_resolve = feed_content.get('packages')
     if not feed.to_resolve:
         _logger.trace('[%s] No compatible packages', context)
-    for impl in feed_content['releases']:
-        feed.implement(impl)
+
+
     if not feed.to_resolve and not feed.implementations:
         _logger.trace('[%s] No releases', context)
 

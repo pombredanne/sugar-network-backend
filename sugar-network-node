@@ -17,21 +17,22 @@
 
 import os
 import locale
+import gettext
 import logging
 from os.path import exists, join
 
 from gevent import monkey
 
-import sugar_network_webui as webui
-from sugar_network import db, node, client, toolkit
-from sugar_network.node import stats_node, stats_user, obs
+from sugar_network import db, node, client, toolkit, model
+from sugar_network.node import stats_user, obs, master, slave
+from sugar_network.node import model as master_model
 from sugar_network.node.routes import generate_node_stats
-from sugar_network.node.master import MasterRoutes
-from sugar_network.node.slave import SlaveRoutes
-from sugar_network.model import RESOURCES
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit import coroutine, application, Option, enforce
+
+
+gettext.textdomain('sugar-network')
 
 
 class Application(application.Daemon):
@@ -54,18 +55,21 @@ class Application(application.Daemon):
         if node.certfile.value:
             ssl_args['certfile'] = node.certfile.value
 
-        volume = db.Volume(node.data_root.value, RESOURCES)
-        self.jobs.spawn(volume.populate)
-
         master_path = join(node.data_root.value, 'master')
         if exists(master_path):
             with file(master_path) as f:
-                guid = f.read().strip()
-            logging.info('Start %s node in master mode', guid)
-            cp = MasterRoutes(guid, volume)
+                node_key = f.read().strip()
+            node_class = master.MasterRoutes
+            resources = master_model.RESOURCES
+            logging.info('Start %s node in master mode', node_key)
         else:
+            node_key = join(node.data_root.value, 'node.key')
+            node_class = slave.SlaveRoutes
+            resources = model.RESOURCES
             logging.info('Start slave node')
-            cp = SlaveRoutes(join(node.data_root.value, 'node.key'), volume)
+        volume = db.Volume(node.data_root.value, resources)
+        cp = node_class(node_key, volume, find_limit=node.find_limit.value)
+        self.jobs.spawn(volume.populate)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)
@@ -73,27 +77,6 @@ class Application(application.Daemon):
                 Router(cp), **ssl_args)
         self.jobs.spawn(server.serve_forever)
         self.accept()
-
-        if webui.webui.value:
-            # XXX Until implementing regular web users
-            from sugar_network.client.routes import ClientRoutes
-
-            client.login.value = 'demo'
-            # Point client API to volume directly
-            client.mounts_root.value = None
-
-            home = db.Volume(join(application.rundir.value, 'db'), RESOURCES)
-            client_routes = ClientRoutes(home,
-                    api_url='http://localhost:%s' % node.port.value)
-            client_app = Router(client_routes)
-            host = (node.host.value, webui.webui_port.value)
-            logging.info('Start Web server on %s:%s port', *host)
-            server = coroutine.WSGIServer(host,
-                    webui.get_app(
-                        lambda **kwargs: client_app.call(Request(**kwargs),
-                            Response()),
-                        client.api_url.value, True))
-            self.jobs.spawn(server.serve_forever)
 
         try:
             self.jobs.join()
@@ -123,7 +106,7 @@ class Application(application.Daemon):
             're-generate node statistics', name='restat')
     def restat(self):
         enforce(not self.check_for_instance(), 'Shutdown the server at first')
-        volume = db.Volume(node.data_root.value, RESOURCES)
+        volume = db.Volume(node.data_root.value, model.RESOURCES)
         volume.populate()
         generate_node_stats(volume, join(node.stats_root.value, 'node'))
 
@@ -143,10 +126,8 @@ locale.setlocale(locale.LC_ALL, '')
 
 Option.seek('main', application)
 Option.seek('main', [toolkit.cachedir])
-Option.seek('webui', webui)
 Option.seek('client', [client.api_url])
 Option.seek('node', node)
-Option.seek('node-stats', stats_node)
 Option.seek('user-stats', stats_user)
 Option.seek('obs', obs)
 Option.seek('db', db)

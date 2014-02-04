@@ -17,9 +17,10 @@ import os
 import sys
 import time
 import logging
-from os.path import exists, basename
+from os.path import exists
 
 from sugar_network import client
+from sugar_network.db import files
 from sugar_network.toolkit import pylru, enforce
 
 
@@ -30,8 +31,7 @@ _logger = logging.getLogger('cache')
 
 class Cache(object):
 
-    def __init__(self, volume):
-        self._volume = volume
+    def __init__(self):
         self._pool = None
         self._du = 0
         self._acquired = {}
@@ -71,14 +71,18 @@ class Cache(object):
                 self.checkin(guid, acquired[1])
                 del self._acquired[guid]
 
-    def checkin(self, guid, size):
+    def checkin(self, digest, size):
         self._ensure_open()
-        if guid in self._pool:
-            self._pool.__getitem__(guid)
+        if digest in self._pool:
+            self._pool.__getitem__(digest)
             return
+
+
+
         _logger.debug('Checkin %r %d bytes long', guid, size)
-        mtime = os.stat(self._volume['release'].path(guid)).st_mtime
-        self._pool[guid] = (size, mtime)
+
+        mtime = os.stat(files.get(digest).path).st_mtime
+        self._pool[digest] = (size, mtime)
         self._du += size
 
     def checkout(self, guid, *args):
@@ -112,17 +116,25 @@ class Cache(object):
         _logger.debug('Open releases pool')
 
         pool = []
-        impls = self._volume['release']
-        for res in impls.find(not_layer=['local'])[0]:
-            meta = res.meta('data')
-            if not meta or 'blob_size' not in meta:
+        for release in self._volume['release'].find(not_layer=['local'])[0]:
+            meta = files.get(release['data'])
+            if not meta:
                 continue
-            clone = self._volume['context'].path(res['context'], '.clone')
-            if exists(clone) and basename(os.readlink(clone)) == res.guid:
-                continue
+
+            """
+            TODO
+
+            solution_path = client.path('solutions', release['context'])
+            if exists(solution_path):
+                with file(path) as f:
+                    cached_api_url, cached_stability, solution = json.load(f)
+                if solution[0]['guid'] == release['guid']:
+                    continue
+
+            """
             pool.append((
-                os.stat(impls.path(res.guid)).st_mtime,
-                res.guid,
+                os.stat(meta.path).st_mtime,
+                release.guid,
                 meta.get('unpack_size') or meta['blob_size'],
                 ))
 

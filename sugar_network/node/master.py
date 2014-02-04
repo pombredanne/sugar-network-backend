@@ -20,11 +20,18 @@ from Cookie import SimpleCookie
 from os.path import join
 
 from sugar_network import node, toolkit
-from sugar_network.node import sync, stats_user, files, volume, downloads, obs
+from sugar_network.node import sync, stats_user, files, model, downloads, obs
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
-from sugar_network.toolkit import http, coroutine, enforce
+from sugar_network.toolkit import http, enforce
 
+
+RESOURCES = (
+        'sugar_network.node.model',
+        'sugar_network.model.post',
+        'sugar_network.model.report',
+        'sugar_network.model.user',
+        )
 
 _ONE_WAY_DOCUMENTS = ['report']
 
@@ -33,12 +40,12 @@ _logger = logging.getLogger('node.master')
 
 class MasterRoutes(NodeRoutes):
 
-    def __init__(self, guid, volume_):
-        NodeRoutes.__init__(self, guid, volume_)
+    def __init__(self, guid, volume, **kwargs):
+        NodeRoutes.__init__(self, guid, volume=volume, **kwargs)
 
         self._pulls = {
             'pull': lambda **kwargs:
-                ('diff', None, volume.diff(self.volume,
+                ('diff', None, model.diff(self.volume,
                     ignore_documents=_ONE_WAY_DOCUMENTS, **kwargs)),
             'files_pull': lambda **kwargs:
                 ('files_diff', None, self._files.diff(**kwargs)),
@@ -50,7 +57,7 @@ class MasterRoutes(NodeRoutes):
 
         if node.files_root.value:
             self._files = files.Index(node.files_root.value,
-                    join(volume_.root, 'files.index'), volume_.seqno)
+                    join(volume.root, 'files.index'), volume.seqno)
 
     @route('POST', cmd='sync',
             acl=ACL.AUTH)
@@ -137,24 +144,12 @@ class MasterRoutes(NodeRoutes):
         enforce(node.files_root.value, http.BadRequest, 'Disabled')
         aliases = self.volume['context'].get(request.guid)['aliases']
         enforce(aliases, http.BadRequest, 'Nothing to presolve')
-        return obs.presolve(aliases, node.files_root.value)
+        return obs.presolve(None, aliases, node.files_root.value)
 
     def status(self):
         result = NodeRoutes.status(self)
         result['level'] = 'master'
         return result
-
-    def after_post(self, doc):
-        if doc.metadata.name == 'context':
-            shift_releases = doc.modified('dependencies')
-            if doc.modified('aliases'):
-                # TODO Already launched job should be killed
-                coroutine.spawn(self._resolve_aliases, doc)
-                shift_releases = True
-            if shift_releases and not doc.is_new:
-                # Shift checkpoint to invalidate solutions
-                self.volume['release'].checkpoint()
-        NodeRoutes.after_post(self, doc)
 
     def _push(self, stream):
         reply = []
@@ -172,8 +167,7 @@ class MasterRoutes(NodeRoutes):
                 if self._files is not None:
                     cookie['files_pull'].include(packet['sequence'])
             elif packet.name == 'diff':
-                seq, ack_seq = volume.merge(self.volume, packet,
-                        stats=self._stats)
+                seq, ack_seq = model.merge(self.volume, packet)
                 reply.append(('ack', {
                     'ack': ack_seq,
                     'sequence': seq,
@@ -188,43 +182,6 @@ class MasterRoutes(NodeRoutes):
                     }, None))
 
         return reply, cookie
-
-    def _resolve_aliases(self, doc):
-        packages = {}
-        for repo in obs.get_repos():
-            alias = doc['aliases'].get(repo['distributor_id'])
-            if not alias:
-                continue
-            package = packages[repo['name']] = {}
-            for kind in ('binary', 'devel'):
-                obs_fails = []
-                for to_resolve in alias.get(kind) or []:
-                    if not to_resolve:
-                        continue
-                    try:
-                        for arch in repo['arches']:
-                            obs.resolve(repo['name'], arch, to_resolve)
-                    except Exception, error:
-                        _logger.warning('Failed to resolve %r on %s',
-                                to_resolve, repo['name'])
-                        obs_fails.append(str(error))
-                        continue
-                    package[kind] = to_resolve
-                    break
-                else:
-                    package['status'] = '; '.join(obs_fails)
-                    break
-            else:
-                if 'binary' in package:
-                    package['status'] = 'success'
-                else:
-                    package['status'] = 'no packages to resolve'
-
-        if packages != doc['packages']:
-            self.volume['context'].update(doc.guid, {'packages': packages})
-
-        if node.files_root.value:
-            obs.presolve(doc['aliases'], node.files_root.value)
 
 
 class _Cookie(list):

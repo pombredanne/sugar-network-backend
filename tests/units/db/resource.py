@@ -23,10 +23,15 @@ from sugar_network.db import directory as directory_
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
 from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, Sequence
 
 
 class ResourceTest(tests.Test):
+
+    def setUp(self, fork_num=0):
+        tests.Test.setUp(self, fork_num)
+        this.broadcast = lambda x: x
 
     def test_ActiveProperty_Slotted(self):
 
@@ -345,31 +350,31 @@ class ResourceTest(tests.Test):
                 return value
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
+        guid = directory.create({'guid': '1', 'prop1': '1', 'prop2': '2'})
+        doc = directory.get(guid)
 
-        self.assertRaises(http.NotFound, directory.patch, 'absent', {})
-
-        directory.create({'guid': '1', 'prop1': '1', 'prop2': '2'})
-        self.assertEqual({}, directory.patch('1', {}))
-        self.assertEqual({}, directory.patch('1', {'prop1': '1', 'prop2': '2'}))
-        self.assertEqual({'prop1': '1_'}, directory.patch('1', {'prop1': '1_', 'prop2': '2'}))
-        self.assertEqual({'prop1': '1_', 'prop2': '2_'}, directory.patch('1', {'prop1': '1_', 'prop2': '2_'}))
+        self.assertEqual({}, doc.patch({}))
+        self.assertEqual({}, doc.patch({'prop1': '1', 'prop2': '2'}))
+        self.assertEqual({'prop1': '1_'}, doc.patch({'prop1': '1_', 'prop2': '2'}))
+        self.assertEqual({'prop1': '1_', 'prop2': '2_'}, doc.patch({'prop1': '1_', 'prop2': '2_'}))
 
     def test_patch_LocalizedProps(self):
 
         class Document(db.Resource):
 
-            @db.indexed_property(slot=1, localized=True)
+            @db.indexed_property(db.Localized, slot=1)
             def prop(self, value):
                 return value
 
         directory = Directory(tests.tmpdir, Document, IndexWriter)
+        guid = directory.create({'guid': '1', 'prop': {'ru': 'ru'}})
+        doc = directory.get(guid)
 
-        directory.create({'guid': '1', 'prop': {'ru': 'ru'}})
-        self.assertEqual({}, directory.patch('1', {'prop': 'ru'}))
-        self.assertEqual({'prop': {'ru': 'ru_'}}, directory.patch('1', {'prop': {'ru': 'ru_'}}))
-        self.assertEqual({'prop': {'en': 'en'}}, directory.patch('1', {'prop': {'en': 'en'}}))
-        self.assertEqual({'prop': {'ru': 'ru', 'en': 'en'}}, directory.patch('1', {'prop': {'ru': 'ru', 'en': 'en'}}))
-        self.assertEqual({'prop': {'ru': 'ru_', 'en': 'en'}}, directory.patch('1', {'prop': {'ru': 'ru_', 'en': 'en'}}))
+        self.assertEqual({}, doc.patch({'prop': {'ru': 'ru'}}))
+        self.assertEqual({'prop': {'ru': 'ru_'}}, doc.patch({'prop': {'ru': 'ru_'}}))
+        self.assertEqual({'prop': {'en': 'en'}}, doc.patch({'prop': {'en': 'en'}}))
+        self.assertEqual({'prop': {'ru': 'ru', 'en': 'en'}}, doc.patch({'prop': {'ru': 'ru', 'en': 'en'}}))
+        self.assertEqual({'prop': {'ru': 'ru_', 'en': 'en'}}, doc.patch({'prop': {'ru': 'ru_', 'en': 'en'}}))
 
     def test_diff(self):
 
@@ -379,21 +384,13 @@ class ResourceTest(tests.Test):
             def prop(self, value):
                 return value
 
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
         directory = Directory(tests.tmpdir, Document, IndexWriter)
 
-        self.touch(('blob', '1'))
         directory.create({'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1})
-        directory.update('1', {'blob': {'blob': 'blob'}})
         for i in os.listdir('1/1'):
             os.utime('1/1/%s' % i, (1, 1))
 
-        self.touch(('blob', '2'))
         directory.create({'guid': '2', 'prop': '2', 'ctime': 2, 'mtime': 2})
-        directory.update('2', {'blob': {'blob': 'blob'}})
         for i in os.listdir('2/2'):
             os.utime('2/2/%s' % i, (2, 2))
 
@@ -408,22 +405,12 @@ class ResourceTest(tests.Test):
                 'ctime': {'value': 1, 'mtime': 1},
                 'prop': {'value': '1', 'mtime': 1},
                 'mtime': {'value': 1, 'mtime': 1},
-                'blob': {
-                    'mtime': 1,
-                    'blob': tests.tmpdir + '/1/1/blob.blob',
-                    'blob_size': 1,
-                    },
                 }},
             {'guid': '2', 'diff': {
                 'guid': {'value': '2', 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
-                'blob': {
-                    'mtime': 2,
-                    'blob': tests.tmpdir + '/2/2/blob.blob',
-                    'blob_size': 1,
-                    },
                 }},
             {'guid': '3', 'diff': {
                 'guid': {'value': '3', 'mtime': 3},
@@ -433,7 +420,7 @@ class ResourceTest(tests.Test):
                 }},
             ],
             [i for i in diff(directory, [[0, None]], out_seq)])
-        self.assertEqual([[1, 5]], out_seq)
+        self.assertEqual([[1, 3]], out_seq)
 
         out_seq = Sequence()
         self.assertEqual([
@@ -442,26 +429,15 @@ class ResourceTest(tests.Test):
                 'ctime': {'value': 2, 'mtime': 2},
                 'prop': {'value': '2', 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
-                'blob': {
-                    'mtime': 2,
-                    'blob': tests.tmpdir + '/2/2/blob.blob',
-                    'blob_size': 1,
-                    },
                 }},
             ],
-            [i for i in diff(directory, [[3, 4]], out_seq)])
-        self.assertEqual([[3, 4]], out_seq)
+            [i for i in diff(directory, [[2, 2]], out_seq)])
+        self.assertEqual([[2, 2]], out_seq)
 
         out_seq = Sequence()
         self.assertEqual([
             ],
-            [i for i in diff(directory, [[3, 3]], out_seq)])
-        self.assertEqual([], out_seq)
-
-        out_seq = Sequence()
-        self.assertEqual([
-            ],
-            [i for i in diff(directory, [[6, 100]], out_seq)])
+            [i for i in diff(directory, [[4, 100]], out_seq)])
         self.assertEqual([], out_seq)
         directory.update('2', {'prop': '22'})
         self.assertEqual([
@@ -469,8 +445,8 @@ class ResourceTest(tests.Test):
                 'prop': {'value': '22', 'mtime': int(os.stat('2/2/prop').st_mtime)},
                 }},
             ],
-            [i for i in diff(directory, [[6, 100]], out_seq)])
-        self.assertEqual([[6, 6]], out_seq)
+            [i for i in diff(directory, [[4, 100]], out_seq)])
+        self.assertEqual([[4, 4]], out_seq)
 
     def test_diff_IgnoreCalcProps(self):
 
@@ -535,37 +511,6 @@ class ResourceTest(tests.Test):
 
         self.assertEqual([[1, 1], [4, 4]], out_seq)
 
-    def test_diff_WithBlobsSetByUrl(self):
-        URL = 'http://src.sugarlabs.org/robots.txt'
-        URL_content = urllib2.urlopen(URL).read()
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        directory.create({'guid': '1', 'ctime': 1, 'mtime': 1})
-        directory.update('1', {'blob': {'url': URL}})
-        self.utime('1/1', 1)
-
-        out_seq = Sequence()
-        self.assertEqual([
-            {'guid': '1', 'diff': {
-                'guid': {'value': '1', 'mtime': 1},
-                'ctime': {'value': 1, 'mtime': 1},
-                'mtime': {'value': 1, 'mtime': 1},
-                'blob': {
-                    'url': URL,
-                    'mtime': 1,
-                    },
-                }},
-            ],
-            [i for i in diff(directory, [[0, None]], out_seq)])
-        self.assertEqual([[1, 2]], out_seq)
-
     def test_diff_Filter(self):
 
         class Document(db.Resource):
@@ -626,7 +571,7 @@ class ResourceTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType())
+            @db.stored_property(db.Aggregated)
             def prop(self, value):
                 return value
 
@@ -768,21 +713,13 @@ class ResourceTest(tests.Test):
             def prop(self, value):
                 return value
 
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
         directory1 = Directory('document1', Document, IndexWriter)
 
         directory1.create({'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1})
-        self.touch(('blob', '1'))
-        directory1.update('1', {'blob': {'blob': 'blob'}})
         for i in os.listdir('document1/1/1'):
             os.utime('document1/1/1/%s' % i, (1, 1))
 
         directory1.create({'guid': '2', 'prop': '2', 'ctime': 2, 'mtime': 2})
-        self.touch(('blob', '2'))
-        directory1.update('2', {'blob': {'blob': 'blob'}})
         for i in os.listdir('document1/2/2'):
             os.utime('document1/2/2/%s' % i, (2, 2))
 
@@ -808,7 +745,6 @@ class ResourceTest(tests.Test):
         self.assertEqual(1, doc.meta('ctime')['mtime'])
         self.assertEqual(1, doc.meta('prop')['mtime'])
         self.assertEqual(1, doc.meta('mtime')['mtime'])
-        self.assertEqual(1, doc.meta('blob')['mtime'])
 
         doc = directory2.get('2')
         self.assertEqual(2, doc.get('seqno'))
@@ -816,7 +752,6 @@ class ResourceTest(tests.Test):
         self.assertEqual(2, doc.meta('ctime')['mtime'])
         self.assertEqual(2, doc.meta('prop')['mtime'])
         self.assertEqual(2, doc.meta('mtime')['mtime'])
-        self.assertEqual(2, doc.meta('blob')['mtime'])
 
         doc = directory2.get('3')
         self.assertEqual(3, doc.get('seqno'))
@@ -824,28 +759,25 @@ class ResourceTest(tests.Test):
         self.assertEqual(3, doc.meta('ctime')['mtime'])
         self.assertEqual(3, doc.meta('prop')['mtime'])
         self.assertEqual(3, doc.meta('mtime')['mtime'])
-        self.assertEqual(None, doc.meta('blob'))
 
     def test_merge_Update(self):
 
         class Document(db.Resource):
 
-            @db.blob_property()
-            def blob(self, value):
+            @db.stored_property(default='')
+            def prop(self, value):
                 return value
 
         directory1 = Directory('document1', Document, IndexWriter)
         directory2 = Directory('document2', Document, IndexWriter)
 
         directory1.create({'guid': 'guid', 'ctime': 1, 'mtime': 1})
-        self.touch(('blob', '1'))
-        directory1.update('guid', {'blob': {'blob': 'blob'}})
+        directory1.update('guid', {'prop': '1'})
         for i in os.listdir('document1/gu/guid'):
             os.utime('document1/gu/guid/%s' % i, (1, 1))
 
         directory2.create({'guid': 'guid', 'ctime': 2, 'mtime': 2})
-        self.touch(('blob', '2'))
-        directory2.update('guid', {'blob': {'blob': 'blob'}})
+        directory2.update('guid', {'prop': '2'})
 
         for i in os.listdir('document2/gu/guid'):
             os.utime('document2/gu/guid/%s' % i, (2, 2))
@@ -858,8 +790,8 @@ class ResourceTest(tests.Test):
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
         self.assertEqual(2, doc.meta('mtime')['mtime'])
-        self.assertEqual(2, doc.meta('blob')['mtime'])
-        self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
+        self.assertEqual(2, doc.meta('prop')['mtime'])
+        self.assertEqual('2', doc.meta('prop')['value'])
 
         for patch in diff(directory1, [[0, None]], Sequence()):
             directory2.merge(**patch)
@@ -872,8 +804,8 @@ class ResourceTest(tests.Test):
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
         self.assertEqual(2, doc.meta('mtime')['mtime'])
-        self.assertEqual(2, doc.meta('blob')['mtime'])
-        self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
+        self.assertEqual(2, doc.meta('prop')['mtime'])
+        self.assertEqual('2', doc.meta('prop')['value'])
 
         os.utime('document1/gu/guid/mtime', (3, 3))
         for patch in diff(directory1, [[0, None]], Sequence()):
@@ -887,10 +819,10 @@ class ResourceTest(tests.Test):
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
         self.assertEqual(3, doc.meta('mtime')['mtime'])
-        self.assertEqual(2, doc.meta('blob')['mtime'])
-        self.assertEqual('2', file('document2/gu/guid/blob.blob').read())
+        self.assertEqual(2, doc.meta('prop')['mtime'])
+        self.assertEqual('2', doc.meta('prop')['value'])
 
-        os.utime('document1/gu/guid/blob', (4, 4))
+        os.utime('document1/gu/guid/prop', (4, 4))
         for patch in diff(directory1, [[0, None]], Sequence()):
             directory2.merge(**patch)
 
@@ -902,132 +834,14 @@ class ResourceTest(tests.Test):
         self.assertEqual(2, doc.meta('guid')['mtime'])
         self.assertEqual(2, doc.meta('ctime')['mtime'])
         self.assertEqual(3, doc.meta('mtime')['mtime'])
-        self.assertEqual(4, doc.meta('blob')['mtime'])
-        self.assertEqual('1', file('document2/gu/guid/blob.blob').read())
-
-    def test_merge_SeqnoLessMode(self):
-
-        class Document(db.Resource):
-
-            @db.indexed_property(slot=1)
-            def prop(self, value):
-                return value
-
-        directory1 = Directory('document1', Document, IndexWriter)
-        directory1.create({'guid': '1', 'prop': '1', 'ctime': 1, 'mtime': 1})
-
-        directory2 = Directory('document2', Document, IndexWriter)
-        for patch in diff(directory1, [[0, None]], Sequence()):
-            directory2.merge(shift_seqno=False, **patch)
-        self.assertEqual(
-                [(1, 1, '1', '1')],
-                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory2.find()[0]])
-        doc = directory2.get('1')
-        self.assertEqual(0, doc.get('seqno'))
-        self.assertEqual(0, doc.meta('guid')['seqno'])
-        self.assertEqual(0, doc.meta('prop')['seqno'])
-
-        directory3 = Directory('document3', Document, IndexWriter)
-        for patch in diff(directory1, [[0, None]], Sequence()):
-            directory3.merge(**patch)
-        self.assertEqual(
-                [(1, 1, '1', '1')],
-                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find()[0]])
-        doc = directory3.get('1')
-        self.assertEqual(1, doc.get('seqno'))
-        self.assertEqual(1, doc.meta('guid')['seqno'])
-        self.assertEqual(1, doc.meta('prop')['seqno'])
-
-        time.sleep(1)
-        directory1.update('1', {'prop': '2', 'ctime': 2, 'mtime': 2})
-
-        for patch in diff(directory1, [[0, None]], Sequence()):
-            directory3.merge(shift_seqno=False, **patch)
-        self.assertEqual(
-                [(2, 2, '1', '2')],
-                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find()[0]])
-        doc = directory3.get('1')
-        self.assertEqual(1, doc.get('seqno'))
-        self.assertEqual(1, doc.meta('guid')['seqno'])
-        self.assertEqual(1, doc.meta('prop')['seqno'])
-
-        time.sleep(1)
-        directory1.update('1', {'prop': '3', 'ctime': 3, 'mtime': 3})
-
-        for patch in diff(directory1, [[0, None]], Sequence()):
-            directory3.merge(**patch)
-        self.assertEqual(
-                [(3, 3, '1', '3')],
-                [(i['ctime'], i['mtime'], i['guid'], i['prop']) for i in directory3.find()[0]])
-        doc = directory3.get('1')
-        self.assertEqual(2, doc.get('seqno'))
-        self.assertEqual(1, doc.meta('guid')['seqno'])
-        self.assertEqual(2, doc.meta('prop')['seqno'])
-
-    def test_merge_AvoidCalculatedBlobs(self):
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return {'url': 'http://foo/bar', 'mime_type': 'image/png'}
-
-        directory1 = Directory('document1', Document, IndexWriter)
-        directory1.create({'guid': 'guid', 'ctime': 1, 'mtime': 1})
-        for i in os.listdir('document1/gu/guid'):
-            os.utime('document1/gu/guid/%s' % i, (1, 1))
-
-        directory2 = Directory('document2', Document, IndexWriter)
-        for patch in diff(directory1, [[0, None]], Sequence()):
-            directory2.merge(**patch)
-
-        doc = directory2.get('guid')
-        self.assertEqual(1, doc.get('seqno'))
-        self.assertEqual(1, doc.meta('guid')['mtime'])
-        assert not exists('document2/gu/guid/blob')
-
-    def test_merge_Blobs(self):
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
-        directory = Directory('document', Document, IndexWriter)
-        self.touch(('blob', 'blob-1'))
-        directory.merge('1', {
-            'guid': {'mtime': 1, 'value': '1'},
-            'ctime': {'mtime': 2, 'value': 2},
-            'mtime': {'mtime': 3, 'value': 3},
-            'blob': {'mtime': 4, 'blob': 'blob'},
-            })
-
-        self.assertEqual(
-                [(2, 3, '1')],
-                [(i['ctime'], i['mtime'], i['guid']) for i in directory.find()[0]])
-
-        doc = directory.get('1')
-        self.assertEqual(1, doc.get('seqno'))
-        self.assertEqual(1, doc.meta('guid')['mtime'])
-        self.assertEqual(2, doc.meta('ctime')['mtime'])
-        self.assertEqual(3, doc.meta('mtime')['mtime'])
-        self.assertEqual(4, doc.meta('blob')['mtime'])
-        self.assertEqual('blob-1', file('document/1/1/blob.blob').read())
-
-        self.touch(('blob', 'blob-2'))
-        directory.merge('1', {
-            'blob': {'mtime': 5, 'blob': 'blob'},
-            })
-
-        self.assertEqual(5, doc.meta('blob')['mtime'])
-        self.assertEqual('blob-2', file('document/1/1/blob.blob').read())
+        self.assertEqual(4, doc.meta('prop')['mtime'])
+        self.assertEqual('1', doc.meta('prop')['value'])
 
     def test_merge_Aggprops(self):
 
         class Document(db.Resource):
 
-            @db.stored_property(typecast=db.AggregatedType, default=db.AggregatedType())
+            @db.stored_property(db.Aggregated)
             def prop(self, value):
                 return value
 
@@ -1079,6 +893,28 @@ class ResourceTest(tests.Test):
             },
             directory.get('1')['prop'])
 
+    def test_merge_CallSetters(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(db.Numeric)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value + 1
+
+        directory = Directory('document', Document, IndexWriter)
+
+        directory.merge('1', {
+            'guid': {'mtime': 1, 'value': '1'},
+            'ctime': {'mtime': 1, 'value': 1},
+            'mtime': {'mtime': 1, 'value': 1},
+            'prop': {'mtime': 1, 'value': 1},
+            })
+        self.assertEqual(2, directory.get('1')['prop'])
+
     def test_wipe(self):
 
         class Document(db.Resource):
@@ -1088,31 +924,11 @@ class ResourceTest(tests.Test):
         guid = directory.create({'prop': '1'})
         self.assertEqual([guid], [i.guid for i in directory.find()[0]])
         directory.commit()
-        assert directory.mtime != 0
+        assert exists('index/mtime')
 
         directory.wipe()
         self.assertEqual([], [i.guid for i in directory.find()[0]])
-        assert directory.mtime == 0
-
-    def test_DeleteOldBlobOnUpdate(self):
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        directory.create({'guid': 'guid', 'blob': 'foo'})
-        assert exists('gu/guid/blob.blob')
-        directory.update('guid', {'blob': {'url': 'foo'}})
-        assert not exists('gu/guid/blob.blob')
-
-        directory.update('guid', {'blob': 'foo'})
-        assert exists('gu/guid/blob.blob')
-        directory.update('guid', {'blob': {}})
-        assert not exists('gu/guid/blob.blob')
+        assert not exists('index/mtime')
 
 
 def diff(directory, in_seq, out_seq, exclude_seq=None, **kwargs):

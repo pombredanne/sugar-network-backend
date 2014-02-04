@@ -21,6 +21,7 @@ import sys
 import shlex
 import types
 import locale
+import gettext
 from json import dumps, loads
 from os.path import join, exists, isfile
 
@@ -33,6 +34,9 @@ from sugar_network.client.routes import ClientRoutes
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit import application, coroutine
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
+
+
+gettext.textdomain('sugar-network')
 
 
 quiet = Option(
@@ -71,7 +75,7 @@ _LIST_RE = re.compile(r'\s*[;,:]+\s*')
 class ClientRouter(Router, ClientRoutes):
 
     def __init__(self):
-        home = db.Volume(client.path('db'), RESOURCES, lazy_open=True)
+        home = db.Volume(client.path('db'), RESOURCES)
         Router.__init__(self, self)
         ClientRoutes.__init__(self, home,
                 client.api_url.value if not offline.value else None,
