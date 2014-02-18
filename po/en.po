@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-06-23 00:33-0400\n"
-"PO-Revision-Date: 2013-06-24 02:37+0200\n"
+"POT-Creation-Date: 2013-12-31 00:32-0500\n"
+"PO-Revision-Date: 2014-02-15 22:53+0200\n"
 "Last-Translator: Chris <cjl@laptop.org>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: en\n"
@@ -17,80 +17,83 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Generator: Pootle 2.0.5\n"
 
-#: sugar_network/client/packagekit.py:44
-#, python-format
-msgid "Resolving %s package name(s)"
-msgstr "Resolving %s package name(s)"
+#: sugar_network/client/implementations.py:398
+msgid "title"
+msgstr "title"
 
-#: sugar_network/client/packagekit.py:71
-#, python-format
-msgid "Installing %s package(s)"
-msgstr "Installing %s package(s)"
-
-#: sugar_network/node/slave.py:131
+#: sugar_network/node/slave.py:124
 msgid "Reading sneakernet packages"
 msgstr "Reading sneakernet packages"
 
-#: sugar_network/node/slave.py:141
+#: sugar_network/node/slave.py:134
 msgid "Generating new sneakernet package"
 msgstr "Generating new sneakernet package"
 
-#: sugar_network/toolkit/application.py:32
+#: sugar_network/toolkit/application.py:33
 msgid "debug logging level; multiple argument"
 msgstr "debug logging level; multiple argument"
 
-#: sugar_network/toolkit/application.py:37
+#: sugar_network/toolkit/application.py:38
 msgid "do not send the application into the background"
 msgstr "do not send the application into the background"
 
-#: sugar_network/toolkit/application.py:47
+#: sugar_network/toolkit/application.py:48
 msgid "suppress suggesting hints"
 msgstr "suppress suggesting hints"
 
-#: sugar_network/toolkit/application.py:98
+#: sugar_network/toolkit/application.py:102
 msgid "show version number and exit"
 msgstr "show version number and exit"
 
-#: sugar_network/toolkit/application.py:103
+#: sugar_network/toolkit/application.py:107
 msgid "show this help message and exit"
 msgstr "show this help message and exit"
 
-#: sugar_network/toolkit/application.py:130
+#: sugar_network/toolkit/application.py:135
 msgid "Commands"
 msgstr "Commands"
 
-#: sugar_network/toolkit/application.py:141
+#: sugar_network/toolkit/application.py:146
 msgid "Usage"
 msgstr "Usage"
 
-#: sugar_network/toolkit/application.py:156
+#: sugar_network/toolkit/application.py:161
 msgid "Where"
 msgstr "Where"
 
-#: sugar_network/toolkit/application.py:200
+#: sugar_network/toolkit/application.py:191
 msgid "Aborted"
 msgstr "Aborted"
 
-#: tests/units/db/env.py:18 tests/units/db/env.py:19 tests/units/db/env.py:24
-#: tests/units/db/env.py:25 tests/units/db/env.py:26
+#: tests/units/toolkit/toolkit.py:427 tests/units/toolkit/toolkit.py:428
+#: tests/units/toolkit/toolkit.py:433 tests/units/toolkit/toolkit.py:434
+#: tests/units/toolkit/toolkit.py:435
 msgid "lang"
 msgstr "lang"
 
-#: tests/units/db/env.py:23
+#: tests/units/toolkit/toolkit.py:432
 msgid "foo"
 msgstr "foo"
 
-#: tests/units/db/env.py:29 tests/units/db/env.py:32
+#: tests/units/toolkit/toolkit.py:438 tests/units/toolkit/toolkit.py:441
 msgid "1"
 msgstr "1"
 
-#: tests/units/db/env.py:35 tests/units/db/env.py:36
+#: tests/units/toolkit/toolkit.py:444 tests/units/toolkit/toolkit.py:445
 msgid "1-a"
 msgstr "1-a"
 
-#: tests/units/db/env.py:40 tests/units/db/env.py:41
+#: tests/units/toolkit/toolkit.py:449 tests/units/toolkit/toolkit.py:450
 msgid "a"
 msgstr "a"
+
+#, python-format
+#~ msgid "Resolving %s package name(s)"
+#~ msgstr "Resolving %s package name(s)"
+
+#, python-format
+#~ msgid "Installing %s package(s)"
+#~ msgstr "Installing %s package(s)"
 
 #~ msgid "Local Network"
 #~ msgstr "Local Network"
