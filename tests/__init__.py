@@ -24,7 +24,6 @@ from sugar_network.db import files
 from sugar_network.client import IPCConnection, journal, routes as client_routes
 from sugar_network.client.routes import ClientRoutes, _Auth
 from sugar_network import db, client, node, toolkit, model
-from sugar_network.client import solver
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.post import Post
@@ -116,9 +115,6 @@ class Test(unittest.TestCase):
         http._RECONNECTION_NUMBER = 0
         toolkit.cachedir.value = tmpdir + '/tmp'
         journal._ds_root = tmpdir + '/datastore'
-        solver.nodeps = False
-        solver._stability = None
-        solver._conn = None
         downloads._POOL_SIZE = 256
         gbus.join()
 

@@ -13,6 +13,7 @@ from spec import *
 from router import *
 from gbus import *
 from i18n import *
+from sat import *
 
 if __name__ == '__main__':
     tests.main()

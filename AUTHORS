@@ -7,7 +7,19 @@ This work was initially started as an international research initiative
 in late 2011 within the `Sugar Labs Perú`_ in order to attend the needs
 identified during field work on Perú from 2007 to date.
 
+**SAT solver**
+
+The SAT solver was inherited from the `Zero Install`_ project (until switching
+its code base from Python) and adapted to Sugar Network needs. The original
+code was licensed under the term of the :doc:`GPL-3.0 <COPYING>`.
+
+**Artwork**
+
+Images are based on `Font Awesome`_ vector icons licensed under the terms
+of the :doc:`OTF 1.1 <COPYING.FontAwesome>`.
+
 **Contributors**
+
 (In alphabetical order)
 
 * Aleksey Lim <alsroot@sugarlabs.org> `original idea and implementation`
@@ -18,11 +30,7 @@ identified during field work on Perú from 2007 to date.
 
 Aleksey Lim <alsroot@sugarlabs.org>
 
-**Artwork**
-
-* Images are based on `Font Awesome`_ vector icons licensed under the terms
-  of the :doc:`OTF 1.1 <COPYING.FontAwesome>`.
-
 
 .. _Sugar Labs Perú: http://pe.sugarlabs.org/
+.. _Zero Install: http://0install.net/
 .. _Font Awesome: http://fortawesome.github.io/Font-Awesome/

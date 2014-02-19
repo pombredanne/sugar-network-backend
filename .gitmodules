@@ -1,6 +1,3 @@
-[submodule "sugar_network/lib/zeroinstall"]
-    path = sugar_network/lib/zeroinstall
-    url = git://git.sugarlabs.org/network/0install.git
 [submodule "sugar_network/lib/pylru"]
 	path = sugar_network/lib/pylru
 	url = https://github.com/jlhutch/pylru.git
