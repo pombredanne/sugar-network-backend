@@ -313,7 +313,7 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context, Post]
         self.node_volume = db.Volume('master', classes)
-        self.node_routes = routes('guid', self.node_volume)
+        self.node_routes = routes('guid', volume=self.node_volume)
         self.node_router = Router(self.node_routes)
         self.node = coroutine.WSGIServer(('127.0.0.1', 8888), self.node_router)
         coroutine.spawn(self.node.serve_forever)

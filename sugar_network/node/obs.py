@@ -46,12 +46,13 @@ def get_repos():
 
 
 def resolve(repo, arch, packages):
-    _request('GET', ['resolve'], params={
+    response = _request('GET', ['resolve'], params={
         'project': obs_project.value,
         'repository': repo,
         'arch': arch,
         'package': packages,
         })
+    return dict(response.find('binary').items())
 
 
 def presolve(repo_name, packages, dst_path):

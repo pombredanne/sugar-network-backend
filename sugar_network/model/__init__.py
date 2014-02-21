@@ -141,6 +141,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
     release_notes = None
     release = {}
     blob_meta = {}
+    version = None
 
     try:
         bundle = Bundle(blob.path, mime_type='application/zip')
@@ -148,7 +149,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         context_type = 'book'
         if not context:
             context = this.request['context']
-        release['version'] = this.request['version']
+        version = this.request['version']
         if 'license' in this.request:
             release['license'] = this.request['license']
             if isinstance(release['license'], basestring):
@@ -180,29 +181,21 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         if extra_deps:
             spec.requires.update(parse_requires(extra_deps))
 
-        release['version'] = spec['version']
+        version = spec['version']
         release['stability'] = spec['stability']
         if spec['license'] is not EMPTY_LICENSE:
             release['license'] = spec['license']
-        release['requires'] = requires = []
-        for dep_name, dep in spec.requires.items():
-            found = False
-            for version in dep.versions_range():
-                requires.append('%s-%s' % (dep_name, version))
-                found = True
-            if not found:
-                requires.append(dep_name)
+        release['commands'] = spec.commands
+        release['requires'] = spec.requires
         release['spec'] = {'*-*': {
             'bundle': blob.digest,
-            'commands': spec.commands,
-            'requires': spec.requires,
             }}
         release['unpack_size'] = unpack_size
         blob_meta['mime_type'] = 'application/vnd.olpc-sugar'
 
     enforce(context, http.BadRequest, 'Context is not specified')
-    enforce(release['version'], http.BadRequest, 'Version is not specified')
-    release['release'] = parse_version(release['version'])
+    enforce(version, http.BadRequest, 'Version is not specified')
+    release['version'] = parse_version(version)
     if initial and not contexts.exists(context):
         enforce(context_meta, http.BadRequest, 'No way to initate context')
         context_meta['guid'] = context
@@ -211,21 +204,22 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
     else:
         enforce(context_type in contexts[context]['type'],
                 http.BadRequest, 'Inappropriate bundle type')
-    context_obj = contexts[context]
+    context_doc = contexts[context]
 
-    releases = context_obj['releases']
     if 'license' not in release:
+        releases = context_doc['releases'].values()
         enforce(releases, http.BadRequest, 'License is not specified')
-        recent = max(releases, key=lambda x: releases[x]['release'])
-        release['license'] = releases[recent]['license']
+        recent = max(releases, key=lambda x: x.get('value', {}).get('release'))
+        enforce(recent, http.BadRequest, 'License is not specified')
+        release['license'] = recent['value']['license']
 
     _logger.debug('Load %r release: %r', context, release)
 
-    if this.request.principal in context_obj['author']:
-        diff = context_obj.patch(context_meta)
+    if this.request.principal in context_doc['author']:
+        diff = context_doc.patch(context_meta)
         if diff:
             this.call(method='PUT', path=['context', context], content=diff)
-            context_obj.props.update(diff)
+            context_doc.props.update(diff)
         # TRANS: Release notes title
         title = i18n._('%(name)s %(version)s release')
     else:
@@ -236,15 +230,15 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
                 'context': context,
                 'type': 'notification',
                 'title': i18n.encode(title,
-                    name=context_obj['title'],
-                    version=release['version'],
+                    name=context_doc['title'],
+                    version=version,
                     ),
                 'message': release_notes or '',
                 },
             content_type='application/json')
 
-    filename = ''.join(i18n.decode(context_obj['title']).split())
-    blob_meta['name'] = '%s-%s' % (filename, release['version'])
+    filename = ''.join(i18n.decode(context_doc['title']).split())
+    blob_meta['name'] = '%s-%s' % (filename, version)
     files.update(blob.digest, blob_meta)
 
     return context, release

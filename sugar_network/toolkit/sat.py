@@ -35,7 +35,7 @@ from sugar_network.toolkit import enforce
 _logger = logging.getLogger('sat')
 
 
-def solve(clauses, at_most_one_clauses, decide):
+def solve(clauses, at_most_one_clauses):
     if not clauses:
         _logger.info('No clauses')
         return None
@@ -55,7 +55,15 @@ def solve(clauses, at_most_one_clauses, decide):
     for name, clause in at_most_one_clauses.items():
         clauses[name] = problem.at_most_one(clause)
 
-    if not problem.run_solver(lambda: decide(clauses)):
+    def decide():
+        for clause in clauses.values():
+            if clause.current is not None:
+                continue
+            v = clause.best_undecided()
+            if v is not None:
+                return v
+
+    if not problem.run_solver(decide):
         return None
 
     result = {}

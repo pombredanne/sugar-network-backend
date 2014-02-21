@@ -74,16 +74,16 @@ class ModelTest(tests.Test):
             'name': 'Activity-1',
             }, files.get(blob.digest))
         self.assertEqual('bundle_id', context)
-        self.assertEqual('1', release['version'])
+        self.assertEqual([[1], 0], release['version'])
         self.assertEqual('developer', release['stability'])
         self.assertEqual(['Public Domain'], release['license'])
         self.assertEqual('developer', release['stability'])
-        self.assertEqual(sorted(['dep', 'sugar-0.88']), sorted(release['requires']))
+        self.assertEqual(
+                {'dep': {}, 'sugar': {'restrictions': [('0.88', None)]}},
+                release['requires'])
         self.assertEqual({
             '*-*': {
                 'bundle': blob.digest,
-                'commands': {'activity': {'exec': 'true'}},
-                'requires': {'dep': {}, 'sugar': {'restrictions': [('0.88', None)]}},
                 },
             },
             release['spec'])
@@ -124,7 +124,7 @@ class ModelTest(tests.Test):
             'name': 'NonActivity-2',
             }, files.get(blob.digest))
         self.assertEqual('bundle_id', context)
-        self.assertEqual('2', release['version'])
+        self.assertEqual([[2], 0], release['version'])
         self.assertEqual(['GPL'], release['license'])
 
         post = volume['post'][release['announce']]
@@ -164,24 +164,24 @@ class ModelTest(tests.Test):
         self.assertRaises(http.BadRequest, load_bundle, blob_wo_license, 'bundle_id')
 
         volume['context'].update('bundle_id', {'releases': {
-            'new': {'release': 2, 'license': ['New']},
+            'new': {'value': {'release': 2, 'license': ['New']}},
             }})
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
         context, release = load_bundle(blob_wo_license, 'bundle_id')
         self.assertEqual(['New'], release['license'])
 
         volume['context'].update('bundle_id', {'releases': {
-            'new': {'release': 2, 'license': ['New']},
-            'old': {'release': 1, 'license': ['Old']},
+            'new': {'value': {'release': 2, 'license': ['New']}},
+            'old': {'value': {'release': 1, 'license': ['Old']}},
             }})
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
         context, release = load_bundle(blob_wo_license, 'bundle_id')
         self.assertEqual(['New'], release['license'])
 
         volume['context'].update('bundle_id', {'releases': {
-            'new': {'release': 2, 'license': ['New']},
-            'old': {'release': 1, 'license': ['Old']},
-            'newest': {'release': 3, 'license': ['Newest']},
+            'new': {'value': {'release': 2, 'license': ['New']}},
+            'old': {'value': {'release': 1, 'license': ['Old']}},
+            'newest': {'value': {'release': 3, 'license': ['Newest']}},
             }})
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
         context, release = load_bundle(blob_wo_license, 'bundle_id')
@@ -204,24 +204,24 @@ class ModelTest(tests.Test):
         self.assertRaises(http.BadRequest, load_bundle, blob, 'bundle_id')
 
         volume['context'].update('bundle_id', {'releases': {
-            'new': {'release': 2, 'license': ['New']},
+            'new': {'value': {'release': 2, 'license': ['New']}},
             }})
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='1')
         context, release = load_bundle(blob, 'bundle_id')
         self.assertEqual(['New'], release['license'])
 
         volume['context'].update('bundle_id', {'releases': {
-            'new': {'release': 2, 'license': ['New']},
-            'old': {'release': 1, 'license': ['Old']},
+            'new': {'value': {'release': 2, 'license': ['New']}},
+            'old': {'value': {'release': 1, 'license': ['Old']}},
             }})
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='1')
         context, release = load_bundle(blob, 'bundle_id')
         self.assertEqual(['New'], release['license'])
 
         volume['context'].update('bundle_id', {'releases': {
-            'new': {'release': 2, 'license': ['New']},
-            'old': {'release': 1, 'license': ['Old']},
-            'newest': {'release': 3, 'license': ['Newest']},
+            'new': {'value': {'release': 2, 'license': ['New']}},
+            'old': {'value': {'release': 1, 'license': ['Old']}},
+            'newest': {'value': {'release': 3, 'license': ['Newest']}},
             }})
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='1')
         context, release = load_bundle(blob, 'bundle_id')
@@ -490,13 +490,16 @@ class ModelTest(tests.Test):
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
         context, release = load_bundle(blob, 'bundle_id')
 
-        self.assertEqual(
-                sorted([
-                    'dep1', 'dep2', 'dep3', 'dep4-31', 'dep5-40',
-                    'dep6-6',
-                    'dep7-1', 'dep7-2', 'dep7-3',
-                    ]),
-                sorted(release['requires']))
+        self.assertEqual({
+            'dep5': {'restrictions': [('40', None)]},
+            'dep4': {'restrictions': [('31', None)]},
+            'dep7': {'restrictions': [('1', '4')]},
+            'dep6': {'restrictions': [('6', '7')]},
+            'dep1': {},
+            'dep3': {'restrictions': [(None, '21')]},
+            'dep2': {'restrictions': [(None, '10')]},
+            },
+            release['requires'])
 
     def test_load_bundle_IgnoreNotSupportedContextTypes(self):
         volume = self.start_master()

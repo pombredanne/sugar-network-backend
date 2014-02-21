@@ -89,7 +89,7 @@ class Context(db.Resource):
     def rating(self, value):
         return value
 
-    @db.stored_property(db.List, default=[], acl=ACL.PUBLIC | ACL.LOCAL)
+    @db.stored_property(default='', acl=ACL.PUBLIC | ACL.LOCAL)
     def dependencies(self, value):
         """Software dependencies.
 

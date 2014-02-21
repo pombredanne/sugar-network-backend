@@ -13,14 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import bisect
 import logging
 
 from sugar_network import db, toolkit
-from sugar_network.model import Release, context
+from sugar_network.model import Release, context as base_context
 from sugar_network.node import obs
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, coroutine, enforce
+from sugar_network.toolkit import spec, sat, http, coroutine, enforce
 
 
 _logger = logging.getLogger('node.model')
@@ -48,7 +49,7 @@ class _Release(Release):
             lsb_id = distro
             lsb_release = None
         releases = this.resource.record.get('releases')
-        statuses = releases['value'].setdefault('status', {})
+        resolves = releases['value'].setdefault('resolves', {})
         to_presolve = []
 
         for repo in obs.get_repos():
@@ -60,21 +61,26 @@ class _Release(Release):
                     not lsb_release and repo['name'] in releases['value']:
                 continue
             pkgs = sum([value.get(i, []) for i in ('binary', 'devel')], [])
+            version = None
             try:
                 for arch in repo['arches']:
-                    obs.resolve(repo['name'], arch, pkgs)
+                    version = obs.resolve(repo['name'], arch, pkgs)['version']
             except Exception, error:
                 _logger.warning('Failed to resolve %r on %s',
                         pkgs, repo['name'])
-                status = str(error)
+                resolve = {'status': str(error)}
             else:
                 to_presolve.append((repo['name'], pkgs))
-                status = 'success'
-            statuses[repo['name']] = status
+                resolve = {
+                        'version': spec.parse_version(version),
+                        'packages': pkgs,
+                        'status': 'success',
+                        }
+            resolves.setdefault(repo['name'], {}).update(resolve)
 
         if to_presolve and _presolve_queue is not None:
             _presolve_queue.put(to_presolve)
-        if statuses:
+        if resolves:
             this.resource.record.set('releases', **releases)
 
         return value
@@ -85,7 +91,7 @@ class _Release(Release):
         # TODO Delete presolved files
 
 
-class Context(context.Context):
+class Context(base_context.Context):
 
     @db.stored_property(db.Aggregated, subtype=_Release(),
             acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
@@ -143,15 +149,10 @@ def merge(volume, records):
     for record in records:
         resource_ = record.get('resource')
         if resource_:
-            resource = resource_
             directory = volume[resource_]
             continue
 
         if 'guid' in record:
-            guid = record['guid']
-            existed = directory.exists(guid)
-            if existed:
-                layer = directory.get(guid)['layer']
             seqno, merged = directory.merge(**record)
             synced = synced or merged
             if seqno is not None:
@@ -169,9 +170,144 @@ def merge(volume, records):
     return commit_seq, merged_seq
 
 
+def solve(volume, top_context, lsb_id=None, lsb_release=None,
+        stability=None, requires=None):
+    top_context = volume['context'][top_context]
+    top_stability = stability or ['stable']
+    if isinstance(top_stability, basestring):
+        top_stability = [top_stability]
+    top_cond = None
+    top_requires = {}
+    if isinstance(requires, basestring):
+        top_requires.update(spec.parse_requires(requires))
+    elif requires:
+        for i in requires:
+            top_requires.update(spec.parse_requires(i))
+    if top_context['dependencies']:
+        top_requires.update(spec.parse_requires(top_context['dependencies']))
+    if top_context.guid in top_requires:
+        top_cond = top_requires.pop(top_context.guid)
+
+    lsb_distro = '-'.join([lsb_id, lsb_release]) if lsb_release else None
+    varset = [None]
+    context_clauses = {}
+    clauses = []
+
+    _logger.debug('Solve %r lsb_id=%r lsb_release=%r stability=%r requires=%r',
+            top_context.guid, lsb_id, lsb_release, top_stability, top_requires)
+
+    def ensure_version(version, cond):
+        if not cond:
+            return True
+        for not_before, before in cond['restrictions']:
+            if before is not None and version >= before or \
+                    not_before is not None and version < not_before:
+                return False
+        return True
+
+    def rate_release(digest, release):
+        return [_STABILITY_RATES.get(release['stability']) or 0,
+                release['version'],
+                digest,
+                ]
+
+    def add_deps(context, v_usage, deps):
+        if top_requires and context.guid == top_context.guid:
+            deps.update(top_requires)
+        for dep, cond in deps.items():
+            dep_clause = [-v_usage]
+            for v_release in add_context(dep):
+                if ensure_version(varset[v_release][0], cond):
+                    dep_clause.append(v_release)
+            clauses.append(dep_clause)
+
+    def add_context(context):
+        if context in context_clauses:
+            return context_clauses[context]
+        context = volume['context'][context]
+        releases = context['releases']
+        clause = []
+
+        if 'package' in context['type']:
+            pkg_lst = None
+            pkg_ver = []
+            pkg = releases.get('resolves', {}).get(lsb_distro)
+            if pkg:
+                pkg_ver = pkg['version']
+                pkg_lst = pkg['packages']
+            else:
+                alias = releases.get(lsb_id) or releases.get('*')
+                if alias:
+                    alias = alias['value']
+                    pkg_lst = alias.get('binary', []) + alias.get('devel', [])
+            if pkg_lst:
+                clause.append(len(varset))
+                varset.append((pkg_ver, 'packages', {context.guid: pkg_lst}))
+        else:
+            candidates = []
+            for digest, release in releases.items():
+                if 'value' not in release:
+                    continue
+                release = release['value']
+                if release['stability'] not in top_stability or \
+                        context.guid == top_context.guid and \
+                            not ensure_version(release['version'], top_cond):
+                    continue
+                bisect.insort(candidates, rate_release(digest, release))
+            for release in reversed(candidates):
+                digest = release[-1]
+                release = releases[digest]['value']
+                v_release = len(varset)
+                varset.append((
+                    release['version'],
+                    'files',
+                    {context.guid: digest},
+                    ))
+                clause.append(v_release)
+                add_deps(context, v_release, release.get('requires') or {})
+
+        if clause:
+            context_clauses[context.guid] = clause
+        else:
+            _logger.trace('No candidates for %r', context.guid)
+        return clause
+
+    top_clause = add_context(top_context.guid)
+    if not top_clause:
+        _logger.debug('No versions for %r', top_context.guid)
+        return None
+    result = sat.solve(clauses + [top_clause], context_clauses)
+    if not result:
+        _logger.debug('Failed to solve %r', top_context.guid)
+        return None
+    if not top_context.guid in result:
+        _logger.debug('No top versions for %r', top_context.guid)
+        return None
+
+    solution = {'files': {}, 'packages': {}}
+    for v in result.values():
+        __, key, items = varset[v]
+        solution[key].update(items)
+    top_release = top_context['releases'][solution['files'][top_context.guid]]
+    solution['commands'] = top_release['value']['commands']
+
+    _logger.debug('Solution for %r: %r', top_context.guid, solution)
+
+    return solution
+
+
 def presolve(presolve_path):
     global _presolve_queue
     _presolve_queue = coroutine.Queue()
 
     for repo_name, pkgs in _presolve_queue:
         obs.presolve(repo_name, pkgs, presolve_path)
+
+
+_STABILITY_RATES = {
+        'insecure': 0,
+        'buggy': 1,
+        'developer': 2,
+        'testing': 3,
+        'stable': 4,
+        }

@@ -11,13 +11,13 @@ class SAT(tests.Test):
     def test_AtMostOne(self):
         self.assertEqual(
                 {'c': 1},
-                sat.solve([[1]], {'c': [1]}, decide))
+                sat.solve([[1]], {'c': [1]}))
         self.assertEqual(
                 {'c': 1},
-                sat.solve([[1, 2]], {'c': [1, 2]}, decide))
+                sat.solve([[1, 2]], {'c': [1, 2]}))
         self.assertEqual(
                 {'c': 1},
-                sat.solve([[1, 2, 3]], {'c': [1, 2, 3]}, decide))
+                sat.solve([[1, 2, 3]], {'c': [1, 2, 3]}))
 
     def test_DeepSolve(self):
         self.assertEqual({
@@ -38,9 +38,9 @@ class SAT(tests.Test):
                     'c3': [3],
                     'c4': [4, 5],
                     },
-                decide))
+                ))
 
-    def test_SwitchToAnotherBranch(self):
+    def test_SwitchToAlternativeBranch(self):
         self.assertEqual({
             'c1': 6,
             'c4': 4,
@@ -57,7 +57,7 @@ class SAT(tests.Test):
                     'c3': [3],
                     'c4': [4, 5],
                     },
-                decide))
+                ))
 
     def __test_zi(self):
         from zeroinstall.injector import sat
@@ -85,19 +85,18 @@ class SAT(tests.Test):
 
         c4 = problem.at_most_one([v4, v5])
 
-        assert problem.run_solver(lambda: decide({'c1': c1, 'c2': c2, 'c3': c3, 'c4': c4}))
+        def decide(clauses):
+            for i in [c1, c2, c3, c4]:
+                if i.current is None:
+                    r = i.best_undecided()
+                    if r is not None:
+                        return r
+
+        assert problem.run_solver(decide)
         self.assertEqual(v6, c1.current)
         self.assertEqual(None, c2.current)
         self.assertEqual(None, c3.current)
         self.assertEqual(v4, c4.current)
-
-
-def decide(clauses):
-    for i in clauses.values():
-        if i.current is None:
-            r = i.best_undecided()
-            if r is not None:
-                return r
 
 
 if __name__ == '__main__':

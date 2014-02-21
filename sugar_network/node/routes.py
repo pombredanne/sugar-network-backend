@@ -20,9 +20,10 @@ import hashlib
 from ConfigParser import ConfigParser
 from os.path import join, isdir, exists
 
-from sugar_network import db, node, toolkit, model
+from sugar_network import db, node, toolkit
 from sugar_network.db import files
-from sugar_network.node import stats_user
+from sugar_network.model import FrontRoutes, load_bundle
+from sugar_network.node import stats_user, model
 # pylint: disable-msg=W0611
 from sugar_network.toolkit.router import route, preroute, postroute, ACL
 from sugar_network.toolkit.router import Unauthorized, Request, fallbackroute
@@ -39,11 +40,11 @@ _AUTH_POOL_SIZE = 1024
 _logger = logging.getLogger('node.routes')
 
 
-class NodeRoutes(db.Routes, model.FrontRoutes):
+class NodeRoutes(db.Routes, FrontRoutes):
 
     def __init__(self, guid, **kwargs):
         db.Routes.__init__(self, **kwargs)
-        model.FrontRoutes.__init__(self)
+        FrontRoutes.__init__(self)
         self._guid = guid
         self._auth_pool = pylru.lrucache(_AUTH_POOL_SIZE)
         self._auth_config = None
@@ -120,7 +121,7 @@ class NodeRoutes(db.Routes, model.FrontRoutes):
     def submit_release(self, request, initial):
         blob = files.post(request.content_stream)
         try:
-            context, release = model.load_bundle(blob, initial=initial)
+            context, release = load_bundle(blob, initial=initial)
         except Exception:
             files.delete(blob.digest)
             raise
@@ -144,40 +145,24 @@ class NodeRoutes(db.Routes, model.FrontRoutes):
         layer = list(set(doc['layer']) - set(request.content))
         directory.update(request.guid, {'layer': layer})
 
+    @route('GET', ['context', None], cmd='solve',
+            arguments={'requires': list, 'stability': list},
+            mime_type='application/json')
+    def solve(self, request):
+        solution = model.solve(self.volume, request.guid, **request)
+        enforce(solution is not None, 'Failed to solve')
+        return solution
+
     @route('GET', ['context', None], cmd='clone',
             arguments={'requires': list})
     def get_clone(self, request, response):
-        deps = {}
-        if 'requires' in request:
-            for i in request['requires']:
-                deps.update(parse_requires(i))
-        version = request.get('version')
-        if version:
-            version = parse_version(version)[0]
-        stability = request.get('stability') or 'stable'
-
-        recent = None
-        context = self.volume['context'][request.guid]
-        for release in context['releases'].values():
-            release = release.get('value')
-            if not release:
-                continue
-            spec = release['spec']['*-*']
-            if version and version != release['release'][0] or \
-                    stability and stability != release['stability'] or \
-                    deps and not ensure_requires(spec['requires'], deps):
-                continue
-            if recent is None or release['release'] > recent['release']:
-                recent = release
-        enforce(recent, http.NotFound, 'No releases found')
-
-        response.meta = recent
-        return files.get(recent['spec']['*-*']['bundle'])
+        response.meta = self.solve(request)
+        return files.get(response.meta['files'][request.guid])
 
     @route('HEAD', ['context', None], cmd='clone',
             arguments={'requires': list})
     def head_clone(self, request, response):
-        self.get_clone(request, response)
+        response.meta = self.solve(request)
 
     @route('GET', ['user', None], cmd='stats-info',
             mime_type='application/json', acl=ACL.AUTH)
