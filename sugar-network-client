@@ -28,7 +28,7 @@ from gevent import monkey
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
 from sugar_network.client.routes import CachedClientRoutes
-from sugar_network.node import stats_node, stats_user
+from sugar_network.node import stats_user
 from sugar_network.model import RESOURCES
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit import mountpoints, printf, application
@@ -204,7 +204,6 @@ Option.seek('webui', webui)
 Option.seek('client', client)
 Option.seek('db', db)
 Option.seek('node', [node.port, node.find_limit, node.sync_layers])
-Option.seek('node-stats', stats_node)
 Option.seek('user-stats', stats_user)
 
 app = Application(

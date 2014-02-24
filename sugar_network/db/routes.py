@@ -15,14 +15,14 @@
 
 import re
 import time
-import json
 import logging
 from contextlib import contextmanager
 
 from sugar_network import toolkit
-from sugar_network.db import files
+from sugar_network.db import blobs
 from sugar_network.db.metadata import Aggregated
-from sugar_network.toolkit.router import ACL, route, preroute, fallbackroute
+from sugar_network.toolkit.router import ACL, File
+from sugar_network.toolkit.router import route, preroute, fallbackroute
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, enforce
 
@@ -137,25 +137,20 @@ class Routes(object):
         prop = directory.metadata[request.prop]
         prop.assert_access(ACL.READ)
 
-        meta = doc.meta(prop.name) or {}
-        if 'value' in meta:
-            value = _get_prop(doc, prop, meta.pop('value'))
-            enforce(value is not toolkit.File.AWAY, http.NotFound, 'No blob')
+        meta = doc.meta(prop.name)
+        if meta:
+            value = meta['value']
+            response.last_modified = meta['mtime']
         else:
             value = prop.default
-
-        response.meta = meta
-        response.last_modified = meta.get('mtime')
-        if isinstance(value, toolkit.File):
-            response.content_length = value.get('size') or 0
-        else:
-            response.content_length = len(json.dumps(value))
+        value = _get_prop(doc, prop, value)
+        enforce(value is not File.AWAY, http.NotFound, 'No blob')
 
         return value
 
     @route('HEAD', [None, None, None])
     def get_prop_meta(self, request, response):
-        self.get_prop(request, response)
+        return self.get_prop(request, response)
 
     @route('POST', [None, None, None],
             acl=ACL.AUTH, mime_type='application/json')
@@ -193,7 +188,7 @@ class Routes(object):
 
     @fallbackroute('GET', ['blobs'])
     def blobs(self, request):
-        return files.get(request.guid)
+        return blobs.get(request.guid)
 
     def on_create(self, request, props):
         ts = int(time.time())
@@ -280,7 +275,10 @@ class Routes(object):
         result = {}
         for name in props:
             prop = doc.metadata[name]
-            result[name] = _get_prop(doc, prop, doc.get(name))
+            value = _get_prop(doc, prop, doc.get(name))
+            if isinstance(value, File):
+                value = value.url
+            result[name] = value
         return result
 
     def _useradd(self, authors, user, role):

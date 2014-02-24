@@ -346,14 +346,34 @@ class Request(dict):
                 (self.method, self.path, self.cmd, dict(self))
 
 
-class Response(dict):
+class CaseInsensitiveDict(dict):
+
+    def __contains__(self, key):
+        return dict.__contains__(self, key.lower())
+
+    def __getitem__(self, key):
+        return self.get(key.lower())
+
+    def __setitem__(self, key, value):
+        return self.set(key.lower(), value)
+
+    def __delitem__(self, key, value):
+        self.remove(key.lower())
+
+    def get(self, key):
+        return dict.get(self, key)
+
+    def set(self, key, value):
+        dict.__setitem__(self, key, value)
+
+    def remove(self, key):
+        dict.__delitem__(self, key)
+
+
+class Response(CaseInsensitiveDict):
 
     status = '200 OK'
     relocations = 0
-
-    def __init__(self, **kwargs):
-        dict.__init__(self, kwargs)
-        self.meta = {}
 
     @property
     def content_length(self):
@@ -394,26 +414,47 @@ class Response(dict):
         return result
 
     def __repr__(self):
-        items = ['%s=%r' % i for i in self.items() + self.meta.items()]
+        items = ['%s=%r' % i for i in self.items()]
         return '<Response %r>' % items
 
-    def __contains__(self, key):
-        dict.__contains__(self, key.lower())
 
-    def __getitem__(self, key):
-        return self.get(key.lower())
+class File(CaseInsensitiveDict):
 
-    def __setitem__(self, key, value):
-        return self.set(key.lower(), value)
+    AWAY = None
 
-    def __delitem__(self, key, value):
-        self.remove(key.lower())
+    class Digest(str):
+        pass
 
-    def set(self, key, value):
-        dict.__setitem__(self, key, value)
+    def __init__(self, path, digest=None, meta=None):
+        CaseInsensitiveDict.__init__(self)
+        self.path = path
+        self.digest = File.Digest(digest) if digest else None
+        if meta is not None:
+            for key, value in meta:
+                self[key] = value
+        self._stat = None
 
-    def remove(self, key):
-        dict.__delitem__(self, key)
+    @property
+    def size(self):
+        if self._stat is None:
+            self._stat = os.stat(self.path)
+        return self._stat.st_size
+
+    @property
+    def mtime(self):
+        if self._stat is None:
+            self._stat = os.stat(self.path)
+        return int(self._stat.st_mtime)
+
+    @property
+    def url(self):
+        if self is File.AWAY:
+            return ''
+        return self.get('location') or \
+               '%s/blobs/%s' % (this.request.static_prefix, self.digest)
+
+    def __repr__(self):
+        return '<File %r>' % self.url
 
 
 class Router(object):
@@ -530,11 +571,8 @@ class Router(object):
         except Exception, exception:
             raise
         else:
-            if not response.content_type:
-                if isinstance(result, toolkit.File):
-                    response.content_type = result.get('mime_type')
-                if not response.content_type:
-                    response.content_type = route_.mime_type
+            if route_.mime_type and 'content-type' not in response:
+                response.set('content-type', route_.mime_type)
         finally:
             for i in self._postroutes:
                 i(request, response, result, exception)
@@ -563,18 +601,14 @@ class Router(object):
 
             result = self.call(request, response)
 
-            if isinstance(result, toolkit.File):
-                if 'url' in result:
-                    raise http.Redirect(result['url'])
+            if isinstance(result, File):
+                response.update(result)
+                if 'location' in result:
+                    raise http.Redirect(result['location'])
                 enforce(isfile(result.path), 'No such file')
-                if request.if_modified_since and result.mtime and \
+                if request.if_modified_since and \
                         result.mtime <= request.if_modified_since:
                     raise http.NotModified()
-                response.last_modified = result.mtime
-                response.content_type = result.get('mime_type') or \
-                        'application/octet-stream'
-                response['Content-Disposition'] = \
-                        'attachment; filename="%s"' % result.name
                 result = file(result.path, 'rb')
 
             if not hasattr(result, 'read'):
@@ -592,7 +626,6 @@ class Router(object):
             response.status = error.status
             if error.headers:
                 response.update(error.headers)
-            response.content_type = None
         except Exception, error:
             toolkit.exception('Error while processing %r request', request.url)
             if isinstance(error, http.Status):
@@ -601,7 +634,7 @@ class Router(object):
             else:
                 response.status = '500 Internal Server Error'
             if request.method == 'HEAD':
-                response.meta['error'] = str(error)
+                response.status = response.status[:4] + str(error)
             else:
                 content = {'error': str(error), 'request': request.url}
                 response.content_type = 'application/json'
@@ -622,9 +655,6 @@ class Router(object):
                 content = json.dumps(content)
             if 'content-length' not in response:
                 response.content_length = len(content) if content else 0
-
-        for key, value in response.meta.items():
-            response.set('X-SN-%s' % toolkit.ascii(key), json.dumps(value))
 
         if request.method == 'HEAD' and content is not None:
             _logger.warning('Content from HEAD response is ignored')
@@ -859,3 +889,6 @@ class _Authorization(str):
     password = None
     signature = None
     nonce = None
+
+
+File.AWAY = File(None)

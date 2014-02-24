@@ -3,11 +3,12 @@
 # sugar-lint: disable
 
 import base64
+import mimetypes
 
 from __init__ import tests
 
 from sugar_network import db
-from sugar_network.db import files
+from sugar_network.db import blobs
 from sugar_network.model import load_bundle
 from sugar_network.model.post import Post
 from sugar_network.client import IPCConnection, Connection, keyfile
@@ -64,15 +65,15 @@ class ModelTest(tests.Test):
                 ('topdir/activity/activity.info', activity_info),
                 ('topdir/CHANGELOG', changelog),
                 )
-        blob = files.post(bundle)
+        blob = blobs.post(bundle)
 
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
         context, release = load_bundle(blob, 'bundle_id')
 
         self.assertEqual({
-            'mime_type': 'application/vnd.olpc-sugar',
-            'name': 'Activity-1',
-            }, files.get(blob.digest))
+            'content-type': 'application/vnd.olpc-sugar',
+            'content-disposition': 'attachment; filename="Activity-1%s"' % (mimetypes.guess_extension('application/vnd.olpc-sugar') or ''),
+            }, blobs.get(blob.digest))
         self.assertEqual('bundle_id', context)
         self.assertEqual([[1], 0], release['version'])
         self.assertEqual('developer', release['stability'])
@@ -113,16 +114,16 @@ class ModelTest(tests.Test):
             'description': 'description',
             })
         bundle = 'non-activity'
-        blob = files.post(bundle)
+        blob = blobs.post(bundle)
+        blob['content-type'] = 'application/pdf'
 
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID,
-                content_type = 'content/type', version='2', license='GPL')
+        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='2', license='GPL')
         context, release = load_bundle(blob, 'bundle_id')
 
         self.assertEqual({
-            'mime_type': 'content/type',
-            'name': 'NonActivity-2',
-            }, files.get(blob.digest))
+            'content-type': 'application/pdf',
+            'content-disposition': 'attachment; filename="NonActivity-2.pdf"',
+            }, blobs.get(blob.digest))
         self.assertEqual('bundle_id', context)
         self.assertEqual([[2], 0], release['version'])
         self.assertEqual(['GPL'], release['license'])
@@ -160,7 +161,7 @@ class ModelTest(tests.Test):
             'activity_version = 1',
             ])
         bundle = self.zips(('topdir/activity/activity.info', activity_info_wo_license))
-        blob_wo_license = files.post(bundle)
+        blob_wo_license = blobs.post(bundle)
         self.assertRaises(http.BadRequest, load_bundle, blob_wo_license, 'bundle_id')
 
         volume['context'].update('bundle_id', {'releases': {
@@ -199,7 +200,7 @@ class ModelTest(tests.Test):
             'description': 'description',
             })
 
-        blob = files.post('non-activity')
+        blob = blobs.post('non-activity')
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='1')
         self.assertRaises(http.BadRequest, load_bundle, blob, 'bundle_id')
 
@@ -239,7 +240,7 @@ class ModelTest(tests.Test):
             'description': 'description',
             })
 
-        blob = files.post('non-activity')
+        blob = blobs.post('non-activity')
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='2', license='GPL')
         self.assertRaises(http.BadRequest, load_bundle, blob, 'bundle_id')
 
@@ -259,7 +260,7 @@ class ModelTest(tests.Test):
                 ('topdir/activity/activity.info', activity_info),
                 ('topdir/CHANGELOG', changelog),
                 )
-        blob = files.post(bundle)
+        blob = blobs.post(bundle)
         self.assertRaises(http.BadRequest, load_bundle, blob, 'bundle_id')
 
     def test_load_bundle_MissedContext(self):
@@ -278,7 +279,7 @@ class ModelTest(tests.Test):
             'stability = developer',
             'requires = sugar>=0.88; dep'
             ])))
-        blob = files.post(bundle)
+        blob = blobs.post(bundle)
 
         this.request = Request(principal=tests.UID)
         self.assertRaises(http.NotFound, load_bundle, blob, initial=False)
@@ -304,7 +305,7 @@ class ModelTest(tests.Test):
                     ])),
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
                 )
-        blob = files.post(bundle)
+        blob = blobs.post(bundle)
 
         this.request = Request(principal=tests.UID)
         context, release = load_bundle(blob, initial=True)
@@ -377,7 +378,7 @@ class ModelTest(tests.Test):
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', svg),
                 )
 
-        blob = files.post(bundle)
+        blob = blobs.post(bundle)
         this.request = Request(method='POST', path=['context', 'org.laptop.ImageViewerActivity'], principal=tests.UID)
         context, release = load_bundle(blob, initial=True)
 
@@ -395,7 +396,7 @@ class ModelTest(tests.Test):
             'en': 'It has features one would expect of a standard image viewer, like zoom, rotate, etc.',
             },
             context['description'])
-        self.assertEqual(svg, file(files.get(context['artifact_icon']).path).read())
+        self.assertEqual(svg, file(blobs.get(context['artifact_icon']).path).read())
         assert context['icon'] != 'missing.png'
         assert context['logo'] != 'missing-logo.png'
         self.assertEqual('http://wiki.sugarlabs.org/go/Activities/Image_Viewer', context['homepage'])
@@ -425,7 +426,7 @@ class ModelTest(tests.Test):
             'license = Public Domain',
             'stability = developer',
             ])))
-        blob = files.post(bundle)
+        blob = blobs.post(bundle)
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID2)
         context, release = load_bundle(blob, 'bundle_id')
 
@@ -443,8 +444,8 @@ class ModelTest(tests.Test):
             'fr': 'Activity 1 third-party release',
             }, post['title'])
 
-        files.delete(blob.digest)
-        blob = files.post(bundle)
+        blobs.delete(blob.digest)
+        blob = blobs.post(bundle)
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
         context, release = load_bundle(blob, 'bundle_id')
 
@@ -486,7 +487,7 @@ class ModelTest(tests.Test):
                     ])),
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
                 )
-        blob = files.post(bundle)
+        blob = blobs.post(bundle)
         this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
         context, release = load_bundle(blob, 'bundle_id')
 

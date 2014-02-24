@@ -10,7 +10,7 @@ from cStringIO import StringIO
 from __init__ import tests, src_root
 
 from sugar_network import db, client, toolkit
-from sugar_network.toolkit.router import Router, Request, _parse_accept_language, route, fallbackroute, preroute, postroute
+from sugar_network.toolkit.router import Router, Request, _parse_accept_language, route, fallbackroute, preroute, postroute, File
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, coroutine
 
@@ -984,8 +984,8 @@ class RouterTest(tests.Test):
             lambda status, headers: response.extend([status, dict(headers)]))
         self.assertEqual('', ''.join([i for i in reply]))
         self.assertEqual([
-            '001 Status',
-            {'X-SN-error': '"Status-Error"'},
+            '001 Status-Error',
+            {},
             ],
             response)
 
@@ -1025,7 +1025,7 @@ class RouterTest(tests.Test):
 
             @route('GET')
             def get(self, response):
-                return toolkit.File(meta={'url': URL})
+                return File(None, meta=[('location', URL)])
 
         router = Router(CommandsProcessor())
 
@@ -1226,13 +1226,9 @@ class RouterTest(tests.Test):
 
         class CommandsProcessor(object):
 
-            @route('GET', [], '1')
-            def cmd1(self, request):
-                return toolkit.File('blob.data', {'name': 'foo', 'mime_type': 'application/octet-stream'})
-
-            @route('GET', [], cmd='2')
-            def cmd2(self, request):
-                return toolkit.File('blob.data', {'filename': 'foo.bar'})
+            @route('GET', [])
+            def probe(self, request):
+                return File('blob.data', meta=[('content-disposition', 'attachment; filename="foo.bar"')])
 
         router = Router(CommandsProcessor())
 
@@ -1240,7 +1236,6 @@ class RouterTest(tests.Test):
         reply = router({
             'PATH_INFO': '/',
             'REQUEST_METHOD': 'GET',
-            'QUERY_STRING': 'cmd=1',
             },
             lambda status, headers: response.extend([status, dict(headers)]))
         result = 'value'
@@ -1248,29 +1243,7 @@ class RouterTest(tests.Test):
         self.assertEqual([
             '200 OK',
             {
-                'last-modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
                 'content-length': str(len(result)),
-                'content-type': 'application/octet-stream',
-                'content-disposition': 'attachment; filename="foo.obj"',
-                }
-            ],
-            response)
-
-        response = []
-        reply = router({
-            'PATH_INFO': '/',
-            'REQUEST_METHOD': 'GET',
-            'QUERY_STRING': 'cmd=2',
-            },
-            lambda status, headers: response.extend([status, dict(headers)]))
-        result = 'value'
-        self.assertEqual(result, ''.join([i for i in reply]))
-        self.assertEqual([
-            '200 OK',
-            {
-                'last-modified': formatdate(os.stat('blob.data').st_mtime, localtime=False, usegmt=True),
-                'content-length': str(len(result)),
-                'content-type': 'application/octet-stream',
                 'content-disposition': 'attachment; filename="foo.bar"',
                 }
             ],

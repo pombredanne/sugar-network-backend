@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# sugar-lint: disable
+
 import os
 import sys
 import time
@@ -20,7 +22,7 @@ import logging
 from os.path import exists
 
 from sugar_network import client
-from sugar_network.db import files
+from sugar_network.db import blobs
 from sugar_network.toolkit import pylru, enforce
 
 

@@ -142,7 +142,7 @@ class Connection(object):
         request = Request(method='HEAD', path=path_, **kwargs)
         response = Response()
         self.call(request, response)
-        return response.meta
+        return response
 
     def get(self, path_=None, query_=None, **kwargs):
         reply = self.request('GET', path_, params=query_ or kwargs)
@@ -274,13 +274,11 @@ class Connection(object):
                 if 'transfer-encoding' in reply.headers:
                     # `requests` library handles encoding on its own
                     del reply.headers['transfer-encoding']
-                for key, value in reply.headers.items():
-                    if key.startswith('x-sn-'):
-                        response.meta[key[5:]] = json.loads(value)
-                    elif not resend:
-                        response[key] = value
                 if resend:
                     response.relocations += 1
+                else:
+                    for key, value in reply.headers.items():
+                        response[key] = value
             if not resend:
                 break
             path = reply.headers['location']

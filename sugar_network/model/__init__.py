@@ -16,19 +16,20 @@
 import os
 import gettext
 import logging
+import mimetypes
 from os.path import join
 
 import xapian
 
 from sugar_network import toolkit, db
-from sugar_network.db import files
+from sugar_network.db import blobs
 from sugar_network.model.routes import FrontRoutes
 from sugar_network.toolkit.spec import parse_version, parse_requires
 from sugar_network.toolkit.spec import EMPTY_LICENSE
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit.router import ACL
-from sugar_network.toolkit import i18n, http, exception, enforce
+from sugar_network.toolkit import i18n, http, svg_to_png, exception, enforce
 
 
 CONTEXT_TYPES = [
@@ -73,22 +74,24 @@ class Rating(db.List):
 
 class Release(object):
 
-    def typecast(self, rel):
+    def typecast(self, release):
         if this.resource.exists and \
                 'activity' not in this.resource['type'] and \
                 'book' not in this.resource['type']:
-            return rel
-        if not isinstance(rel, dict):
-            __, rel = load_bundle(files.post(rel), context=this.request.guid)
-        return rel['spec']['*-*']['bundle'], rel
+            return release
+        if not isinstance(release, dict):
+            __, release = load_bundle(
+                    blobs.post(release, this.request.content_type),
+                    context=this.request.guid)
+        return release['spec']['*-*']['bundle'], release
 
-    def teardown(self, rel):
+    def teardown(self, release):
         if this.resource.exists and \
                 'activity' not in this.resource['type'] and \
                 'book' not in this.resource['type']:
             return
-        for spec in rel['spec'].values():
-            files.delete(spec['bundle'])
+        for spec in release['spec'].values():
+            blobs.delete(spec['bundle'])
 
     def encode(self, value):
         return []
@@ -120,18 +123,9 @@ def populate_context_images(props, svg):
     if 'guid' in props:
         from sugar_network.toolkit.sugar import color_svg
         svg = color_svg(svg, props['guid'])
-    props['artifact_icon'] = files.post(
-            svg,
-            {'mime_type': 'image/svg+xml'},
-            ).digest
-    props['icon'] = files.post(
-            toolkit.svg_to_png(svg, 55, 55),
-            {'mime_type': 'image/png'},
-            ).digest
-    props['logo'] = files.post(
-            toolkit.svg_to_png(svg, 140, 140),
-            {'mime_type': 'image/png'},
-            ).digest
+    props['artifact_icon'] = blobs.post(svg, 'image/svg+xml').digest
+    props['icon'] = blobs.post(svg_to_png(svg, 55, 55), 'image/png').digest
+    props['logo'] = blobs.post(svg_to_png(svg, 140, 140), 'image/png').digest
 
 
 def load_bundle(blob, context=None, initial=False, extra_deps=None):
@@ -140,7 +134,6 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
     context_meta = None
     release_notes = None
     release = {}
-    blob_meta = {}
     version = None
 
     try:
@@ -157,7 +150,6 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         release['spec'] = {'*-*': {
             'bundle': blob.digest,
             }}
-        blob_meta['mime_type'] = this.request.content_type
     else:
         context_type = 'activity'
         unpack_size = 0
@@ -191,7 +183,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
             'bundle': blob.digest,
             }}
         release['unpack_size'] = unpack_size
-        blob_meta['mime_type'] = 'application/vnd.olpc-sugar'
+        blob['content-type'] = 'application/vnd.olpc-sugar'
 
     enforce(context, http.BadRequest, 'Context is not specified')
     enforce(version, http.BadRequest, 'Version is not specified')
@@ -237,9 +229,11 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
                 },
             content_type='application/json')
 
-    filename = ''.join(i18n.decode(context_doc['title']).split())
-    blob_meta['name'] = '%s-%s' % (filename, version)
-    files.update(blob.digest, blob_meta)
+    blob['content-disposition'] = 'attachment; filename="%s-%s%s"' % (
+            ''.join(i18n.decode(context_doc['title']).split()),
+            version, mimetypes.guess_extension(blob.get('content-type')) or '',
+            )
+    blobs.update(blob.digest, blob)
 
     return context, release
 

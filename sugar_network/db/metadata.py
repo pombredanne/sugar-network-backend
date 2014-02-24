@@ -16,8 +16,8 @@
 import xapian
 
 from sugar_network import toolkit
-from sugar_network.db import files
-from sugar_network.toolkit.router import ACL
+from sugar_network.db import blobs
+from sugar_network.toolkit.router import ACL, File
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import i18n, http, enforce
 
@@ -33,6 +33,7 @@ def stored_property(klass=None, *args, **kwargs):
         return func(self, value)
 
     def decorate_setter(func, attr):
+        # pylint: disable-msg=W0212
         attr.prop.setter = lambda self, value: \
                 self._set(attr.name, func(self, value))
         attr.prop.on_set = func
@@ -297,12 +298,12 @@ class Blob(Property):
         self.mime_type = mime_type
 
     def typecast(self, value):
-        if isinstance(value, toolkit.File):
+        if isinstance(value, File):
             return value.digest
-        if isinstance(value, files.Digest):
+        if isinstance(value, File.Digest):
             return value
 
-        enforce(value is None or isinstance(value, basestring) or \
+        enforce(value is None or isinstance(value, basestring) or
                 isinstance(value, dict) and value or hasattr(value, 'read'),
                 'Inappropriate blob value')
 
@@ -310,45 +311,38 @@ class Blob(Property):
             return ''
 
         if not isinstance(value, dict):
-            return files.post(value, {
-                'mime_type': this.request.content_type or self.mime_type,
-                }).digest
+            mime_type = this.request.content_type or self.mime_type
+            return blobs.post(value, mime_type).digest
 
         digest = this.resource[self.name] if self.name else None
         if digest:
-            meta = files.get(digest)
+            orig = blobs.get(digest)
             enforce('digest' not in value or value.pop('digest') == digest,
                     "Inappropriate 'digest' value")
-            enforce(meta.path or 'url' in meta or 'url' in value,
+            enforce(orig.path or 'location' in orig or 'location' in value,
                     'Blob points to nothing')
-            if 'url' in value and meta.path:
-                files.delete(digest)
-                meta.update(value)
-                value = meta
+            if 'location' in value and orig.path:
+                blobs.delete(digest)
+                orig.update(value)
+                value = orig
         else:
-            enforce('url' in value, 'Blob points to nothing')
+            enforce('location' in value, 'Blob points to nothing')
             enforce('digest' in value, "Missed 'digest' value")
-            if 'mime_type' not in value:
-                value['mime_type'] = self.mime_type
+            if 'content-type' not in value:
+                value['content-type'] = self.mime_type
             digest = value.pop('digest')
 
-        files.update(digest, value)
+        blobs.update(digest, value)
         return digest
 
     def reprcast(self, value):
         if not value:
-            return toolkit.File.AWAY
-        meta = files.get(value)
-        if 'url' not in meta:
-            meta['url'] = '%s/blobs/%s' % (this.request.static_prefix, value)
-            meta['size'] = meta.size
-            meta['mtime'] = meta.mtime
-            meta['digest'] = value
-        return meta
+            return File.AWAY
+        return blobs.get(value)
 
     def teardown(self, value):
         if value:
-            files.delete(value)
+            blobs.delete(value)
 
     def assert_access(self, mode, value=None):
         if mode == ACL.WRITE and not value:

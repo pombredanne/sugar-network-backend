@@ -8,7 +8,7 @@ from cStringIO import StringIO
 from __init__ import tests
 
 from sugar_network import toolkit
-from sugar_network.toolkit import Seqno, Sequence, File
+from sugar_network.toolkit import Seqno, Sequence
 
 
 class UtilTest(tests.Test):
@@ -420,15 +420,6 @@ class UtilTest(tests.Test):
         self.assertEqual(
                 ['d', 'a', 'b', 'c'],
                 [i for i in stack])
-
-    def test_FileName(self):
-        self.assertEqual('blob', File().name)
-        self.assertEqual('blob', File('foo/bar').name)
-        self.assertEqual('digest', File(digest='digest').name)
-        self.assertEqual('foo', File(meta={'filename': 'foo'}).name)
-        self.assertEqual('foo', File(meta={'name': 'foo'}).name)
-        self.assertEqual('foo', File(meta={'filename': 'foo', 'mime_type': 'image/png'}).name)
-        self.assertEqual('digest.png', File(digest='digest', meta={'mime_type': 'image/png'}).name)
 
 
 if __name__ == '__main__':

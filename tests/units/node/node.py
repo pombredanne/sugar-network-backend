@@ -722,12 +722,6 @@ class NodeTest(tests.Test):
         response = Response()
         reply = conn.call(Request(method='GET', path=['context', 'activity'], cmd='clone'), response)
         assert activity_blob == reply.read()
-        self.assertEqual({
-            'commands': {'activity': {'exec': 'true'}},
-            'files': {'activity': activity_file, 'dep': dep_file},
-            'packages': {'package': ['package.bin']},
-            },
-            response.meta)
 
     def test_AggpropInsertAccess(self):
 

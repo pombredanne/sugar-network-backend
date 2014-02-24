@@ -30,7 +30,7 @@ from sugar_network import db, client, model, toolkit
 from sugar_network.node import data_root
 from sugar_network.node.slave import SlaveRoutes
 from sugar_network.node.routes import load_bundle
-from sugar_network.toolkit import util, licenses, application, Option
+from sugar_network.toolkit import spec, licenses, application, Option
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
@@ -466,7 +466,7 @@ class Application(application.Application):
                 continue
 
             try:
-                util.parse_version(version)
+                spec.parse_version(version)
             except Exception, error:
                 print '-- Cannot parse %r version for %r[%s]: %s' % \
                         (version, filename, version_id, error)

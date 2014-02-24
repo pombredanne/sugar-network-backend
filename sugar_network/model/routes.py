@@ -15,7 +15,7 @@
 
 import logging
 
-from sugar_network.db import files
+from sugar_network.db import blobs
 from sugar_network.toolkit.router import route
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import coroutine
@@ -61,7 +61,7 @@ class FrontRoutes(object):
 
     @route('GET', ['favicon.ico'])
     def favicon(self, request, response):
-        return files.get('favicon.ico')
+        return blobs.get('favicon.ico')
 
     def _broadcast(self, event):
         _logger.debug('Broadcast event: %r', event)

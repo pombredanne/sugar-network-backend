@@ -21,7 +21,7 @@ from ConfigParser import ConfigParser
 from os.path import join, isdir, exists
 
 from sugar_network import db, node, toolkit
-from sugar_network.db import files
+from sugar_network.db import blobs
 from sugar_network.model import FrontRoutes, load_bundle
 from sugar_network.node import stats_user, model
 # pylint: disable-msg=W0611
@@ -119,11 +119,11 @@ class NodeRoutes(db.Routes, FrontRoutes):
             arguments={'initial': False},
             mime_type='application/json', acl=ACL.AUTH)
     def submit_release(self, request, initial):
-        blob = files.post(request.content_stream)
+        blob = blobs.post(request.content_stream, request.content_type)
         try:
             context, release = load_bundle(blob, initial=initial)
         except Exception:
-            files.delete(blob.digest)
+            blobs.delete(blob.digest)
             raise
         this.call(method='POST', path=['context', context, 'releases'],
                 content_type='application/json', content=release)
@@ -156,13 +156,8 @@ class NodeRoutes(db.Routes, FrontRoutes):
     @route('GET', ['context', None], cmd='clone',
             arguments={'requires': list})
     def get_clone(self, request, response):
-        response.meta = self.solve(request)
-        return files.get(response.meta['files'][request.guid])
-
-    @route('HEAD', ['context', None], cmd='clone',
-            arguments={'requires': list})
-    def head_clone(self, request, response):
-        response.meta = self.solve(request)
+        solution = self.solve(request)
+        return blobs.get(solution['files'][request.guid])
 
     @route('GET', ['user', None], cmd='stats-info',
             mime_type='application/json', acl=ACL.AUTH)
@@ -210,7 +205,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
 
     def on_create(self, request, props):
         if request.resource == 'user':
-            with file(files.get(props['pubkey']).path) as f:
+            with file(blobs.get(props['pubkey']).path) as f:
                 props['guid'] = str(hashlib.sha1(f.read()).hexdigest())
         db.Routes.on_create(self, request, props)
 
@@ -229,7 +224,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
         from M2Crypto import RSA
 
         pubkey = self.volume['user'][auth.login]['pubkey']
-        key = RSA.load_pub_key(files.get(pubkey).path)
+        key = RSA.load_pub_key(blobs.get(pubkey).path)
         data = hashlib.sha1('%s:%s' % (auth.login, auth.nonce)).digest()
         enforce(key.verify(data, auth.signature.decode('hex')),
                 http.Forbidden, 'Bad credentials')

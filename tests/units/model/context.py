@@ -7,7 +7,7 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network import db
-from sugar_network.db import files
+from sugar_network.db import blobs
 from sugar_network.client import IPCConnection, Connection, keyfile
 from sugar_network.model.context import Context
 from sugar_network.toolkit.coroutine import this
@@ -86,7 +86,7 @@ class ContextTest(tests.Test):
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert files.get(str(hash(bundle1)))
+        assert blobs.get(str(hash(bundle1)))
 
         activity_info2 = '\n'.join([
             '[Activity]',
@@ -130,8 +130,8 @@ class ContextTest(tests.Test):
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert files.get(str(hash(bundle1)))
-        assert files.get(str(hash(bundle2)))
+        assert blobs.get(str(hash(bundle1)))
+        assert blobs.get(str(hash(bundle2)))
 
         conn.delete(['context', context, 'releases', release1])
         self.assertEqual({
@@ -154,8 +154,8 @@ class ContextTest(tests.Test):
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert files.get(str(hash(bundle1))) is None
-        assert files.get(str(hash(bundle2)))
+        assert blobs.get(str(hash(bundle1))) is None
+        assert blobs.get(str(hash(bundle2)))
 
         conn.delete(['context', context, 'releases', release2])
         self.assertEqual({
@@ -168,8 +168,8 @@ class ContextTest(tests.Test):
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 },
             }, conn.get(['context', context, 'releases']))
-        assert files.get(str(hash(bundle1))) is None
-        assert files.get(str(hash(bundle2))) is None
+        assert blobs.get(str(hash(bundle1))) is None
+        assert blobs.get(str(hash(bundle2))) is None
 
     def test_IncrementReleasesSeqnoOnNewReleases(self):
         events = []

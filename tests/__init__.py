@@ -18,9 +18,9 @@ from M2Crypto import DSA
 from gevent import monkey
 
 from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus, i18n, languages
-from sugar_network.toolkit.router import Router
+from sugar_network.toolkit.router import Router, File
 from sugar_network.toolkit.coroutine import this
-from sugar_network.db import files
+from sugar_network.db import blobs
 from sugar_network.client import IPCConnection, journal, routes as client_routes
 from sugar_network.client.routes import ClientRoutes, _Auth
 from sugar_network import db, client, node, toolkit, model
@@ -158,17 +158,17 @@ class Test(unittest.TestCase):
         os.makedirs('blobs')
         self.blobs = {}
 
-        def files_post(content, meta=None, digest_to_assert=None):
+        def files_post(content, mime_type=None, digest_to_assert=None):
             if hasattr(content, 'read'):
                 content = content.read()
-            digest = files.Digest(hash(content))
+            digest = File.Digest(hash(content))
             if digest_to_assert:
                 assert digest == digest_to_assert
             path = join('blobs', digest)
             with file(path, 'w') as f:
                 f.write(content)
-            self.blobs[digest] = meta or {}
-            return toolkit.File(path, meta=meta, digest=digest)
+            self.blobs[digest] = {'content-type': mime_type or 'application/octet-stream'}
+            return File(path, digest, self.blobs[digest].items())
 
         def files_update(digest, meta):
             self.blobs.setdefault(digest, {}).update(meta)
@@ -176,11 +176,8 @@ class Test(unittest.TestCase):
         def files_get(digest):
             if digest not in self.blobs:
                 return None
-            meta = toolkit.File(meta=self.blobs[digest])
             path = join('blobs', digest)
-            if exists(path):
-                meta.path = path
-            return meta
+            return File(path, digest, self.blobs[digest].items())
 
         def files_delete(digest):
             path = join('blobs', digest)
@@ -189,10 +186,10 @@ class Test(unittest.TestCase):
             if digest in self.blobs:
                 del self.blobs[digest]
 
-        self.override(files, 'post', files_post)
-        self.override(files, 'update', files_update)
-        self.override(files, 'get', files_get)
-        self.override(files, 'delete', files_delete)
+        self.override(blobs, 'post', files_post)
+        self.override(blobs, 'update', files_update)
+        self.override(blobs, 'get', files_get)
+        self.override(blobs, 'delete', files_delete)
 
     def stop_nodes(self):
         if self.client is not None:

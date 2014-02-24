@@ -183,7 +183,6 @@ class Application(application.Application):
         self._request('HEAD', False, response)
         result = {}
         result.update(response)
-        result.update(response.meta)
         self._dump(result)
 
     def _request(self, method, post, response):

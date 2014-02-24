@@ -450,45 +450,6 @@ def svg_to_png(data, w, h):
     return result
 
 
-class File(dict):
-
-    AWAY = None
-
-    def __init__(self, path=None, meta=None, digest=None):
-        self.path = path
-        self.digest = digest
-        dict.__init__(self, meta or {})
-        self._stat = None
-        self._name = self.get('filename')
-
-    @property
-    def size(self):
-        if self._stat is None:
-            self._stat = os.stat(self.path)
-        return self._stat.st_size
-
-    @property
-    def mtime(self):
-        if self._stat is None:
-            self._stat = os.stat(self.path)
-        return int(self._stat.st_mtime)
-
-    @property
-    def name(self):
-        if self._name is None:
-            self._name = self.get('name') or self.digest or 'blob'
-            mime_type = self.get('mime_type')
-            if mime_type:
-                import mimetypes
-                if not mimetypes.inited:
-                    mimetypes.init()
-                self._name += mimetypes.guess_extension(mime_type) or ''
-        return self._name
-
-    def __repr__(self):
-        return '<File path=%r digest=%r>' % (self.path, self.digest)
-
-
 def TemporaryFile(*args, **kwargs):
     if 'dir' not in kwargs:
         kwargs['dir'] = cachedir.value
@@ -843,6 +804,3 @@ def _nb_read(stream):
         return ''
     finally:
         fcntl.fcntl(fd, fcntl.F_SETFL, orig_flags)
-
-
-File.AWAY = File()
