@@ -390,7 +390,10 @@ def new_file(path, mode=0644):
         file object
 
     """
-    result = _NewFile(dir=dirname(path), prefix=basename(path))
+    dirpath = dirname(path)
+    if not exists(dirpath):
+        os.makedirs(dirpath)
+    result = _NewFile(dir=dirpath, prefix=basename(path))
     result.dst_path = path
     os.fchmod(result.fileno(), mode)
     return result
@@ -774,6 +777,10 @@ class _NewFile(object):
     @property
     def name(self):
         return self._file.name
+
+    @name.setter
+    def name(self, value):
+        self.dst_path = value
 
     def close(self):
         self._file.close()

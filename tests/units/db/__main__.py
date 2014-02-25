@@ -7,6 +7,7 @@ from storage import *
 from index import *
 from resource import *
 from routes import *
+from blobs import *
 #from migrate import *
 
 if __name__ == '__main__':

@@ -11,10 +11,10 @@ from sugar_network import toolkit
 from sugar_network.toolkit import Seqno, Sequence
 
 
-class UtilTest(tests.Test):
+class ToolkitTest(tests.Test):
 
     def test_Seqno_commit(self):
-        seqno = Seqno('seqno')
+        seqno = Seqno(tests.tmpdir + '/seqno')
 
         self.assertEqual(False, seqno.commit())
         assert not exists('seqno')
@@ -25,7 +25,7 @@ class UtilTest(tests.Test):
         self.assertEqual(False, seqno.commit())
         seqno.next()
 
-        seqno = Seqno('seqno')
+        seqno = Seqno(tests.tmpdir + '/seqno')
         self.assertEqual(1, seqno.value)
         self.assertEqual(False, seqno.commit())
 

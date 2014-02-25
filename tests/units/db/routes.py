@@ -18,12 +18,49 @@ from __init__ import tests
 from sugar_network import db, toolkit
 from sugar_network.db import blobs
 from sugar_network.model.user import User
-from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, ACL
+from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, ACL, File
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import coroutine, http, i18n
 
 
 class RoutesTest(tests.Test):
+
+    def setUp(self):
+        tests.Test.setUp(self)
+        self.blobs = {}
+
+        def files_post(content, mime_type=None, digest_to_assert=None):
+            if hasattr(content, 'read'):
+                content = content.read()
+            digest = File.Digest(hash(content))
+            if digest_to_assert:
+                assert digest == digest_to_assert
+            path = join('blobs', digest)
+            with file(path, 'w') as f:
+                f.write(content)
+            self.blobs[digest] = {'content-type': mime_type or 'application/octet-stream'}
+            return File(path, digest, self.blobs[digest].items())
+
+        def files_update(digest, meta):
+            self.blobs.setdefault(digest, {}).update(meta)
+
+        def files_get(digest):
+            if digest not in self.blobs:
+                return None
+            path = join('blobs', digest)
+            return File(path, digest, self.blobs[digest].items())
+
+        def files_delete(digest):
+            path = join('blobs', digest)
+            if exists(path):
+                os.unlink(path)
+            if digest in self.blobs:
+                del self.blobs[digest]
+
+        self.override(blobs, 'post', files_post)
+        self.override(blobs, 'update', files_update)
+        self.override(blobs, 'get', files_get)
+        self.override(blobs, 'delete', files_delete)
 
     def test_PostDefaults(self):
 

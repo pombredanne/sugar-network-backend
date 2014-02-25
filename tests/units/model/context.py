@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import hashlib
 from cStringIO import StringIO
 from os.path import exists
 
@@ -69,7 +70,7 @@ class ContextTest(tests.Test):
             ])
         bundle1 = self.zips(('topdir/activity/activity.info', activity_info1))
         release1 = conn.upload(['context', context, 'releases'], StringIO(bundle1))
-        assert release1 == str(hash(bundle1))
+        assert release1 == str(hashlib.sha1(bundle1).hexdigest())
         self.assertEqual({
             release1: {
                 'seqno': 5,
@@ -80,12 +81,12 @@ class ContextTest(tests.Test):
                     'version': [[1], 0],
                     'requires': {},
                     'command': 'true',
-                    'bundles': {'*-*': {'blob': str(hash(bundle1)), 'unpack_size': len(activity_info1)}},
+                    'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle1).hexdigest()), 'unpack_size': len(activity_info1)}},
                     'stability': 'stable',
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert blobs.get(str(hash(bundle1)))
+        assert blobs.get(str(hashlib.sha1(bundle1).hexdigest()))
 
         activity_info2 = '\n'.join([
             '[Activity]',
@@ -98,7 +99,7 @@ class ContextTest(tests.Test):
             ])
         bundle2 = self.zips(('topdir/activity/activity.info', activity_info2))
         release2 = conn.upload(['context', context, 'releases'], StringIO(bundle2))
-        assert release2 == str(hash(bundle2))
+        assert release2 == str(hashlib.sha1(bundle2).hexdigest())
         self.assertEqual({
             release1: {
                 'seqno': 5,
@@ -109,7 +110,7 @@ class ContextTest(tests.Test):
                     'version': [[1], 0],
                     'requires': {},
                     'command': 'true',
-                    'bundles': {'*-*': {'blob': str(hash(bundle1)), 'unpack_size': len(activity_info1)}},
+                    'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle1).hexdigest()), 'unpack_size': len(activity_info1)}},
                     'stability': 'stable',
                     },
                 },
@@ -122,13 +123,13 @@ class ContextTest(tests.Test):
                     'version': [[2], 0],
                     'requires': {},
                     'command': 'true',
-                    'bundles': {'*-*': {'blob': str(hash(bundle2)), 'unpack_size': len(activity_info2)}},
+                    'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle2).hexdigest()), 'unpack_size': len(activity_info2)}},
                     'stability': 'stable',
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert blobs.get(str(hash(bundle1)))
-        assert blobs.get(str(hash(bundle2)))
+        assert blobs.get(str(hashlib.sha1(bundle1).hexdigest()))
+        assert blobs.get(str(hashlib.sha1(bundle2).hexdigest()))
 
         conn.delete(['context', context, 'releases', release1])
         self.assertEqual({
@@ -145,13 +146,13 @@ class ContextTest(tests.Test):
                     'version': [[2], 0],
                     'requires': {},
                     'command': 'true',
-                    'bundles': {'*-*': {'blob': str(hash(bundle2)), 'unpack_size': len(activity_info2)}},
+                    'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle2).hexdigest()), 'unpack_size': len(activity_info2)}},
                     'stability': 'stable',
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert blobs.get(str(hash(bundle1))) is None
-        assert blobs.get(str(hash(bundle2)))
+        assert blobs.get(str(hashlib.sha1(bundle1).hexdigest())) is None
+        assert blobs.get(str(hashlib.sha1(bundle2).hexdigest()))
 
         conn.delete(['context', context, 'releases', release2])
         self.assertEqual({
@@ -164,8 +165,8 @@ class ContextTest(tests.Test):
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 },
             }, conn.get(['context', context, 'releases']))
-        assert blobs.get(str(hash(bundle1))) is None
-        assert blobs.get(str(hash(bundle2))) is None
+        assert blobs.get(str(hashlib.sha1(bundle1).hexdigest())) is None
+        assert blobs.get(str(hashlib.sha1(bundle2).hexdigest())) is None
 
     def test_IncrementReleasesSeqnoOnNewReleases(self):
         events = []

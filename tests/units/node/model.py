@@ -7,7 +7,6 @@ import time
 from __init__ import tests
 
 from sugar_network import db, toolkit
-from sugar_network.db import files
 from sugar_network.client import Connection, keyfile, api_url
 from sugar_network.model.user import User
 from sugar_network.model.post import Post

@@ -26,8 +26,8 @@ class FilesTest(tests.Test):
         return str(self.uuid)
 
     def test_Index_Populate(self):
-        seqno = toolkit.Seqno('seqno')
-        seeder = files.Index('files', 'index', seqno)
+        seqno = toolkit.Seqno(tests.tmpdir + '/seqno')
+        seeder = files.Index(tests.tmpdir + '/files', tests.tmpdir + '/index', seqno)
 
         os.utime('files', (1, 1))
         assert seeder.sync()
@@ -85,8 +85,8 @@ class FilesTest(tests.Test):
         self.assertEqual(3, seqno.value)
 
     def test_Index_SelectiveDiff(self):
-        seqno = toolkit.Seqno('seqno')
-        seeder = files.Index('files', 'index', seqno)
+        seqno = toolkit.Seqno(tests.tmpdir + '/seqno')
+        seeder = files.Index(tests.tmpdir + '/files', tests.tmpdir + '/index', seqno)
 
         self.touch(('files/1', '1'))
         self.touch(('files/2', '2'))
@@ -105,8 +105,8 @@ class FilesTest(tests.Test):
             sorted(files_diff(seeder, in_seq)))
 
     def test_Index_PartialDiff(self):
-        seqno = toolkit.Seqno('seqno')
-        seeder = files.Index('files', 'index', seqno)
+        seqno = toolkit.Seqno(tests.tmpdir + '/seqno')
+        seeder = files.Index(tests.tmpdir + '/files', tests.tmpdir + '/index', seqno)
 
         self.touch(('files/1', '1'))
         self.touch(('files/2', '2'))
@@ -132,8 +132,8 @@ class FilesTest(tests.Test):
         self.assertRaises(StopIteration, diff.next)
 
     def test_Index_diff_Stretch(self):
-        seqno = toolkit.Seqno('seqno')
-        seeder = files.Index('files', 'index', seqno)
+        seqno = toolkit.Seqno(tests.tmpdir + '/seqno')
+        seeder = files.Index(tests.tmpdir + '/files', tests.tmpdir + '/index', seqno)
 
         self.touch(('files/1', '1'))
         self.touch(('files/2', '2'))
@@ -152,8 +152,8 @@ class FilesTest(tests.Test):
         self.assertRaises(StopIteration, diff.next)
 
     def test_Index_diff_DoNotStretchContinuesPacket(self):
-        seqno = toolkit.Seqno('seqno')
-        seeder = files.Index('files', 'index', seqno)
+        seqno = toolkit.Seqno(tests.tmpdir + '/seqno')
+        seeder = files.Index(tests.tmpdir + '/files', tests.tmpdir + '/index', seqno)
 
         self.touch(('files/1', '1'))
         self.touch(('files/2', '2'))
@@ -172,8 +172,8 @@ class FilesTest(tests.Test):
         self.assertRaises(StopIteration, diff.next)
 
     def test_Index_DiffUpdatedFiles(self):
-        seqno = toolkit.Seqno('seqno')
-        seeder = files.Index('files', 'index', seqno)
+        seqno = toolkit.Seqno(tests.tmpdir + '/seqno')
+        seeder = files.Index(tests.tmpdir + '/files', tests.tmpdir + '/index', seqno)
 
         self.touch(('files/1', '1'))
         self.touch(('files/2', '2'))
@@ -223,8 +223,8 @@ class FilesTest(tests.Test):
         self.assertEqual(6, seqno.value)
 
     def test_Index_DiffCreatedFiles(self):
-        seqno = toolkit.Seqno('seqno')
-        seeder = files.Index('files', 'index', seqno)
+        seqno = toolkit.Seqno(tests.tmpdir + '/seqno')
+        seeder = files.Index(tests.tmpdir + '/files', tests.tmpdir + '/index', seqno)
 
         self.touch(('files/1', '1'))
         self.touch(('files/2', '2'))
@@ -270,8 +270,8 @@ class FilesTest(tests.Test):
         self.assertEqual(6, seqno.value)
 
     def test_Index_DiffDeletedFiles(self):
-        seqno = toolkit.Seqno('seqno')
-        seeder = files.Index('files', 'index', seqno)
+        seqno = toolkit.Seqno(tests.tmpdir + '/seqno')
+        seeder = files.Index(tests.tmpdir + '/files', tests.tmpdir + '/index', seqno)
 
         self.touch(('files/1', '1'))
         self.touch(('files/2', '2'))

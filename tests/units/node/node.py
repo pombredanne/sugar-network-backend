@@ -16,7 +16,6 @@ from os.path import exists, join
 from __init__ import tests
 
 from sugar_network import db, node, model, client
-from sugar_network.db import files
 from sugar_network.client import Connection, keyfile, api_url
 from sugar_network.toolkit import http, coroutine
 from sugar_network.toolkit.rrd import Rrd
@@ -560,7 +559,7 @@ class NodeTest(tests.Test):
                     'announce': announce,
                     'version': [[1], 0],
                     'requires': {},
-                    'bundles': {'*-*': {'blob': str(hash(bundle)), 'unpack_size': len(activity_info) + len(changelog)}},
+                    'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle).hexdigest()), 'unpack_size': len(activity_info) + len(changelog)}},
                     'command': 'true',
                     'stability': 'developer',
                     },

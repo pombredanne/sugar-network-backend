@@ -1,4 +1,212 @@
+#!/usr/bin/env python
+# sugar-lint: disable
 
+import os
+import time
+import hashlib
+from cStringIO import StringIO
+from os.path import exists, abspath
+
+from __init__ import tests
+
+from sugar_network import toolkit
+from sugar_network.db import blobs
+from sugar_network.toolkit.router import Request
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import http
+
+
+class BlobsTest(tests.Test):
+
+    def setUp(self):
+        tests.Test.setUp(self)
+        blobs.init('.')
+
+    def test_post(self):
+        content = 'probe'
+        blob = blobs.post(content)
+
+        self.assertEqual(
+                hashlib.sha1(content).hexdigest(),
+                blob.digest)
+        self.assertEqual(
+                abspath('%s/%s' % (blob.digest[:3], blob.digest)),
+                blob.path)
+        self.assertEqual({
+            'content-type': 'application/octet-stream',
+            },
+            blob)
+
+        self.assertEqual(
+                content,
+                file(blob.path).read())
+        self.assertEqual([
+            'content-type: application/octet-stream',
+            ],
+            file(blob.path + '.meta').read().strip().split('\n'))
+
+        the_same_blob = blobs.get(blob.digest)
+        assert the_same_blob is not blob
+        assert the_same_blob == blob
+        assert the_same_blob.digest == blob.digest
+        assert the_same_blob.path == blob.path
+
+    def test_post_Stream(self):
+        content = 'probe'
+        blob = blobs.post(StringIO(content))
+
+        self.assertEqual(
+                hashlib.sha1(content).hexdigest(),
+                blob.digest)
+        self.assertEqual(
+                abspath('%s/%s' % (blob.digest[:3], blob.digest)),
+                blob.path)
+        self.assertEqual({
+            'content-type': 'application/octet-stream',
+            },
+            blob)
+
+        self.assertEqual(
+                content,
+                file(blob.path).read())
+        self.assertEqual([
+            'content-type: application/octet-stream',
+            ],
+            file(blob.path + '.meta').read().strip().split('\n'))
+
+        the_same_blob = blobs.get(blob.digest)
+        assert the_same_blob is not blob
+        assert the_same_blob == blob
+        assert the_same_blob.digest == blob.digest
+        assert the_same_blob.path == blob.path
+
+    def test_post_Url(self):
+        self.assertRaises(http.BadRequest, blobs.post, {})
+        self.assertRaises(http.BadRequest, blobs.post, {'digest': 'digest'})
+        blob = blobs.post({'location': 'location', 'digest': 'digest', 'foo': 'bar'})
+
+        self.assertEqual(
+                'digest',
+                blob.digest)
+        self.assertEqual(
+                abspath('%s/%s' % (blob.digest[:3], blob.digest)),
+                blob.path)
+        self.assertEqual({
+            'status': '301 Moved Permanently',
+            'location': 'location',
+            'content-type': 'application/octet-stream',
+            },
+            blob)
+
+        self.assertEqual(
+                '',
+                file(blob.path).read())
+        self.assertEqual([
+            'status: 301 Moved Permanently',
+            'location: location',
+            'content-type: application/octet-stream',
+            ],
+            file(blob.path + '.meta').read().strip().split('\n'))
+
+        the_same_blob = blobs.get(blob.digest)
+        assert the_same_blob is not blob
+        assert the_same_blob == blob
+        assert the_same_blob.digest == blob.digest
+        assert the_same_blob.path == blob.path
+
+    def test_update(self):
+        blob = blobs.post('probe')
+        self.assertEqual({
+            'content-type': 'application/octet-stream',
+            },
+            blob)
+
+        blobs.update(blob.digest, {'foo': 'bar'})
+        self.assertEqual({
+            'foo': 'bar',
+            },
+            blobs.get(blob.digest))
+
+    def test_delete(self):
+        blob = blobs.post('probe')
+        assert exists(blob.path)
+        assert exists(blob.path + '.meta')
+
+        blobs.delete(blob.digest)
+        assert not exists(blob.path)
+        assert not exists(blob.path + '.meta')
+        assert blobs.get(blob.digest) is None
+
+    def test_diff(self):
+        blobs.init('blobs')
+        this.request = Request()
+        self.touch(
+            'blobs/100/1000000000000000000000000000000000000001', ('blobs/100/1000000000000000000000000000000000000001.meta', ''),
+            'blobs/100/1000000000000000000000000000000000000002', ('blobs/100/1000000000000000000000000000000000000002.meta', ''),
+            'blobs/200/2000000000000000000000000000000000000003', ('blobs/200/2000000000000000000000000000000000000003.meta', ''),
+            )
+
+        in_seq1 = toolkit.Sequence([[0, None]])
+        out_seq1 = toolkit.Sequence([])
+        self.assertEqual([
+            '2000000000000000000000000000000000000003',
+            '1000000000000000000000000000000000000002',
+            '1000000000000000000000000000000000000001',
+            ],
+            [i.digest for i in blobs.diff(in_seq1, out_seq1)])
+        ctimes1 = [
+                int(os.stat('blobs/100/1000000000000000000000000000000000000001').st_ctime),
+                int(os.stat('blobs/200/2000000000000000000000000000000000000003').st_ctime),
+                ]
+        self.assertEqual(
+                [[min(ctimes1), max(ctimes1)]],
+                out_seq1)
+
+        in_seq2 = toolkit.Sequence([[0, None]])
+        in_seq2.exclude(out_seq1)
+        out_seq2 = toolkit.Sequence([])
+        self.assertEqual([
+            ],
+            [i.digest for i in blobs.diff(in_seq2, out_seq2)])
+        self.assertEqual(
+                [],
+                out_seq2)
+
+        time.sleep(1.1)
+        self.touch(
+            'blobs/200/2000000000000000000000000000000000000004', ('blobs/200/2000000000000000000000000000000000000004.meta', ''),
+            'blobs/300/3000000000000000000000000000000000000005', ('blobs/300/3000000000000000000000000000000000000005.meta', ''),
+            )
+
+        self.assertEqual([
+            '3000000000000000000000000000000000000005',
+            '2000000000000000000000000000000000000004',
+            ],
+            [i.digest for i in blobs.diff(in_seq2, out_seq2)])
+        ctimes2 = [
+                int(os.stat('blobs/200/2000000000000000000000000000000000000004').st_ctime),
+                int(os.stat('blobs/300/3000000000000000000000000000000000000005').st_ctime),
+                ]
+        self.assertEqual(
+                [[min(ctimes2), max(ctimes2)]],
+                out_seq2)
+
+        in_seq3 = toolkit.Sequence([[0, None]])
+        out_seq3 = toolkit.Sequence([])
+        self.assertEqual([
+            '3000000000000000000000000000000000000005',
+            '2000000000000000000000000000000000000004',
+            '2000000000000000000000000000000000000003',
+            '1000000000000000000000000000000000000002',
+            '1000000000000000000000000000000000000001',
+
+            ],
+            [i.digest for i in blobs.diff(in_seq3, out_seq3)])
+        self.assertEqual(
+                [[min(ctimes1 + ctimes2), max(ctimes1 + ctimes2)]],
+                out_seq3)
+
+"""
     def test_diff_WithBlobsSetByUrl(self):
         URL = 'http://src.sugarlabs.org/robots.txt'
         URL_content = urllib2.urlopen(URL).read()
@@ -318,3 +526,7 @@
         self.assertEqual(tests.tmpdir + '/db/document/1/1/prop.blob', blob['blob'])
         self.assertEqual('payload', file(blob['blob']).read())
 
+"""
+
+if __name__ == '__main__':
+    tests.main()

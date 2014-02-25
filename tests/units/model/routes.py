@@ -10,7 +10,6 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import db, model
-from sugar_network.db import files
 from sugar_network.model.user import User
 from sugar_network.toolkit.router import Router, Request
 from sugar_network.toolkit.coroutine import this
