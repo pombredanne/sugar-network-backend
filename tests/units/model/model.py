@@ -79,16 +79,18 @@ class ModelTest(tests.Test):
         self.assertEqual('developer', release['stability'])
         self.assertEqual(['Public Domain'], release['license'])
         self.assertEqual('developer', release['stability'])
-        self.assertEqual(
-                {'dep': {}, 'sugar': {'restrictions': [('0.88', None)]}},
-                release['requires'])
+        self.assertEqual({
+            'dep': [],
+            'sugar': [([1, 0], [[0, 88], 0])],
+            },
+            release['requires'])
         self.assertEqual({
             '*-*': {
-                'bundle': blob.digest,
+                'blob': blob.digest,
+                'unpack_size': len(activity_info) + len(changelog),
                 },
             },
-            release['spec'])
-        self.assertEqual(len(activity_info) + len(changelog), release['unpack_size'])
+            release['bundles'])
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
@@ -492,13 +494,13 @@ class ModelTest(tests.Test):
         context, release = load_bundle(blob, 'bundle_id')
 
         self.assertEqual({
-            'dep5': {'restrictions': [('40', None)]},
-            'dep4': {'restrictions': [('31', None)]},
-            'dep7': {'restrictions': [('1', '4')]},
-            'dep6': {'restrictions': [('6', '7')]},
-            'dep1': {},
-            'dep3': {'restrictions': [(None, '21')]},
-            'dep2': {'restrictions': [(None, '10')]},
+            'dep5': [([1, 0], [[40], 0])],
+            'dep4': [([1], [[30], 0])],
+            'dep7': [([1, 0], [[1], 0]), ([-1, 0], [[3], 0])],
+            'dep6': [([1], [[5], 0]), ([-1], [[7], 0])],
+            'dep1': [],
+            'dep3': [([-1, 0], [[20], 0])],
+            'dep2': [([-1], [[10], 0])],
             },
             release['requires'])
 

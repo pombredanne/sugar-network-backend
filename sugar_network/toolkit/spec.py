@@ -15,7 +15,6 @@
 
 import re
 import os
-import sys
 import logging
 from os.path import join, exists, dirname
 from ConfigParser import ConfigParser
@@ -45,7 +44,7 @@ _STABILITIES = ('insecure', 'buggy', 'developer', 'testing', 'stable')
 _POLICY_URL = 'http://wiki.sugarlabs.org/go/Sugar_Network/Policy'
 _LIST_SEPARATOR = ','
 
-_RESTRICTION_RE = re.compile('(<|<=|=|>|>=)\\s*([0-9.]+)')
+_RESTRICTION_RE = re.compile('(<|<=|=|==|>|>=)\\s*([0-9.]+)')
 
 _VERSION_RE = re.compile('-([a-z]*)')
 _VERSION_MOD_TO_VALUE = {
@@ -146,89 +145,47 @@ def format_version(version):
     return ''.join(version)
 
 
-def format_next_version(version, deep=True):
-    """Convert incremented version to string representation.
-
-    Before convertation, the last version's rank will be incremented.
-    If string value is passed, it will be parsed to procuduce
-    canonicalized string representation.
-
-    """
-    if version is None:
-        return None
-    if isinstance(version, basestring):
-        version = parse_version(version)
-    if deep:
-        version[-2] += [1]
-    else:
-        version[-2][-1] += 1
-    return format_version(version)
-
-
 def parse_requires(requires):
     result = {}
 
     for dep_str in _parse_list(requires):
-        dep = _Dependency()
-
-        if dep_str.startswith('[') and dep_str.endswith(']'):
-            dep_str = dep_str[1:-1]
-            dep['importance'] = 'recommended'
-
         parts = _RESTRICTION_RE.split(dep_str)
-        enforce(parts[0], 'Can parse dependency from "%s" string', dep_str)
-
+        enforce(parts[0], 'Cannot parse %r dependency', dep_str)
         dep_name = parts.pop(0).strip()
-        if dep_name in result:
-            result[dep_name].update(dep)
-            dep = result[dep_name]
-        else:
-            result[dep_name] = dep
+        dep = result.setdefault(dep_name, [])
 
-        not_before = None
-        before = None
         while len(parts) >= 3:
-            if parts[0] == '<':
-                before = format_version(parts[1])
-            elif parts[0] == '<=':
-                before = format_next_version(parts[1], False)
-            elif parts[0] == '>':
-                not_before = format_next_version(parts[1], False)
-            elif parts[0] == '>=':
-                not_before = format_version(parts[1])
-            elif parts[0] == '=':
-                not_before = format_version(parts[1])
-                before = format_next_version(parts[1], False)
+            rel = parts[0]
+            if rel in ('=', '=='):
+                rel = [0]
+            elif rel == '<':
+                rel = [-1]
+            elif rel == '>':
+                rel = [1]
+            elif rel == '<=':
+                rel = [-1, 0]
+            elif rel == '>=':
+                rel = [1, 0]
+            dep.append((rel, parse_version(parts[1])))
             del parts[:3]
 
         enforce(not parts or not parts[0].strip(),
-                'Cannot parse "%s", it should be in format '
-                '"<dependency> (>=|<|=) <version>"', dep_str)
-
-        if before or not_before:
-            dep.setdefault('restrictions', [])
-            dep['restrictions'].append((not_before, before))
+                'Cannot parse %r dependency', dep_str)
 
     return result
 
 
-def ensure_requires(to_consider, to_apply):
-
-    def intersect(x, y):
-        l = max([parse_version(i) for i, __ in (x + y)])
-        r = min([[[sys.maxint]] if i is None else parse_version(i)
-                for __, i in (x + y)])
-        return l is None or r is None or l < r
-
-    for name, cond in to_apply.items():
-        dep = to_consider.get(name)
-        if dep is None:
-            return False
-        if 'restrictions' not in dep or 'restrictions' not in cond:
-            continue
-        if not intersect(dep['restrictions'], cond['restrictions']):
-            return False
-
+def ensure(version, cond):
+    if cond:
+        for op, cond_version in cond:
+            if op == [0]:
+                # Make `version` the same length as `cond_version`
+                if len(version) > len(cond_version):
+                    version = version[:len(cond_version) - 1] + [0]
+                if len(version[0]) > len(cond_version[0]):
+                    version = [version[0][:len(cond_version[0])], 0]
+            if cmp(version, cond_version) not in op:
+                return False
     return True
 
 
@@ -236,7 +193,7 @@ class Spec(object):
 
     def __init__(self, spec=None, root=None):
         self.path = None
-        self.commands = {}
+        self.command = None
         self.bindings = set()
         self.requires = {}
         self.build_requires = []
@@ -391,14 +348,12 @@ class Spec(object):
             i.name = '-'.join(i.section.split(':')[1:])
 
     def _new_command(self, section, requires, name):
+        enforce(self.command is None, 'Only one command is allowed')
         cmdline = self._get(section, 'exec')
         enforce(cmdline,
                 'Option "exec" should exist for [%s] section', section)
-        command = self.commands[name] = _Command(name, cmdline)
-        if ':' in section:
-            command.requires.update(requires)
-        else:
-            self.requires.update(requires)
+        self.command = cmdline
+        self.requires.update(requires)
 
     def _new_activity(self, section, requires):
         enforce(':' not in section, '[Activity] should be singular')
@@ -474,34 +429,6 @@ class _Activity(_Section):
 
 class _Library(_Section):
     pass
-
-
-class _Command(dict):
-
-    def __init__(self, name, cmdline):
-        dict.__init__(self)
-        self['exec'] = cmdline
-        self.name = name
-        self.requires = {}
-
-
-class _Dependency(dict):
-
-    def versions_range(self):
-        for not_before, before in self.get('restrictions') or []:
-            if not_before is None:
-                continue
-            i = parse_version(not_before)[0]
-            yield format_version([i, 0])
-            if before is None:
-                continue
-            end = parse_version(before)[0]
-            i = i[:min(len(i), len(end))]
-            while True:
-                i[-1] += 1
-                if i >= end:
-                    break
-                yield format_version([i, 0])
 
 
 def _parse_bindings(text):

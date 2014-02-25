@@ -10,58 +10,23 @@ from sugar_network.toolkit import spec
 
 class SpecTest(tests.Test):
 
-    def test_Dependency_versions_range(self):
-        self.assertEqual(
-                [],
-                [i for i in spec._Dependency().versions_range()])
-        self.assertEqual(
-                [],
-                [i for i in spec._Dependency({'restrictions': []}).versions_range()])
-        self.assertEqual(
-                [],
-                [i for i in spec._Dependency({'restrictions': [(None, '2')]}).versions_range()])
-        self.assertEqual(
-                ['1'],
-                [i for i in spec._Dependency({'restrictions': [('1', None)]}).versions_range()])
-        self.assertEqual(
-                ['1'],
-                [i for i in spec._Dependency({'restrictions': [('1', '2')]}).versions_range()])
-        self.assertEqual(
-                ['1.2'],
-                [i for i in spec._Dependency({'restrictions': [('1.2', '1.2.999')]}).versions_range()])
-        self.assertEqual(
-                ['1.2', '1.3'],
-                [i for i in spec._Dependency({'restrictions': [('1.2', '1.4')]}).versions_range()])
-        self.assertEqual(
-                ['1.2.3', '1.3'],
-                [i for i in spec._Dependency({'restrictions': [('1.2.3', '1.4')]}).versions_range()])
-        self.assertEqual(
-                ['1.2', '1.3', '1.4'],
-                [i for i in spec._Dependency({'restrictions': [('1.2', '1.4.5')]}).versions_range()])
-
     def test_parse_requires(self):
-        self.assertEqual(
-                {'a': {}, 'b': {}, 'c': {}},
-                spec.parse_requires('a; b; c'))
+        self.assertEqual({
+            'a': [],
+            'b': [],
+            'c': [],
+            },
+            spec.parse_requires('a; b; c'))
 
-        self.assertEqual(
-                {
-                    'a': {'restrictions': [('1', '2')]},
-                    'b': {'restrictions': [('1.2', '1.3')]},
-                    'c': {'restrictions': [('2.2', None)]},
-                    'd': {'restrictions': [(None, '3')]},
-                    'e': {'restrictions': [('5', None)]},
-                    'f': {'restrictions': [(None, '6')]},
-                    },
-                spec.parse_requires('a = 1; b=1.2; c>= 2.2; d <3-3; e > 4; f<=5'))
-
-        self.assertEqual(
-                {
-                    'a': {'importance': 'recommended'},
-                    'b': {},
-                    'c': {'importance': 'recommended', 'restrictions': [(None, '1')]},
-                    },
-                spec.parse_requires('[a]; b; [c<1]'))
+        self.assertEqual({
+            'a': [([0],     [[1], 0])],
+            'b': [([0],     [[1, 2], 0])],
+            'c': [([1, 0],  [[2, 2, 2], 0])],
+            'd': [([-1],    [[3], 0])],
+            'e': [([1],     [[4], 0])],
+            'f': [([-1, 0], [[5], 0])],
+            },
+            spec.parse_requires('a = 1; b==1.2; c>= 2.2.2; d <3-rc1; e > 4; f<=5'))
 
     def test_parse_bindings(self):
         self.assertEqual(
@@ -114,19 +79,12 @@ class SpecTest(tests.Test):
         self.assertEqual(['terminal', 'console'], recipe['tags'])
         self.assertEqual(['image/png', 'image/svg+xml'], recipe['mime_types'])
         self.assertEqual(
-                {
-                    'activity': {
-                        'exec': 'sugar-activity terminal.TerminalActivity',
-                        },
-                    },
-                recipe.commands)
-        self.assertEqual(
-                {
-                    'sugar': {
-                        'restrictions': [('0.94', '0.95')],
-                        },
-                    },
-                recipe.requires)
+                'sugar-activity terminal.TerminalActivity',
+                recipe.command)
+        self.assertEqual({
+            'sugar': [([0], [[0, 94], 0])],
+            },
+            recipe.requires)
 
     def test_parse_version(self):
 
@@ -179,39 +137,41 @@ class SpecTest(tests.Test):
     def test_parse_version_IgnoreErrors(self):
         self.assertEqual([[1, 2], 0], spec.parse_version('1.2foo', ignore_errors=True))
 
-    def test_ensure_requires(self):
-        assert spec.ensure_requires(spec.parse_requires(''), spec.parse_requires(''))
+    def test_ensure(self):
+        assert spec.ensure(spec.parse_version('1'), spec.parse_requires('dep')['dep'])
 
-        assert not spec.ensure_requires(spec.parse_requires(''), spec.parse_requires('d1'))
-        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires(''))
-        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1'))
+        assert spec.ensure(spec.parse_version('1'), spec.parse_requires('dep=1')['dep'])
+        assert not spec.ensure(spec.parse_version('2'), spec.parse_requires('dep=1')['dep'])
 
-        assert not spec.ensure_requires(spec.parse_requires(''), spec.parse_requires('d1; d2'))
-        assert spec.ensure_requires(spec.parse_requires('d1; d2'), spec.parse_requires(''))
-        assert not spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1; d2'))
-        assert spec.ensure_requires(spec.parse_requires('d1; d2'), spec.parse_requires('d1'))
-        assert spec.ensure_requires(spec.parse_requires('d1; d2'), spec.parse_requires('d1; d2'))
+        assert spec.ensure(spec.parse_version('1'), spec.parse_requires('dep<2')['dep'])
+        assert not spec.ensure(spec.parse_version('2'), spec.parse_requires('dep<2')['dep'])
+        assert not spec.ensure(spec.parse_version('3'), spec.parse_requires('dep<2')['dep'])
 
-        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1 < 1'))
-        assert spec.ensure_requires(spec.parse_requires('d1 < 1'), spec.parse_requires('d1'))
-        assert spec.ensure_requires(spec.parse_requires('d1 < 1'), spec.parse_requires('d1 < 2'))
-        assert spec.ensure_requires(spec.parse_requires('d1 < 2'), spec.parse_requires('d1 < 1'))
+        assert spec.ensure(spec.parse_version('3'), spec.parse_requires('dep>2')['dep'])
+        assert not spec.ensure(spec.parse_version('2'), spec.parse_requires('dep>2')['dep'])
+        assert not spec.ensure(spec.parse_version('1'), spec.parse_requires('dep>2')['dep'])
 
-        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1 > 1'))
-        assert spec.ensure_requires(spec.parse_requires('d1 > 1'), spec.parse_requires('d1'))
-        assert spec.ensure_requires(spec.parse_requires('d1 > 1'), spec.parse_requires('d1 > 2'))
-        assert spec.ensure_requires(spec.parse_requires('d1 > 2'), spec.parse_requires('d1 > 1'))
+        assert spec.ensure(spec.parse_version('1'), spec.parse_requires('dep<=2')['dep'])
+        assert spec.ensure(spec.parse_version('2'), spec.parse_requires('dep<=2')['dep'])
+        assert not spec.ensure(spec.parse_version('3'), spec.parse_requires('dep<=2')['dep'])
 
-        assert spec.ensure_requires(spec.parse_requires('d1'), spec.parse_requires('d1 > 1; d1 < 2'))
-        assert spec.ensure_requires(spec.parse_requires('d1 > 1; d1 < 2'), spec.parse_requires('d1'))
-        # Commented until implementing precice version comparation
-        #assert spec.ensure_requires(spec.parse_requires('d1 > 1; d1 < 2'), spec.parse_requires('d1 > 0; d1 < 3'))
-        #assert spec.ensure_requires(spec.parse_requires('d1 > 0; d1 < 3'), spec.parse_requires('d1 > 1; d1 < 2'))
+        assert spec.ensure(spec.parse_version('3'), spec.parse_requires('dep>=2')['dep'])
+        assert spec.ensure(spec.parse_version('2'), spec.parse_requires('dep>=2')['dep'])
+        assert not spec.ensure(spec.parse_version('1'), spec.parse_requires('dep>=2')['dep'])
 
-        assert spec.ensure_requires(spec.parse_requires('d1 > 1; d1 <= 2'), spec.parse_requires('d1 >= 2; d1 < 3'))
-        assert spec.ensure_requires(spec.parse_requires('d1 >= 1; d1 < 2'), spec.parse_requires('d1 > 0; d1 <= 1'))
-        assert not spec.ensure_requires(spec.parse_requires('d1 > 1; d1 < 2'), spec.parse_requires('d1 > 2; d1 < 3'))
-        assert not spec.ensure_requires(spec.parse_requires('d1 > 1; d1 < 2'), spec.parse_requires('d1 > 0; d1 < 1'))
+    def test_ensure_StripVersionsForEQ(self):
+        assert spec.ensure(spec.parse_version('1.2'), spec.parse_requires('dep=1')['dep'])
+        assert not spec.ensure(spec.parse_version('1'), spec.parse_requires('dep=1.2')['dep'])
+        assert spec.ensure(spec.parse_version('1.2.3'), spec.parse_requires('dep=1.2')['dep'])
+
+        assert spec.ensure(spec.parse_version('1-pre2'), spec.parse_requires('dep=1')['dep'])
+        assert spec.ensure(spec.parse_version('1-post2'), spec.parse_requires('dep=1')['dep'])
+
+        assert spec.ensure(spec.parse_version('1.2-pre3'), spec.parse_requires('dep=1')['dep'])
+        assert spec.ensure(spec.parse_version('1.2-post3'), spec.parse_requires('dep=1')['dep'])
+
+        assert not spec.ensure(spec.parse_version('1-pre3'), spec.parse_requires('dep=1.2')['dep'])
+        assert not spec.ensure(spec.parse_version('1-post3'), spec.parse_requires('dep=1.2')['dep'])
 
 
 if __name__ == '__main__':

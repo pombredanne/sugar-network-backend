@@ -560,10 +560,9 @@ class NodeTest(tests.Test):
                     'announce': announce,
                     'version': [[1], 0],
                     'requires': {},
-                    'spec': {'*-*': {'bundle': str(hash(bundle))}},
-                    'commands': {'activity': {'exec': 'true'}},
+                    'bundles': {'*-*': {'blob': str(hash(bundle)), 'unpack_size': len(activity_info) + len(changelog)}},
+                    'command': 'true',
                     'stability': 'developer',
-                    'unpack_size': len(activity_info) + len(changelog),
                     },
                 },
             }, conn.get(['context', 'bundle_id', 'releases']))
@@ -617,9 +616,9 @@ class NodeTest(tests.Test):
         conn.put(['context', 'package', 'releases', '*'], {'binary': ['package.bin']})
 
         self.assertEqual({
-            'commands': {'activity': {'exec': 'true'}},
-            'files': {'dep': dep_file, 'activity': activity_file},
-            'packages': {'package': ['package.bin']},
+            'activity': {'blob': activity_file, 'command': 'true', 'version': [[1], 0]},
+            'dep': {'blob': dep_file, 'version': [[2], 0]},
+            'package': {'packages': ['package.bin'], 'version': []},
             },
             conn.get(['context', 'activity'], cmd='solve'))
 
@@ -671,14 +670,14 @@ class NodeTest(tests.Test):
             })
         volume['context'].update('package', {'releases': {
             'resolves': {
-                'Ubuntu-10.04': {'version': 1, 'packages': ['package.bin']},
-                'Ubuntu-12.04': {'version': 2, 'packages': ['package-fake.bin']},
+                'Ubuntu-10.04': {'version': [[1], 0], 'packages': ['package.bin']},
+                'Ubuntu-12.04': {'version': [[2], 0], 'packages': ['package-fake.bin']},
             }}})
 
         self.assertEqual({
-            'commands': {'activity': {'exec': 'true'}},
-            'files': {'dep': dep_file, 'activity': activity_file},
-            'packages': {'package': ['package.bin']},
+            'activity': {'blob': activity_file, 'command': 'true', 'version': [[1], 0]},
+            'dep': {'blob': dep_file, 'version': [[2], 0]},
+            'package': {'packages': ['package.bin'], 'version': [[1], 0]},
             },
             conn.get(['context', 'activity'], cmd='solve',
                 stability='developer', lsb_id='Ubuntu', lsb_release='10.04', requires=['dep', 'package']))

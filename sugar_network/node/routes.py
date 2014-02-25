@@ -27,8 +27,7 @@ from sugar_network.node import stats_user, model
 # pylint: disable-msg=W0611
 from sugar_network.toolkit.router import route, preroute, postroute, ACL
 from sugar_network.toolkit.router import Unauthorized, Request, fallbackroute
-from sugar_network.toolkit.spec import parse_requires, ensure_requires
-from sugar_network.toolkit.spec import parse_version
+from sugar_network.toolkit.spec import parse_requires, parse_version
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import pylru, http, coroutine, exception, enforce
@@ -157,7 +156,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
             arguments={'requires': list})
     def get_clone(self, request, response):
         solution = self.solve(request)
-        return blobs.get(solution['files'][request.guid])
+        return blobs.get(solution[request.guid]['blob'])
 
     @route('GET', ['user', None], cmd='stats-info',
             mime_type='application/json', acl=ACL.AUTH)

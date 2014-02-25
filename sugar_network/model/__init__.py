@@ -83,15 +83,15 @@ class Release(object):
             __, release = load_bundle(
                     blobs.post(release, this.request.content_type),
                     context=this.request.guid)
-        return release['spec']['*-*']['bundle'], release
+        return release['bundles']['*-*']['blob'], release
 
     def teardown(self, release):
         if this.resource.exists and \
                 'activity' not in this.resource['type'] and \
                 'book' not in this.resource['type']:
             return
-        for spec in release['spec'].values():
-            blobs.delete(spec['bundle'])
+        for bundle in release['bundles'].values():
+            blobs.delete(bundle['blob'])
 
     def encode(self, value):
         return []
@@ -147,9 +147,11 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
             release['license'] = this.request['license']
             if isinstance(release['license'], basestring):
                 release['license'] = [release['license']]
-        release['spec'] = {'*-*': {
-            'bundle': blob.digest,
-            }}
+        release['bundles'] = {
+                '*-*': {
+                    'bundle': blob.digest,
+                    },
+                }
     else:
         context_type = 'activity'
         unpack_size = 0
@@ -177,12 +179,14 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         release['stability'] = spec['stability']
         if spec['license'] is not EMPTY_LICENSE:
             release['license'] = spec['license']
-        release['commands'] = spec.commands
+        release['command'] = spec.command
         release['requires'] = spec.requires
-        release['spec'] = {'*-*': {
-            'bundle': blob.digest,
-            }}
-        release['unpack_size'] = unpack_size
+        release['bundles'] = {
+                '*-*': {
+                    'blob': blob.digest,
+                    'unpack_size': unpack_size,
+                    },
+                }
         blob['content-type'] = 'application/vnd.olpc-sugar'
 
     enforce(context, http.BadRequest, 'Context is not specified')

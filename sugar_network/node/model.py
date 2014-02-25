@@ -176,7 +176,7 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
     top_stability = stability or ['stable']
     if isinstance(top_stability, basestring):
         top_stability = [top_stability]
-    top_cond = None
+    top_cond = []
     top_requires = {}
     if isinstance(requires, basestring):
         top_requires.update(spec.parse_requires(requires))
@@ -196,15 +196,6 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
     _logger.debug('Solve %r lsb_id=%r lsb_release=%r stability=%r requires=%r',
             top_context.guid, lsb_id, lsb_release, top_stability, top_requires)
 
-    def ensure_version(version, cond):
-        if not cond:
-            return True
-        for not_before, before in cond['restrictions']:
-            if before is not None and version >= before or \
-                    not_before is not None and version < not_before:
-                return False
-        return True
-
     def rate_release(digest, release):
         return [_STABILITY_RATES.get(release['stability']) or 0,
                 release['version'],
@@ -217,7 +208,7 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
         for dep, cond in deps.items():
             dep_clause = [-v_usage]
             for v_release in add_context(dep):
-                if ensure_version(varset[v_release][0], cond):
+                if spec.ensure(varset[v_release][1]['version'], cond):
                     dep_clause.append(v_release)
             clauses.append(dep_clause)
 
@@ -242,7 +233,10 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
                     pkg_lst = alias.get('binary', []) + alias.get('devel', [])
             if pkg_lst:
                 clause.append(len(varset))
-                varset.append((pkg_ver, 'packages', {context.guid: pkg_lst}))
+                varset.append((
+                    context.guid,
+                    {'version': pkg_ver, 'packages': pkg_lst},
+                    ))
         else:
             candidates = []
             for digest, release in releases.items():
@@ -251,18 +245,17 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
                 release = release['value']
                 if release['stability'] not in top_stability or \
                         context.guid == top_context.guid and \
-                            not ensure_version(release['version'], top_cond):
+                            not spec.ensure(release['version'], top_cond):
                     continue
                 bisect.insort(candidates, rate_release(digest, release))
             for release in reversed(candidates):
                 digest = release[-1]
                 release = releases[digest]['value']
+                release_info = {'version': release['version'], 'blob': digest}
+                if context.guid == top_context.guid:
+                    release_info['command'] = release['command']
                 v_release = len(varset)
-                varset.append((
-                    release['version'],
-                    'files',
-                    {context.guid: digest},
-                    ))
+                varset.append((context.guid, release_info))
                 clause.append(v_release)
                 add_deps(context, v_release, release.get('requires') or {})
 
@@ -283,13 +276,7 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
     if not top_context.guid in result:
         _logger.debug('No top versions for %r', top_context.guid)
         return None
-
-    solution = {'files': {}, 'packages': {}}
-    for v in result.values():
-        __, key, items = varset[v]
-        solution[key].update(items)
-    top_release = top_context['releases'][solution['files'][top_context.guid]]
-    solution['commands'] = top_release['value']['commands']
+    solution = dict([varset[i] for i in result.values()])
 
     _logger.debug('Solution for %r: %r', top_context.guid, solution)
 
