@@ -2,6 +2,7 @@
 - diff/merge while checking in node context
 - deliver spawn events only to local subscribers
 - test/run presolve
+- if node relocates api calls, do it only once in toolkit.http
 
 
 0.10

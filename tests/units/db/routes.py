@@ -460,6 +460,15 @@ class RoutesTest(tests.Test):
         self.assertEqual('200 OK', response[0])
         self.assertEqual('foo', dict(response[1]).get('content-type'))
 
+        this.call(method='PUT', path=['testdocument', guid], content={'blob': 'blob2'}, content_type='bar')
+        response = []
+        [i for i in router({
+            'REQUEST_METHOD': 'GET',
+            'PATH_INFO': '/testdocument/%s/blob' % guid,
+            }, lambda status, headers: response.extend([status, headers]))]
+        self.assertEqual('200 OK', response[0])
+        self.assertEqual('default', dict(response[1]).get('content-type'))
+
     def test_GetBLOBs(self):
 
         class TestDocument(db.Resource):

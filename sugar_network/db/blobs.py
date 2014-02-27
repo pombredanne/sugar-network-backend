@@ -37,8 +37,14 @@ def init(path):
         os.makedirs(_root)
 
 
-def post(content, mime_type=None, digest_to_assert=None):
-    meta = []
+def post(content, mime_type=None, digest_to_assert=None, meta=None):
+    if meta is None:
+        meta = []
+        meta.append(('content-type', mime_type or 'application/octet-stream'))
+    else:
+        meta = meta.items()
+        if mime_type:
+            meta.append(('content-type', mime_type))
 
     @contextmanager
     def write_blob():
@@ -70,7 +76,7 @@ def post(content, mime_type=None, digest_to_assert=None):
             blob.unlink()
             raise http.BadRequest('Digest mismatch')
         path = _path(digest)
-        meta.append(('content-type', mime_type or 'application/octet-stream'))
+        meta.append(('content-length', str(blob.tell())))
         with toolkit.new_file(path + _META_SUFFIX) as f:
             for key, value in meta:
                 f.write('%s: %s\n' % (key, value))

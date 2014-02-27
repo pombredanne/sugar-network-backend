@@ -18,7 +18,7 @@ from M2Crypto import DSA
 from gevent import monkey
 
 from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus, i18n, languages
-from sugar_network.toolkit.router import Router
+from sugar_network.toolkit.router import Router, Request
 from sugar_network.toolkit.coroutine import this
 from sugar_network.db import blobs
 from sugar_network.client import IPCConnection, journal, routes as client_routes
@@ -138,7 +138,7 @@ class Test(unittest.TestCase):
         self.forks = []
         self.fork_num = fork_num
 
-        this.request = None
+        this.request = Request()
         this.volume = None
         this.call = None
         this.broadcast = lambda x: x

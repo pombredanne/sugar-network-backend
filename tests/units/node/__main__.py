@@ -7,7 +7,6 @@ from files import *
 from node import *
 from obs import *
 from stats_user import *
-from sync import *
 from sync_master import *
 from sync_offline import *
 from sync_online import *

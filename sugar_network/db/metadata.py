@@ -311,7 +311,11 @@ class Blob(Property):
             return ''
 
         if not isinstance(value, dict):
-            mime_type = this.request.content_type or self.mime_type
+            mime_type = None
+            if this.request.prop == self.name:
+                mime_type = this.request.content_type
+            if not mime_type:
+                mime_type = self.mime_type
             return blobs.post(value, mime_type).digest
 
         digest = this.resource[self.name] if self.name else None

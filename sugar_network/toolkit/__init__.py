@@ -782,6 +782,9 @@ class _NewFile(object):
     def name(self, value):
         self.dst_path = value
 
+    def tell(self):
+        return self._file.file.tell()
+
     def close(self):
         self._file.close()
         if exists(self.name):

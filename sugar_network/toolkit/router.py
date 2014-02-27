@@ -381,7 +381,7 @@ class Response(CaseInsensitiveDict):
 
     @content_length.setter
     def content_length(self, value):
-        self.set('content-length', value)
+        self.set('content-length', str(value))
 
     @property
     def content_type(self):
@@ -430,7 +430,7 @@ class File(CaseInsensitiveDict):
         self.path = path
         self.digest = File.Digest(digest) if digest else None
         if meta is not None:
-            for key, value in meta:
+            for key, value in meta.items() if isinstance(meta, dict) else meta:
                 self[key] = value
         self._stat = None
 

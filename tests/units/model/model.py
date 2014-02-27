@@ -73,6 +73,7 @@ class ModelTest(tests.Test):
         self.assertEqual({
             'content-type': 'application/vnd.olpc-sugar',
             'content-disposition': 'attachment; filename="Activity-1%s"' % (mimetypes.guess_extension('application/vnd.olpc-sugar') or ''),
+            'content-length': str(len(bundle)),
             }, blobs.get(blob.digest))
         self.assertEqual('bundle_id', context)
         self.assertEqual([[1], 0], release['version'])
@@ -125,6 +126,7 @@ class ModelTest(tests.Test):
         self.assertEqual({
             'content-type': 'application/pdf',
             'content-disposition': 'attachment; filename="NonActivity-2.pdf"',
+            'content-length': str(len(bundle)),
             }, blobs.get(blob.digest))
         self.assertEqual('bundle_id', context)
         self.assertEqual([[2], 0], release['version'])

@@ -34,6 +34,7 @@ class BlobsTest(tests.Test):
                 blob.path)
         self.assertEqual({
             'content-type': 'application/octet-stream',
+            'content-length': str(len(content)),
             },
             blob)
 
@@ -42,6 +43,7 @@ class BlobsTest(tests.Test):
                 file(blob.path).read())
         self.assertEqual([
             'content-type: application/octet-stream',
+            'content-length: %s' % len(content),
             ],
             file(blob.path + '.meta').read().strip().split('\n'))
 
@@ -63,6 +65,7 @@ class BlobsTest(tests.Test):
                 blob.path)
         self.assertEqual({
             'content-type': 'application/octet-stream',
+            'content-length': str(len(content)),
             },
             blob)
 
@@ -71,6 +74,7 @@ class BlobsTest(tests.Test):
                 file(blob.path).read())
         self.assertEqual([
             'content-type: application/octet-stream',
+            'content-length: %s' % len(content),
             ],
             file(blob.path + '.meta').read().strip().split('\n'))
 
@@ -95,6 +99,7 @@ class BlobsTest(tests.Test):
             'status': '301 Moved Permanently',
             'location': 'location',
             'content-type': 'application/octet-stream',
+            'content-length': '0',
             },
             blob)
 
@@ -105,6 +110,7 @@ class BlobsTest(tests.Test):
             'status: 301 Moved Permanently',
             'location: location',
             'content-type: application/octet-stream',
+            'content-length: 0',
             ],
             file(blob.path + '.meta').read().strip().split('\n'))
 
@@ -118,6 +124,7 @@ class BlobsTest(tests.Test):
         blob = blobs.post('probe')
         self.assertEqual({
             'content-type': 'application/octet-stream',
+            'content-length': str(len('probe')),
             },
             blob)
 

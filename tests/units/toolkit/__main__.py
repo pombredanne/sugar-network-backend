@@ -14,6 +14,7 @@ from router import *
 from gbus import *
 from i18n import *
 from sat import *
+from parcel import *
 
 if __name__ == '__main__':
     tests.main()
