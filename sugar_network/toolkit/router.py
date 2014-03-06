@@ -20,12 +20,13 @@ import time
 import types
 import logging
 import calendar
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from bisect import bisect_left
 from urllib import urlencode
+from Cookie import SimpleCookie
 from urlparse import parse_qsl, urlsplit
 from email.utils import parsedate, formatdate
-from os.path import isfile
+from os.path import isfile, basename, exists
 
 from sugar_network import toolkit
 from sugar_network.toolkit.coroutine import this
@@ -357,11 +358,11 @@ class CaseInsensitiveDict(dict):
     def __setitem__(self, key, value):
         return self.set(key.lower(), value)
 
-    def __delitem__(self, key, value):
+    def __delitem__(self, key):
         self.remove(key.lower())
 
-    def get(self, key):
-        return dict.get(self, key)
+    def get(self, key, default=None):
+        return dict.get(self, key, default)
 
     def set(self, key, value):
         dict.__setitem__(self, key, value)
@@ -426,17 +427,21 @@ class File(CaseInsensitiveDict):
         pass
 
     def __init__(self, path, digest=None, meta=None):
-        CaseInsensitiveDict.__init__(self)
+        CaseInsensitiveDict.__init__(self, meta or [])
         self.path = path
         self.digest = File.Digest(digest) if digest else None
-        if meta is not None:
-            for key, value in meta.items() if isinstance(meta, dict) else meta:
-                self[key] = value
         self._stat = None
+
+    @property
+    def exists(self):
+        return self.path and exists(self.path)
 
     @property
     def size(self):
         if self._stat is None:
+            if not self.exists:
+                size = self.get('content-length', 0)
+                return int(size) if size else 0
             self._stat = os.stat(self.path)
         return self._stat.st_size
 
@@ -453,8 +458,36 @@ class File(CaseInsensitiveDict):
         return self.get('location') or \
                '%s/blobs/%s' % (this.request.static_prefix, self.digest)
 
+    @property
+    def name(self):
+        if self.path:
+            return basename(self.path)
+
     def __repr__(self):
         return '<File %r>' % self.url
+
+    def iter_content(self):
+        if self.path:
+            return self._iter_content()
+        url = self.get('location')
+        enforce(url, http.NotFound, 'No location')
+        blob = this.http.request('GET', url, allow_redirects=True,
+                # Request for uncompressed data
+                headers={'accept-encoding': ''})
+        self.clear()
+        for tag in ('content-length', 'content-type', 'content-disposition'):
+            value = blob.headers.get(tag)
+            if value:
+                self[tag] = value
+        return blob.iter_content(toolkit.BUFFER_SIZE)
+
+    def _iter_content(self):
+        with file(self.path, 'rb') as f:
+            while True:
+                chunk = f.read(toolkit.BUFFER_SIZE)
+                if not chunk:
+                    break
+                yield chunk
 
 
 class Router(object):
@@ -532,6 +565,8 @@ class Router(object):
         if response is None:
             response = Response()
 
+        this.request = request
+        this.response = response
         route_ = self._resolve_route(request)
 
         for arg, cast in route_.arguments.items():
@@ -592,6 +627,8 @@ class Router(object):
 
         content = None
         try:
+            this.cookie = _load_cookie(request, 'sugar_network_node')
+
             if 'HTTP_ORIGIN' in request.environ:
                 enforce(self._assert_origin(request.environ), http.Forbidden,
                         'Cross-site is not allowed for %r origin',
@@ -655,10 +692,10 @@ class Router(object):
                 content = json.dumps(content)
             if 'content-length' not in response:
                 response.content_length = len(content) if content else 0
-
         if request.method == 'HEAD' and content is not None:
             _logger.warning('Content from HEAD response is ignored')
             content = None
+        _save_cookie(response, 'sugar_network_node', this.cookie)
 
         _logger.trace('%s call: request=%s response=%r content=%r',
                 self, request.environ, response, repr(content)[:256])
@@ -843,6 +880,42 @@ def _parse_accept_language(value):
         qualities.insert(index, quality)
         langs.insert(len(langs) - index, lang.lower().replace('_', '-'))
     return langs
+
+
+def _load_cookie(request, name):
+    cookie_str = request.environ.get('HTTP_COOKIE')
+    if not cookie_str:
+        return _Cookie()
+    cookie = SimpleCookie()
+    cookie.load(cookie_str)
+    if name not in cookie:
+        return _Cookie()
+    raw_value = cookie.get(name).value
+    if raw_value == 'unset_%s' % name:
+        _logger.debug('Found unset %r cookie', name)
+        return _Cookie()
+    value = _Cookie(json.loads(b64decode(raw_value)))
+    value.loaded = True
+    _logger.debug('Found %r cookie value=%r', name, value)
+    return value
+
+
+def _save_cookie(response, name, value, age=3600):
+    if value:
+        _logger.debug('Set %r cookie value=%r age=%s', name, value, age)
+        raw_value = b64encode(json.dumps(value))
+    else:
+        if not value.loaded:
+            return
+        _logger.debug('Unset %r cookie')
+        raw_value = 'unset_%s' % name
+    cookie = '%s=%s; Max-Age=%s; HttpOnly' % (name, raw_value, age)
+    response.setdefault('set-cookie', []).append(cookie)
+
+
+class _Cookie(dict):
+
+    loaded = False
 
 
 class _Routes(dict):

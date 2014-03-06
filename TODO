@@ -1,29 +1,19 @@
+- proxying as a tool to sort out downstream content
 - push local offline changes to the node on getting online
 - diff/merge while checking in node context
 - deliver spawn events only to local subscribers
 - test/run presolve
 - if node relocates api calls, do it only once in toolkit.http
-
-
-0.10
-====
-- Context prop for Update Hub sort
-
 - Remove temporal security hole with speciying guid in POST,
   it was added as a fast hack to support offline creation (with later pushing to a node)
 - changed pulls should take into account accept_length
-- increase granularity for sync.chunked_encode()
-- slave._Pooler might leak events if pullers are not in time to call wait()
-- sync node->local db sync
-- parse command while uploading impls; while parsing, take into accoun quotes
-- secure node-to-node offline sync
+- secure node-to-node sync
+- cache init sync pull
 
 v2.0
 ====
-- Pools topics
-- proxying as a tool to sort out downstream content
-  * client db is a special case of proxying
-  * easy proxying from any client, e.g., from a classroom teacher
+- Pool topics
+- (?) easy proxying from any client, e.g., from a classroom teacher
 - sort out contexts by targeting auditory
   * students of ages from..to
   * educators

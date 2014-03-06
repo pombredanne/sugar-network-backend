@@ -22,7 +22,6 @@ from os.path import join
 import xapian
 
 from sugar_network import toolkit, db
-from sugar_network.db import blobs
 from sugar_network.model.routes import FrontRoutes
 from sugar_network.toolkit.spec import parse_version, parse_requires
 from sugar_network.toolkit.spec import EMPTY_LICENSE
@@ -81,7 +80,7 @@ class Release(object):
             return release
         if not isinstance(release, dict):
             __, release = load_bundle(
-                    blobs.post(release, this.request.content_type),
+                    this.volume.blobs.post(release, this.request.content_type),
                     context=this.request.guid)
         return release['bundles']['*-*']['blob'], release
 
@@ -91,7 +90,7 @@ class Release(object):
                 'book' not in this.resource['type']:
             return
         for bundle in release['bundles'].values():
-            blobs.delete(bundle['blob'])
+            this.volume.blobs.delete(bundle['blob'])
 
     def encode(self, value):
         return []
@@ -123,6 +122,7 @@ def populate_context_images(props, svg):
     if 'guid' in props:
         from sugar_network.toolkit.sugar import color_svg
         svg = color_svg(svg, props['guid'])
+    blobs = this.volume.blobs
     props['artifact_icon'] = blobs.post(svg, 'image/svg+xml').digest
     props['icon'] = blobs.post(svg_to_png(svg, 55, 55), 'image/png').digest
     props['logo'] = blobs.post(svg_to_png(svg, 140, 140), 'image/png').digest
@@ -212,10 +212,10 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
     _logger.debug('Load %r release: %r', context, release)
 
     if this.request.principal in context_doc['author']:
-        diff = context_doc.patch(context_meta)
-        if diff:
-            this.call(method='PUT', path=['context', context], content=diff)
-            context_doc.props.update(diff)
+        patch = context_doc.format_patch(context_meta)
+        if patch:
+            this.call(method='PUT', path=['context', context], content=patch)
+            context_doc.props.update(patch)
         # TRANS: Release notes title
         title = i18n._('%(name)s %(version)s release')
     else:
@@ -237,7 +237,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
             ''.join(i18n.decode(context_doc['title']).split()),
             version, mimetypes.guess_extension(blob.get('content-type')) or '',
             )
-    blobs.update(blob.digest, blob)
+    this.volume.blobs.update(blob.digest, blob)
 
     return context, release
 

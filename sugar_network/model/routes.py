@@ -15,7 +15,6 @@
 
 import logging
 
-from sugar_network.db import blobs
 from sugar_network.toolkit.router import route
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import coroutine
@@ -60,8 +59,8 @@ class FrontRoutes(object):
         return 'User-agent: *\nDisallow: /\n'
 
     @route('GET', ['favicon.ico'])
-    def favicon(self, request, response):
-        return blobs.get('favicon.ico')
+    def favicon(self):
+        return this.volume.blobs.get('favicon.ico')
 
     def _broadcast(self, event):
         _logger.debug('Broadcast event: %r', event)

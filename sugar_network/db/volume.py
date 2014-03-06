@@ -15,12 +15,14 @@
 
 import os
 import logging
+from copy import deepcopy
 from os.path import exists, join, abspath
 
 from sugar_network import toolkit
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
-from sugar_network.toolkit import http, coroutine, enforce
+from sugar_network.db.blobs import Blobs
+from sugar_network.toolkit import http, coroutine, ranges, enforce
 
 
 _logger = logging.getLogger('db.volume')
@@ -44,8 +46,10 @@ class Volume(dict):
         if not exists(root):
             os.makedirs(root)
         self._index_class = index_class
-        self.seqno = toolkit.Seqno(join(self._root, 'db.seqno'))
-        self.releases_seqno = toolkit.Seqno(join(self._root, 'releases.seqno'))
+        self.seqno = toolkit.Seqno(join(self._root, 'var', 'db.seqno'))
+        self.releases_seqno = toolkit.Seqno(
+                join(self._root, 'var', 'releases.seqno'))
+        self.blobs = Blobs(root, self.seqno)
 
         for document in documents:
             if isinstance(document, basestring):
@@ -72,6 +76,74 @@ class Volume(dict):
             for __ in cls.populate():
                 coroutine.dispatch()
 
+    def diff(self, r, files=None, one_way=False):
+        last_seqno = None
+        try:
+            for resource, directory in self.items():
+                if one_way and directory.resource.one_way:
+                    continue
+                directory.commit()
+                yield {'resource': resource}
+                for start, end in r:
+                    query = 'seqno:%s..' % start
+                    if end:
+                        query += str(end)
+                    docs, __ = directory.find(query=query, order_by='seqno')
+                    for doc in docs:
+                        seqno, patch = doc.diff(r)
+                        if not patch:
+                            continue
+                        yield {'guid': doc.guid, 'patch': patch}
+                        last_seqno = max(last_seqno, seqno)
+            for blob in self.blobs.diff(r):
+                seqno = int(blob.pop('x-seqno'))
+                yield blob
+                last_seqno = max(last_seqno, seqno)
+            for dirpath in files or []:
+                for blob in self.blobs.diff(r, dirpath):
+                    seqno = int(blob.pop('x-seqno'))
+                    yield blob
+                    last_seqno = max(last_seqno, seqno)
+        except StopIteration:
+            pass
+
+        if last_seqno:
+            commit_r = deepcopy(r)
+            ranges.exclude(commit_r, last_seqno + 1, None)
+            ranges.exclude(r, None, last_seqno)
+            yield {'commit': commit_r}
+
+    def patch(self, records):
+        directory = None
+        commit_r = []
+        merged_r = []
+        seqno = None
+
+        for record in records:
+            resource_ = record.get('resource')
+            if resource_:
+                directory = self[resource_]
+                continue
+
+            if 'guid' in record:
+                seqno = directory.patch(record['guid'], record['patch'], seqno)
+                continue
+
+            if 'content-length' in record:
+                if seqno is None:
+                    seqno = self.seqno.next()
+                self.blobs.patch(record, seqno)
+                continue
+
+            commit = record.get('commit')
+            if commit is not None:
+                ranges.include(commit_r, commit)
+                continue
+
+        if seqno is not None:
+            ranges.include(merged_r, seqno, seqno)
+        return commit_r, merged_r
+
     def __enter__(self):
         return self
 
@@ -79,8 +151,8 @@ class Volume(dict):
         self.close()
 
     def __getitem__(self, name):
-        directory = self.get(name)
-        if directory is None:
+        dir_ = self.get(name)
+        if dir_ is None:
             enforce(name in self.resources, http.BadRequest,
                     'Unknown %r resource', name)
             resource = self.resources[name]
@@ -89,11 +161,10 @@ class Volume(dict):
                 cls = getattr(mod, name.capitalize())
             else:
                 cls = resource
-            directory = Directory(join(self._root, name), cls,
-                    self._index_class, self.seqno)
-            self._populators.spawn(self._populate, directory)
-            self[name] = directory
-        return directory
+            dir_ = Directory(self._root, cls, self._index_class, self.seqno)
+            self._populators.spawn(self._populate, dir_)
+            self[name] = dir_
+        return dir_
 
     def _populate(self, directory):
         for __ in directory.populate():

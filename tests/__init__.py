@@ -17,10 +17,9 @@ from os.path import dirname, join, exists, abspath, isfile
 from M2Crypto import DSA
 from gevent import monkey
 
-from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus, i18n, languages
+from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus, i18n, languages, parcel
 from sugar_network.toolkit.router import Router, Request
 from sugar_network.toolkit.coroutine import this
-from sugar_network.db import blobs
 from sugar_network.client import IPCConnection, journal, routes as client_routes
 from sugar_network.client.routes import ClientRoutes, _Auth
 from sugar_network import db, client, node, toolkit, model
@@ -28,7 +27,7 @@ from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.post import Post
 from sugar_network.node.master import MasterRoutes
-from sugar_network.node import stats_user, obs, slave, downloads
+from sugar_network.node import stats_user, obs, slave
 from requests import adapters
 
 
@@ -76,9 +75,8 @@ class Test(unittest.TestCase):
         os.environ['SUGAR_LOGGER_LEVEL'] = 'all'
         os.environ['HOME'] = tmpdir
         os.environ['LC_ALL'] = 'en_US.UTF-8'
-        profile_dir = join(tmpdir, '.sugar', 'default')
-        os.makedirs(profile_dir)
 
+        parcel.DEFAULT_COMPRESSLEVEL = 0
         adapters.DEFAULT_RETRIES = 5
         Option.items = {}
         Option.config_files = []
@@ -89,8 +87,6 @@ class Test(unittest.TestCase):
         db.index_flush_threshold.value = 1
         node.find_limit.value = 1024
         node.data_root.value = tmpdir
-        node.files_root.value = None
-        node.sync_layers.value = None
         node.stats_root.value = tmpdir + '/stats'
         node.port.value = 8888
         db.index_write_queue.value = 10
@@ -115,7 +111,6 @@ class Test(unittest.TestCase):
         http._RECONNECTION_NUMBER = 0
         toolkit.cachedir.value = tmpdir + '/tmp'
         journal._ds_root = tmpdir + '/datastore'
-        downloads._POOL_SIZE = 256
         gbus.join()
 
         db.Volume.model = [
@@ -142,8 +137,6 @@ class Test(unittest.TestCase):
         this.volume = None
         this.call = None
         this.broadcast = lambda x: x
-
-        blobs.init('blobs')
 
     def tearDown(self):
         self.stop_nodes()
@@ -273,7 +266,7 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context, Post]
         self.node_volume = db.Volume('master', classes)
-        self.node_routes = routes('guid', volume=self.node_volume)
+        self.node_routes = routes('master', volume=self.node_volume)
         self.node_router = Router(self.node_routes)
         self.node = coroutine.WSGIServer(('127.0.0.1', 8888), self.node_router)
         coroutine.spawn(self.node.serve_forever)

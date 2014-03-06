@@ -19,14 +19,18 @@ import zlib
 import time
 import json
 import struct
+import hashlib
 import logging
 from types import GeneratorType
 from os.path import dirname, exists, join
 
 from sugar_network import toolkit
 from sugar_network.toolkit.router import File
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, coroutine, BUFFER_SIZE, enforce
 
+
+DEFAULT_COMPRESSLEVEL = 6
 
 _FILENAME_SUFFIX = '.parcel'
 _RESERVED_DISK_SPACE = 1024 * 1024
@@ -48,15 +52,19 @@ def decode(stream, limit=None):
         packet.next()
         if packet.name == 'last':
             break
-        packet.props.update(header)
+        packet.header.update(header)
         yield packet
 
 
-def encode(packets, limit=None, header=None, compresslevel=6):
+def encode(packets, limit=None, header=None, compresslevel=None,
+        on_complete=None):
     _logger.debug('Encode %r packets limit=%r header=%r',
             packets, limit, header)
 
     ostream = _ZipStream(compresslevel)
+    # In case of downloading blobs
+    # (?) reuse current `this.http`
+    this.http = http.Connection()
 
     if limit is None:
         limit = sys.maxint
@@ -87,12 +95,13 @@ def encode(packets, limit=None, header=None, compresslevel=6):
                     record = next(content)
                     continue
                 blob_len = 0
-                if isinstance(record, File) and record.path:
+                if isinstance(record, File):
                     blob_len = record.size
                 chunk = ostream.write_record(record,
                         None if finalizing else limit - blob_len)
                 if chunk is None:
                     _logger.debug('Reach the encoding limit')
+                    on_complete = None
                     if not isinstance(content, GeneratorType):
                         raise StopIteration()
                     finalizing = True
@@ -101,21 +110,20 @@ def encode(packets, limit=None, header=None, compresslevel=6):
                 if chunk:
                     yield chunk
                 if blob_len:
-                    with file(record.path, 'rb') as blob:
-                        while True:
-                            chunk = blob.read(BUFFER_SIZE)
-                            if not chunk:
-                                break
-                            blob_len -= len(chunk)
-                            if not blob_len:
-                                chunk += '\n'
-                            chunk = ostream.write(chunk)
-                            if chunk:
-                                yield chunk
+                    for chunk in record.iter_content():
+                        blob_len -= len(chunk)
+                        if not blob_len:
+                            chunk += '\n'
+                        chunk = ostream.write(chunk)
+                        if chunk:
+                            yield chunk
                     enforce(blob_len == 0, EOFError, 'Blob size mismatch')
                 record = next(content)
         except StopIteration:
             pass
+
+        if on_complete is not None:
+            on_complete()
 
     chunk = ostream.write_record({'packet': 'last'})
     if chunk:
@@ -173,7 +181,7 @@ class _DecodeIterator(object):
 
     def __init__(self, stream):
         self._stream = stream
-        self.props = {}
+        self.header = {}
         self._name = None
         self._shift = True
 
@@ -190,10 +198,10 @@ class _DecodeIterator(object):
         self._shift = True
 
     def __repr__(self):
-        return '<Packet %r>' % self.props
+        return '<Packet %r>' % self.header
 
     def __getitem__(self, key):
-        return self.props.get(key)
+        return self.header.get(key)
 
     def __iter__(self):
         while True:
@@ -203,7 +211,7 @@ class _DecodeIterator(object):
                 raise EOFError()
             if 'packet' in record:
                 self._name = record['packet'] or ''
-                self.props = record
+                self.header = record
                 self._shift = False
                 break
             blob_len = record.get('content-length')
@@ -212,13 +220,15 @@ class _DecodeIterator(object):
                 continue
             blob_len = int(blob_len)
             with toolkit.NamedTemporaryFile() as blob:
+                digest = hashlib.sha1()
                 while blob_len:
                     chunk = self._stream.read(min(blob_len, BUFFER_SIZE))
                     enforce(chunk, 'Blob size mismatch')
                     blob.write(chunk)
                     blob_len -= len(chunk)
+                    digest.update(chunk)
                 blob.flush()
-                yield File(blob.name, meta=record)
+                yield File(blob.name, digest=digest.hexdigest(), meta=record)
 
     def __enter__(self):
         return self
@@ -229,7 +239,9 @@ class _DecodeIterator(object):
 
 class _ZipStream(object):
 
-    def __init__(self, compresslevel=6):
+    def __init__(self, compresslevel=None):
+        if compresslevel is None:
+            compresslevel = DEFAULT_COMPRESSLEVEL
         self._zipper = zlib.compressobj(compresslevel,
                 zlib.DEFLATED, -_ZLIB_WBITS, zlib.DEF_MEM_LEVEL, 0)
         self._offset = 0

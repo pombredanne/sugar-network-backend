@@ -10,19 +10,17 @@ from os.path import exists, abspath
 from __init__ import tests
 
 from sugar_network import toolkit
-from sugar_network.db import blobs
-from sugar_network.toolkit.router import Request
+from sugar_network.db.blobs import Blobs
+from sugar_network.toolkit.router import Request, File
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http
 
 
 class BlobsTest(tests.Test):
 
-    def setUp(self):
-        tests.Test.setUp(self)
-        blobs.init('.')
-
     def test_post(self):
+        blobs = Blobs('.', Seqno())
+
         content = 'probe'
         blob = blobs.post(content)
 
@@ -30,11 +28,12 @@ class BlobsTest(tests.Test):
                 hashlib.sha1(content).hexdigest(),
                 blob.digest)
         self.assertEqual(
-                abspath('%s/%s' % (blob.digest[:3], blob.digest)),
+                abspath('blobs/%s/%s' % (blob.digest[:3], blob.digest)),
                 blob.path)
         self.assertEqual({
             'content-type': 'application/octet-stream',
             'content-length': str(len(content)),
+            'x-seqno': '1',
             },
             blob)
 
@@ -44,6 +43,7 @@ class BlobsTest(tests.Test):
         self.assertEqual([
             'content-type: application/octet-stream',
             'content-length: %s' % len(content),
+            'x-seqno: 1',
             ],
             file(blob.path + '.meta').read().strip().split('\n'))
 
@@ -54,6 +54,8 @@ class BlobsTest(tests.Test):
         assert the_same_blob.path == blob.path
 
     def test_post_Stream(self):
+        blobs = Blobs('.', Seqno())
+
         content = 'probe'
         blob = blobs.post(StringIO(content))
 
@@ -61,11 +63,12 @@ class BlobsTest(tests.Test):
                 hashlib.sha1(content).hexdigest(),
                 blob.digest)
         self.assertEqual(
-                abspath('%s/%s' % (blob.digest[:3], blob.digest)),
+                abspath('blobs/%s/%s' % (blob.digest[:3], blob.digest)),
                 blob.path)
         self.assertEqual({
             'content-type': 'application/octet-stream',
             'content-length': str(len(content)),
+            'x-seqno': '1',
             },
             blob)
 
@@ -75,6 +78,7 @@ class BlobsTest(tests.Test):
         self.assertEqual([
             'content-type: application/octet-stream',
             'content-length: %s' % len(content),
+            'x-seqno: 1',
             ],
             file(blob.path + '.meta').read().strip().split('\n'))
 
@@ -85,34 +89,39 @@ class BlobsTest(tests.Test):
         assert the_same_blob.path == blob.path
 
     def test_post_Url(self):
+        blobs = Blobs('.', Seqno())
+
         self.assertRaises(http.BadRequest, blobs.post, {})
         self.assertRaises(http.BadRequest, blobs.post, {'digest': 'digest'})
-        blob = blobs.post({'location': 'location', 'digest': 'digest', 'foo': 'bar'})
+        blob = blobs.post({'location': 'location', 'digest': '0000000000000000000000000000000000000000', 'foo': 'bar'})
 
         self.assertEqual(
-                'digest',
+                '0000000000000000000000000000000000000000',
                 blob.digest)
         self.assertEqual(
-                abspath('%s/%s' % (blob.digest[:3], blob.digest)),
+                abspath('blobs/%s/%s' % (blob.digest[:3], blob.digest)),
                 blob.path)
         self.assertEqual({
             'status': '301 Moved Permanently',
             'location': 'location',
             'content-type': 'application/octet-stream',
             'content-length': '0',
+            'x-seqno': '1',
             },
             blob)
 
         self.assertEqual(
                 '',
                 file(blob.path).read())
-        self.assertEqual([
-            'status: 301 Moved Permanently',
-            'location: location',
-            'content-type: application/octet-stream',
-            'content-length: 0',
-            ],
-            file(blob.path + '.meta').read().strip().split('\n'))
+        self.assertEqual(
+                sorted([
+                    'status: 301 Moved Permanently',
+                    'location: location',
+                    'content-type: application/octet-stream',
+                    'content-length: 0',
+                    'x-seqno: 1',
+                    ]),
+                sorted(file(blob.path + '.meta').read().strip().split('\n')))
 
         the_same_blob = blobs.get(blob.digest)
         assert the_same_blob is not blob
@@ -121,419 +130,281 @@ class BlobsTest(tests.Test):
         assert the_same_blob.path == blob.path
 
     def test_update(self):
+        blobs = Blobs('.', Seqno())
+
         blob = blobs.post('probe')
         self.assertEqual({
             'content-type': 'application/octet-stream',
             'content-length': str(len('probe')),
+            'x-seqno': '1',
             },
             blob)
 
         blobs.update(blob.digest, {'foo': 'bar'})
         self.assertEqual({
+            'content-type': 'application/octet-stream',
+            'content-length': str(len('probe')),
+            'x-seqno': '1',
             'foo': 'bar',
             },
             blobs.get(blob.digest))
 
     def test_delete(self):
+        blobs = Blobs('.', Seqno())
+
         blob = blobs.post('probe')
         assert exists(blob.path)
         assert exists(blob.path + '.meta')
+        self.assertEqual({
+            'content-length': '5',
+            'content-type': 'application/octet-stream',
+            'x-seqno': '1',
+            },
+            dict(blobs.get(blob.digest)))
 
         blobs.delete(blob.digest)
         assert not exists(blob.path)
-        assert not exists(blob.path + '.meta')
-        assert blobs.get(blob.digest) is None
-
-    def test_diff(self):
-        blobs.init('blobs')
-        this.request = Request()
-        self.touch(
-            'blobs/100/1000000000000000000000000000000000000001', ('blobs/100/1000000000000000000000000000000000000001.meta', ''),
-            'blobs/100/1000000000000000000000000000000000000002', ('blobs/100/1000000000000000000000000000000000000002.meta', ''),
-            'blobs/200/2000000000000000000000000000000000000003', ('blobs/200/2000000000000000000000000000000000000003.meta', ''),
-            )
-
-        in_seq1 = toolkit.Sequence([[0, None]])
-        out_seq1 = toolkit.Sequence([])
-        self.assertEqual([
-            '2000000000000000000000000000000000000003',
-            '1000000000000000000000000000000000000002',
-            '1000000000000000000000000000000000000001',
-            ],
-            [i.digest for i in blobs.diff(in_seq1, out_seq1)])
-        ctimes1 = [
-                int(os.stat('blobs/100/1000000000000000000000000000000000000001').st_ctime),
-                int(os.stat('blobs/200/2000000000000000000000000000000000000003').st_ctime),
-                ]
-        self.assertEqual(
-                [[min(ctimes1), max(ctimes1)]],
-                out_seq1)
-
-        in_seq2 = toolkit.Sequence([[0, None]])
-        in_seq2.exclude(out_seq1)
-        out_seq2 = toolkit.Sequence([])
-        self.assertEqual([
-            ],
-            [i.digest for i in blobs.diff(in_seq2, out_seq2)])
-        self.assertEqual(
-                [],
-                out_seq2)
-
-        time.sleep(1.1)
-        self.touch(
-            'blobs/200/2000000000000000000000000000000000000004', ('blobs/200/2000000000000000000000000000000000000004.meta', ''),
-            'blobs/300/3000000000000000000000000000000000000005', ('blobs/300/3000000000000000000000000000000000000005.meta', ''),
-            )
-
-        self.assertEqual([
-            '3000000000000000000000000000000000000005',
-            '2000000000000000000000000000000000000004',
-            ],
-            [i.digest for i in blobs.diff(in_seq2, out_seq2)])
-        ctimes2 = [
-                int(os.stat('blobs/200/2000000000000000000000000000000000000004').st_ctime),
-                int(os.stat('blobs/300/3000000000000000000000000000000000000005').st_ctime),
-                ]
-        self.assertEqual(
-                [[min(ctimes2), max(ctimes2)]],
-                out_seq2)
-
-        in_seq3 = toolkit.Sequence([[0, None]])
-        out_seq3 = toolkit.Sequence([])
-        self.assertEqual([
-            '3000000000000000000000000000000000000005',
-            '2000000000000000000000000000000000000004',
-            '2000000000000000000000000000000000000003',
-            '1000000000000000000000000000000000000002',
-            '1000000000000000000000000000000000000001',
-
-            ],
-            [i.digest for i in blobs.diff(in_seq3, out_seq3)])
-        self.assertEqual(
-                [[min(ctimes1 + ctimes2), max(ctimes1 + ctimes2)]],
-                out_seq3)
-
-"""
-    def test_diff_WithBlobsSetByUrl(self):
-        URL = 'http://src.sugarlabs.org/robots.txt'
-        URL_content = urllib2.urlopen(URL).read()
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        directory.create({'guid': '1', 'ctime': 1, 'mtime': 1})
-        directory.update('1', {'blob': {'url': URL}})
-        self.utime('1/1', 1)
-
-        out_seq = Sequence()
-        self.assertEqual([
-            {'guid': '1', 'diff': {
-                'guid': {'value': '1', 'mtime': 1},
-                'ctime': {'value': 1, 'mtime': 1},
-                'mtime': {'value': 1, 'mtime': 1},
-                'blob': {
-                    'url': URL,
-                    'mtime': 1,
-                    },
-                }},
-            ],
-            [i for i in diff(directory, [[0, None]], out_seq)])
-        self.assertEqual([[1, 2]], out_seq)
-
-    def test_merge_AvoidCalculatedBlobs(self):
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return {'url': 'http://foo/bar', 'mime_type': 'image/png'}
-
-        directory1 = Directory('document1', Document, IndexWriter)
-        directory1.create({'guid': 'guid', 'ctime': 1, 'mtime': 1})
-        for i in os.listdir('document1/gu/guid'):
-            os.utime('document1/gu/guid/%s' % i, (1, 1))
-
-        directory2 = Directory('document2', Document, IndexWriter)
-        for patch in diff(directory1, [[0, None]], Sequence()):
-            directory2.merge(**patch)
-
-        doc = directory2.get('guid')
-        self.assertEqual(1, doc.get('seqno'))
-        self.assertEqual(1, doc.meta('guid')['mtime'])
-        assert not exists('document2/gu/guid/blob')
-
-    def test_merge_Blobs(self):
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
-        directory = Directory('document', Document, IndexWriter)
-        self.touch(('blob', 'blob-1'))
-        directory.merge('1', {
-            'guid': {'mtime': 1, 'value': '1'},
-            'ctime': {'mtime': 2, 'value': 2},
-            'mtime': {'mtime': 3, 'value': 3},
-            'blob': {'mtime': 4, 'blob': 'blob'},
-            })
-
-        self.assertEqual(
-                [(2, 3, '1')],
-                [(i['ctime'], i['mtime'], i['guid']) for i in directory.find()[0]])
-
-        doc = directory.get('1')
-        self.assertEqual(1, doc.get('seqno'))
-        self.assertEqual(1, doc.meta('guid')['mtime'])
-        self.assertEqual(2, doc.meta('ctime')['mtime'])
-        self.assertEqual(3, doc.meta('mtime')['mtime'])
-        self.assertEqual(4, doc.meta('blob')['mtime'])
-        self.assertEqual('blob-1', file('document/1/1/blob.blob').read())
-
-        self.touch(('blob', 'blob-2'))
-        directory.merge('1', {
-            'blob': {'mtime': 5, 'blob': 'blob'},
-            })
-
-        self.assertEqual(5, doc.meta('blob')['mtime'])
-        self.assertEqual('blob-2', file('document/1/1/blob.blob').read())
-
-
-    def test_DeleteOldBlobOnUpdate(self):
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def blob(self, value):
-                return value
-
-        directory = Directory(tests.tmpdir, Document, IndexWriter)
-
-        directory.create({'guid': 'guid', 'blob': 'foo'})
-        assert exists('gu/guid/blob.blob')
-        directory.update('guid', {'blob': {'url': 'foo'}})
-        assert not exists('gu/guid/blob.blob')
-
-        directory.update('guid', {'blob': 'foo'})
-        assert exists('gu/guid/blob.blob')
-        directory.update('guid', {'blob': {}})
-        assert not exists('gu/guid/blob.blob')
+        assert exists(blob.path + '.meta')
+        self.assertEqual({
+            'content-length': '5',
+            'content-type': 'application/octet-stream',
+            'status': '410 Gone',
+            'x-seqno': '2',
+            },
+            dict(blobs.get(blob.digest)))
 
     def test_diff_Blobs(self):
+        blobs = Blobs('.', Seqno())
+        this.request = Request()
 
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def prop(self, value):
-                return value
-
-        volume = db.Volume('db', [Document])
-        cp = NodeRoutes('guid', volume)
-
-        guid = call(cp, method='POST', document='document', content={})
-        call(cp, method='PUT', document='document', guid=guid, content={'prop': 'payload'})
-        self.utime('db', 0)
-
-        patch = diff(volume, toolkit.Sequence([[1, None]]))
-        self.assertEqual(
-                {'resource': 'document'},
-                next(patch))
-        record = next(patch)
-        self.assertEqual('payload', ''.join([i for i in record.pop('blob')]))
-        self.assertEqual(
-                {'guid': guid, 'blob_size': len('payload'), 'diff': {
-                    'prop': {
-                        'digest': hashlib.sha1('payload').hexdigest(),
-                        'blob_size': len('payload'),
-                        'mime_type': 'application/octet-stream',
-                        'mtime': 0,
-                        },
-                    }},
-                record)
-        self.assertEqual(
-                {'guid': guid, 'diff': {
-                    'guid': {'value': guid, 'mtime': 0},
-                    'author': {'mtime': 0, 'value': {}},
-                    'layer': {'mtime': 0, 'value': []},
-                    'tags': {'mtime': 0, 'value': []},
-                    'mtime': {'value': 0, 'mtime': 0},
-                    'ctime': {'value': 0, 'mtime': 0},
-                    }},
-                next(patch))
-        self.assertEqual(
-                {'commit': [[1, 2]]},
-                next(patch))
-        self.assertRaises(StopIteration, next, patch)
-
-    def test_diff_BlobUrls(self):
-        url = 'http://src.sugarlabs.org/robots.txt'
-        blob = urllib2.urlopen(url).read()
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def prop(self, value):
-                return value
-
-        volume = db.Volume('db', [Document])
-        cp = NodeRoutes('guid', volume)
-
-        guid = call(cp, method='POST', document='document', content={})
-        call(cp, method='PUT', document='document', guid=guid, content={'prop': {'url': url}})
-        self.utime('db', 1)
+        self.touch('blobs/100/1000000000000000000000000000000000000001',
+                  ('blobs/100/1000000000000000000000000000000000000001.meta', 'n: 1\nx-seqno: 1'))
+        self.utime('blobs/100/1000000000000000000000000000000000000001', 1)
+        self.utime('blobs/100/1000000000000000000000000000000000000001.meta', 1)
+        self.touch('blobs/100/1000000000000000000000000000000000000002',
+                  ('blobs/100/1000000000000000000000000000000000000002.meta', 'n: 2\nx-seqno: 2'))
+        self.utime('blobs/100/1000000000000000000000000000000000000002', 2)
+        self.utime('blobs/100/1000000000000000000000000000000000000002.meta', 2)
+        self.touch('blobs/200/2000000000000000000000000000000000000003',
+                  ('blobs/200/2000000000000000000000000000000000000003.meta', 'n: 3\nx-seqno: 3'))
+        self.utime('blobs/200/2000000000000000000000000000000000000003', 3)
+        self.utime('blobs/200/2000000000000000000000000000000000000003.meta', 3)
 
         self.assertEqual([
-            {'resource': 'document'},
-            {'guid': guid,
-                'diff': {
-                    'guid': {'value': guid, 'mtime': 1},
-                    'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': []},
-                    'tags': {'mtime': 1, 'value': []},
-                    'mtime': {'value': 0, 'mtime': 1},
-                    'ctime': {'value': 0, 'mtime': 1},
-                    'prop': {'url': url, 'mtime': 1},
-                    },
-                },
-            {'commit': [[1, 2]]},
+            ('2000000000000000000000000000000000000003', {'n': '3', 'x-seqno': '3'}),
+            ('1000000000000000000000000000000000000002', {'n': '2', 'x-seqno': '2'}),
+            ('1000000000000000000000000000000000000001', {'n': '1', 'x-seqno': '1'}),
             ],
-            [i for i in diff(volume, toolkit.Sequence([[1, None]]))])
+            [(i.digest, dict(i)) for i in  blobs.diff([[1, None]])])
+        self.assertEqual([
+            ],
+            [(i.digest, dict(i)) for i in  blobs.diff([[4, None]])])
 
-        patch = diff(volume, toolkit.Sequence([[1, None]]), fetch_blobs=True)
-        self.assertEqual(
-                {'resource': 'document'},
-                next(patch))
-        record = next(patch)
-        self.assertEqual(blob, ''.join([i for i in record.pop('blob')]))
-        self.assertEqual(
-                {'guid': guid, 'blob_size': len(blob), 'diff': {'prop': {'mtime': 1}}},
-                record)
-        self.assertEqual(
-                {'guid': guid, 'diff': {
-                    'guid': {'value': guid, 'mtime': 1},
-                    'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': []},
-                    'tags': {'mtime': 1, 'value': []},
-                    'mtime': {'value': 0, 'mtime': 1},
-                    'ctime': {'value': 0, 'mtime': 1},
-                    }},
-                next(patch))
-        self.assertEqual(
-                {'commit': [[1, 2]]},
-                next(patch))
-        self.assertRaises(StopIteration, next, patch)
-
-    def test_diff_SkipBrokenBlobUrls(self):
-
-        class Document(db.Resource):
-
-            @db.blob_property()
-            def prop(self, value):
-                return value
-
-        volume = db.Volume('db', [Document])
-        cp = NodeRoutes('guid', volume)
-
-        guid1 = call(cp, method='POST', document='document', content={})
-        call(cp, method='PUT', document='document', guid=guid1, content={'prop': {'url': 'http://foo/bar'}})
-        guid2 = call(cp, method='POST', document='document', content={})
-        self.utime('db', 1)
+        self.touch('blobs/200/2000000000000000000000000000000000000004',
+                  ('blobs/200/2000000000000000000000000000000000000004.meta', 'n: 4\nx-seqno: 4'))
+        self.utime('blobs/200/2000000000000000000000000000000000000004', 4)
+        self.utime('blobs/200/2000000000000000000000000000000000000004.meta', 4)
+        self.touch('blobs/300/3000000000000000000000000000000000000005',
+                  ('blobs/300/3000000000000000000000000000000000000005.meta', 'n: 5\nx-seqno: 5'))
+        self.utime('blobs/300/3000000000000000000000000000000000000005', 5)
+        self.utime('blobs/300/3000000000000000000000000000000000000005.meta', 5)
 
         self.assertEqual([
-            {'resource': 'document'},
-            {'guid': guid1,
-                'diff': {
-                    'guid': {'value': guid1, 'mtime': 1},
-                    'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': []},
-                    'tags': {'mtime': 1, 'value': []},
-                    'mtime': {'value': 0, 'mtime': 1},
-                    'ctime': {'value': 0, 'mtime': 1},
-                    'prop': {'url': 'http://foo/bar', 'mtime': 1},
-                    },
-                },
-            {'guid': guid2,
-                'diff': {
-                    'guid': {'value': guid2, 'mtime': 1},
-                    'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': []},
-                    'tags': {'mtime': 1, 'value': []},
-                    'mtime': {'value': 0, 'mtime': 1},
-                    'ctime': {'value': 0, 'mtime': 1},
-                    },
-                },
-            {'commit': [[1, 3]]},
+            ('3000000000000000000000000000000000000005', {'n': '5', 'x-seqno': '5'}),
+            ('2000000000000000000000000000000000000004', {'n': '4', 'x-seqno': '4'}),
             ],
-            [i for i in diff(volume, toolkit.Sequence([[1, None]]), fetch_blobs=False)])
+            [(i.digest, dict(i)) for i in  blobs.diff([[4, None]])])
+        self.assertEqual([
+            ],
+            [i for i in  blobs.diff([[6, None]])])
 
         self.assertEqual([
-            {'resource': 'document'},
-            {'guid': guid1,
-                'diff': {
-                    'guid': {'value': guid1, 'mtime': 1},
-                    'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': []},
-                    'tags': {'mtime': 1, 'value': []},
-                    'mtime': {'value': 0, 'mtime': 1},
-                    'ctime': {'value': 0, 'mtime': 1},
-                    },
-                },
-            {'guid': guid2,
-                'diff': {
-                    'guid': {'value': guid2, 'mtime': 1},
-                    'author': {'mtime': 1, 'value': {}},
-                    'layer': {'mtime': 1, 'value': []},
-                    'tags': {'mtime': 1, 'value': []},
-                    'mtime': {'value': 0, 'mtime': 1},
-                    'ctime': {'value': 0, 'mtime': 1},
-                    },
-                },
-            {'commit': [[1, 3]]},
+            ('3000000000000000000000000000000000000005', {'n': '5', 'x-seqno': '5'}),
+            ('2000000000000000000000000000000000000004', {'n': '4', 'x-seqno': '4'}),
+            ('2000000000000000000000000000000000000003', {'n': '3', 'x-seqno': '3'}),
+            ('1000000000000000000000000000000000000002', {'n': '2', 'x-seqno': '2'}),
+            ('1000000000000000000000000000000000000001', {'n': '1', 'x-seqno': '1'}),
             ],
-            [i for i in diff(volume, toolkit.Sequence([[1, None]]), fetch_blobs=True)])
+            [(i.digest, dict(i)) for i in  blobs.diff([[1, None]])])
 
-    def test_merge_Blobs(self):
+    def test_diff_Files(self):
+        blobs = Blobs('.', Seqno())
+        this.request = Request()
 
-        class Document(db.Resource):
+        self.touch('foo/bar', ('foo/bar.meta', 'n: -1\nx-seqno: -1'))
+        self.utime('foo/bar', 1)
+        self.utime('foo/bar.meta', 1)
 
-            @db.blob_property()
-            def prop(self, value):
-                return value
+        self.assertEqual(
+                sorted([]),
+                sorted([i.digest for i in  blobs.diff([[1, None]])]))
 
-        volume = db.Volume('db', [Document])
+        self.touch('files/1', ('files/1.meta', 'n: 1\nx-seqno: 1'))
+        self.utime('files/1', 1)
+        self.utime('files/1.meta', 1)
+        self.touch('files/2/3', ('files/2/3.meta', 'n: 2\nx-seqno: 2'))
+        self.utime('files/2/3', 2)
+        self.utime('files/2/3.meta', 2)
+        self.touch('files/2/4/5', ('files/2/4/5.meta', 'n: 3\nx-seqno: 3'))
+        self.utime('files/2/4/5', 3)
+        self.utime('files/2/4/5.meta', 3)
+        self.touch('files/6', ('files/6.meta', 'n: 4\nx-seqno: 4'))
+        self.utime('files/6', 4)
+        self.utime('files/6.meta', 4)
 
-        merge(volume, [
-            {'resource': 'document'},
-            {'guid': '1', 'diff': {
-                'guid': {'value': '1', 'mtime': 1.0},
-                'ctime': {'value': 2, 'mtime': 2.0},
-                'mtime': {'value': 3, 'mtime': 3.0},
-                'prop': {
-                    'blob': StringIO('payload'),
-                    'blob_size': len('payload'),
-                    'digest': hashlib.sha1('payload').hexdigest(),
-                    'mime_type': 'foo/bar',
-                    'mtime': 1,
-                    },
-                }},
-            {'commit': [[1, 1]]},
-            ])
+        self.assertEqual(sorted([
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]])]))
+        self.assertEqual(sorted([
+            ('1', {'n': '1', 'path': '1', 'x-seqno': '1'}),
+            ('2/3', {'n': '2', 'path': '2/3', 'x-seqno': '2'}),
+            ('2/4/5', {'n': '3', 'path': '2/4/5', 'x-seqno': '3'}),
+            ('6', {'n': '4', 'path': '6', 'x-seqno': '4'}),
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+        self.assertEqual(sorted([
+            ('2/3', {'n': '2', 'path': '2/3', 'x-seqno': '2'}),
+            ('2/4/5', {'n': '3', 'path': '2/4/5', 'x-seqno': '3'}),
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '2')]))
+        self.assertEqual(sorted([
+            ('2/4/5', {'n': '3', 'path': '2/4/5', 'x-seqno': '3'}),
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '2/4')]))
+        self.assertEqual(sorted([
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], 'foo')]))
+        self.assertEqual(sorted([
+            ('1', {'n': '1', 'path': '1', 'x-seqno': '1'}),
+            ('6', {'n': '4', 'path': '6', 'x-seqno': '4'}),
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '', False)]))
 
-        assert volume['document'].exists('1')
-        blob = volume['document'].get('1')['prop']
-        self.assertEqual(1, blob['mtime'])
-        self.assertEqual('foo/bar', blob['mime_type'])
-        self.assertEqual(hashlib.sha1('payload').hexdigest(), blob['digest'])
-        self.assertEqual(tests.tmpdir + '/db/document/1/1/prop.blob', blob['blob'])
-        self.assertEqual('payload', file(blob['blob']).read())
+    def test_diff_FailOnRelativePaths(self):
+        blobs = Blobs('.', Seqno())
 
-"""
+        self.assertRaises(http.BadRequest, lambda: [i for i in blobs.diff([[1, None]], '..')])
+        self.assertRaises(http.BadRequest, lambda: [i for i in blobs.diff([[1, None]], '/..')])
+        self.assertRaises(http.BadRequest, lambda: [i for i in blobs.diff([[1, None]], '/../foo')])
+        self.assertRaises(http.BadRequest, lambda: [i for i in blobs.diff([[1, None]], 'foo/..')])
+
+    def test_diff_CheckinFiles(self):
+        blobs = Blobs('.', Seqno())
+        this.request = Request()
+
+        self.touch(
+                ('files/1.pdf', '1'),
+                ('files/2/3.txt', '22'),
+                ('files/2/4/5.svg', '333'),
+                ('files/6.png', '4444'),
+                )
+
+        self.assertEqual(0, blobs._seqno.value)
+        self.assertEqual(sorted([
+            ('1.pdf', {'content-type': 'application/pdf', 'content-length': '1', 'x-seqno': '1', 'path': '1.pdf'}),
+            ('2/3.txt', {'content-type': 'text/plain', 'content-length': '2', 'x-seqno': '1', 'path': '2/3.txt'}),
+            ('2/4/5.svg', {'content-type': 'image/svg+xml', 'content-length': '3', 'x-seqno': '1', 'path': '2/4/5.svg'}),
+            ('6.png', {'content-type': 'image/png', 'content-length': '4', 'x-seqno': '1', 'path': '6.png'}),
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+        self.assertEqual(1, blobs._seqno.value)
+
+        self.assertEqual(sorted([
+            ('1.pdf', {'content-type': 'application/pdf', 'content-length': '1', 'x-seqno': '1', 'path': '1.pdf'}),
+            ('2/3.txt', {'content-type': 'text/plain', 'content-length': '2', 'x-seqno': '1', 'path': '2/3.txt'}),
+            ('2/4/5.svg', {'content-type': 'image/svg+xml', 'content-length': '3', 'x-seqno': '1', 'path': '2/4/5.svg'}),
+            ('6.png', {'content-type': 'image/png', 'content-length': '4', 'x-seqno': '1', 'path': '6.png'}),
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+        self.assertEqual(1, blobs._seqno.value)
+
+    def test_diff_HandleUpdates(self):
+        blobs = Blobs('.', Seqno())
+        this.request = Request()
+
+        self.touch('blobs/000/0000000000000000000000000000000000000001',
+                  ('blobs/000/0000000000000000000000000000000000000001.meta', 'n: 1\nx-seqno: 1'))
+        self.utime('blobs/000/0000000000000000000000000000000000000001', 100)
+        self.utime('blobs/000/0000000000000000000000000000000000000001.meta', 1)
+
+        self.touch('files/2', ('files/2.meta', 'n: 2\nx-seqno: 2'))
+        self.utime('files/2', 200)
+        self.utime('files/2.meta', 2)
+
+        blobs._seqno.value = 10
+        self.assertEqual([
+            ('0000000000000000000000000000000000000001', {'n': '1', 'content-length': '50', 'x-seqno': '11'}),
+            ],
+            [(i.digest, dict(i)) for i in  blobs.diff([[1, None]])])
+        self.assertEqual(11, blobs._seqno.value)
+        self.assertEqual([
+            ('0000000000000000000000000000000000000001', {'n': '1', 'content-length': '50', 'x-seqno': '11'}),
+            ],
+            [(i.digest, dict(i)) for i in  blobs.diff([[1, None]])])
+        self.assertEqual(11, blobs._seqno.value)
+
+        self.assertEqual(sorted([
+            ('2', {'n': '2', 'path': '2', 'content-length': '7', 'x-seqno': '12'}),
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+        self.assertEqual(12, blobs._seqno.value)
+        self.assertEqual(sorted([
+            ('2', {'n': '2', 'path': '2', 'content-length': '7', 'x-seqno': '12'}),
+            ]),
+            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+        self.assertEqual(12, blobs._seqno.value)
+
+    def test_patch_Blob(self):
+        blobs = Blobs('.', Seqno())
+
+        self.touch(('blob', '1'))
+        blobs.patch(File('./blob', '0000000000000000000000000000000000000001', {'n': 1}), -1)
+        blob = blobs.get('0000000000000000000000000000000000000001')
+        self.assertEqual(tests.tmpdir + '/blobs/000/0000000000000000000000000000000000000001', blob.path)
+        self.assertEqual('0000000000000000000000000000000000000001', blob.digest)
+        self.assertEqual('1', file(blob.path).read())
+        self.assertEqual({'x-seqno': '-1', 'n': '1'}, blob)
+        assert not exists('blob')
+
+        blobs.patch(File('./fake', '0000000000000000000000000000000000000002', {'n': 2, 'content-length': '0'}), -2)
+        assert blobs.get('0000000000000000000000000000000000000002') is None
+
+        blobs.patch(File('./fake', '0000000000000000000000000000000000000001', {'n': 3, 'content-length': '0'}), -3)
+        blob = blobs.get('0000000000000000000000000000000000000001')
+        assert not exists(blob.path)
+        self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, dict(blob))
+
+    def test_patch_File(self):
+        blobs = Blobs('.', Seqno())
+
+        self.touch(('file', '1'))
+        blobs.patch(File('./file', '1', {'n': 1, 'path': 'foo/bar'}), -1)
+        blob = blobs.get('foo/bar')
+        self.assertEqual('1', file(blob.path).read())
+        self.assertEqual({'x-seqno': '-1', 'n': '1'}, blob)
+        assert not exists('file')
+
+        blobs.patch(File('./fake', 'bar/foo', {'n': 2, 'content-length': '0'}), -2)
+        assert blobs.get('bar/foo') is None
+
+        blobs.patch(File('./fake', 'foo/bar', {'n': 3, 'content-length': '0', 'path': 'foo/bar'}), -3)
+        blob = blobs.get('foo/bar')
+        assert not exists(blob.path)
+        self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, dict(blob))
+
+
+class Seqno(object):
+
+    def __init__(self):
+        self.value = 0
+
+    def next(self):
+        self.value += 1
+        return self.value
+
+    def commit(self):
+        pass
+
 
 if __name__ == '__main__':
     tests.main()

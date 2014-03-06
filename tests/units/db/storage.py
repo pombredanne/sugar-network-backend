@@ -11,7 +11,7 @@ from os.path import exists
 
 from __init__ import tests
 
-from sugar_network.db.metadata import Metadata, Property
+from sugar_network.db.metadata import Property
 from sugar_network.db.storage import Storage
 from sugar_network.toolkit import BUFFER_SIZE
 
@@ -23,10 +23,7 @@ class StorageTest(tests.Test):
         class Test(object):
             pass
 
-        metadata = Metadata(Test)
-        for i in props:
-            metadata[i.name] = i
-        return Storage(tests.tmpdir, metadata)
+        return Storage(tests.tmpdir)
 
     def test_Record_get(self):
         storage = self.storage([Property('prop')])

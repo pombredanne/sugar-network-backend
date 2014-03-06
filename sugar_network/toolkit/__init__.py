@@ -21,6 +21,7 @@ import shutil
 import logging
 import tempfile
 import collections
+from copy import deepcopy
 from cStringIO import StringIO
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
 from os.path import lexists, isfile
@@ -487,215 +488,20 @@ class NamedTemporaryFile(object):
         return getattr(self._file, name)
 
 
-class Seqno(object):
-    """Sequence number counter with persistent storing in a file."""
+class Bin(object):
+    """Store variable in a file."""
 
-    def __init__(self, path):
-        """
-        :param path:
-            path to file to [re]store seqno value
-
-        """
-        self._path = path
-        self._value = 0
-        if exists(path):
-            with file(path) as f:
-                self._value = int(f.read().strip())
-        self._orig_value = self._value
-
-    @property
-    def value(self):
-        """Current seqno value."""
-        return self._value
-
-    def next(self):
-        """Incerement seqno.
-
-        :returns:
-            new seqno value
-
-        """
-        self._value += 1
-        return self._value
-
-    def commit(self):
-        """Store current seqno value in a file.
-
-        :returns:
-            `True` if commit was happened
-
-        """
-        if self._value == self._orig_value:
-            return False
-        with new_file(self._path) as f:
-            f.write(str(self._value))
-            f.flush()
-            os.fsync(f.fileno())
-        self._orig_value = self._value
-        return True
-
-
-class Sequence(list):
-    """List of sorted and non-overlapping ranges.
-
-    List items are ranges, [`start`, `stop']. If `start` or `stop`
-    is `None`, it means the beginning or ending of the entire sequence.
-
-    """
-
-    def __init__(self, value=None, empty_value=None):
-        """
-        :param value:
-            default value to initialize range
-        :param empty_value:
-            if not `None`, the initial value for empty range
-
-        """
-        if empty_value is None:
-            self._empty_value = []
-        else:
-            self._empty_value = [empty_value]
-
-        if value:
-            self.extend(value)
-        else:
-            self.clear()
-
-    def __contains__(self, value):
-        for start, end in self:
-            if value >= start and (end is None or value <= end):
-                return True
-        else:
-            return False
-
-    @property
-    def empty(self):
-        """Is timeline in the initial state."""
-        return self == self._empty_value
-
-    def clear(self):
-        """Reset range to the initial value."""
-        self[:] = self._empty_value
-
-    def stretch(self):
-        """Remove all holes between the first and the last items."""
-        if self:
-            self[:] = [[self[0][0], self[-1][-1]]]
-
-    def include(self, start, end=None):
-        """Include specified range.
-
-        :param start:
-            either including range start or a list of
-            (`start`, `end`) pairs
-        :param end:
-            including range end
-
-        """
-        if issubclass(type(start), collections.Iterable):
-            for range_start, range_end in start:
-                self._include(range_start, range_end)
-        elif start is not None:
-            self._include(start, end)
-
-    def exclude(self, start, end=None):
-        """Exclude specified range.
-
-        :param start:
-            either excluding range start or a list of
-            (`start`, `end`) pairs
-        :param end:
-            excluding range end
-
-        """
-        if issubclass(type(start), collections.Iterable):
-            for range_start, range_end in start:
-                self._exclude(range_start, range_end)
-        else:
-            enforce(end is not None)
-            self._exclude(start, end)
-
-    def _include(self, range_start, range_end):
-        if range_start is None:
-            range_start = 1
-
-        range_start_new = None
-        range_start_i = 0
-
-        for range_start_i, (start, end) in enumerate(self):
-            if range_end is not None and start - 1 > range_end:
-                break
-            if (range_end is None or start - 1 <= range_end) and \
-                    (end is None or end + 1 >= range_start):
-                range_start_new = min(start, range_start)
-                break
-        else:
-            range_start_i += 1
-
-        if range_start_new is None:
-            self.insert(range_start_i, [range_start, range_end])
-            return
-
-        range_end_new = range_end
-        range_end_i = range_start_i
-        for i, (start, end) in enumerate(self[range_start_i:]):
-            if range_end is not None and start - 1 > range_end:
-                break
-            if range_end is None or end is None:
-                range_end_new = None
-            else:
-                range_end_new = max(end, range_end)
-            range_end_i = range_start_i + i
-
-        del self[range_start_i:range_end_i]
-        self[range_start_i] = [range_start_new, range_end_new]
-
-    def _exclude(self, range_start, range_end):
-        if range_start is None:
-            range_start = 1
-        enforce(range_end is not None)
-        enforce(range_start <= range_end and range_start > 0,
-                'Start value %r is less than 0 or not less than %r',
-                range_start, range_end)
-
-        for i, interval in enumerate(self):
-            start, end = interval
-
-            if end is not None and end < range_start:
-                # Current `interval` is below new one
-                continue
-
-            if range_end is not None and range_end < start:
-                # Current `interval` is above new one
-                continue
-
-            if end is None or end > range_end:
-                # Current `interval` will exist after changing
-                self[i] = [range_end + 1, end]
-                if start < range_start:
-                    self.insert(i, [start, range_start - 1])
-            else:
-                if start < range_start:
-                    self[i] = [start, range_start - 1]
-                else:
-                    del self[i]
-
-            if end is not None:
-                range_start = end + 1
-                if range_start < range_end:
-                    self.exclude(range_start, range_end)
-            break
-
-
-class PersistentSequence(Sequence):
-
-    def __init__(self, path, empty_value=None):
-        Sequence.__init__(self, empty_value=empty_value)
-        self._path = path
+    def __init__(self, path, default_value=None):
+        self._path = abspath(path)
+        self.value = default_value
+        self._orig_value = None
 
         if exists(self._path):
             with file(self._path) as f:
-                self[:] = json.load(f)
+                self.value = json.load(f)
+        else:
+            self.commit()
+        self._orig_value = deepcopy(self.value)
 
     @property
     def mtime(self):
@@ -705,13 +511,48 @@ class PersistentSequence(Sequence):
             return 0
 
     def commit(self):
-        dir_path = dirname(self._path)
-        if dir_path and not exists(dir_path):
-            os.makedirs(dir_path)
+        """Store current value in a file.
+
+        :returns:
+            `True` if commit was happened
+
+        """
+        if self.value == self._orig_value:
+            return False
         with new_file(self._path) as f:
-            json.dump(self, f)
+            json.dump(self.value, f)
             f.flush()
             os.fsync(f.fileno())
+        self._orig_value = self.value
+        return True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.commit()
+
+
+class Seqno(Bin):
+    """Sequence number counter with persistent storing in a file."""
+
+    def __init__(self, path):
+        """
+        :param path:
+            path to file to [re]store seqno value
+
+        """
+        Bin.__init__(self, path, 0)
+
+    def next(self):
+        """Incerement seqno.
+
+        :returns:
+            new seqno value
+
+        """
+        self.value += 1
+        return self.value
 
 
 class Pool(object):

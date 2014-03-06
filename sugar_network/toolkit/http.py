@@ -378,14 +378,16 @@ class SugarAuth(object):
         from M2Crypto import RSA
         from base64 import b64encode
 
+        key_dir = dirname(self._key_path)
         if exists(self._key_path):
+            if os.stat(key_dir) & 077:
+                os.chmod(key_dir, 0700)
             self._key = RSA.load_key(self._key_path)
             return
 
-        key_dir = dirname(self._key_path)
         if not exists(key_dir):
             os.makedirs(key_dir)
-            os.chmod(key_dir, 0700)
+        os.chmod(key_dir, 0700)
 
         _logger.info('Generate RSA private key at %r', self._key_path)
         self._key = RSA.gen_key(1024, 65537, lambda *args: None)

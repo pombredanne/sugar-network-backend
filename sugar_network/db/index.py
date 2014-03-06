@@ -123,7 +123,7 @@ class IndexReader(object):
         raise NotImplementedError()
 
     def find(self, offset=0, limit=None, query='', reply=('guid',),
-            order_by=None, no_cache=False, group_by=None, **request):
+            order_by=None, group_by=None, **request):
         """Search resources within the index.
 
         The result will be an array of dictionaries with found documents'

@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import shutil
 import logging
 from os.path import exists, join
@@ -33,7 +32,7 @@ _logger = logging.getLogger('db.directory')
 
 class Directory(object):
 
-    def __init__(self, root, resource_class, index_class, seqno=None):
+    def __init__(self, root, resource, index_class, seqno):
         """
         :param index_class:
             what class to use to access to indexes, for regular casses
@@ -41,19 +40,16 @@ class Directory(object):
             keep writer in separate process).
 
         """
-        if not exists(root):
-            os.makedirs(root)
-
-        if resource_class.metadata is None:
+        if resource.metadata is None:
             # Metadata cannot be recreated
-            resource_class.metadata = Metadata(resource_class)
-            resource_class.metadata['guid'] = Guid()
-        self.metadata = resource_class.metadata
+            resource.metadata = Metadata(resource)
+            resource.metadata['guid'] = Guid()
+        self.metadata = resource.metadata
 
-        self.resource_class = resource_class
+        self.resource = resource
         self._index_class = index_class
         self._root = root
-        self._seqno = _SessionSeqno() if seqno is None else seqno
+        self._seqno = seqno
         self._storage = None
         self._index = None
 
@@ -62,7 +58,10 @@ class Directory(object):
     def wipe(self):
         self.close()
         _logger.debug('Wipe %r directory', self.metadata.name)
-        shutil.rmtree(self._root, ignore_errors=True)
+        shutil.rmtree(join(self._root, 'index', self.metadata.name),
+                ignore_errors=True)
+        shutil.rmtree(join(self._root, 'db', self.metadata.name),
+                ignore_errors=True)
         self._open()
 
     def close(self):
@@ -129,7 +128,7 @@ class Directory(object):
         enforce(cached_props or record.exists, http.NotFound,
                 'Resource %r does not exist in %r',
                 guid, self.metadata.name)
-        return self.resource_class(guid, record, cached_props)
+        return self.resource(guid, record, cached_props)
 
     def __getitem__(self, guid):
         return self.get(guid)
@@ -141,7 +140,7 @@ class Directory(object):
             for hit in mset:
                 guid = hit.document.get_value(0)
                 record = self._storage.get(guid)
-                yield self.resource_class(guid, record)
+                yield self.resource(guid, record)
 
         return iterate(), mset.get_matches_estimated()
 
@@ -186,74 +185,52 @@ class Directory(object):
             self._save_layout()
             self.commit()
 
-    def diff(self, seq, exclude_seq=None, **params):
-        if exclude_seq is not None:
-            for start, end in exclude_seq:
-                seq.exclude(start, end)
-        if 'group_by' in params:
-            # Pickup only most recent change
-            params['order_by'] = '-seqno'
-        else:
-            params['order_by'] = 'seqno'
-        params['no_cache'] = True
-
-        for start, end in seq:
-            query = 'seqno:%s..' % start
-            if end:
-                query += str(end)
-            documents, __ = self.find(query=query, **params)
-            for doc in documents:
-                yield doc.guid, doc.diff(seq)
-
-    def merge(self, guid, diff):
+    def patch(self, guid, patch, seqno=None):
         """Apply changes for documents."""
-        doc = self.resource_class(guid, self._storage.get(guid))
+        doc = self.resource(guid, self._storage.get(guid))
 
-        for prop, meta in diff.items():
+        for prop, meta in patch.items():
             orig_meta = doc.meta(prop)
             if orig_meta and orig_meta['mtime'] >= meta['mtime']:
                 continue
             if doc.post_seqno is None:
-                doc.post_seqno = self._seqno.next()
+                if seqno is None:
+                    seqno = self._seqno.next()
+                doc.post_seqno = seqno
             doc.post(prop, **meta)
 
-        if doc.post_seqno is None:
-            return None, False
-
-        if doc.exists:
+        if doc.post_seqno is not None and doc.exists:
             # No need in after-merge event, further commit event
             # is enough to avoid increasing events flow
             self._index.store(guid, doc.props, self._preindex)
 
-        return doc.post_seqno, True
+        return seqno
 
     def _open(self):
-        if not exists(self._root):
-            os.makedirs(self._root)
-        index_path = join(self._root, 'index')
+        index_path = join(self._root, 'index', self.metadata.name)
         if self._is_layout_stale():
             if exists(index_path):
                 _logger.warning('%r layout is stale, remove index',
                         self.metadata.name)
                 shutil.rmtree(index_path, ignore_errors=True)
             self._save_layout()
-        self._storage = Storage(self._root, self.metadata)
         self._index = self._index_class(index_path, self.metadata,
                 self._postcommit)
-        _logger.debug('Open %r resource', self.resource_class)
+        self._storage = Storage(join(self._root, 'db', self.metadata.name))
+        _logger.debug('Open %r resource', self.resource)
 
     def _broadcast(self, event):
         event['resource'] = self.metadata.name
         this.broadcast(event)
 
     def _preindex(self, guid, changes):
-        doc = self.resource_class(guid, self._storage.get(guid), changes)
+        doc = self.resource(guid, self._storage.get(guid), changes)
         for prop in self.metadata:
             enforce(doc[prop] is not None, 'Empty %r property', prop)
         return doc.props
 
     def _prestore(self, guid, changes, event):
-        doc = self.resource_class(guid, self._storage.get(guid))
+        doc = self.resource(guid, self._storage.get(guid))
         doc.post_seqno = self._seqno.next()
         for prop in self.metadata.keys():
             value = changes.get(prop)
@@ -272,31 +249,14 @@ class Directory(object):
         self._broadcast({'event': 'commit', 'mtime': self._index.mtime})
 
     def _save_layout(self):
-        path = join(self._root, 'layout')
+        path = join(self._root, 'index', self.metadata.name, 'layout')
         with toolkit.new_file(path) as f:
             f.write(str(_LAYOUT_VERSION))
 
     def _is_layout_stale(self):
-        path = join(self._root, 'layout')
+        path = join(self._root, 'index', self.metadata.name, 'layout')
         if not exists(path):
             return True
         with file(path) as f:
             version = f.read()
         return not version.isdigit() or int(version) != _LAYOUT_VERSION
-
-
-class _SessionSeqno(object):
-
-    def __init__(self):
-        self._value = 0
-
-    @property
-    def value(self):
-        return self._value
-
-    def next(self):
-        self._value += 1
-        return self._value
-
-    def commit(self):
-        pass

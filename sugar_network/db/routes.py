@@ -19,10 +19,8 @@ import logging
 from contextlib import contextmanager
 
 from sugar_network import toolkit
-from sugar_network.db import blobs
 from sugar_network.db.metadata import Aggregated
-from sugar_network.toolkit.router import ACL, File
-from sugar_network.toolkit.router import route, preroute, fallbackroute
+from sugar_network.toolkit.router import ACL, File, route, fallbackroute
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, enforce
 
@@ -38,11 +36,6 @@ class Routes(object):
         self.volume = volume
         self._find_limit = find_limit
         this.volume = self.volume
-
-    @preroute
-    def __preroute__(self, op, request, response):
-        this.request = request
-        this.response = response
 
     @route('POST', [None], acl=ACL.AUTH, mime_type='application/json')
     def create(self, request):
@@ -90,14 +83,6 @@ class Routes(object):
             self.on_update(request, doc.props)
             self.volume[request.resource].update(doc.guid, doc.props)
             self.after_post(doc)
-
-    @route('GET', [None, None], cmd='diff', mime_type='application/json')
-    def diff(self, request):
-        result = {}
-        res = self.volume[request.resource][request.guid]
-        for prop, meta, __ in res.diff(toolkit.Sequence([[0, None]])):
-            result[prop] = meta
-        return result
 
     @route('PUT', [None, None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def update_prop(self, request):
@@ -187,8 +172,8 @@ class Routes(object):
         directory.update(request.guid, {'author': authors})
 
     @fallbackroute('GET', ['blobs'])
-    def blobs(self, request):
-        return blobs.get(request.guid)
+    def blobs(self):
+        return this.volume.blobs.get(this.request.guid)
 
     def on_create(self, request, props):
         ts = int(time.time())
@@ -215,7 +200,7 @@ class Routes(object):
         directory = self.volume[request.resource]
 
         if access == ACL.CREATE:
-            doc = directory.resource_class(None, None)
+            doc = directory.resource(None, None)
             if 'guid' in content:
                 # TODO Temporal security hole, see TODO
                 guid = content['guid']

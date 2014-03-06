@@ -16,7 +16,6 @@
 import xapian
 
 from sugar_network import toolkit
-from sugar_network.db import blobs
 from sugar_network.toolkit.router import ACL, File
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import i18n, http, enforce
@@ -304,49 +303,27 @@ class Blob(Property):
             return value
 
         enforce(value is None or isinstance(value, basestring) or
-                isinstance(value, dict) and value or hasattr(value, 'read'),
-                'Inappropriate blob value')
+                hasattr(value, 'read'),
+                http.BadRequest, 'Inappropriate blob value')
 
         if not value:
             return ''
 
-        if not isinstance(value, dict):
-            mime_type = None
-            if this.request.prop == self.name:
-                mime_type = this.request.content_type
-            if not mime_type:
-                mime_type = self.mime_type
-            return blobs.post(value, mime_type).digest
-
-        digest = this.resource[self.name] if self.name else None
-        if digest:
-            orig = blobs.get(digest)
-            enforce('digest' not in value or value.pop('digest') == digest,
-                    "Inappropriate 'digest' value")
-            enforce(orig.path or 'location' in orig or 'location' in value,
-                    'Blob points to nothing')
-            if 'location' in value and orig.path:
-                blobs.delete(digest)
-                orig.update(value)
-                value = orig
-        else:
-            enforce('location' in value, 'Blob points to nothing')
-            enforce('digest' in value, "Missed 'digest' value")
-            if 'content-type' not in value:
-                value['content-type'] = self.mime_type
-            digest = value.pop('digest')
-
-        blobs.update(digest, value)
-        return digest
+        mime_type = None
+        if this.request.prop == self.name:
+            mime_type = this.request.content_type
+        if not mime_type:
+            mime_type = self.mime_type
+        return this.volume.blobs.post(value, mime_type).digest
 
     def reprcast(self, value):
         if not value:
             return File.AWAY
-        return blobs.get(value)
+        return this.volume.blobs.get(value)
 
     def teardown(self, value):
         if value:
-            blobs.delete(value)
+            this.volume.blobs.delete(value)
 
     def assert_access(self, mode, value=None):
         if mode == ACL.WRITE and not value:

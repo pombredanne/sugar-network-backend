@@ -18,6 +18,7 @@ from sugar_network.db.metadata import Numeric, List, Authors
 from sugar_network.db.metadata import Composite, Aggregated
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit import ranges
 
 
 class Resource(object):
@@ -25,6 +26,8 @@ class Resource(object):
 
     #: `Metadata` object that describes the document
     metadata = None
+    #: Whether these resources should be migrated from slave-to-master only
+    one_way = False
 
     def __init__(self, guid, record, cached_props=None):
         self.props = cached_props or {}
@@ -118,7 +121,9 @@ class Resource(object):
         if self.record is not None:
             return self.record.get(prop)
 
-    def diff(self, seq):
+    def diff(self, r):
+        patch = {}
+        last_seqno = None
         for name, prop in self.metadata.items():
             if name == 'seqno' or prop.acl & ACL.CALC:
                 continue
@@ -126,19 +131,20 @@ class Resource(object):
             if meta is None:
                 continue
             seqno = meta.get('seqno')
-            if seqno not in seq:
+            if not ranges.contains(r, seqno):
                 continue
+            last_seqno = max(seqno, last_seqno)
             value = meta.get('value')
             if isinstance(prop, Aggregated):
                 value_ = {}
                 for key, agg in value.items():
-                    if agg.pop('seqno') in seq:
+                    if ranges.contains(r, agg.pop('seqno')):
                         value_[key] = agg
                 value = value_
-            meta = {'mtime': meta['mtime'], 'value': value}
-            yield name, meta, seqno
+            patch[name] = {'mtime': meta['mtime'], 'value': value}
+        return last_seqno, patch
 
-    def patch(self, props):
+    def format_patch(self, props):
         if not props:
             return {}
         patch = {}

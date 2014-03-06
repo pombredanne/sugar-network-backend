@@ -25,9 +25,8 @@ from sugar_network import toolkit
 class Storage(object):
     """Get access to documents' data storage."""
 
-    def __init__(self, root, metadata):
+    def __init__(self, root):
         self._root = root
-        self.metadata = metadata
 
     def get(self, guid):
         """Get access to particular document's properties.
@@ -50,12 +49,7 @@ class Storage(object):
         path = self._path(guid)
         if not exists(path):
             return
-        try:
-            shutil.rmtree(path)
-        except Exception, error:
-            toolkit.exception()
-            raise RuntimeError('Cannot delete %r document from %r: %s' %
-                    (guid, self.metadata.name, error))
+        shutil.rmtree(path)
 
     def walk(self, mtime):
         """Generator function to enumerate all existing documents.

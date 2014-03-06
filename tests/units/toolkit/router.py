@@ -5,6 +5,7 @@
 import os
 import json
 from email.utils import formatdate
+from base64 import b64decode, b64encode
 from cStringIO import StringIO
 
 from __init__ import tests, src_root
@@ -1412,6 +1413,107 @@ class RouterTest(tests.Test):
 
         self.assertEqual('бар', headers.get('фоо'))
         self.assertEqual('кен', headers.get('йцу'))
+
+    def test_File_IterContentInFS(self):
+        self.touch(('blob', 'blob'))
+
+        self.assertEqual(
+                ['blob'],
+                [i for i in File('blob').iter_content()])
+
+    def test_File_IterContentByUrl(self):
+        this.http = http.Connection()
+
+        class Routes(object):
+
+            @route('GET')
+            def probe(self):
+                this.response['content-type'] = 'foo/bar'
+                this.response['content-length'] = str(len('probe'))
+                this.response['content-disposition'] = 'attachment; filename="foo"'
+
+                return 'probe'
+
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(Routes()))
+        coroutine.spawn(server.serve_forever)
+        coroutine.dispatch()
+
+        blob = File(None, meta={'location': 'http://127.0.0.1:%s' % client.ipc_port.value})
+        self.assertEqual(
+                ['probe'],
+                [i for i in blob.iter_content()])
+        self.assertEqual({
+            'content-length': '5',
+            'content-type': 'foo/bar',
+            'content-disposition': 'attachment; filename="foo"',
+            },
+            dict(blob))
+
+    def test_SetCookie(self):
+
+        class Routes(object):
+
+            @route('GET')
+            def probe(self):
+                this.cookie['foo'] = -1
+                this.cookie['bar'] = None
+
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(Routes()))
+        coroutine.spawn(server.serve_forever)
+        coroutine.dispatch()
+        conn = http.Connection('http://127.0.0.1:%s' % client.ipc_port.value)
+
+        headers = conn.request('GET', []).headers
+        self.assertEqual(
+                'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
+                    'foo': -1,
+                    'bar': None,
+                    })),
+                headers.get('set-cookie'))
+
+    def test_UnsetCookie(self):
+
+        class Routes(object):
+
+            @route('GET', cmd='probe1')
+            def probe1(self):
+                pass
+
+            @route('GET', cmd='probe2')
+            def probe2(self):
+                this.cookie.clear()
+
+
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(Routes()))
+        coroutine.spawn(server.serve_forever)
+        coroutine.dispatch()
+        conn = http.Connection('http://127.0.0.1:%s' % client.ipc_port.value)
+
+        headers = conn.request('GET', [], params={'cmd': 'probe1'}).headers
+        assert 'set-cookie' not in headers
+
+        headers = conn.request('GET', [], params={'cmd': 'probe2'}).headers
+        assert 'set-cookie' not in headers
+
+        headers = conn.request('GET', [], params={'cmd': 'probe1'}, headers={
+            'cookie': 'sugar_network_node="%s"' % b64encode(json.dumps({
+                'foo': 'bar',
+                })),
+            }).headers
+        self.assertEqual(
+                'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
+                    'foo': 'bar',
+                    })),
+                headers.get('set-cookie'))
+
+        headers = conn.request('GET', [], params={'cmd': 'probe2'}, headers={
+            'cookie': 'sugar_network_node="%s"' % b64encode(json.dumps({
+                'foo': 'bar',
+                })),
+            }).headers
+        self.assertEqual(
+                'sugar_network_node=unset_sugar_network_node; Max-Age=3600; HttpOnly',
+                headers.get('set-cookie'))
 
 
 if __name__ == '__main__':

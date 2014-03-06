@@ -5,14 +5,15 @@ import os
 import gzip
 import uuid
 import json
+import hashlib
 from StringIO import StringIO
 from os.path import exists
 
 from __init__ import tests
 
-from sugar_network import db, toolkit
-from sugar_network.toolkit.router import File
-from sugar_network.toolkit import parcel, http
+from sugar_network import db, toolkit, client
+from sugar_network.toolkit.router import File, route, Router
+from sugar_network.toolkit import parcel, http, coroutine
 
 
 class ParcelTest(tests.Test):
@@ -187,16 +188,16 @@ class ParcelTest(tests.Test):
         with next(packets_iter) as packet:
             self.assertEqual(1, packet.name)
             self.assertEqual([
-                (1, 'a'),
-                (2, 'bb'),
+                (1, hashlib.sha1('a').hexdigest(), 'a'),
+                (2, hashlib.sha1('bb').hexdigest(), 'bb'),
                 ],
-                [(i['num'], file(i.path).read()) for i in packet])
+                [(i['num'], i.digest, file(i.path).read()) for i in packet])
         with next(packets_iter) as packet:
             self.assertEqual(2, packet.name)
             self.assertEqual([
-                (3, 'ccc'),
+                (3, hashlib.sha1('ccc').hexdigest(), 'ccc'),
                 ],
-                [(i['num'], file(i.path).read()) for i in packet])
+                [(i['num'], i.digest, file(i.path).read()) for i in packet])
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
@@ -310,7 +311,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD / 2, compresslevel=0)]))
+            limit=RECORD / 2)]))
         assert len(stream) < RECORD
         self.assertEqual(4, len(stream.strip().split('\n')))
 
@@ -318,7 +319,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 1.5, compresslevel=0)]))
+            limit=RECORD * 1.5)]))
         assert len(stream) > RECORD
         assert len(stream) < RECORD * 2
         self.assertEqual(5, len(stream.strip().split('\n')))
@@ -327,7 +328,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 2.5, compresslevel=0)]))
+            limit=RECORD * 2.5)]))
         assert len(stream) > RECORD * 2
         assert len(stream) < RECORD * 3
         self.assertEqual(6, len(stream.strip().split('\n')))
@@ -336,7 +337,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 3.5, compresslevel=0)]))
+            limit=RECORD * 3.5)]))
         assert len(stream) > RECORD * 3
         assert len(stream) < RECORD * 4
         self.assertEqual(7, len(stream.strip().split('\n')))
@@ -345,7 +346,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 4.5, compresslevel=0)]))
+            limit=RECORD * 4.5)]))
         assert len(stream) > RECORD * 4
         self.assertEqual(8, len(stream.strip().split('\n')))
 
@@ -353,7 +354,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            compresslevel=0)]))
+            )]))
         assert len(stream) > RECORD * 4
 
     def test_limited_encode_FinalRecords(self):
@@ -373,7 +374,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD / 2, compresslevel=0)]))
+            limit=RECORD / 2)]))
         assert len(stream) > RECORD * 4
         assert len(stream) < RECORD * 5
         self.assertEqual(8, len(stream.strip().split('\n')))
@@ -382,7 +383,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 1.5, compresslevel=0)]))
+            limit=RECORD * 1.5)]))
         assert len(stream) > RECORD * 5
         assert len(stream) < RECORD * 6
         self.assertEqual(9, len(stream.strip().split('\n')))
@@ -391,7 +392,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 2.5, compresslevel=0)]))
+            limit=RECORD * 2.5)]))
         assert len(stream) > RECORD * 6
         assert len(stream) < RECORD * 7
         self.assertEqual(10, len(stream.strip().split('\n')))
@@ -400,7 +401,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 3.5, compresslevel=0)]))
+            limit=RECORD * 3.5)]))
         assert len(stream) > RECORD * 6
         assert len(stream) < RECORD * 7
         self.assertEqual(10, len(stream.strip().split('\n')))
@@ -409,7 +410,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 4.5, compresslevel=0)]))
+            limit=RECORD * 4.5)]))
         assert len(stream) > RECORD * 6
         assert len(stream) < RECORD * 7
         self.assertEqual(10, len(stream.strip().split('\n')))
@@ -418,7 +419,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 5.5, compresslevel=0)]))
+            limit=RECORD * 5.5)]))
         assert len(stream) > RECORD * 7
         assert len(stream) < RECORD * 8
         self.assertEqual(11, len(stream.strip().split('\n')))
@@ -427,7 +428,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 6.5, compresslevel=0)]))
+            limit=RECORD * 6.5)]))
         assert len(stream) > RECORD * 8
         assert len(stream) < RECORD * 9
         self.assertEqual(12, len(stream.strip().split('\n')))
@@ -436,7 +437,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            compresslevel=0)]))
+            )]))
         assert len(stream) > RECORD * 8
         assert len(stream) < RECORD * 9
         self.assertEqual(12, len(stream.strip().split('\n')))
@@ -469,6 +470,56 @@ class ParcelTest(tests.Test):
                 json.dumps({'packet': 'last'}) + '\n',
                 unzips(stream))
 
+    def test_encode_BlobWithUrls(self):
+
+        class Routes(object):
+
+            @route('GET')
+            def probe(self):
+                return 'probe'
+
+        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(Routes()))
+        coroutine.spawn(server.serve_forever)
+        coroutine.dispatch()
+        url = 'http://127.0.0.1:%s' % client.ipc_port.value
+
+        stream = ''.join([i for i in parcel.encode([
+            (1, None, [File(None, meta={'location': 'fake'})]),
+            ])])
+        self.assertEqual(
+                json.dumps({}) + '\n' +
+                json.dumps({'packet': 1}) + '\n' +
+                json.dumps({'location': 'fake'}) + '\n' +
+                json.dumps({'packet': 'last'}) + '\n',
+                unzips(stream))
+
+        stream = ''.join([i for i in parcel.encode([
+            (1, None, [File(None, meta={'location': 'fake', 'content-length': '0'})]),
+            ])])
+        self.assertEqual(
+                json.dumps({}) + '\n' +
+                json.dumps({'packet': 1}) + '\n' +
+                json.dumps({'location': 'fake', 'content-length': '0'}) + '\n' +
+                json.dumps({'packet': 'last'}) + '\n',
+                unzips(stream))
+
+        stream = ''.join([i for i in parcel.encode([
+            (1, None, [File(None, meta={'location': url, 'content-length': str(len('probe'))})]),
+            ])])
+        self.assertEqual(
+                json.dumps({}) + '\n' +
+                json.dumps({'packet': 1}) + '\n' +
+                json.dumps({'location': url, 'content-length': str(len('probe'))}) + '\n' +
+                'probe' + '\n' +
+                json.dumps({'packet': 'last'}) + '\n',
+                unzips(stream))
+
+        def encode():
+            stream = ''.join([i for i in parcel.encode([
+                (1, None, [File(None, meta={'location': 'http://127.0.0.1:108', 'content-length': str(len('probe'))})]),
+                ])])
+        self.assertRaises(http.ConnectionError, encode)
+
     def test_limited_encode_Blobs(self):
         RECORD = 1024 * 1024
         self.touch(('blob', '.' * RECORD))
@@ -481,7 +532,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD / 2, compresslevel=0)]))
+            limit=RECORD / 2)]))
         assert len(stream) < RECORD
         self.assertEqual(4, len(stream.strip().split('\n')))
 
@@ -489,7 +540,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 1.5, compresslevel=0)]))
+            limit=RECORD * 1.5)]))
         assert len(stream) > RECORD
         assert len(stream) < RECORD * 2
         self.assertEqual(6, len(stream.strip().split('\n')))
@@ -498,7 +549,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 2.5, compresslevel=0)]))
+            limit=RECORD * 2.5)]))
         assert len(stream) > RECORD * 2
         assert len(stream) < RECORD * 3
         self.assertEqual(8, len(stream.strip().split('\n')))
@@ -507,7 +558,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 3.5, compresslevel=0)]))
+            limit=RECORD * 3.5)]))
         assert len(stream) > RECORD * 3
         assert len(stream) < RECORD * 4
         self.assertEqual(10, len(stream.strip().split('\n')))
@@ -516,7 +567,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 4.5, compresslevel=0)]))
+            limit=RECORD * 4.5)]))
         assert len(stream) > RECORD * 4
         self.assertEqual(12, len(stream.strip().split('\n')))
 
@@ -524,7 +575,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            compresslevel=0)]))
+            )]))
         assert len(stream) > RECORD * 4
         self.assertEqual(12, len(stream.strip().split('\n')))
 
@@ -546,7 +597,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD / 2, compresslevel=0)]))
+            limit=RECORD / 2)]))
         assert len(stream) > RECORD * 4
         assert len(stream) < RECORD * 5
         self.assertEqual(12, len(stream.strip().split('\n')))
@@ -555,7 +606,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 1.5, compresslevel=0)]))
+            limit=RECORD * 1.5)]))
         assert len(stream) > RECORD * 5
         assert len(stream) < RECORD * 6
         self.assertEqual(14, len(stream.strip().split('\n')))
@@ -564,7 +615,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 2.5, compresslevel=0)]))
+            limit=RECORD * 2.5)]))
         assert len(stream) > RECORD * 6
         assert len(stream) < RECORD * 7
         self.assertEqual(16, len(stream.strip().split('\n')))
@@ -573,7 +624,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 3.5, compresslevel=0)]))
+            limit=RECORD * 3.5)]))
         assert len(stream) > RECORD * 6
         assert len(stream) < RECORD * 7
         self.assertEqual(16, len(stream.strip().split('\n')))
@@ -582,7 +633,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 4.5, compresslevel=0)]))
+            limit=RECORD * 4.5)]))
         assert len(stream) > RECORD * 6
         assert len(stream) < RECORD * 7
         self.assertEqual(16, len(stream.strip().split('\n')))
@@ -591,7 +642,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 5.5, compresslevel=0)]))
+            limit=RECORD * 5.5)]))
         assert len(stream) > RECORD * 7
         assert len(stream) < RECORD * 8
         self.assertEqual(18, len(stream.strip().split('\n')))
@@ -600,7 +651,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            limit=RECORD * 6.5, compresslevel=0)]))
+            limit=RECORD * 6.5)]))
         assert len(stream) > RECORD * 8
         assert len(stream) < RECORD * 9
         self.assertEqual(20, len(stream.strip().split('\n')))
@@ -609,7 +660,7 @@ class ParcelTest(tests.Test):
             ('first', None, content()),
             ('second', None, content()),
             ],
-            compresslevel=0)]))
+            )]))
         assert len(stream) > RECORD * 8
         assert len(stream) < RECORD * 9
         self.assertEqual(20, len(stream.strip().split('\n')))
@@ -639,7 +690,7 @@ class ParcelTest(tests.Test):
         packets_iter = parcel.decode_dir('parcels')
         with next(packets_iter) as packet:
             self.assertEqual(2, packet.name)
-            self.assertEqual({'packet': 2}, packet.props)
+            self.assertEqual({'packet': 2}, packet.header)
             items = iter(packet)
             blob = next(items)
             self.assertEqual({'num': 2, 'content-length': '8'}, blob)
@@ -648,7 +699,7 @@ class ParcelTest(tests.Test):
             self.assertRaises(StopIteration, items.next)
         with next(packets_iter) as packet:
             self.assertEqual(1, packet.name)
-            self.assertEqual({'foo': 'bar', 'packet': 1}, packet.props)
+            self.assertEqual({'foo': 'bar', 'packet': 1}, packet.header)
             items = iter(packet)
             self.assertEqual({'payload': 1}, next(items))
             blob = next(items)
@@ -734,7 +785,7 @@ class ParcelTest(tests.Test):
                 File('blob', 'digest', [('num', 2)]),
                 {'payload': 3},
                 ]),
-            ], path='./parcel')
+            ], path='./parcel', limit=99999999)
 
         assert exists('parcel')
 

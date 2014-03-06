@@ -16,7 +16,6 @@ src_root = abspath(dirname(__file__))
 from __init__ import tests
 
 from sugar_network import db, toolkit
-from sugar_network.db import blobs
 from sugar_network.model.user import User
 from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, ACL, File
 from sugar_network.toolkit.coroutine import this
@@ -24,43 +23,6 @@ from sugar_network.toolkit import coroutine, http, i18n
 
 
 class RoutesTest(tests.Test):
-
-    def setUp(self):
-        tests.Test.setUp(self)
-        self.blobs = {}
-
-        def files_post(content, mime_type=None, digest_to_assert=None):
-            if hasattr(content, 'read'):
-                content = content.read()
-            digest = File.Digest(hash(content))
-            if digest_to_assert:
-                assert digest == digest_to_assert
-            path = join('blobs', digest)
-            with file(path, 'w') as f:
-                f.write(content)
-            self.blobs[digest] = {'content-type': mime_type or 'application/octet-stream'}
-            return File(path, digest, self.blobs[digest].items())
-
-        def files_update(digest, meta):
-            self.blobs.setdefault(digest, {}).update(meta)
-
-        def files_get(digest):
-            if digest not in self.blobs:
-                return None
-            path = join('blobs', digest)
-            return File(path, digest, self.blobs[digest].items())
-
-        def files_delete(digest):
-            path = join('blobs', digest)
-            if exists(path):
-                os.unlink(path)
-            if digest in self.blobs:
-                del self.blobs[digest]
-
-        self.override(blobs, 'post', files_post)
-        self.override(blobs, 'update', files_update)
-        self.override(blobs, 'get', files_get)
-        self.override(blobs, 'delete', files_delete)
 
     def test_PostDefaults(self):
 
@@ -90,15 +52,15 @@ class RoutesTest(tests.Test):
 
     def test_Populate(self):
         self.touch(
-                ('document/1/1/guid', '{"value": "1"}'),
-                ('document/1/1/ctime', '{"value": 1}'),
-                ('document/1/1/mtime', '{"value": 1}'),
-                ('document/1/1/seqno', '{"value": 0}'),
+                ('db/document/1/1/guid', '{"value": "1"}'),
+                ('db/document/1/1/ctime', '{"value": 1}'),
+                ('db/document/1/1/mtime', '{"value": 1}'),
+                ('db/document/1/1/seqno', '{"value": 0}'),
 
-                ('document/2/2/guid', '{"value": "2"}'),
-                ('document/2/2/ctime', '{"value": 2}'),
-                ('document/2/2/mtime', '{"value": 2}'),
-                ('document/2/2/seqno', '{"value": 0}'),
+                ('db/document/2/2/guid', '{"value": "2"}'),
+                ('db/document/2/2/ctime', '{"value": 2}'),
+                ('db/document/2/2/mtime', '{"value": 2}'),
+                ('db/document/2/2/seqno', '{"value": 0}'),
                 )
 
         class Document(db.Resource):
@@ -112,7 +74,7 @@ class RoutesTest(tests.Test):
                     sorted(['1', '2']),
                     sorted([i.guid for i in volume['document'].find()[0]]))
 
-        shutil.rmtree('document/index')
+        shutil.rmtree('index/document')
 
         class Document(db.Resource):
             pass
@@ -235,62 +197,12 @@ class RoutesTest(tests.Test):
                 content={'location': 'foo'}, content_type='application/json')
         self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
 
-        this.call(method='PUT', path=['testdocument', guid, 'blob'],
-                content={'location': 'url', 'digest': 'digest', 'foo': 'bar', 'content-type': 'foo/bar'}, content_type='application/json')
-        self.assertEqual(
-                {'blob': 'url'},
-                this.call(method='GET', path=['testdocument', guid], reply='blob'))
-        response = []
-        [i for i in router({
-            'REQUEST_METHOD': 'HEAD',
-            'PATH_INFO': '/testdocument/%s/blob' % guid,
-            }, lambda status, headers: response.extend([status, headers]))]
-        self.assertEqual('303 See Other', response[0])
-        self.assertEqual(
-                sorted([
-                    ('last-modified', formatdate(os.stat('testdocument/%s/%s/mtime' % (guid[:2], guid)).st_mtime, localtime=False, usegmt=True)),
-                    ('location', 'url'),
-                    ('content-type', 'foo/bar'),
-                    ('foo', 'bar'),
-                    ]),
-                sorted(response[1]))
-
-    def test_UpdateUrlBLOBsWithMeta(self):
-
-        class TestDocument(db.Resource):
-
-            @db.stored_property(db.Blob)
-            def blob(self, value):
-                return value
-
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
-
-        guid = this.call(method='POST', path=['testdocument'], content={'blob': {'digest': 'digest', 'location': 'url'}})
-        self.assertEqual({
-            'content-type': 'application/octet-stream',
-            'location': 'url',
-            },
-            this.call(method='GET', path=['testdocument', guid, 'blob']))
-
         self.assertRaises(http.BadRequest, this.call, method='PUT', path=['testdocument', guid, 'blob'],
-                content={'digest': 'fake'}, content_type='application/json')
-        self.assertEqual({
-            'content-type': 'application/octet-stream',
-            'location': 'url',
-            },
-            this.call(method='GET', path=['testdocument', guid, 'blob']))
+                content={'location': 'url', 'digest': 'digest', 'foo': 'bar', 'content-type': 'foo/bar'},
+                content_type='application/json')
+        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
 
-        this.call(method='PUT', path=['testdocument', guid, 'blob'],
-                content={'foo': 'bar'}, content_type='application/json')
-        self.assertEqual({
-            'content-type': 'application/octet-stream',
-            'location': 'url',
-            'foo': 'bar',
-            },
-            this.call(method='GET', path=['testdocument', guid, 'blob']))
-
-    def test_UpdateFileBLOBsWithMeta(self):
+    def test_UpdateBLOBsWithMeta(self):
 
         class TestDocument(db.Resource):
 
@@ -305,68 +217,22 @@ class RoutesTest(tests.Test):
         blob = this.call(method='GET', path=['testdocument', guid, 'blob'], environ={'HTTP_HOST': 'localhost'})
         self.assertEqual({
             'content-type': 'application/octet-stream',
+            'content-length': '4',
+            'x-seqno': '1',
             },
-            blob)
+            dict(blob))
         self.assertEqual('blob', file(blob.path).read())
 
         self.assertRaises(http.BadRequest, this.call, method='PUT', path=['testdocument', guid, 'blob'],
-                content={'digest': 'fake'}, content_type='application/json')
-        blob = this.call(method='GET', path=['testdocument', guid, 'blob'], environ={'HTTP_HOST': 'localhost'})
-        self.assertEqual({
-            'content-type': 'application/octet-stream',
-            },
-            blob)
-        self.assertEqual('blob', file(blob.path).read())
-
-        this.call(method='PUT', path=['testdocument', guid, 'blob'],
                 content={'foo': 'bar'}, content_type='application/json')
         blob = this.call(method='GET', path=['testdocument', guid, 'blob'], environ={'HTTP_HOST': 'localhost'})
         self.assertEqual({
             'content-type': 'application/octet-stream',
-            'foo': 'bar',
+            'content-length': '4',
+            'x-seqno': '1',
             },
-            blob)
+            dict(blob))
         self.assertEqual('blob', file(blob.path).read())
-
-    def test_SwitchBLOBsType(self):
-
-        class TestDocument(db.Resource):
-
-            @db.stored_property(db.Blob)
-            def blob(self, value):
-                return value
-
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
-        guid = this.call(method='POST', path=['testdocument'], content={'blob': 'blob'})
-
-        self.assertEqual(
-                {'blob': 'http://localhost/blobs/%s' % hash('blob')},
-                this.call(method='GET', path=['testdocument', guid], reply='blob', environ={'HTTP_HOST': 'localhost'}))
-        self.assertEqual(
-                ['blob'],
-                [i for i in router({
-                    'REQUEST_METHOD': 'GET',
-                    'PATH_INFO': '/testdocument/%s/blob' % guid,
-                    }, lambda *args: None)])
-        assert exists(this.call(method='GET', path=['testdocument', guid, 'blob']).path)
-
-        this.call(method='PUT', path=['testdocument', guid, 'blob'],
-                content={'location': 'url'}, content_type='application/json')
-        self.assertEqual(
-                {'blob': 'url'},
-                this.call(method='GET', path=['testdocument', guid], reply='blob', environ={'HTTP_HOST': 'localhost'}))
-        assert not exists(this.call(method='GET', path=['testdocument', guid, 'blob']).path)
-
-        this.call(method='PUT', path=['testdocument', guid, 'blob'],
-                content='new_blob', content_type='application/octet-stream', environ={'HTTP_HOST': 'localhost'})
-        self.assertEqual(
-                ['new_blob'],
-                [i for i in router({
-                    'REQUEST_METHOD': 'GET',
-                    'PATH_INFO': '/testdocument/%s/blob' % guid,
-                    }, lambda *args: None)])
-        assert exists(this.call(method='GET', path=['testdocument', guid, 'blob']).path)
 
     def test_RemoveBLOBs(self):
 
@@ -428,7 +294,7 @@ class RoutesTest(tests.Test):
 
         self.assertRaises(RuntimeError, this.call, method='PUT', path=['testdocument', guid, 'blob'], content='probe')
         self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
-        assert not exists('blobs/%s' % hash('probe'))
+        assert not exists('blobs/%s' % hashlib.sha1('probe').hexdigest())
 
     def test_SetBLOBsWithMimeType(self):
 
@@ -483,7 +349,7 @@ class RoutesTest(tests.Test):
         guid = this.call(method='POST', path=['testdocument'], content={})
         blob = 'blob'
         this.call(method='PUT', path=['testdocument', guid, 'blob'], content=blob)
-        digest = str(hash(blob))
+        digest = str(hashlib.sha1(blob).hexdigest())
         blob_path = 'blobs/%s' % digest
 
         self.assertEqual('blob', file(this.call(method='GET', path=['testdocument', guid, 'blob']).path).read())
@@ -514,25 +380,36 @@ class RoutesTest(tests.Test):
         self.assertEqual(
                 {'blob': ''},
                 this.call(method='GET', path=['testdocument', guid1], reply=['blob'], environ={'HTTP_HOST': '127.0.0.1'}))
-
-        blob = 'file'
-        guid2 = this.call(method='POST', path=['testdocument'], content={'blob': blob})
-        self.assertEqual(
-                'http://127.0.0.1/blobs/%s' % hash(blob),
-                this.call(method='GET', path=['testdocument', guid2], reply=['blob'], environ={'HTTP_HOST': '127.0.0.1'})['blob'])
-
-        guid3 = this.call(method='POST', path=['testdocument'], content={'blob': {'location': 'http://foo', 'digest': 'digest'}}, content_type='application/json')
-        self.assertEqual(
-                'http://foo',
-                this.call(method='GET', path=['testdocument', guid3, 'blob'])['location'])
-        self.assertEqual(
-                'http://foo',
-                this.call(method='GET', path=['testdocument', guid3], reply=['blob'], environ={'HTTP_HOST': '127.0.0.1'})['blob'])
-
         self.assertEqual(
                 sorted([
                     '',
-                    'http://127.0.0.1/blobs/%s' % hash(blob),
+                    ]),
+                sorted([i['blob'] for i in this.call(method='GET', path=['testdocument'], reply=['blob'],
+                    environ={'HTTP_HOST': '127.0.0.1'})['result']]))
+
+        blob = 'file'
+        digest = hashlib.sha1(blob).hexdigest()
+        guid2 = this.call(method='POST', path=['testdocument'], content={'blob': blob})
+        self.assertEqual(
+                'http://127.0.0.1/blobs/%s' % digest,
+                this.call(method='GET', path=['testdocument', guid2], reply=['blob'], environ={'HTTP_HOST': '127.0.0.1'})['blob'])
+        self.assertEqual(
+                sorted([
+                    '',
+                    'http://127.0.0.1/blobs/%s' % digest,
+                    ]),
+                sorted([i['blob'] for i in this.call(method='GET', path=['testdocument'], reply=['blob'],
+                    environ={'HTTP_HOST': '127.0.0.1'})['result']]))
+
+        volume.blobs.update(digest, {
+            'location': 'http://foo',
+            })
+        self.assertEqual(
+                'http://foo',
+                this.call(method='GET', path=['testdocument', guid2], reply=['blob'], environ={'HTTP_HOST': '127.0.0.1'})['blob'])
+        self.assertEqual(
+                sorted([
+                    '',
                     'http://foo',
                     ]),
                 sorted([i['blob'] for i in this.call(method='GET', path=['testdocument'], reply=['blob'],
@@ -744,36 +621,8 @@ class RoutesTest(tests.Test):
 
         volume = db.Volume('.', ['foo.bar'])
         volume['bar'].find()
-        assert exists('bar/index')
+        assert exists('index/bar')
         volume.close()
-
-    def test_Command_GetBlobSetByUrl(self):
-
-        class TestDocument(db.Resource):
-
-            @db.indexed_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-            @db.stored_property(db.Blob)
-            def blob(self, value):
-                return value
-
-            @db.indexed_property(db.Localized, prefix='L', default={})
-            def localized_prop(self, value):
-                return value
-
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
-
-        guid = this.call(method='POST', path=['testdocument'], content={})
-        this.call(method='PUT', path=['testdocument', guid, 'blob'], content={
-            'digest': 'digest',
-            'location': 'http://sugarlabs.org',
-            }, content_type='application/json')
-        self.assertEqual(
-                'http://sugarlabs.org',
-                this.call(method='GET', path=['testdocument', guid, 'blob'])['location'])
 
     def test_on_create(self):
 
@@ -902,7 +751,6 @@ class RoutesTest(tests.Test):
         volume = db.Volume(tests.tmpdir, [Document1, Document2])
         router = Router(db.Routes(volume))
 
-        assert not exists('seqno')
         self.assertEqual(0, volume.seqno.value)
 
         volume['document1'].create({'guid': '1'})
@@ -915,9 +763,7 @@ class RoutesTest(tests.Test):
         self.assertEqual(4, volume['document2'].get('2')['seqno'])
 
         self.assertEqual(4, volume.seqno.value)
-        assert not exists('seqno')
         volume.seqno.commit()
-        assert exists('db.seqno')
         volume = db.Volume(tests.tmpdir, [Document1, Document2])
         self.assertEqual(4, volume.seqno.value)
 
@@ -942,11 +788,11 @@ class RoutesTest(tests.Test):
                 return value
 
         self.touch(
-                ('document1/1/1/guid', '{"value": "1"}'),
-                ('document1/1/1/ctime', '{"value": 1}'),
-                ('document1/1/1/mtime', '{"value": 1}'),
-                ('document1/1/1/prop', '{"value": ""}'),
-                ('document1/1/1/seqno', '{"value": 0}'),
+                ('db/document1/1/1/guid', '{"value": "1"}'),
+                ('db/document1/1/1/ctime', '{"value": 1}'),
+                ('db/document1/1/1/mtime', '{"value": 1}'),
+                ('db/document1/1/1/prop', '{"value": ""}'),
+                ('db/document1/1/1/seqno', '{"value": 0}'),
                 )
 
         events = []
@@ -956,7 +802,7 @@ class RoutesTest(tests.Test):
         volume['document2']
         coroutine.sleep(.1)
 
-        mtime = int(os.stat('document1/index/mtime').st_mtime)
+        mtime = int(os.stat('index/document1/mtime').st_mtime)
         self.assertEqual([
             {'event': 'commit', 'resource': 'document1', 'mtime': mtime},
             ],
@@ -989,9 +835,9 @@ class RoutesTest(tests.Test):
         del events[:]
 
         volume['document1'].commit()
-        mtime1 = int(os.stat('document1/index/mtime').st_mtime)
+        mtime1 = int(os.stat('index/document1/mtime').st_mtime)
         volume['document2'].commit()
-        mtime2 = int(os.stat('document2/index/mtime').st_mtime)
+        mtime2 = int(os.stat('index/document2/mtime').st_mtime)
 
         self.assertEqual([
             {'event': 'commit', 'resource': 'document1', 'mtime': mtime1},
@@ -1248,7 +1094,7 @@ class RoutesTest(tests.Test):
                 'set',
                 this.call(method='GET', path=['testdocument', guid, 'prop']))
 
-        os.unlink('testdocument/%s/%s/prop' % (guid[:2], guid))
+        os.unlink('db/testdocument/%s/%s/prop' % (guid[:2], guid))
 
         self.assertEqual(
                 [{'prop': 'default'}],
@@ -1853,49 +1699,53 @@ class RoutesTest(tests.Test):
         router = Router(db.Routes(volume))
         guid = this.call(method='POST', path=['document'], content={})
 
+        digest1 = hashlib.sha1('blob1').hexdigest()
+        digest2 = hashlib.sha1('blob2').hexdigest()
+        digest3 = hashlib.sha1('blob3').hexdigest()
+
         agg1 = this.call(method='POST', path=['document', guid, 'blobs'], content='blob1')
         self.assertEqual({
-            agg1: {'seqno': 2, 'value': str(hash('blob1'))},
+            agg1: {'seqno': 3, 'value': digest1},
             },
             volume['document'].get(guid)['blobs'])
-        assert blobs.get(str(hash('blob1')))
+        assert volume.blobs.get(digest1)
 
         agg2 = this.call(method='POST', path=['document', guid, 'blobs'], content='blob2')
         self.assertEqual({
-            agg1: {'seqno': 2, 'value': str(hash('blob1'))},
-            agg2: {'seqno': 3, 'value': str(hash('blob2'))},
+            agg1: {'seqno': 3, 'value': digest1},
+            agg2: {'seqno': 5, 'value': digest2},
             },
             volume['document'].get(guid)['blobs'])
-        assert blobs.get(str(hash('blob2')))
+        assert volume.blobs.get(digest2)
 
         this.call(method='DELETE', path=['document', guid, 'blobs', agg1])
         self.assertEqual({
-            agg1: {'seqno': 4},
-            agg2: {'seqno': 3, 'value': str(hash('blob2'))},
+            agg1: {'seqno': 7},
+            agg2: {'seqno': 5, 'value': digest2},
             },
             volume['document'].get(guid)['blobs'])
-        assert blobs.get(str(hash('blob1'))) is None
-        assert blobs.get(str(hash('blob2')))
+        assert not volume.blobs.get(digest1).exists
+        assert volume.blobs.get(digest2)
 
         this.call(method='DELETE', path=['document', guid, 'blobs', agg2])
         self.assertEqual({
-            agg1: {'seqno': 4},
-            agg2: {'seqno': 5},
+            agg1: {'seqno': 7},
+            agg2: {'seqno': 9},
             },
             volume['document'].get(guid)['blobs'])
-        assert blobs.get(str(hash('blob1'))) is None
-        assert blobs.get(str(hash('blob2'))) is None
+        assert not volume.blobs.get(digest1).exists
+        assert not volume.blobs.get(digest2).exists
 
         agg3 = this.call(method='POST', path=['document', guid, 'blobs'], content='blob3')
         self.assertEqual({
-            agg1: {'seqno': 4},
-            agg2: {'seqno': 5},
-            agg3: {'seqno': 6, 'value': str(hash('blob3'))},
+            agg1: {'seqno': 7},
+            agg2: {'seqno': 9},
+            agg3: {'seqno': 11, 'value': digest3},
             },
             volume['document'].get(guid)['blobs'])
-        assert blobs.get(str(hash('blob1'))) is None
-        assert blobs.get(str(hash('blob2'))) is None
-        assert blobs.get(str(hash('blob3')))
+        assert not volume.blobs.get(digest1).exists
+        assert not volume.blobs.get(digest2).exists
+        assert volume.blobs.get(digest3)
 
     def test_AggregatedSearch(self):
 
