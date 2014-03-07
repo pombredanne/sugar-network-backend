@@ -6,7 +6,6 @@ from coroutine import *
 from http import *
 from lsb_release import *
 from mountpoints import *
-from rrd import *
 from toolkit import *
 from options import *
 from spec import *

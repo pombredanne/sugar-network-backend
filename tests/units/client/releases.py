@@ -206,11 +206,11 @@ class Releases(tests.Test):
 
         self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
-        client.api_url.value = 'fake'
+        client.api.value = 'fake'
         self.assertEqual('NotFound', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['exception'])
         self.assertEqual(solution, file(cached_path).read())
 
-        client.api_url.value = 'http://127.0.0.1:8888'
+        client.api.value = 'http://127.0.0.1:8888'
         self.assertEqual('exit', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['event'])
 
         self.client_routes._node_mtime = cached_mtime + 2
@@ -267,7 +267,7 @@ class Releases(tests.Test):
             }]])
         self.touch(['solutions/bu/bundle_id', solution])
 
-        client.api_url.value = 'fake'
+        client.api.value = 'fake'
         self.assertEqual('NotFound', [i for i in conn.get(['context', 'bundle_id'], cmd='launch')][-1]['exception'])
 
         self.node.stop()

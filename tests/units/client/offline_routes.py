@@ -340,7 +340,7 @@ class OfflineRoutes(tests.Test):
             }]
         assert local['release'].exists(impl)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
 
         self.node.stop()
@@ -355,7 +355,7 @@ class OfflineRoutes(tests.Test):
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['release'].exists(impl)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
 
     def test_ServiceUnavailableWhileSolving(self):

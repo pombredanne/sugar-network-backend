@@ -18,7 +18,7 @@ import logging
 import hashlib
 import mimetypes
 from contextlib import contextmanager
-from os.path import exists, abspath, join, dirname
+from os.path import exists, abspath, join, dirname, isdir
 
 from sugar_network import toolkit
 from sugar_network.toolkit.router import File
@@ -104,9 +104,15 @@ class Blobs(object):
         path = self.path(digest)
         if exists(path + _META_SUFFIX):
             return File(path, digest, _read_meta(path))
+        elif isdir(path):
+            return _lsdir(path, digest)
 
     def delete(self, path):
         self._delete(path, None)
+
+    def populate(self, path=None, recursive=True):
+        for __ in self.diff([[1, None]], path or '', recursive):
+            pass
 
     def diff(self, r, path=None, recursive=True):
         if path is None:
@@ -228,3 +234,10 @@ def _read_meta(path):
             key, value = line.split(':', 1)
             meta[key] = value.strip()
     return meta
+
+
+def _lsdir(root, rel_root):
+    for filename in os.listdir(root):
+        path = join(root, filename)
+        if exists(path + _META_SUFFIX):
+            yield File(path, join(rel_root, filename), _read_meta(path))

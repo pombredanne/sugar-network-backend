@@ -130,7 +130,7 @@ class RoutesTest(tests.Test):
 
     def test_SetLocalLayerInOffline(self):
         volume = db.Volume('client', model.RESOURCES)
-        cp = ClientRoutes(volume, client.api_url.value)
+        cp = ClientRoutes(volume, client.api.value)
         post = Request(method='POST', path=['context'])
         post.content_type = 'application/json'
         post.content = {
@@ -153,7 +153,7 @@ class RoutesTest(tests.Test):
 
     def test_CachedClientRoutes(self):
         volume = db.Volume('client', model.RESOURCES, lazy_open=True)
-        cp = CachedClientRoutes(volume, client.api_url.value)
+        cp = CachedClientRoutes(volume, client.api.value)
 
         post = Request(method='POST', path=['context'])
         post.content_type = 'application/json'
@@ -216,7 +216,7 @@ class RoutesTest(tests.Test):
 
     def test_CachedClientRoutes_WipeReports(self):
         volume = db.Volume('client', model.RESOURCES, lazy_open=True)
-        cp = CachedClientRoutes(volume, client.api_url.value)
+        cp = CachedClientRoutes(volume, client.api.value)
 
         post = Request(method='POST', path=['report'])
         post.content_type = 'application/json'
@@ -236,7 +236,7 @@ class RoutesTest(tests.Test):
 
     def test_CachedClientRoutes_OpenOnlyChangedResources(self):
         volume = db.Volume('client', model.RESOURCES, lazy_open=True)
-        cp = CachedClientRoutes(volume, client.api_url.value)
+        cp = CachedClientRoutes(volume, client.api.value)
         guid = call(cp, Request(method='POST', path=['context'], content_type='application/json', content={
             'type': 'activity',
             'title': 'title',
@@ -247,7 +247,7 @@ class RoutesTest(tests.Test):
         cp.close()
 
         volume = db.Volume('client', model.RESOURCES, lazy_open=True)
-        cp = CachedClientRoutes(volume, client.api_url.value)
+        cp = CachedClientRoutes(volume, client.api.value)
 
         trigger = self.wait_for_events(cp, event='push')
         self.start_master()
@@ -260,7 +260,7 @@ class RoutesTest(tests.Test):
 
     def test_SwitchToOfflineForAbsentOnlineProps(self):
         volume = db.Volume('client', model.RESOURCES)
-        cp = ClientRoutes(volume, client.api_url.value)
+        cp = ClientRoutes(volume, client.api.value)
 
         post = Request(method='POST', path=['context'])
         post.content_type = 'application/json'

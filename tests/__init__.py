@@ -27,7 +27,7 @@ from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.post import Post
 from sugar_network.node.master import MasterRoutes
-from sugar_network.node import stats_user, obs, slave
+from sugar_network.node import obs, slave
 from requests import adapters
 
 
@@ -87,11 +87,11 @@ class Test(unittest.TestCase):
         db.index_flush_threshold.value = 1
         node.find_limit.value = 1024
         node.data_root.value = tmpdir
-        node.stats_root.value = tmpdir + '/stats'
         node.port.value = 8888
+        node.master_api.value = 'http://127.0.0.1:7777'
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
-        client.api_url.value = 'http://127.0.0.1:8888'
+        client.api.value = 'http://127.0.0.1:7777'
         client.mounts_root.value = None
         client.ipc_port.value = 5555
         client.layers.value = None
@@ -103,9 +103,6 @@ class Test(unittest.TestCase):
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
-        stats_user.stats_user.value = False
-        stats_user.stats_user_step.value = 1
-        stats_user._user_cache.clear()
         obs._conn = None
         obs._repos = {'base': [], 'presolve': []}
         http._RECONNECTION_NUMBER = 0
@@ -265,10 +262,11 @@ class Test(unittest.TestCase):
     def start_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
             classes = [User, Context, Post]
+        #self.touch(('master/etc/private/node', file(join(root, 'data', NODE_UID)).read()))
         self.node_volume = db.Volume('master', classes)
-        self.node_routes = routes('master', volume=self.node_volume)
+        self.node_routes = routes(volume=self.node_volume)
         self.node_router = Router(self.node_routes)
-        self.node = coroutine.WSGIServer(('127.0.0.1', 8888), self.node_router)
+        self.node = coroutine.WSGIServer(('127.0.0.1', 7777), self.node_router)
         coroutine.spawn(self.node.serve_forever)
         coroutine.dispatch(.1)
         this.volume = self.node_volume
@@ -281,8 +279,7 @@ class Test(unittest.TestCase):
 
         def node():
             volume = db.Volume('master', classes)
-            self.node_routes = routes('guid', volume)
-            node = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
+            node = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(volume=volume)))
             node.serve_forever()
 
         pid = self.fork(node)
@@ -293,7 +290,7 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = [User, Context]
         volume = db.Volume('client', classes)
-        self.client_routes = routes(volume, client.api_url.value)
+        self.client_routes = routes(volume, client.api.value)
         self.client = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
@@ -306,7 +303,7 @@ class Test(unittest.TestCase):
             classes = [User, Context]
         self.start_master(classes)
         volume = db.Volume('client', classes)
-        self.client_routes = ClientRoutes(volume, client.api_url.value)
+        self.client_routes = ClientRoutes(volume, client.api.value)
         self.wait_for_events(self.client_routes, event='inline', state='online').wait()
         self.client = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
@@ -323,33 +320,6 @@ class Test(unittest.TestCase):
         coroutine.dispatch()
         this.volume = self.home_volume
         return IPCConnection()
-
-    def restful_server(self, classes=None):
-        if not exists('remote'):
-            os.makedirs('remote')
-
-        logfile = file('remote/log', 'a')
-        sys.stdout = sys.stderr = logfile
-
-        for handler in logging.getLogger().handlers:
-            logging.getLogger().removeHandler(handler)
-        logging.basicConfig(level=logging.DEBUG)
-
-        db.index_flush_timeout.value = 0
-        db.index_flush_threshold.value = 1
-        node.find_limit.value = 1024
-        db.index_write_queue.value = 10
-
-        volume = db.Volume('remote', classes or [User, Context])
-        self.node_routes = MasterRoutes('guid', volume)
-        httpd = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.node_routes))
-        try:
-            coroutine.joinall([
-                coroutine.spawn(httpd.serve_forever),
-                ])
-        finally:
-            httpd.stop()
-            volume.close()
 
     def wait_for_events(self, cp, **condition):
         trigger = coroutine.AsyncResult()
@@ -412,3 +382,5 @@ oLqnwHwnk4DFkdO7ZwIDAQAB
 -----END PUBLIC KEY-----
 """
 UID2 = 'd820a3405d6aadf2cf207f6817db2a79f8fa07aa'
+
+NODE_UID = 'c41529f1d629e60bdc21434011133f2c8f65f643'

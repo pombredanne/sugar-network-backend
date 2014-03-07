@@ -16,10 +16,8 @@ from os.path import exists, join
 from __init__ import tests
 
 from sugar_network import db, node, model, client
-from sugar_network.client import Connection, keyfile, api_url
+from sugar_network.client import Connection, keyfile, api
 from sugar_network.toolkit import http, coroutine
-from sugar_network.toolkit.rrd import Rrd
-from sugar_network.node import stats_user
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.node.master import MasterRoutes
 from sugar_network.model.user import User
@@ -32,74 +30,6 @@ from sugar_network.toolkit import http
 
 class NodeTest(tests.Test):
 
-    def setUp(self):
-        tests.Test.setUp(self)
-        node.stats_root.value = 'stats'
-        stats_user.stats_user_step.value = 1
-        stats_user.stats_user_rras.value = ['RRA:AVERAGE:0.5:1:100']
-
-    def test_UserStats(self):
-        volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
-
-        this.call(method='POST', path=['user'], principal=tests.UID, content={
-            'name': 'user',
-            'pubkey': tests.PUBKEY,
-            })
-
-        ts = int(time.time())
-
-        self.assertEqual({
-            'enable': True,
-            'status': {},
-            'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats_user.stats_user_step.value,
-            },
-            this.call(method='GET', cmd='stats-info', path=['user', tests.UID], principal=tests.UID))
-
-        this.call(method='POST', cmd='stats-upload', path=['user', tests.UID], principal=tests.UID, content={
-            'name': 'test',
-            'values': [(ts + 1, {'field': '1'})],
-            })
-
-        self.assertEqual({
-            'enable': True, 'status': {
-                'test': ts + 2,
-                },
-            'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats_user.stats_user_step.value,
-            },
-            this.call(method='GET', cmd='stats-info', path=['user', tests.UID], principal=tests.UID))
-
-        this.call(method='POST', cmd='stats-upload', path=['user', tests.UID], principal=tests.UID, content={
-            'name': 'test',
-            'values': [(ts + 2, {'field': '2'})],
-            })
-
-        self.assertEqual({
-            'enable': True, 'status': {
-                'test': ts + 3,
-                },
-            'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats_user.stats_user_step.value,
-            },
-            this.call(method='GET', cmd='stats-info', path=['user', tests.UID], principal=tests.UID))
-
-        this.call(method='POST', cmd='stats-upload', path=['user', tests.UID], principal=tests.UID, content={
-            'name': 'test2',
-            'values': [(ts + 3, {'field': '3'})],
-            })
-
-        self.assertEqual({
-            'enable': True, 'status': {
-                'test': ts + 3,
-                'test2': ts + 4,
-                },
-            'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-            'step': stats_user.stats_user_step.value,
-            },
-            this.call(method='GET', cmd='stats-info', path=['user', tests.UID], principal=tests.UID))
-
     def test_HandleDeletes(self):
         volume = self.start_master()
         conn = Connection(auth=http.SugarAuth(keyfile.value))
@@ -111,7 +41,7 @@ class NodeTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        guid_path = 'master/context/%s/%s' % (guid[:2], guid)
+        guid_path = 'master/db/context/%s/%s' % (guid[:2], guid)
 
         assert exists(guid_path)
         self.assertEqual({
@@ -181,6 +111,9 @@ class NodeTest(tests.Test):
 
         class Routes(NodeRoutes):
 
+            def __init__(self, **kwargs):
+                NodeRoutes.__init__(self, 'node', **kwargs)
+
             @route('GET', [None, None], cmd='probe1', acl=ACL.AUTH)
             def probe1(self, directory):
                 pass
@@ -207,6 +140,9 @@ class NodeTest(tests.Test):
     def test_ForbiddenCommands(self):
 
         class Routes(NodeRoutes):
+
+            def __init__(self, **kwargs):
+                NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('GET', [None, None], cmd='probe1', acl=ACL.AUTHOR)
             def probe1(self):
@@ -259,6 +195,9 @@ class NodeTest(tests.Test):
             ]))
 
         class Routes(NodeRoutes):
+
+            def __init__(self, **kwargs):
+                NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.SUPERUSER)
             def probe(self):
@@ -319,6 +258,9 @@ class NodeTest(tests.Test):
 
         class Routes(NodeRoutes):
 
+            def __init__(self, **kwargs):
+                NodeRoutes.__init__(self, 'node', **kwargs)
+
             @route('PROBE', acl=ACL.SUPERUSER)
             def probe(self):
                 pass
@@ -337,6 +279,9 @@ class NodeTest(tests.Test):
     def test_authorize_Anonymous(self):
 
         class Routes(NodeRoutes):
+
+            def __init__(self, **kwargs):
+                NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE1', acl=ACL.AUTH)
             def probe1(self, request):
@@ -479,26 +424,25 @@ class NodeTest(tests.Test):
             })
 
     def test_PackagesRoute(self):
-        node.files_root.value = '.'
-        self.touch(('packages/repo/arch/package', 'file'))
         volume = self.start_master()
         client = Connection(auth=http.SugarAuth(keyfile.value))
 
-        self.assertEqual(['repo'], client.get(['packages']))
-        self.assertEqual(['arch'], client.get(['packages', 'repo']))
+        self.touch(('master/files/packages/repo/arch/package', 'file'))
+        volume.blobs.populate()
+
+        self.assertEqual([], client.get(['packages']))
+        self.assertEqual([], client.get(['packages', 'repo']))
         self.assertEqual(['package'], client.get(['packages', 'repo', 'arch']))
         self.assertEqual('file', client.get(['packages', 'repo', 'arch', 'package']))
 
     def test_PackageUpdatesRoute(self):
-        node.files_root.value = '.'
-        self.touch(
-                ('packages/repo/1', '', 1),
-                ('packages/repo/1.1', '', 1),
-                ('packages/repo/2', '', 2),
-                ('packages/repo/2.2', '', 2),
-                )
         volume = self.start_master()
         ipc = Connection(auth=http.SugarAuth(keyfile.value))
+
+        self.touch('master/files/packages/repo/1', 'master/files/packages/repo/1.1')
+        volume.blobs.populate()
+        self.touch('master/files/packages/repo/2', 'master/files/packages/repo/2.2')
+        volume.blobs.populate()
 
         self.assertEqual(
                 sorted(['1', '2']),
@@ -552,7 +496,7 @@ class NodeTest(tests.Test):
 
         self.assertEqual({
             release: {
-                'seqno': 4,
+                'seqno': 6,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 'value': {
                     'license': ['Public Domain'],
@@ -580,7 +524,7 @@ class NodeTest(tests.Test):
 
     def test_Solve(self):
         volume = self.start_master()
-        conn = http.Connection(api_url.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
 
         activity_file = json.load(conn.request('POST', ['context'],
             self.zips(('topdir/activity/activity.info', '\n'.join([
@@ -623,7 +567,7 @@ class NodeTest(tests.Test):
 
     def test_SolveWithArguments(self):
         volume = self.start_master()
-        conn = http.Connection(api_url.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
 
         activity_file = json.load(conn.request('POST', ['context'],
             self.zips(('topdir/activity/activity.info', '\n'.join([
@@ -683,7 +627,7 @@ class NodeTest(tests.Test):
 
     def test_Clone(self):
         volume = self.start_master()
-        conn = http.Connection(api_url.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
 
         activity_info = '\n'.join([
             '[Activity]',

@@ -98,7 +98,7 @@ class NodePackagesSlaveTest(tests.Test):
                 urllib2.urlopen('http://127.0.0.1:8100/packages/presolve/OLPC-11.3.1/rpm').read())
 
         pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
-            '--api-url=http://127.0.0.1:8100', '--cachedir=master.client/tmp',
+            '--api=http://127.0.0.1:8100', '--cachedir=master.client/tmp',
             '-DDD', '--rundir=master.client/run', '--layers=pilot',
             '--local-root=master.client',
             '--index-flush-threshold=1', '--ipc-port=8200',
@@ -116,7 +116,7 @@ class NodePackagesSlaveTest(tests.Test):
         # From slave
 
         self.pids.append(self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
-            '--api-url=http://127.0.0.1:8100',
+            '--api=http://127.0.0.1:8100',
             '--port=8101', '--data-root=slave/db', '--cachedir=slave/tmp',
             '-DDD', '--rundir=slave/run', '--files-root=slave/files',
             '--stats-root=slave/stats', '--stats-user', '--stats-user-step=1',
@@ -136,7 +136,7 @@ class NodePackagesSlaveTest(tests.Test):
                 urllib2.urlopen('http://127.0.0.1:8101/packages/presolve/OLPC-11.3.1/rpm').read())
 
         pid = self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
-            '--api-url=http://127.0.0.1:8101', '--cachedir=master.client/tmp',
+            '--api=http://127.0.0.1:8101', '--cachedir=master.client/tmp',
             '-DDD', '--rundir=master.client/run', '--layers=pilot',
             '--local-root=master.client',
             '--index-flush-threshold=1', '--ipc-port=8200',
@@ -155,7 +155,7 @@ class NodePackagesSlaveTest(tests.Test):
 
         os.makedirs('client/mnt/disk/sugar-network')
         self.pids.append(self.popen([join(src_root, 'sugar-network-client'), '-F', 'start',
-            '--api-url=http://127.0.0.1:8100', '--cachedir=client/tmp',
+            '--api=http://127.0.0.1:8100', '--cachedir=client/tmp',
             '-DDD', '--rundir=client/run', '--server-mode', '--layers=pilot',
             '--local-root=client',
             '--port=8102', '--index-flush-threshold=1',

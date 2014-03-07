@@ -112,8 +112,8 @@ class Connection(object):
 
     _Session = None
 
-    def __init__(self, api_url='', auth=None, max_retries=0, **session_args):
-        self.api_url = api_url
+    def __init__(self, api='', auth=None, max_retries=0, **session_args):
+        self.api = api
         self.auth = auth
         self._max_retries = max_retries
         self._session_args = session_args
@@ -121,7 +121,7 @@ class Connection(object):
         self._nonce = None
 
     def __repr__(self):
-        return '<Connection api_url=%s>' % self.api_url
+        return '<Connection api=%s>' % self.api
 
     def __enter__(self):
         return self
@@ -203,7 +203,7 @@ class Connection(object):
         if not path:
             path = ['']
         if not isinstance(path, basestring):
-            path = '/'.join([i.strip('/') for i in [self.api_url] + path])
+            path = '/'.join([i.strip('/') for i in [self.api] + path])
 
         try_ = 0
         while True:
@@ -283,7 +283,7 @@ class Connection(object):
                 break
             path = reply.headers['location']
             if path.startswith('/'):
-                path = self.api_url + path
+                path = self.api + path
 
         if request.method != 'HEAD':
             if reply.headers.get('Content-Type') == 'application/json':
@@ -380,7 +380,7 @@ class SugarAuth(object):
 
         key_dir = dirname(self._key_path)
         if exists(self._key_path):
-            if os.stat(key_dir) & 077:
+            if os.stat(key_dir).st_mode & 077:
                 os.chmod(key_dir, 0700)
             self._key = RSA.load_key(self._key_path)
             return
@@ -432,7 +432,7 @@ class _Subscription(object):
                 if try_ == 0:
                     raise
                 toolkit.exception('Failed to read from %r subscription, '
-                        'will resubscribe', self._client.api_url)
+                        'will resubscribe', self._client.api)
                 self._content = None
         return _parse_event(line)
 
@@ -441,7 +441,7 @@ class _Subscription(object):
             return self._content
         params.update(self._condition)
         params['cmd'] = 'subscribe'
-        _logger.debug('Subscribe to %r, %r', self._client.api_url, params)
+        _logger.debug('Subscribe to %r, %r', self._client.api, params)
         response = self._client.request('GET', params=params)
         self._content = response.raw
         return self._content

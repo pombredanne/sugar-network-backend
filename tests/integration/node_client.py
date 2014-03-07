@@ -134,14 +134,14 @@ class NodeClientTest(tests.Test):
         self.assertEqual(['clone'], json.load(file('client/db/context/co/context/layer'))['value'])
 
     def cli(self, cmd, stdin=None):
-        cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api-url=http://127.0.0.1:8100', '-DDD'] + cmd
+        cmd = ['sugar-network', '--local-root=client', '--ipc-port=5101', '--api=http://127.0.0.1:8100', '-DDD'] + cmd
 
         if '--anonymous' not in cmd and not self.client_pid:
             self.client_pid = self.popen([join(src_root, 'sugar-network-client'),
                 '-DDDF', 'start',
                 '--local-root=client',
                 '--mounts-root=mnt', '--cachedir=tmp', '--ipc-port=5101',
-                '--api-url=http://127.0.0.1:8100',
+                '--api=http://127.0.0.1:8100',
                 ])
             coroutine.sleep(2)
             ipc = Connection('http://127.0.0.1:5101')

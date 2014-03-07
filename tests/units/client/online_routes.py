@@ -591,7 +591,7 @@ Can't find all required implementations:
         self.assertEqual('content', file(blob_path).read())
         assert exists(clone_path + '/data.blob')
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/%s/%s' % (context[:2], context))))
 
         self.assertEqual([
@@ -628,7 +628,7 @@ Can't find all required implementations:
         self.assertEqual('content', file(blob_path).read())
         assert not lexists(clone_path)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/%s/%s' % (context[:2], context))))
 
         self.assertEqual([
@@ -647,7 +647,7 @@ Can't find all required implementations:
                 sorted(ipc.get(['context'], reply='layer')['result']))
         assert exists(clone_path + '/data.blob')
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/%s/%s' % (context[:2], context))))
 
     def test_clone_Activity(self):
@@ -751,7 +751,7 @@ Can't find all required implementations:
         self.assertEqual(activity_info, file(blob_path + '/activity/activity.info').read())
         assert exists(clone_path + '/data.blob/activity/activity.info')
         self.assertEqual(
-                [client.api_url.value, ['stable'], downloaded_solution],
+                [client.api.value, ['stable'], downloaded_solution],
                 json.load(file('solutions/bu/bundle_id')))
 
         self.assertEqual([
@@ -795,7 +795,7 @@ Can't find all required implementations:
         self.assertEqual(activity_info, file(blob_path + '/activity/activity.info').read())
         assert not exists(clone_path)
         self.assertEqual(
-                [client.api_url.value, ['stable'], downloaded_solution],
+                [client.api.value, ['stable'], downloaded_solution],
                 json.load(file('solutions/bu/bundle_id')))
 
         self.assertEqual([
@@ -814,7 +814,7 @@ Can't find all required implementations:
                 sorted(ipc.get(['context'], reply='layer')['result']))
         assert exists(clone_path + '/data.blob/activity/activity.info')
         self.assertEqual(
-                [client.api_url.value, ['stable'], downloaded_solution],
+                [client.api.value, ['stable'], downloaded_solution],
                 json.load(file('solutions/bu/bundle_id')))
 
     def test_clone_ActivityWithStabilityPreferences(self):
@@ -987,7 +987,7 @@ Can't find all required implementations:
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['release'].exists(impl)
         self.assertEqual(
-                [client.api_url.value, ['stable'], downloaded_solution],
+                [client.api.value, ['stable'], downloaded_solution],
                 json.load(file('solutions/bu/bundle_id')))
 
         blob = self.zips(['TestActivity/activity/activity.info', [
@@ -1032,7 +1032,7 @@ Can't find all required implementations:
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['release'].exists(impl)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
 
         self.node.stop()
@@ -1047,7 +1047,7 @@ Can't find all required implementations:
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['release'].exists(impl)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
 
         shutil.rmtree('solutions')
@@ -1060,7 +1060,7 @@ Can't find all required implementations:
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['release'].exists(impl)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
 
     def test_launch_Fails(self):
@@ -1142,7 +1142,7 @@ Can't find all required implementations:
             [i for i in ipc.get(['context', 'bundle_id'], cmd='launch', foo='bar')])
         assert local['release'].exists(impl)
         self.assertEqual(
-                [client.api_url.value, ['stable'], solution],
+                [client.api.value, ['stable'], solution],
                 json.load(file('solutions/bu/bundle_id')))
 
     def test_InvalidateSolutions(self):
@@ -1356,20 +1356,20 @@ Can't find all required implementations:
 
             @db.blob_property()
             def blob3(self, value):
-                raise http.Redirect(client.api_url.value + prefix + 'blob4')
+                raise http.Redirect(client.api.value + prefix + 'blob4')
 
         self.start_online_client([User, Document])
         ipc = IPCConnection()
         guid = ipc.post(['document'], {})
         prefix = '/document/' + guid + '/'
 
-        response = requests.request('GET', client.api_url.value + prefix + 'blob1', allow_redirects=False)
+        response = requests.request('GET', client.api.value + prefix + 'blob1', allow_redirects=False)
         self.assertEqual(303, response.status_code)
         self.assertEqual(prefix + 'blob2', response.headers['Location'])
 
-        response = requests.request('GET', client.api_url.value + prefix + 'blob3', allow_redirects=False)
+        response = requests.request('GET', client.api.value + prefix + 'blob3', allow_redirects=False)
         self.assertEqual(303, response.status_code)
-        self.assertEqual(client.api_url.value + prefix + 'blob4', response.headers['Location'])
+        self.assertEqual(client.api.value + prefix + 'blob4', response.headers['Location'])
 
     def test_DoNotSwitchToOfflineOnRedirectFails(self):
 
@@ -1386,7 +1386,7 @@ Can't find all required implementations:
         local_volume = self.start_online_client([User, Document])
         ipc = IPCConnection()
         guid = ipc.post(['document'], {})
-        prefix = client.api_url.value + '/document/' + guid + '/'
+        prefix = client.api.value + '/document/' + guid + '/'
         local_volume['document'].create({'guid': guid})
 
         trigger = self.wait_for_events(ipc, event='inline', state='connecting')
@@ -1561,7 +1561,7 @@ Can't find all required implementations:
     def test_inline(self):
         routes._RECONNECT_TIMEOUT = 2
 
-        cp = ClientRoutes(Volume('client', model.RESOURCES), client.api_url.value)
+        cp = ClientRoutes(Volume('client', model.RESOURCES), client.api.value)
         assert not cp.inline()
 
         trigger = self.wait_for_events(cp, event='inline', state='online')

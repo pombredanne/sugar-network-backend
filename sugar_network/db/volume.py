@@ -76,8 +76,15 @@ class Volume(dict):
             for __ in cls.populate():
                 coroutine.dispatch()
 
-    def diff(self, r, files=None, one_way=False):
+    def diff(self, r, exclude=None, files=None, one_way=False):
+        if exclude:
+            include = deepcopy(r)
+            ranges.exclude(include, exclude)
+        else:
+            include = r
         last_seqno = None
+        found = False
+
         try:
             for resource, directory in self.items():
                 if one_way and directory.resource.one_way:
@@ -90,33 +97,34 @@ class Volume(dict):
                         query += str(end)
                     docs, __ = directory.find(query=query, order_by='seqno')
                     for doc in docs:
-                        seqno, patch = doc.diff(r)
-                        if not patch:
-                            continue
-                        yield {'guid': doc.guid, 'patch': patch}
-                        last_seqno = max(last_seqno, seqno)
-            for blob in self.blobs.diff(r):
+                        patch = doc.diff(include)
+                        if patch:
+                            yield {'guid': doc.guid, 'patch': patch}
+                            found = True
+                        last_seqno = max(last_seqno, doc['seqno'])
+            for blob in self.blobs.diff(include):
                 seqno = int(blob.pop('x-seqno'))
                 yield blob
+                found = True
                 last_seqno = max(last_seqno, seqno)
             for dirpath in files or []:
-                for blob in self.blobs.diff(r, dirpath):
+                for blob in self.blobs.diff(include, dirpath):
                     seqno = int(blob.pop('x-seqno'))
                     yield blob
+                    found = True
                     last_seqno = max(last_seqno, seqno)
         except StopIteration:
             pass
 
-        if last_seqno:
-            commit_r = deepcopy(r)
+        if found:
+            commit_r = include if exclude else deepcopy(r)
             ranges.exclude(commit_r, last_seqno + 1, None)
             ranges.exclude(r, None, last_seqno)
             yield {'commit': commit_r}
 
     def patch(self, records):
         directory = None
-        commit_r = []
-        merged_r = []
+        committed = []
         seqno = None
 
         for record in records:
@@ -137,12 +145,10 @@ class Volume(dict):
 
             commit = record.get('commit')
             if commit is not None:
-                ranges.include(commit_r, commit)
+                ranges.include(committed, commit)
                 continue
 
-        if seqno is not None:
-            ranges.include(merged_r, seqno, seqno)
-        return commit_r, merged_r
+        return seqno, committed
 
     def __enter__(self):
         return self

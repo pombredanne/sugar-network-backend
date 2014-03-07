@@ -1,4 +1,4 @@
-# Copyright (C) 2013 Aleksey Lim
+# Copyright (C) 2013-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,17 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import json
-import base64
 import logging
-from Cookie import SimpleCookie
-from os.path import join
+from urlparse import urlsplit
 
-from sugar_network import node, toolkit
-from sugar_network.node import sync, stats_user, files, model, downloads, obs
+from sugar_network import toolkit
+from sugar_network.node import obs, master_api
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
-from sugar_network.toolkit import http, enforce
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import http, parcel, pylru, ranges, enforce
 
 
 RESOURCES = (
@@ -33,215 +31,107 @@ RESOURCES = (
         'sugar_network.model.user',
         )
 
-_ONE_WAY_DOCUMENTS = ['report']
-
 _logger = logging.getLogger('node.master')
 
 
 class MasterRoutes(NodeRoutes):
 
-    def __init__(self, guid, volume, **kwargs):
-        NodeRoutes.__init__(self, guid, volume=volume, **kwargs)
+    def __init__(self, **kwargs):
+        NodeRoutes.__init__(self, urlsplit(master_api.value).netloc, **kwargs)
+        self._pulls = pylru.lrucache(1024)
 
-        self._pulls = {
-            'pull': lambda **kwargs:
-                ('diff', None, model.diff(self.volume,
-                    ignore_documents=_ONE_WAY_DOCUMENTS, **kwargs)),
-            'files_pull': lambda **kwargs:
-                ('files_diff', None, self._files.diff(**kwargs)),
-            }
-
-        self._pull_queue = downloads.Pool(
-                join(toolkit.cachedir.value, 'pulls'))
-        self._files = None
-
-        if node.files_root.value:
-            self._files = files.Index(node.files_root.value,
-                    join(volume.root, 'files.index'), volume.seqno)
-
-    @route('POST', cmd='sync',
-            acl=ACL.AUTH)
-    def sync(self, request):
-        reply, cookie = self._push(sync.decode(request.content_stream))
-        exclude_seq = None
-        if len(cookie.sent) == 1:
-            exclude_seq = cookie.sent.values()[0]
-        for op, layer, seq in cookie:
-            reply.append(self._pulls[op](in_seq=seq,
-                exclude_seq=exclude_seq, layer=layer))
-        return sync.encode(reply, src=self.guid)
+    @route('POST', cmd='sync', arguments={'accept_length': int})
+    def sync(self, accept_length):
+        return parcel.encode(self._push() + (self._pull() or []),
+                limit=accept_length, header={'from': self.guid},
+                on_complete=this.cookie.clear)
 
     @route('POST', cmd='push')
-    def push(self, request, response):
-        reply, cookie = self._push(sync.package_decode(request.content_stream))
-        # Read passed cookie only after excluding `merged_seq`.
-        # If there is `pull` out of currently pushed packet, excluding
-        # `merged_seq` should not affect it.
-        cookie.update(_Cookie(request))
-        cookie.store(response)
-        return sync.package_encode(reply, src=self.guid)
+    def push(self):
+        return parcel.encode(self._push(), header={'from': self.guid})
 
-    @route('GET', cmd='pull',
-            mime_type='application/octet-stream',
-            arguments={'accept_length': int})
-    def pull(self, request, response, accept_length=None):
-        cookie = _Cookie(request)
-        if not cookie:
-            _logger.warning('Requested full dump in pull command')
-            cookie.append(('pull', None, toolkit.Sequence([[1, None]])))
-            cookie.append(('files_pull', None, toolkit.Sequence([[1, None]])))
-
-        exclude_seq = None
-        if len(cookie.sent) == 1:
-            exclude_seq = toolkit.Sequence(cookie.sent.values()[0])
-
-        reply = None
-        for pull_key in cookie:
-            op, layer, seq = pull_key
-
-            pull = self._pull_queue.get(pull_key)
-            if pull is not None:
-                if not pull.ready:
-                    continue
-                if not pull.tag:
-                    self._pull_queue.remove(pull_key)
-                    cookie.remove(pull_key)
-                    continue
-                if accept_length is None or pull.length <= accept_length:
-                    _logger.debug('Found ready to use %r', pull)
-                    if pull.complete:
-                        cookie.remove(pull_key)
-                    else:
-                        seq.exclude(pull.tag)
-                    reply = pull.open()
-                    break
-                _logger.debug('Existing %r is too big, will recreate', pull)
-                self._pull_queue.remove(pull_key)
-
-            out_seq = toolkit.Sequence()
-            pull = self._pull_queue.set(pull_key, out_seq,
-                    sync.sneakernet_encode,
-                    [self._pulls[op](in_seq=seq, out_seq=out_seq,
-                        exclude_seq=exclude_seq, layer=layer,
-                        fetch_blobs=True)],
-                    limit=accept_length, src=self.guid)
-            _logger.debug('Start new %r', pull)
-
+    @route('GET', cmd='pull', arguments={'accept_length': int})
+    def pull(self, accept_length):
+        reply = self._pull()
         if reply is None:
-            if cookie:
-                _logger.debug('No ready pulls')
-                # TODO Might be useful to set meaningful value here
-                cookie.delay = node.pull_timeout.value
-            else:
-                _logger.debug('Nothing to pull')
-
-        cookie.store(response)
-        return reply
+            return None
+        return parcel.encode(reply, limit=accept_length,
+                header={'from': self.guid}, on_complete=this.cookie.clear)
 
     @route('PUT', ['context', None], cmd='presolve',
             acl=ACL.AUTH, mime_type='application/json')
     def presolve(self, request):
-        enforce(node.files_root.value, http.BadRequest, 'Disabled')
-        aliases = self.volume['context'].get(request.guid)['aliases']
+        aliases = this.volume['context'].get(request.guid)['aliases']
         enforce(aliases, http.BadRequest, 'Nothing to presolve')
-        return obs.presolve(None, aliases, node.files_root.value)
+        return obs.presolve(None, aliases, this.volume.blobs.path('packages'))
 
     def status(self):
         result = NodeRoutes.status(self)
-        result['level'] = 'master'
+        result['mode'] = 'master'
         return result
 
-    def _push(self, stream):
+    def _push(self):
+        cookie = this.cookie
         reply = []
-        cookie = _Cookie()
 
-        for packet in stream:
-            src = packet['src']
-            enforce(packet['dst'] == self.guid, 'Misaddressed packet')
+        for packet in parcel.decode(
+                this.request.content_stream, this.request.content_length):
+            sender = packet['from']
+            enforce(packet['to'] == self.guid, http.BadRequest,
+                    'Misaddressed packet')
+            if packet.name == 'push':
+                seqno, push_r = this.volume.patch(packet)
+                ack_r = [] if seqno is None else [[seqno, seqno]]
+                ack = {'ack': ack_r, 'ranges': push_r, 'to': sender}
+                reply.append(('ack', ack, None))
+                cookie.setdefault('ack', {}) \
+                      .setdefault(sender, []) \
+                      .append((push_r, ack_r))
+            elif packet.name == 'pull':
+                cookie.setdefault('ack', {}).setdefault(sender, [])
+                ranges.include(cookie.setdefault('pull', []), packet['ranges'])
+            elif packet.name == 'request':
+                cookie.setdefault('request', []).append(packet.header)
 
-            if packet.name == 'pull':
-                pull_seq = cookie['pull', packet['layer'] or None]
-                pull_seq.include(packet['sequence'])
-                cookie.sent.setdefault(src, toolkit.Sequence())
-            elif packet.name == 'files_pull':
-                if self._files is not None:
-                    cookie['files_pull'].include(packet['sequence'])
-            elif packet.name == 'diff':
-                seq, ack_seq = model.merge(self.volume, packet)
-                reply.append(('ack', {
-                    'ack': ack_seq,
-                    'sequence': seq,
-                    'dst': src,
-                    }, None))
-                sent_seq = cookie.sent.setdefault(src, toolkit.Sequence())
-                sent_seq.include(ack_seq)
-            elif packet.name == 'stats_diff':
-                reply.append(('stats_ack', {
-                    'sequence': stats_user.merge(packet),
-                    'dst': src,
-                    }, None))
+        return reply
 
-        return reply, cookie
-
-
-class _Cookie(list):
-
-    def __init__(self, request=None):
-        list.__init__(self)
-
-        self.sent = {}
-        self.delay = 0
-
-        if request is not None:
-            self.update(self._get_cookie(request, 'sugar_network_pull') or [])
-            self.sent = self._get_cookie(request, 'sugar_network_sent') or {}
-
-    def __repr__(self):
-        return '<Cookie pull=%s sent=%r>' % (list.__repr__(self), self.sent)
-
-    def update(self, that):
-        for op, layer, seq in that:
-            self[op, layer].include(seq)
-
-    def store(self, response):
-        response.set('set-cookie', [])
-        if self:
-            _logger.debug('Postpone %r in cookie', self)
-            self._set_cookie(response, 'sugar_network_pull',
-                    base64.b64encode(json.dumps(self)))
-            self._set_cookie(response, 'sugar_network_sent',
-                    base64.b64encode(json.dumps(self.sent)))
-            self._set_cookie(response, 'sugar_network_delay', self.delay)
+    def _pull(self):
+        processed = this.cookie.get('id')
+        if processed in self._pulls:
+            cookie = this.cookie = self._pulls[processed]
+            if not cookie:
+                return None
         else:
-            self._unset_cookie(response, 'sugar_network_pull')
-            self._unset_cookie(response, 'sugar_network_sent')
-            self._unset_cookie(response, 'sugar_network_delay')
+            cookie = this.cookie
+            cookie['id'] = toolkit.uuid()
+            self._pulls[cookie['id']] = cookie
 
-    def __getitem__(self, key):
-        if not isinstance(key, tuple):
-            key = (key, None)
-        for op, layer, seq in self:
-            if (op, layer) == key:
-                return seq
-        seq = toolkit.Sequence()
-        self.append(key + (seq,))
-        return seq
+        pull_r = cookie.get('pull')
+        if not pull_r:
+            return []
 
-    def _get_cookie(self, request, name):
-        cookie_str = request.environ.get('HTTP_COOKIE')
-        if not cookie_str:
-            return
-        cookie = SimpleCookie()
-        cookie.load(cookie_str)
-        if name not in cookie:
-            return
-        value = cookie.get(name).value
-        if value != 'unset_%s' % name:
-            return json.loads(base64.b64decode(value))
+        reply = []
+        exclude = []
+        acks = cookie.get('ack')
+        if acks:
+            acked = {}
+            for req in cookie.get('request') or []:
+                ack_r = None
+                for push_r, ack_r in acks.get(req['origin']) or []:
+                    if req['ranges'] == push_r:
+                        break
+                else:
+                    continue
+                ranges.include(acked.setdefault(req['from'], []), ack_r)
+                reply.append(('ack', {'to': req['from'], 'ack': ack_r}, []))
+            for node, ack_ranges in acks.items():
+                acked_r = acked.setdefault(node, [])
+                for __, i in ack_ranges:
+                    ranges.include(acked_r, i)
+            r = reduce(lambda x, y: ranges.intersect(x, y), acked.values())
+            ranges.include(exclude, r)
 
-    def _set_cookie(self, response, name, value, age=3600):
-        cookie = '%s=%s; Max-Age=%s; HttpOnly' % (name, value, age)
-        response.get('set-cookie').append(cookie)
+        push = this.volume.diff(pull_r, exclude, one_way=True, files=[''])
+        reply.append(('push', None, push))
 
-    def _unset_cookie(self, response, name):
-        self._set_cookie(response, name, 'unset_%s' % name, 0)
+        return reply

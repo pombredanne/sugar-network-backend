@@ -24,7 +24,7 @@ from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http
+from sugar_network.toolkit import http, ranges
 
 
 class VolumeTest(tests.Test):
@@ -78,7 +78,7 @@ class VolumeTest(tests.Test):
             {'content-type': 'application/octet-stream', 'content-length': '2', 'path': 'foo/2'},
             {'commit': [[1, 5]]},
             ],
-            [dict(i) for i in volume.diff(r, ['foo'])])
+            [dict(i) for i in volume.diff(r, files=['foo'])])
         self.assertEqual([[6, None]], r)
 
         r = [[2, 2]]
@@ -126,8 +126,54 @@ class VolumeTest(tests.Test):
             {'content-type': 'application/octet-stream', 'content-length': '3', 'path': 'bar/3'},
             {'commit': [[7, 9]]},
             ],
-            [dict(i) for i in volume.diff(r, ['foo', 'bar'])])
+            [dict(i) for i in volume.diff(r, files=['foo', 'bar'])])
         self.assertEqual([[10, None]], r)
+
+    def test_diff_SyncUsecase(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop1(self, value):
+                return value
+
+            @db.stored_property()
+            def prop2(self, value):
+                return value
+
+        volume = db.Volume('.', [Document])
+
+        volume['document'].create({'guid': 'guid', 'ctime': 1, 'mtime': 1, 'prop1': 1, 'prop2': 1})
+        self.utime('db/document/gu/guid', 1)
+
+        # Fresh update to pull
+        volume['document'].update('guid', {'prop1': 2})
+        self.utime('db/document/gu/guid/prop1', 2)
+
+        # Recently pushed
+        volume['document'].update('guid', {'prop2': 2})
+        self.utime('db/document/gu/guid/prop2', 2)
+
+        # Exclude `prop2` ack from the pull reanges
+        r = [[2, None]]
+        ranges.exclude(r, 3, 3)
+        self.assertEqual([
+            {'resource': 'document'},
+            ],
+            [dict(i) for i in volume.diff(r)])
+        self.assertEqual([[2, 2], [4, None]], r)
+
+        # Pass `prop2` ack in `exclude`
+        r = [[2, None]]
+        self.assertEqual([
+            {'resource': 'document'},
+            {'guid': 'guid', 'patch': {
+                'prop1': {'value': 2, 'mtime': 2},
+                }},
+            {'commit': [[2, 2]]},
+            ],
+            [dict(i) for i in volume.diff(r, [[3, 3]])])
+        self.assertEqual([[4, None]], r)
 
     def test_diff_Partial(self):
         self.override(time, 'time', lambda: 0)
@@ -649,33 +695,33 @@ class VolumeTest(tests.Test):
         volume1 = db.Volume('db1', [Document])
         volume2 = db.Volume('db2', [Document])
 
-        committed, patched = volume2.patch(volume1.diff([[1, None]]))
+        seqno, committed = volume2.patch(volume1.diff([[1, None]]))
         self.assertEqual([], committed)
-        self.assertEqual([], patched)
+        self.assertEqual(None, seqno)
 
         volume1['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1})
-        committed, patched = volume2.patch(volume1.diff([[1, None]]))
+        seqno, committed = volume2.patch(volume1.diff([[1, None]]))
         self.assertEqual([[1, 1]], committed)
-        self.assertEqual([[1, 1]], patched)
-        committed, patched = volume2.patch(volume1.diff([[1, None]]))
+        self.assertEqual(1, seqno)
+        seqno, committed = volume2.patch(volume1.diff([[1, None]]))
         self.assertEqual([[1, 1]], committed)
-        self.assertEqual([], patched)
+        self.assertEqual(None, seqno)
 
         volume1['document'].update('1', {'prop': '1'})
-        committed, patched = volume2.patch(volume1.diff([[1, None]]))
+        seqno, committed = volume2.patch(volume1.diff([[1, None]]))
         self.assertEqual([[1, 2]], committed)
-        self.assertEqual([[2, 2]], patched)
-        committed, patched = volume2.patch(volume1.diff([[1, None]]))
+        self.assertEqual(2, seqno)
+        seqno, committed = volume2.patch(volume1.diff([[1, None]]))
         self.assertEqual([[1, 2]], committed)
-        self.assertEqual([], patched)
+        self.assertEqual(None, seqno)
 
         volume3 = db.Volume('db3', [Document])
-        committed, patched = volume3.patch(volume1.diff([[1, None]]))
+        seqno, committed = volume3.patch(volume1.diff([[1, None]]))
         self.assertEqual([[1, 2]], committed)
-        self.assertEqual([[1, 1]], patched)
-        committed, patched = volume3.patch(volume1.diff([[1, None]]))
+        self.assertEqual(1, seqno)
+        seqno, committed = volume3.patch(volume1.diff([[1, None]]))
         self.assertEqual([[1, 2]], committed)
-        self.assertEqual([], patched)
+        self.assertEqual(None, seqno)
 
     def test_patch_CallSetters(self):
 
@@ -725,7 +771,7 @@ class VolumeTest(tests.Test):
                 yield i
 
         patch = generator()
-        self.assertEqual(([[1, 3]], [[101, 101]]), volume.patch(patch))
+        self.assertEqual((101, [[1, 3]]), volume.patch(patch))
         assert volume['document'].exists('1')
 
 

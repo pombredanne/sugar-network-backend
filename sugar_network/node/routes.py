@@ -18,14 +18,13 @@ import time
 import logging
 import hashlib
 from ConfigParser import ConfigParser
-from os.path import join, isdir, exists
+from os.path import join, exists
 
-from sugar_network import db, node, toolkit
-from sugar_network.db import blobs
+from sugar_network import db, node
 from sugar_network.model import FrontRoutes, load_bundle
-from sugar_network.node import stats_user, model
+from sugar_network.node import model
 # pylint: disable-msg=W0611
-from sugar_network.toolkit.router import route, preroute, postroute, ACL
+from sugar_network.toolkit.router import route, preroute, postroute, ACL, File
 from sugar_network.toolkit.router import Unauthorized, Request, fallbackroute
 from sugar_network.toolkit.spec import parse_requires, parse_version
 from sugar_network.toolkit.bundle import Bundle
@@ -53,10 +52,6 @@ class NodeRoutes(db.Routes, FrontRoutes):
     def guid(self):
         return self._guid
 
-    @route('GET', cmd='logon', acl=ACL.AUTH)
-    def logon(self):
-        pass
-
     @route('GET', cmd='whoami', mime_type='application/json')
     def whoami(self, request, response):
         roles = []
@@ -66,7 +61,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
 
     @route('GET', cmd='status', mime_type='application/json')
     def status(self):
-        return {'guid': self._guid,
+        return {'guid': self.guid,
                 'seqno': {
                     'db': self.volume.seqno.value,
                     'releases': self.volume.releases_seqno.value,
@@ -80,49 +75,39 @@ class NodeRoutes(db.Routes, FrontRoutes):
 
     @fallbackroute('GET', ['packages'])
     def route_packages(self, request, response):
-        enforce(node.files_root.value, http.BadRequest, 'Disabled')
-
-        if request.path and request.path[-1] == 'updates':
-            root = join(node.files_root.value, *request.path[:-1])
-            enforce(isdir(root), http.NotFound, 'Directory was not found')
+        path = this.request.path
+        if path and path[-1] == 'updates':
             result = []
             last_modified = 0
-            for filename in os.listdir(root):
-                if '.' in filename:
+            for blob in this.volume.blobs.diff(
+                    [[this.request.if_modified_since + 1, None]],
+                    join(*path[:-1]), recursive=False):
+                if '.' in blob.name:
                     continue
-                path = join(root, filename)
-                mtime = int(os.stat(path).st_mtime)
-                if mtime > request.if_modified_since:
-                    result.append(filename)
-                    last_modified = max(last_modified, mtime)
+                result.append(blob.name)
+                last_modified = max(last_modified, blob.mtime)
             response.content_type = 'application/json'
             if last_modified:
                 response.last_modified = last_modified
             return result
 
-        path = join(node.files_root.value, *request.path)
-        enforce(exists(path), http.NotFound, 'File was not found')
-        if not isdir(path):
-            return toolkit.iter_file(path)
-
-        result = []
-        for filename in os.listdir(path):
-            if filename.endswith('.rpm') or filename.endswith('.deb'):
-                continue
-            result.append(filename)
-
-        response.content_type = 'application/json'
-        return result
+        blob = this.volume.blobs.get(join(*path))
+        if isinstance(blob, File):
+            return blob
+        else:
+            response.content_type = 'application/json'
+            return [i.name for i in blob if '.' not in i.name]
 
     @route('POST', ['context'], cmd='submit',
             arguments={'initial': False},
             mime_type='application/json', acl=ACL.AUTH)
-    def submit_release(self, request, initial):
-        blob = blobs.post(request.content_stream, request.content_type)
+    def submit_release(self, initial):
+        blob = this.volume.blobs.post(
+                this.request.content_stream, this.request.content_type)
         try:
             context, release = load_bundle(blob, initial=initial)
         except Exception:
-            blobs.delete(blob.digest)
+            this.volume.blobs.delete(blob.digest)
             raise
         this.call(method='POST', path=['context', context, 'releases'],
                 content_type='application/json', content=release)
@@ -156,29 +141,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
             arguments={'requires': list})
     def get_clone(self, request, response):
         solution = self.solve(request)
-        return blobs.get(solution[request.guid]['blob'])
-
-    @route('GET', ['user', None], cmd='stats-info',
-            mime_type='application/json', acl=ACL.AUTH)
-    def user_stats_info(self, request):
-        status = {}
-        for rdb in stats_user.get_rrd(request.guid):
-            status[rdb.name] = rdb.last + stats_user.stats_user_step.value
-
-        # TODO Process client configuration in more general manner
-        return {'enable': True,
-                'step': stats_user.stats_user_step.value,
-                'rras': ['RRA:AVERAGE:0.5:1:4320', 'RRA:AVERAGE:0.5:5:2016'],
-                'status': status,
-                }
-
-    @route('POST', ['user', None], cmd='stats-upload', acl=ACL.AUTH)
-    def user_stats_upload(self, request):
-        name = request.content['name']
-        values = request.content['values']
-        rrd = stats_user.get_rrd(request.guid)
-        for timestamp, values in values:
-            rrd[name].put(values, timestamp)
+        return this.volume.blobs.get(solution[request.guid]['blob'])
 
     @preroute
     def preroute(self, op, request, response):
@@ -204,7 +167,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
 
     def on_create(self, request, props):
         if request.resource == 'user':
-            with file(blobs.get(props['pubkey']).path) as f:
+            with file(this.volume.blobs.get(props['pubkey']).path) as f:
                 props['guid'] = str(hashlib.sha1(f.read()).hexdigest())
         db.Routes.on_create(self, request, props)
 
@@ -223,7 +186,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
         from M2Crypto import RSA
 
         pubkey = self.volume['user'][auth.login]['pubkey']
-        key = RSA.load_pub_key(blobs.get(pubkey).path)
+        key = RSA.load_pub_key(this.volume.blobs.get(pubkey).path)
         data = hashlib.sha1('%s:%s' % (auth.login, auth.nonce)).digest()
         enforce(key.verify(data, auth.signature.decode('hex')),
                 http.Forbidden, 'Bad credentials')

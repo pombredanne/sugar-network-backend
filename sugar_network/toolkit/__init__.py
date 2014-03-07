@@ -523,7 +523,7 @@ class Bin(object):
             json.dump(self.value, f)
             f.flush()
             os.fsync(f.fileno())
-        self._orig_value = self.value
+        self._orig_value = deepcopy(self.value)
         return True
 
     def __enter__(self):

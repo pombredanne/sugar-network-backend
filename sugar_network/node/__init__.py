@@ -34,28 +34,17 @@ certfile = Option(
         name='certfile')
 
 data_root = Option(
-        'path to a directory to place server data',
+        'path to a directory to place node data',
         default='/var/lib/sugar-network', name='data_root')
 
 find_limit = Option(
         'limit the resulting list for search requests',
         default=64, type_cast=int, name='find-limit')
 
-stats_root = Option(
-        'path to the root directory for placing stats',
-        default='/var/lib/sugar-network/stats', name='stats_root')
+mode = Option(
+        'node running mode, should be one of "slave", "proxy", or, "master"',
+        default='slave')
 
-files_root = Option(
-        'path to a directory to keep files synchronized between nodes',
-        default='/var/lib/sugar-network/files', name='files_root')
-
-pull_timeout = Option(
-        'delay in seconds to return to sync-pull requester to wait until '
-        'pull request will be ready',
-        default=30, type_cast=int)
-
-sync_layers = Option(
-        'comma separated list of layers to restrict Sugar Network '
-        'synchronization content',
-        default=[], type_cast=Option.list_cast,
-        type_repr=Option.list_repr, name='sync-layers')
+master_api = Option(
+        'master API url either to connect to (for slave or proxy nodes), or,'
+        'to provide from (for master nodes)')

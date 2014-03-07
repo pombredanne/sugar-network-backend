@@ -123,7 +123,6 @@ class Resource(object):
 
     def diff(self, r):
         patch = {}
-        last_seqno = None
         for name, prop in self.metadata.items():
             if name == 'seqno' or prop.acl & ACL.CALC:
                 continue
@@ -133,16 +132,16 @@ class Resource(object):
             seqno = meta.get('seqno')
             if not ranges.contains(r, seqno):
                 continue
-            last_seqno = max(seqno, last_seqno)
             value = meta.get('value')
             if isinstance(prop, Aggregated):
                 value_ = {}
                 for key, agg in value.items():
-                    if ranges.contains(r, agg.pop('seqno')):
+                    agg_seqno = agg.pop('seqno')
+                    if ranges.contains(r, agg_seqno):
                         value_[key] = agg
                 value = value_
             patch[name] = {'mtime': meta['mtime'], 'value': value}
-        return last_seqno, patch
+        return patch
 
     def format_patch(self, props):
         if not props:

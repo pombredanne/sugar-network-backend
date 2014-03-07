@@ -78,7 +78,7 @@ class ClientRouter(Router, ClientRoutes):
         home = db.Volume(client.path('db'), RESOURCES)
         Router.__init__(self, self)
         ClientRoutes.__init__(self, home,
-                client.api_url.value if not offline.value else None,
+                client.api.value if not offline.value else None,
                 no_subscription=True)
         if not offline.value:
             for __ in self.subscribe(event='inline', state='online'):
@@ -139,7 +139,7 @@ class Application(application.Application):
         if self.check_for_instance():
             conn = IPCConnection()
         else:
-            conn = Connection(client.api_url.value)
+            conn = Connection(client.api.value)
         guid = conn.upload(['release'], path, cmd='submit', **props)
 
         if porcelain.value:

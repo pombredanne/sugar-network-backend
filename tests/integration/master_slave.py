@@ -38,7 +38,7 @@ class MasterSlaveTest(tests.Test):
             '--obs-url=',
             ])
         self.slave_pid = self.popen([join(src_root, 'sugar-network-node'), '-F', 'start',
-            '--api-url=http://127.0.0.1:8100',
+            '--api=http://127.0.0.1:8100',
             '--port=8101', '--data-root=slave/db', '--cachedir=slave/tmp',
             '-DDD', '--rundir=slave/run', '--files-root=slave/files',
             '--stats-root=slave/stats', '--stats-user', '--stats-user-step=1',

@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,13 +21,12 @@ from urlparse import urlsplit
 from os.path import join, dirname, exists, isabs
 from gettext import gettext as _
 
-from sugar_network import node, toolkit
-from sugar_network.client import api_url
-from sugar_network.node import sync, stats_user, files, model
+from sugar_network import toolkit
+from sugar_network.node import master_api
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, enforce
+from sugar_network.toolkit import http, parcel, ranges, enforce
 
 
 _logger = logging.getLogger('node.slave')
@@ -35,148 +34,94 @@ _logger = logging.getLogger('node.slave')
 
 class SlaveRoutes(NodeRoutes):
 
-    def __init__(self, key_path, volume_):
-        self._auth = http.SugarAuth(key_path)
-        NodeRoutes.__init__(self, self._auth.login, volume_)
+    def __init__(self, volume, **kwargs):
+        self._creds = http.SugarAuth(
+                join(volume.root, 'etc', 'private', 'node'))
+        NodeRoutes.__init__(self, self._creds.login, volume=volume, **kwargs)
+        vardir = join(volume.root, 'var')
+        self._push_r = toolkit.Bin(join(vardir, 'push.ranges'), [[1, None]])
+        self._pull_r = toolkit.Bin(join(vardir, 'pull.ranges'), [[1, None]])
+        self._master_guid = urlsplit(master_api.value).netloc
 
-        self._push_seq = toolkit.PersistentSequence(
-                join(volume_.root, 'push.sequence'), [1, None])
-        self._pull_seq = toolkit.PersistentSequence(
-                join(volume_.root, 'pull.sequence'), [1, None])
-        self._files_seq = toolkit.PersistentSequence(
-                join(volume_.root, 'files.sequence'), [1, None])
-        self._master_guid = urlsplit(api_url.value).netloc
-        self._offline_session = None
-
-    @route('POST', cmd='online-sync', acl=ACL.LOCAL)
+    @route('POST', cmd='online_sync', acl=ACL.LOCAL,
+            arguments={'no_pull': bool})
     def online_sync(self, no_pull=False):
-        conn = http.Connection(api_url.value, auth=self._auth)
-
-        # TODO `http.Connection` should handle re-POSTing without
-        # loosing payload after authentication
-        conn.get(cmd='logon')
-
-        push = [('diff', None, model.diff(self.volume, self._push_seq))]
-        if not no_pull:
-            push.extend([
-                ('pull', {
-                    'sequence': self._pull_seq,
-                    'layer': node.sync_layers.value,
-                    }, None),
-                ('files_pull', {'sequence': self._files_seq}, None),
-                ])
-        if stats_user.stats_user.value:
-            push.append(('stats_diff', None, stats_user.diff()))
+        self._export(not no_pull)
+        conn = http.Connection(master_api.value)
         response = conn.request('POST',
-                data=sync.encode(push, src=self.guid, dst=self._master_guid),
+                data=parcel.encode(self._export(not no_pull), header={
+                    'from': self.guid,
+                    'to': self._master_guid,
+                    }),
                 params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})
-        self._import(sync.decode(response.raw), None)
+        self._import(parcel.decode(response.raw))
 
-    @route('POST', cmd='offline-sync', acl=ACL.LOCAL)
+    @route('POST', cmd='offline_sync', acl=ACL.LOCAL)
     def offline_sync(self, path):
-        enforce(node.sync_layers.value,
-                '--sync-layers is not specified, the full master dump '
-                'might be too big and should be limited')
-        enforce(isabs(path), 'Argument \'path\' should be an absolute path')
+        enforce(isabs(path), "Argument 'path' is not an absolute path")
 
-        _logger.debug('Start %r synchronization session in %r',
-                self._offline_session, path)
-
+        _logger.debug('Start offline synchronization in %r', path)
         if not exists(path):
             os.makedirs(path)
-
-        try:
-            self._offline_session = self._offline_sync(path,
-                    **(self._offline_session or {}))
-        except Exception:
-            toolkit.exception(_logger, 'Failed to complete synchronization')
-            self._offline_session = None
-            raise
-
-        if self._offline_session is None:
-            _logger.debug('Synchronization completed')
-        else:
-            _logger.debug('Postpone synchronization with %r session',
-                    self._offline_session)
-
-    def status(self):
-        result = NodeRoutes.status(self)
-        result['level'] = 'slave'
-        return result
-
-    def _offline_sync(self, path, push_seq=None, stats_seq=None, session=None):
-        push = []
-
-        if push_seq is None:
-            push_seq = toolkit.Sequence(self._push_seq)
-        if stats_seq is None:
-            stats_seq = {}
-        if session is None:
-            session = toolkit.uuid()
-            push.append(('pull', {
-                'sequence': self._pull_seq,
-                'layer': node.sync_layers.value,
-                }, None))
-            push.append(('files_pull', {'sequence': self._files_seq}, None))
 
         this.broadcast({
             'event': 'sync_progress',
             'progress': _('Reading sneakernet packages'),
             })
-        self._import(sync.sneakernet_decode(path), push_seq)
-
-        offline_script = join(dirname(sys.argv[0]), 'sugar-network-sync')
-        if exists(offline_script):
-            shutil.copy(offline_script, path)
+        requests = self._import(parcel.decode_dir(path))
 
         this.broadcast({
             'event': 'sync_progress',
             'progress': _('Generating new sneakernet package'),
             })
+        offline_script = join(dirname(sys.argv[0]), 'sugar-network-sync')
+        if exists(offline_script):
+            shutil.copy(offline_script, path)
+        parcel.encode_dir(requests + self._export(True), root=path, header={
+            'from': self.guid,
+            'to': self._master_guid,
+            })
 
-        diff_seq = toolkit.Sequence([])
-        push.append(('diff', None,
-                model.diff(self.volume, push_seq, diff_seq)))
-        if stats_user.stats_user.value:
-            push.append(('stats_diff', None, stats_user.diff(stats_seq)))
-        complete = sync.sneakernet_encode(push, root=path,
-                src=self.guid, dst=self._master_guid, api_url=api_url.value,
-                session=session)
-        if not complete:
-            push_seq.exclude(diff_seq)
-            return {'push_seq': push_seq,
-                    'stats_seq': stats_seq,
-                    'session': session,
-                    }
+        _logger.debug('Synchronization completed')
 
-    def _import(self, package, push_seq):
+    def status(self):
+        result = NodeRoutes.status(self)
+        result['mode'] = 'slave'
+        return result
+
+    def _import(self, package):
+        requests = []
+
         for packet in package:
-            from_master = (packet['src'] == self._master_guid)
-            addressed = (packet['dst'] == self.guid)
+            sender = packet['from']
+            from_master = (sender == self._master_guid)
+            if packet.name == 'push':
+                seqno, committed = this.volume.patch(packet)
+                if seqno is not None:
+                    if from_master:
+                        ranges.exclude(self._pull_r.value, committed)
+                        self._pull_r.commit()
+                    else:
+                        requests.append(('request', {
+                            'origin': sender,
+                            'ranges': committed,
+                            }, []))
+                    ranges.exclude(self._push_r.value, seqno, seqno)
+                    self._push_r.commit()
+            elif packet.name == 'ack' and from_master and \
+                    packet['to'] == self.guid:
+                ranges.exclude(self._pull_r.value, packet['ack'])
+                self._pull_r.commit()
+                if packet['ranges']:
+                    ranges.exclude(self._push_r.value, packet['ranges'])
+                    self._push_r.commit()
 
-            if packet.name == 'diff':
-                _logger.debug('Processing %r', packet)
-                seq, __ = model.merge(self.volume, packet, shift_seqno=False)
-                if from_master and seq:
-                    self._pull_seq.exclude(seq)
-                    self._pull_seq.commit()
+        return requests
 
-            elif from_master:
-                if packet.name == 'ack' and addressed:
-                    _logger.debug('Processing %r', packet)
-                    if push_seq:
-                        push_seq.exclude(packet['sequence'])
-                    self._pull_seq.exclude(packet['ack'])
-                    self._pull_seq.commit()
-                    self._push_seq.exclude(packet['sequence'])
-                    self._push_seq.commit()
-                elif packet.name == 'stats_ack' and addressed:
-                    _logger.debug('Processing %r', packet)
-                    stats_user.commit(packet['sequence'])
-                elif packet.name == 'files_diff':
-                    _logger.debug('Processing %r', packet)
-                    seq = files.merge(node.files_root.value, packet)
-                    if seq:
-                        self._files_seq.exclude(seq)
-                        self._files_seq.commit()
+    def _export(self, pull):
+        export = []
+        if pull:
+            export.append(('pull', {'ranges': self._pull_r.value}, None))
+        export.append(('push', None, self.volume.diff(self._push_r.value)))
+        return export

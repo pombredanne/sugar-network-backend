@@ -43,7 +43,6 @@ class Application(application.Daemon):
     def __init__(self, **kwargs):
         application.Daemon.__init__(self, **kwargs)
 
-        node.sync_layers.value = client.layers.value
         self.jobs = coroutine.Pool()
 
         new_root = (client.local_root.value != client.local_root.default)
@@ -102,7 +101,7 @@ class Application(application.Daemon):
     def run(self):
         volume = db.Volume(client.path('db'), RESOURCES)
         routes = CachedClientRoutes(volume,
-                client.api_url.value if not client.server_mode.value else None)
+                client.api.value if not client.server_mode.value else None)
         router = Router(routes, allow_spawn=True)
 
         logging.info('Listening for IPC requests on %s port',
@@ -203,7 +202,7 @@ Option.seek('main', [toolkit.cachedir])
 Option.seek('webui', webui)
 Option.seek('client', client)
 Option.seek('db', db)
-Option.seek('node', [node.port, node.find_limit, node.sync_layers])
+Option.seek('node', [node.port, node.find_limit])
 Option.seek('user-stats', stats_user)
 
 app = Application(

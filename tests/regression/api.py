@@ -101,7 +101,7 @@ class Api(tests.Test):
         self.client_pid = self.popen([join(PROD_ROOT, 'sugar-network-client'),
             '-DDDF', 'start',
             '--local-root=client', '--mounts-root=mnt', '--cachedir=tmp',
-            '--ipc-port=%s' % client.ipc_port.value, '--api-url=%s' % client.api_url.value,
+            '--ipc-port=%s' % client.ipc_port.value, '--api=%s' % client.api.value,
             ])
 
     def tearDown(self):
