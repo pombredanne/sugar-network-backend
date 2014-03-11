@@ -263,24 +263,24 @@ class ModelTest(tests.Test):
 
         context = volume['context'].create({
             'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'commands1'}},
-                '2': {'value': {'stability': 'stable', 'version': [[2], 0], 'command': 'commands2'}},
-                '3': {'value': {'stability': 'stable', 'version': [[3], 0], 'command': 'commands3'}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 1}}}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 2}}}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[3], 0], 'commands': {'activity': {'exec': 3}}}},
                 },
             })
         self.assertEqual(
-                {context: {'command': 'commands3', 'blob': '3', 'version': [[3], 0]}},
+                {context: {'command': ('activity', 3), 'blob': '3', 'version': [[3], 0]}},
                 model.solve(volume, context))
 
         context = volume['context'].create({
             'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '3': {'value': {'stability': 'stable', 'version': [[3], 0], 'command': 'commands3'}},
-                '2': {'value': {'stability': 'stable', 'version': [[2], 0], 'command': 'commands2'}},
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'commands1'}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[3], 0], 'commands': {'activity': {'exec': 3}}}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 2}}}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 1}}}},
                 },
             })
         self.assertEqual(
-                {context: {'command': 'commands3', 'blob': '3', 'version': [[3], 0]}},
+                {context: {'command': ('activity', 3), 'blob': '3', 'version': [[3], 0]}},
                 model.solve(volume, context))
 
     def test_solve_SortByStability(self):
@@ -289,13 +289,13 @@ class ModelTest(tests.Test):
 
         context = volume['context'].create({
             'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'developer', 'version': [[1], 0], 'command': 'commands1'}},
-                '2': {'value': {'stability': 'stable', 'version': [[2], 0], 'command': 'commands2'}},
-                '3': {'value': {'stability': 'buggy', 'version': [[3], 0], 'command': 'commands3'}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'developer', 'version': [[1], 0], 'commands': {'activity': {'exec': 1}}}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 2}}}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'buggy', 'version': [[3], 0], 'commands': {'activity': {'exec': 3}}}},
                 },
             })
         self.assertEqual(
-                {context: {'command': 'commands2', 'blob': '2', 'version': [[2], 0]}},
+                {context: {'command': ('activity', 2), 'blob': '2', 'version': [[2], 0]}},
                 model.solve(volume, context))
 
     def test_solve_CollectDeps(self):
@@ -305,40 +305,79 @@ class ModelTest(tests.Test):
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
                 '1': {'value': {
-                    'stability': 'stable',
+                    'bundles': {'*-*': {}}, 'stability': 'stable',
                     'version': [[1], 0],
                     'requires': spec.parse_requires('context2; context4'),
-                    'command': 'command',
+                    'commands': {'activity': {'exec': 'command'}},
                     }},
                 },
             })
         volume['context'].create({
             'guid': 'context2', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
                 '2': {'value': {
-                    'stability': 'stable',
+                    'bundles': {'*-*': {}}, 'stability': 'stable',
                     'version': [[2], 0],
+                    'commands': {'activity': {'exec': 0}},
                     'requires': spec.parse_requires('context3'),
                     }},
                 },
             })
         volume['context'].create({
             'guid': 'context3', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '3': {'value': {'stability': 'stable', 'version': [[3], 0]}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[3], 0], 'commands': {'activity': {'exec': 0}}}},
                 },
             })
         volume['context'].create({
             'guid': 'context4', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '4': {'value': {'stability': 'stable', 'version': [[4], 0]}},
+                '4': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[4], 0], 'commands': {'activity': {'exec': 0}}}},
                 },
             })
 
         self.assertEqual({
-            'context1': {'blob': '1', 'version': [[1], 0], 'command': 'command'},
+            'context1': {'blob': '1', 'version': [[1], 0], 'command': ('activity', 'command')},
             'context2': {'blob': '2', 'version': [[2], 0]},
             'context3': {'blob': '3', 'version': [[3], 0]},
             'context4': {'blob': '4', 'version': [[4], 0]},
             },
             model.solve(volume, 'context1'))
+
+    def test_solve_CommandDeps(self):
+        volume = db.Volume('master', [Context])
+        this.volume = volume
+
+        volume['context'].create({
+            'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                '1': {'value': {
+                    'bundles': {'*-*': {}}, 'stability': 'stable',
+                    'version': [[1], 0],
+                    'requires': [],
+                    'commands': {
+                        'activity': {'exec': 1, 'requires': spec.parse_requires('context2')},
+                        'application': {'exec': 2},
+                        },
+                    }},
+                },
+            })
+        volume['context'].create({
+            'guid': 'context2', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                '2': {'value': {
+                    'bundles': {'*-*': {}}, 'stability': 'stable',
+                    'version': [[2], 0],
+                    'commands': {'activity': {'exec': 0}},
+                    'requires': [],
+                    }},
+                },
+            })
+
+        self.assertEqual({
+            'context1': {'blob': '1', 'version': [[1], 0], 'command': ('activity', 1)},
+            'context2': {'blob': '2', 'version': [[2], 0]},
+            },
+            model.solve(volume, 'context1', command='activity'))
+        self.assertEqual({
+            'context1': {'blob': '1', 'version': [[1], 0], 'command': ('application', 2)},
+            },
+            model.solve(volume, 'context1', command='application'))
 
     def test_solve_DepConditions(self):
         volume = db.Volume('master', [Context])
@@ -346,101 +385,101 @@ class ModelTest(tests.Test):
 
         volume['context'].create({
             'guid': 'dep', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0]}},
-                '2': {'value': {'stability': 'stable', 'version': [[2], 0]}},
-                '3': {'value': {'stability': 'stable', 'version': [[3], 0]}},
-                '4': {'value': {'stability': 'stable', 'version': [[4], 0]}},
-                '5': {'value': {'stability': 'stable', 'version': [[5], 0]}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}}}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}}}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[3], 0], 'commands': {'activity': {'exec': 0}}}},
+                '4': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[4], 0], 'commands': {'activity': {'exec': 0}}}},
+                '5': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[5], 0], 'commands': {'activity': {'exec': 0}}}},
                 },
             })
 
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep < 3'),
                     }},
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
                 'dep': {'blob': '2', 'version': [[2], 0]},
                 },
                 model.solve(volume, 'context1'))
 
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep <= 3'),
                     }},
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
                 'dep': {'blob': '3', 'version': [[3], 0]},
                 },
                 model.solve(volume, 'context1'))
 
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep > 2'),
                     }},
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
                 'dep': {'blob': '5', 'version': [[5], 0]},
                 },
                 model.solve(volume, 'context1'))
 
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep >= 2'),
                     }},
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
                 'dep': {'blob': '5', 'version': [[5], 0]},
                 },
                 model.solve(volume, 'context1'))
 
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep > 2; dep < 5'),
                     }},
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
                 'dep': {'blob': '4', 'version': [[4], 0]},
                 },
                 model.solve(volume, 'context1'))
 
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep > 2; dep <= 3'),
                     }},
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
                 'dep': {'blob': '3', 'version': [[3], 0]},
                 },
                 model.solve(volume, 'context1'))
 
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep = 1'),
                     }},
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
                 'dep': {'blob': '1', 'version': [[1], 0]},
                 },
                 model.solve(volume, 'context1'))
@@ -451,29 +490,33 @@ class ModelTest(tests.Test):
 
         volume['context'].create({
             'guid': 'context1', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '6': {'value': {'stability': 'stable', 'version': [[1], 0], 'requires': spec.parse_requires('context4=1'), 'command': 'commands6'}},
-                '1': {'value': {'stability': 'stable', 'version': [[2], 0], 'requires': spec.parse_requires('context2'), 'command': 'commands1'}},
+                '6': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}},
+                    'requires': spec.parse_requires('context4=1'), 'commands': {'activity': {'exec': 6}}}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}},
+                    'requires': spec.parse_requires('context2'), 'commands': {'activity': {'exec': 1}}}},
                 },
             })
         volume['context'].create({
             'guid': 'context2', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '2': {'value': {'stability': 'stable', 'version': [[1], 0], 'requires': spec.parse_requires('context3; context4=1')}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}},
+                    'requires': spec.parse_requires('context3; context4=1')}},
                 },
             })
         volume['context'].create({
             'guid': 'context3', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '3': {'value': {'stability': 'stable', 'version': [[1], 0], 'requires': spec.parse_requires('context4=2')}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}},
+                    'requires': spec.parse_requires('context4=2')}},
                 },
             })
         volume['context'].create({
             'guid': 'context4', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '4': {'value': {'stability': 'stable', 'version': [[2], 0]}},
-                '5': {'value': {'stability': 'stable', 'version': [[1], 0]}},
+                '4': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}}}},
+                '5': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}}}},
                 },
             })
 
         self.assertEqual({
-            'context1': {'blob': '6', 'version': [[1], 0], 'command': 'commands6'},
+            'context1': {'blob': '6', 'version': [[1], 0], 'command': ('activity', 6)},
             'context4': {'blob': '5', 'version': [[1], 0]},
             },
             model.solve(volume, 'context1'))
@@ -484,11 +527,11 @@ class ModelTest(tests.Test):
 
         volume['context'].create({
             'guid': 'dep', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0]}},
-                '2': {'value': {'stability': 'stable', 'version': [[2], 0]}},
-                '3': {'value': {'stability': 'stable', 'version': [[3], 0]}},
-                '4': {'value': {'stability': 'stable', 'version': [[4], 0]}},
-                '5': {'value': {'stability': 'stable', 'version': [[5], 0]}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}}}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}}}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[3], 0], 'commands': {'activity': {'exec': 0}}}},
+                '4': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[4], 0], 'commands': {'activity': {'exec': 0}}}},
+                '5': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[5], 0], 'commands': {'activity': {'exec': 0}}}},
                 },
             })
 
@@ -496,13 +539,13 @@ class ModelTest(tests.Test):
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {},
             'dependencies': 'dep=2',
             'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires(''),
                     }},
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
             'dep': {'blob': '2', 'version': [[2], 0]},
             },
             model.solve(volume, 'context'))
@@ -511,13 +554,13 @@ class ModelTest(tests.Test):
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {},
             'dependencies': 'dep<5',
             'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep>1'),
                     }},
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
             'dep': {'blob': '4', 'version': [[4], 0]},
             },
             model.solve(volume, 'context'))
@@ -526,13 +569,13 @@ class ModelTest(tests.Test):
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {},
             'dependencies': 'dep<4',
             'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep<5'),
                     }},
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
             'dep': {'blob': '3', 'version': [[3], 0]},
             },
             model.solve(volume, 'context'))
@@ -543,48 +586,48 @@ class ModelTest(tests.Test):
 
         volume['context'].create({
             'guid': 'dep', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0]}},
-                '2': {'value': {'stability': 'stable', 'version': [[2], 0]}},
-                '3': {'value': {'stability': 'stable', 'version': [[3], 0]}},
-                '4': {'value': {'stability': 'stable', 'version': [[4], 0]}},
-                '5': {'value': {'stability': 'stable', 'version': [[5], 0]}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}}}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}}}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[3], 0], 'commands': {'activity': {'exec': 0}}}},
+                '4': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[4], 0], 'commands': {'activity': {'exec': 0}}}},
+                '5': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[5], 0], 'commands': {'activity': {'exec': 0}}}},
                 },
             })
 
         volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires(''),
                     }},
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
             },
             model.solve(volume, 'context'))
 
         volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep>1'),
                     }},
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
             'dep': {'blob': '5', 'version': [[5], 0]},
             },
             model.solve(volume, 'context'))
 
         volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep<5'),
                     }},
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': 'command'},
+            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
             'dep': {'blob': '4', 'version': [[4], 0]},
             },
             model.solve(volume, 'context'))
@@ -596,11 +639,11 @@ class ModelTest(tests.Test):
 
         volume['context'].create({
             'guid': 'dep', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0]}},
-                '2': {'value': {'stability': 'stable', 'version': [[2], 0]}},
-                '3': {'value': {'stability': 'stable', 'version': [[3], 0]}},
-                '4': {'value': {'stability': 'stable', 'version': [[4], 0]}},
-                '5': {'value': {'stability': 'stable', 'version': [[5], 0]}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}}}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}}}},
+                '3': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[3], 0], 'commands': {'activity': {'exec': 0}}}},
+                '4': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[4], 0], 'commands': {'activity': {'exec': 0}}}},
+                '5': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[5], 0], 'commands': {'activity': {'exec': 0}}}},
                 },
             })
 
@@ -612,7 +655,7 @@ class ModelTest(tests.Test):
 
         volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '10': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '10': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep=0'),
                     }},
                 },
@@ -626,7 +669,7 @@ class ModelTest(tests.Test):
 
         context = volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('package'),
                     }},
                 },
@@ -639,25 +682,25 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': 'command', 'version': [[1], 0]},
+            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': [[1], 0]},
             },
             model.solve(volume, context, lsb_id='Ubuntu', lsb_release='10.04'))
 
         context = volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('dep; package'),
                     }},
                 },
             })
         volume['context'].create({
             'guid': 'dep', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '2': {'value': {'stability': 'stable', 'version': [[1], 0]}},
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}}}},
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': 'command', 'version': [[1], 0]},
+            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'dep': {'blob': '2', 'version': [[1], 0]},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': [[1], 0]},
             },
@@ -670,7 +713,7 @@ class ModelTest(tests.Test):
 
         context = volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('package1'),
                     }},
                 },
@@ -681,14 +724,14 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': 'command', 'version': [[1], 0]},
+            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package1': {'packages': ['bin1', 'bin2', 'devel1', 'devel2'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Ubuntu'))
 
         context = volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('package2'),
                     }},
                 },
@@ -702,7 +745,7 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': 'command', 'version': [[1], 0]},
+            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package2': {'packages': ['bin'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Ubuntu', lsb_release='fake'))
@@ -714,7 +757,7 @@ class ModelTest(tests.Test):
 
         context = volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('package1'),
                     }},
                 },
@@ -729,17 +772,17 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': 'command', 'version': [[1], 0]},
+            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context))
         self.assertEqual({
-            'context': {'blob': '1', 'command': 'command', 'version': [[1], 0]},
+            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Fake'))
         self.assertEqual({
-            'context': {'blob': '1', 'command': 'command', 'version': [[1], 0]},
+            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Fake', lsb_release='fake'))
@@ -751,7 +794,7 @@ class ModelTest(tests.Test):
 
         context = volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'stability': 'stable', 'version': [[1], 0], 'command': 'command',
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 'command'}},
                     'requires': spec.parse_requires('package'),
                     }},
                 },

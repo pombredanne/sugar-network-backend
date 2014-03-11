@@ -8,7 +8,6 @@ import mimetypes
 from __init__ import tests
 
 from sugar_network import db
-from sugar_network.db import blobs
 from sugar_network.model import load_bundle
 from sugar_network.model.post import Post
 from sugar_network.client import IPCConnection, Connection, keyfile
@@ -40,6 +39,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_Activity(self):
         volume = self.start_master()
+        blobs = volume.blobs
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
@@ -74,6 +74,7 @@ class ModelTest(tests.Test):
             'content-type': 'application/vnd.olpc-sugar',
             'content-disposition': 'attachment; filename="Activity-1%s"' % (mimetypes.guess_extension('application/vnd.olpc-sugar') or ''),
             'content-length': str(len(bundle)),
+            'x-seqno': '4',
             }, blobs.get(blob.digest))
         self.assertEqual('bundle_id', context)
         self.assertEqual([[1], 0], release['version'])
@@ -107,6 +108,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_NonActivity(self):
         volume = self.start_master()
+        blobs = volume.blobs
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
@@ -127,6 +129,7 @@ class ModelTest(tests.Test):
             'content-type': 'application/pdf',
             'content-disposition': 'attachment; filename="NonActivity-2.pdf"',
             'content-length': str(len(bundle)),
+            'x-seqno': '4',
             }, blobs.get(blob.digest))
         self.assertEqual('bundle_id', context)
         self.assertEqual([[2], 0], release['version'])
@@ -146,6 +149,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_ReuseActivityLicense(self):
         volume = self.start_master()
+        blobs = volume.blobs
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
@@ -194,6 +198,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_ReuseNonActivityLicense(self):
         volume = self.start_master()
+        blobs = volume.blobs
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
@@ -234,6 +239,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_WrontContextType(self):
         volume = self.start_master()
+        blobs = volume.blobs
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
@@ -269,6 +275,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_MissedContext(self):
         volume = self.start_master()
+        blobs = volume.blobs
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
@@ -290,6 +297,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_CreateContext(self):
         volume = self.start_master()
+        blobs = volume.blobs
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
@@ -336,6 +344,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_UpdateContext(self):
         volume = self.start_master()
+        blobs = volume.blobs
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
@@ -409,6 +418,7 @@ class ModelTest(tests.Test):
     def test_load_bundle_3rdPartyRelease(self):
         i18n._default_langs = ['en']
         volume = self.start_master()
+        blobs = volume.blobs
         volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
@@ -469,6 +479,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_PopulateRequires(self):
         volume = self.start_master()
+        blobs = volume.blobs
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         conn.post(['context'], {
@@ -519,7 +530,7 @@ class ModelTest(tests.Test):
         this.request = Request(method='POST', path=['context', context])
         aggid = conn.post(['context', context, 'releases'], -1)
         self.assertEqual({
-            aggid: {'seqno': 3, 'value': -1, 'author': {tests.UID: {'role': 3, 'name': tests.UID, 'order': 0}}},
+            aggid: {'seqno': 4, 'value': -1, 'author': {tests.UID: {'role': 3, 'name': tests.UID, 'order': 0}}},
             }, volume['context'][context]['releases'])
 
 

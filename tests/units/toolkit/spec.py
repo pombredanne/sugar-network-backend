@@ -78,9 +78,10 @@ class SpecTest(tests.Test):
         self.assertEqual('stable', recipe['stability'])
         self.assertEqual(['terminal', 'console'], recipe['tags'])
         self.assertEqual(['image/png', 'image/svg+xml'], recipe['mime_types'])
-        self.assertEqual(
-                'sugar-activity terminal.TerminalActivity',
-                recipe.command)
+        self.assertEqual({
+            'activity': {'exec': 'sugar-activity terminal.TerminalActivity'},
+            },
+            recipe.commands)
         self.assertEqual({
             'sugar': [([0], [[0, 94], 0])],
             },

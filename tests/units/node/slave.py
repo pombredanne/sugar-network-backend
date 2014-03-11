@@ -263,6 +263,7 @@ class SlaveTest(tests.Test):
                     ({'ack': [[101, 103]], 'from': '127.0.0.1:7777', 'packet': 'ack', 'ranges': [[1, 3]], 'to': self.slave_routes.guid}, [
                         ]),
                     ({'from': self.slave_routes.guid, 'packet': 'push', 'to': '127.0.0.1:7777'}, [
+                        {'resource': 'document'},
                         ]),
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[3, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
@@ -314,11 +315,12 @@ class SlaveTest(tests.Test):
                         {'commit': [[1, 2]]},
                         ]),
                     ({'from': self.slave_routes.guid, 'packet': 'push', 'to': '127.0.0.1:7777'}, [
+                        {'resource': 'document'},
                         ]),
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[3, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [dict(i) for i in packet]) for packet in parcel.decode_dir('sync')]))
 
     def test_offline_sync_ImportAck(self):
         slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
@@ -382,6 +384,7 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'request', 'to': '127.0.0.1:7777', 'origin': 'another-slave', 'ranges': [[1, 1]]}, [
                         ]),
                     ({'from': self.slave_routes.guid, 'packet': 'push', 'to': '127.0.0.1:7777'}, [
+                        {'resource': 'document'},
                         ]),
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),

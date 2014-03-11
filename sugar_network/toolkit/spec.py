@@ -193,7 +193,7 @@ class Spec(object):
 
     def __init__(self, spec=None, root=None):
         self.path = None
-        self.command = None
+        self.commands = {}
         self.bindings = set()
         self.requires = {}
         self.build_requires = []
@@ -276,8 +276,7 @@ class Spec(object):
             if section_type == 'Activity':
                 self._new_activity(section, requires)
             elif section_type == 'Application':
-                cmd_name = section.split(':')[-1] if ':' in section else 'run'
-                self._new_command(section, requires, cmd_name)
+                self._new_command(section, requires)
                 self.applications.append(_Application(self._config, section))
             elif section_type == 'Library':
                 enforce(':' not in section, '[Library] should be singular')
@@ -347,13 +346,16 @@ class Spec(object):
         for i in self.applications:
             i.name = '-'.join(i.section.split(':')[1:])
 
-    def _new_command(self, section, requires, name):
-        enforce(self.command is None, 'Only one command is allowed')
+    def _new_command(self, section, requires):
         cmdline = self._get(section, 'exec')
         enforce(cmdline,
                 'Option "exec" should exist for [%s] section', section)
-        self.command = cmdline
-        self.requires.update(requires)
+        name = section.split(':')[-1] if ':' in section else section.lower()
+        command = self.commands[name] = {'exec': cmdline}
+        if ':' in section:
+            command['requires'] = requires
+        else:
+            self.requires.update(requires)
 
     def _new_activity(self, section, requires):
         enforce(':' not in section, '[Activity] should be singular')
@@ -372,7 +374,7 @@ class Spec(object):
             enforce(self._get(section, key),
                     'Option "%s" should exist for activities', key)
 
-        self._new_command(section, requires, 'activity')
+        self._new_command(section, requires)
         self.activity = _Activity(self._config, section)
 
     def _new_archive(self, section):

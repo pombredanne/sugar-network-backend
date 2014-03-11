@@ -105,12 +105,13 @@ class Context(base_context.Context):
         return value
 
 
-def solve(volume, top_context, lsb_id=None, lsb_release=None,
+def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
         stability=None, requires=None):
     top_context = volume['context'][top_context]
-    top_stability = stability or ['stable']
-    if isinstance(top_stability, basestring):
-        top_stability = [top_stability]
+    if stability is None:
+        stability = ['stable']
+    if isinstance(stability, basestring):
+        stability = [stability]
     top_cond = []
     top_requires = {}
     if isinstance(requires, basestring):
@@ -129,17 +130,16 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
     clauses = []
 
     _logger.debug('Solve %r lsb_id=%r lsb_release=%r stability=%r requires=%r',
-            top_context.guid, lsb_id, lsb_release, top_stability, top_requires)
+            top_context.guid, lsb_id, lsb_release, stability, top_requires)
 
     def rate_release(digest, release):
-        return [_STABILITY_RATES.get(release['stability']) or 0,
+        return [command in release['commands'],
+                _STABILITY_RATES.get(release['stability']) or 0,
                 release['version'],
                 digest,
                 ]
 
-    def add_deps(context, v_usage, deps):
-        if top_requires and context.guid == top_context.guid:
-            deps.update(top_requires)
+    def add_deps(v_usage, deps):
         for dep, cond in deps.items():
             dep_clause = [-v_usage]
             for v_release in add_context(dep):
@@ -178,7 +178,7 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
                 if 'value' not in release:
                     continue
                 release = release['value']
-                if release['stability'] not in top_stability or \
+                if release['stability'] not in stability or \
                         context.guid == top_context.guid and \
                             not spec.ensure(release['version'], top_cond):
                     continue
@@ -187,12 +187,27 @@ def solve(volume, top_context, lsb_id=None, lsb_release=None,
                 digest = release[-1]
                 release = releases[digest]['value']
                 release_info = {'version': release['version'], 'blob': digest}
+                blob = volume.blobs.get(digest)
+                if blob is not None:
+                    release_info['size'] = blob.size
+                unpack_size = release['bundles']['*-*'].get('unpack_size')
+                if unpack_size is not None:
+                    release_info['unpack_size'] = unpack_size
+                requires = release.get('requires') or {}
+                if top_requires and context.guid == top_context.guid:
+                    requires.update(top_requires)
                 if context.guid == top_context.guid:
-                    release_info['command'] = release['command']
+                    cmd = release['commands'].get(command)
+                    if cmd is None:
+                        cmd_name, cmd = release['commands'].items()[0]
+                    else:
+                        cmd_name = command
+                    release_info['command'] = (cmd_name, cmd['exec'])
+                    requires.update(cmd.get('requires') or {})
                 v_release = len(varset)
                 varset.append((context.guid, release_info))
                 clause.append(v_release)
-                add_deps(context, v_release, release.get('requires') or {})
+                add_deps(v_release, requires)
 
         if clause:
             context_clauses[context.guid] = clause

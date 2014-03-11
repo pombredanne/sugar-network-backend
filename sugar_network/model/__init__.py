@@ -179,7 +179,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         release['stability'] = spec['stability']
         if spec['license'] is not EMPTY_LICENSE:
             release['license'] = spec['license']
-        release['command'] = spec.command
+        release['commands'] = spec.commands
         release['requires'] = spec.requires
         release['bundles'] = {
                 '*-*': {

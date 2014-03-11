@@ -504,7 +504,7 @@ class NodeTest(tests.Test):
                     'version': [[1], 0],
                     'requires': {},
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle).hexdigest()), 'unpack_size': len(activity_info) + len(changelog)}},
-                    'command': 'true',
+                    'commands': {'activity': {'exec': 'true'}},
                     'stability': 'developer',
                     },
                 },
@@ -526,29 +526,31 @@ class NodeTest(tests.Test):
         volume = self.start_master()
         conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
 
-        activity_file = json.load(conn.request('POST', ['context'],
-            self.zips(('topdir/activity/activity.info', '\n'.join([
-                '[Activity]',
-                'name = activity',
-                'bundle_id = activity',
-                'exec = true',
-                'icon = icon',
-                'activity_version = 1',
-                'license = Public Domain',
-                'requires = dep; package',
-                ]))),
-            params={'cmd': 'submit', 'initial': True}).raw)
-        dep_file = json.load(conn.request('POST', ['context'],
-            self.zips(('topdir/activity/activity.info', '\n'.join([
-                '[Activity]',
-                'name = dep',
-                'bundle_id = dep',
-                'exec = true',
-                'icon = icon',
-                'activity_version = 2',
-                'license = Public Domain',
-                ]))),
-            params={'cmd': 'submit', 'initial': True}).raw)
+        activity_unpack = '\n'.join([
+            '[Activity]',
+            'name = activity',
+            'bundle_id = activity',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'requires = dep; package',
+            ])
+        activity_pack = self.zips(('topdir/activity/activity.info', activity_unpack))
+        activity_blob = json.load(conn.request('POST', ['context'], activity_pack, params={'cmd': 'submit', 'initial': True}).raw)
+
+        dep_unpack = '\n'.join([
+            '[Activity]',
+            'name = dep',
+            'bundle_id = dep',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])
+        dep_pack = self.zips(('topdir/activity/activity.info', dep_unpack))
+        dep_blob = json.load(conn.request('POST', ['context'], dep_pack, params={'cmd': 'submit', 'initial': True}).raw)
+
         this.call(method='POST', path=['context'], principal=tests.UID, content={
             'guid': 'package',
             'type': 'package',
@@ -559,9 +561,23 @@ class NodeTest(tests.Test):
         conn.put(['context', 'package', 'releases', '*'], {'binary': ['package.bin']})
 
         self.assertEqual({
-            'activity': {'blob': activity_file, 'command': 'true', 'version': [[1], 0]},
-            'dep': {'blob': dep_file, 'version': [[2], 0]},
-            'package': {'packages': ['package.bin'], 'version': []},
+            'activity': {
+                'blob': activity_blob,
+                'command': ['activity', 'true'],
+                'version': [[1], 0],
+                'size': len(activity_pack),
+                'unpack_size': len(activity_unpack),
+                },
+            'dep': {
+                'blob': dep_blob,
+                'version': [[2], 0],
+                'size': len(dep_pack),
+                'unpack_size': len(dep_unpack),
+                },
+            'package': {
+                'packages': ['package.bin'],
+                'version': [],
+                },
             },
             conn.get(['context', 'activity'], cmd='solve'))
 
@@ -569,19 +585,20 @@ class NodeTest(tests.Test):
         volume = self.start_master()
         conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
 
-        activity_file = json.load(conn.request('POST', ['context'],
-            self.zips(('topdir/activity/activity.info', '\n'.join([
-                '[Activity]',
-                'name = activity',
-                'bundle_id = activity',
-                'exec = true',
-                'icon = icon',
-                'activity_version = 1',
-                'license = Public Domain',
-                'stability = developer',
-                ]))),
-            params={'cmd': 'submit', 'initial': True}).raw)
-        activity_fake_file = json.load(conn.request('POST', ['context'],
+        activity_unpack = '\n'.join([
+            '[Activity]',
+            'name = activity',
+            'bundle_id = activity',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            'stability = developer',
+            ])
+        activity_pack = self.zips(('topdir/activity/activity.info', activity_unpack))
+        activity_blob = json.load(conn.request('POST', ['context'], activity_pack, params={'cmd': 'submit', 'initial': True}).raw)
+
+        activity_fake_blob = json.load(conn.request('POST', ['context'],
             self.zips(('topdir/activity/activity.info', '\n'.join([
                 '[Activity]',
                 'name = activity',
@@ -592,18 +609,20 @@ class NodeTest(tests.Test):
                 'license = Public Domain',
                 ]))),
             params={'cmd': 'submit'}).raw)
-        dep_file = json.load(conn.request('POST', ['context'],
-            self.zips(('topdir/activity/activity.info', '\n'.join([
-                '[Activity]',
-                'name = dep',
-                'bundle_id = dep',
-                'exec = true',
-                'icon = icon',
-                'activity_version = 2',
-                'license = Public Domain',
-                'stability = developer',
-                ]))),
-            params={'cmd': 'submit', 'initial': True}).raw)
+
+        dep_unpack = '\n'.join([
+            '[Activity]',
+            'name = dep',
+            'bundle_id = dep',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            'stability = developer',
+            ])
+        dep_pack = self.zips(('topdir/activity/activity.info', dep_unpack))
+        dep_blob = json.load(conn.request('POST', ['context'], dep_pack, params={'cmd': 'submit', 'initial': True}).raw)
+
         this.call(method='POST', path=['context'], principal=tests.UID, content={
             'guid': 'package',
             'type': 'package',
@@ -618,9 +637,23 @@ class NodeTest(tests.Test):
             }}})
 
         self.assertEqual({
-            'activity': {'blob': activity_file, 'command': 'true', 'version': [[1], 0]},
-            'dep': {'blob': dep_file, 'version': [[2], 0]},
-            'package': {'packages': ['package.bin'], 'version': [[1], 0]},
+            'activity': {
+                'blob': activity_blob,
+                'command': ['activity', 'true'],
+                'version': [[1], 0],
+                'size': len(activity_pack),
+                'unpack_size': len(activity_unpack),
+                },
+            'dep': {
+                'blob': dep_blob,
+                'version': [[2], 0],
+                'size': len(dep_pack),
+                'unpack_size': len(dep_unpack),
+                },
+            'package': {
+                'packages': ['package.bin'],
+                'version': [[1], 0],
+                },
             },
             conn.get(['context', 'activity'], cmd='solve',
                 stability='developer', lsb_id='Ubuntu', lsb_release='10.04', requires=['dep', 'package']))

@@ -36,6 +36,10 @@ class Blobs(object):
         self._root = abspath(root)
         self._seqno = seqno
 
+    @property
+    def root(self):
+        return self._root
+
     def path(self, *args):
         if len(args) == 1 and len(args[0]) == 40 and '.' not in args[0]:
             return self._blob_path(args[0])
