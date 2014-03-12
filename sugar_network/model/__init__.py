@@ -58,6 +58,9 @@ RESOURCES = (
         'sugar_network.model.user',
         )
 
+ICON_SIZE = 55
+LOGO_SIZE = 140
+
 _logger = logging.getLogger('model')
 
 
@@ -116,16 +119,6 @@ def generate_node_stats(volume):
     for topic in alldocs:
         rating = calc_rating(type='feedback', topic=topic.guid)
         volume['post'].update(topic.guid, {'rating': rating})
-
-
-def populate_context_images(props, svg):
-    if 'guid' in props:
-        from sugar_network.toolkit.sugar import color_svg
-        svg = color_svg(svg, props['guid'])
-    blobs = this.volume.blobs
-    props['artifact_icon'] = blobs.post(svg, 'image/svg+xml').digest
-    props['icon'] = blobs.post(svg_to_png(svg, 55, 55), 'image/png').digest
-    props['logo'] = blobs.post(svg_to_png(svg, 140, 140), 'image/png').digest
 
 
 def load_bundle(blob, context=None, initial=False, extra_deps=None):
@@ -215,7 +208,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         patch = context_doc.format_patch(context_meta)
         if patch:
             this.call(method='PUT', path=['context', context], content=patch)
-            context_doc.props.update(patch)
+            context_doc.posts.update(patch)
         # TRANS: Release notes title
         title = i18n._('%(name)s %(version)s release')
     else:
@@ -250,8 +243,19 @@ def _load_context_metadata(bundle, spec):
     result['guid'] = spec['context']
 
     try:
+        from sugar_network.toolkit.sugar import color_svg
+
         icon_file = bundle.extractfile(join(bundle.rootdir, spec['icon']))
-        populate_context_images(result, icon_file.read())
+        svg = color_svg(icon_file.read(), result['guid'])
+        blobs = this.volume.blobs
+
+        result['artefact_icon'] = \
+                blobs.post(svg, 'image/svg+xml').digest
+        result['icon'] = \
+                blobs.post(svg_to_png(svg, ICON_SIZE), 'image/png').digest
+        result['logo'] = \
+                blobs.post(svg_to_png(svg, LOGO_SIZE), 'image/png').digest
+
         icon_file.close()
     except Exception:
         exception(_logger, 'Failed to load icon')

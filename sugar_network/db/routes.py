@@ -40,8 +40,8 @@ class Routes(object):
     @route('POST', [None], acl=ACL.AUTH, mime_type='application/json')
     def create(self, request):
         with self._post(request, ACL.CREATE) as doc:
-            self.on_create(request, doc.props)
-            self.volume[request.resource].create(doc.props)
+            self.on_create(request, doc.posts)
+            self.volume[request.resource].create(doc.posts)
             self.after_post(doc)
             return doc['guid']
 
@@ -78,10 +78,10 @@ class Routes(object):
     @route('PUT', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def update(self, request):
         with self._post(request, ACL.WRITE) as doc:
-            if not doc.props:
+            if not doc.posts:
                 return
-            self.on_update(request, doc.props)
-            self.volume[request.resource].update(doc.guid, doc.props)
+            self.on_update(request, doc.posts)
+            self.volume[request.resource].update(doc.guid, doc.posts)
             self.after_post(doc)
 
     @route('PUT', [None, None, None], acl=ACL.AUTH | ACL.AUTHOR)
@@ -209,32 +209,28 @@ class Routes(object):
                 enforce(_GUID_RE.match(guid) is not None,
                         http.BadRequest, 'Malformed %s GUID', guid)
             else:
-                doc.props['guid'] = toolkit.uuid()
+                doc.posts['guid'] = toolkit.uuid()
             for name, prop in directory.metadata.items():
                 if name not in content and prop.default is not None:
-                    doc.props[name] = prop.default
-            orig = None
-            this.resource = doc
+                    doc.posts[name] = prop.default
         else:
             doc = directory.get(request.guid)
-            orig = directory.get(request.guid)
-            this.resource = orig
+        this.resource = doc
 
-        def teardown(new):
-            if orig is None:
-                return
-            for name, orig_value in orig.props.items():
-                if doc[name] == orig_value:
-                    continue
-                prop = directory.metadata[name]
-                prop.teardown(doc[name] if new else orig_value)
+        def teardown(new, old):
+            for name, value in new.items():
+                if old.get(name) != value:
+                    directory.metadata[name].teardown(value)
 
         try:
             for name, value in content.items():
                 prop = directory.metadata[name]
-                prop.assert_access(access, orig[name] if orig else None)
+                prop.assert_access(access, doc.orig(name))
+                if value is None:
+                    doc.posts[name] = prop.default
+                    continue
                 try:
-                    doc.props[name] = prop.typecast(value)
+                    doc.posts[name] = prop.typecast(value)
                 except Exception, error:
                     error = 'Value %r for %r property is invalid: %s' % \
                             (value, prop.name, error)
@@ -242,10 +238,10 @@ class Routes(object):
                     raise http.BadRequest(error)
             yield doc
         except Exception:
-            teardown(True)
+            teardown(doc.posts, doc.origs)
             raise
         else:
-            teardown(False)
+            teardown(doc.origs, doc.posts)
 
     def _preget(self, request):
         reply = request.get('reply')

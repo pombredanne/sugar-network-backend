@@ -20,7 +20,7 @@ import mimetypes
 from contextlib import contextmanager
 from os.path import exists, abspath, join, dirname, isdir
 
-from sugar_network import toolkit
+from sugar_network import toolkit, assets
 from sugar_network.toolkit.router import File
 from sugar_network.toolkit import http, ranges, enforce
 
@@ -40,11 +40,16 @@ class Blobs(object):
     def root(self):
         return self._root
 
-    def path(self, *args):
-        if len(args) == 1 and len(args[0]) == 40 and '.' not in args[0]:
-            return self._blob_path(args[0])
-        else:
-            return join(self._root, 'files', *args)
+    def path(self, path=None):
+        if path is None:
+            return join(self._root, 'files')
+        if isinstance(path, basestring):
+            path = path.split(os.sep)
+        if len(path) == 1 and len(path[0]) == 40 and '.' not in path[0]:
+            return self._blob_path(path[0])
+        if path[0] == 'assets':
+            return join(assets.PATH, *path[1:])
+        return join(self._root, 'files', *path)
 
     def post(self, content, mime_type=None, digest_to_assert=None, meta=None):
         if meta is None:
@@ -110,9 +115,11 @@ class Blobs(object):
             return File(path, digest, _read_meta(path))
         elif isdir(path):
             return _lsdir(path, digest)
+        elif exists(path):
+            return File(path, digest)
 
     def delete(self, path):
-        self._delete(path, None)
+        self._delete(self.path(path), None)
 
     def populate(self, path=None, recursive=True):
         for __ in self.diff([[1, None]], path or '', recursive):
@@ -127,7 +134,7 @@ class Blobs(object):
             enforce(not [i for i in path if i == '..'],
                     http.BadRequest, 'Relative paths are not allowed')
             is_files = True
-            root = self.path(*path)
+            root = self.path(path)
         checkin_seqno = None
 
         for root, __, files in os.walk(root):
@@ -203,7 +210,6 @@ class Blobs(object):
         os.utime(path, (seqno, seqno))
 
     def _delete(self, path, seqno):
-        path = self.path(path)
         if exists(path + _META_SUFFIX):
             if seqno is None:
                 seqno = self._seqno.next()

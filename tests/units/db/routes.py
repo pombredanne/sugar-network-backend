@@ -964,7 +964,7 @@ class RoutesTest(tests.Test):
 
             @prop.setter
             def prop(self, value):
-                return value + (self['prop'] or 0)
+                return value + (self.orig('prop') or 0)
 
         volume = db.Volume(tests.tmpdir, [TestDocument])
         router = Router(db.Routes(volume))
@@ -1114,6 +1114,10 @@ class RoutesTest(tests.Test):
             def name(self, value):
                 return value
 
+            @db.stored_property()
+            def pubkey(self, value):
+                return value
+
         class Document(db.Resource):
             pass
 
@@ -1144,6 +1148,10 @@ class RoutesTest(tests.Test):
 
             @db.indexed_property(slot=1)
             def name(self, value):
+                return value
+
+            @db.stored_property()
+            def pubkey(self, value):
                 return value
 
         class Document(db.Resource):
@@ -1187,6 +1195,10 @@ class RoutesTest(tests.Test):
 
             @db.indexed_property(slot=1)
             def name(self, value):
+                return value
+
+            @db.stored_property()
+            def pubkey(self, value):
                 return value
 
         class Document(db.Resource):
@@ -1272,6 +1284,10 @@ class RoutesTest(tests.Test):
             def name(self, value):
                 return value
 
+            @db.stored_property()
+            def pubkey(self, value):
+                return value
+
         class Document(db.Resource):
             pass
 
@@ -1341,6 +1357,10 @@ class RoutesTest(tests.Test):
             def name(self, value):
                 return value
 
+            @db.stored_property()
+            def pubkey(self, value):
+                return value
+
         class Document(db.Resource):
             pass
 
@@ -1392,6 +1412,10 @@ class RoutesTest(tests.Test):
 
             @db.indexed_property(slot=1)
             def name(self, value):
+                return value
+
+            @db.stored_property()
+            def pubkey(self, value):
                 return value
 
         class Document(db.Resource):
@@ -1751,11 +1775,11 @@ class RoutesTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated, prefix='A', full_text=True)
+            @db.indexed_property(db.Aggregated, prefix='A', full_text=True)
             def comments(self, value):
                 return value
 
-            @db.stored_property(prefix='B', full_text=False, default='')
+            @db.indexed_property(prefix='B', full_text=False, default='')
             def prop(self, value):
                 return value
 

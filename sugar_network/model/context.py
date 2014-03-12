@@ -16,6 +16,7 @@
 from sugar_network import db, model
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit import svg_to_png
 
 
 class Context(db.Resource):
@@ -27,8 +28,34 @@ class Context(db.Resource):
 
     @type.setter
     def type(self, value):
-        if 'package' in value and 'common' not in self['layer']:
-            self.post('layer', self['layer'] + ['common'])
+        if 'package' in value:
+            self.post('icon', 'assets/package.png')
+            self.post('logo', 'assets/package-logo.png')
+            self.post('artefact_icon', 'assets/package.svg')
+            return value
+
+        svg = None
+        blobs = this.volume.blobs
+        if not self['artefact_icon']:
+            for type_ in ('activity', 'book', 'group'):
+                if type_ in value:
+                    with file(blobs.get('assets/%s.svg' % type_).path) as f:
+                        svg = f.read()
+                    from sugar_network.toolkit.sugar import color_svg
+                    svg = color_svg(svg, self['guid'])
+                    self.post('artefact_icon',
+                            blobs.post(svg, 'image/svg+xml').digest)
+                    break
+        for prop, png, size in (
+                ('icon', 'assets/missing.png', model.ICON_SIZE),
+                ('logo', 'assets/missing-logo.svg', model.LOGO_SIZE),
+                ):
+            if self[prop]:
+                continue
+            if svg is not None:
+                png = blobs.post(svg_to_png(svg, size), 'image/png').digest
+            self.post(prop, png)
+
         return value
 
     @db.indexed_property(db.Localized, slot=1, prefix='S', full_text=True)
@@ -51,17 +78,15 @@ class Context(db.Resource):
     def mime_types(self, value):
         return value
 
-    @db.stored_property(db.Blob, mime_type='image/png', default='missing.png')
+    @db.stored_property(db.Blob, mime_type='image/png')
     def icon(self, value):
         return value
 
-    @db.stored_property(db.Blob, mime_type='image/svg+xml',
-            default='missing.svg')
-    def artifact_icon(self, value):
+    @db.stored_property(db.Blob, mime_type='image/svg+xml')
+    def artefact_icon(self, value):
         return value
 
-    @db.stored_property(db.Blob, mime_type='image/png',
-            default='missing-logo.png')
+    @db.stored_property(db.Blob, mime_type='image/png')
     def logo(self, value):
         return value
 

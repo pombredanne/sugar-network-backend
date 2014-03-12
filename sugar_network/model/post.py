@@ -70,7 +70,7 @@ class Post(db.Resource):
         return value
 
     @db.stored_property(db.Blob, mime_type='image/png',
-            default='missing-logo.png')
+            default='assets/missing-logo.png')
     def preview(self, value):
         return value
 

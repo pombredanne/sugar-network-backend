@@ -74,8 +74,8 @@ class ModelTest(tests.Test):
             'content-type': 'application/vnd.olpc-sugar',
             'content-disposition': 'attachment; filename="Activity-1%s"' % (mimetypes.guess_extension('application/vnd.olpc-sugar') or ''),
             'content-length': str(len(bundle)),
-            'x-seqno': '4',
-            }, blobs.get(blob.digest))
+            'x-seqno': '7',
+            }, dict(blobs.get(blob.digest)))
         self.assertEqual('bundle_id', context)
         self.assertEqual([[1], 0], release['version'])
         self.assertEqual('developer', release['stability'])
@@ -129,8 +129,8 @@ class ModelTest(tests.Test):
             'content-type': 'application/pdf',
             'content-disposition': 'attachment; filename="NonActivity-2.pdf"',
             'content-length': str(len(bundle)),
-            'x-seqno': '4',
-            }, blobs.get(blob.digest))
+            'x-seqno': '7',
+            }, dict(blobs.get(blob.digest)))
         self.assertEqual('bundle_id', context)
         self.assertEqual([[2], 0], release['version'])
         self.assertEqual(['GPL'], release['license'])
@@ -409,7 +409,7 @@ class ModelTest(tests.Test):
             'en': 'It has features one would expect of a standard image viewer, like zoom, rotate, etc.',
             },
             context['description'])
-        self.assertEqual(svg, file(blobs.get(context['artifact_icon']).path).read())
+        self.assertEqual(svg, file(blobs.get(context['artefact_icon']).path).read())
         assert context['icon'] != 'missing.png'
         assert context['logo'] != 'missing-logo.png'
         self.assertEqual('http://wiki.sugarlabs.org/go/Activities/Image_Viewer', context['homepage'])

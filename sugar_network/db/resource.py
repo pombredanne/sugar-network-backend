@@ -29,8 +29,9 @@ class Resource(object):
     #: Whether these resources should be migrated from slave-to-master only
     one_way = False
 
-    def __init__(self, guid, record, cached_props=None):
-        self.props = cached_props or {}
+    def __init__(self, guid, record, origs=None, posts=None):
+        self.origs = origs or {}
+        self.posts = posts or {}
         self.guid = guid
         self.is_new = not bool(guid)
         self.record = record
@@ -69,7 +70,7 @@ class Resource(object):
 
     @layer.setter
     def layer(self, value):
-        orig = self['layer']
+        orig = self.orig('layer')
         if 'deleted' in value:
             if this.request.method != 'POST' and 'deleted' not in orig:
                 self.deleted()
@@ -91,7 +92,7 @@ class Resource(object):
     def restored(self):
         pass
 
-    def get(self, prop):
+    def get(self, prop, default=None):
         """Get document's property value.
 
         :param prop:
@@ -100,15 +101,31 @@ class Resource(object):
             `prop` value
 
         """
+        value = self.posts.get(prop)
+        if value is None:
+            value = self.orig(prop)
+        if value is None:
+            value = default
+        return value
+
+    def orig(self, prop):
+        """Get document's property original value.
+
+        :param prop:
+            property name to get value
+        :returns:
+            `prop` value
+
+        """
         prop = self.metadata[prop]
-        value = self.props.get(prop.name)
+        value = self.origs.get(prop.name)
         if value is None and self.record is not None:
             meta = self.record.get(prop.name)
             if meta is not None:
                 value = meta.get('value')
             else:
                 value = prop.default
-            self.props[prop.name] = value
+            self.origs[prop.name] = value
         return value
 
     def properties(self, props):
@@ -168,18 +185,15 @@ class Resource(object):
             for agg in value.values():
                 agg['seqno'] = self.post_seqno
         if isinstance(prop, Composite):
-            old_value = self[prop.name]
-            if old_value:
-                old_value.update(value)
-                value = old_value
+            orig_value = self.orig(prop.name)
+            if orig_value:
+                orig_value.update(value)
+                value = orig_value
         self.record.set(prop.name, value=value, seqno=self.post_seqno, **meta)
-        self.props[prop.name] = value
-
-    def _set(self, prop, value):
-        self.props[prop] = value
+        self.posts[prop.name] = value
 
     def __contains__(self, prop):
-        return prop in self.props
+        return prop in self.origs or prop in self.posts
 
     def __getitem__(self, prop):
         return self.get(prop)

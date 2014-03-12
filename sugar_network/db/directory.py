@@ -202,7 +202,7 @@ class Directory(object):
         if doc.post_seqno is not None and doc.exists:
             # No need in after-merge event, further commit event
             # is enough to avoid increasing events flow
-            self._index.store(guid, doc.props, self._preindex)
+            self._index.store(guid, doc.origs, self._preindex)
 
         return seqno
 
@@ -227,18 +227,16 @@ class Directory(object):
         doc = self.resource(guid, self._storage.get(guid), changes)
         for prop in self.metadata:
             enforce(doc[prop] is not None, 'Empty %r property', prop)
-        return doc.props
+        return doc
 
     def _prestore(self, guid, changes, event):
-        doc = self.resource(guid, self._storage.get(guid))
+        doc = self.resource(guid, self._storage.get(guid), posts=changes)
         doc.post_seqno = self._seqno.next()
+        for prop in changes.keys():
+            doc.post(prop, changes[prop])
         for prop in self.metadata.keys():
-            value = changes.get(prop)
-            if value is None:
-                enforce(doc[prop] is not None, 'Empty %r property', prop)
-            else:
-                doc.post(prop, value)
-        return doc.props
+            enforce(doc[prop] is not None, 'Empty %r property', prop)
+        return doc
 
     def _postdelete(self, guid, event):
         self._storage.delete(guid)

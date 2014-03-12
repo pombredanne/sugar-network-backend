@@ -13,12 +13,13 @@ from sugar_network.client import IPCConnection, Connection, keyfile
 from sugar_network.model.context import Context
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import Request
-from sugar_network.toolkit import i18n, http, coroutine, enforce
+from sugar_network.toolkit.sugar import color_svg
+from sugar_network.toolkit import svg_to_png, i18n, http, coroutine, enforce
 
 
 class ContextTest(tests.Test):
 
-    def test_SetCommonLayerForPackages(self):
+    def test_PackageImages(self):
         volume = self.start_master()
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
@@ -28,25 +29,47 @@ class ContextTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        self.assertEqual(['common'], conn.get(['context', guid, 'layer']))
+
+        assert conn.request('GET', ['context', guid, 'artefact_icon']).content == file(volume.blobs.get('assets/package.svg').path).read()
+        assert conn.request('GET', ['context', guid, 'icon']).content == file(volume.blobs.get('assets/package.png').path).read()
+        assert conn.request('GET', ['context', guid, 'logo']).content == file(volume.blobs.get('assets/package-logo.png').path).read()
+
+    def test_ContextImages(self):
+        volume = self.start_master()
+        conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         guid = conn.post(['context'], {
-            'type': 'package',
+            'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            'layer': 'foo',
             })
-        self.assertEqual(['foo', 'common'], conn.get(['context', guid, 'layer']))
+        svg = color_svg(file(volume.blobs.get('assets/activity.svg').path).read(), guid)
+        assert conn.request('GET', ['context', guid, 'artefact_icon']).content == svg
+        assert conn.request('GET', ['context', guid, 'icon']).content == svg_to_png(svg, 55).getvalue()
+        assert conn.request('GET', ['context', guid, 'logo']).content == svg_to_png(svg, 140).getvalue()
 
         guid = conn.post(['context'], {
-            'type': 'package',
+            'type': 'book',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            'layer': ['common', 'bar'],
             })
-        self.assertEqual(['common', 'bar'], conn.get(['context', guid, 'layer']))
+        svg = color_svg(file(volume.blobs.get('assets/book.svg').path).read(), guid)
+        assert conn.request('GET', ['context', guid, 'artefact_icon']).content == svg
+        assert conn.request('GET', ['context', guid, 'icon']).content == svg_to_png(svg, 55).getvalue()
+        assert conn.request('GET', ['context', guid, 'logo']).content == svg_to_png(svg, 140).getvalue()
+
+        guid = conn.post(['context'], {
+            'type': 'group',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        svg = color_svg(file(volume.blobs.get('assets/group.svg').path).read(), guid)
+        assert conn.request('GET', ['context', guid, 'artefact_icon']).content == svg
+        assert conn.request('GET', ['context', guid, 'icon']).content == svg_to_png(svg, 55).getvalue()
+        assert conn.request('GET', ['context', guid, 'logo']).content == svg_to_png(svg, 140).getvalue()
 
     def test_Releases(self):
         volume = self.start_master()

@@ -379,7 +379,10 @@ class ResourceTest(tests.Test):
     def test_wipe(self):
 
         class Document(db.Resource):
-            pass
+
+            @db.stored_property()
+            def prop(self, value):
+                return value
 
         directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
         guid = directory.create({'prop': '1'})
@@ -391,6 +394,93 @@ class ResourceTest(tests.Test):
         directory.wipe()
         self.assertEqual([], [i.guid for i in directory.find()[0]])
         assert not exists('db/document')
+
+    def test_ChangePassedPropsInSetters(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop1(self, value):
+                return value
+
+            @db.stored_property()
+            def prop2(self, value):
+                return value
+
+            @prop2.setter
+            def prop2(self, value):
+                self.post('prop1', value + '!')
+                self.post('prop3', value + '!')
+                return value
+
+            @db.stored_property()
+            def prop3(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        guid = directory.create({'guid': 'guid', 'prop1': 'set1', 'prop2': 'set2', 'prop3': 'set3'})
+
+        doc = directory.get(guid)
+        self.assertEqual('set2!', doc['prop1'])
+        self.assertEqual('set2!', doc['prop3'])
+
+    def test_ChangeDefaultPropsInSetters(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(default='default')
+            def prop1(self, value):
+                return value
+
+            @db.stored_property()
+            def prop2(self, value):
+                return value
+
+            @prop2.setter
+            def prop2(self, value):
+                self.post('prop1', value + '!')
+                self.post('prop3', value + '!')
+                return value
+
+            @db.stored_property(default='default')
+            def prop3(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        guid = directory.create({'guid': 'guid', 'prop2': 'set2'})
+
+        doc = directory.get(guid)
+        self.assertEqual('set2!', doc['prop1'])
+        self.assertEqual('set2!', doc['prop3'])
+
+    def test_SetMissedMandatoryPropsInSetters(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop1(self, value):
+                return value
+
+            @db.stored_property()
+            def prop2(self, value):
+                return value
+
+            @prop2.setter
+            def prop2(self, value):
+                self.post('prop1', value + '!')
+                self.post('prop3', value + '!')
+                return value
+
+            @db.stored_property()
+            def prop3(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        guid = directory.create({'guid': 'guid', 'prop2': 'set2'})
+
+        doc = directory.get(guid)
+        self.assertEqual('set2!', doc['prop1'])
+        self.assertEqual('set2!', doc['prop3'])
 
 
 class _SessionSeqno(object):

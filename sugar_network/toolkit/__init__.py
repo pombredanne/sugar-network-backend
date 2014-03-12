@@ -432,9 +432,12 @@ class mkdtemp(str):
             shutil.rmtree(self)
 
 
-def svg_to_png(data, w, h):
+def svg_to_png(data, w, h=None):
     import rsvg
     import cairo
+
+    if h is None:
+        h = w
 
     svg = rsvg.Handle(data=data)
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)

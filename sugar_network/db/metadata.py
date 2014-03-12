@@ -102,10 +102,16 @@ class Metadata(dict):
 
             self[prop.name] = prop
 
+        self._keys = dict.keys(self)
+        self._keys.sort()
+
     @property
     def name(self):
         """Resource type name."""
         return self._name
+
+    def keys(self):
+        return self._keys
 
     def __getitem__(self, prop_name):
         enforce(prop_name in self, http.NotFound,

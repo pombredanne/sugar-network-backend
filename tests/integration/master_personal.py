@@ -77,7 +77,7 @@ class MasterPersonalTest(tests.Test):
             'title': 'title_1',
             'summary': 'summary',
             'description': 'description',
-            'artifact_icon': 'artifact_icon',
+            'artefact_icon': 'artefact_icon',
             'logo': 'logo1',
             'layer': 'pilot',
             })
@@ -86,7 +86,7 @@ class MasterPersonalTest(tests.Test):
             'title': 'title_2',
             'summary': 'summary',
             'description': 'description',
-            'artifact_icon': 'artifact_icon',
+            'artefact_icon': 'artefact_icon',
             'logo': 'logo2',
             'layer': 'pilot',
             })
@@ -97,7 +97,7 @@ class MasterPersonalTest(tests.Test):
             'title': 'title_3',
             'summary': 'summary',
             'description': 'description',
-            'artifact_icon': 'artifact_icon',
+            'artefact_icon': 'artefact_icon',
             'logo': 'logo3',
             'layer': 'pilot',
             })
@@ -106,7 +106,7 @@ class MasterPersonalTest(tests.Test):
             'title': 'title_4',
             'summary': 'summary',
             'description': 'description',
-            'artifact_icon': 'artifact_icon',
+            'artefact_icon': 'artefact_icon',
             'logo': 'logo4',
             'layer': 'pilot',
             })
@@ -133,7 +133,7 @@ class MasterPersonalTest(tests.Test):
             'title': 'title_5',
             'summary': 'summary',
             'description': 'description',
-            'artifact_icon': 'artifact_icon',
+            'artefact_icon': 'artefact_icon',
             'logo': 'logo5',
             'layer': 'pilot',
             })
@@ -146,7 +146,7 @@ class MasterPersonalTest(tests.Test):
             'title': 'title_6',
             'summary': 'summary',
             'description': 'description',
-            'artifact_icon': 'artifact_icon',
+            'artefact_icon': 'artefact_icon',
             'logo': 'logo6',
             'layer': 'pilot',
             })
