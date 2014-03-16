@@ -25,6 +25,14 @@ class SlaveTest(tests.Test):
     def setUp(self):
         tests.Test.setUp(self)
 
+        class statvfs(object):
+            f_blocks = 100
+            f_bfree = 999999999
+            f_frsize = 1
+
+        self.statvfs = statvfs
+        self.override(os, 'statvfs', lambda *args: statvfs())
+
         class Document(db.Resource):
 
             @db.indexed_property(db.Localized, slot=1, prefix='N', full_text=True)

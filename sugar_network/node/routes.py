@@ -113,22 +113,6 @@ class NodeRoutes(db.Routes, FrontRoutes):
                 content_type='application/json', content=release)
         return blob.digest
 
-    @route('PUT', [None, None], cmd='attach', acl=ACL.AUTH | ACL.SUPERUSER)
-    def attach(self, request):
-        # TODO Reading layer here is a race
-        directory = self.volume[request.resource]
-        doc = directory.get(request.guid)
-        layer = list(set(doc['layer']) | set(request.content))
-        directory.update(request.guid, {'layer': layer})
-
-    @route('PUT', [None, None], cmd='detach', acl=ACL.AUTH | ACL.SUPERUSER)
-    def detach(self, request):
-        # TODO Reading layer here is a race
-        directory = self.volume[request.resource]
-        doc = directory.get(request.guid)
-        layer = list(set(doc['layer']) - set(request.content))
-        directory.update(request.guid, {'layer': layer})
-
     @route('GET', ['context', None], cmd='solve',
             arguments={'requires': list, 'stability': list},
             mime_type='application/json')

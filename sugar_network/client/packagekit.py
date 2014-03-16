@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2013 Aleksey Lim
+# Copyright (C) 2010-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import re
 import logging
 
 from sugar_network.toolkit import lsb_release, gbus, enforce
@@ -37,7 +38,23 @@ def mtime():
         return os.stat(_pms_path).st_mtime
 
 
-def resolve(names):
+def install(names):
+    ids = [i['pk_id'] for i in _resolve(names)]
+    while ids:
+        chunk = ids[:min(len(ids), _PK_MAX_INSTALL)]
+        del ids[:len(chunk)]
+
+        _logger.debug('Install %r', chunk)
+
+        resp = gbus.call(_pk, 'InstallPackages', True, chunk)
+        enforce(resp.error_code in (
+                    'package-already-installed',
+                    'all-packages-already-installed', None),
+                'Installation failed: %s (%s)',
+                resp.error_details, resp.error_code)
+
+
+def _resolve(names):
     result = {}
 
     while names:
@@ -52,22 +69,6 @@ def resolve(names):
         result.update(resp.packages)
 
     return result
-
-
-def install(packages):
-    ids = [i['pk_id'] for i in packages]
-    while ids:
-        chunk = ids[:min(len(ids), _PK_MAX_INSTALL)]
-        del ids[:len(chunk)]
-
-        _logger.debug('Install %r', chunk)
-
-        resp = gbus.call(_pk, 'InstallPackages', True, chunk)
-        enforce(resp.error_code in (
-                    'package-already-installed',
-                    'all-packages-already-installed', None),
-                'Installation failed: %s (%s)',
-                resp.error_details, resp.error_code)
 
 
 class _Response(object):
@@ -104,10 +105,8 @@ def _pk(result, op, *args):
         resp.error_details = details
 
     def Package_cb(status, pk_id, summary):
-        from sugar_network.client import solver
-
         package_name, version, arch, __ = pk_id.split(';')
-        clean_version = solver.try_cleanup_distro_version(version)
+        clean_version = _cleanup_distro_version(version)
         if not clean_version:
             _logger.warn('Cannot parse distribution version "%s" '
                     'for package "%s"', version, package_name)
@@ -117,7 +116,7 @@ def _pk(result, op, *args):
                 'pk_id': str(pk_id),
                 'version': clean_version,
                 'name': package_name,
-                'arch': solver.canonicalize_machine(arch),
+                'arch': _canonicalize_machine(arch),
                 'installed': (status == 'installed'),
                 }
         _logger.debug('Found: %r', package)
@@ -148,6 +147,51 @@ def _pk(result, op, *args):
         op(*args)
 
 
+def _canonicalize_machine(arch):
+    arch = arch.lower()
+    if arch == 'x86':
+        return 'i386'
+    elif arch == 'amd64':
+        return 'x86_64'
+    elif arch == 'power macintosh':
+        return 'ppc'
+    elif arch == 'i86pc':
+        return 'i686'
+
+
+def _cleanup_distro_version(version):
+    if ':' in version:
+        # Skip 'epoch'
+        version = version.split(':', 1)[1]
+    version = version.replace('_', '-')
+    if '~' in version:
+        version, suffix = version.split('~', 1)
+        if suffix.startswith('pre'):
+            suffix = suffix[3:]
+        suffix = '-pre' + (_cleanup_distro_version(suffix) or '')
+    else:
+        suffix = ''
+    match = _VERSION_RE.match(version)
+    if match:
+        major, version, revision = match.groups()
+        if major is not None:
+            version = major[:-1].rstrip('.') + '.' + version
+        if revision is not None:
+            version = '%s-%s' % (version, revision[2:])
+        return version + suffix
+    return None
+
+
+_DOTTED_RE = r'[0-9]+(?:\.[0-9]+)*'
+# Matche a version number that would be a valid version without modification
+_RELEASE_RE = '(?:%s)(?:-(?:pre|rc|post|)(?:%s))*' % (_DOTTED_RE, _DOTTED_RE)
+# This matches the interesting bits of distribution version numbers
+# (first matching group is for Java-style 6b17 or 7u9 syntax, or "major")
+_VERSION_RE = re.compile(
+        r'(?:[a-z])?({ints}\.?[bu])?({zero})(-r{ints})?'.format(
+            zero=_RELEASE_RE, ints=_DOTTED_RE))
+
+
 if __name__ == '__main__':
     import sys
     from pprint import pprint
@@ -158,6 +202,6 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     if sys.argv[1] == 'install':
-        install(resolve(sys.argv[2:]).values())
+        install(_resolve(sys.argv[2:]).values())
     else:
-        pprint(resolve(sys.argv[1:]))
+        pprint(_resolve(sys.argv[1:]))

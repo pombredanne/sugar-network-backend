@@ -15,13 +15,15 @@ import subprocess
 from os.path import dirname, join, exists, abspath, isfile
 
 from M2Crypto import DSA
-from gevent import monkey
 
-from sugar_network.toolkit import coroutine, http, mountpoints, Option, gbus, i18n, languages, parcel
+from sugar_network.toolkit import coroutine
+coroutine.inject()
+
+from sugar_network.toolkit import http, mountpoints, Option, gbus, i18n, languages, parcel
 from sugar_network.toolkit.router import Router, Request
 from sugar_network.toolkit.coroutine import this
-from sugar_network.client import IPCConnection, journal, routes as client_routes
-from sugar_network.client.routes import ClientRoutes, _Auth
+#from sugar_network.client import IPCConnection, journal, routes as client_routes
+#from sugar_network.client.routes import ClientRoutes, _Auth
 from sugar_network import db, client, node, toolkit, model
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
@@ -36,11 +38,6 @@ root = abspath(dirname(__file__))
 #tmproot = join(root, '.tmp')
 tmproot = '/tmp/sugar_network.tests'
 tmpdir = None
-
-monkey.patch_socket()
-monkey.patch_select()
-monkey.patch_ssl()
-monkey.patch_time()
 
 gettext._default_localedir = join(root, 'data', 'locale')
 languages.LANGUAGES = ['en', 'es', 'fr']
@@ -99,7 +96,8 @@ class Test(unittest.TestCase):
         client.cache_limit_percent.value = 0
         client.cache_lifetime.value = 0
         client.keyfile.value = join(root, 'data', UID)
-        client_routes._RECONNECT_TIMEOUT = 0
+        #client_routes._RECONNECT_TIMEOUT = 0
+        #journal._ds_root = tmpdir + '/datastore'
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
@@ -107,7 +105,6 @@ class Test(unittest.TestCase):
         obs._repos = {'base': [], 'presolve': []}
         http._RECONNECTION_NUMBER = 0
         toolkit.cachedir.value = tmpdir + '/tmp'
-        journal._ds_root = tmpdir + '/datastore'
         gbus.join()
 
         db.Volume.model = [
@@ -117,11 +114,11 @@ class Test(unittest.TestCase):
                 'sugar_network.model.report',
                 ]
 
-        if tmp_root is None:
-            self.override(_Auth, 'profile', lambda self: {
-                'name': 'test',
-                'pubkey': PUBKEY,
-                })
+        #if tmp_root is None:
+        #    self.override(_Auth, 'profile', lambda self: {
+        #        'name': 'test',
+        #        'pubkey': PUBKEY,
+        #        })
 
         os.makedirs('tmp')
 
@@ -286,9 +283,11 @@ class Test(unittest.TestCase):
         coroutine.sleep(.1)
         return pid
 
-    def start_client(self, classes=None, routes=ClientRoutes):
+    def start_client(self, classes=None, routes=None):
         if classes is None:
             classes = [User, Context]
+        if routes is None:
+            routes = ClientRoutes
         volume = db.Volume('client', classes)
         self.client_routes = routes(volume, client.api.value)
         self.client = coroutine.WSGIServer(

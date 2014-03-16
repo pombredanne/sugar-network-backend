@@ -361,7 +361,7 @@ class NodeTest(tests.Test):
             'title': 'title1',
             'summary': 'summary',
             'description': 'description',
-            'artifact_icon': '',
+            'artefact_icon': '',
             'icon': '',
             'logo': '',
             })
@@ -562,6 +562,7 @@ class NodeTest(tests.Test):
 
         self.assertEqual({
             'activity': {
+                'title': 'activity',
                 'blob': activity_blob,
                 'command': ['activity', 'true'],
                 'version': [[1], 0],
@@ -569,6 +570,7 @@ class NodeTest(tests.Test):
                 'unpack_size': len(activity_unpack),
                 },
             'dep': {
+                'title': 'dep',
                 'blob': dep_blob,
                 'version': [[2], 0],
                 'size': len(dep_pack),
@@ -638,6 +640,7 @@ class NodeTest(tests.Test):
 
         self.assertEqual({
             'activity': {
+                'title': 'activity',
                 'blob': activity_blob,
                 'command': ['activity', 'true'],
                 'version': [[1], 0],
@@ -645,6 +648,7 @@ class NodeTest(tests.Test):
                 'unpack_size': len(activity_unpack),
                 },
             'dep': {
+                'title': 'dep',
                 'blob': dep_blob,
                 'version': [[2], 0],
                 'size': len(dep_pack),

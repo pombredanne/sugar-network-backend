@@ -118,14 +118,13 @@ class Unauthorized(http.Unauthorized):
 class Request(dict):
 
     def __init__(self, environ=None, method=None, path=None, cmd=None,
-            content=None, content_stream=None, content_type=None, session=None,
+            content=None, content_stream=None, content_type=None,
             principal=None, **kwargs):
         dict.__init__(self)
 
         self.path = []
         self.cmd = None
         self.environ = {}
-        self.session = session or {}
         self.principal = principal
 
         self._content = _NOT_SET
@@ -756,15 +755,17 @@ class Router(object):
             commons['prop'] = request.prop
         try:
             for event in _event_stream(request, stream):
-                event.update(commons)
-                this.localcast(event)
+                if 'event' not in event:
+                    commons.update(event)
+                else:
+                    event.update(commons)
+                    this.localcast(event)
         except Exception, error:
             _logger.exception('Event stream %r failed', request)
             event = {'event': 'failure',
                      'exception': type(error).__name__,
                      'error': str(error),
                      }
-            event.update(request.session)
             event.update(commons)
             this.localcast(event)
 

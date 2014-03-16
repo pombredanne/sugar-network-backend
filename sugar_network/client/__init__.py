@@ -40,16 +40,16 @@ def profile_path(*args):
     return join(root_dir, *args)
 
 
-api_url = Option(
-        'url to connect to Sugar Network server API',
+api = Option(
+        'url to connect to Sugar Network node API',
         default='http://node-devel.sugarlabs.org', short_option='-a',
-        name='api-url')
+        name='api')
 
 certfile = Option(
-        'path to SSL certificate file to connect to server via HTTPS')
+        'path to SSL certificate file to connect to node via HTTPS')
 
 no_check_certificate = Option(
-        'do not check the server certificate against the available '
+        'do not check the node certificate against the available '
         'certificate authorities',
         default=False, type_cast=Option.bool_cast, action='store_true')
 
@@ -57,10 +57,10 @@ local_root = Option(
         'path to the directory to keep all local data',
         default=profile_path('network'), name='local_root')
 
-server_mode = Option(
-        'start server to share local documents',
+node_mode = Option(
+        'start node to share local documents',
         default=False, type_cast=Option.bool_cast,
-        action='store_true', name='server-mode')
+        action='store_true', name='node-mode')
 
 delayed_start = Option(
         'immediate start only database and the rest on getting '
@@ -86,10 +86,10 @@ layers = Option(
         default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
         name='layers')
 
-discover_server = Option(
-        'discover servers in local network instead of using --api-url',
+discover_node = Option(
+        'discover nodes in local network instead of using --api',
         default=False, type_cast=Option.bool_cast,
-        action='store_true', name='discover_server')
+        action='store_true', name='discover-node')
 
 cache_limit = Option(
         'the minimal disk free space, in bytes, to preserve while recycling '
@@ -113,19 +113,19 @@ cache_timeout = Option(
         default=3600, type_cast=int, name='cache-timeout')
 
 login = Option(
-        'Sugar Labs account to connect to Sugar Network API server; '
+        'Sugar Labs account to connect to Sugar Network API node; '
         'should be set only if either password is provided or public key '
         'for Sugar Labs account was uploaded to the Sugar Network',
         name='login', short_option='-l')
 
 password = Option(
-        'Sugar Labs account password to connect to Sugar Network API server '
+        'Sugar Labs account password to connect to Sugar Network API node '
         'using Basic authentication; if omitted, keys based authentication '
         'will be used',
         name='password', short_option='-p')
 
 keyfile = Option(
-        'path to RSA private key to connect to Sugar Network API server',
+        'path to RSA private key to connect to Sugar Network API node',
         name='keyfile', short_option='-k', default='~/.ssh/sugar-network')
 
 
@@ -173,13 +173,13 @@ def stability(context):
 
 def Connection(url=None, **args):
     if url is None:
-        url = api_url.value
+        url = api.value
     return http.Connection(url, verify=not no_check_certificate.value, **args)
 
 
 def IPCConnection():
     return http.Connection(
-            api_url='http://127.0.0.1:%s' % ipc_port.value,
+            api='http://127.0.0.1:%s' % ipc_port.value,
             # Online ipc->client->node request might fail if node connection
             # is lost in client process, so, re-send ipc request immediately
             # to retrive data from client in offline mode without propagating

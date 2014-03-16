@@ -140,9 +140,10 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
             release['license'] = this.request['license']
             if isinstance(release['license'], basestring):
                 release['license'] = [release['license']]
+        release['stability'] = 'stable'
         release['bundles'] = {
                 '*-*': {
-                    'bundle': blob.digest,
+                    'blob': blob.digest,
                     },
                 }
     else:

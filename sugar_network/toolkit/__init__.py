@@ -21,7 +21,6 @@ import shutil
 import logging
 import tempfile
 import collections
-from copy import deepcopy
 from cStringIO import StringIO
 from os.path import exists, join, islink, isdir, dirname, basename, abspath
 from os.path import lexists, isfile
@@ -497,14 +496,12 @@ class Bin(object):
     def __init__(self, path, default_value=None):
         self._path = abspath(path)
         self.value = default_value
-        self._orig_value = None
 
         if exists(self._path):
             with file(self._path) as f:
                 self.value = json.load(f)
         else:
             self.commit()
-        self._orig_value = deepcopy(self.value)
 
     @property
     def mtime(self):
@@ -514,26 +511,32 @@ class Bin(object):
             return 0
 
     def commit(self):
-        """Store current value in a file.
-
-        :returns:
-            `True` if commit was happened
-
-        """
-        if self.value == self._orig_value:
-            return False
+        """Store current value in a file."""
         with new_file(self._path) as f:
             json.dump(self.value, f)
             f.flush()
             os.fsync(f.fileno())
-        self._orig_value = deepcopy(self.value)
-        return True
 
     def __enter__(self):
-        return self
+        return self.value
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.commit()
+
+    def __contains__(self, key):
+        return key in self.value
+
+    def __getitem__(self, key):
+        return self.value.get(key)
+
+    def __setitem__(self, key, value):
+        self.value[key] = value
+
+    def __delitem__(self, key):
+        del self.value[key]
+
+    def __getattr__(self, name):
+        return getattr(self.value, name)
 
 
 class Seqno(Bin):

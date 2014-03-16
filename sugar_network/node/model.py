@@ -21,7 +21,7 @@ from sugar_network.model import Release, context as base_context
 from sugar_network.node import obs
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import spec, sat, http, coroutine, enforce
+from sugar_network.toolkit import spec, sat, http, coroutine, i18n, enforce
 
 
 _logger = logging.getLogger('node.model')
@@ -133,7 +133,7 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
             top_context.guid, lsb_id, lsb_release, stability, top_requires)
 
     def rate_release(digest, release):
-        return [command in release['commands'],
+        return [command in release.get('commands', []),
                 _STABILITY_RATES.get(release['stability']) or 0,
                 release['version'],
                 digest,
@@ -186,17 +186,23 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
             for release in reversed(candidates):
                 digest = release[-1]
                 release = releases[digest]['value']
-                release_info = {'version': release['version'], 'blob': digest}
+                release_info = {
+                        'title': i18n.decode(context['title'],
+                            this.request.accept_language),
+                        'version': release['version'],
+                        'blob': digest,
+                        }
                 blob = volume.blobs.get(digest)
                 if blob is not None:
                     release_info['size'] = blob.size
+                    release_info['content-type'] = blob['content-type']
                 unpack_size = release['bundles']['*-*'].get('unpack_size')
                 if unpack_size is not None:
                     release_info['unpack_size'] = unpack_size
                 requires = release.get('requires') or {}
                 if top_requires and context.guid == top_context.guid:
                     requires.update(top_requires)
-                if context.guid == top_context.guid:
+                if context.guid == top_context.guid and 'commands' in release:
                     cmd = release['commands'].get(command)
                     if cmd is None:
                         cmd_name, cmd = release['commands'].items()[0]

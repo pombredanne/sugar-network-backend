@@ -269,7 +269,7 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual(
-                {context: {'command': ('activity', 3), 'blob': '3', 'version': [[3], 0]}},
+                {context: {'command': ('activity', 3), 'title': '', 'blob': '3', 'version': [[3], 0]}},
                 model.solve(volume, context))
 
         context = volume['context'].create({
@@ -280,7 +280,7 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual(
-                {context: {'command': ('activity', 3), 'blob': '3', 'version': [[3], 0]}},
+                {context: {'command': ('activity', 3), 'title': '', 'blob': '3', 'version': [[3], 0]}},
                 model.solve(volume, context))
 
     def test_solve_SortByStability(self):
@@ -295,7 +295,7 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual(
-                {context: {'command': ('activity', 2), 'blob': '2', 'version': [[2], 0]}},
+                {context: {'command': ('activity', 2), 'title': '', 'blob': '2', 'version': [[2], 0]}},
                 model.solve(volume, context))
 
     def test_solve_CollectDeps(self):
@@ -334,10 +334,10 @@ class ModelTest(tests.Test):
             })
 
         self.assertEqual({
-            'context1': {'blob': '1', 'version': [[1], 0], 'command': ('activity', 'command')},
-            'context2': {'blob': '2', 'version': [[2], 0]},
-            'context3': {'blob': '3', 'version': [[3], 0]},
-            'context4': {'blob': '4', 'version': [[4], 0]},
+            'context1': {'title': '', 'blob': '1', 'version': [[1], 0], 'command': ('activity', 'command')},
+            'context2': {'title': '', 'blob': '2', 'version': [[2], 0]},
+            'context3': {'title': '', 'blob': '3', 'version': [[3], 0]},
+            'context4': {'title': '', 'blob': '4', 'version': [[4], 0]},
             },
             model.solve(volume, 'context1'))
 
@@ -370,12 +370,12 @@ class ModelTest(tests.Test):
             })
 
         self.assertEqual({
-            'context1': {'blob': '1', 'version': [[1], 0], 'command': ('activity', 1)},
-            'context2': {'blob': '2', 'version': [[2], 0]},
+            'context1': {'title': '', 'blob': '1', 'version': [[1], 0], 'command': ('activity', 1)},
+            'context2': {'title': '', 'blob': '2', 'version': [[2], 0]},
             },
             model.solve(volume, 'context1', command='activity'))
         self.assertEqual({
-            'context1': {'blob': '1', 'version': [[1], 0], 'command': ('application', 2)},
+            'context1': {'title': '', 'blob': '1', 'version': [[1], 0], 'command': ('application', 2)},
             },
             model.solve(volume, 'context1', command='application'))
 
@@ -401,8 +401,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-                'dep': {'blob': '2', 'version': [[2], 0]},
+                'context1': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+                'dep': {'title': '', 'blob': '2', 'version': [[2], 0]},
                 },
                 model.solve(volume, 'context1'))
 
@@ -414,8 +414,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-                'dep': {'blob': '3', 'version': [[3], 0]},
+                'context1': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+                'dep': {'title': '', 'blob': '3', 'version': [[3], 0]},
                 },
                 model.solve(volume, 'context1'))
 
@@ -427,8 +427,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-                'dep': {'blob': '5', 'version': [[5], 0]},
+                'context1': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+                'dep': {'title': '', 'blob': '5', 'version': [[5], 0]},
                 },
                 model.solve(volume, 'context1'))
 
@@ -440,8 +440,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-                'dep': {'blob': '5', 'version': [[5], 0]},
+                'context1': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+                'dep': {'title': '', 'blob': '5', 'version': [[5], 0]},
                 },
                 model.solve(volume, 'context1'))
 
@@ -453,8 +453,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-                'dep': {'blob': '4', 'version': [[4], 0]},
+                'context1': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+                'dep': {'title': '', 'blob': '4', 'version': [[4], 0]},
                 },
                 model.solve(volume, 'context1'))
 
@@ -466,8 +466,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-                'dep': {'blob': '3', 'version': [[3], 0]},
+                'context1': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+                'dep': {'title': '', 'blob': '3', 'version': [[3], 0]},
                 },
                 model.solve(volume, 'context1'))
 
@@ -479,8 +479,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-                'dep': {'blob': '1', 'version': [[1], 0]},
+                'context1': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+                'dep': {'title': '', 'blob': '1', 'version': [[1], 0]},
                 },
                 model.solve(volume, 'context1'))
 
@@ -516,8 +516,8 @@ class ModelTest(tests.Test):
             })
 
         self.assertEqual({
-            'context1': {'blob': '6', 'version': [[1], 0], 'command': ('activity', 6)},
-            'context4': {'blob': '5', 'version': [[1], 0]},
+            'context1': {'title': '', 'blob': '6', 'version': [[1], 0], 'command': ('activity', 6)},
+            'context4': {'title': '', 'blob': '5', 'version': [[1], 0]},
             },
             model.solve(volume, 'context1'))
 
@@ -545,8 +545,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-            'dep': {'blob': '2', 'version': [[2], 0]},
+            'context': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+            'dep': {'title': '', 'blob': '2', 'version': [[2], 0]},
             },
             model.solve(volume, 'context'))
 
@@ -560,8 +560,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-            'dep': {'blob': '4', 'version': [[4], 0]},
+            'context': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+            'dep': {'title': '', 'blob': '4', 'version': [[4], 0]},
             },
             model.solve(volume, 'context'))
 
@@ -575,8 +575,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-            'dep': {'blob': '3', 'version': [[3], 0]},
+            'context': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+            'dep': {'title': '', 'blob': '3', 'version': [[3], 0]},
             },
             model.solve(volume, 'context'))
 
@@ -602,7 +602,7 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+            'context': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
             },
             model.solve(volume, 'context'))
 
@@ -614,8 +614,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-            'dep': {'blob': '5', 'version': [[5], 0]},
+            'context': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+            'dep': {'title': '', 'blob': '5', 'version': [[5], 0]},
             },
             model.solve(volume, 'context'))
 
@@ -627,8 +627,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
-            'dep': {'blob': '4', 'version': [[4], 0]},
+            'context': {'title': '', 'blob': '10', 'version': [[1], 0], 'command': ('activity', 'command')},
+            'dep': {'title': '', 'blob': '4', 'version': [[4], 0]},
             },
             model.solve(volume, 'context'))
 
@@ -682,7 +682,7 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
+            'context': {'title': '', 'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': [[1], 0]},
             },
             model.solve(volume, context, lsb_id='Ubuntu', lsb_release='10.04'))
@@ -700,8 +700,8 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
-            'dep': {'blob': '2', 'version': [[1], 0]},
+            'context': {'title': '', 'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
+            'dep': {'title': '', 'blob': '2', 'version': [[1], 0]},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': [[1], 0]},
             },
             model.solve(volume, context, lsb_id='Ubuntu', lsb_release='10.04'))
@@ -724,7 +724,7 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
+            'context': {'title': '', 'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package1': {'packages': ['bin1', 'bin2', 'devel1', 'devel2'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Ubuntu'))
@@ -745,7 +745,7 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
+            'context': {'title': '', 'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package2': {'packages': ['bin'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Ubuntu', lsb_release='fake'))
@@ -772,17 +772,17 @@ class ModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
+            'context': {'title': '', 'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context))
         self.assertEqual({
-            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
+            'context': {'title': '', 'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Fake'))
         self.assertEqual({
-            'context': {'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
+            'context': {'title': '', 'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Fake', lsb_release='fake'))

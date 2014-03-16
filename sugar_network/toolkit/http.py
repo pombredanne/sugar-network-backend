@@ -112,8 +112,8 @@ class Connection(object):
 
     _Session = None
 
-    def __init__(self, api='', auth=None, max_retries=0, **session_args):
-        self.api = api
+    def __init__(self, url='', auth=None, max_retries=0, **session_args):
+        self.url = url
         self.auth = auth
         self._max_retries = max_retries
         self._session_args = session_args
@@ -121,7 +121,7 @@ class Connection(object):
         self._nonce = None
 
     def __repr__(self):
-        return '<Connection api=%s>' % self.api
+        return '<Connection url=%s>' % self.url
 
     def __enter__(self):
         return self
@@ -183,13 +183,10 @@ class Connection(object):
         finally:
             if isinstance(dst, basestring):
                 f.close()
+        return reply
 
     def upload(self, path, data, **kwargs):
-        if isinstance(data, basestring):
-            with file(data, 'rb') as f:
-                reply = self.request('POST', path, f, params=kwargs)
-        else:
-            reply = self.request('POST', path, data, params=kwargs)
+        reply = self.request('POST', path, data, params=kwargs)
         if reply.headers.get('Content-Type') == 'application/json':
             return json.loads(reply.content)
         else:
@@ -203,7 +200,7 @@ class Connection(object):
         if not path:
             path = ['']
         if not isinstance(path, basestring):
-            path = '/'.join([i.strip('/') for i in [self.api] + path])
+            path = '/'.join([i.strip('/') for i in [self.url] + path])
 
         try_ = 0
         while True:
@@ -283,7 +280,7 @@ class Connection(object):
                 break
             path = reply.headers['location']
             if path.startswith('/'):
-                path = self.api + path
+                path = self.url + path
 
         if request.method != 'HEAD':
             if reply.headers.get('Content-Type') == 'application/json':
@@ -432,7 +429,7 @@ class _Subscription(object):
                 if try_ == 0:
                     raise
                 toolkit.exception('Failed to read from %r subscription, '
-                        'will resubscribe', self._client.api)
+                        'will resubscribe', self._client.url)
                 self._content = None
         return _parse_event(line)
 
@@ -441,7 +438,7 @@ class _Subscription(object):
             return self._content
         params.update(self._condition)
         params['cmd'] = 'subscribe'
-        _logger.debug('Subscribe to %r, %r', self._client.api, params)
+        _logger.debug('Subscribe to %r, %r', self._client.url, params)
         response = self._client.request('GET', params=params)
         self._content = response.raw
         return self._content

@@ -1306,8 +1306,8 @@ class RouterTest(tests.Test):
 
             @route('GET', [None, None, None], cmd='cmd', mime_type='text/event-stream')
             def ok(self):
-                yield {}
-                yield {'foo': 'bar'}
+                yield {'event': 'probe'}
+                yield {'event': 'probe', 'foo': 'bar'}
 
         events = []
         def localcast(event):
@@ -1324,8 +1324,8 @@ class RouterTest(tests.Test):
 
         coroutine.sleep(.1)
         self.assertEqual([
-            {'method': 'GET', 'resource': 'resource', 'guid': 'guid', 'prop': 'prop', 'cmd': 'cmd'},
-            {'method': 'GET', 'resource': 'resource', 'guid': 'guid', 'prop': 'prop', 'cmd': 'cmd', 'foo': 'bar'},
+            {'method': 'GET', 'resource': 'resource', 'guid': 'guid', 'prop': 'prop', 'cmd': 'cmd', 'event': 'probe'},
+            {'method': 'GET', 'resource': 'resource', 'guid': 'guid', 'prop': 'prop', 'cmd': 'cmd', 'foo': 'bar', 'event': 'probe'},
             ],
             events)
         del events[:]
@@ -1336,9 +1336,9 @@ class RouterTest(tests.Test):
 
             @route('GET', mime_type='text/event-stream')
             def error(self, request):
-                request.session['bar'] = 'foo'
-                yield {}
-                yield {'foo': 'bar'}, {'add': 'on'}
+                yield {'foo': 'bar'}
+                yield {'bar': 'foo'}
+                yield {'event': 'probe'}
                 raise RuntimeError('error')
 
         events = []
@@ -1356,9 +1356,8 @@ class RouterTest(tests.Test):
 
         coroutine.sleep(.1)
         self.assertEqual([
-            {'method': 'GET'},
-            {'method': 'GET', 'foo': 'bar', 'add': 'on'},
-            {'method': 'GET', 'bar': 'foo', 'event': 'failure', 'exception': 'RuntimeError', 'error': 'error'},
+            {'method': 'GET', 'foo': 'bar', 'bar': 'foo', 'event': 'probe'},
+            {'method': 'GET', 'foo': 'bar', 'bar': 'foo', 'event': 'failure', 'exception': 'RuntimeError', 'error': 'error'},
             ],
             events)
         del events[:]
@@ -1369,8 +1368,8 @@ class RouterTest(tests.Test):
 
             @route('GET', mime_type='text/event-stream')
             def get(self, request):
-                yield {}
-                yield {'request': request.content}
+                yield {'event': 'probe'}
+                yield {'event': 'probe', 'request': request.content}
 
         events = []
         def localcast(event):
@@ -1389,8 +1388,8 @@ class RouterTest(tests.Test):
 
         coroutine.sleep(.1)
         self.assertEqual([
-            {'method': 'GET'},
-            {'method': 'GET', 'request': 'probe'},
+            {'method': 'GET', 'event': 'probe'},
+            {'method': 'GET', 'request': 'probe', 'event': 'probe'},
             ],
             events)
         del events[:]

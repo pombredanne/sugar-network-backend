@@ -81,7 +81,6 @@ class ContextTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        return
 
         activity_info1 = '\n'.join([
             '[Activity]',
