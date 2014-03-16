@@ -21,13 +21,14 @@ import gettext
 import logging
 from os.path import exists
 
-from gevent import monkey
+from sugar_network.toolkit import coroutine
+coroutine.inject()
 
 from sugar_network import db, node, toolkit, model
 from sugar_network.node import obs, master, slave
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
-from sugar_network.toolkit import coroutine, application, Option, enforce
+from sugar_network.toolkit import application, Option, enforce
 
 
 gettext.textdomain('sugar-network')
@@ -100,12 +101,6 @@ class Application(application.Daemon):
         return Connection('http://localhost:%s' %
                 node.port.value, trust_env=False)
 
-
-# Let toolkit.http work in concurrence
-monkey.patch_socket()
-monkey.patch_select()
-monkey.patch_ssl()
-monkey.patch_time()
 
 locale.setlocale(locale.LC_ALL, '')
 

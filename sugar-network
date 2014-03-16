@@ -25,14 +25,15 @@ import gettext
 from json import dumps, loads
 from os.path import join, exists, isfile
 
-from gevent import monkey
+from sugar_network.toolkit import coroutine
+coroutine.inject()
 
 from sugar_network import db, client, toolkit
 from sugar_network.model import RESOURCES
 from sugar_network.client import IPCConnection, Connection
 from sugar_network.client.routes import ClientRoutes
 from sugar_network.toolkit.router import Router, Request, Response
-from sugar_network.toolkit import application, coroutine
+from sugar_network.toolkit import application
 from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
 
 
@@ -315,12 +316,6 @@ class Application(application.Application):
         if not quiet.value:
             sys.stdout.write(''.join(data))
 
-
-# Let toolkit.http work in concurrence
-monkey.patch_socket()
-monkey.patch_select()
-monkey.patch_ssl()
-monkey.patch_time()
 
 # New defaults
 application.debug.value = client.logger_level()

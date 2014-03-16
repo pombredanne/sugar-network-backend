@@ -23,7 +23,8 @@ import gettext
 import logging
 from os.path import join, abspath, exists
 
-from gevent import monkey
+from sugar_network.toolkit import coroutine
+coroutine.inject()
 
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
@@ -32,7 +33,7 @@ from sugar_network.node import stats_user
 from sugar_network.model import RESOURCES
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit import mountpoints, printf, application
-from sugar_network.toolkit import Option, coroutine
+from sugar_network.toolkit import Option
 
 
 gettext.textdomain('sugar-network')
@@ -182,12 +183,6 @@ def _read_environ(pid):
     with file('/proc/%s/environ' % pid, 'rb') as f:
         return dict([i.split('=', 1) for i in f.read().split('\0') if i])
 
-
-# Let toolkit.http work in concurrence
-monkey.patch_socket()
-monkey.patch_select()
-monkey.patch_ssl()
-monkey.patch_time()
 
 locale.setlocale(locale.LC_ALL, '')
 

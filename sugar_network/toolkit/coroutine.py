@@ -21,11 +21,9 @@ import os
 import logging
 
 import gevent
-import gevent.pool
-import gevent.hub
+from gevent import hub
+from gevent.pool import Pool as _Pool
 from gevent.queue import Empty
-
-from sugar_network.toolkit import enforce
 
 
 #: Process one events loop round.
@@ -40,11 +38,22 @@ joinall = gevent.joinall
 #: Access to greenlet-local storage
 this = None
 
-gevent.hub.Hub.resolver_class = 'gevent.resolver_ares.Resolver'
+hub.Hub.resolver_class = 'gevent.resolver_ares.Resolver'
 
 _all_jobs = None
 _logger = logging.getLogger('coroutine')
 _wsgi_logger = logging.getLogger('wsgi')
+
+
+def inject():
+    from gevent import monkey
+
+    monkey.patch_os()
+    monkey.patch_time()
+    monkey.patch_socket(dns=True, aggressive=True)
+    monkey.patch_select(aggressive=True)
+    monkey.patch_ssl()
+    monkey.patch_subprocess()
 
 
 def spawn(*args, **kwargs):
@@ -216,7 +225,7 @@ class AsyncQueue(object):
         return self._queue.get_nowait()
 
 
-class Pool(gevent.pool.Pool):
+class Pool(_Pool):
 
     def spawn(self, *args, **kwargs):
         job = self.greenlet_class(*args, **kwargs)
@@ -238,7 +247,7 @@ class Pool(gevent.pool.Pool):
     # pylint: disable-msg=W0221
     def kill(self, *args, **kwargs):
         try:
-            gevent.pool.Pool.kill(self, *args, **kwargs)
+            _Pool.kill(self, *args, **kwargs)
         except Empty:
             # Avoid useless exception on empty poll
             pass
@@ -322,7 +331,8 @@ class _Child(object):
         self._watcher = None
 
     def watch(self, cb, *args, **kwargs):
-        enforce(self._watcher is None, 'Watching already started')
+        if self._watcher is not None:
+            raise RuntimeError('Watching already started')
         loop = gevent.get_hub().loop
         loop.install_sigchld()
         self._watcher = loop.child(self.pid)
@@ -344,7 +354,7 @@ class _Child(object):
 
 
 def _print_exception(context, klass, value, tb):
-    self = gevent.hub.get_hub()
+    self = hub.get_hub()
     if issubclass(klass, self.NOT_ERROR + self.SYSTEM_ERROR):
         return
 
@@ -380,6 +390,6 @@ def _print_exception(context, klass, value, tb):
 
 
 _all_jobs = Pool()
-gevent.hub.get_hub().print_exception = _print_exception
+hub.get_hub().print_exception = _print_exception
 gevent.getcurrent().local = gevent.get_hub().local = _Local()
 this = _LocalAccess()
